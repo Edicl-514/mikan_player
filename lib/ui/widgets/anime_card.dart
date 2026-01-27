@@ -4,12 +4,14 @@ class AnimeCard extends StatefulWidget {
   final String title;
   final String? subtitle;
   final String tag;
+  final String? coverUrl;
 
   const AnimeCard({
     super.key,
     required this.title,
     this.subtitle,
     this.tag = 'Update',
+    this.coverUrl,
   });
 
   @override
@@ -52,7 +54,17 @@ class _AnimeCardState extends State<AnimeCard>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.asset('assets/images/cover.png', fit: BoxFit.cover),
+                widget.coverUrl != null
+                    ? Image.network(
+                        widget.coverUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            Image.asset(
+                              'assets/images/cover.png',
+                              fit: BoxFit.cover,
+                            ),
+                      )
+                    : Image.asset('assets/images/cover.png', fit: BoxFit.cover),
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(

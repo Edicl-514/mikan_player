@@ -15,3 +15,8 @@ Future<String> greet({required String name}) =>
 
 Future<String> startTorrent({required String magnet}) =>
     RustLib.instance.api.crateApiSimpleStartTorrent(magnet: magnet);
+
+/// Get torrent download stats for debugging
+/// Returns stats for currently active torrents
+Future<String> getAllTorrentsInfo() =>
+    RustLib.instance.api.crateApiSimpleGetAllTorrentsInfo();
