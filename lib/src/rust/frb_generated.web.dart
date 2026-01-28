@@ -6,6 +6,7 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
+import 'api/bangumi.dart';
 import 'api/crawler.dart';
 import 'api/simple.dart';
 import 'dart:async';
@@ -34,6 +35,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArchiveQuarter dco_decode_archive_quarter(dynamic raw);
 
   @protected
+  BangumiActor dco_decode_bangumi_actor(dynamic raw);
+
+  @protected
+  BangumiCharacter dco_decode_bangumi_character(dynamic raw);
+
+  @protected
+  BangumiComment dco_decode_bangumi_comment(dynamic raw);
+
+  @protected
+  BangumiEpisode dco_decode_bangumi_episode(dynamic raw);
+
+  @protected
+  BangumiImages dco_decode_bangumi_images(dynamic raw);
+
+  @protected
+  BangumiRelatedSubject dco_decode_bangumi_related_subject(dynamic raw);
+
+  @protected
+  BangumiImages dco_decode_box_autoadd_bangumi_images(dynamic raw);
+
+  @protected
   double dco_decode_box_autoadd_f_64(dynamic raw);
 
   @protected
@@ -46,6 +68,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_i_32(dynamic raw);
 
   @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
@@ -55,10 +80,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ArchiveQuarter> dco_decode_list_archive_quarter(dynamic raw);
 
   @protected
+  List<BangumiActor> dco_decode_list_bangumi_actor(dynamic raw);
+
+  @protected
+  List<BangumiCharacter> dco_decode_list_bangumi_character(dynamic raw);
+
+  @protected
+  List<BangumiComment> dco_decode_list_bangumi_comment(dynamic raw);
+
+  @protected
+  List<BangumiEpisode> dco_decode_list_bangumi_episode(dynamic raw);
+
+  @protected
+  List<BangumiRelatedSubject> dco_decode_list_bangumi_related_subject(
+    dynamic raw,
+  );
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
+
+  @protected
+  BangumiImages? dco_decode_opt_box_autoadd_bangumi_images(dynamic raw);
 
   @protected
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
@@ -85,6 +130,31 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArchiveQuarter sse_decode_archive_quarter(SseDeserializer deserializer);
 
   @protected
+  BangumiActor sse_decode_bangumi_actor(SseDeserializer deserializer);
+
+  @protected
+  BangumiCharacter sse_decode_bangumi_character(SseDeserializer deserializer);
+
+  @protected
+  BangumiComment sse_decode_bangumi_comment(SseDeserializer deserializer);
+
+  @protected
+  BangumiEpisode sse_decode_bangumi_episode(SseDeserializer deserializer);
+
+  @protected
+  BangumiImages sse_decode_bangumi_images(SseDeserializer deserializer);
+
+  @protected
+  BangumiRelatedSubject sse_decode_bangumi_related_subject(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  BangumiImages sse_decode_box_autoadd_bangumi_images(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
@@ -95,6 +165,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
@@ -108,10 +181,40 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<BangumiActor> sse_decode_list_bangumi_actor(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<BangumiCharacter> sse_decode_list_bangumi_character(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<BangumiComment> sse_decode_list_bangumi_comment(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<BangumiEpisode> sse_decode_list_bangumi_episode(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<BangumiRelatedSubject> sse_decode_list_bangumi_related_subject(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
+
+  @protected
+  BangumiImages? sse_decode_opt_box_autoadd_bangumi_images(
+    SseDeserializer deserializer,
+  );
 
   @protected
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
@@ -147,6 +250,42 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_bangumi_actor(BangumiActor self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_bangumi_character(
+    BangumiCharacter self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_bangumi_comment(
+    BangumiComment self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_bangumi_episode(
+    BangumiEpisode self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_bangumi_images(BangumiImages self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_bangumi_related_subject(
+    BangumiRelatedSubject self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_bangumi_images(
+    BangumiImages self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
 
   @protected
@@ -157,6 +296,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
@@ -174,6 +316,36 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_bangumi_actor(
+    List<BangumiActor> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_bangumi_character(
+    List<BangumiCharacter> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_bangumi_comment(
+    List<BangumiComment> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_bangumi_episode(
+    List<BangumiEpisode> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_bangumi_related_subject(
+    List<BangumiRelatedSubject> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
     SseSerializer serializer,
@@ -181,6 +353,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_bangumi_images(
+    BangumiImages? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);

@@ -3,6 +3,7 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/bangumi.dart';
 import 'api/crawler.dart';
 import 'api/simple.dart';
 import 'dart:async';
@@ -67,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -685677890;
+  int get rustContentHash => -1691648005;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -79,6 +80,23 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
 abstract class RustLibApi extends BaseApi {
   Future<List<ArchiveQuarter>> crateApiCrawlerFetchArchiveList();
+
+  Future<List<BangumiCharacter>> crateApiBangumiFetchBangumiCharacters({
+    required PlatformInt64 subjectId,
+  });
+
+  Future<List<BangumiComment>> crateApiBangumiFetchBangumiComments({
+    required PlatformInt64 subjectId,
+    required int page,
+  });
+
+  Future<List<BangumiEpisode>> crateApiBangumiFetchBangumiEpisodes({
+    required PlatformInt64 subjectId,
+  });
+
+  Future<List<BangumiRelatedSubject>> crateApiBangumiFetchBangumiRelations({
+    required PlatformInt64 subjectId,
+  });
 
   Future<List<AnimeInfo>> crateApiCrawlerFetchExtraSubjects({
     required String yearQuarter,
@@ -138,6 +156,140 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "fetch_archive_list", argNames: []);
 
   @override
+  Future<List<BangumiCharacter>> crateApiBangumiFetchBangumiCharacters({
+    required PlatformInt64 subjectId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(subjectId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_bangumi_character,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiBangumiFetchBangumiCharactersConstMeta,
+        argValues: [subjectId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBangumiFetchBangumiCharactersConstMeta =>
+      const TaskConstMeta(
+        debugName: "fetch_bangumi_characters",
+        argNames: ["subjectId"],
+      );
+
+  @override
+  Future<List<BangumiComment>> crateApiBangumiFetchBangumiComments({
+    required PlatformInt64 subjectId,
+    required int page,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(subjectId, serializer);
+          sse_encode_i_32(page, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_bangumi_comment,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiBangumiFetchBangumiCommentsConstMeta,
+        argValues: [subjectId, page],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBangumiFetchBangumiCommentsConstMeta =>
+      const TaskConstMeta(
+        debugName: "fetch_bangumi_comments",
+        argNames: ["subjectId", "page"],
+      );
+
+  @override
+  Future<List<BangumiEpisode>> crateApiBangumiFetchBangumiEpisodes({
+    required PlatformInt64 subjectId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(subjectId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_bangumi_episode,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiBangumiFetchBangumiEpisodesConstMeta,
+        argValues: [subjectId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBangumiFetchBangumiEpisodesConstMeta =>
+      const TaskConstMeta(
+        debugName: "fetch_bangumi_episodes",
+        argNames: ["subjectId"],
+      );
+
+  @override
+  Future<List<BangumiRelatedSubject>> crateApiBangumiFetchBangumiRelations({
+    required PlatformInt64 subjectId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(subjectId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_bangumi_related_subject,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiBangumiFetchBangumiRelationsConstMeta,
+        argValues: [subjectId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBangumiFetchBangumiRelationsConstMeta =>
+      const TaskConstMeta(
+        debugName: "fetch_bangumi_relations",
+        argNames: ["subjectId"],
+      );
+
+  @override
   Future<List<AnimeInfo>> crateApiCrawlerFetchExtraSubjects({
     required String yearQuarter,
     required List<String> existingIds,
@@ -151,7 +303,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 6,
             port: port_,
           );
         },
@@ -184,7 +336,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 7,
             port: port_,
           );
         },
@@ -217,7 +369,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 8,
             port: port_,
           );
         },
@@ -247,7 +399,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 9,
             port: port_,
           );
         },
@@ -275,7 +427,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 10,
             port: port_,
           );
         },
@@ -302,7 +454,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 11,
             port: port_,
           );
         },
@@ -330,7 +482,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 12,
             port: port_,
           );
         },
@@ -396,6 +548,101 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BangumiActor dco_decode_bangumi_actor(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return BangumiActor(
+      id: dco_decode_i_64(arr[0]),
+      name: dco_decode_String(arr[1]),
+    );
+  }
+
+  @protected
+  BangumiCharacter dco_decode_bangumi_character(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return BangumiCharacter(
+      id: dco_decode_i_64(arr[0]),
+      name: dco_decode_String(arr[1]),
+      roleName: dco_decode_String(arr[2]),
+      images: dco_decode_opt_box_autoadd_bangumi_images(arr[3]),
+      actors: dco_decode_list_bangumi_actor(arr[4]),
+    );
+  }
+
+  @protected
+  BangumiComment dco_decode_bangumi_comment(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return BangumiComment(
+      userName: dco_decode_String(arr[0]),
+      rate: dco_decode_opt_box_autoadd_i_32(arr[1]),
+      content: dco_decode_String(arr[2]),
+      time: dco_decode_String(arr[3]),
+      avatar: dco_decode_String(arr[4]),
+    );
+  }
+
+  @protected
+  BangumiEpisode dco_decode_bangumi_episode(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return BangumiEpisode(
+      id: dco_decode_i_64(arr[0]),
+      name: dco_decode_String(arr[1]),
+      nameCn: dco_decode_String(arr[2]),
+      description: dco_decode_String(arr[3]),
+      airdate: dco_decode_String(arr[4]),
+      duration: dco_decode_String(arr[5]),
+      sort: dco_decode_f_64(arr[6]),
+    );
+  }
+
+  @protected
+  BangumiImages dco_decode_bangumi_images(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return BangumiImages(
+      small: dco_decode_String(arr[0]),
+      grid: dco_decode_String(arr[1]),
+      large: dco_decode_String(arr[2]),
+      medium: dco_decode_String(arr[3]),
+      common: dco_decode_String(arr[4]),
+    );
+  }
+
+  @protected
+  BangumiRelatedSubject dco_decode_bangumi_related_subject(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return BangumiRelatedSubject(
+      id: dco_decode_i_64(arr[0]),
+      name: dco_decode_String(arr[1]),
+      nameCn: dco_decode_String(arr[2]),
+      relation: dco_decode_String(arr[3]),
+      image: dco_decode_String(arr[4]),
+    );
+  }
+
+  @protected
+  BangumiImages dco_decode_box_autoadd_bangumi_images(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_bangumi_images(raw);
+  }
+
+  @protected
   double dco_decode_box_autoadd_f_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
@@ -420,6 +667,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeI64(raw);
+  }
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
@@ -438,6 +691,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<BangumiActor> dco_decode_list_bangumi_actor(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_bangumi_actor).toList();
+  }
+
+  @protected
+  List<BangumiCharacter> dco_decode_list_bangumi_character(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_bangumi_character).toList();
+  }
+
+  @protected
+  List<BangumiComment> dco_decode_list_bangumi_comment(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_bangumi_comment).toList();
+  }
+
+  @protected
+  List<BangumiEpisode> dco_decode_list_bangumi_episode(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_bangumi_episode).toList();
+  }
+
+  @protected
+  List<BangumiRelatedSubject> dco_decode_list_bangumi_related_subject(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_bangumi_related_subject)
+        .toList();
+  }
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
@@ -447,6 +734,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
+  BangumiImages? dco_decode_opt_box_autoadd_bangumi_images(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_bangumi_images(raw);
   }
 
   @protected
@@ -532,6 +825,113 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BangumiActor sse_decode_bangumi_actor(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    return BangumiActor(id: var_id, name: var_name);
+  }
+
+  @protected
+  BangumiCharacter sse_decode_bangumi_character(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_roleName = sse_decode_String(deserializer);
+    var var_images = sse_decode_opt_box_autoadd_bangumi_images(deserializer);
+    var var_actors = sse_decode_list_bangumi_actor(deserializer);
+    return BangumiCharacter(
+      id: var_id,
+      name: var_name,
+      roleName: var_roleName,
+      images: var_images,
+      actors: var_actors,
+    );
+  }
+
+  @protected
+  BangumiComment sse_decode_bangumi_comment(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_userName = sse_decode_String(deserializer);
+    var var_rate = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_content = sse_decode_String(deserializer);
+    var var_time = sse_decode_String(deserializer);
+    var var_avatar = sse_decode_String(deserializer);
+    return BangumiComment(
+      userName: var_userName,
+      rate: var_rate,
+      content: var_content,
+      time: var_time,
+      avatar: var_avatar,
+    );
+  }
+
+  @protected
+  BangumiEpisode sse_decode_bangumi_episode(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_nameCn = sse_decode_String(deserializer);
+    var var_description = sse_decode_String(deserializer);
+    var var_airdate = sse_decode_String(deserializer);
+    var var_duration = sse_decode_String(deserializer);
+    var var_sort = sse_decode_f_64(deserializer);
+    return BangumiEpisode(
+      id: var_id,
+      name: var_name,
+      nameCn: var_nameCn,
+      description: var_description,
+      airdate: var_airdate,
+      duration: var_duration,
+      sort: var_sort,
+    );
+  }
+
+  @protected
+  BangumiImages sse_decode_bangumi_images(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_small = sse_decode_String(deserializer);
+    var var_grid = sse_decode_String(deserializer);
+    var var_large = sse_decode_String(deserializer);
+    var var_medium = sse_decode_String(deserializer);
+    var var_common = sse_decode_String(deserializer);
+    return BangumiImages(
+      small: var_small,
+      grid: var_grid,
+      large: var_large,
+      medium: var_medium,
+      common: var_common,
+    );
+  }
+
+  @protected
+  BangumiRelatedSubject sse_decode_bangumi_related_subject(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_nameCn = sse_decode_String(deserializer);
+    var var_relation = sse_decode_String(deserializer);
+    var var_image = sse_decode_String(deserializer);
+    return BangumiRelatedSubject(
+      id: var_id,
+      name: var_name,
+      nameCn: var_nameCn,
+      relation: var_relation,
+      image: var_image,
+    );
+  }
+
+  @protected
+  BangumiImages sse_decode_box_autoadd_bangumi_images(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_bangumi_images(deserializer));
+  }
+
+  @protected
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_f_64(deserializer));
@@ -553,6 +953,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int sse_decode_i_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getInt32();
+  }
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getPlatformInt64();
   }
 
   @protected
@@ -594,6 +1000,76 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<BangumiActor> sse_decode_list_bangumi_actor(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <BangumiActor>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_bangumi_actor(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<BangumiCharacter> sse_decode_list_bangumi_character(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <BangumiCharacter>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_bangumi_character(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<BangumiComment> sse_decode_list_bangumi_comment(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <BangumiComment>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_bangumi_comment(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<BangumiEpisode> sse_decode_list_bangumi_episode(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <BangumiEpisode>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_bangumi_episode(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<BangumiRelatedSubject> sse_decode_list_bangumi_related_subject(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <BangumiRelatedSubject>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_bangumi_related_subject(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -606,6 +1082,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  BangumiImages? sse_decode_opt_box_autoadd_bangumi_images(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_bangumi_images(deserializer));
     } else {
       return null;
     }
@@ -694,6 +1183,86 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_bangumi_actor(BangumiActor self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+  }
+
+  @protected
+  void sse_encode_bangumi_character(
+    BangumiCharacter self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.roleName, serializer);
+    sse_encode_opt_box_autoadd_bangumi_images(self.images, serializer);
+    sse_encode_list_bangumi_actor(self.actors, serializer);
+  }
+
+  @protected
+  void sse_encode_bangumi_comment(
+    BangumiComment self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.userName, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.rate, serializer);
+    sse_encode_String(self.content, serializer);
+    sse_encode_String(self.time, serializer);
+    sse_encode_String(self.avatar, serializer);
+  }
+
+  @protected
+  void sse_encode_bangumi_episode(
+    BangumiEpisode self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.nameCn, serializer);
+    sse_encode_String(self.description, serializer);
+    sse_encode_String(self.airdate, serializer);
+    sse_encode_String(self.duration, serializer);
+    sse_encode_f_64(self.sort, serializer);
+  }
+
+  @protected
+  void sse_encode_bangumi_images(BangumiImages self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.small, serializer);
+    sse_encode_String(self.grid, serializer);
+    sse_encode_String(self.large, serializer);
+    sse_encode_String(self.medium, serializer);
+    sse_encode_String(self.common, serializer);
+  }
+
+  @protected
+  void sse_encode_bangumi_related_subject(
+    BangumiRelatedSubject self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.nameCn, serializer);
+    sse_encode_String(self.relation, serializer);
+    sse_encode_String(self.image, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_bangumi_images(
+    BangumiImages self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bangumi_images(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_f_64(self, serializer);
@@ -715,6 +1284,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_i_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putInt32(self);
+  }
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putPlatformInt64(self);
   }
 
   @protected
@@ -751,6 +1326,66 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_bangumi_actor(
+    List<BangumiActor> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_bangumi_actor(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_bangumi_character(
+    List<BangumiCharacter> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_bangumi_character(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_bangumi_comment(
+    List<BangumiComment> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_bangumi_comment(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_bangumi_episode(
+    List<BangumiEpisode> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_bangumi_episode(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_bangumi_related_subject(
+    List<BangumiRelatedSubject> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_bangumi_related_subject(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
     SseSerializer serializer,
@@ -767,6 +1402,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_String(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_bangumi_images(
+    BangumiImages? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_bangumi_images(self, serializer);
     }
   }
 
