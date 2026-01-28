@@ -5,6 +5,7 @@
 
 import 'api/bangumi.dart';
 import 'api/crawler.dart';
+import 'api/ranking.dart';
 import 'api/simple.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -68,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1691648005;
+  int get rustContentHash => -840314014;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -92,6 +93,11 @@ abstract class RustLibApi extends BaseApi {
 
   Future<List<BangumiEpisode>> crateApiBangumiFetchBangumiEpisodes({
     required PlatformInt64 subjectId,
+  });
+
+  Future<List<RankingAnime>> crateApiRankingFetchBangumiRanking({
+    required String sortType,
+    required int page,
   });
 
   Future<List<BangumiRelatedSubject>> crateApiBangumiFetchBangumiRelations({
@@ -257,6 +263,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<List<RankingAnime>> crateApiRankingFetchBangumiRanking({
+    required String sortType,
+    required int page,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(sortType, serializer);
+          sse_encode_i_32(page, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_ranking_anime,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiRankingFetchBangumiRankingConstMeta,
+        argValues: [sortType, page],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiRankingFetchBangumiRankingConstMeta =>
+      const TaskConstMeta(
+        debugName: "fetch_bangumi_ranking",
+        argNames: ["sortType", "page"],
+      );
+
+  @override
   Future<List<BangumiRelatedSubject>> crateApiBangumiFetchBangumiRelations({
     required PlatformInt64 subjectId,
   }) {
@@ -268,7 +309,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -303,7 +344,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 7,
             port: port_,
           );
         },
@@ -336,7 +377,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -369,7 +410,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -399,7 +440,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -427,7 +468,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -454,7 +495,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -482,7 +523,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -731,6 +772,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<RankingAnime> dco_decode_list_ranking_anime(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_ranking_anime).toList();
+  }
+
+  @protected
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
@@ -752,6 +799,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int? dco_decode_opt_box_autoadd_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_i_32(raw);
+  }
+
+  @protected
+  RankingAnime dco_decode_ranking_anime(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return RankingAnime(
+      title: dco_decode_String(arr[0]),
+      bangumiId: dco_decode_String(arr[1]),
+      coverUrl: dco_decode_String(arr[2]),
+      score: dco_decode_opt_box_autoadd_f_64(arr[3]),
+      rank: dco_decode_opt_box_autoadd_i_32(arr[4]),
+      info: dco_decode_String(arr[5]),
+      originalTitle: dco_decode_opt_String(arr[6]),
+    );
   }
 
   @protected
@@ -1077,6 +1141,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<RankingAnime> sse_decode_list_ranking_anime(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <RankingAnime>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_ranking_anime(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1120,6 +1198,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     } else {
       return null;
     }
+  }
+
+  @protected
+  RankingAnime sse_decode_ranking_anime(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_title = sse_decode_String(deserializer);
+    var var_bangumiId = sse_decode_String(deserializer);
+    var var_coverUrl = sse_decode_String(deserializer);
+    var var_score = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_rank = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_info = sse_decode_String(deserializer);
+    var var_originalTitle = sse_decode_opt_String(deserializer);
+    return RankingAnime(
+      title: var_title,
+      bangumiId: var_bangumiId,
+      coverUrl: var_coverUrl,
+      score: var_score,
+      rank: var_rank,
+      info: var_info,
+      originalTitle: var_originalTitle,
+    );
   }
 
   @protected
@@ -1396,6 +1495,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_ranking_anime(
+    List<RankingAnime> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_ranking_anime(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1436,6 +1547,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (self != null) {
       sse_encode_box_autoadd_i_32(self, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_ranking_anime(RankingAnime self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.title, serializer);
+    sse_encode_String(self.bangumiId, serializer);
+    sse_encode_String(self.coverUrl, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.score, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.rank, serializer);
+    sse_encode_String(self.info, serializer);
+    sse_encode_opt_String(self.originalTitle, serializer);
   }
 
   @protected

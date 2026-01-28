@@ -7,8 +7,13 @@ import 'package:mikan_player/src/rust/api/bangumi.dart';
 
 class BangumiDetailsPage extends StatefulWidget {
   final AnimeInfo anime;
+  final String heroTagPrefix;
 
-  const BangumiDetailsPage({super.key, required this.anime});
+  const BangumiDetailsPage({
+    super.key,
+    required this.anime,
+    this.heroTagPrefix = 'cover',
+  });
 
   @override
   State<BangumiDetailsPage> createState() => _BangumiDetailsPageState();
@@ -370,7 +375,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   children: [
                     // Cover Image
                     Hero(
-                      tag: 'cover_${widget.anime.bangumiId}',
+                      tag:
+                          '${widget.heroTagPrefix}_${widget.anime.bangumiId ?? widget.anime.mikanId ?? widget.anime.title.hashCode}',
                       child: Container(
                         width: 110,
                         height: 160,
@@ -897,7 +903,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       );
     }
     return Hero(
-      tag: 'cover_pc_${widget.anime.bangumiId}',
+      tag:
+          '${widget.heroTagPrefix}_${widget.anime.bangumiId ?? widget.anime.mikanId ?? widget.anime.title.hashCode}',
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),

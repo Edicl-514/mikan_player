@@ -277,7 +277,10 @@ class _TimeTablePageState extends State<TimeTablePage>
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => BangumiDetailsPage(anime: anime),
+              builder: (context) => BangumiDetailsPage(
+                anime: anime,
+                heroTagPrefix: 'timetable_cover',
+              ),
             ),
           );
         },
@@ -287,7 +290,8 @@ class _TimeTablePageState extends State<TimeTablePage>
             Stack(
               children: [
                 Hero(
-                  tag: 'cover_${anime.bangumiId}',
+                  tag:
+                      'timetable_cover_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: anime.coverUrl != null

@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1691648005;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -840314014;
 
 // Section: executor
 
@@ -185,6 +185,45 @@ fn wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::bangumi::fetch_bangumi_episodes(api_subject_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__ranking__fetch_bangumi_ranking_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "fetch_bangumi_ranking",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_sort_type = <String>::sse_decode(&mut deserializer);
+            let api_page = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::ranking::fetch_bangumi_ranking(api_sort_type, api_page)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -797,6 +836,20 @@ impl SseDecode for Vec<u8> {
     }
 }
 
+impl SseDecode for Vec<crate::api::ranking::RankingAnime> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::ranking::RankingAnime>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Option<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -840,6 +893,28 @@ impl SseDecode for Option<i32> {
         } else {
             return None;
         }
+    }
+}
+
+impl SseDecode for crate::api::ranking::RankingAnime {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_title = <String>::sse_decode(deserializer);
+        let mut var_bangumiId = <String>::sse_decode(deserializer);
+        let mut var_coverUrl = <String>::sse_decode(deserializer);
+        let mut var_score = <Option<f64>>::sse_decode(deserializer);
+        let mut var_rank = <Option<i32>>::sse_decode(deserializer);
+        let mut var_info = <String>::sse_decode(deserializer);
+        let mut var_originalTitle = <Option<String>>::sse_decode(deserializer);
+        return crate::api::ranking::RankingAnime {
+            title: var_title,
+            bangumi_id: var_bangumiId,
+            cover_url: var_coverUrl,
+            score: var_score,
+            rank: var_rank,
+            info: var_info,
+            original_title: var_originalTitle,
+        };
     }
 }
 
@@ -890,25 +965,28 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        5 => wire__crate__api__bangumi__fetch_bangumi_relations_impl(
+        5 => {
+            wire__crate__api__ranking__fetch_bangumi_ranking_impl(port, ptr, rust_vec_len, data_len)
+        }
+        6 => wire__crate__api__bangumi__fetch_bangumi_relations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        6 => {
+        7 => {
             wire__crate__api__crawler__fetch_extra_subjects_impl(port, ptr, rust_vec_len, data_len)
         }
-        7 => {
+        8 => {
             wire__crate__api__crawler__fetch_schedule_basic_impl(port, ptr, rust_vec_len, data_len)
         }
-        8 => wire__crate__api__crawler__fill_anime_details_impl(port, ptr, rust_vec_len, data_len),
-        9 => {
+        9 => wire__crate__api__crawler__fill_anime_details_impl(port, ptr, rust_vec_len, data_len),
+        10 => {
             wire__crate__api__simple__get_all_torrents_info_impl(port, ptr, rust_vec_len, data_len)
         }
-        10 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1120,6 +1198,32 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiRelatedSubjec
     for crate::api::bangumi::BangumiRelatedSubject
 {
     fn into_into_dart(self) -> crate::api::bangumi::BangumiRelatedSubject {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::ranking::RankingAnime {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.title.into_into_dart().into_dart(),
+            self.bangumi_id.into_into_dart().into_dart(),
+            self.cover_url.into_into_dart().into_dart(),
+            self.score.into_into_dart().into_dart(),
+            self.rank.into_into_dart().into_dart(),
+            self.info.into_into_dart().into_dart(),
+            self.original_title.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::ranking::RankingAnime
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::ranking::RankingAnime>
+    for crate::api::ranking::RankingAnime
+{
+    fn into_into_dart(self) -> crate::api::ranking::RankingAnime {
         self
     }
 }
@@ -1341,6 +1445,16 @@ impl SseEncode for Vec<u8> {
     }
 }
 
+impl SseEncode for Vec<crate::api::ranking::RankingAnime> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::ranking::RankingAnime>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1378,6 +1492,19 @@ impl SseEncode for Option<i32> {
         if let Some(value) = self {
             <i32>::sse_encode(value, serializer);
         }
+    }
+}
+
+impl SseEncode for crate::api::ranking::RankingAnime {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.title, serializer);
+        <String>::sse_encode(self.bangumi_id, serializer);
+        <String>::sse_encode(self.cover_url, serializer);
+        <Option<f64>>::sse_encode(self.score, serializer);
+        <Option<i32>>::sse_encode(self.rank, serializer);
+        <String>::sse_encode(self.info, serializer);
+        <Option<String>>::sse_encode(self.original_title, serializer);
     }
 }
 
