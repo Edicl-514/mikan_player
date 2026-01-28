@@ -101,6 +101,29 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     final subjectIdStr = widget.anime.bangumiId;
     if (subjectIdStr != null) {
       final subjectId = int.parse(subjectIdStr);
+
+      // If we don't have detailed data (e.g. navigated from relations), fetch it
+      if (_data == null) {
+        fillAnimeDetails(animes: [widget.anime])
+            .then((details) {
+              if (mounted && details.isNotEmpty) {
+                final detail = details.first;
+                if (detail.fullJson != null) {
+                  setState(() {
+                    try {
+                      _data = jsonDecode(detail.fullJson!);
+                    } catch (e) {
+                      debugPrint("Error parsing fetched fullJson: $e");
+                    }
+                  });
+                }
+              }
+            })
+            .catchError((e) {
+              debugPrint("Error fetching anime details: $e");
+            });
+      }
+
       setState(() {
         _isLoadingEpisodes = true;
         _isLoadingCharacters = true;
@@ -1520,61 +1543,80 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               separatorBuilder: (c, i) => const SizedBox(width: 16),
               itemBuilder: (context, index) {
                 final rel = _relations![index];
-                return SizedBox(
-                  width: 110,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 110,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          color: cardColor,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: borderColor),
-                          image: rel.image.isNotEmpty
-                              ? DecorationImage(
-                                  image: NetworkImage(rel.image),
-                                  fit: BoxFit.cover,
-                                  alignment: Alignment.center,
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => BangumiDetailsPage(
+                          anime: AnimeInfo(
+                            title: rel.nameCn.isNotEmpty
+                                ? rel.nameCn
+                                : rel.name,
+                            bangumiId: rel.id.toString(),
+                            coverUrl: rel.image,
+                            tags: const [],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  child: SizedBox(
+                    width: 110,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 110,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: cardColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor),
+                            image: rel.image.isNotEmpty
+                                ? DecorationImage(
+                                    image: NetworkImage(rel.image),
+                                    fit: BoxFit.cover,
+                                    alignment: Alignment.center,
+                                  )
+                                : null,
+                          ),
+                          child: rel.image.isEmpty
+                              ? Center(
+                                  child: Icon(
+                                    Icons.movie_outlined,
+                                    color: isDarkBg
+                                        ? Colors.white24
+                                        : Colors.grey[400],
+                                    size: 32,
+                                  ),
                                 )
                               : null,
                         ),
-                        child: rel.image.isEmpty
-                            ? Center(
-                                child: Icon(
-                                  Icons.movie_outlined,
-                                  color: isDarkBg
-                                      ? Colors.white24
-                                      : Colors.grey[400],
-                                  size: 32,
-                                ),
-                              )
-                            : null,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        rel.relation,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isDarkBg ? Colors.amber : Colors.deepPurple,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
+                        const SizedBox(height: 10),
+                        Text(
+                          rel.relation,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDarkBg ? Colors.amber : Colors.deepPurple,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        rel.nameCn.isNotEmpty ? rel.nameCn : rel.name,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: textColor.withValues(alpha: 0.9),
-                          fontWeight: FontWeight.w500,
-                          height: 1.3,
+                        const SizedBox(height: 2),
+                        Text(
+                          rel.nameCn.isNotEmpty ? rel.nameCn : rel.name,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: textColor.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.w500,
+                            height: 1.3,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },
