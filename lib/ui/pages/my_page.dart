@@ -62,7 +62,7 @@ class MyPage extends StatelessWidget {
       elevation: 0,
       color: Theme.of(
         context,
-      ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(

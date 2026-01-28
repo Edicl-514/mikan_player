@@ -37,13 +37,15 @@ class _AnimeCardState extends State<AnimeCard>
             boxShadow: [
               if (_isHovered)
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.4),
                   blurRadius: 15,
                   offset: const Offset(0, 4),
                 )
               else
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 5,
                   offset: const Offset(0, 2),
                 ),
@@ -73,7 +75,7 @@ class _AnimeCardState extends State<AnimeCard>
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withOpacity(0.8),
+                          Colors.black.withValues(alpha: 0.8),
                         ],
                         stops: const [0.6, 1.0],
                       ),
@@ -127,7 +129,7 @@ class _AnimeCardState extends State<AnimeCard>
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 0.8),
                             fontSize: 12,
                           ),
                         ),

@@ -17,6 +17,7 @@ class _TimeTablePageState extends State<TimeTablePage>
   crawler.ArchiveQuarter? _selectedArchive;
   List<crawler.AnimeInfo> _animes = [];
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -55,16 +56,33 @@ class _TimeTablePageState extends State<TimeTablePage>
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading archives: $e')));
+        setState(() {
+          _isLoading = false;
+          _errorMessage = _parseError(e);
+        });
       }
     }
   }
 
+  String _parseError(dynamic e) {
+    final errorStr = e.toString().toLowerCase();
+    if (errorStr.contains('connect') ||
+        errorStr.contains('request') ||
+        errorStr.contains('handshake') ||
+        errorStr.contains('timeout')) {
+      return "网络连接失败，请检查网络设置或稍后再试";
+    }
+    if (errorStr.contains('not found') || errorStr.contains('404')) {
+      return "资源未找到 (404)";
+    }
+    return "加载失败: $e";
+  }
+
   Future<void> _loadAnimes(String yearQuarter) async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       // 1. Fetch Basic Schedule (Fast)
       final basicList = await crawler.fetchScheduleBasic(
@@ -91,10 +109,10 @@ class _TimeTablePageState extends State<TimeTablePage>
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading anime list: $e')));
+        setState(() {
+          _isLoading = false;
+          _errorMessage = _parseError(e);
+        });
       }
     }
   }
@@ -428,6 +446,8 @@ class _TimeTablePageState extends State<TimeTablePage>
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null && _archives.isEmpty
+          ? _buildErrorView()
           : TabBarView(
               controller: _dayTabController,
               children: _days.map((day) {
@@ -440,7 +460,7 @@ class _TimeTablePageState extends State<TimeTablePage>
                         Icon(
                           Icons.movie_filter,
                           size: 64,
-                          color: Colors.grey.withOpacity(0.5),
+                          color: Colors.grey.withValues(alpha: 0.5),
                         ),
                         const SizedBox(height: 16),
                         const Text('No anime found for this day.'),
@@ -518,6 +538,58 @@ class _TimeTablePageState extends State<TimeTablePage>
             child: Divider(color: Colors.deepPurple, thickness: 1.5),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 64,
+              color: Colors.red,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              "出错了",
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage ?? "未知错误",
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _isLoading = true;
+                  _errorMessage = null;
+                });
+                _loadArchives();
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text("重试"),
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

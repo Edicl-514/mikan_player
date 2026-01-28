@@ -310,7 +310,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
             imgUrl,
             fit: BoxFit.cover,
             height: 500, // extend a bit
-            errorBuilder: (_, __, ___) => Container(color: Colors.grey[900]),
+            errorBuilder: (_, _, _) => Container(color: Colors.grey[900]),
           )
         else
           Container(color: Colors.grey[900]),
@@ -324,8 +324,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.1),
-                  Colors.black.withOpacity(0.6),
+                  Colors.black.withValues(alpha: 0.1),
+                  Colors.black.withValues(alpha: 0.6),
                   bgColor,
                 ],
                 stops: const [0.0, 0.6, 1.0],
@@ -355,7 +355,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                           borderRadius: BorderRadius.circular(8),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.black.withValues(alpha: 0.3),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -396,7 +396,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
+                              color: Colors.white.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(color: Colors.white24),
                             ),
@@ -554,7 +554,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
             label: const Text("Share"),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: Colors.white.withOpacity(0.1),
+              backgroundColor: Colors.white.withValues(alpha: 0.1),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -568,7 +568,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   Widget _buildCollectionStatsRow() {
     final collection = _data?['collection'];
-    if (collection == null) return const SizedBox.shrink();
+    if (collection == null) {
+      return const SizedBox.shrink();
+    }
 
     final wish = collection['wish'] ?? 0;
     final doing = collection['doing'] ?? 0;
@@ -611,7 +613,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   Widget _buildMobileTags({bool isDarkBg = false}) {
     final tags = _data?['tags'];
-    if (tags == null || tags is! List) return const SizedBox.shrink();
+    if (tags == null || tags is! List) {
+      return const SizedBox.shrink();
+    }
 
     final borderColor = isDarkBg ? Colors.white24 : Colors.grey[300]!;
     final textColor = isDarkBg ? Colors.white70 : Colors.black87;
@@ -744,7 +748,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
     final textColor = isDarkBg ? Colors.white : Colors.black87;
     final cardColor = isDarkBg
-        ? Colors.white.withOpacity(0.05)
+        ? Colors.white.withValues(alpha: 0.05)
         : Colors.grey[100];
     final borderColor = isDarkBg ? Colors.white10 : Colors.grey[300]!;
 
@@ -816,7 +820,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                       item['title'] as String,
                       style: TextStyle(
                         fontSize: 13,
-                        color: textColor.withOpacity(0.9),
+                        color: textColor.withValues(alpha: 0.9),
                         fontWeight: FontWeight.w500,
                         height: 1.3,
                       ),
@@ -835,7 +839,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   Widget _buildBlurredBackground(BuildContext context) {
     final imgUrl = _getImageUrl();
-    if (imgUrl == null) return Container(color: Colors.black87);
+    if (imgUrl == null) {
+      return Container(color: Colors.black87);
+    }
 
     return Stack(
       fit: StackFit.expand,
@@ -843,11 +849,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         Image.network(
           imgUrl,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(color: Colors.black87),
+          errorBuilder: (_, _, _) => Container(color: Colors.black87),
         ),
         BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(color: Colors.black.withOpacity(0.6)),
+          child: Container(color: Colors.black.withValues(alpha: 0.6)),
         ),
       ],
     );
@@ -874,7 +880,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           borderRadius: BorderRadius.circular(radius),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -934,8 +940,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   }
 
   Widget _buildRatingCard(BuildContext context) {
-    if (_data == null || _data!['rating'] == null)
+    if (_data == null || _data!['rating'] == null) {
       return const SizedBox.shrink();
+    }
     final rating = _data!['rating'];
     final score = rating['score'];
     final rank = rating['rank'];
@@ -944,9 +951,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
         children: [
@@ -1008,8 +1015,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   Widget _buildTagsSection(BuildContext context, {bool isDarkBg = false}) {
     final tags = _data?['tags'];
-    if (tags == null || tags is! List || tags.isEmpty)
+    if (tags == null || tags is! List || tags.isEmpty) {
       return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1040,14 +1048,15 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   }
 
   Widget _buildInfoBoxList(BuildContext context) {
-    if (_data == null || _data!['infobox'] == null)
+    if (_data == null || _data!['infobox'] == null) {
       return const SizedBox.shrink();
+    }
     final infobox = _data!['infobox'] as List;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -1110,7 +1119,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     bool isDarkBg = false,
   }) {
     final boxColor = isDarkBg
-        ? Colors.white.withOpacity(0.05)
+        ? Colors.white.withValues(alpha: 0.05)
         : Colors.grey[100];
     final iconColor = isDarkBg ? Colors.white24 : Colors.grey[400];
 
@@ -1222,7 +1231,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
     final textColor = isDarkBg ? Colors.white : Colors.black87;
     final cardColor = isDarkBg
-        ? Colors.white.withOpacity(0.05)
+        ? Colors.white.withValues(alpha: 0.05)
         : Colors.grey[100];
 
     return Column(
@@ -1273,7 +1282,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                           ep.name,
                           style: TextStyle(
                             fontSize: 10,
-                            color: textColor.withOpacity(0.7),
+                            color: textColor.withValues(alpha: 0.7),
                             height: 1.3,
                           ),
                           maxLines: 2,
@@ -1300,7 +1309,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                           ep.airdate,
                           style: TextStyle(
                             fontSize: 9,
-                            color: textColor.withOpacity(0.5),
+                            color: textColor.withValues(alpha: 0.5),
                           ),
                         ),
                     ],
@@ -1333,7 +1342,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
     final textColor = isDarkBg ? Colors.white : Colors.black87;
     final cardColor = isDarkBg
-        ? Colors.white.withOpacity(0.05)
+        ? Colors.white.withValues(alpha: 0.05)
         : Colors.grey[100];
 
     return Column(
@@ -1420,10 +1429,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                           decoration: BoxDecoration(
                             color: char.roleName.contains('主角')
                                 ? (isDarkBg
-                                      ? Colors.amber.withOpacity(0.2)
+                                      ? Colors.amber.withValues(alpha: 0.2)
                                       : Colors.amber[100])
                                 : (isDarkBg
-                                      ? Colors.blue.withOpacity(0.2)
+                                      ? Colors.blue.withValues(alpha: 0.2)
                                       : Colors.blue[100]),
                             borderRadius: BorderRadius.circular(4),
                           ),
@@ -1451,7 +1460,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                               'CV: ',
                               style: TextStyle(
                                 fontSize: 10,
-                                color: textColor.withOpacity(0.5),
+                                color: textColor.withValues(alpha: 0.5),
                               ),
                             ),
                             Expanded(
@@ -1459,7 +1468,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                 cvName,
                                 style: TextStyle(
                                   fontSize: 10,
-                                  color: textColor.withOpacity(0.7),
+                                  color: textColor.withValues(alpha: 0.7),
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -1489,7 +1498,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
     final textColor = isDarkBg ? Colors.white : Colors.black87;
     final cardColor = isDarkBg
-        ? Colors.white.withOpacity(0.05)
+        ? Colors.white.withValues(alpha: 0.05)
         : Colors.grey[100];
     final borderColor = isDarkBg ? Colors.white10 : Colors.grey[300]!;
 
@@ -1558,7 +1567,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                         rel.nameCn.isNotEmpty ? rel.nameCn : rel.name,
                         style: TextStyle(
                           fontSize: 13,
-                          color: textColor.withOpacity(0.9),
+                          color: textColor.withValues(alpha: 0.9),
                           fontWeight: FontWeight.w500,
                           height: 1.3,
                         ),
@@ -1592,7 +1601,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
     final textColor = isDarkBg ? Colors.white : Colors.black87;
     final cardColor = isDarkBg
-        ? Colors.white.withOpacity(0.05)
+        ? Colors.white.withValues(alpha: 0.05)
         : Colors.grey[100];
 
     return Column(
@@ -1669,7 +1678,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                         comment.time,
                         style: TextStyle(
                           fontSize: 10,
-                          color: textColor.withOpacity(0.5),
+                          color: textColor.withValues(alpha: 0.5),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -1677,7 +1686,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                         comment.content,
                         style: TextStyle(
                           fontSize: 13,
-                          color: textColor.withOpacity(0.8),
+                          color: textColor.withValues(alpha: 0.8),
                           height: 1.4,
                         ),
                       ),
@@ -1687,7 +1696,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               ],
             ),
           );
-        }).toList(),
+        }),
         if (_isLoadingMoreComments)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 16),
