@@ -1315,7 +1315,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'EP ${ep.sort.toInt()}',
+                            'EP ${ep.sort % 1 == 0 ? ep.sort.toInt() : ep.sort}',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,

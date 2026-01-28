@@ -104,7 +104,7 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
                     description: item["desc"].as_str().unwrap_or("").to_string(),
                     airdate: item["airdate"].as_str().unwrap_or("").to_string(),
                     duration: item["duration"].as_str().unwrap_or("").to_string(),
-                    sort: item["ep"].as_f64().unwrap_or(0.0),
+                    sort: item["sort"].as_f64().unwrap_or(0.0),
                 };
 
                 all_episodes.push(episode);

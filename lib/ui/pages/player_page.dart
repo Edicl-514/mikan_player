@@ -299,7 +299,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  "EP ${widget.currentEpisode.sort.toInt()}",
+                  "EP ${widget.currentEpisode.sort % 1 == 0 ? widget.currentEpisode.sort.toInt() : widget.currentEpisode.sort}",
                   style: const TextStyle(
                     color: Color(0xFFBB86FC),
                     fontSize: 12,
@@ -427,7 +427,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "EP ${ep.sort.toInt()}",
+                              "EP ${ep.sort % 1 == 0 ? ep.sort.toInt() : ep.sort}",
                               style: TextStyle(
                                 color: isSelected
                                     ? const Color(0xFFBB86FC)
@@ -549,7 +549,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                "EP ${widget.currentEpisode.sort.toInt()} - ${widget.currentEpisode.nameCn.isNotEmpty ? widget.currentEpisode.nameCn : widget.currentEpisode.name}",
+                                "EP ${widget.currentEpisode.sort % 1 == 0 ? widget.currentEpisode.sort.toInt() : widget.currentEpisode.sort} - ${widget.currentEpisode.nameCn.isNotEmpty ? widget.currentEpisode.nameCn : widget.currentEpisode.name}",
                                 style: const TextStyle(
                                   color: Colors.white70,
                                   fontSize: 14,
@@ -875,7 +875,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                             : Colors.white10,
                       ),
                       child: Text(
-                        "${ep.sort.toInt()}",
+                        "${ep.sort % 1 == 0 ? ep.sort.toInt() : ep.sort}",
                         style: TextStyle(
                           color: isSelected ? Colors.black : Colors.white70,
                           fontWeight: FontWeight.bold,
