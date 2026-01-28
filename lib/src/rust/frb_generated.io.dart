@@ -46,6 +46,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiEpisode dco_decode_bangumi_episode(dynamic raw);
 
   @protected
+  BangumiEpisodeComment dco_decode_bangumi_episode_comment(dynamic raw);
+
+  @protected
   BangumiImages dco_decode_bangumi_images(dynamic raw);
 
   @protected
@@ -89,6 +92,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiEpisode> dco_decode_list_bangumi_episode(dynamic raw);
+
+  @protected
+  List<BangumiEpisodeComment> dco_decode_list_bangumi_episode_comment(
+    dynamic raw,
+  );
 
   @protected
   List<BangumiRelatedSubject> dco_decode_list_bangumi_related_subject(
@@ -147,6 +155,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiEpisode sse_decode_bangumi_episode(SseDeserializer deserializer);
 
   @protected
+  BangumiEpisodeComment sse_decode_bangumi_episode_comment(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   BangumiImages sse_decode_bangumi_images(SseDeserializer deserializer);
 
   @protected
@@ -202,6 +215,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiEpisode> sse_decode_list_bangumi_episode(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<BangumiEpisodeComment> sse_decode_list_bangumi_episode_comment(
     SseDeserializer deserializer,
   );
 
@@ -284,6 +302,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_bangumi_episode_comment(
+    BangumiEpisodeComment self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_bangumi_images(BangumiImages self, SseSerializer serializer);
 
   @protected
@@ -349,6 +373,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_bangumi_episode(
     List<BangumiEpisode> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_bangumi_episode_comment(
+    List<BangumiEpisodeComment> self,
     SseSerializer serializer,
   );
 

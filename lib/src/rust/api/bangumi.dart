@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Fetch episodes for a subject
 /// API: GET https://api.bgm.tv/v0/episodes?subject_id={subject_id}&limit=100&offset=0
@@ -41,6 +41,14 @@ Future<List<BangumiComment>> fetchBangumiComments({
 }) => RustLib.instance.api.crateApiBangumiFetchBangumiComments(
   subjectId: subjectId,
   page: page,
+);
+
+/// Scrape episode comments from Bangumi
+/// URL: https://bangumi.tv/ep/{episode_id}
+Future<List<BangumiEpisodeComment>> fetchBangumiEpisodeComments({
+  required PlatformInt64 episodeId,
+}) => RustLib.instance.api.crateApiBangumiFetchBangumiEpisodeComments(
+  episodeId: episodeId,
 );
 
 class BangumiActor {
@@ -172,6 +180,49 @@ class BangumiEpisode {
           airdate == other.airdate &&
           duration == other.duration &&
           sort == other.sort;
+}
+
+class BangumiEpisodeComment {
+  final PlatformInt64 id;
+  final String userName;
+  final String userId;
+  final String avatar;
+  final String time;
+  final String contentHtml;
+  final List<BangumiEpisodeComment> replies;
+
+  const BangumiEpisodeComment({
+    required this.id,
+    required this.userName,
+    required this.userId,
+    required this.avatar,
+    required this.time,
+    required this.contentHtml,
+    required this.replies,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      userName.hashCode ^
+      userId.hashCode ^
+      avatar.hashCode ^
+      time.hashCode ^
+      contentHtml.hashCode ^
+      replies.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiEpisodeComment &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          userName == other.userName &&
+          userId == other.userId &&
+          avatar == other.avatar &&
+          time == other.time &&
+          contentHtml == other.contentHtml &&
+          replies == other.replies;
 }
 
 class BangumiImages {

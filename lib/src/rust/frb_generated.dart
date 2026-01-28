@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 508172803;
+  int get rustContentHash => 686866219;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -96,6 +96,11 @@ abstract class RustLibApi extends BaseApi {
   Future<List<BangumiComment>> crateApiBangumiFetchBangumiComments({
     required PlatformInt64 subjectId,
     required int page,
+  });
+
+  Future<List<BangumiEpisodeComment>>
+  crateApiBangumiFetchBangumiEpisodeComments({
+    required PlatformInt64 episodeId,
   });
 
   Future<List<BangumiEpisode>> crateApiBangumiFetchBangumiEpisodes({
@@ -276,6 +281,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<List<BangumiEpisodeComment>>
+  crateApiBangumiFetchBangumiEpisodeComments({
+    required PlatformInt64 episodeId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(episodeId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_bangumi_episode_comment,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiBangumiFetchBangumiEpisodeCommentsConstMeta,
+        argValues: [episodeId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBangumiFetchBangumiEpisodeCommentsConstMeta =>
+      const TaskConstMeta(
+        debugName: "fetch_bangumi_episode_comments",
+        argNames: ["episodeId"],
+      );
+
+  @override
   Future<List<BangumiEpisode>> crateApiBangumiFetchBangumiEpisodes({
     required PlatformInt64 subjectId,
   }) {
@@ -287,7 +326,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -322,7 +361,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 7,
             port: port_,
           );
         },
@@ -355,7 +394,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -390,7 +429,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -423,7 +462,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -456,7 +495,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -486,7 +525,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -514,7 +553,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -541,7 +580,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 14,
             port: port_,
           );
         },
@@ -569,7 +608,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -694,6 +733,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BangumiEpisodeComment dco_decode_bangumi_episode_comment(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return BangumiEpisodeComment(
+      id: dco_decode_i_64(arr[0]),
+      userName: dco_decode_String(arr[1]),
+      userId: dco_decode_String(arr[2]),
+      avatar: dco_decode_String(arr[3]),
+      time: dco_decode_String(arr[4]),
+      contentHtml: dco_decode_String(arr[5]),
+      replies: dco_decode_list_bangumi_episode_comment(arr[6]),
+    );
+  }
+
+  @protected
   BangumiImages dco_decode_bangumi_images(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -799,6 +855,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<BangumiEpisode> dco_decode_list_bangumi_episode(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_bangumi_episode).toList();
+  }
+
+  @protected
+  List<BangumiEpisodeComment> dco_decode_list_bangumi_episode_comment(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_bangumi_episode_comment)
+        .toList();
   }
 
   @protected
@@ -998,6 +1064,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BangumiEpisodeComment sse_decode_bangumi_episode_comment(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_userName = sse_decode_String(deserializer);
+    var var_userId = sse_decode_String(deserializer);
+    var var_avatar = sse_decode_String(deserializer);
+    var var_time = sse_decode_String(deserializer);
+    var var_contentHtml = sse_decode_String(deserializer);
+    var var_replies = sse_decode_list_bangumi_episode_comment(deserializer);
+    return BangumiEpisodeComment(
+      id: var_id,
+      userName: var_userName,
+      userId: var_userId,
+      avatar: var_avatar,
+      time: var_time,
+      contentHtml: var_contentHtml,
+      replies: var_replies,
+    );
+  }
+
+  @protected
   BangumiImages sse_decode_bangumi_images(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_small = sse_decode_String(deserializer);
@@ -1161,6 +1250,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <BangumiEpisode>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_bangumi_episode(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<BangumiEpisodeComment> sse_decode_list_bangumi_episode_comment(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <BangumiEpisodeComment>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_bangumi_episode_comment(deserializer));
     }
     return ans_;
   }
@@ -1376,6 +1479,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_bangumi_episode_comment(
+    BangumiEpisodeComment self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.userName, serializer);
+    sse_encode_String(self.userId, serializer);
+    sse_encode_String(self.avatar, serializer);
+    sse_encode_String(self.time, serializer);
+    sse_encode_String(self.contentHtml, serializer);
+    sse_encode_list_bangumi_episode_comment(self.replies, serializer);
+  }
+
+  @protected
   void sse_encode_bangumi_images(BangumiImages self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.small, serializer);
@@ -1515,6 +1633,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_bangumi_episode(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_bangumi_episode_comment(
+    List<BangumiEpisodeComment> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_bangumi_episode_comment(item, serializer);
     }
   }
 

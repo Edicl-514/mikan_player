@@ -356,3 +356,204 @@ pub async fn fetch_bangumi_comments(
 
     Ok(comments)
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiEpisodeComment {
+    pub id: i64,
+    pub user_name: String,
+    pub user_id: String,
+    pub avatar: String,
+    pub time: String,
+    pub content_html: String,
+    pub replies: Vec<BangumiEpisodeComment>,
+}
+
+/// Scrape episode comments from Bangumi
+/// URL: https://bangumi.tv/ep/{episode_id}
+pub async fn fetch_bangumi_episode_comments(
+    episode_id: i64,
+) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .build()?;
+
+    let url = format!("https://bangumi.tv/ep/{}", episode_id);
+    let resp = client.get(&url).send().await?;
+
+    if !resp.status().is_success() {
+        return Ok(Vec::new());
+    }
+
+    let html = resp.text().await?;
+    let document = Html::parse_document(&html);
+
+    let mut comments = Vec::new();
+
+    // Selectors
+    let main_comment_selector = Selector::parse("#comment_list > .row_reply").unwrap();
+    let sub_reply_selector = Selector::parse(".topic_sub_reply > .sub_reply_bg").unwrap();
+
+    // Common field selectors
+    let user_name_selector = Selector::parse("div.inner > strong > a.l").unwrap();
+    let avatar_selector = Selector::parse("span.avatarNeue").unwrap();
+    let time_selector = Selector::parse("div.post_actions.re_info > div.action > small").unwrap();
+    let message_selector = Selector::parse("div.inner > div.reply_content > div.message").unwrap();
+    let sub_message_selector = Selector::parse("div.inner > div.cmt_sub_content").unwrap();
+
+    for main_element in document.select(&main_comment_selector) {
+        // ID
+        let id_str = main_element.value().attr("id").unwrap_or("post_0");
+        let id = id_str
+            .trim_start_matches("post_")
+            .parse::<i64>()
+            .unwrap_or(0);
+
+        // User Info
+        let (user_name, user_id) = if let Some(a) = main_element.select(&user_name_selector).next()
+        {
+            let name = a.text().collect::<String>();
+            let href = a.value().attr("href").unwrap_or("");
+            let uid = href.split("/user/").last().unwrap_or("").to_string();
+            (name, uid)
+        } else {
+            (String::new(), String::new())
+        };
+
+        // Avatar
+        let avatar = if let Some(span) = main_element.select(&avatar_selector).next() {
+            if let Some(style) = span.value().attr("style") {
+                // background-image:url('...')
+                if let Some(start) = style.find("url('") {
+                    if let Some(end) = style[start + 5..].find("')") {
+                        let url = &style[start + 5..start + 5 + end];
+                        if url.starts_with("//") {
+                            format!("https:{}", url)
+                        } else {
+                            url.to_string()
+                        }
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        // Time
+        let time = if let Some(small) = main_element.select(&time_selector).next() {
+            let text = small.text().collect::<String>();
+            // Format usually: "#1 - 2025-1-1 12:00"
+            if let Some(idx) = text.find(" - ") {
+                text[idx + 3..].trim().to_string()
+            } else {
+                text
+            }
+        } else {
+            String::new()
+        };
+
+        // Content
+        let content_html = if let Some(msg) = main_element.select(&message_selector).next() {
+            msg.html()
+                .replace("src=\"//", "src=\"https://")
+                // Fix for bangumi relative emoticons if needed, usually they are relative /img/smiles/
+                .replace("src=\"/img/", "src=\"https://bangumi.tv/img/")
+        } else {
+            String::new()
+        };
+
+        // Sub-replies
+        let mut replies = Vec::new();
+        for sub_element in main_element.select(&sub_reply_selector) {
+            let sub_id_str = sub_element.value().attr("id").unwrap_or("post_0");
+            let sub_id = sub_id_str
+                .trim_start_matches("post_")
+                .parse::<i64>()
+                .unwrap_or(0);
+
+            let (s_user_name, s_user_id) =
+                if let Some(a) = sub_element.select(&user_name_selector).next() {
+                    let name = a.text().collect::<String>();
+                    let href = a.value().attr("href").unwrap_or("");
+                    let uid = href.split("/user/").last().unwrap_or("").to_string();
+                    (name, uid)
+                } else {
+                    (String::new(), String::new())
+                };
+
+            let s_avatar = if let Some(span) = sub_element.select(&avatar_selector).next() {
+                if let Some(style) = span.value().attr("style") {
+                    if let Some(start) = style.find("url('") {
+                        if let Some(end) = style[start + 5..].find("')") {
+                            let url = &style[start + 5..start + 5 + end];
+                            if url.starts_with("//") {
+                                format!("https:{}", url)
+                            } else {
+                                url.to_string()
+                            }
+                        } else {
+                            String::new()
+                        }
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            };
+
+            let s_time = if let Some(small) = sub_element.select(&time_selector).next() {
+                let text = small.text().collect::<String>();
+                if let Some(idx) = text.find(" - ") {
+                    text[idx + 3..].trim().to_string()
+                } else {
+                    text
+                }
+            } else {
+                String::new()
+            };
+
+            let s_content_html = if let Some(msg) = sub_element.select(&sub_message_selector).next()
+            {
+                msg.html()
+                    .replace("src=\"//", "src=\"https://")
+                    .replace("src=\"/img/", "src=\"https://bangumi.tv/img/")
+            } else {
+                String::new()
+            };
+
+            if !s_user_name.is_empty() && !s_content_html.is_empty() {
+                replies.push(BangumiEpisodeComment {
+                    id: sub_id,
+                    user_name: s_user_name,
+                    user_id: s_user_id,
+                    avatar: s_avatar,
+                    time: s_time,
+                    content_html: s_content_html,
+                    replies: Vec::new(),
+                });
+            }
+        }
+
+        if !user_name.is_empty() && !content_html.is_empty() {
+            comments.push(BangumiEpisodeComment {
+                id,
+                user_name,
+                user_id,
+                avatar,
+                time,
+                content_html,
+                replies,
+            });
+        }
+    }
+
+    Ok(comments)
+}

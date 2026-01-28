@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
+import 'player_page.dart';
 
 class BangumiDetailsPage extends StatefulWidget {
   final AnimeInfo anime;
@@ -1284,65 +1285,85 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               separatorBuilder: (c, i) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final ep = _episodes![index];
-                return Container(
-                  width: 140,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cardColor,
+                return Material(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => PlayerPage(
+                            anime: widget.anime,
+                            currentEpisode: ep,
+                            allEpisodes: _episodes!,
+                          ),
+                        ),
+                      );
+                    },
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isDarkBg ? Colors.white10 : Colors.grey[300]!,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'EP ${ep.sort.toInt()}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: isDarkBg ? Colors.amber : Colors.deepPurple,
+                    child: Container(
+                      width: 140,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        // Color moved to Material
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isDarkBg ? Colors.white10 : Colors.grey[300]!,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      // Japanese name
-                      if (ep.name.isNotEmpty)
-                        Text(
-                          ep.name,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: textColor.withValues(alpha: 0.7),
-                            height: 1.3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'EP ${ep.sort.toInt()}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: isDarkBg
+                                  ? Colors.amber
+                                  : Colors.deepPurple,
+                            ),
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      // Chinese name
-                      if (ep.nameCn.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          ep.nameCn,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: textColor,
-                            fontWeight: FontWeight.w500,
-                            height: 1.3,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                      const Spacer(),
-                      if (ep.airdate.isNotEmpty)
-                        Text(
-                          ep.airdate,
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: textColor.withValues(alpha: 0.5),
-                          ),
-                        ),
-                    ],
+                          const SizedBox(height: 6),
+                          // Japanese name
+                          if (ep.name.isNotEmpty)
+                            Text(
+                              ep.name,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: textColor.withValues(alpha: 0.7),
+                                height: 1.3,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          // Chinese name
+                          if (ep.nameCn.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              ep.nameCn,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: textColor,
+                                fontWeight: FontWeight.w500,
+                                height: 1.3,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                          const Spacer(),
+                          if (ep.airdate.isNotEmpty)
+                            Text(
+                              ep.airdate,
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: textColor.withValues(alpha: 0.5),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 );
               },
