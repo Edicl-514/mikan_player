@@ -16,27 +16,50 @@ pub async fn fetch_bangumi_ranking(
     sort_type: String,
     page: i32,
 ) -> anyhow::Result<Vec<RankingAnime>> {
+    fetch_bangumi_browser(sort_type, "".to_string(), vec![], page).await
+}
+
+pub async fn fetch_bangumi_browser(
+    sort_type: String,
+    year: String,
+    tags: Vec<String>,
+    page: i32,
+) -> anyhow::Result<Vec<RankingAnime>> {
     let client = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
         .build()?;
 
-    let url = if sort_type == "rank" {
-        format!("https://bangumi.tv/anime/browser?sort=rank&page={}", page)
-    } else {
-        format!(
-            "https://bangumi.tv/anime/browser?sort={}&page={}",
-            sort_type, page
-        )
-    };
+    let mut url = reqwest::Url::parse("https://bangumi.tv/anime/browser")?;
 
-    let resp = client.get(&url).send().await?;
+    {
+        let mut path_segments = url
+            .path_segments_mut()
+            .map_err(|_| anyhow::anyhow!("Invalid base URL"))?;
+
+        for tag in tags {
+            if !tag.is_empty() && tag != "全部" {
+                path_segments.push(&tag);
+            }
+        }
+
+        if !year.is_empty() && year != "不限" {
+            path_segments.push("airtime");
+            path_segments.push(&year);
+        }
+    }
+
+    url.query_pairs_mut()
+        .append_pair("sort", &sort_type)
+        .append_pair("page", &page.to_string());
+
+    let resp = client.get(url).send().await?;
     let html = resp.text().await?;
     let document = Html::parse_document(&html);
 
     let item_selector = Selector::parse("#browserItemList > li.item").unwrap();
     let title_selector = Selector::parse("h3 > a.l").unwrap();
     let original_title_selector = Selector::parse("h3 > small.grey").unwrap();
-    let cover_selector = Selector::parse("img.cover").unwrap(); // Bangumi class is usually 'cover'
+    let cover_selector = Selector::parse("img.cover").unwrap();
     let info_selector = Selector::parse("p.info").unwrap();
     let score_selector = Selector::parse("small.fade").unwrap();
     let rank_selector = Selector::parse("span.rank").unwrap();
@@ -88,7 +111,6 @@ pub async fn fetch_bangumi_ranking(
             .next()
             .map(|e| e.text().collect::<String>())
             .unwrap_or_default();
-        // Rank text is usually "Rank 123"
         let rank = rank_text.replace("Rank", "").trim().parse::<i32>().ok();
 
         results.push(RankingAnime {

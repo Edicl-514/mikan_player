@@ -5,6 +5,9 @@ class AnimeCard extends StatefulWidget {
   final String? subtitle;
   final String tag;
   final String? coverUrl;
+  final double? score;
+  final VoidCallback? onTap;
+  final String? heroTag;
 
   const AnimeCard({
     super.key,
@@ -12,6 +15,9 @@ class AnimeCard extends StatefulWidget {
     this.subtitle,
     this.tag = 'Update',
     this.coverUrl,
+    this.score,
+    this.onTap,
+    this.heroTag,
   });
 
   @override
@@ -56,17 +62,9 @@ class _AnimeCardState extends State<AnimeCard>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                widget.coverUrl != null
-                    ? Image.network(
-                        widget.coverUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            Image.asset(
-                              'assets/images/cover.png',
-                              fit: BoxFit.cover,
-                            ),
-                      )
-                    : Image.asset('assets/images/cover.png', fit: BoxFit.cover),
+                widget.heroTag != null
+                    ? Hero(tag: widget.heroTag!, child: _buildCover())
+                    : _buildCover(),
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
@@ -104,6 +102,31 @@ class _AnimeCardState extends State<AnimeCard>
                     ),
                   ),
                 ),
+                if (widget.score != null && widget.score! > 0)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: const BoxDecoration(
+                        color: Colors.amber,
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        widget.score!.toStringAsFixed(1),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   bottom: 8,
                   left: 8,
@@ -137,11 +160,35 @@ class _AnimeCardState extends State<AnimeCard>
                     ],
                   ),
                 ),
+                Positioned.fill(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: widget.onTap,
+                      borderRadius: BorderRadius.circular(12),
+                      splashColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.2),
+                      hoverColor: Colors.transparent,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildCover() {
+    return widget.coverUrl != null
+        ? Image.network(
+            widget.coverUrl!,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) =>
+                Image.asset('assets/images/cover.png', fit: BoxFit.cover),
+          )
+        : Image.asset('assets/images/cover.png', fit: BoxFit.cover);
   }
 }

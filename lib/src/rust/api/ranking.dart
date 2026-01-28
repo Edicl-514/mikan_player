@@ -16,6 +16,18 @@ Future<List<RankingAnime>> fetchBangumiRanking({
   page: page,
 );
 
+Future<List<RankingAnime>> fetchBangumiBrowser({
+  required String sortType,
+  required String year,
+  required List<String> tags,
+  required int page,
+}) => RustLib.instance.api.crateApiRankingFetchBangumiBrowser(
+  sortType: sortType,
+  year: year,
+  tags: tags,
+  page: page,
+);
+
 class RankingAnime {
   final String title;
   final String bangumiId;
