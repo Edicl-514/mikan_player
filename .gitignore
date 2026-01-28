@@ -46,3 +46,5 @@ app.*.map.json
 
 check_api.py
 .gemini/
+
+rust/openssl
