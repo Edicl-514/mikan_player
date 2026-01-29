@@ -2598,6 +2598,7 @@ dependencies = [
  "env_logger",
  "fancy-regex",
  "flutter_rust_bridge",
+ "futures",
  "headers",
  "lazy_static",
  "librqbit",

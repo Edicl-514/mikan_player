@@ -5,6 +5,47 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::fs;
 
+lazy_static::lazy_static! {
+    /// 匹配季数相关的关键词
+    static ref SEASON_RE: Regex = Regex::new(r"(?i)第[一二三四五六七八九十\d]+季|Part\s*\d+|\d+(st|nd|rd|th)\s*Season|Season\s*\d+").unwrap();
+}
+
+/// 预处理搜索词，提取核心动画名称
+/// 参考 mikan.rs 的实现
+fn preprocess_search_term(name: &str) -> String {
+    let cleaned_name = name.trim();
+    
+    // 判断是否为标点符号（中日文标点 + ASCII标点）
+    let is_punctuation = |c: char| -> bool {
+        c.is_ascii_punctuation()
+            || "\u{3002}\u{FF01}\u{FF0C}\u{3001}\u{FF1F}\u{FF08}\u{FF09}\u{300A}\u{300B}\u{3010}\u{3011}\u{201C}\u{201D}\u{2018}\u{2019}\u{300C}\u{300D}\u{300E}\u{300F}\u{301C}\u{FF5E}\u{00B7}\u{2022}\u{2160}\u{2161}\u{2162}\u{2163}\u{2164}\u{2165}\u{2166}\u{2167}\u{2168}\u{2169}\u{216A}\u{216B}".contains(c)
+    };
+
+    // 1. 将所有标点替换为空格
+    let mut cleaned: String = name
+        .chars()
+        .map(|c| if is_punctuation(c) { ' ' } else { c })
+        .collect();
+
+    // 2. 移除季数相关关键词
+    cleaned = SEASON_RE.replace_all(&cleaned, " ").to_string();
+
+    // 3. 按空格分割，取最长的片段作为搜索词
+    let segments: Vec<&str> = cleaned
+        .split_whitespace()
+        .filter(|s| s.chars().count() >= 1)
+        .collect();
+
+    let final_search_str = segments
+        .iter()
+        .max_by_key(|s| s.chars().count())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| cleaned_name.to_string());
+
+    log::info!("Preprocessed search term: '{}' -> '{}'", name, final_search_str);
+    final_search_str
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct SampleRoot {
     #[serde(rename = "exportedMediaSourceDataList")]
@@ -86,6 +127,71 @@ pub struct MatchVideo {
 
     #[serde(rename = "addHeadersToVideo")]
     pub add_headers_to_video: Option<std::collections::HashMap<String, String>>,
+}
+
+/// 提取动画名称的核心部分（去除"第X季"等后缀）
+fn extract_core_name(name: &str) -> String {
+    // 去除常见的季数后缀
+    let patterns = [
+        r"\s*第[一二三四五六七八九十\d]+季",
+        r"\s*Season\s*\d+",
+        r"\s*S\d+",
+        r"\s*Part\s*\d+",
+        r"\s*\d+期",
+    ];
+    
+    let mut result = name.to_string();
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            result = re.replace_all(&result, "").to_string();
+        }
+    }
+    result.trim().to_string()
+}
+
+/// 计算标题匹配分数 (0-100)
+fn calculate_match_score(title: &str, full_name: &str, core_name: &str) -> i32 {
+    let title_lower = title.to_lowercase();
+    let full_lower = full_name.to_lowercase();
+    let core_lower = core_name.to_lowercase();
+    
+    // 完全匹配
+    if title_lower == full_lower {
+        return 100;
+    }
+    
+    // 标题包含完整搜索词
+    if title_lower.contains(&full_lower) {
+        return 95;
+    }
+    
+    // 搜索词包含标题（标题可能是简写）
+    if full_lower.contains(&title_lower) && title_lower.len() > 3 {
+        return 85;
+    }
+    
+    // 标题包含核心名称
+    if title_lower.contains(&core_lower) {
+        return 80;
+    }
+    
+    // 核心名称包含标题
+    if core_lower.contains(&title_lower) && title_lower.len() > 3 {
+        return 70;
+    }
+    
+    // 计算关键词重叠
+    let title_chars: std::collections::HashSet<char> = title_lower.chars().filter(|c| !c.is_whitespace()).collect();
+    let core_chars: std::collections::HashSet<char> = core_lower.chars().filter(|c| !c.is_whitespace()).collect();
+    
+    if !title_chars.is_empty() && !core_chars.is_empty() {
+        let intersection = title_chars.intersection(&core_chars).count();
+        let union = title_chars.union(&core_chars).count();
+        let jaccard = (intersection as f64 / union as f64 * 100.0) as i32;
+        return jaccard;
+    }
+    
+    0
 }
 
 /// 修复被混淆的视频URL
@@ -216,6 +322,225 @@ fn try_extract_player_aaaa_url(page_text: &str) -> Option<String> {
     }
     
     None
+}
+
+/// 搜索结果：包含播放页面URL和视频URL匹配正则
+pub struct SearchPlayResult {
+    /// 源名称
+    pub source_name: String,
+    /// 播放页面 URL
+    pub play_page_url: String,
+    /// 用于匹配视频URL的正则表达式
+    pub video_regex: String,
+    /// 直接解析得到的视频URL（如果有）
+    pub direct_video_url: Option<String>,
+}
+
+/// 搜索所有源，返回所有找到的播放页面URL列表
+/// Flutter 端可以使用 WebView 加载这些 URL 来拦截视频请求
+pub async fn generic_search_play_pages(anime_name: String) -> anyhow::Result<Vec<SearchPlayResult>> {
+    let paths = vec![
+        "sample.json",
+        "../sample.json",
+        "d:/code/mikan_player/sample.json",
+    ];
+
+    let mut content = String::new();
+    for p in paths {
+        if let Ok(c) = fs::read_to_string(p) {
+            content = c;
+            break;
+        }
+    }
+
+    if content.is_empty() {
+        return Err(anyhow::anyhow!("Could not find or read sample.json"));
+    }
+
+    let root: SampleRoot = serde_json::from_str(&content)?;
+    let client = crate::api::network::create_client()?;
+    
+    // 并发搜索所有源
+    let futures: Vec<_> = root
+        .exported_media_source_data_list
+        .media_sources
+        .iter()
+        .map(|source| {
+            let client = client.clone();
+            let source = source.clone();
+            let anime_name = anime_name.clone();
+            async move {
+                log::info!("Searching source: {}", source.arguments.name);
+                search_single_source(&client, &source, &anime_name).await
+            }
+        })
+        .collect();
+    
+    // 等待所有搜索完成
+    let all_results = futures::future::join_all(futures).await;
+    
+    // 过滤出成功的结果
+    let results: Vec<SearchPlayResult> = all_results
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .collect();
+    
+    Ok(results)
+}
+
+/// 搜索单个源
+async fn search_single_source(
+    client: &reqwest::Client,
+    source: &MediaSource,
+    anime_name: &str,
+) -> anyhow::Result<SearchPlayResult> {
+    let source_name = source.arguments.name.clone();
+    let video_regex = source.arguments.search_config.match_video.match_video_url.clone();
+    
+    // 预处理搜索词（去除标点、季数等）
+    let search_term = preprocess_search_term(anime_name);
+    
+    // 提取核心关键词用于匹配（去除"第X季"等后缀）
+    let core_name = extract_core_name(anime_name);
+    log::info!("[{}] Search term: '{}', Core name: '{}'", source_name, search_term, core_name);
+    
+    // Step 1: 搜索（使用预处理后的搜索词）
+    let search_url = source
+        .arguments
+        .search_config
+        .search_url
+        .replace("{keyword}", &search_term);
+    log::info!("[{}] Searching: {}", source_name, search_url);
+
+    let resp_text = client.get(&search_url).send().await?.text().await?;
+
+    let detail_url = {
+        let document = Html::parse_document(&resp_text);
+        let mut found_url = String::new();
+        let mut best_match_score = 0;
+        
+        if let Some(ref format) = source.arguments.search_config.selector_subject_format_indexed {
+            if let (Ok(name_sel), Ok(link_sel)) = (
+                Selector::parse(&format.select_names),
+                Selector::parse(&format.select_links),
+            ) {
+                let names: Vec<_> = document.select(&name_sel).collect();
+                let links: Vec<_> = document.select(&link_sel).collect();
+                
+                log::info!("[{}] Found {} results", source_name, names.len().min(links.len()));
+
+                for (name_el, link_el) in names.iter().zip(links.iter()) {
+                    let title = name_el.text().collect::<String>().trim().to_string();
+                    let href = link_el.value().attr("href").unwrap_or("").to_string();
+
+                    log::info!("[{}] Result: {} -> {}", source_name, title, href);
+
+                    // 计算匹配分数
+                    let score = calculate_match_score(&title, anime_name, &core_name);
+                    
+                    if score > best_match_score && score >= 50 {
+                        best_match_score = score;
+                        if href.starts_with("http") {
+                            found_url = href;
+                        } else {
+                            let base_url = if let Ok(u) = url::Url::parse(&search_url) {
+                                format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                            } else {
+                                "".to_string()
+                            };
+                            found_url = format!("{}{}", base_url, href);
+                        }
+                        log::info!("[{}] Best match so far: {} (score: {})", source_name, title, score);
+                    }
+                }
+            }
+        }
+        found_url
+    };
+
+    if detail_url.is_empty() {
+        return Err(anyhow::anyhow!("No matching anime found"));
+    }
+
+    log::info!("[{}] Found detail URL: {}", source_name, detail_url);
+
+    // Step 2: 获取剧集列表
+    let detail_resp_text = client.get(&detail_url).send().await?.text().await?;
+
+    let episode_url = {
+        let detail_doc = Html::parse_document(&detail_resp_text);
+        let mut found_url = String::new();
+        
+        if let Some(ref format) = source.arguments.search_config.selector_channel_format_flattened {
+            if let (Ok(list_sel), Ok(item_sel)) = (
+                Selector::parse(&format.select_episode_lists),
+                Selector::parse(&format.select_episodes_from_list),
+            ) {
+                if let Some(list_container) = detail_doc.select(&list_sel).next() {
+                    if let Some(ep) = list_container.select(&item_sel).next() {
+                        let href = ep.value().attr("href").unwrap_or("").to_string();
+                        if !href.is_empty() {
+                            if href.starts_with("http") {
+                                found_url = href;
+                            } else {
+                                let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                } else {
+                                    "".to_string()
+                                };
+                                found_url = format!("{}{}", base_url, href);
+                            }
+                        }
+                    }
+                }
+            }
+        } else if let Some(ref format) = source.arguments.search_config.selector_channel_format_no_channel {
+            if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
+                if let Some(ep) = detail_doc.select(&ep_sel).next() {
+                    let href = ep.value().attr("href").unwrap_or("").to_string();
+                    if !href.is_empty() {
+                        if href.starts_with("http") {
+                            found_url = href;
+                        } else {
+                            let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                                format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                            } else {
+                                "".to_string()
+                            };
+                            found_url = format!("{}{}", base_url, href);
+                        }
+                    }
+                }
+            }
+        }
+        found_url
+    };
+
+    if episode_url.is_empty() {
+        return Err(anyhow::anyhow!("No episodes found"));
+    }
+
+    log::info!("[{}] Found episode URL: {}", source_name, episode_url);
+
+    // Step 3: 尝试直接获取视频URL（可选，主要让 WebView 处理）
+    let mut direct_video_url = None;
+    
+    // 尝试获取页面并解析 player_aaaa
+    if let Ok(resp) = client.get(&episode_url).send().await {
+        if let Ok(video_page_text) = resp.text().await {
+            if let Some(player_url) = try_extract_player_aaaa_url(&video_page_text) {
+                log::info!("[{}] Found direct video URL from player_aaaa: {}", source_name, player_url);
+                direct_video_url = Some(player_url);
+            }
+        }
+    }
+
+    Ok(SearchPlayResult {
+        source_name,
+        play_page_url: episode_url,
+        video_regex,
+        direct_video_url,
+    })
 }
 
 pub async fn generic_search_and_play(anime_name: String) -> anyhow::Result<String> {

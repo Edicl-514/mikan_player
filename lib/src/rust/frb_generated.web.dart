@@ -134,6 +134,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<RankingAnime> dco_decode_list_ranking_anime(dynamic raw);
 
   @protected
+  List<SearchPlayResult> dco_decode_list_search_play_result(dynamic raw);
+
+  @protected
   List<TorrentStats> dco_decode_list_torrent_stats(dynamic raw);
 
   @protected
@@ -164,6 +167,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RankingAnime dco_decode_ranking_anime(dynamic raw);
+
+  @protected
+  SearchPlayResult dco_decode_search_play_result(dynamic raw);
 
   @protected
   TorrentStats dco_decode_torrent_stats(dynamic raw);
@@ -311,6 +317,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<SearchPlayResult> sse_decode_list_search_play_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<TorrentStats> sse_decode_list_torrent_stats(
     SseDeserializer deserializer,
   );
@@ -349,6 +360,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RankingAnime sse_decode_ranking_anime(SseDeserializer deserializer);
+
+  @protected
+  SearchPlayResult sse_decode_search_play_result(SseDeserializer deserializer);
 
   @protected
   TorrentStats sse_decode_torrent_stats(SseDeserializer deserializer);
@@ -531,6 +545,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_search_play_result(
+    List<SearchPlayResult> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_torrent_stats(
     List<TorrentStats> self,
     SseSerializer serializer,
@@ -577,6 +597,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ranking_anime(RankingAnime self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_search_play_result(
+    SearchPlayResult self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_torrent_stats(TorrentStats self, SseSerializer serializer);

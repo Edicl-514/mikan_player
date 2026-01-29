@@ -6,10 +6,58 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ExportedMediaSourceDataList`, `MatchVideo`, `MediaSource`, `SampleRoot`, `SearchConfig`, `SelectorChannelFormatFlattened`, `SelectorChannelFormatNoChannel`, `SelectorSubjectFormatIndexed`, `SourceArguments`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `calculate_match_score`, `deobfuscate_video_url`, `extract_core_name`, `preprocess_search_term`, `search_single_source`, `try_extract_player_aaaa_url`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ExportedMediaSourceDataList`, `MatchVideo`, `MediaSource`, `SEASON_RE`, `SampleRoot`, `SearchConfig`, `SelectorChannelFormatFlattened`, `SelectorChannelFormatNoChannel`, `SelectorSubjectFormatIndexed`, `SourceArguments`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
+
+/// 搜索所有源，返回所有找到的播放页面URL列表
+/// Flutter 端可以使用 WebView 加载这些 URL 来拦截视频请求
+Future<List<SearchPlayResult>> genericSearchPlayPages({
+  required String animeName,
+}) => RustLib.instance.api.crateApiGenericScraperGenericSearchPlayPages(
+  animeName: animeName,
+);
 
 Future<String> genericSearchAndPlay({required String animeName}) => RustLib
     .instance
     .api
     .crateApiGenericScraperGenericSearchAndPlay(animeName: animeName);
+
+/// 搜索结果：包含播放页面URL和视频URL匹配正则
+class SearchPlayResult {
+  /// 源名称
+  final String sourceName;
+
+  /// 播放页面 URL
+  final String playPageUrl;
+
+  /// 用于匹配视频URL的正则表达式
+  final String videoRegex;
+
+  /// 直接解析得到的视频URL（如果有）
+  final String? directVideoUrl;
+
+  const SearchPlayResult({
+    required this.sourceName,
+    required this.playPageUrl,
+    required this.videoRegex,
+    this.directVideoUrl,
+  });
+
+  @override
+  int get hashCode =>
+      sourceName.hashCode ^
+      playPageUrl.hashCode ^
+      videoRegex.hashCode ^
+      directVideoUrl.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SearchPlayResult &&
+          runtimeType == other.runtimeType &&
+          sourceName == other.sourceName &&
+          playPageUrl == other.playPageUrl &&
+          videoRegex == other.videoRegex &&
+          directVideoUrl == other.directVideoUrl;
+}

@@ -74,7 +74,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1312461637;
+  int get rustContentHash => -318137768;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -140,6 +140,10 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<String> crateApiGenericScraperGenericSearchAndPlay({
+    required String animeName,
+  });
+
+  Future<List<SearchPlayResult>> crateApiGenericScraperGenericSearchPlayPages({
     required String animeName,
   });
 
@@ -645,6 +649,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<List<SearchPlayResult>> crateApiGenericScraperGenericSearchPlayPages({
+    required String animeName,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(animeName, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_search_play_result,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiGenericScraperGenericSearchPlayPagesConstMeta,
+        argValues: [animeName],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGenericScraperGenericSearchPlayPagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "generic_search_play_pages",
+        argNames: ["animeName"],
+      );
+
+  @override
   Future<String> crateApiSimpleGetAllTorrentsInfo() {
     return handler.executeNormal(
       NormalTask(
@@ -653,7 +690,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -680,7 +717,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -707,7 +744,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 17,
             port: port_,
           );
         },
@@ -734,7 +771,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 18,
             port: port_,
           );
         },
@@ -766,7 +803,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 19,
             port: port_,
           );
         },
@@ -796,7 +833,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -823,7 +860,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 21,
             port: port_,
           );
         },
@@ -850,7 +887,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 22,
             port: port_,
           );
         },
@@ -877,7 +914,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 23,
             port: port_,
           );
         },
@@ -907,7 +944,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 24,
             port: port_,
           );
         },
@@ -938,7 +975,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 25,
             port: port_,
           );
         },
@@ -965,7 +1002,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 26,
             port: port_,
           );
         },
@@ -995,7 +1032,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1026,7 +1063,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1058,7 +1095,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1096,7 +1133,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1134,7 +1171,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1461,6 +1498,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<SearchPlayResult> dco_decode_list_search_play_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_search_play_result).toList();
+  }
+
+  @protected
   List<TorrentStats> dco_decode_list_torrent_stats(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_torrent_stats).toList();
@@ -1546,6 +1589,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       rank: dco_decode_opt_box_autoadd_i_32(arr[4]),
       info: dco_decode_String(arr[5]),
       originalTitle: dco_decode_opt_String(arr[6]),
+    );
+  }
+
+  @protected
+  SearchPlayResult dco_decode_search_play_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return SearchPlayResult(
+      sourceName: dco_decode_String(arr[0]),
+      playPageUrl: dco_decode_String(arr[1]),
+      videoRegex: dco_decode_String(arr[2]),
+      directVideoUrl: dco_decode_opt_String(arr[3]),
     );
   }
 
@@ -2028,6 +2085,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<SearchPlayResult> sse_decode_list_search_play_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SearchPlayResult>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_search_play_result(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<TorrentStats> sse_decode_list_torrent_stats(
     SseDeserializer deserializer,
   ) {
@@ -2164,6 +2235,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       rank: var_rank,
       info: var_info,
       originalTitle: var_originalTitle,
+    );
+  }
+
+  @protected
+  SearchPlayResult sse_decode_search_play_result(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_sourceName = sse_decode_String(deserializer);
+    var var_playPageUrl = sse_decode_String(deserializer);
+    var var_videoRegex = sse_decode_String(deserializer);
+    var var_directVideoUrl = sse_decode_opt_String(deserializer);
+    return SearchPlayResult(
+      sourceName: var_sourceName,
+      playPageUrl: var_playPageUrl,
+      videoRegex: var_videoRegex,
+      directVideoUrl: var_directVideoUrl,
     );
   }
 
@@ -2577,6 +2663,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_search_play_result(
+    List<SearchPlayResult> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_search_play_result(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_torrent_stats(
     List<TorrentStats> self,
     SseSerializer serializer,
@@ -2690,6 +2788,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_i_32(self.rank, serializer);
     sse_encode_String(self.info, serializer);
     sse_encode_opt_String(self.originalTitle, serializer);
+  }
+
+  @protected
+  void sse_encode_search_play_result(
+    SearchPlayResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.sourceName, serializer);
+    sse_encode_String(self.playPageUrl, serializer);
+    sse_encode_String(self.videoRegex, serializer);
+    sse_encode_opt_String(self.directVideoUrl, serializer);
   }
 
   @protected

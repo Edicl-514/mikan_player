@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/src/rust/api/simple.dart';
@@ -8,7 +9,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/src/rust/api/network.dart' as network;
 import 'package:mikan_player/src/http_overrides.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+
+/// 全局 WebView 环境（Windows 平台需要）
+WebViewEnvironment? webViewEnvironment;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +24,25 @@ Future<void> main() async {
 
   // Initialize MediaKit
   MediaKit.ensureInitialized();
+
+  // Initialize WebView2 on Windows
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    final availableVersion = await WebViewEnvironment.getAvailableVersion();
+    if (availableVersion != null) {
+      // 使用应用数据目录存储 WebView2 数据
+      final appDataDir = await getApplicationSupportDirectory();
+      final webViewDataPath = '${appDataDir.path}\\WebView2';
+      
+      webViewEnvironment = await WebViewEnvironment.create(
+        settings: WebViewEnvironmentSettings(
+          userDataFolder: webViewDataPath,
+        ),
+      );
+      debugPrint('WebView2 initialized: $availableVersion');
+    } else {
+      debugPrint('WARNING: WebView2 Runtime not found. Some features may not work.');
+    }
+  }
 
   // Load and sync settings
   await _syncSettings();
