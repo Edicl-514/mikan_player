@@ -7,6 +7,7 @@
 // ignore_for_file: argument_type_not_assignable
 
 import 'api/bangumi.dart';
+import 'api/config.dart';
 import 'api/crawler.dart';
 import 'api/mikan.dart';
 import 'api/ranking.dart';

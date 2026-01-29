@@ -28,6 +28,16 @@ pub fn greet(name: String) -> String {
     format!("Hello, {}!", name)
 }
 
+pub fn update_config(
+    bgm: String,
+    bangumi: String,
+    mikan: String,
+    bt_sub: String,
+    playback_sub: String,
+) {
+    crate::api::config::update_config(bgm, bangumi, mikan, bt_sub, playback_sub);
+}
+
 struct AppState {
     session: Arc<Session>,
     // Store mapping from magnet hash to torrent ID for tracking

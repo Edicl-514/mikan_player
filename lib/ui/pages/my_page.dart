@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/services/download_manager.dart';
+import 'package:mikan_player/ui/pages/settings_page.dart';
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -58,10 +59,10 @@ class _MyPageState extends State<MyPage> {
           ),
         ),
         const SizedBox(height: 16),
-        
+
         // Downloads Section with badge
         _buildDownloadsTile(context),
-        
+
         _buildTile(context, Icons.history, 'History', 'Continue watching'),
         _buildTile(
           context,
@@ -70,15 +71,26 @@ class _MyPageState extends State<MyPage> {
           'Your collected anime',
         ),
         const Divider(),
-        _buildTile(context, Icons.settings, 'Settings', 'App configuration'),
-        _buildTile(context, Icons.info, 'About', 'Version 1.0.0'),
+        _buildTile(
+          context,
+          Icons.settings,
+          'Settings',
+          'App configuration',
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SettingsPage()),
+            );
+          },
+        ),
+        _buildTile(context, Icons.info, 'About', 'Version 1.0.0', () {}),
       ],
     );
   }
 
   Widget _buildDownloadsTile(BuildContext context) {
     final activeCount = _downloadManager.activeCount;
-    
+
     return Card(
       elevation: 0,
       color: Theme.of(
@@ -112,10 +124,15 @@ class _MyPageState extends State<MyPage> {
               ),
           ],
         ),
-        title: const Text('Downloads', style: TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(activeCount > 0 
-            ? '$activeCount active downloads' 
-            : 'Manage cached episodes'),
+        title: const Text(
+          'Downloads',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          activeCount > 0
+              ? '$activeCount active downloads'
+              : 'Manage cached episodes',
+        ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
           Navigator.of(context).push(
@@ -132,8 +149,9 @@ class _MyPageState extends State<MyPage> {
     BuildContext context,
     IconData icon,
     String title,
-    String subtitle,
-  ) {
+    String subtitle, [
+    VoidCallback? onTap,
+  ]) {
     return Card(
       elevation: 0,
       color: Theme.of(
@@ -146,7 +164,7 @@ class _MyPageState extends State<MyPage> {
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.chevron_right),
-        onTap: () {},
+        onTap: onTap ?? () {},
       ),
     );
   }
@@ -184,7 +202,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
   @override
   Widget build(BuildContext context) {
     final tasks = _downloadManager.tasks;
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('下载管理'),
@@ -195,17 +213,20 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
               tooltip: '清除已完成',
               onPressed: () async {
                 final completedCount = tasks
-                    .where((t) => t.status == DownloadTaskStatus.completed ||
-                                 t.status == DownloadTaskStatus.seeding)
+                    .where(
+                      (t) =>
+                          t.status == DownloadTaskStatus.completed ||
+                          t.status == DownloadTaskStatus.seeding,
+                    )
                     .length;
-                
+
                 if (completedCount == 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('没有已完成的任务')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('没有已完成的任务')));
                   return;
                 }
-                
+
                 final confirmed = await showDialog<bool>(
                   context: context,
                   builder: (context) => AlertDialog(
@@ -223,7 +244,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                     ],
                   ),
                 );
-                
+
                 if (confirmed == true) {
                   await _downloadManager.clearCompleted();
                   if (context.mounted) {
@@ -249,18 +270,12 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   const SizedBox(height: 16),
                   Text(
                     '暂无下载任务',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 16,
-                    ),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 16),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '在播放页面选择资源开始下载',
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.grey[700], fontSize: 12),
                   ),
                 ],
               ),
@@ -278,7 +293,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
   Widget _buildDownloadItem(DownloadTask task) {
     final statusColor = _getStatusColor(task.status);
     final statusIcon = _getStatusIcon(task.status);
-    
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -320,7 +335,10 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                             ),
                             TextButton(
                               onPressed: () => Navigator.pop(context, true),
-                              child: const Text('删除', style: TextStyle(color: Colors.red)),
+                              child: const Text(
+                                '删除',
+                                style: TextStyle(color: Colors.red),
+                              ),
                             ),
                           ],
                         ),
@@ -338,21 +356,18 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                 ),
               ],
             ),
-            
+
             // Anime name
             if (task.animeName != null) ...[
               const SizedBox(height: 4),
               Text(
                 task.animeName!,
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
               ),
             ],
-            
+
             const SizedBox(height: 12),
-            
+
             // Progress bar
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
@@ -363,9 +378,9 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                 minHeight: 6,
               ),
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             // Stats row
             Row(
               children: [
@@ -379,7 +394,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                
+
                 // Download speed
                 if (task.status == DownloadTaskStatus.downloading) ...[
                   const Icon(Icons.download, size: 12, color: Colors.grey),
@@ -390,18 +405,22 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   ),
                   const SizedBox(width: 12),
                 ],
-                
+
                 // Downloaded / Total size
                 Text(
                   '${task.formattedDownloaded} / ${task.formattedSize}',
                   style: TextStyle(color: Colors.grey[500], fontSize: 11),
                 ),
-                
+
                 const Spacer(),
-                
+
                 // Peers count
                 if (task.peers > 0) ...[
-                  const Icon(Icons.people_outline, size: 12, color: Colors.grey),
+                  const Icon(
+                    Icons.people_outline,
+                    size: 12,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     '${task.peers} peers',
@@ -410,16 +429,13 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                 ],
               ],
             ),
-            
+
             // Error message
             if (task.errorMessage != null) ...[
               const SizedBox(height: 8),
               Text(
                 task.errorMessage!,
-                style: const TextStyle(
-                  color: Colors.redAccent,
-                  fontSize: 11,
-                ),
+                style: const TextStyle(color: Colors.redAccent, fontSize: 11),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),

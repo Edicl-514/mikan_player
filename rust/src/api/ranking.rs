@@ -27,7 +27,10 @@ pub async fn fetch_bangumi_browser(
 ) -> anyhow::Result<Vec<RankingAnime>> {
     let client = crate::api::network::create_client()?;
 
-    let mut url = reqwest::Url::parse("https://bangumi.tv/anime/browser")?;
+    let mut url = reqwest::Url::parse(&format!(
+        "{}/anime/browser",
+        crate::api::config::get_bangumi_url()
+    ))?;
 
     {
         let mut path_segments = url

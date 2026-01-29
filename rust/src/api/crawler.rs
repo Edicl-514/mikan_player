@@ -27,7 +27,7 @@ pub struct ArchiveQuarter {
 }
 
 pub async fn fetch_archive_list() -> anyhow::Result<Vec<ArchiveQuarter>> {
-    let url = "https://bgmlist.com/archive";
+    let url = format!("{}/archive", crate::api::config::get_bgmlist_url());
     let client = crate::api::network::create_client()?;
     let resp = client.get(url).send().await?.text().await?;
     let document = Html::parse_document(&resp);
@@ -77,7 +77,11 @@ pub async fn fetch_archive_list() -> anyhow::Result<Vec<ArchiveQuarter>> {
 }
 
 pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<AnimeInfo>> {
-    let url = format!("https://bgmlist.com/archive/{}", year_quarter);
+    let url = format!(
+        "{}/archive/{}",
+        crate::api::config::get_bgmlist_url(),
+        year_quarter
+    );
     let client = crate::api::network::create_client()?;
     let resp = client.get(&url).send().await?.text().await?;
     let mut animes = Vec::new();
@@ -150,10 +154,12 @@ pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<An
                 let href = link.value().attr("href").unwrap_or("");
                 let text = link.text().collect::<String>();
 
-                if href.contains("bangumi.tv/subject/") {
+                if href.contains("bangumi.tv/subject/") || href.contains("bgm.tv/subject/") {
                     let id = href.split('/').last().unwrap_or("").to_string();
                     anime.bangumi_id = Some(id);
-                } else if href.contains("mikanani.me/Home/Bangumi/") {
+                } else if href.contains("mikanani.me/Home/Bangumi/")
+                    || href.contains("mikanani.kas.pub/Home/Bangumi/")
+                {
                     let id = href.split('/').last().unwrap_or("").to_string();
                     anime.mikan_id = Some(id);
                 } else if text.contains("官网") || text.contains("官方网站") {
@@ -175,7 +181,11 @@ pub async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<An
         let client_clone = client.clone();
         tasks.push(tokio::spawn(async move {
             if let Some(ref id) = anime.bangumi_id {
-                let api_url = format!("https://api.bgm.tv/v0/subjects/{}", id);
+                let api_url = format!(
+                    "{}/v0/subjects/{}",
+                    crate::api::config::get_bangumi_api_url(),
+                    id
+                );
                 if let Ok(resp) = client_clone.get(api_url).send().await {
                     if let Ok(json) = resp.json::<serde_json::Value>().await {
                         if let Some(image_url) = json["images"]["large"].as_str() {
@@ -247,7 +257,10 @@ async fn fetch_extra_bangumi_subjects(
         _ => return Ok(vec![]),
     };
 
-    let url = "https://api.bgm.tv/v0/search/subjects";
+    let url = format!(
+        "{}/v0/search/subjects",
+        crate::api::config::get_bangumi_api_url()
+    );
 
     // Initial request to get total
     // Using limit=1 to minimize load
@@ -291,7 +304,10 @@ async fn fetch_extra_bangumi_subjects(
 
         tasks.push(tokio::spawn(async move {
             let resp = client_c
-                .post("https://api.bgm.tv/v0/search/subjects")
+                .post(format!(
+                    "{}/v0/search/subjects",
+                    crate::api::config::get_bangumi_api_url()
+                ))
                 .query(&[
                     ("limit", &limit.to_string()),
                     ("offset", &offset.to_string()),

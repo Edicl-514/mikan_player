@@ -1,4 +1,5 @@
 pub mod bangumi;
+pub mod config;
 pub mod crawler;
 pub mod mikan;
 pub mod network;

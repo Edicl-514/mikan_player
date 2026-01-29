@@ -8,6 +8,7 @@ pub struct ProxyConfig {
     pub url: String,
 }
 
+#[flutter_rust_bridge::frb(ignore)]
 pub fn get_system_proxy() -> Option<String> {
     #[cfg(target_os = "windows")]
     {
@@ -71,6 +72,7 @@ pub fn get_system_proxy() -> Option<String> {
     None
 }
 
+#[flutter_rust_bridge::frb(ignore)]
 pub fn create_client() -> reqwest::Result<Client> {
     let mut builder = Client::builder()
         .user_agent("MikanPlayer/1.0")

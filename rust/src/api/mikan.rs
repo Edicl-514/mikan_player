@@ -94,7 +94,8 @@ pub async fn search_mikan_anime(name_cn: String) -> anyhow::Result<Option<MikanS
     );
 
     let url = format!(
-        "https://mikanani.me/Home/Search?searchstr={}",
+        "{}/Home/Search?searchstr={}",
+        crate::api::config::get_mikan_url(),
         final_search_str
     );
     debug!("Mikan search URL: {}", url);
@@ -129,11 +130,16 @@ pub async fn search_mikan_anime(name_cn: String) -> anyhow::Result<Option<MikanS
 
         let image_url = if let Some(start) = style.find("url('") {
             if let Some(end) = style[start + 5..].find("'") {
-                format!("https://mikanani.me{}", &style[start + 5..start + 5 + end])
+                format!(
+                    "{}{}",
+                    crate::api::config::get_mikan_url(),
+                    &style[start + 5..start + 5 + end]
+                )
             } else if let Some(start2) = style.find("url(&quot;") {
                 if let Some(end2) = style[start2 + 10..].find("&quot;") {
                     format!(
-                        "https://mikanani.me{}",
+                        "{}{}",
+                        crate::api::config::get_mikan_url(),
                         &style[start2 + 10..start2 + 10 + end2]
                     )
                 } else {
@@ -265,8 +271,11 @@ fn get_mikan_expand_urls(html_content: &str, mikan_id: &str) -> Vec<String> {
 
         if !group_id.is_empty() && !take.is_empty() {
             let expand_url = format!(
-                "https://mikanani.me/Home/ExpandEpisodeTable?bangumiId={}&subtitleGroupId={}&take={}",
-                mikan_id, group_id, take
+                "{}/Home/ExpandEpisodeTable?bangumiId={}&subtitleGroupId={}&take={}",
+                crate::api::config::get_mikan_url(),
+                mikan_id,
+                group_id,
+                take
             );
             expand_urls.push(expand_url);
         }
@@ -282,7 +291,11 @@ pub async fn get_mikan_resources(
         "Fetching Mikan resources for ID: {} Episode: {}",
         mikan_id, current_episode_sort
     );
-    let url = format!("https://mikanani.me/Home/Bangumi/{}", mikan_id);
+    let url = format!(
+        "{}/Home/Bangumi/{}",
+        crate::api::config::get_mikan_url(),
+        mikan_id
+    );
     debug!("Mikan bangumi URL: {}", url);
     let client = crate::api::network::create_client()?;
     let resp = client.get(&url).send().await?.text().await?;

@@ -13,6 +13,20 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 Future<String> greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
 
+Future<void> updateConfig({
+  required String bgm,
+  required String bangumi,
+  required String mikan,
+  required String btSub,
+  required String playbackSub,
+}) => RustLib.instance.api.crateApiSimpleUpdateConfig(
+  bgm: bgm,
+  bangumi: bangumi,
+  mikan: mikan,
+  btSub: btSub,
+  playbackSub: playbackSub,
+);
+
 Future<String> startTorrent({required String magnet}) =>
     RustLib.instance.api.crateApiSimpleStartTorrent(magnet: magnet);
 

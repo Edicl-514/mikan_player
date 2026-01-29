@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/bangumi.dart';
+import 'api/config.dart';
 import 'api/crawler.dart';
 import 'api/mikan.dart';
 import 'api/ranking.dart';
@@ -70,7 +71,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1594847296;
+  int get rustContentHash => 617033029;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -132,10 +133,22 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiSimpleGetAllTorrentsInfo();
 
+  Future<String> crateApiConfigGetBangumiApiUrl();
+
+  Future<String> crateApiConfigGetBangumiUrl();
+
+  Future<String> crateApiConfigGetBgmlistUrl();
+
+  Future<String> crateApiConfigGetBtSubUrl();
+
   Future<List<MikanEpisodeResource>> crateApiMikanGetMikanResources({
     required String mikanId,
     required int currentEpisodeSort,
   });
+
+  Future<String> crateApiConfigGetMikanUrl();
+
+  Future<String> crateApiConfigGetPlaybackSubUrl();
 
   Future<List<TorrentStats>> crateApiSimpleGetTorrentStats();
 
@@ -150,6 +163,22 @@ abstract class RustLibApi extends BaseApi {
   Future<String> crateApiSimpleStartTorrent({required String magnet});
 
   Future<bool> crateApiSimpleStopTorrent({required String infoHash});
+
+  Future<void> crateApiConfigUpdateConfig({
+    required String bgm,
+    required String bangumi,
+    required String mikan,
+    required String btSub,
+    required String playbackSub,
+  });
+
+  Future<void> crateApiSimpleUpdateConfig({
+    required String bgm,
+    required String bangumi,
+    required String mikan,
+    required String btSub,
+    required String playbackSub,
+  });
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -558,6 +587,114 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_all_torrents_info", argNames: []);
 
   @override
+  Future<String> crateApiConfigGetBangumiApiUrl() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiConfigGetBangumiApiUrlConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiConfigGetBangumiApiUrlConstMeta =>
+      const TaskConstMeta(debugName: "get_bangumi_api_url", argNames: []);
+
+  @override
+  Future<String> crateApiConfigGetBangumiUrl() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiConfigGetBangumiUrlConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiConfigGetBangumiUrlConstMeta =>
+      const TaskConstMeta(debugName: "get_bangumi_url", argNames: []);
+
+  @override
+  Future<String> crateApiConfigGetBgmlistUrl() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiConfigGetBgmlistUrlConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiConfigGetBgmlistUrlConstMeta =>
+      const TaskConstMeta(debugName: "get_bgmlist_url", argNames: []);
+
+  @override
+  Future<String> crateApiConfigGetBtSubUrl() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiConfigGetBtSubUrlConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiConfigGetBtSubUrlConstMeta =>
+      const TaskConstMeta(debugName: "get_bt_sub_url", argNames: []);
+
+  @override
   Future<List<MikanEpisodeResource>> crateApiMikanGetMikanResources({
     required String mikanId,
     required int currentEpisodeSort,
@@ -571,7 +708,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 17,
             port: port_,
           );
         },
@@ -593,6 +730,60 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiConfigGetMikanUrl() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiConfigGetMikanUrlConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiConfigGetMikanUrlConstMeta =>
+      const TaskConstMeta(debugName: "get_mikan_url", argNames: []);
+
+  @override
+  Future<String> crateApiConfigGetPlaybackSubUrl() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiConfigGetPlaybackSubUrlConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiConfigGetPlaybackSubUrlConstMeta =>
+      const TaskConstMeta(debugName: "get_playback_sub_url", argNames: []);
+
+  @override
   Future<List<TorrentStats>> crateApiSimpleGetTorrentStats() {
     return handler.executeNormal(
       NormalTask(
@@ -601,7 +792,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 20,
             port: port_,
           );
         },
@@ -629,7 +820,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 21,
             port: port_,
           );
         },
@@ -656,7 +847,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 22,
             port: port_,
           );
         },
@@ -686,7 +877,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 23,
             port: port_,
           );
         },
@@ -717,7 +908,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 24,
             port: port_,
           );
         },
@@ -745,7 +936,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 25,
             port: port_,
           );
         },
@@ -762,6 +953,86 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSimpleStopTorrentConstMeta =>
       const TaskConstMeta(debugName: "stop_torrent", argNames: ["infoHash"]);
+
+  @override
+  Future<void> crateApiConfigUpdateConfig({
+    required String bgm,
+    required String bangumi,
+    required String mikan,
+    required String btSub,
+    required String playbackSub,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(bgm, serializer);
+          sse_encode_String(bangumi, serializer);
+          sse_encode_String(mikan, serializer);
+          sse_encode_String(btSub, serializer);
+          sse_encode_String(playbackSub, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 26,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiConfigUpdateConfigConstMeta,
+        argValues: [bgm, bangumi, mikan, btSub, playbackSub],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiConfigUpdateConfigConstMeta => const TaskConstMeta(
+    debugName: "update_config",
+    argNames: ["bgm", "bangumi", "mikan", "btSub", "playbackSub"],
+  );
+
+  @override
+  Future<void> crateApiSimpleUpdateConfig({
+    required String bgm,
+    required String bangumi,
+    required String mikan,
+    required String btSub,
+    required String playbackSub,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(bgm, serializer);
+          sse_encode_String(bangumi, serializer);
+          sse_encode_String(mikan, serializer);
+          sse_encode_String(btSub, serializer);
+          sse_encode_String(playbackSub, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleUpdateConfigConstMeta,
+        argValues: [bgm, bangumi, mikan, btSub, playbackSub],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleUpdateConfigConstMeta => const TaskConstMeta(
+    debugName: "update_config",
+    argNames: ["bgm", "bangumi", "mikan", "btSub", "playbackSub"],
+  );
 
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw) {

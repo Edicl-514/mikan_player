@@ -66,8 +66,11 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
 
     loop {
         let url = format!(
-            "https://api.bgm.tv/v0/episodes?subject_id={}&limit={}&offset={}",
-            subject_id, limit, offset
+            "{}/v0/episodes?subject_id={}&limit={}&offset={}",
+            crate::api::config::get_bangumi_api_url(),
+            subject_id,
+            limit,
+            offset
         );
 
         let resp = client
@@ -122,7 +125,11 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
 pub async fn fetch_bangumi_characters(subject_id: i64) -> anyhow::Result<Vec<BangumiCharacter>> {
     let client = crate::api::network::create_client()?;
 
-    let url = format!("https://api.bgm.tv/v0/subjects/{}/characters", subject_id);
+    let url = format!(
+        "{}/v0/subjects/{}/characters",
+        crate::api::config::get_bangumi_api_url(),
+        subject_id
+    );
 
     let resp = client
         .get(&url)
@@ -189,7 +196,11 @@ pub async fn fetch_bangumi_relations(
 ) -> anyhow::Result<Vec<BangumiRelatedSubject>> {
     let client = crate::api::network::create_client()?;
 
-    let url = format!("https://api.bgm.tv/v0/subjects/{}/subjects", subject_id);
+    let url = format!(
+        "{}/v0/subjects/{}/subjects",
+        crate::api::config::get_bangumi_api_url(),
+        subject_id
+    );
 
     let resp = client
         .get(&url)
@@ -239,8 +250,10 @@ pub async fn fetch_bangumi_comments(
     let client = crate::api::network::create_client()?;
 
     let url = format!(
-        "https://bgm.tv/subject/{}/comments?page={}",
-        subject_id, page
+        "{}/subject/{}/comments?page={}",
+        crate::api::config::get_bangumi_url(),
+        subject_id,
+        page
     );
 
     let resp = client.get(&url).send().await?;
@@ -367,7 +380,11 @@ pub async fn fetch_bangumi_episode_comments(
 ) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
     let client = crate::api::network::create_client()?;
 
-    let url = format!("https://bangumi.tv/ep/{}", episode_id);
+    let url = format!(
+        "{}/ep/{}",
+        crate::api::config::get_bangumi_url(),
+        episode_id
+    );
     let resp = client.get(&url).send().await?;
 
     if !resp.status().is_success() {
@@ -452,7 +469,10 @@ pub async fn fetch_bangumi_episode_comments(
             msg.html()
                 .replace("src=\"//", "src=\"https://")
                 // Fix for bangumi relative emoticons if needed, usually they are relative /img/smiles/
-                .replace("src=\"/img/", "src=\"https://bangumi.tv/img/")
+                .replace(
+                    "src=\"/img/",
+                    &format!("src=\"{}/img/", crate::api::config::get_bangumi_url()),
+                )
         } else {
             String::new()
         };
@@ -512,9 +532,10 @@ pub async fn fetch_bangumi_episode_comments(
 
             let s_content_html = if let Some(msg) = sub_element.select(&sub_message_selector).next()
             {
-                msg.html()
-                    .replace("src=\"//", "src=\"https://")
-                    .replace("src=\"/img/", "src=\"https://bangumi.tv/img/")
+                msg.html().replace("src=\"//", "src=\"https://").replace(
+                    "src=\"/img/",
+                    &format!("src=\"{}/img/", crate::api::config::get_bangumi_url()),
+                )
             } else {
                 String::new()
             };

@@ -4,6 +4,8 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/src/rust/api/simple.dart';
 import 'package:mikan_player/src/rust/frb_generated.dart';
 import 'package:mikan_player/ui/screens/home_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,7 +16,35 @@ Future<void> main() async {
   // Initialize MediaKit
   MediaKit.ensureInitialized();
 
+  // Load and sync settings
+  await _syncSettings();
+
   runApp(const MyApp());
+}
+
+Future<void> _syncSettings() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final bgm = prefs.getString('bgmlist_url') ?? 'https://bgmlist.com';
+    final bangumi = prefs.getString('bangumi_url') ?? 'https://bangumi.tv';
+    final mikan = prefs.getString('mikan_url') ?? 'https://mikanani.kas.pub';
+    final btSub =
+        prefs.getString('bt_sub_url') ??
+        'https://sub.creamycake.org/v1/bt1.json';
+    final playbackSub =
+        prefs.getString('playback_sub_url') ??
+        'https://sub.creamycake.org/v1/css1.json';
+
+    await rust.updateConfig(
+      bgm: bgm,
+      bangumi: bangumi,
+      mikan: mikan,
+      btSub: btSub,
+      playbackSub: playbackSub,
+    );
+  } catch (e) {
+    debugPrint('Failed to sync settings: $e');
+  }
 }
 
 class MyApp extends StatelessWidget {
