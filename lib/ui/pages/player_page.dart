@@ -3,6 +3,8 @@ import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
+import 'package:mikan_player/src/rust/api/mikan.dart';
+import 'package:flutter/services.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 
@@ -35,15 +37,22 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   List<RankingAnime> _recommendations = [];
   bool _isLoadingRecommendations = false;
 
+  // Mikan Source
+  bool _isLoadingMikan = false;
+  String? _mikanError;
+  MikanSearchResult? _mikanAnime;
+  List<MikanEpisodeResource> _mikanResources = [];
+  bool _isMikanSourceExpanded = false;
+
   @override
   void initState() {
     super.initState();
     _mobileTabController = TabController(length: 2, vsync: this);
     _pcEpisodeScrollController = ScrollController();
     _mobileEpisodeScrollController = ScrollController();
-    _mobileEpisodeScrollController = ScrollController();
     _loadComments();
     _loadRecommendations();
+    _loadMikanSource();
   }
 
   Future<void> _loadComments() async {
@@ -186,6 +195,63 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _loadMikanSource() async {
+    setState(() {
+      _isLoadingMikan = true;
+      _mikanError = null;
+      _mikanResources = [];
+    });
+
+    try {
+      final result = await searchMikanAnime(nameCn: widget.anime.title);
+
+      if (result == null) {
+        if (mounted) {
+          setState(() {
+            _isLoadingMikan = false;
+            _mikanError = "未找到番剧";
+          });
+        }
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _mikanAnime = result;
+        });
+      }
+
+      if (widget.currentEpisode.id != 0) {
+        final resources = await getMikanResources(
+          mikanId: result.id,
+          currentEpisodeSort: widget.currentEpisode.sort.toInt(),
+        );
+
+        if (mounted) {
+          setState(() {
+            _mikanResources = resources;
+            _isLoadingMikan = false;
+            _isMikanSourceExpanded = true;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoadingMikan = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error loading Mikan source: $e");
+      if (mounted) {
+        setState(() {
+          _mikanError = e.toString();
+          _isLoadingMikan = false;
+        });
+      }
+    }
+  }
+
   @override
   void didUpdateWidget(PlayerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -194,6 +260,42 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
     if (oldWidget.anime.bangumiId != widget.anime.bangumiId) {
       _loadRecommendations();
+      _loadMikanSource(); // Anime changed, reload search
+    } else if (oldWidget.currentEpisode.sort != widget.currentEpisode.sort) {
+      // Episode changed, reload resources using existing mikan anime info if available
+      if (_mikanAnime != null) {
+        _reloadMikanResourcesForEpisode();
+      } else {
+        _loadMikanSource();
+      }
+    }
+  }
+
+  Future<void> _reloadMikanResourcesForEpisode() async {
+    if (_mikanAnime == null) return;
+    setState(() {
+      _isLoadingMikan = true;
+      _mikanResources = []; // Clear previous episode resources
+    });
+    try {
+      final resources = await getMikanResources(
+        mikanId: _mikanAnime!.id,
+        currentEpisodeSort: widget.currentEpisode.sort.toInt(),
+      );
+      if (mounted) {
+        setState(() {
+          _mikanResources = resources;
+          _isLoadingMikan = false;
+          _isMikanSourceExpanded = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _mikanError = e.toString();
+          _isLoadingMikan = false;
+        });
+      }
     }
   }
 
@@ -486,6 +588,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _buildSectionHeader("播放源"),
           const SizedBox(height: 12),
           _buildPlaySourceSelector(),
+          const SizedBox(height: 12),
+          _buildMikanResourceList(),
           const SizedBox(height: 24),
 
           // Recommendations
@@ -691,6 +795,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 ),
                                 const SizedBox(height: 12),
                                 _buildPlaySourceSelector(),
+                                const SizedBox(height: 12),
+                                _buildMikanResourceList(),
                               ],
                             ),
                           ),
@@ -1142,7 +1248,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {},
+        onTap: () {
+          setState(() {
+            _isMikanSourceExpanded = !_isMikanSourceExpanded;
+          });
+        },
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1155,21 +1265,55 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             children: [
               const Icon(Icons.cloud_queue, color: Color(0xFFBB86FC), size: 18),
               const SizedBox(width: 12),
-              const Text(
-                "Mikan Project Source",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Mikan Project",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (_mikanAnime != null)
+                      Text(
+                        "匹配: ${_mikanAnime!.name}",
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          fontSize: 10,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
                 ),
               ),
-              const Spacer(),
-              const Text(
-                "自动选择",
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
+              if (_isLoadingMikan)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.grey,
+                  ),
+                )
+              else if (_mikanError != null)
+                const Icon(
+                  Icons.error_outline,
+                  color: Colors.redAccent,
+                  size: 16,
+                )
+              else
+                Text(
+                  "${_mikanResources.length} 个资源",
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
               const SizedBox(width: 8),
-              const Icon(
-                Icons.keyboard_arrow_down,
+              Icon(
+                _isMikanSourceExpanded
+                    ? Icons.keyboard_arrow_up
+                    : Icons.keyboard_arrow_down,
                 color: Colors.grey,
                 size: 20,
               ),
@@ -1177,6 +1321,136 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMikanResourceList() {
+    if (!_isMikanSourceExpanded ||
+        (_mikanResources.isEmpty && !_isLoadingMikan)) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      children: _mikanResources.map((res) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E2C),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      res.title,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blueAccent.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      res.size,
+                      style: const TextStyle(
+                        color: Colors.blueAccent,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    res.updateTime,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                  ),
+                  const Spacer(),
+                  InkWell(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: res.magnet));
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text("磁力链接已复制")));
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.copy, size: 12, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            "复制",
+                            style: TextStyle(color: Colors.white, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () {
+                      // TODO: Play magnet
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text("播放功能暂未实现")));
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFBB86FC),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.play_arrow, size: 12, color: Colors.black),
+                          SizedBox(width: 4),
+                          Text(
+                            "播放",
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 

@@ -5,6 +5,7 @@
 
 import 'api/bangumi.dart';
 import 'api/crawler.dart';
+import 'api/mikan.dart';
 import 'api/ranking.dart';
 import 'api/simple.dart';
 import 'dart:async';
@@ -69,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 686866219;
+  int get rustContentHash => 499895679;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -131,9 +132,18 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiSimpleGetAllTorrentsInfo();
 
+  Future<List<MikanEpisodeResource>> crateApiMikanGetMikanResources({
+    required String mikanId,
+    required int currentEpisodeSort,
+  });
+
   Future<String> crateApiSimpleGreet({required String name});
 
   Future<void> crateApiSimpleInitApp();
+
+  Future<MikanSearchResult?> crateApiMikanSearchMikanAnime({
+    required String nameCn,
+  });
 
   Future<String> crateApiSimpleStartTorrent({required String magnet});
 }
@@ -544,6 +554,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_all_torrents_info", argNames: []);
 
   @override
+  Future<List<MikanEpisodeResource>> crateApiMikanGetMikanResources({
+    required String mikanId,
+    required int currentEpisodeSort,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(mikanId, serializer);
+          sse_encode_i_32(currentEpisodeSort, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_mikan_episode_resource,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiMikanGetMikanResourcesConstMeta,
+        argValues: [mikanId, currentEpisodeSort],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMikanGetMikanResourcesConstMeta =>
+      const TaskConstMeta(
+        debugName: "get_mikan_resources",
+        argNames: ["mikanId", "currentEpisodeSort"],
+      );
+
+  @override
   Future<String> crateApiSimpleGreet({required String name}) {
     return handler.executeNormal(
       NormalTask(
@@ -553,7 +598,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 14,
             port: port_,
           );
         },
@@ -580,7 +625,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -599,6 +644,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
+  Future<MikanSearchResult?> crateApiMikanSearchMikanAnime({
+    required String nameCn,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(nameCn, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_mikan_search_result,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiMikanSearchMikanAnimeConstMeta,
+        argValues: [nameCn],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMikanSearchMikanAnimeConstMeta =>
+      const TaskConstMeta(
+        debugName: "search_mikan_anime",
+        argNames: ["nameCn"],
+      );
+
+  @override
   Future<String> crateApiSimpleStartTorrent({required String magnet}) {
     return handler.executeNormal(
       NormalTask(
@@ -608,7 +686,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 17,
             port: port_,
           );
         },
@@ -798,6 +876,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MikanSearchResult dco_decode_box_autoadd_mikan_search_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_mikan_search_result(raw);
+  }
+
+  @protected
   double dco_decode_f_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
@@ -878,6 +962,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<MikanEpisodeResource> dco_decode_list_mikan_episode_resource(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_mikan_episode_resource)
+        .toList();
+  }
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
@@ -887,6 +981,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<RankingAnime> dco_decode_list_ranking_anime(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_ranking_anime).toList();
+  }
+
+  @protected
+  MikanEpisodeResource dco_decode_mikan_episode_resource(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return MikanEpisodeResource(
+      title: dco_decode_String(arr[0]),
+      magnet: dco_decode_String(arr[1]),
+      size: dco_decode_String(arr[2]),
+      updateTime: dco_decode_String(arr[3]),
+      episode: dco_decode_opt_box_autoadd_i_32(arr[4]),
+    );
+  }
+
+  @protected
+  MikanSearchResult dco_decode_mikan_search_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return MikanSearchResult(
+      id: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      imageUrl: dco_decode_String(arr[2]),
+    );
   }
 
   @protected
@@ -911,6 +1033,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int? dco_decode_opt_box_autoadd_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_i_32(raw);
+  }
+
+  @protected
+  MikanSearchResult? dco_decode_opt_box_autoadd_mikan_search_result(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_mikan_search_result(raw);
   }
 
   @protected
@@ -1143,6 +1273,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MikanSearchResult sse_decode_box_autoadd_mikan_search_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_mikan_search_result(deserializer));
+  }
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getFloat64();
@@ -1283,6 +1421,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<MikanEpisodeResource> sse_decode_list_mikan_episode_resource(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <MikanEpisodeResource>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_mikan_episode_resource(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -1301,6 +1453,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ans_.add(sse_decode_ranking_anime(deserializer));
     }
     return ans_;
+  }
+
+  @protected
+  MikanEpisodeResource sse_decode_mikan_episode_resource(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_title = sse_decode_String(deserializer);
+    var var_magnet = sse_decode_String(deserializer);
+    var var_size = sse_decode_String(deserializer);
+    var var_updateTime = sse_decode_String(deserializer);
+    var var_episode = sse_decode_opt_box_autoadd_i_32(deserializer);
+    return MikanEpisodeResource(
+      title: var_title,
+      magnet: var_magnet,
+      size: var_size,
+      updateTime: var_updateTime,
+      episode: var_episode,
+    );
+  }
+
+  @protected
+  MikanSearchResult sse_decode_mikan_search_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_imageUrl = sse_decode_String(deserializer);
+    return MikanSearchResult(
+      id: var_id,
+      name: var_name,
+      imageUrl: var_imageUrl,
+    );
   }
 
   @protected
@@ -1344,6 +1530,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_i_32(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  MikanSearchResult? sse_decode_opt_box_autoadd_mikan_search_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_mikan_search_result(deserializer));
     } else {
       return null;
     }
@@ -1538,6 +1737,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_mikan_search_result(
+    MikanSearchResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_mikan_search_result(self, serializer);
+  }
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putFloat64(self);
@@ -1661,6 +1869,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_mikan_episode_resource(
+    List<MikanEpisodeResource> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_mikan_episode_resource(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
     SseSerializer serializer,
@@ -1680,6 +1900,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     for (final item in self) {
       sse_encode_ranking_anime(item, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_mikan_episode_resource(
+    MikanEpisodeResource self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.title, serializer);
+    sse_encode_String(self.magnet, serializer);
+    sse_encode_String(self.size, serializer);
+    sse_encode_String(self.updateTime, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.episode, serializer);
+  }
+
+  @protected
+  void sse_encode_mikan_search_result(
+    MikanSearchResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.imageUrl, serializer);
   }
 
   @protected
@@ -1722,6 +1966,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_i_32(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_mikan_search_result(
+    MikanSearchResult? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_mikan_search_result(self, serializer);
     }
   }
 

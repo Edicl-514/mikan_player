@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 686866219;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 499895679;
 
 // Section: executor
 
@@ -502,6 +502,47 @@ fn wire__crate__api__simple__get_all_torrents_info_impl(
         },
     )
 }
+fn wire__crate__api__mikan__get_mikan_resources_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "get_mikan_resources",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_mikan_id = <String>::sse_decode(&mut deserializer);
+            let api_current_episode_sort = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::mikan::get_mikan_resources(
+                            api_mikan_id,
+                            api_current_episode_sort,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__simple__greet_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -565,6 +606,42 @@ fn wire__crate__api__simple__init_app_impl(
                     })?;
                     Ok(output_ok)
                 })())
+            }
+        },
+    )
+}
+fn wire__crate__api__mikan__search_mikan_anime_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "search_mikan_anime",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_name_cn = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::mikan::search_mikan_anime(api_name_cn).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
         },
     )
@@ -944,6 +1021,20 @@ impl SseDecode for Vec<crate::api::bangumi::BangumiRelatedSubject> {
     }
 }
 
+impl SseDecode for Vec<crate::api::mikan::MikanEpisodeResource> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::mikan::MikanEpisodeResource>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -967,6 +1058,38 @@ impl SseDecode for Vec<crate::api::ranking::RankingAnime> {
             ));
         }
         return ans_;
+    }
+}
+
+impl SseDecode for crate::api::mikan::MikanEpisodeResource {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_title = <String>::sse_decode(deserializer);
+        let mut var_magnet = <String>::sse_decode(deserializer);
+        let mut var_size = <String>::sse_decode(deserializer);
+        let mut var_updateTime = <String>::sse_decode(deserializer);
+        let mut var_episode = <Option<i32>>::sse_decode(deserializer);
+        return crate::api::mikan::MikanEpisodeResource {
+            title: var_title,
+            magnet: var_magnet,
+            size: var_size,
+            update_time: var_updateTime,
+            episode: var_episode,
+        };
+    }
+}
+
+impl SseDecode for crate::api::mikan::MikanSearchResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_imageUrl = <String>::sse_decode(deserializer);
+        return crate::api::mikan::MikanSearchResult {
+            id: var_id,
+            name: var_name,
+            image_url: var_imageUrl,
+        };
     }
 }
 
@@ -1010,6 +1133,19 @@ impl SseDecode for Option<i32> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<i32>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::mikan::MikanSearchResult> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::mikan::MikanSearchResult>::sse_decode(
+                deserializer,
+            ));
         } else {
             return None;
         }
@@ -1113,9 +1249,11 @@ fn pde_ffi_dispatcher_primary_impl(
         12 => {
             wire__crate__api__simple__get_all_torrents_info_impl(port, ptr, rust_vec_len, data_len)
         }
-        13 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1353,6 +1491,52 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiRelatedSubjec
     for crate::api::bangumi::BangumiRelatedSubject
 {
     fn into_into_dart(self) -> crate::api::bangumi::BangumiRelatedSubject {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::mikan::MikanEpisodeResource {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.title.into_into_dart().into_dart(),
+            self.magnet.into_into_dart().into_dart(),
+            self.size.into_into_dart().into_dart(),
+            self.update_time.into_into_dart().into_dart(),
+            self.episode.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::mikan::MikanEpisodeResource
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::mikan::MikanEpisodeResource>
+    for crate::api::mikan::MikanEpisodeResource
+{
+    fn into_into_dart(self) -> crate::api::mikan::MikanEpisodeResource {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::mikan::MikanSearchResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+            self.image_url.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::mikan::MikanSearchResult
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::mikan::MikanSearchResult>
+    for crate::api::mikan::MikanSearchResult
+{
+    fn into_into_dart(self) -> crate::api::mikan::MikanSearchResult {
         self
     }
 }
@@ -1613,6 +1797,16 @@ impl SseEncode for Vec<crate::api::bangumi::BangumiRelatedSubject> {
     }
 }
 
+impl SseEncode for Vec<crate::api::mikan::MikanEpisodeResource> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::mikan::MikanEpisodeResource>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1630,6 +1824,26 @@ impl SseEncode for Vec<crate::api::ranking::RankingAnime> {
         for item in self {
             <crate::api::ranking::RankingAnime>::sse_encode(item, serializer);
         }
+    }
+}
+
+impl SseEncode for crate::api::mikan::MikanEpisodeResource {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.title, serializer);
+        <String>::sse_encode(self.magnet, serializer);
+        <String>::sse_encode(self.size, serializer);
+        <String>::sse_encode(self.update_time, serializer);
+        <Option<i32>>::sse_encode(self.episode, serializer);
+    }
+}
+
+impl SseEncode for crate::api::mikan::MikanSearchResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <String>::sse_encode(self.image_url, serializer);
     }
 }
 
@@ -1669,6 +1883,16 @@ impl SseEncode for Option<i32> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <i32>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::mikan::MikanSearchResult> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::mikan::MikanSearchResult>::sse_encode(value, serializer);
         }
     }
 }
