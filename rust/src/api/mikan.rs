@@ -98,7 +98,7 @@ pub async fn search_mikan_anime(name_cn: String) -> anyhow::Result<Option<MikanS
         final_search_str
     );
     debug!("Mikan search URL: {}", url);
-    let client = reqwest::Client::new();
+    let client = crate::api::network::create_client()?;
     let resp = client.get(&url).send().await?.text().await?;
     let document = Html::parse_document(&resp);
 
@@ -284,7 +284,7 @@ pub async fn get_mikan_resources(
     );
     let url = format!("https://mikanani.me/Home/Bangumi/{}", mikan_id);
     debug!("Mikan bangumi URL: {}", url);
-    let client = reqwest::Client::new();
+    let client = crate::api::network::create_client()?;
     let resp = client.get(&url).send().await?.text().await?;
 
     let mut resources = parse_mikan_resources_from_html(&resp, current_episode_sort);

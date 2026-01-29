@@ -28,7 +28,8 @@ pub struct ArchiveQuarter {
 
 pub async fn fetch_archive_list() -> anyhow::Result<Vec<ArchiveQuarter>> {
     let url = "https://bgmlist.com/archive";
-    let resp = reqwest::get(url).await?.text().await?;
+    let client = crate::api::network::create_client()?;
+    let resp = client.get(url).send().await?.text().await?;
     let document = Html::parse_document(&resp);
 
     // Each year is an h3, followed by a list of months/quarters as a or li
@@ -77,7 +78,8 @@ pub async fn fetch_archive_list() -> anyhow::Result<Vec<ArchiveQuarter>> {
 
 pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<AnimeInfo>> {
     let url = format!("https://bgmlist.com/archive/{}", year_quarter);
-    let resp = reqwest::get(url).await?.text().await?;
+    let client = crate::api::network::create_client()?;
+    let resp = client.get(&url).send().await?.text().await?;
     let mut animes = Vec::new();
 
     {
@@ -166,9 +168,7 @@ pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<An
 }
 
 pub async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<AnimeInfo>> {
-    let client = reqwest::Client::builder()
-        .user_agent("MikanPlayer/1.0 (https://github.com/your-repo/mikan_player)")
-        .build()?;
+    let client = crate::api::network::create_client()?;
 
     let mut tasks = Vec::new();
     for mut anime in animes {
@@ -218,9 +218,7 @@ pub async fn fetch_extra_subjects(
     year_quarter: String,
     existing_ids: Vec<String>,
 ) -> anyhow::Result<Vec<AnimeInfo>> {
-    let client = reqwest::Client::builder()
-        .user_agent("MikanPlayer/1.0 (https://github.com/your-repo/mikan_player)")
-        .build()?;
+    let client = crate::api::network::create_client()?;
 
     let existing_set: HashSet<String> = existing_ids.into_iter().collect();
 

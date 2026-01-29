@@ -58,9 +58,7 @@ pub struct BangumiComment {
 /// Fetch episodes for a subject
 /// API: GET https://api.bgm.tv/v0/episodes?subject_id={subject_id}&limit=100&offset=0
 pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<BangumiEpisode>> {
-    let client = reqwest::Client::builder()
-        .user_agent("MikanPlayer/1.0 (https://github.com/your-repo/mikan_player)")
-        .build()?;
+    let client = crate::api::network::create_client()?;
 
     let mut all_episodes = Vec::new();
     let mut offset = 0;
@@ -122,9 +120,7 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
 /// Fetch characters for a subject
 /// API: GET https://api.bgm.tv/v0/subjects/{subject_id}/characters
 pub async fn fetch_bangumi_characters(subject_id: i64) -> anyhow::Result<Vec<BangumiCharacter>> {
-    let client = reqwest::Client::builder()
-        .user_agent("MikanPlayer/1.0 (https://github.com/your-repo/mikan_player)")
-        .build()?;
+    let client = crate::api::network::create_client()?;
 
     let url = format!("https://api.bgm.tv/v0/subjects/{}/characters", subject_id);
 
@@ -191,9 +187,7 @@ pub async fn fetch_bangumi_characters(subject_id: i64) -> anyhow::Result<Vec<Ban
 pub async fn fetch_bangumi_relations(
     subject_id: i64,
 ) -> anyhow::Result<Vec<BangumiRelatedSubject>> {
-    let client = reqwest::Client::builder()
-        .user_agent("MikanPlayer/1.0 (https://github.com/your-repo/mikan_player)")
-        .build()?;
+    let client = crate::api::network::create_client()?;
 
     let url = format!("https://api.bgm.tv/v0/subjects/{}/subjects", subject_id);
 
@@ -242,9 +236,7 @@ pub async fn fetch_bangumi_comments(
     subject_id: i64,
     page: i32,
 ) -> anyhow::Result<Vec<BangumiComment>> {
-    let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-        .build()?;
+    let client = crate::api::network::create_client()?;
 
     let url = format!(
         "https://bgm.tv/subject/{}/comments?page={}",
@@ -373,9 +365,7 @@ pub struct BangumiEpisodeComment {
 pub async fn fetch_bangumi_episode_comments(
     episode_id: i64,
 ) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
-    let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-        .build()?;
+    let client = crate::api::network::create_client()?;
 
     let url = format!("https://bangumi.tv/ep/{}", episode_id);
     let resp = client.get(&url).send().await?;
