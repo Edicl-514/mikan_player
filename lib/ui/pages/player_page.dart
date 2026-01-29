@@ -196,6 +196,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Future<void> _loadMikanSource() async {
+    debugPrint("[Mikan] Starting search for playback sources...");
+    debugPrint("[Mikan] Target anime title: ${widget.anime.title}");
+    debugPrint("[Mikan] Current episode sort: ${widget.currentEpisode.sort}");
+
     setState(() {
       _isLoadingMikan = true;
       _mikanError = null;
@@ -206,6 +210,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final result = await searchMikanAnime(nameCn: widget.anime.title);
 
       if (result == null) {
+        debugPrint(
+          "[Mikan] No anime found on Mikan for title: ${widget.anime.title}",
+        );
         if (mounted) {
           setState(() {
             _isLoadingMikan = false;
@@ -214,6 +221,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         }
         return;
       }
+
+      debugPrint(
+        "[Mikan] Found matching anime: ${result.name} (ID: ${result.id})",
+      );
 
       if (mounted) {
         setState(() {
@@ -227,11 +238,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           currentEpisodeSort: widget.currentEpisode.sort.toInt(),
         );
 
+        debugPrint(
+          "[Mikan] Initial load: Found ${resources.length} resources for EP ${widget.currentEpisode.sort.toInt()}",
+        );
+
         if (mounted) {
           setState(() {
             _mikanResources = resources;
             _isLoadingMikan = false;
-            _isMikanSourceExpanded = true;
           });
         }
       } else {
@@ -272,7 +286,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Future<void> _reloadMikanResourcesForEpisode() async {
-    if (_mikanAnime == null) return;
+    debugPrint(
+      "[Mikan] Reloading resources for new episode: ${widget.currentEpisode.sort.toInt()}",
+    );
+    debugPrint("[Mikan] Using existing anime ID: ${_mikanAnime!.id}");
+
     setState(() {
       _isLoadingMikan = true;
       _mikanResources = []; // Clear previous episode resources
@@ -286,10 +304,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         setState(() {
           _mikanResources = resources;
           _isLoadingMikan = false;
-          _isMikanSourceExpanded = true;
         });
       }
     } catch (e) {
+      debugPrint("[Mikan] Error reloading resources: $e");
       if (mounted) {
         setState(() {
           _mikanError = e.toString();
@@ -1406,6 +1424,34 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           SizedBox(width: 4),
                           Text(
                             "复制",
+                            style: TextStyle(color: Colors.white, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text("下载功能开发中")));
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.download, size: 12, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            "下载",
                             style: TextStyle(color: Colors.white, fontSize: 11),
                           ),
                         ],
