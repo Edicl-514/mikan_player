@@ -10,11 +10,11 @@ class DownloadTask {
   final String? animeName;
   final int? episodeNumber;
   final DateTime startTime;
-  
+
   DownloadTaskStatus status;
   double progress;
   double downloadSpeed; // bytes per second
-  double uploadSpeed;   // bytes per second
+  double uploadSpeed; // bytes per second
   BigInt downloaded;
   BigInt totalSize;
   int peers;
@@ -93,16 +93,20 @@ class DownloadManager extends ChangeNotifier {
   DownloadManager._internal();
 
   final Map<String, DownloadTask> _tasks = {};
-  final Set<String> _removedTaskIds = {}; // Track removed tasks to prevent re-adding
+  final Set<String> _removedTaskIds =
+      {}; // Track removed tasks to prevent re-adding
   Timer? _statsTimer;
 
   List<DownloadTask> get tasks => _tasks.values.toList();
   List<DownloadTask> get activeTasks => _tasks.values
-      .where((t) => t.status == DownloadTaskStatus.downloading || 
-                    t.status == DownloadTaskStatus.seeding ||
-                    t.status == DownloadTaskStatus.pending)
+      .where(
+        (t) =>
+            t.status == DownloadTaskStatus.downloading ||
+            t.status == DownloadTaskStatus.seeding ||
+            t.status == DownloadTaskStatus.pending,
+      )
       .toList();
-  
+
   int get activeCount => activeTasks.length;
 
   /// Start a new download/streaming task
@@ -113,8 +117,10 @@ class DownloadManager extends ChangeNotifier {
     int? episodeNumber,
   }) async {
     // Generate a temporary ID from magnet hash
-    final tempId = _extractInfoHash(magnet) ?? DateTime.now().millisecondsSinceEpoch.toString();
-    
+    final tempId =
+        _extractInfoHash(magnet) ??
+        DateTime.now().millisecondsSinceEpoch.toString();
+
     // Check if already downloading
     if (_tasks.containsKey(tempId)) {
       final existingTask = _tasks[tempId]!;
@@ -133,7 +139,7 @@ class DownloadManager extends ChangeNotifier {
       startTime: DateTime.now(),
       status: DownloadTaskStatus.pending,
     );
-    
+
     _tasks[tempId] = task;
     notifyListeners();
     _startStatsPolling();
@@ -141,14 +147,14 @@ class DownloadManager extends ChangeNotifier {
     try {
       // Call Rust backend to start torrent
       final streamUrl = await startTorrent(magnet: magnet);
-      
+
       if (streamUrl.startsWith('Error')) {
         task.status = DownloadTaskStatus.error;
         task.errorMessage = streamUrl;
         notifyListeners();
         return null;
       }
-      
+
       // Update task with actual info
       final actualId = _extractInfoHashFromUrl(streamUrl) ?? tempId;
       if (actualId != tempId) {
@@ -160,7 +166,7 @@ class DownloadManager extends ChangeNotifier {
         task.streamUrl = streamUrl;
         task.status = DownloadTaskStatus.downloading;
       }
-      
+
       notifyListeners();
       return streamUrl;
     } catch (e) {
@@ -175,13 +181,13 @@ class DownloadManager extends ChangeNotifier {
   Future<void> _updateStats() async {
     try {
       final stats = await getTorrentStats();
-      
+
       for (final stat in stats) {
         // Skip if this task was manually removed
         if (_removedTaskIds.contains(stat.infoHash)) {
           continue;
         }
-        
+
         if (_tasks.containsKey(stat.infoHash)) {
           final task = _tasks[stat.infoHash]!;
           task.progress = stat.progress;
@@ -190,7 +196,7 @@ class DownloadManager extends ChangeNotifier {
           task.downloaded = stat.downloaded;
           task.totalSize = stat.totalSize;
           task.peers = stat.peers;
-          
+
           // Update status based on progress
           if (stat.progress >= 100.0) {
             task.status = DownloadTaskStatus.seeding;
@@ -204,8 +210,8 @@ class DownloadManager extends ChangeNotifier {
             name: stat.name,
             magnet: '', // Unknown
             startTime: DateTime.now(),
-            status: stat.progress >= 100.0 
-                ? DownloadTaskStatus.seeding 
+            status: stat.progress >= 100.0
+                ? DownloadTaskStatus.seeding
                 : DownloadTaskStatus.downloading,
             progress: stat.progress,
             downloadSpeed: stat.downloadSpeed,
@@ -213,12 +219,13 @@ class DownloadManager extends ChangeNotifier {
             downloaded: stat.downloaded,
             totalSize: stat.totalSize,
             peers: stat.peers,
-            streamUrl: 'http://127.0.0.1:3000/torrents/${stat.infoHash}/stream/0',
+            streamUrl:
+                'http://127.0.0.1:3000/torrents/${stat.infoHash}/stream/0',
           );
           _tasks[stat.infoHash] = newTask;
         }
       }
-      
+
       notifyListeners();
     } catch (e) {
       debugPrint('Error updating torrent stats: $e');
@@ -252,19 +259,23 @@ class DownloadManager extends ChangeNotifier {
   }
 
   /// Remove a download task
-  Future<void> removeTask(String id) async {
+  Future<void> removeTask(String id, {bool deleteFiles = false}) async {
     // Try to stop the torrent in the backend
     try {
-      final stopped = await stopTorrent(infoHash: id);
+      final stopped = await stopTorrent(infoHash: id, deleteFiles: deleteFiles);
       if (stopped) {
-        debugPrint('[DownloadManager] Successfully stopped torrent: $id');
+        debugPrint(
+          '[DownloadManager] Successfully stopped torrent: $id (deleteFiles: $deleteFiles)',
+        );
       } else {
-        debugPrint('[DownloadManager] Failed to stop torrent (may not exist): $id');
+        debugPrint(
+          '[DownloadManager] Failed to stop torrent (may not exist): $id',
+        );
       }
     } catch (e) {
       debugPrint('[DownloadManager] Error stopping torrent: $e');
     }
-    
+
     // Remove from UI regardless of backend result
     _tasks.remove(id);
     _removedTaskIds.add(id); // Mark as removed to prevent re-adding
@@ -272,17 +283,20 @@ class DownloadManager extends ChangeNotifier {
   }
 
   /// Clear completed tasks
-  Future<void> clearCompleted() async {
+  Future<void> clearCompleted({bool deleteFiles = false}) async {
     final completedIds = _tasks.entries
-        .where((e) => e.value.status == DownloadTaskStatus.completed ||
-                     e.value.status == DownloadTaskStatus.seeding)
+        .where(
+          (e) =>
+              e.value.status == DownloadTaskStatus.completed ||
+              e.value.status == DownloadTaskStatus.seeding,
+        )
         .map((e) => e.key)
         .toList();
-    
+
     // Stop each torrent in the backend
     for (final id in completedIds) {
       try {
-        await stopTorrent(infoHash: id);
+        await stopTorrent(infoHash: id, deleteFiles: deleteFiles);
       } catch (e) {
         debugPrint('[DownloadManager] Error stopping torrent $id: $e');
       }

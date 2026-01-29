@@ -4,6 +4,7 @@ import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/mikan.dart';
+import 'package:mikan_player/src/rust/api/dmhy.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -45,13 +46,22 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   String? _mikanError;
   MikanSearchResult? _mikanAnime;
   List<MikanEpisodeResource> _mikanResources = [];
-  bool _isMikanSourceExpanded = false;
+
+  // DMHY Source
+  bool _isLoadingDmhy = false;
+  String? _dmhyError;
+  List<DmhyResource> _dmhyResources = [];
+
+  // Active Source
+  String _activeSource = 'mikan'; // 'mikan' or 'dmhy'
 
   // Video Player
   late final Player _player;
   late final VideoController _videoController;
   bool _isPlayerInitialized = false;
-  bool _isLoadingVideo = false;
+  bool _isLoadingVideo =
+      false; // Keep for general UI loading (like initial search or player overlay)
+  String? _loadingMagnet; // Track which specific magnet is being loaded
   String? _currentStreamUrl;
   String? _videoError;
   final DownloadManager _downloadManager = DownloadManager();
@@ -62,15 +72,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _mobileTabController = TabController(length: 2, vsync: this);
     _pcEpisodeScrollController = ScrollController();
     _mobileEpisodeScrollController = ScrollController();
-    
+
     // Initialize video player
     _player = Player();
     _videoController = VideoController(_player);
     _isPlayerInitialized = true;
-    
+
     _loadComments();
     _loadRecommendations();
+    _loadRecommendations();
     _loadMikanSource();
+    _loadDmhySource();
   }
 
   Future<void> _loadComments() async {
@@ -213,6 +225,38 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _loadDmhySource() async {
+    if (widget.anime.bangumiId == null) return;
+
+    setState(() {
+      _isLoadingDmhy = true;
+      _dmhyError = null;
+      _dmhyResources = [];
+    });
+
+    try {
+      final resources = await fetchDmhyResources(
+        subjectId: widget.anime.bangumiId!,
+        targetEpisode: widget.currentEpisode.sort.toInt(),
+      );
+
+      if (mounted) {
+        setState(() {
+          _dmhyResources = resources;
+          _isLoadingDmhy = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading DMHY source: $e");
+      if (mounted) {
+        setState(() {
+          _dmhyError = e.toString();
+          _isLoadingDmhy = false;
+        });
+      }
+    }
+  }
+
   Future<void> _loadMikanSource() async {
     debugPrint("[Mikan] Starting search for playback sources...");
     debugPrint("[Mikan] Target anime title: ${widget.anime.title}");
@@ -284,61 +328,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-  /// Play a magnet link - starts torrent and streams video
-  Future<void> _playMagnet(MikanEpisodeResource resource) async {
-    setState(() {
-      _isLoadingVideo = true;
-      _videoError = null;
-    });
-
-    try {
-      final streamUrl = await _downloadManager.startDownload(
-        magnet: resource.magnet,
-        name: resource.title,
-        animeName: widget.anime.title,
-        episodeNumber: resource.episode,
-      );
-
-      if (streamUrl == null) {
-        setState(() {
-          _videoError = "无法获取播放地址";
-          _isLoadingVideo = false;
-        });
-        return;
-      }
-
-      debugPrint("[Player] Got stream URL: $streamUrl");
-      _currentStreamUrl = streamUrl;
-
-      // Open the stream in the player
-      await _player.open(Media(streamUrl));
-
-      setState(() {
-        _isLoadingVideo = false;
-      });
-    } catch (e) {
-      debugPrint("[Player] Error playing magnet: $e");
-      setState(() {
-        _videoError = e.toString();
-        _isLoadingVideo = false;
-      });
-    }
-  }
-
-  /// Download without playing
-  Future<void> _downloadMagnet(MikanEpisodeResource resource) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("开始下载，可在「我的」页面查看进度")),
-    );
-
-    await _downloadManager.startDownload(
-      magnet: resource.magnet,
-      name: resource.title,
-      animeName: widget.anime.title,
-      episodeNumber: resource.episode,
-    );
-  }
-
   @override
   void didUpdateWidget(PlayerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -348,6 +337,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (oldWidget.anime.bangumiId != widget.anime.bangumiId) {
       _loadRecommendations();
       _loadMikanSource(); // Anime changed, reload search
+      _loadDmhySource();
     } else if (oldWidget.currentEpisode.sort != widget.currentEpisode.sort) {
       // Episode changed, reload resources using existing mikan anime info if available
       if (_mikanAnime != null) {
@@ -355,6 +345,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       } else {
         _loadMikanSource();
       }
+      _loadDmhySource();
     }
   }
 
@@ -681,7 +672,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           const SizedBox(height: 12),
           _buildPlaySourceSelector(),
           const SizedBox(height: 12),
-          _buildMikanResourceList(),
+          _buildResourceList(),
           const SizedBox(height: 24),
 
           // Recommendations
@@ -888,7 +879,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 const SizedBox(height: 12),
                                 _buildPlaySourceSelector(),
                                 const SizedBox(height: 12),
-                                _buildMikanResourceList(),
+                                _buildResourceList(),
                               ],
                             ),
                           ),
@@ -1139,13 +1130,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         fit: StackFit.expand,
         children: [
           // Actual video player
-          Video(
-            controller: _videoController,
-            controls: AdaptiveVideoControls,
-          ),
-          
+          Video(controller: _videoController, controls: AdaptiveVideoControls),
+
           // Loading overlay
-          if (_isLoadingVideo)
+          if (_isLoadingVideo || _loadingMagnet != null)
             Container(
               color: Colors.black54,
               child: const Center(
@@ -1154,15 +1142,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   children: [
                     CircularProgressIndicator(color: Color(0xFFBB86FC)),
                     SizedBox(height: 16),
-                    Text(
-                      "正在加载视频流...",
-                      style: TextStyle(color: Colors.white70),
-                    ),
+                    Text("正在加载视频流...", style: TextStyle(color: Colors.white70)),
                   ],
                 ),
               ),
             ),
-          
+
           // Header Overlay (Top) - for mobile back button
           if (isMobile)
             Positioned(
@@ -1215,19 +1200,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             ),
           ),
         ),
-        
+
         // Loading state
-        if (_isLoadingVideo)
+        if (_isLoadingVideo || _loadingMagnet != null)
           const Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircularProgressIndicator(color: Color(0xFFBB86FC)),
                 SizedBox(height: 16),
-                Text(
-                  "正在初始化播放...",
-                  style: TextStyle(color: Colors.white70),
-                ),
+                Text("正在初始化播放...", style: TextStyle(color: Colors.white70)),
                 SizedBox(height: 8),
                 Text(
                   "正在连接种子网络...",
@@ -1242,7 +1224,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+                const Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: Colors.redAccent,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   "播放失败",
@@ -1386,93 +1372,149 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildPlaySourceSelector() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _isMikanSourceExpanded = !_isMikanSourceExpanded;
-          });
-        },
+    return Container(
+      height: 40,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E2C),
         borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E2C),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.cloud_queue, color: Color(0xFFBB86FC), size: 18),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Mikan Project",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    if (_mikanAnime != null)
-                      Text(
-                        "匹配: ${_mikanAnime!.name}",
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.5),
-                          fontSize: 10,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                  ],
-                ),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: _buildSourceTab("Mikan Project", "mikan")),
+          Container(width: 1, color: Colors.white10),
+          Expanded(child: _buildSourceTab("动漫花园", "dmhy")),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSourceTab(String label, String id) {
+    final isSelected = _activeSource == id;
+
+    // Determine status
+    bool isLoading = false;
+    bool hasError = false;
+    int count = 0;
+
+    if (id == 'mikan') {
+      isLoading = _isLoadingMikan;
+      hasError = _mikanError != null;
+      count = _mikanResources.length;
+    } else if (id == 'dmhy') {
+      isLoading = _isLoadingDmhy;
+      hasError = _dmhyError != null;
+      count = _dmhyResources.length;
+    }
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _activeSource = id;
+        });
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFFBB86FC).withValues(alpha: 0.1)
+              : null,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? const Color(0xFFBB86FC) : Colors.white70,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 13,
               ),
-              if (_isLoadingMikan)
-                const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.grey,
-                  ),
-                )
-              else if (_mikanError != null)
-                const Icon(
-                  Icons.error_outline,
-                  color: Colors.redAccent,
-                  size: 16,
-                )
-              else
-                Text(
-                  "${_mikanResources.length} 个资源",
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            const SizedBox(width: 8),
+            if (isLoading)
+              SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: isSelected ? const Color(0xFFBB86FC) : Colors.grey,
                 ),
-              const SizedBox(width: 8),
+              )
+            else if (hasError)
               Icon(
-                _isMikanSourceExpanded
-                    ? Icons.keyboard_arrow_up
-                    : Icons.keyboard_arrow_down,
-                color: Colors.grey,
-                size: 20,
+                Icons.error_outline,
+                size: 14,
+                color: Colors.redAccent.withValues(alpha: 0.8),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0xFFBB86FC).withValues(alpha: 0.2)
+                      : Colors.white12,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  "$count",
+                  style: TextStyle(
+                    color: isSelected ? const Color(0xFFBB86FC) : Colors.grey,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildMikanResourceList() {
-    if (!_isMikanSourceExpanded ||
-        (_mikanResources.isEmpty && !_isLoadingMikan)) {
-      return const SizedBox.shrink();
+  Widget _buildResourceList() {
+    List<dynamic> resources = [];
+    if (_activeSource == 'mikan') {
+      resources = _mikanResources;
+    } else {
+      resources = _dmhyResources;
+    }
+
+    if (resources.isEmpty) {
+      if ((_activeSource == 'mikan' && _isLoadingMikan) ||
+          (_activeSource == 'dmhy' && _isLoadingDmhy)) {
+        return const SizedBox.shrink(); // Loader is in tab
+      }
+      return Container(
+        padding: const EdgeInsets.all(24),
+        alignment: Alignment.center,
+        child: const Text("暂无资源", style: TextStyle(color: Colors.white24)),
+      );
     }
 
     return Column(
-      children: _mikanResources.map((res) {
+      children: resources.map((res) {
+        String title = "";
+        String magnet = "";
+        String size = "";
+        String time = "";
+        int? episode;
+
+        if (res is MikanEpisodeResource) {
+          title = res.title;
+          magnet = res.magnet;
+          size = res.size;
+          time = res.updateTime;
+          episode = res.episode;
+        } else if (res is DmhyResource) {
+          title = res.title;
+          magnet = res.magnet;
+          size = res.size;
+          time = res.publishDate;
+          episode = res.episode;
+        }
+
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(12),
@@ -1488,7 +1530,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 children: [
                   Expanded(
                     child: Text(
-                      res.title,
+                      title,
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
@@ -1512,7 +1554,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      res.size,
+                      size,
                       style: const TextStyle(
                         color: Colors.blueAccent,
                         fontSize: 10,
@@ -1520,14 +1562,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    res.updateTime,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                  Expanded(
+                    child: Text(
+                      time,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const Spacer(),
                   InkWell(
                     onTap: () {
-                      Clipboard.setData(ClipboardData(text: res.magnet));
+                      Clipboard.setData(ClipboardData(text: magnet));
                       ScaffoldMessenger.of(
                         context,
                       ).showSnackBar(const SnackBar(content: Text("磁力链接已复制")));
@@ -1555,7 +1600,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   ),
                   const SizedBox(width: 8),
                   InkWell(
-                    onTap: () => _downloadMagnet(res),
+                    onTap: () async {
+                      // Trigger download/play based on type
+                      // Check if _downloadMagnet needs specific type
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("开始下载，可在「我的」页面查看进度")),
+                      );
+                      await _downloadManager.startDownload(
+                        magnet: magnet,
+                        name: title,
+                        animeName: widget.anime.title,
+                        episodeNumber: episode,
+                      );
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -1579,21 +1636,62 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   ),
                   const SizedBox(width: 8),
                   InkWell(
-                    onTap: _isLoadingVideo ? null : () => _playMagnet(res),
+                    onTap: (_isLoadingVideo || _loadingMagnet != null)
+                        ? null
+                        : () async {
+                            // Adapt _playMagnet to handle generic data
+                            setState(() {
+                              _loadingMagnet = magnet;
+                              _videoError = null;
+                            });
+
+                            try {
+                              final streamUrl = await _downloadManager
+                                  .startDownload(
+                                    magnet: magnet,
+                                    name: title,
+                                    animeName: widget.anime.title,
+                                    episodeNumber: episode,
+                                  );
+
+                              if (streamUrl == null) {
+                                setState(() {
+                                  _videoError = "无法获取播放地址";
+                                  _loadingMagnet = null;
+                                });
+                                return;
+                              }
+
+                              debugPrint("[Player] Got stream URL: $streamUrl");
+                              _currentStreamUrl = streamUrl;
+
+                              await _player.open(Media(streamUrl));
+
+                              setState(() {
+                                _loadingMagnet = null;
+                              });
+                            } catch (e) {
+                              debugPrint("[Player] Error playing magnet: $e");
+                              setState(() {
+                                _videoError = e.toString();
+                                _loadingMagnet = null;
+                              });
+                            }
+                          },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: _isLoadingVideo 
+                        color: (_isLoadingVideo || _loadingMagnet != null)
                             ? const Color(0xFFBB86FC).withValues(alpha: 0.5)
                             : const Color(0xFFBB86FC),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Row(
                         children: [
-                          if (_isLoadingVideo)
+                          if (_loadingMagnet == magnet)
                             const SizedBox(
                               width: 12,
                               height: 12,
@@ -1603,10 +1701,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                               ),
                             )
                           else
-                            const Icon(Icons.play_arrow, size: 12, color: Colors.black),
+                            const Icon(
+                              Icons.play_arrow,
+                              size: 12,
+                              color: Colors.black,
+                            ),
                           const SizedBox(width: 4),
                           Text(
-                            _isLoadingVideo ? "加载中" : "播放",
+                            _loadingMagnet == magnet ? "加载中" : "播放",
                             style: const TextStyle(
                               color: Colors.black,
                               fontSize: 11,

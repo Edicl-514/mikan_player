@@ -6,6 +6,7 @@
 import 'api/bangumi.dart';
 import 'api/config.dart';
 import 'api/crawler.dart';
+import 'api/dmhy.dart';
 import 'api/mikan.dart';
 import 'api/ranking.dart';
 import 'api/simple.dart';
@@ -72,6 +73,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MikanSearchResult dco_decode_box_autoadd_mikan_search_result(dynamic raw);
 
   @protected
+  DmhyResource dco_decode_dmhy_resource(dynamic raw);
+
+  @protected
   double dco_decode_f_64(dynamic raw);
 
   @protected
@@ -110,6 +114,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<BangumiRelatedSubject> dco_decode_list_bangumi_related_subject(
     dynamic raw,
   );
+
+  @protected
+  List<DmhyResource> dco_decode_list_dmhy_resource(dynamic raw);
 
   @protected
   List<MikanEpisodeResource> dco_decode_list_mikan_episode_resource(
@@ -223,6 +230,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DmhyResource sse_decode_dmhy_resource(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
@@ -269,6 +279,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiRelatedSubject> sse_decode_list_bangumi_related_subject(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<DmhyResource> sse_decode_list_dmhy_resource(
     SseDeserializer deserializer,
   );
 
@@ -413,6 +428,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_dmhy_resource(DmhyResource self, SseSerializer serializer);
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
@@ -469,6 +487,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_bangumi_related_subject(
     List<BangumiRelatedSubject> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_dmhy_resource(
+    List<DmhyResource> self,
     SseSerializer serializer,
   );
 

@@ -5,15 +5,18 @@ use librqbit::{
     api::TorrentIdOrHash, http_api::HttpApi,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 #[frb(init)]
 pub fn init_app() {
-    // Use librqbit's own tracing subscriber if possible, or keep simple logger
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // Disable heavy logs from rqbit and related crates
+    env_logger::Builder::from_env(
+        env_logger::Env::default()
+            .default_filter_or("info,librqbit=off,librqbit_dht=off,tracing=off"),
+    )
+    .init();
     flutter_rust_bridge::setup_default_user_utils();
     log::info!("Mikan Player Rust engine initialized");
 
@@ -28,20 +31,12 @@ pub fn greet(name: String) -> String {
     format!("Hello, {}!", name)
 }
 
-pub fn update_config(
-    bgm: String,
-    bangumi: String,
-    mikan: String,
-    bt_sub: String,
-    playback_sub: String,
-) {
-    crate::api::config::update_config(bgm, bangumi, mikan, bt_sub, playback_sub);
+pub fn update_config(bgm: String, bangumi: String, mikan: String, playback_sub: String) {
+    crate::api::config::update_config(bgm, bangumi, mikan, playback_sub);
 }
 
 struct AppState {
     session: Arc<Session>,
-    // Store mapping from magnet hash to torrent ID for tracking
-    torrent_ids: HashMap<String, usize>,
 }
 
 lazy_static! {
@@ -100,7 +95,6 @@ async fn ensure_initialized() -> anyhow::Result<Arc<tokio::sync::Mutex<AppState>
 
     let app_state = Arc::new(tokio::sync::Mutex::new(AppState {
         session: session.clone(),
-        torrent_ids: HashMap::new(),
     }));
 
     *state_guard = Some(app_state.clone());
@@ -147,7 +141,7 @@ pub async fn start_torrent(magnet: String) -> String {
 
     // Use sequential mode for streaming - downloads pieces in order
     // This is crucial for video playback
-    add_opts.overwrite = false;
+    add_opts.overwrite = true;
     add_opts.only_files_regex = None; // We'll select the file after getting metadata
     add_opts.output_folder = None; // Use default download folder
 
@@ -168,6 +162,9 @@ pub async fn start_torrent(magnet: String) -> String {
         AddTorrentResponse::AlreadyManaged(id, h) => (id, h),
         AddTorrentResponse::ListOnly(_) => return "Error: Torrent is list-only mode".to_string(),
     };
+
+    // Release the lock before waiting for metadata to avoid blocking other API calls (like stop_torrent)
+    drop(state_guard);
 
     // Wait for metadata to ensure file list is populated
     if let Err(e) = handle.wait_until_initialized().await {
@@ -219,9 +216,6 @@ pub async fn start_torrent(magnet: String) -> String {
     } else {
         log::info!("Torrent state: {:?}, not yet live", stats.state);
     }
-
-    // Drop the lock before returning
-    drop(state_guard);
 
     // Construct stream URL
     format!(
@@ -345,7 +339,7 @@ pub async fn get_all_torrents_info() -> String {
 }
 
 /// Stop and remove a torrent by info hash
-pub async fn stop_torrent(info_hash: String) -> bool {
+pub async fn stop_torrent(info_hash: String, delete_files: bool) -> bool {
     let state = match ensure_initialized().await {
         Ok(s) => s,
         Err(_) => return false,
@@ -366,11 +360,15 @@ pub async fn stop_torrent(info_hash: String) -> bool {
     if let Some(id) = torrent_id {
         match state_guard
             .session
-            .delete(TorrentIdOrHash::Id(id), false)
+            .delete(TorrentIdOrHash::Id(id), delete_files)
             .await
         {
             Ok(_) => {
-                log::info!("Successfully stopped torrent: {}", info_hash);
+                log::info!(
+                    "Successfully stopped torrent: {} (delete_files: {})",
+                    info_hash,
+                    delete_files
+                );
                 true
             }
             Err(e) => {

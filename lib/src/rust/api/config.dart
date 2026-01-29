@@ -14,13 +14,11 @@ Future<void> updateConfig({
   required String bgm,
   required String bangumi,
   required String mikan,
-  required String btSub,
   required String playbackSub,
 }) => RustLib.instance.api.crateApiConfigUpdateConfig(
   bgm: bgm,
   bangumi: bangumi,
   mikan: mikan,
-  btSub: btSub,
   playbackSub: playbackSub,
 );
 
@@ -35,9 +33,6 @@ Future<String> getBangumiApiUrl() =>
 
 Future<String> getMikanUrl() =>
     RustLib.instance.api.crateApiConfigGetMikanUrl();
-
-Future<String> getBtSubUrl() =>
-    RustLib.instance.api.crateApiConfigGetBtSubUrl();
 
 Future<String> getPlaybackSubUrl() =>
     RustLib.instance.api.crateApiConfigGetPlaybackSubUrl();

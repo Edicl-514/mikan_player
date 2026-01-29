@@ -6,6 +6,7 @@
 import 'api/bangumi.dart';
 import 'api/config.dart';
 import 'api/crawler.dart';
+import 'api/dmhy.dart';
 import 'api/mikan.dart';
 import 'api/ranking.dart';
 import 'api/simple.dart';
@@ -71,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 617033029;
+  int get rustContentHash => -613250294;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -118,6 +119,11 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 subjectId,
   });
 
+  Future<List<DmhyResource>> crateApiDmhyFetchDmhyResources({
+    required String subjectId,
+    required int targetEpisode,
+  });
+
   Future<List<AnimeInfo>> crateApiCrawlerFetchExtraSubjects({
     required String yearQuarter,
     required List<String> existingIds,
@@ -138,8 +144,6 @@ abstract class RustLibApi extends BaseApi {
   Future<String> crateApiConfigGetBangumiUrl();
 
   Future<String> crateApiConfigGetBgmlistUrl();
-
-  Future<String> crateApiConfigGetBtSubUrl();
 
   Future<List<MikanEpisodeResource>> crateApiMikanGetMikanResources({
     required String mikanId,
@@ -162,13 +166,15 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiSimpleStartTorrent({required String magnet});
 
-  Future<bool> crateApiSimpleStopTorrent({required String infoHash});
+  Future<bool> crateApiSimpleStopTorrent({
+    required String infoHash,
+    required bool deleteFiles,
+  });
 
   Future<void> crateApiConfigUpdateConfig({
     required String bgm,
     required String bangumi,
     required String mikan,
-    required String btSub,
     required String playbackSub,
   });
 
@@ -176,7 +182,6 @@ abstract class RustLibApi extends BaseApi {
     required String bgm,
     required String bangumi,
     required String mikan,
-    required String btSub,
     required String playbackSub,
   });
 }
@@ -459,6 +464,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<List<DmhyResource>> crateApiDmhyFetchDmhyResources({
+    required String subjectId,
+    required int targetEpisode,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(subjectId, serializer);
+          sse_encode_i_32(targetEpisode, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 9,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_dmhy_resource,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDmhyFetchDmhyResourcesConstMeta,
+        argValues: [subjectId, targetEpisode],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDmhyFetchDmhyResourcesConstMeta =>
+      const TaskConstMeta(
+        debugName: "fetch_dmhy_resources",
+        argNames: ["subjectId", "targetEpisode"],
+      );
+
+  @override
   Future<List<AnimeInfo>> crateApiCrawlerFetchExtraSubjects({
     required String yearQuarter,
     required List<String> existingIds,
@@ -472,7 +512,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -505,7 +545,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -538,7 +578,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -568,7 +608,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 13,
             port: port_,
           );
         },
@@ -595,7 +635,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 14,
             port: port_,
           );
         },
@@ -622,7 +662,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -649,7 +689,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -666,33 +706,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiConfigGetBgmlistUrlConstMeta =>
       const TaskConstMeta(debugName: "get_bgmlist_url", argNames: []);
-
-  @override
-  Future<String> crateApiConfigGetBtSubUrl() {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 16,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiConfigGetBtSubUrlConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiConfigGetBtSubUrlConstMeta =>
-      const TaskConstMeta(debugName: "get_bt_sub_url", argNames: []);
 
   @override
   Future<List<MikanEpisodeResource>> crateApiMikanGetMikanResources({
@@ -927,12 +940,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "start_torrent", argNames: ["magnet"]);
 
   @override
-  Future<bool> crateApiSimpleStopTorrent({required String infoHash}) {
+  Future<bool> crateApiSimpleStopTorrent({
+    required String infoHash,
+    required bool deleteFiles,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(infoHash, serializer);
+          sse_encode_bool(deleteFiles, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -945,21 +962,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateApiSimpleStopTorrentConstMeta,
-        argValues: [infoHash],
+        argValues: [infoHash, deleteFiles],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiSimpleStopTorrentConstMeta =>
-      const TaskConstMeta(debugName: "stop_torrent", argNames: ["infoHash"]);
+  TaskConstMeta get kCrateApiSimpleStopTorrentConstMeta => const TaskConstMeta(
+    debugName: "stop_torrent",
+    argNames: ["infoHash", "deleteFiles"],
+  );
 
   @override
   Future<void> crateApiConfigUpdateConfig({
     required String bgm,
     required String bangumi,
     required String mikan,
-    required String btSub,
     required String playbackSub,
   }) {
     return handler.executeNormal(
@@ -969,7 +987,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(bgm, serializer);
           sse_encode_String(bangumi, serializer);
           sse_encode_String(mikan, serializer);
-          sse_encode_String(btSub, serializer);
           sse_encode_String(playbackSub, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -983,7 +1000,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateApiConfigUpdateConfigConstMeta,
-        argValues: [bgm, bangumi, mikan, btSub, playbackSub],
+        argValues: [bgm, bangumi, mikan, playbackSub],
         apiImpl: this,
       ),
     );
@@ -991,7 +1008,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiConfigUpdateConfigConstMeta => const TaskConstMeta(
     debugName: "update_config",
-    argNames: ["bgm", "bangumi", "mikan", "btSub", "playbackSub"],
+    argNames: ["bgm", "bangumi", "mikan", "playbackSub"],
   );
 
   @override
@@ -999,7 +1016,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String bgm,
     required String bangumi,
     required String mikan,
-    required String btSub,
     required String playbackSub,
   }) {
     return handler.executeNormal(
@@ -1009,7 +1025,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(bgm, serializer);
           sse_encode_String(bangumi, serializer);
           sse_encode_String(mikan, serializer);
-          sse_encode_String(btSub, serializer);
           sse_encode_String(playbackSub, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -1023,7 +1038,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateApiSimpleUpdateConfigConstMeta,
-        argValues: [bgm, bangumi, mikan, btSub, playbackSub],
+        argValues: [bgm, bangumi, mikan, playbackSub],
         apiImpl: this,
       ),
     );
@@ -1031,7 +1046,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSimpleUpdateConfigConstMeta => const TaskConstMeta(
     debugName: "update_config",
-    argNames: ["bgm", "bangumi", "mikan", "btSub", "playbackSub"],
+    argNames: ["bgm", "bangumi", "mikan", "playbackSub"],
   );
 
   @protected
@@ -1218,6 +1233,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DmhyResource dco_decode_dmhy_resource(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return DmhyResource(
+      title: dco_decode_String(arr[0]),
+      magnet: dco_decode_String(arr[1]),
+      size: dco_decode_String(arr[2]),
+      publishDate: dco_decode_String(arr[3]),
+      episode: dco_decode_opt_box_autoadd_i_32(arr[4]),
+    );
+  }
+
+  @protected
   double dco_decode_f_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
@@ -1295,6 +1325,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return (raw as List<dynamic>)
         .map(dco_decode_bangumi_related_subject)
         .toList();
+  }
+
+  @protected
+  List<DmhyResource> dco_decode_list_dmhy_resource(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_dmhy_resource).toList();
   }
 
   @protected
@@ -1661,6 +1697,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DmhyResource sse_decode_dmhy_resource(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_title = sse_decode_String(deserializer);
+    var var_magnet = sse_decode_String(deserializer);
+    var var_size = sse_decode_String(deserializer);
+    var var_publishDate = sse_decode_String(deserializer);
+    var var_episode = sse_decode_opt_box_autoadd_i_32(deserializer);
+    return DmhyResource(
+      title: var_title,
+      magnet: var_magnet,
+      size: var_size,
+      publishDate: var_publishDate,
+      episode: var_episode,
+    );
+  }
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getFloat64();
@@ -1796,6 +1849,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <BangumiRelatedSubject>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_bangumi_related_subject(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<DmhyResource> sse_decode_list_dmhy_resource(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DmhyResource>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_dmhy_resource(deserializer));
     }
     return ans_;
   }
@@ -2179,6 +2246,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_dmhy_resource(DmhyResource self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.title, serializer);
+    sse_encode_String(self.magnet, serializer);
+    sse_encode_String(self.size, serializer);
+    sse_encode_String(self.publishDate, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.episode, serializer);
+  }
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putFloat64(self);
@@ -2298,6 +2375,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_bangumi_related_subject(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_dmhy_resource(
+    List<DmhyResource> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_dmhy_resource(item, serializer);
     }
   }
 

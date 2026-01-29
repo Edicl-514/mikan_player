@@ -28,9 +28,6 @@ Future<void> _syncSettings() async {
     final bgm = prefs.getString('bgmlist_url') ?? 'https://bgmlist.com';
     final bangumi = prefs.getString('bangumi_url') ?? 'https://bangumi.tv';
     final mikan = prefs.getString('mikan_url') ?? 'https://mikanani.kas.pub';
-    final btSub =
-        prefs.getString('bt_sub_url') ??
-        'https://sub.creamycake.org/v1/bt1.json';
     final playbackSub =
         prefs.getString('playback_sub_url') ??
         'https://sub.creamycake.org/v1/css1.json';
@@ -39,7 +36,6 @@ Future<void> _syncSettings() async {
       bgm: bgm,
       bangumi: bangumi,
       mikan: mikan,
-      btSub: btSub,
       playbackSub: playbackSub,
     );
   } catch (e) {

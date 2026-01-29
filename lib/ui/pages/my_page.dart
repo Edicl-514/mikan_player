@@ -227,26 +227,49 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   return;
                 }
 
+                bool deleteFiles = false;
                 final confirmed = await showDialog<bool>(
                   context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('确认清除'),
-                    content: Text('将清除 $completedCount 个已完成的任务'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('取消'),
+                  builder: (context) => StatefulBuilder(
+                    builder: (context, setDialogState) => AlertDialog(
+                      title: const Text('确认清除'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('将清除 $completedCount 个已完成的任务'),
+                          const SizedBox(height: 12),
+                          CheckboxListTile(
+                            title: const Text(
+                              '同时删除物理文件',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            value: deleteFiles,
+                            onChanged: (val) => setDialogState(
+                              () => deleteFiles = val ?? false,
+                            ),
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                        ],
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('清除'),
-                      ),
-                    ],
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('取消'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('清除'),
+                        ),
+                      ],
+                    ),
                   ),
                 );
 
                 if (confirmed == true) {
-                  await _downloadManager.clearCompleted();
+                  await _downloadManager.clearCompleted(
+                    deleteFiles: deleteFiles,
+                  );
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('已清除 $completedCount 个任务')),
@@ -318,16 +341,42 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, size: 18),
+                  icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                  tooltip: '删除任务',
                   onPressed: () async {
-                    // Show confirmation dialog for active downloads
-                    if (task.status == DownloadTaskStatus.downloading ||
-                        task.status == DownloadTaskStatus.seeding) {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
+                    bool deleteFiles = false;
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => StatefulBuilder(
+                        builder: (context, setDialogState) => AlertDialog(
                           title: const Text('确认删除'),
-                          content: const Text('此任务正在下载中，确定要停止并删除吗？'),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                task.status == DownloadTaskStatus.downloading ||
+                                        task.status ==
+                                            DownloadTaskStatus.seeding
+                                    ? '此任务正在下载中，确定要停止并删除吗？'
+                                    : '确定要删除此任务吗？',
+                              ),
+                              const SizedBox(height: 12),
+                              CheckboxListTile(
+                                title: const Text(
+                                  '同时删除物理文件',
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                                value: deleteFiles,
+                                onChanged: (val) => setDialogState(
+                                  () => deleteFiles = val ?? false,
+                                ),
+                                contentPadding: EdgeInsets.zero,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                              ),
+                            ],
+                          ),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context, false),
@@ -342,17 +391,15 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                             ),
                           ],
                         ),
+                      ),
+                    );
+                    if (confirmed == true) {
+                      await _downloadManager.removeTask(
+                        task.id,
+                        deleteFiles: deleteFiles,
                       );
-                      if (confirmed == true) {
-                        await _downloadManager.removeTask(task.id);
-                      }
-                    } else {
-                      // Directly remove completed/error tasks
-                      await _downloadManager.removeTask(task.id);
                     }
                   },
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
                 ),
               ],
             ),

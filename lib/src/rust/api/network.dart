@@ -9,11 +9,11 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ProxyConfig`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`
 
-Future<String?> getSystemProxy() =>
-    RustLib.instance.api.crateApiNetworkGetSystemProxy();
+// Future<String?> getSystemProxy() =>
+//     RustLib.instance.api.crateApiNetworkGetSystemProxy();
 
-Future<Client> createClient() =>
-    RustLib.instance.api.crateApiNetworkCreateClient();
+// Future<Client> createClient() =>
+//     RustLib.instance.api.crateApiNetworkCreateClient();
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Client>>
 abstract class Client implements RustOpaqueInterface {}

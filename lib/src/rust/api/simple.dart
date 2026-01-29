@@ -17,13 +17,11 @@ Future<void> updateConfig({
   required String bgm,
   required String bangumi,
   required String mikan,
-  required String btSub,
   required String playbackSub,
 }) => RustLib.instance.api.crateApiSimpleUpdateConfig(
   bgm: bgm,
   bangumi: bangumi,
   mikan: mikan,
-  btSub: btSub,
   playbackSub: playbackSub,
 );
 
@@ -40,8 +38,13 @@ Future<String> getAllTorrentsInfo() =>
     RustLib.instance.api.crateApiSimpleGetAllTorrentsInfo();
 
 /// Stop and remove a torrent by info hash
-Future<bool> stopTorrent({required String infoHash}) =>
-    RustLib.instance.api.crateApiSimpleStopTorrent(infoHash: infoHash);
+Future<bool> stopTorrent({
+  required String infoHash,
+  required bool deleteFiles,
+}) => RustLib.instance.api.crateApiSimpleStopTorrent(
+  infoHash: infoHash,
+  deleteFiles: deleteFiles,
+);
 
 /// Torrent download statistics
 class TorrentStats {

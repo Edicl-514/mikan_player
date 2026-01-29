@@ -13,7 +13,6 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   final _bgmController = TextEditingController();
   final _bangumiController = TextEditingController();
   final _mikanController = TextEditingController();
-  final _btSubController = TextEditingController();
   final _playbackSubController = TextEditingController();
   bool _isLoading = true;
 
@@ -28,7 +27,6 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     _bgmController.dispose();
     _bangumiController.dispose();
     _mikanController.dispose();
-    _btSubController.dispose();
     _playbackSubController.dispose();
     super.dispose();
   }
@@ -42,9 +40,6 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
           prefs.getString('bangumi_url') ?? 'https://bangumi.tv';
       _mikanController.text =
           prefs.getString('mikan_url') ?? 'https://mikanani.kas.pub';
-      _btSubController.text =
-          prefs.getString('bt_sub_url') ??
-          'https://sub.creamycake.org/v1/bt1.json';
       _playbackSubController.text =
           prefs.getString('playback_sub_url') ??
           'https://sub.creamycake.org/v1/css1.json';
@@ -57,7 +52,6 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     await prefs.setString('bgmlist_url', _bgmController.text);
     await prefs.setString('bangumi_url', _bangumiController.text);
     await prefs.setString('mikan_url', _mikanController.text);
-    await prefs.setString('bt_sub_url', _btSubController.text);
     await prefs.setString('playback_sub_url', _playbackSubController.text);
 
     // Sync to Rust
@@ -65,7 +59,6 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       bgm: _bgmController.text,
       bangumi: _bangumiController.text,
       mikan: _mikanController.text,
-      btSub: _btSubController.text,
       playbackSub: _playbackSubController.text,
     );
 
@@ -82,7 +75,6 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       _bgmController.text = 'https://bgmlist.com';
       _bangumiController.text = 'https://bangumi.tv';
       _mikanController.text = 'https://mikanani.kas.pub';
-      _btSubController.text = 'https://sub.creamycake.org/v1/bt1.json';
       _playbackSubController.text = 'https://sub.creamycake.org/v1/css1.json';
     });
   }
@@ -126,12 +118,6 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                   controller: _mikanController,
                   label: 'Mikan Base URL',
                   hint: 'https://mikanani.kas.pub',
-                ),
-                const SizedBox(height: 16),
-                _buildTextField(
-                  controller: _btSubController,
-                  label: '额外BT订阅地址',
-                  hint: 'https://sub.creamycake.org/v1/bt1.json',
                 ),
                 const SizedBox(height: 16),
                 _buildTextField(

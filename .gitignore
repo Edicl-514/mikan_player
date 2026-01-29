@@ -48,3 +48,4 @@ check_api.py
 .gemini/
 
 rust/openssl
+sample.json
