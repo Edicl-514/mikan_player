@@ -1,0 +1,599 @@
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use fancy_regex::Regex;
+use scraper::{Html, Selector};
+use serde::Deserialize;
+use serde_json::Value;
+use std::fs;
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SampleRoot {
+    #[serde(rename = "exportedMediaSourceDataList")]
+    pub exported_media_source_data_list: ExportedMediaSourceDataList,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ExportedMediaSourceDataList {
+    #[serde(rename = "mediaSources")]
+    pub media_sources: Vec<MediaSource>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MediaSource {
+    #[serde(rename = "factoryId")]
+    pub factory_id: String,
+    pub arguments: SourceArguments,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SourceArguments {
+    pub name: String,
+    #[serde(rename = "searchConfig")]
+    pub search_config: SearchConfig,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SearchConfig {
+    #[serde(rename = "searchUrl")]
+    pub search_url: String,
+
+    // Selectors for result list
+    #[serde(rename = "selectorSubjectFormatIndexed")]
+    pub selector_subject_format_indexed: Option<SelectorSubjectFormatIndexed>,
+
+    // Selectors for channel/episodes
+    #[serde(rename = "selectorChannelFormatFlattened")]
+    pub selector_channel_format_flattened: Option<SelectorChannelFormatFlattened>,
+    #[serde(rename = "selectorChannelFormatNoChannel")]
+    pub selector_channel_format_no_channel: Option<SelectorChannelFormatNoChannel>,
+
+    // Video matching
+    #[serde(rename = "matchVideo")]
+    pub match_video: MatchVideo,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SelectorSubjectFormatIndexed {
+    #[serde(rename = "selectNames")]
+    pub select_names: String,
+    #[serde(rename = "selectLinks")]
+    pub select_links: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SelectorChannelFormatFlattened {
+    #[serde(rename = "selectEpisodeLists")]
+    pub select_episode_lists: String,
+    #[serde(rename = "selectEpisodesFromList")]
+    pub select_episodes_from_list: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SelectorChannelFormatNoChannel {
+    #[serde(rename = "selectEpisodes")]
+    pub select_episodes: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MatchVideo {
+    #[serde(rename = "matchVideoUrl")]
+    pub match_video_url: String,
+
+    #[serde(rename = "enableNestedUrl")]
+    pub enable_nested_url: Option<bool>,
+
+    #[serde(rename = "matchNestedUrl")]
+    pub match_nested_url: Option<String>,
+
+    #[serde(rename = "addHeadersToVideo")]
+    pub add_headers_to_video: Option<std::collections::HashMap<String, String>>,
+}
+
+/// 修复被混淆的视频URL
+/// 某些网站会对URL做简单的字符替换混淆：n->o, l->m, 域名中的.->/ 
+fn deobfuscate_video_url(url: &str) -> String {
+    // 分离协议部分 (https://)
+    let (protocol, rest) = if let Some(idx) = url.find("://") {
+        (&url[..idx + 3], &url[idx + 3..])
+    } else {
+        ("", url)
+    };
+    
+    // 找到路径开始的位置（第一个单独的 /）
+    // 在混淆的URL中，域名部分的 . 被替换成了 /
+    // 例如: ai/girigirilove/oet/zijian/... 应该是 ai.girigirilove.net/zijian/...
+    
+    // 替换常见的混淆模式
+    let deobfuscated = rest
+        // TLD 混淆
+        .replace("/oet/", ".net/")
+        .replace("/con/", ".com/")
+        .replace("/org/", ".org/")
+        ;
+    
+    // 进一步处理：修复域名部分
+    let parts: Vec<&str> = deobfuscated.split('/').collect();
+    
+    // 重建URL，智能判断哪些 / 应该是 .
+    let mut final_url = String::from(protocol);
+    let mut in_domain = true;
+    
+    for (i, part) in parts.iter().enumerate() {
+        if i == 0 {
+            final_url.push_str(part);
+            continue;
+        }
+        
+        // 判断是否还在域名部分
+        // 如果当前部分看起来像TLD或域名组件，则用 . 连接
+        // 如果看起来像路径（包含常见路径词或较长），则切换到路径模式
+        let is_tld = matches!(*part, "net" | "com" | "org" | "io" | "tv" | "cc" | "top" | "xyz");
+        let looks_like_path = part.contains("20") // 年份
+            || part.len() > 20 
+            || part.contains("anime")
+            || part.contains("video")
+            || part.contains("play")
+            || part.contains("zijian")
+            || part.contains("cht")
+            || part.contains("chs");
+        
+        if in_domain && (is_tld || (!looks_like_path && i <= 2)) {
+            final_url.push('.');
+            final_url.push_str(part);
+            if is_tld {
+                in_domain = false; // TLD后面就是路径了
+            }
+        } else {
+            in_domain = false;
+            final_url.push('/');
+            final_url.push_str(part);
+        }
+    }
+    
+    // 最后做字符级别的混淆修复
+    // o -> n, m -> l 在特定上下文中
+    let final_url = final_url
+        .replace("omdanime", "oldanime")
+        .replace("omda", "olda")
+        .replace("Sousouoo", "Sousouno")
+        .replace("playmist", "playlist")
+        .replace("playoist", "playlist")
+        .replace(".oet", ".net")  // 以防上面没处理到
+        ;
+    
+    final_url
+}
+
+/// 尝试从页面中解析 player_aaaa 变量并提取视频 URL
+/// 这是很多视频网站使用的通用模式，视频URL存储在一个JS变量中
+fn try_extract_player_aaaa_url(page_text: &str) -> Option<String> {
+    // 匹配 var player_aaaa = {...} 格式
+    let re = Regex::new(r#"var\s+player_aaaa\s*=\s*(\{[^;]+\})"#).ok()?;
+    
+    if let Ok(Some(caps)) = re.captures(page_text) {
+        let json_str = caps.get(1)?.as_str();
+        log::info!("DEBUG: Found player_aaaa JSON: {}...", &json_str[..json_str.len().min(200)]);
+        
+        if let Ok(json_value) = serde_json::from_str::<Value>(json_str) {
+            // 获取加密类型和URL
+            let encrypt = json_value.get("encrypt").and_then(|v| v.as_i64()).unwrap_or(0);
+            let url_encoded = json_value.get("url").and_then(|v| v.as_str())?;
+            
+            log::info!("DEBUG: encrypt={}, url_encoded={}...", encrypt, &url_encoded[..url_encoded.len().min(50)]);
+            
+            // 根据加密类型解码
+            let decoded_url = match encrypt {
+                0 => {
+                    // 无加密，直接使用
+                    url_encoded.to_string()
+                }
+                1 => {
+                    // escape 编码，使用URL解码
+                    urlencoding::decode(url_encoded).ok()?.into_owned()
+                }
+                2 => {
+                    // base64 编码的 URL 编码字符串
+                    let base64_decoded = BASE64.decode(url_encoded).ok()?;
+                    let utf8_str = String::from_utf8(base64_decoded).ok()?;
+                    urlencoding::decode(&utf8_str).ok()?.into_owned()
+                }
+                _ => {
+                    log::warn!("Unknown encrypt type: {}", encrypt);
+                    return None;
+                }
+            };
+            
+            log::info!("DEBUG: Decoded URL (before deobfuscate): {}", decoded_url);
+            
+            // 尝试修复混淆的URL
+            let final_url = deobfuscate_video_url(&decoded_url);
+            log::info!("DEBUG: Final URL (after deobfuscate): {}", final_url);
+            
+            // 检查解码后的URL是否是有效的视频URL
+            if final_url.contains("m3u8") || final_url.contains("mp4") || final_url.starts_with("http") {
+                return Some(final_url);
+            }
+        }
+    }
+    
+    None
+}
+
+pub async fn generic_search_and_play(anime_name: String) -> anyhow::Result<String> {
+    // 1. Load sample.json
+    // We assume the file is at the root of the workspace for now, or relative to the executable?
+    // The user context says "d:/code/mikan_player/sample.json".
+    // We can try to read from there directly or relative.
+    let paths = vec![
+        "sample.json",
+        "../sample.json",
+        "d:/code/mikan_player/sample.json",
+    ];
+
+    let mut content = String::new();
+    for p in paths {
+        if let Ok(c) = fs::read_to_string(p) {
+            content = c;
+            break;
+        }
+    }
+
+    if content.is_empty() {
+        return Err(anyhow::anyhow!("Could not find or read sample.json"));
+    }
+
+    let root: SampleRoot = serde_json::from_str(&content)?;
+    let client = crate::api::network::create_client()?;
+
+    // 2. Iterate sources and try to find the anime
+    for source in root.exported_media_source_data_list.media_sources {
+        log::info!("Trying source: {}", source.arguments.name);
+
+        // --- Step 1: Search ---
+        let search_url = source
+            .arguments
+            .search_config
+            .search_url
+            .replace("{keyword}", &anime_name);
+        log::info!("Searching: {}", search_url);
+
+        let resp_text = match client.get(&search_url).send().await {
+            Ok(resp) => resp.text().await?,
+            Err(e) => {
+                log::warn!("Search failed for {}: {}", source.arguments.name, e);
+                continue;
+            }
+        };
+
+        let mut detail_url = String::new();
+        {
+            let document = Html::parse_document(&resp_text);
+
+            // Implement logic for "selectorSubjectFormatIndexed"
+            if let Some(ref format) = source
+                .arguments
+                .search_config
+                .selector_subject_format_indexed
+            {
+                if let (Ok(name_sel), Ok(link_sel)) = (
+                    Selector::parse(&format.select_names),
+                    Selector::parse(&format.select_links),
+                ) {
+                    let names: Vec<_> = document.select(&name_sel).collect();
+                    let links: Vec<_> = document.select(&link_sel).collect();
+
+                    // Simple zip matching
+                    for (name_el, link_el) in names.iter().zip(links.iter()) {
+                        let title = name_el.text().collect::<String>().trim().to_string();
+                        let href = link_el.value().attr("href").unwrap_or("").to_string();
+
+                        log::info!("Found result: {} -> {}", title, href);
+
+                        // Simple fuzzy match: if result contains the query
+                        if title.contains(&anime_name) {
+                            // Handle relative URLs
+                            if href.starts_with("http") {
+                                detail_url = href;
+                            } else {
+                                // Extract base URL from search_url or just concat
+                                let base_url = if let Ok(u) = url::Url::parse(&search_url) {
+                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                } else {
+                                    "".to_string()
+                                };
+                                detail_url = format!("{}{}", base_url, href);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        } // document dropped here
+
+        if detail_url.is_empty() {
+            continue;
+        }
+
+        log::info!("Found detail URL: {}", detail_url);
+
+        // --- Step 2: Get Episode List ---
+        let detail_resp_text = match client.get(&detail_url).send().await {
+            Ok(resp) => resp.text().await?,
+            Err(e) => {
+                log::warn!("Detail fetch failed: {}", e);
+                continue;
+            }
+        };
+
+        let mut episode_url = String::new();
+        {
+            let detail_doc = Html::parse_document(&detail_resp_text);
+            // Strategy 1: Flattened
+            if let Some(ref format) = source
+                .arguments
+                .search_config
+                .selector_channel_format_flattened
+            {
+                if let (Ok(list_sel), Ok(item_sel)) = (
+                    Selector::parse(&format.select_episode_lists),
+                    Selector::parse(&format.select_episodes_from_list),
+                ) {
+                    // Find list container (often multiple tabs, we take first valid)
+                    if let Some(list_container) = detail_doc.select(&list_sel).next() {
+                        // Find first episode
+                        if let Some(ep) = list_container.select(&item_sel).next() {
+                            let href = ep.value().attr("href").unwrap_or("").to_string();
+                            if !href.is_empty() {
+                                // Relative URL handling
+                                if href.starts_with("http") {
+                                    episode_url = href;
+                                } else {
+                                    let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                    } else {
+                                        "".to_string()
+                                    };
+                                    episode_url = format!("{}{}", base_url, href);
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if let Some(ref format) = source
+                .arguments
+                .search_config
+                .selector_channel_format_no_channel
+            {
+                if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
+                    if let Some(ep) = detail_doc.select(&ep_sel).next() {
+                        let href = ep.value().attr("href").unwrap_or("").to_string();
+                        if !href.is_empty() {
+                            // Relative URL handling
+                            if href.starts_with("http") {
+                                episode_url = href;
+                            } else {
+                                let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                } else {
+                                    "".to_string()
+                                };
+                                episode_url = format!("{}{}", base_url, href);
+                            }
+                        }
+                    }
+                }
+            }
+        } // detail_doc dropped here
+
+        if episode_url.is_empty() {
+            log::warn!("No episodes found for {}", detail_url);
+            continue;
+        }
+
+        log::info!("Found episode URL: {}", episode_url);
+
+        // --- Step 3: Get Video URL ---
+        let mut request_builder = client.get(&episode_url);
+
+        // Add custom headers if configured (e.g. User-Agent)
+        if let Some(ref headers) = source
+            .arguments
+            .search_config
+            .match_video
+            .add_headers_to_video
+        {
+            for (k, v) in headers {
+                request_builder = request_builder.header(k, v);
+            }
+        }
+
+        let mut video_page_text = match request_builder.send().await {
+            Ok(resp) => resp.text().await?,
+            Err(e) => {
+                log::warn!("Video page fetch failed: {}", e);
+                continue;
+            }
+        };
+
+        // Debug: Check if m3u8 exists in the text
+        log::info!(
+            "DEBUG: Analyzing page content (Length: {})",
+            video_page_text.len()
+        );
+        let matches: Vec<_> = video_page_text.match_indices("m3u8").collect();
+        if matches.is_empty() {
+            log::warn!("DEBUG: 'm3u8' string NOT found in video page text.");
+        } else {
+            log::info!("DEBUG: Found {} occurrences of 'm3u8'.", matches.len());
+            for (i, (idx, _)) in matches.iter().enumerate() {
+                let start = if *idx > 100 { *idx - 100 } else { 0 };
+                let end = if *idx + 200 < video_page_text.len() {
+                    *idx + 200
+                } else {
+                    video_page_text.len()
+                };
+                log::info!(
+                    "DEBUG: Match #{}: ...{}...",
+                    i + 1,
+                    &video_page_text[start..end]
+                        .replace("\n", " ")
+                        .replace("\r", " ")
+                );
+            }
+        }
+
+        // Handle nested URL logic (e.g. iframe src)
+        // Debug: Log all iframe sources to see if we missed a nested player
+        {
+            let doc = Html::parse_document(&video_page_text);
+            let iframe_selector = Selector::parse("iframe").unwrap();
+            let mut found_iframes = false;
+            for element in doc.select(&iframe_selector) {
+                if let Some(src) = element.value().attr("src") {
+                    log::info!("DEBUG: Found iframe src: {}", src);
+                    found_iframes = true;
+                }
+            }
+            if !found_iframes {
+                log::info!("DEBUG: No iframes found in the page.");
+            }
+
+            // Debug: Check scripts for potential packed content or player vars
+            let script_selector = Selector::parse("script").unwrap();
+            for element in doc.select(&script_selector) {
+                if let Some(src) = element.value().attr("src") {
+                    if src.contains("player") || src.contains("config") {
+                        log::info!("DEBUG: Found suspicious script src: {}", src);
+                    }
+                }
+            }
+        }
+
+        if source
+            .arguments
+            .search_config
+            .match_video
+            .enable_nested_url
+            .unwrap_or(false)
+        {
+            if let Some(ref nested_regex_str) =
+                source.arguments.search_config.match_video.match_nested_url
+            {
+                // Skip if regex is "$^" (assuming it means "skip" or match nothing valid)
+                if nested_regex_str != "$^" {
+                    log::info!("Trying to find nested URL with: {}", nested_regex_str);
+                    if let Ok(nested_re) = Regex::new(nested_regex_str) {
+                        // fancy_regex::captures returns Result<Option<Captures>, Error>
+                        if let Ok(Some(caps)) = nested_re.captures(&video_page_text) {
+                            let mut nested_url = String::new();
+                            // Try whole match or first group
+                            if caps.len() > 1 {
+                                nested_url = caps.get(1).map_or("", |m| m.as_str()).to_string();
+                            } else {
+                                nested_url = caps.get(0).map_or("", |m| m.as_str()).to_string();
+                            }
+
+                            if !nested_url.is_empty() {
+                                // Handle relative URL
+                                if !nested_url.starts_with("http") {
+                                    let base_url = if let Ok(u) = url::Url::parse(&episode_url) {
+                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                    } else {
+                                        "".to_string()
+                                    };
+                                    nested_url = format!("{}{}", base_url, nested_url);
+                                }
+
+                                log::info!("FOUND NESTED URL: {}", nested_url);
+                                // Fetch the nested page
+                                if let Ok(resp) = client.get(&nested_url).send().await {
+                                    if let Ok(text) = resp.text().await {
+                                        video_page_text = text;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    log::info!("Skipping nested match because regex is $^");
+                }
+            }
+        }
+
+        // 优先尝试从 player_aaaa 变量中提取视频URL
+        // 这是很多视频网站使用的通用模式
+        if let Some(player_url) = try_extract_player_aaaa_url(&video_page_text) {
+            log::info!("FOUND VIDEO URL from player_aaaa: {}", player_url);
+            return Ok(player_url);
+        }
+
+        let regex_str = &source.arguments.search_config.match_video.match_video_url;
+        log::info!("Matching video with regex: {}", regex_str);
+
+        if let Ok(re) = Regex::new(regex_str) {
+            // fancy_regex::captures returns Result<Option<Captures>, Error>
+            if let Ok(Some(caps)) = re.captures(&video_page_text) {
+                // Try to find a named capture group "v" or default to whole match or first group
+                // In sample.json: `url=(?<v>.+playlist.m3u8)`
+
+                let mut video_url = String::new();
+                if let Some(v) = caps.name("v") {
+                    video_url = v.as_str().to_string();
+                } else if caps.len() > 1 {
+                    // Start checking from group 1, pick first non-empty
+                    for i in 1..caps.len() {
+                        if let Some(m) = caps.get(i) {
+                            if !m.as_str().is_empty() {
+                                video_url = m.as_str().to_string();
+                                break;
+                            }
+                        }
+                    }
+                    // If no group matched, maybe fall back?
+                } else {
+                    video_url = caps.get(0).map_or("", |m| m.as_str()).to_string();
+                }
+
+                if !video_url.is_empty() {
+                    // Simple URL decoding if needed (often urls are encoded in query params)
+                    if video_url.contains("%") {
+                        if let Ok(decoded) = urlencoding::decode(&video_url) {
+                            video_url = decoded.into_owned();
+                        }
+                    }
+
+                    log::info!("FOUND VIDEO URL: {}", video_url);
+                    return Ok(video_url);
+                }
+            } else {
+                log::warn!("No video match found in text with primary regex.");
+
+                // Fallback: try to find any http link ending in m3u8 or containing url=...m3u8
+                // This is a heuristic to help the user debug or play even if the regex in JSON is slightly off
+                log::info!("Attempting fallback heuristic search...");
+                let fallback_re = Regex::new(
+                    r#"(https?://[^"'\s\(\)<>]+?\.m3u8)|(url=(https?%3A%2F%2F[^"'\s]+))"#,
+                )
+                .unwrap();
+                if let Ok(Some(caps)) = fallback_re.captures(&video_page_text) {
+                    let mut video_url = caps.get(0).map_or("", |m| m.as_str()).to_string();
+                    // If it matched the url= group
+                    if video_url.starts_with("url=") {
+                        video_url = video_url.replace("url=", "");
+                    }
+
+                    if video_url.contains("%") {
+                        if let Ok(decoded) = urlencoding::decode(&video_url) {
+                            video_url = decoded.into_owned();
+                        }
+                    }
+                    log::info!("FOUND VIDEO URL (FALLBACK): {}", video_url);
+                    return Ok(video_url);
+                }
+            }
+        } else {
+            log::error!("Failed to compile regex: {}", regex_str);
+        }
+    }
+
+    Err(anyhow::anyhow!("No video found in any source"))
+}

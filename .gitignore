@@ -46,6 +46,6 @@ app.*.map.json
 
 check_api.py
 .gemini/
-
+/参考
 rust/openssl
 sample.json

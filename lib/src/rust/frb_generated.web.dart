@@ -10,6 +10,7 @@ import 'api/bangumi.dart';
 import 'api/config.dart';
 import 'api/crawler.dart';
 import 'api/dmhy.dart';
+import 'api/generic_scraper.dart';
 import 'api/mikan.dart';
 import 'api/network.dart';
 import 'api/ranking.dart';

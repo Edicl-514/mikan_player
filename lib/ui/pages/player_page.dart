@@ -5,6 +5,7 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/mikan.dart';
 import 'package:mikan_player/src/rust/api/dmhy.dart';
+import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -52,6 +53,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   String? _dmhyError;
   List<DmhyResource> _dmhyResources = [];
 
+  // Sample Source
+  bool _isLoadingSample = false;
+  String? _sampleError;
+  String? _sampleVideoUrl;
+
   // Active Source
   String _activeSource = 'mikan'; // 'mikan' or 'dmhy'
 
@@ -82,7 +88,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _loadRecommendations();
     _loadRecommendations();
     _loadMikanSource();
+    _loadMikanSource();
     _loadDmhySource();
+    _loadSampleSource();
   }
 
   Future<void> _loadComments() async {
@@ -328,6 +336,32 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _loadSampleSource() async {
+    setState(() {
+      _isLoadingSample = true;
+      _sampleError = null;
+      _sampleVideoUrl = null;
+    });
+
+    try {
+      final url = await genericSearchAndPlay(animeName: widget.anime.title);
+      if (mounted) {
+        setState(() {
+          _sampleVideoUrl = url;
+          _isLoadingSample = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading Sample source: $e");
+      if (mounted) {
+        setState(() {
+          _sampleError = e.toString();
+          _isLoadingSample = false;
+        });
+      }
+    }
+  }
+
   @override
   void didUpdateWidget(PlayerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -346,6 +380,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         _loadMikanSource();
       }
       _loadDmhySource();
+      _loadSampleSource();
     }
   }
 
@@ -1384,6 +1419,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           Expanded(child: _buildSourceTab("Mikan Project", "mikan")),
           Container(width: 1, color: Colors.white10),
           Expanded(child: _buildSourceTab("动漫花园", "dmhy")),
+          Container(width: 1, color: Colors.white10),
+          Expanded(child: _buildSourceTab("全网搜", "sample")),
         ],
       ),
     );
@@ -1405,6 +1442,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       isLoading = _isLoadingDmhy;
       hasError = _dmhyError != null;
       count = _dmhyResources.length;
+    } else if (id == 'sample') {
+      isLoading = _isLoadingSample;
+      hasError = _sampleError != null;
+      count = _sampleVideoUrl != null ? 1 : 0;
     }
 
     return InkWell(
@@ -1477,8 +1518,75 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     List<dynamic> resources = [];
     if (_activeSource == 'mikan') {
       resources = _mikanResources;
-    } else {
+    } else if (_activeSource == 'dmhy') {
       resources = _dmhyResources;
+    } else if (_activeSource == 'sample') {
+      if (_sampleVideoUrl != null) {
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E2C),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "全网搜索结果",
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _sampleVideoUrl!,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 10,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                onPressed: () {
+                   _player.open(Media(_sampleVideoUrl!));
+                   // Update UI to show it's playing
+                   setState(() {
+                     _currentStreamUrl = _sampleVideoUrl;
+                     _isLoadingVideo = false;
+                     _videoError = null;
+                   });
+                },
+                icon: const Icon(Icons.play_arrow),
+                label: const Text("直接播放"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFBB86FC),
+                  foregroundColor: Colors.black,
+                  minimumSize: const Size.fromHeight(40),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+      if (_sampleError != null) {
+         return Container(
+          padding: const EdgeInsets.all(24),
+          alignment: Alignment.center,
+          child: Text("搜索失败: $_sampleError", style: const TextStyle(color: Colors.redAccent)),
+        );
+      }
+       if (_isLoadingSample) {
+        return const SizedBox.shrink(); // Loader in tab
+      }
+      return Container(
+        padding: const EdgeInsets.all(24),
+        alignment: Alignment.center,
+        child: const Text("未找到资源", style: TextStyle(color: Colors.white24)),
+      );
     }
 
     if (resources.isEmpty) {
