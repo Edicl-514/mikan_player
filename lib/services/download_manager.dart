@@ -4,7 +4,7 @@ import 'package:mikan_player/src/rust/api/simple.dart';
 
 /// Represents a download task
 class DownloadTask {
-  final String id; // info_hash
+  String id; // info_hash
   final String name;
   final String magnet;
   final String? animeName;
@@ -121,6 +121,9 @@ class DownloadManager extends ChangeNotifier {
         _extractInfoHash(magnet) ??
         DateTime.now().millisecondsSinceEpoch.toString();
 
+    // If this task was previously removed, allow it to be re-added
+    _removedTaskIds.remove(tempId);
+
     // Check if already downloading
     if (_tasks.containsKey(tempId)) {
       final existingTask = _tasks[tempId]!;
@@ -159,6 +162,10 @@ class DownloadManager extends ChangeNotifier {
       final actualId = _extractInfoHashFromUrl(streamUrl) ?? tempId;
       if (actualId != tempId) {
         _tasks.remove(tempId);
+        _removedTaskIds.remove(tempId); // Also remove the temp ID from removed set
+        task.id = actualId; // Update the task's ID to the actual info hash
+        // Remove actual ID from removed set in case it was previously deleted
+        _removedTaskIds.remove(actualId);
         task.streamUrl = streamUrl;
         task.status = DownloadTaskStatus.downloading;
         _tasks[actualId] = task;
@@ -183,13 +190,15 @@ class DownloadManager extends ChangeNotifier {
       final stats = await getTorrentStats();
 
       for (final stat in stats) {
+        final hashLower = stat.infoHash.toLowerCase();
+        
         // Skip if this task was manually removed
-        if (_removedTaskIds.contains(stat.infoHash)) {
+        if (_removedTaskIds.contains(hashLower)) {
           continue;
         }
 
-        if (_tasks.containsKey(stat.infoHash)) {
-          final task = _tasks[stat.infoHash]!;
+        if (_tasks.containsKey(hashLower)) {
+          final task = _tasks[hashLower]!;
           task.progress = stat.progress;
           task.downloadSpeed = stat.downloadSpeed;
           task.uploadSpeed = stat.uploadSpeed;
@@ -206,7 +215,7 @@ class DownloadManager extends ChangeNotifier {
         } else {
           // Add task that was started externally or from a previous session
           final newTask = DownloadTask(
-            id: stat.infoHash,
+            id: hashLower,
             name: stat.name,
             magnet: '', // Unknown
             startTime: DateTime.now(),
@@ -220,9 +229,9 @@ class DownloadManager extends ChangeNotifier {
             totalSize: stat.totalSize,
             peers: stat.peers,
             streamUrl:
-                'http://127.0.0.1:3000/torrents/${stat.infoHash}/stream/0',
+                'http://127.0.0.1:3000/torrents/${hashLower}/stream/0',
           );
-          _tasks[stat.infoHash] = newTask;
+          _tasks[hashLower] = newTask;
         }
       }
 
@@ -255,7 +264,7 @@ class DownloadManager extends ChangeNotifier {
   String? _extractInfoHashFromUrl(String url) {
     final regex = RegExp(r'/torrents/([a-fA-F0-9]+)/');
     final match = regex.firstMatch(url);
-    return match?.group(1);
+    return match?.group(1)?.toLowerCase();
   }
 
   /// Remove a download task

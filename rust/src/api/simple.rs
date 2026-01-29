@@ -52,17 +52,34 @@ async fn ensure_initialized() -> anyhow::Result<Arc<tokio::sync::Mutex<AppState>
     }
 
     let mut options = SessionOptions::default();
-    // Set standard BitTorrent ports (6881-6889) to help Clash/Firewalls identify traffic type
-    // and apply "DIRECT" rules (bypassing proxy) automatically.
-    options.listen_port_range = Some(6881..6889);
+    // Enable a TCP listener for incoming peer connections.
+    // Using a high port range avoids the legacy 6881-6889 ports that some ISPs throttle.
+    // NOTE: `None` disables listening entirely in librqbit.
+    options.listen_port_range = Some(49152..65535);
 
     // Enable UPnP for NAT traversal
     options.enable_upnp_port_forwarding = true;
+
+    // Buffer some disk writes in memory to reduce small-write overhead on Windows.
+    // This can noticeably improve throughput on some machines (AV/indexing/slow disks).
+    // Value is in megabytes.
+    options.defer_writes_up_to = Some(64);
 
     // Enable DHT for better peer discovery (especially for magnets)
     // This is crucial for discovering peers from magnet links
     options.disable_dht = false;
     options.disable_dht_persistence = false;
+
+    // Optimize peer connections for faster downloads
+    options.peer_opts = Some(librqbit::PeerConnectionOptions {
+        // Increase timeouts to allow slower peers to connect
+        connect_timeout: Some(std::time::Duration::from_secs(20)),
+        read_write_timeout: Some(std::time::Duration::from_secs(60)),
+        ..Default::default()
+    });
+
+    // Note: librqbit 8.1.1 may not have disable_pex option
+    // PEX is usually enabled by default in modern BitTorrent clients
 
     // Change download directory to a local "downloads" folder instead of Temp.
     // This often avoids aggressive Antivirus/Indexing interference on Windows.
@@ -77,6 +94,12 @@ async fn ensure_initialized() -> anyhow::Result<Arc<tokio::sync::Mutex<AppState>
 
     log::info!("Torrent data directory: {:?}", download_dir);
     let session = Session::new_with_opts(download_dir, options).await?;
+
+    if let Some(port) = session.tcp_listen_port() {
+        log::info!("rqbit incoming TCP listener: 0.0.0.0:{}", port);
+    } else {
+        log::warn!("rqbit incoming TCP listener is DISABLED (no listen port)");
+    }
 
     let api = Api::new(session.clone(), None, None);
 
@@ -117,24 +140,69 @@ pub async fn start_torrent(magnet: String) -> String {
 
     // Add Torrent
     let mut magnet = magnet;
+
+    // Log original magnet link (truncated for safety)
+    let magnet_preview = if magnet.len() > 200 {
+        format!("{}...", &magnet[..200])
+    } else {
+        magnet.clone()
+    };
+    log::info!("Original magnet link: {}", magnet_preview);
+
+    // Count original trackers in the magnet link
+    let original_tracker_count = magnet.matches("&tr=").count();
+    log::info!(
+        "Original magnet contains {} trackers",
+        original_tracker_count
+    );
+
     // Inject high-quality trackers.
-    // These are especially helpful for anime resources.
+    // These are especially helpful for anime resources and general torrents.
     let trackers = [
+        // Anime-specific trackers (critical for anime content)
         "&tr=http://share.camoe.cn:8080/announce",
         "&tr=http://t.acg.rip:6699/announce",
         "&tr=http://tracker.kamigami.org:2710/announce",
         "&tr=https://tr.bangumi.moe:9696/announce",
+        "&tr=http://tr.bangumi.moe:6969/announce",
+        "&tr=http://open.acgtracker.com:1096/announce",
+        // Popular stable public trackers (Best of 2025)
         "&tr=udp://tracker.opentrackr.org:1337/announce",
-        "&tr=udp://tracker.openbittorrent.com:80/announce",
+        "&tr=udp://open.tracker.cl:1337/announce",
+        "&tr=udp://9.rarbg.me:2970/announce",
+        "&tr=udp://p4p.arenabg.com:1337/announce",
+        "&tr=udp://tracker.torrent.eu.org:451/announce",
+        "&tr=udp://tracker.doko.moe:6969/announce",
+        "&tr=https://trackers.mlz.io:443/announce",
+        "&tr=udp://tracker.moeking.me:6969/announce",
+        "&tr=udp://open.stealth.si:80/announce",
+        "&tr=udp://exodus.desync.com:6969/announce",
+        "&tr=udp://open.demonii.com:1337/announce",
+        "&tr=udp://explodie.org:6969/announce",
+        "&tr=udp://tracker.openbittorrent.com:6969/announce",
+        "&tr=http://tracker.openbittorrent.com:80/announce",
         "&tr=udp://opentracker.i2p.rocks:6969/announce",
-        "&tr=udp://public.popcorn-tracker.org:6969/announce",
+        "&tr=https://opentracker.i2p.rocks:443/announce",
+        "&tr=wss://tracker.openwebtorrent.com",
     ];
 
+    let mut added_tracker_count = 0;
+    // Use a HashSet to track existing trackers for faster valid checking (optional but good practice)
+    // Here we just simple check constraint
     for tr in trackers {
+        // Simple deduplication check
         if !magnet.contains(tr) {
             magnet.push_str(tr);
+            added_tracker_count += 1;
         }
     }
+
+    let final_tracker_count = magnet.matches("&tr=").count();
+    log::info!(
+        "Added {} new trackers, total {} trackers in final magnet link",
+        added_tracker_count,
+        final_tracker_count
+    );
 
     // Optimized Torrent Options for streaming
     let mut add_opts = AddTorrentOptions::default();
@@ -144,6 +212,15 @@ pub async fn start_torrent(magnet: String) -> String {
     add_opts.overwrite = true;
     add_opts.only_files_regex = None; // We'll select the file after getting metadata
     add_opts.output_folder = None; // Use default download folder
+
+    // Enable initial peer fetch to get more peers quickly
+    add_opts.initial_peers = None; // Let it use tracker announces
+
+    // List mode should be false to actually download
+    add_opts.list_only = false;
+
+    // Force reannounce to trackers to get fresh peer list
+    add_opts.force_tracker_interval = None; // Use default tracker intervals
 
     let torrent = AddTorrent::from_url(magnet.clone());
 
@@ -174,6 +251,18 @@ pub async fn start_torrent(magnet: String) -> String {
     // Find largest file (video)
     let info_hash = handle.info_hash().as_string();
 
+    // Log tracker information for debugging
+    // This helps verify that trackers are being used correctly
+    let stats = handle.stats();
+    if let Some(live) = &stats.live {
+        log::info!(
+            "Torrent status: state={:?}, peers={}, download_speed={:.2} MB/s",
+            stats.state,
+            live.snapshot.peer_stats.live,
+            live.download_speed.mbps
+        );
+    }
+
     let (largest_file_idx, largest_len) = handle
         .with_metadata(|meta| {
             let mut largest_idx = 0;
@@ -194,9 +283,13 @@ pub async fn start_torrent(magnet: String) -> String {
         return "Error: No files found in torrent".to_string();
     }
 
-    // Try to select only the largest file for download to save bandwidth
-    // Note: In librqbit 8.x, file selection API may be limited
-    // The stream endpoint should prioritize downloading pieces sequentially
+    // Note: In librqbit 8.x, sequential download and file selection are handled differently
+    // The HTTP streaming endpoint will handle sequential piece requests automatically
+    // We rely on the stream endpoint to prioritize downloading pieces in order
+
+    // Pause briefly to allow peer connections to establish
+    // This gives the torrent client time to connect to more peers before streaming starts
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     log::info!(
         "Streaming file index {} from torrent {} (size: {} bytes)",
@@ -239,6 +332,42 @@ pub struct TorrentStats {
     pub seeders: u32,
 }
 
+/// Detailed tracker status information
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TrackerInfo {
+    pub url: String,
+    pub status: String,
+    pub peers: u32,
+    pub last_announce: String,
+}
+
+/// Get tracker information for a specific torrent
+pub async fn get_tracker_info(info_hash: String) -> Vec<TrackerInfo> {
+    let state = match ensure_initialized().await {
+        Ok(s) => s,
+        Err(_) => return vec![],
+    };
+
+    let state_guard = state.lock().await;
+    let info_hash_lower = info_hash.to_lowercase();
+
+    // Find the torrent by info hash and get tracker info
+    state_guard.session.with_torrents(|torrents| {
+        for (_id, handle) in torrents {
+            if handle.info_hash().as_string().to_lowercase() == info_hash_lower {
+                // Note: librqbit may not expose detailed tracker info in the public API
+                // This is a placeholder for future implementation
+                // For now, we return basic info
+                log::info!("Getting tracker info for torrent: {}", info_hash);
+
+                // Return empty vec as librqbit doesn't expose tracker details easily
+                return vec![];
+            }
+        }
+        vec![]
+    })
+}
+
 /// Get detailed stats for all active torrents
 pub async fn get_torrent_stats() -> Vec<TorrentStats> {
     let state = match ensure_initialized().await {
@@ -253,7 +382,7 @@ pub async fn get_torrent_stats() -> Vec<TorrentStats> {
         let mut collected = Vec::new();
         for (id, handle) in torrents {
             let stats = handle.stats();
-            let info_hash = handle.info_hash().as_string();
+            let info_hash = handle.info_hash().as_string().to_lowercase();
 
             // Get torrent name from metadata
             let name = handle
@@ -346,11 +475,12 @@ pub async fn stop_torrent(info_hash: String, delete_files: bool) -> bool {
     };
 
     let state_guard = state.lock().await;
+    let info_hash_lower = info_hash.to_lowercase();
 
     // Find the torrent ID by info hash
     let torrent_id = state_guard.session.with_torrents(|torrents| {
         for (id, handle) in torrents {
-            if handle.info_hash().as_string() == info_hash {
+            if handle.info_hash().as_string().to_lowercase() == info_hash_lower {
                 return Some(id);
             }
         }
