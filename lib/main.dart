@@ -6,6 +6,9 @@ import 'package:mikan_player/src/rust/frb_generated.dart';
 import 'package:mikan_player/ui/screens/home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
+import 'package:mikan_player/src/rust/api/network.dart' as network;
+import 'package:mikan_player/src/http_overrides.dart';
+import 'dart:io';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,6 +21,13 @@ Future<void> main() async {
 
   // Load and sync settings
   await _syncSettings();
+
+  // Setup Proxy
+  final proxy = await network.getSystemProxy();
+  if (proxy != null) {
+    debugPrint('Setting global proxy: $proxy');
+    HttpOverrides.global = MyHttpOverrides(proxy);
+  }
 
   runApp(const MyApp());
 }

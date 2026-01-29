@@ -162,7 +162,9 @@ class DownloadManager extends ChangeNotifier {
       final actualId = _extractInfoHashFromUrl(streamUrl) ?? tempId;
       if (actualId != tempId) {
         _tasks.remove(tempId);
-        _removedTaskIds.remove(tempId); // Also remove the temp ID from removed set
+        _removedTaskIds.remove(
+          tempId,
+        ); // Also remove the temp ID from removed set
         task.id = actualId; // Update the task's ID to the actual info hash
         // Remove actual ID from removed set in case it was previously deleted
         _removedTaskIds.remove(actualId);
@@ -191,7 +193,7 @@ class DownloadManager extends ChangeNotifier {
 
       for (final stat in stats) {
         final hashLower = stat.infoHash.toLowerCase();
-        
+
         // Skip if this task was manually removed
         if (_removedTaskIds.contains(hashLower)) {
           continue;
@@ -228,8 +230,7 @@ class DownloadManager extends ChangeNotifier {
             downloaded: stat.downloaded,
             totalSize: stat.totalSize,
             peers: stat.peers,
-            streamUrl:
-                'http://127.0.0.1:3000/torrents/${hashLower}/stream/0',
+            streamUrl: 'http://127.0.0.1:3000/torrents/{hashLower}/stream/0',
           );
           _tasks[hashLower] = newTask;
         }

@@ -8,6 +8,7 @@ import 'api/config.dart';
 import 'api/crawler.dart';
 import 'api/dmhy.dart';
 import 'api/mikan.dart';
+import 'api/network.dart';
 import 'api/ranking.dart';
 import 'api/simple.dart';
 import 'dart:async';
@@ -133,6 +134,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<TorrentStats> dco_decode_list_torrent_stats(dynamic raw);
 
   @protected
+  List<TrackerInfo> dco_decode_list_tracker_info(dynamic raw);
+
+  @protected
   MikanEpisodeResource dco_decode_mikan_episode_resource(dynamic raw);
 
   @protected
@@ -160,6 +164,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TorrentStats dco_decode_torrent_stats(dynamic raw);
+
+  @protected
+  TrackerInfo dco_decode_tracker_info(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -306,6 +313,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<TrackerInfo> sse_decode_list_tracker_info(SseDeserializer deserializer);
+
+  @protected
   MikanEpisodeResource sse_decode_mikan_episode_resource(
     SseDeserializer deserializer,
   );
@@ -339,6 +349,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TorrentStats sse_decode_torrent_stats(SseDeserializer deserializer);
+
+  @protected
+  TrackerInfo sse_decode_tracker_info(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
@@ -521,6 +534,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_tracker_info(
+    List<TrackerInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_mikan_episode_resource(
     MikanEpisodeResource self,
     SseSerializer serializer,
@@ -558,6 +577,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_torrent_stats(TorrentStats self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_tracker_info(TrackerInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);

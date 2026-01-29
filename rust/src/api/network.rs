@@ -8,7 +8,6 @@ pub struct ProxyConfig {
     pub url: String,
 }
 
-#[flutter_rust_bridge::frb(ignore)]
 pub fn get_system_proxy() -> Option<String> {
     #[cfg(target_os = "windows")]
     {
@@ -47,20 +46,25 @@ pub fn get_system_proxy() -> Option<String> {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 // last part should be the address
                 if let Some(addr) = parts.last() {
-                    // Basic validation: needs specific format?
-                    // It might be "http=127.0.0.1:7890;https=..." or just "127.0.0.1:7890"
-                    // If it doesn't start with http, assume http
-                    let proxy_url = if addr.contains("=") {
-                        // complex string, maybe just take the first one or ignore
-                        // For simplicity, if it's complex, we might skip parsing or try safe extraction
-                        // Let's assume standard "IP:PORT" for now common in simple proxy setups
-                        return None; // Too complex to parse reliably without better logic
+                    // It might be "http=127.0.0.1:7890;https=127.0.0.1:7890" or just "127.0.0.1:7890"
+                    let target_addr = if addr.contains("=") {
+                        // Try to find the http= part
+                        addr.split(';')
+                            .find(|s| s.starts_with("http="))
+                            .map(|s| s.trim_start_matches("http="))
+                            .or_else(|| {
+                                // Fallback to just splitting by = if http= not found but someone used =
+                                addr.split('=').last()
+                            })
+                            .unwrap_or(addr)
                     } else {
-                        if !addr.starts_with("http") {
-                            format!("http://{}", addr)
-                        } else {
-                            addr.to_string()
-                        }
+                        addr
+                    };
+
+                    let proxy_url = if !target_addr.starts_with("http") {
+                        format!("http://{}", target_addr)
+                    } else {
+                        target_addr.to_string()
                     };
                     return Some(proxy_url);
                 }

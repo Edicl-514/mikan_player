@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `ensure_initialized`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AppState`, `STATE`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `deref`, `fmt`, `initialize`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `deref`, `fmt`, `fmt`, `initialize`
 
 Future<String> greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
@@ -27,6 +27,10 @@ Future<void> updateConfig({
 
 Future<String> startTorrent({required String magnet}) =>
     RustLib.instance.api.crateApiSimpleStartTorrent(magnet: magnet);
+
+/// Get tracker information for a specific torrent
+Future<List<TrackerInfo>> getTrackerInfo({required String infoHash}) =>
+    RustLib.instance.api.crateApiSimpleGetTrackerInfo(infoHash: infoHash);
 
 /// Get detailed stats for all active torrents
 Future<List<TorrentStats>> getTorrentStats() =>
@@ -100,4 +104,33 @@ class TorrentStats {
           totalSize == other.totalSize &&
           peers == other.peers &&
           seeders == other.seeders;
+}
+
+/// Detailed tracker status information
+class TrackerInfo {
+  final String url;
+  final String status;
+  final int peers;
+  final String lastAnnounce;
+
+  const TrackerInfo({
+    required this.url,
+    required this.status,
+    required this.peers,
+    required this.lastAnnounce,
+  });
+
+  @override
+  int get hashCode =>
+      url.hashCode ^ status.hashCode ^ peers.hashCode ^ lastAnnounce.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TrackerInfo &&
+          runtimeType == other.runtimeType &&
+          url == other.url &&
+          status == other.status &&
+          peers == other.peers &&
+          lastAnnounce == other.lastAnnounce;
 }

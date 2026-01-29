@@ -8,6 +8,7 @@ import 'api/config.dart';
 import 'api/crawler.dart';
 import 'api/dmhy.dart';
 import 'api/mikan.dart';
+import 'api/network.dart';
 import 'api/ranking.dart';
 import 'api/simple.dart';
 import 'dart:async';
@@ -72,7 +73,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -613250294;
+  int get rustContentHash => -1566970775;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -154,7 +155,13 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiConfigGetPlaybackSubUrl();
 
+  Future<String?> crateApiNetworkGetSystemProxy();
+
   Future<List<TorrentStats>> crateApiSimpleGetTorrentStats();
+
+  Future<List<TrackerInfo>> crateApiSimpleGetTrackerInfo({
+    required String infoHash,
+  });
 
   Future<String> crateApiSimpleGreet({required String name});
 
@@ -797,7 +804,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_playback_sub_url", argNames: []);
 
   @override
-  Future<List<TorrentStats>> crateApiSimpleGetTorrentStats() {
+  Future<String?> crateApiNetworkGetSystemProxy() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -806,6 +813,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             generalizedFrbRustBinding,
             serializer,
             funcId: 20,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNetworkGetSystemProxyConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNetworkGetSystemProxyConstMeta =>
+      const TaskConstMeta(debugName: "get_system_proxy", argNames: []);
+
+  @override
+  Future<List<TorrentStats>> crateApiSimpleGetTorrentStats() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 21,
             port: port_,
           );
         },
@@ -824,6 +858,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_torrent_stats", argNames: []);
 
   @override
+  Future<List<TrackerInfo>> crateApiSimpleGetTrackerInfo({
+    required String infoHash,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(infoHash, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 22,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_tracker_info,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGetTrackerInfoConstMeta,
+        argValues: [infoHash],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGetTrackerInfoConstMeta =>
+      const TaskConstMeta(
+        debugName: "get_tracker_info",
+        argNames: ["infoHash"],
+      );
+
+  @override
   Future<String> crateApiSimpleGreet({required String name}) {
     return handler.executeNormal(
       NormalTask(
@@ -833,7 +900,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 23,
             port: port_,
           );
         },
@@ -860,7 +927,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 24,
             port: port_,
           );
         },
@@ -890,7 +957,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 25,
             port: port_,
           );
         },
@@ -921,7 +988,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 26,
             port: port_,
           );
         },
@@ -953,7 +1020,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 27,
             port: port_,
           );
         },
@@ -991,7 +1058,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1029,7 +1096,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1362,6 +1429,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<TrackerInfo> dco_decode_list_tracker_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_tracker_info).toList();
+  }
+
+  @protected
   MikanEpisodeResource dco_decode_mikan_episode_resource(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1455,6 +1528,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       totalSize: dco_decode_u_64(arr[7]),
       peers: dco_decode_u_32(arr[8]),
       seeders: dco_decode_u_32(arr[9]),
+    );
+  }
+
+  @protected
+  TrackerInfo dco_decode_tracker_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return TrackerInfo(
+      url: dco_decode_String(arr[0]),
+      status: dco_decode_String(arr[1]),
+      peers: dco_decode_u_32(arr[2]),
+      lastAnnounce: dco_decode_String(arr[3]),
     );
   }
 
@@ -1917,6 +2004,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<TrackerInfo> sse_decode_list_tracker_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <TrackerInfo>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_tracker_info(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   MikanEpisodeResource sse_decode_mikan_episode_resource(
     SseDeserializer deserializer,
   ) {
@@ -2054,6 +2153,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       totalSize: var_totalSize,
       peers: var_peers,
       seeders: var_seeders,
+    );
+  }
+
+  @protected
+  TrackerInfo sse_decode_tracker_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_url = sse_decode_String(deserializer);
+    var var_status = sse_decode_String(deserializer);
+    var var_peers = sse_decode_u_32(deserializer);
+    var var_lastAnnounce = sse_decode_String(deserializer);
+    return TrackerInfo(
+      url: var_url,
+      status: var_status,
+      peers: var_peers,
+      lastAnnounce: var_lastAnnounce,
     );
   }
 
@@ -2437,6 +2551,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_tracker_info(
+    List<TrackerInfo> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_tracker_info(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_mikan_episode_resource(
     MikanEpisodeResource self,
     SseSerializer serializer,
@@ -2541,6 +2667,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_64(self.totalSize, serializer);
     sse_encode_u_32(self.peers, serializer);
     sse_encode_u_32(self.seeders, serializer);
+  }
+
+  @protected
+  void sse_encode_tracker_info(TrackerInfo self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.url, serializer);
+    sse_encode_String(self.status, serializer);
+    sse_encode_u_32(self.peers, serializer);
+    sse_encode_String(self.lastAnnounce, serializer);
   }
 
   @protected
