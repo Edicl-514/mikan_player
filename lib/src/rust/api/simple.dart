@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `ensure_initialized`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AppState`, `STATE`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `initialize`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `deref`, `fmt`, `initialize`
 
 Future<String> greet({required String name}) =>
     RustLib.instance.api.crateApiSimpleGreet(name: name);
@@ -16,7 +16,71 @@ Future<String> greet({required String name}) =>
 Future<String> startTorrent({required String magnet}) =>
     RustLib.instance.api.crateApiSimpleStartTorrent(magnet: magnet);
 
+/// Get detailed stats for all active torrents
+Future<List<TorrentStats>> getTorrentStats() =>
+    RustLib.instance.api.crateApiSimpleGetTorrentStats();
+
 /// Get torrent download stats for debugging
 /// Returns stats for currently active torrents
 Future<String> getAllTorrentsInfo() =>
     RustLib.instance.api.crateApiSimpleGetAllTorrentsInfo();
+
+/// Stop and remove a torrent by info hash
+Future<bool> stopTorrent({required String infoHash}) =>
+    RustLib.instance.api.crateApiSimpleStopTorrent(infoHash: infoHash);
+
+/// Torrent download statistics
+class TorrentStats {
+  final String infoHash;
+  final String name;
+  final String state;
+  final double progress;
+  final double downloadSpeed;
+  final double uploadSpeed;
+  final BigInt downloaded;
+  final BigInt totalSize;
+  final int peers;
+  final int seeders;
+
+  const TorrentStats({
+    required this.infoHash,
+    required this.name,
+    required this.state,
+    required this.progress,
+    required this.downloadSpeed,
+    required this.uploadSpeed,
+    required this.downloaded,
+    required this.totalSize,
+    required this.peers,
+    required this.seeders,
+  });
+
+  @override
+  int get hashCode =>
+      infoHash.hashCode ^
+      name.hashCode ^
+      state.hashCode ^
+      progress.hashCode ^
+      downloadSpeed.hashCode ^
+      uploadSpeed.hashCode ^
+      downloaded.hashCode ^
+      totalSize.hashCode ^
+      peers.hashCode ^
+      seeders.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TorrentStats &&
+          runtimeType == other.runtimeType &&
+          infoHash == other.infoHash &&
+          name == other.name &&
+          state == other.state &&
+          progress == other.progress &&
+          downloadSpeed == other.downloadSpeed &&
+          uploadSpeed == other.uploadSpeed &&
+          downloaded == other.downloaded &&
+          totalSize == other.totalSize &&
+          peers == other.peers &&
+          seeders == other.seeders;
+}

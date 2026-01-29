@@ -6,8 +6,9 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `extract_episode`, `levenshtein`, `similarity`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `extract_episode`, `get_mikan_expand_urls`, `levenshtein`, `parse_mikan_resources_from_html`, `similarity`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `SEASON_RE`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `deref`, `fmt`, `fmt`, `initialize`
 
 Future<MikanSearchResult?> searchMikanAnime({required String nameCn}) =>
     RustLib.instance.api.crateApiMikanSearchMikanAnime(nameCn: nameCn);

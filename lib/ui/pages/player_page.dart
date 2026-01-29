@@ -5,6 +5,9 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/mikan.dart';
 import 'package:flutter/services.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+import 'package:mikan_player/services/download_manager.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 
@@ -44,12 +47,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   List<MikanEpisodeResource> _mikanResources = [];
   bool _isMikanSourceExpanded = false;
 
+  // Video Player
+  late final Player _player;
+  late final VideoController _videoController;
+  bool _isPlayerInitialized = false;
+  bool _isLoadingVideo = false;
+  String? _currentStreamUrl;
+  String? _videoError;
+  final DownloadManager _downloadManager = DownloadManager();
+
   @override
   void initState() {
     super.initState();
     _mobileTabController = TabController(length: 2, vsync: this);
     _pcEpisodeScrollController = ScrollController();
     _mobileEpisodeScrollController = ScrollController();
+    
+    // Initialize video player
+    _player = Player();
+    _videoController = VideoController(_player);
+    _isPlayerInitialized = true;
+    
     _loadComments();
     _loadRecommendations();
     _loadMikanSource();
@@ -266,6 +284,61 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
+  /// Play a magnet link - starts torrent and streams video
+  Future<void> _playMagnet(MikanEpisodeResource resource) async {
+    setState(() {
+      _isLoadingVideo = true;
+      _videoError = null;
+    });
+
+    try {
+      final streamUrl = await _downloadManager.startDownload(
+        magnet: resource.magnet,
+        name: resource.title,
+        animeName: widget.anime.title,
+        episodeNumber: resource.episode,
+      );
+
+      if (streamUrl == null) {
+        setState(() {
+          _videoError = "无法获取播放地址";
+          _isLoadingVideo = false;
+        });
+        return;
+      }
+
+      debugPrint("[Player] Got stream URL: $streamUrl");
+      _currentStreamUrl = streamUrl;
+
+      // Open the stream in the player
+      await _player.open(Media(streamUrl));
+
+      setState(() {
+        _isLoadingVideo = false;
+      });
+    } catch (e) {
+      debugPrint("[Player] Error playing magnet: $e");
+      setState(() {
+        _videoError = e.toString();
+        _isLoadingVideo = false;
+      });
+    }
+  }
+
+  /// Download without playing
+  Future<void> _downloadMagnet(MikanEpisodeResource resource) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("开始下载，可在「我的」页面查看进度")),
+    );
+
+    await _downloadManager.startDownload(
+      magnet: resource.magnet,
+      name: resource.title,
+      animeName: widget.anime.title,
+      episodeNumber: resource.episode,
+    );
+  }
+
   @override
   void didUpdateWidget(PlayerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -322,6 +395,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _mobileTabController.dispose();
     _pcEpisodeScrollController.dispose();
     _mobileEpisodeScrollController.dispose();
+    _player.dispose();
     super.dispose();
   }
 
@@ -1059,117 +1133,166 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     BuildContext context, {
     required bool isMobile,
   }) {
-    // This simulates a video player with Danmaku
+    // If player is initialized and we have a stream, show actual player
+    if (_isPlayerInitialized && _currentStreamUrl != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // Actual video player
+          Video(
+            controller: _videoController,
+            controls: AdaptiveVideoControls,
+          ),
+          
+          // Loading overlay
+          if (_isLoadingVideo)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Color(0xFFBB86FC)),
+                    SizedBox(height: 16),
+                    Text(
+                      "正在加载视频流...",
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          
+          // Header Overlay (Top) - for mobile back button
+          if (isMobile)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 60,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withValues(alpha: 0.6),
+                      Colors.transparent,
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    const Spacer(),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+
+    // Placeholder when no video is playing
     return Stack(
       fit: StackFit.expand,
       children: [
         // Background
-        Image.network(
-          "https://f.tz.NET/404", // Intentional error to show fallback or use color
-          fit: BoxFit.cover,
-          errorBuilder: (c, e, s) => Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF000000), Color(0xFF1A1A2E)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF000000), Color(0xFF1A1A2E)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
           ),
         ),
-        Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "Video Player Placeholder",
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Icon(
-                Icons.play_circle_fill,
-                size: 64,
-                color: Colors.white70,
-              ),
-            ],
-          ),
-        ),
-
-        // Danmaku Overlay Simulation
-        Positioned(top: 20, left: 100, child: _buildDanmakuText("First!")),
-        Positioned(
-          top: 50,
-          left: 200,
-          child: _buildDanmakuText("Amazing animation!"),
-        ),
-        Positioned(
-          top: 80,
-          left: 50,
-          child: _buildDanmakuText("High aesthetics"),
-        ),
-        Positioned(
-          top: 150,
-          right: 100,
-          child: _buildDanmakuText("Mikan Player woooo"),
-        ),
-
-        // Controls Overlay (Bottom)
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: Container(
-            height: isMobile ? 60 : 80,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.transparent, Colors.black87],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
+        
+        // Loading state
+        if (_isLoadingVideo)
+          const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.play_arrow, color: Colors.white),
-                const SizedBox(width: 16),
-                const Text(
-                  "02:14 / 24:00",
-                  style: TextStyle(color: Colors.white, fontSize: 12),
+                CircularProgressIndicator(color: Color(0xFFBB86FC)),
+                SizedBox(height: 16),
+                Text(
+                  "正在初始化播放...",
+                  style: TextStyle(color: Colors.white70),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      thumbShape: const RoundSliderThumbShape(
-                        enabledThumbRadius: 6,
-                      ),
-                      trackHeight: 2,
-                    ),
-                    child: Slider(
-                      value: 0.1,
-                      onChanged: (v) {},
-                      activeColor: const Color(0xFFBB86FC),
-                      inactiveColor: Colors.white24,
-                    ),
+                SizedBox(height: 8),
+                Text(
+                  "正在连接种子网络...",
+                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+              ],
+            ),
+          )
+        // Error state
+        else if (_videoError != null)
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+                const SizedBox(height: 16),
+                Text(
+                  "播放失败",
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 16),
-                const Icon(
-                  Icons.closed_caption,
-                  color: Colors.white70,
-                  size: 20,
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Text(
+                    _videoError!,
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                const SizedBox(width: 16),
-                const Icon(Icons.settings, color: Colors.white70, size: 20),
-                const SizedBox(width: 16),
-                const Icon(Icons.fullscreen, color: Colors.white70, size: 20),
+              ],
+            ),
+          )
+        // Default placeholder
+        else
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.play_circle_outline,
+                  size: 64,
+                  color: Colors.white.withValues(alpha: 0.3),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  "选择播放源开始观看",
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "在下方「播放源」中选择资源",
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
           ),
-        ),
 
         // Header Overlay (Top) - Fixed for mobile
         if (isMobile)
@@ -1432,11 +1555,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   ),
                   const SizedBox(width: 8),
                   InkWell(
-                    onTap: () {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(const SnackBar(content: Text("下载功能开发中")));
-                    },
+                    onTap: () => _downloadMagnet(res),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -1460,28 +1579,35 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   ),
                   const SizedBox(width: 8),
                   InkWell(
-                    onTap: () {
-                      // TODO: Play magnet
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(const SnackBar(content: Text("播放功能暂未实现")));
-                    },
+                    onTap: _isLoadingVideo ? null : () => _playMagnet(res),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFBB86FC),
+                        color: _isLoadingVideo 
+                            ? const Color(0xFFBB86FC).withValues(alpha: 0.5)
+                            : const Color(0xFFBB86FC),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(Icons.play_arrow, size: 12, color: Colors.black),
-                          SizedBox(width: 4),
+                          if (_isLoadingVideo)
+                            const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.black54,
+                              ),
+                            )
+                          else
+                            const Icon(Icons.play_arrow, size: 12, color: Colors.black),
+                          const SizedBox(width: 4),
                           Text(
-                            "播放",
-                            style: TextStyle(
+                            _isLoadingVideo ? "加载中" : "播放",
+                            style: const TextStyle(
                               color: Colors.black,
                               fontSize: 11,
                               fontWeight: FontWeight.bold,

@@ -56,6 +56,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiRelatedSubject dco_decode_bangumi_related_subject(dynamic raw);
 
   @protected
+  bool dco_decode_bool(dynamic raw);
+
+  @protected
   BangumiImages dco_decode_box_autoadd_bangumi_images(dynamic raw);
 
   @protected
@@ -119,6 +122,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<RankingAnime> dco_decode_list_ranking_anime(dynamic raw);
 
   @protected
+  List<TorrentStats> dco_decode_list_torrent_stats(dynamic raw);
+
+  @protected
   MikanEpisodeResource dco_decode_mikan_episode_resource(dynamic raw);
 
   @protected
@@ -143,6 +149,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RankingAnime dco_decode_ranking_anime(dynamic raw);
+
+  @protected
+  TorrentStats dco_decode_torrent_stats(dynamic raw);
+
+  @protected
+  int dco_decode_u_32(dynamic raw);
+
+  @protected
+  BigInt dco_decode_u_64(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -186,6 +201,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiRelatedSubject sse_decode_bangumi_related_subject(
     SseDeserializer deserializer,
   );
+
+  @protected
+  bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
   BangumiImages sse_decode_box_autoadd_bangumi_images(
@@ -267,6 +285,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<TorrentStats> sse_decode_list_torrent_stats(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MikanEpisodeResource sse_decode_mikan_episode_resource(
     SseDeserializer deserializer,
   );
@@ -299,13 +322,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RankingAnime sse_decode_ranking_anime(SseDeserializer deserializer);
 
   @protected
+  TorrentStats sse_decode_torrent_stats(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_u_8(SseDeserializer deserializer);
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
-
-  @protected
-  bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
   void sse_encode_AnyhowException(
@@ -360,6 +389,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     BangumiRelatedSubject self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_bangumi_images(
@@ -458,6 +490,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_torrent_stats(
+    List<TorrentStats> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_mikan_episode_resource(
     MikanEpisodeResource self,
     SseSerializer serializer,
@@ -494,13 +532,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_ranking_anime(RankingAnime self, SseSerializer serializer);
 
   @protected
+  void sse_encode_torrent_stats(TorrentStats self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer);
 }
 
 // Section: wire_class
