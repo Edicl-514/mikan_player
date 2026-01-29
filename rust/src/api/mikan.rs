@@ -200,20 +200,11 @@ fn extract_episode(title: &str) -> Option<i32> {
     None
 }
 
-pub async fn get_mikan_resources(
-    mikan_id: String,
+fn parse_mikan_resources_from_html(
+    html_content: &str,
     current_episode_sort: i32,
-) -> anyhow::Result<Vec<MikanEpisodeResource>> {
-    info!(
-        "Fetching Mikan resources for ID: {} Episode: {}",
-        mikan_id, current_episode_sort
-    );
-    let url = format!("https://mikanani.me/Home/Bangumi/{}", mikan_id);
-    debug!("Mikan bangumi URL: {}", url);
-    let client = reqwest::Client::new();
-    let resp = client.get(&url).send().await?.text().await?;
-    let document = Html::parse_document(&resp);
-
+) -> Vec<MikanEpisodeResource> {
+    let document = Html::parse_document(html_content);
     let table_selector = Selector::parse(".episode-table tbody tr").unwrap();
     let name_selector = Selector::parse(".magnet-link-wrap").unwrap();
     let size_selector = Selector::parse("td:nth-child(3)").unwrap();
@@ -257,13 +248,72 @@ pub async fn get_mikan_resources(
                         episode: Some(ep),
                     });
                 }
-            } else {
-                debug!("Could not extract episode from: {}", title);
+            }
+        }
+    }
+    resources
+}
+
+fn get_mikan_expand_urls(html_content: &str, mikan_id: &str) -> Vec<String> {
+    let document = Html::parse_document(html_content);
+    let expand_selector = Selector::parse(".js-expand-episode").unwrap();
+    let mut expand_urls = Vec::new();
+
+    for btn in document.select(&expand_selector) {
+        let group_id = btn.attr("data-subtitlegroupid").unwrap_or("");
+        let take = btn.attr("data-take").unwrap_or("");
+
+        if !group_id.is_empty() && !take.is_empty() {
+            let expand_url = format!(
+                "https://mikanani.me/Home/ExpandEpisodeTable?bangumiId={}&subtitleGroupId={}&take={}",
+                mikan_id, group_id, take
+            );
+            expand_urls.push(expand_url);
+        }
+    }
+    expand_urls
+}
+
+pub async fn get_mikan_resources(
+    mikan_id: String,
+    current_episode_sort: i32,
+) -> anyhow::Result<Vec<MikanEpisodeResource>> {
+    info!(
+        "Fetching Mikan resources for ID: {} Episode: {}",
+        mikan_id, current_episode_sort
+    );
+    let url = format!("https://mikanani.me/Home/Bangumi/{}", mikan_id);
+    debug!("Mikan bangumi URL: {}", url);
+    let client = reqwest::Client::new();
+    let resp = client.get(&url).send().await?.text().await?;
+
+    let mut resources = parse_mikan_resources_from_html(&resp, current_episode_sort);
+
+    // Check for "Show More" buttons
+    let expand_urls = get_mikan_expand_urls(&resp, &mikan_id);
+
+    if !expand_urls.is_empty() {
+        info!(
+            "Found {} 'Show More' buttons, fetching extra resources...",
+            expand_urls.len()
+        );
+        for expand_url in expand_urls {
+            debug!("Fetching expanded resources: {}", expand_url);
+            match client.get(&expand_url).send().await {
+                Ok(resp) => {
+                    if let Ok(html) = resp.text().await {
+                        let extra = parse_mikan_resources_from_html(&html, current_episode_sort);
+                        resources.extend(extra);
+                    }
+                }
+                Err(e) => warn!(
+                    "Failed to fetch expanded resources from {}: {}",
+                    expand_url, e
+                ),
             }
         }
     }
 
-    info!("Found {} matching resources for task.", resources.len());
-
+    info!("Found {} total matching resources.", resources.len());
     Ok(resources)
 }
