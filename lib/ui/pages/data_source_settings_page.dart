@@ -288,9 +288,15 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                             source.name,
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
-                          subtitle: source.description.isNotEmpty
-                              ? Text(
-                                  source.description,
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  source.description.isNotEmpty
+                                      ? source.description
+                                      : '自定义网络搜视源',
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -299,16 +305,36 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                                       context,
                                     ).textTheme.bodySmall?.color,
                                   ),
-                                )
-                              : Text(
-                                  '自定义网络搜视源',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall?.color,
-                                  ),
                                 ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: [
+                                    _buildInfoTag(
+                                      context,
+                                      'Tier ${source.tier}',
+                                      Theme.of(context).colorScheme.tertiary,
+                                    ),
+                                    if (source.defaultResolution.isNotEmpty)
+                                      _buildInfoTag(
+                                        context,
+                                        source.defaultResolution,
+                                        Theme.of(context).colorScheme.primary,
+                                      ),
+                                    if (source
+                                        .defaultSubtitleLanguage
+                                        .isNotEmpty)
+                                      _buildInfoTag(
+                                        context,
+                                        source.defaultSubtitleLanguage,
+                                        Theme.of(context).colorScheme.secondary,
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
                           trailing: Switch(
                             value: isEnabled,
                             onChanged: (val) {
@@ -337,6 +363,25 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildInfoTag(BuildContext context, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withAlpha(25),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withAlpha(50), width: 0.5),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
     );
   }
 

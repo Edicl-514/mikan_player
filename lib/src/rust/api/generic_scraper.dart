@@ -228,12 +228,18 @@ class SourceState {
   final String name;
   final String description;
   final String iconUrl;
+  final int tier;
+  final String defaultSubtitleLanguage;
+  final String defaultResolution;
   final bool enabled;
 
   const SourceState({
     required this.name,
     required this.description,
     required this.iconUrl,
+    required this.tier,
+    required this.defaultSubtitleLanguage,
+    required this.defaultResolution,
     required this.enabled,
   });
 
@@ -242,6 +248,9 @@ class SourceState {
       name.hashCode ^
       description.hashCode ^
       iconUrl.hashCode ^
+      tier.hashCode ^
+      defaultSubtitleLanguage.hashCode ^
+      defaultResolution.hashCode ^
       enabled.hashCode;
 
   @override
@@ -252,5 +261,8 @@ class SourceState {
           name == other.name &&
           description == other.description &&
           iconUrl == other.iconUrl &&
+          tier == other.tier &&
+          defaultSubtitleLanguage == other.defaultSubtitleLanguage &&
+          defaultResolution == other.defaultResolution &&
           enabled == other.enabled;
 }

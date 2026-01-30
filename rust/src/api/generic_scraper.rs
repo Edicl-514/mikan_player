@@ -10,6 +10,9 @@ pub struct SourceState {
     pub name: String,
     pub description: String,
     pub icon_url: String,
+    pub tier: i32,
+    pub default_subtitle_language: String,
+    pub default_resolution: String,
     pub enabled: bool,
 }
 
@@ -79,6 +82,7 @@ pub struct SourceArguments {
     pub description: Option<String>,
     #[serde(rename = "iconUrl")]
     pub icon_url: Option<String>,
+    pub tier: Option<i32>,
     #[serde(rename = "searchConfig")]
     pub search_config: SearchConfig,
 }
@@ -87,6 +91,12 @@ pub struct SourceArguments {
 pub struct SearchConfig {
     #[serde(rename = "searchUrl")]
     pub search_url: String,
+
+    #[serde(rename = "defaultSubtitleLanguage")]
+    pub default_subtitle_language: Option<String>,
+
+    #[serde(rename = "defaultResolution")]
+    pub default_resolution: Option<String>,
 
     // Subject format selector
     #[serde(rename = "subjectFormatId")]
@@ -693,11 +703,25 @@ pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
         let name = source.arguments.name;
         let description = source.arguments.description.unwrap_or_default();
         let icon_url = source.arguments.icon_url.unwrap_or_default();
+        let tier = source.arguments.tier.unwrap_or(0);
+        let default_subtitle_language = source
+            .arguments
+            .search_config
+            .default_subtitle_language
+            .unwrap_or_default();
+        let default_resolution = source
+            .arguments
+            .search_config
+            .default_resolution
+            .unwrap_or_default();
         let enabled = crate::api::config::is_source_enabled(&name);
         sources.push(SourceState {
             name,
             description,
             icon_url,
+            tier,
+            default_subtitle_language,
+            default_resolution,
             enabled,
         });
     }
@@ -1786,13 +1810,11 @@ async fn generic_search_and_play_internal(
                     if let Ok(nested_re) = Regex::new(nested_regex_str) {
                         // fancy_regex::captures returns Result<Option<Captures>, Error>
                         if let Ok(Some(caps)) = nested_re.captures(&video_page_text) {
-                            let mut nested_url = String::new();
-                            // Try whole match or first group
-                            if caps.len() > 1 {
-                                nested_url = caps.get(1).map_or("", |m| m.as_str()).to_string();
+                            let mut nested_url = if caps.len() > 1 {
+                                caps.get(1).map_or("", |m| m.as_str()).to_string()
                             } else {
-                                nested_url = caps.get(0).map_or("", |m| m.as_str()).to_string();
-                            }
+                                caps.get(0).map_or("", |m| m.as_str()).to_string()
+                            };
 
                             if !nested_url.is_empty() {
                                 // Handle relative URL

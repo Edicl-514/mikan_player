@@ -2350,11 +2350,17 @@ impl SseDecode for crate::api::generic_scraper::SourceState {
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_description = <String>::sse_decode(deserializer);
         let mut var_iconUrl = <String>::sse_decode(deserializer);
+        let mut var_tier = <i32>::sse_decode(deserializer);
+        let mut var_defaultSubtitleLanguage = <String>::sse_decode(deserializer);
+        let mut var_defaultResolution = <String>::sse_decode(deserializer);
         let mut var_enabled = <bool>::sse_decode(deserializer);
         return crate::api::generic_scraper::SourceState {
             name: var_name,
             description: var_description,
             icon_url: var_iconUrl,
+            tier: var_tier,
+            default_subtitle_language: var_defaultSubtitleLanguage,
+            default_resolution: var_defaultResolution,
             enabled: var_enabled,
         };
     }
@@ -2990,6 +2996,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceState 
             self.name.into_into_dart().into_dart(),
             self.description.into_into_dart().into_dart(),
             self.icon_url.into_into_dart().into_dart(),
+            self.tier.into_into_dart().into_dart(),
+            self.default_subtitle_language.into_into_dart().into_dart(),
+            self.default_resolution.into_into_dart().into_dart(),
             self.enabled.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -3592,6 +3601,9 @@ impl SseEncode for crate::api::generic_scraper::SourceState {
         <String>::sse_encode(self.name, serializer);
         <String>::sse_encode(self.description, serializer);
         <String>::sse_encode(self.icon_url, serializer);
+        <i32>::sse_encode(self.tier, serializer);
+        <String>::sse_encode(self.default_subtitle_language, serializer);
+        <String>::sse_encode(self.default_resolution, serializer);
         <bool>::sse_encode(self.enabled, serializer);
     }
 }

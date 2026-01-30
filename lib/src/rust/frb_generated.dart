@@ -2102,13 +2102,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   SourceState dco_decode_source_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return SourceState(
       name: dco_decode_String(arr[0]),
       description: dco_decode_String(arr[1]),
       iconUrl: dco_decode_String(arr[2]),
-      enabled: dco_decode_bool(arr[3]),
+      tier: dco_decode_i_32(arr[3]),
+      defaultSubtitleLanguage: dco_decode_String(arr[4]),
+      defaultResolution: dco_decode_String(arr[5]),
+      enabled: dco_decode_bool(arr[6]),
     );
   }
 
@@ -2893,11 +2896,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_name = sse_decode_String(deserializer);
     var var_description = sse_decode_String(deserializer);
     var var_iconUrl = sse_decode_String(deserializer);
+    var var_tier = sse_decode_i_32(deserializer);
+    var var_defaultSubtitleLanguage = sse_decode_String(deserializer);
+    var var_defaultResolution = sse_decode_String(deserializer);
     var var_enabled = sse_decode_bool(deserializer);
     return SourceState(
       name: var_name,
       description: var_description,
       iconUrl: var_iconUrl,
+      tier: var_tier,
+      defaultSubtitleLanguage: var_defaultSubtitleLanguage,
+      defaultResolution: var_defaultResolution,
       enabled: var_enabled,
     );
   }
@@ -3590,6 +3599,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.name, serializer);
     sse_encode_String(self.description, serializer);
     sse_encode_String(self.iconUrl, serializer);
+    sse_encode_i_32(self.tier, serializer);
+    sse_encode_String(self.defaultSubtitleLanguage, serializer);
+    sse_encode_String(self.defaultResolution, serializer);
     sse_encode_bool(self.enabled, serializer);
   }
 
