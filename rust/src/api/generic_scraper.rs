@@ -128,12 +128,16 @@ pub struct SelectorChannelFormatFlattened {
     pub select_episode_lists: String,
     #[serde(rename = "selectEpisodesFromList")]
     pub select_episodes_from_list: String,
+    #[serde(rename = "matchEpisodeSortFromName")]
+    pub match_episode_sort_from_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct SelectorChannelFormatNoChannel {
     #[serde(rename = "selectEpisodes")]
     pub select_episodes: String,
+    #[serde(rename = "matchEpisodeSortFromName")]
+    pub match_episode_sort_from_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -149,6 +153,67 @@ pub struct MatchVideo {
 
     #[serde(rename = "addHeadersToVideo")]
     pub add_headers_to_video: Option<std::collections::HashMap<String, String>>,
+}
+
+/// 解析中文数字（一二三四五六七八九十等）为阿拉伯数字
+fn parse_chinese_number(s: &str) -> Option<u32> {
+    // 首先尝试直接解析阿拉伯数字
+    if let Ok(num) = s.parse::<u32>() {
+        return Some(num);
+    }
+    
+    let s = s.trim();
+    if s.is_empty() {
+        return None;
+    }
+    
+    // 中文数字映射
+    let digit_map: std::collections::HashMap<char, u32> = [
+        ('零', 0), ('〇', 0),
+        ('一', 1), ('壹', 1),
+        ('二', 2), ('贰', 2), ('两', 2),
+        ('三', 3), ('叁', 3),
+        ('四', 4), ('肆', 4),
+        ('五', 5), ('伍', 5),
+        ('六', 6), ('陆', 6),
+        ('七', 7), ('柒', 7),
+        ('八', 8), ('捌', 8),
+        ('九', 9), ('玖', 9),
+    ].iter().cloned().collect();
+    
+    let mut result: u32 = 0;
+    let mut current: u32 = 0;
+    let mut has_ten = false;
+    
+    for c in s.chars() {
+        if let Some(&digit) = digit_map.get(&c) {
+            current = digit;
+        } else if c == '十' || c == '拾' {
+            has_ten = true;
+            if current == 0 {
+                // "十" 开头，表示 10
+                result += 10;
+            } else {
+                // "X十"，表示 X * 10
+                result += current * 10;
+                current = 0;
+            }
+        } else if c == '百' || c == '佰' {
+            result += current * 100;
+            current = 0;
+        } else {
+            // 未知字符，忽略
+        }
+    }
+    
+    // 处理最后的个位数
+    result += current;
+    
+    if result > 0 || has_ten {
+        Some(result)
+    } else {
+        None
+    }
 }
 
 /// 提取动画名称的核心部分（去除"第X季"等后缀）
@@ -212,11 +277,13 @@ fn calculate_match_score(title: &str, full_name: &str, core_name: &str) -> i32 {
 /// 从集数列表中选择指定集号的链接
 /// absolute_ep: 绝对集号（如第15集）
 /// relative_ep: 相对集号（如当季第3集）
+/// custom_pattern: 自定义的集号匹配正则表达式（从JSON配置读取）
 /// 优先匹配绝对集号，找不到则回退到相对集号
 fn select_episode_by_number(
     episode_elements: &[scraper::element_ref::ElementRef],
     absolute_ep: Option<u32>,
     relative_ep: Option<u32>,
+    custom_pattern: Option<&str>,
 ) -> Option<String> {
     if episode_elements.is_empty() {
         return None;
@@ -230,19 +297,70 @@ fn select_episode_by_number(
     }
     
     // 尝试从元素文本中提取集号
+    // 优先使用自定义正则表达式（从JSON配置读取），支持命名捕获组 (?<ep>...)
     let extract_episode_number = |text: &str| -> Option<u32> {
-        // 匹配常见的集数格式：第X集、第X话、EP X、Episode X、X等
-        let patterns = [
-            r"第(\d+)[集话]",
+        // 如果提供了自定义正则表达式，优先使用
+        if let Some(pattern) = custom_pattern {
+            if !pattern.is_empty() && pattern != "$^" {
+                if let Ok(re) = Regex::new(pattern) {
+                    if let Ok(Some(caps)) = re.captures(text) {
+                        // 优先尝试命名捕获组 "ep"
+                        if let Some(ep_match) = caps.name("ep") {
+                            let ep_str = ep_match.as_str();
+                            // 处理中文数字
+                            if let Some(num) = parse_chinese_number(ep_str) {
+                                log::debug!("Custom pattern matched (named group 'ep'): '{}' -> {}", ep_str, num);
+                                return Some(num);
+                            }
+                            // 尝试直接解析数字
+                            if let Ok(num) = ep_str.parse::<u32>() {
+                                log::debug!("Custom pattern matched (named group 'ep'): '{}' -> {}", ep_str, num);
+                                return Some(num);
+                            }
+                        }
+                        // 回退到第一个捕获组
+                        if let Some(num_match) = caps.get(1) {
+                            let num_str = num_match.as_str();
+                            if let Some(num) = parse_chinese_number(num_str) {
+                                log::debug!("Custom pattern matched (group 1): '{}' -> {}", num_str, num);
+                                return Some(num);
+                            }
+                            if let Ok(num) = num_str.parse::<u32>() {
+                                log::debug!("Custom pattern matched (group 1): '{}' -> {}", num_str, num);
+                                return Some(num);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 默认的集数匹配模式：第X集、第X话、EP X、Episode X、纯数字等
+        let default_patterns = [
+            r"第\s*(?<ep>[一二三四五六七八九十百千\d]+)\s*[集话]",
             r"EP\.?\s*(\d+)",
             r"Episode\s*(\d+)",
-            r"第?(\d+)",
+            r"第\s*(\d+)",
             r"^(\d+)$",
+            r"\[(?<ep>\d+)\]",      // 匹配 [01]
+            r"【(?<ep>\d+)】",      // 匹配 【01】
+            r"\s+(?<ep>\d+)\s*$",   // 匹配结尾的数字，如 "Title 01"
         ];
         
-        for pattern in &patterns {
+        for pattern in &default_patterns {
             if let Ok(re) = Regex::new(pattern) {
                 if let Ok(Some(caps)) = re.captures(text) {
+                    // 优先尝试命名捕获组
+                    if let Some(ep_match) = caps.name("ep") {
+                        let ep_str = ep_match.as_str();
+                        if let Some(num) = parse_chinese_number(ep_str) {
+                            return Some(num);
+                        }
+                        if let Ok(num) = ep_str.parse::<u32>() {
+                            return Some(num);
+                        }
+                    }
+                    // 回退到第一个捕获组
                     if let Some(num_str) = caps.get(1) {
                         if let Ok(num) = num_str.as_str().parse::<u32>() {
                             return Some(num);
@@ -259,28 +377,34 @@ fn select_episode_by_number(
     for (idx, element) in episode_elements.iter().enumerate() {
         let text = element.text().collect::<String>().trim().to_string();
         if let Some(ep_num) = extract_episode_number(&text) {
+            log::debug!("Episode element #{}: '{}' -> ep {}", idx, text, ep_num);
             ep_map.insert(ep_num, idx);
+        } else {
+            log::debug!("Episode element #{}: '{}' -> no match", idx, text);
         }
     }
     
     log::info!("Episode map: {:?}", ep_map);
     
+    log::info!("Episode map built: {:?}, looking for absolute_ep={:?}, relative_ep={:?}, custom_pattern={:?}", 
+        ep_map, absolute_ep, relative_ep, custom_pattern);
+    
     // 优先尝试绝对集号
     if let Some(abs_ep) = absolute_ep {
         if let Some(&idx) = ep_map.get(&abs_ep) {
-            log::info!("Found episode by absolute number: {}", abs_ep);
+            log::info!("Found episode by absolute number: {} at index {}", abs_ep, idx);
             return episode_elements.get(idx)
                 .and_then(|ep| ep.value().attr("href"))
                 .map(|s| s.to_string());
         } else {
-            log::info!("Absolute episode {} not found, trying relative episode", abs_ep);
+            log::info!("Absolute episode {} not found in map, trying relative episode", abs_ep);
         }
     }
     
     // 回退到相对集号
     if let Some(rel_ep) = relative_ep {
         if let Some(&idx) = ep_map.get(&rel_ep) {
-            log::info!("Found episode by relative number: {}", rel_ep);
+            log::info!("Found episode by relative number: {} at index {}", rel_ep, idx);
             return episode_elements.get(idx)
                 .and_then(|ep| ep.value().attr("href"))
                 .map(|s| s.to_string());
@@ -982,7 +1106,8 @@ async fn search_single_source_with_progress(
             ) {
                 if let Some(list_container) = detail_doc.select(&list_sel).next() {
                     let episodes: Vec<_> = list_container.select(&item_sel).collect();
-                    if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode) {
+                    let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                    if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode, ep_pattern) {
                         if !href.is_empty() {
                             if href.starts_with("http") {
                                 found_url = href;
@@ -1001,7 +1126,8 @@ async fn search_single_source_with_progress(
         } else if let Some(ref format) = source.arguments.search_config.selector_channel_format_no_channel {
             if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
                 let episodes: Vec<_> = detail_doc.select(&ep_sel).collect();
-                if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode) {
+                let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode, ep_pattern) {
                     if !href.is_empty() {
                         if href.starts_with("http") {
                             found_url = href;
@@ -1248,7 +1374,8 @@ async fn search_single_source(
             ) {
                 if let Some(list_container) = detail_doc.select(&list_sel).next() {
                     let episodes: Vec<_> = list_container.select(&item_sel).collect();
-                    if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode) {
+                    let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                    if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode, ep_pattern) {
                         if !href.is_empty() {
                             if href.starts_with("http") {
                                 found_url = href;
@@ -1267,7 +1394,8 @@ async fn search_single_source(
         } else if let Some(ref format) = source.arguments.search_config.selector_channel_format_no_channel {
             if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
                 let episodes: Vec<_> = detail_doc.select(&ep_sel).collect();
-                if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode) {
+                let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode, ep_pattern) {
                     if !href.is_empty() {
                         if href.starts_with("http") {
                             found_url = href;
@@ -1313,7 +1441,31 @@ async fn search_single_source(
     })
 }
 
+/// 搜索并播放动画（支持集号选择）
+/// 
+/// # 参数
+/// * `anime_name` - 动画名称
+/// * `absolute_episode` - 绝对集号（如第15集），优先匹配
+/// * `relative_episode` - 相对集号（如当季第3集），绝对集号找不到时回退使用
+pub async fn generic_search_and_play_with_episode(
+    anime_name: String,
+    absolute_episode: Option<u32>,
+    relative_episode: Option<u32>,
+) -> anyhow::Result<String> {
+    generic_search_and_play_internal(anime_name, absolute_episode, relative_episode).await
+}
+
+/// 搜索并播放动画（默认第一集，保持向后兼容）
 pub async fn generic_search_and_play(anime_name: String) -> anyhow::Result<String> {
+    generic_search_and_play_internal(anime_name, None, None).await
+}
+
+/// 内部实现：搜索并播放动画
+async fn generic_search_and_play_internal(
+    anime_name: String,
+    absolute_episode: Option<u32>,
+    relative_episode: Option<u32>,
+) -> anyhow::Result<String> {
     // 1. 从订阅地址拉取播放源配置 JSON
     let client = crate::api::network::create_client()?;
     let content = load_playback_source_config(&client).await?;
@@ -1419,8 +1571,8 @@ pub async fn generic_search_and_play(anime_name: String) -> anyhow::Result<Strin
                     // Find list container (often multiple tabs, we take first valid)
                     if let Some(list_container) = detail_doc.select(&list_sel).next() {
                         let episodes: Vec<_> = list_container.select(&item_sel).collect();
-                        // generic_search_and_play 暂时不支持集号选择，默认第一集
-                        if let Some(href) = select_episode_by_number(&episodes, None, None) {
+                        let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                        if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode, ep_pattern) {
                             if !href.is_empty() {
                                 // Relative URL handling
                                 if href.starts_with("http") {
@@ -1444,8 +1596,8 @@ pub async fn generic_search_and_play(anime_name: String) -> anyhow::Result<Strin
             {
                 if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
                     let episodes: Vec<_> = detail_doc.select(&ep_sel).collect();
-                    // generic_search_and_play 暂时不支持集号选择，默认第一集
-                    if let Some(href) = select_episode_by_number(&episodes, None, None) {
+                    let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                    if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode, ep_pattern) {
                         if !href.is_empty() {
                             // Relative URL handling
                             if href.starts_with("http") {

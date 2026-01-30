@@ -59,15 +59,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   String? _sampleError;
   String? _sampleVideoUrl;
   List<SearchPlayResult> _samplePlayPages = [];
-  List<SearchPlayResult> _sampleSuccessfulSources = [];  // 成功获取到视频URL的源列表
-  int _selectedSourceIndex = 0;  // 当前选中的源索引
-  int _currentWebViewIndex = -1;  // 当前正在尝试的 WebView 索引
-  String _sampleStatusMessage = '';  // WebView 提取状态消息
-  bool _showWebView = false;  // 是否显示 WebView（调试用）
-  
+  List<SearchPlayResult> _sampleSuccessfulSources = []; // 成功获取到视频URL的源列表
+  int _selectedSourceIndex = 0; // 当前选中的源索引
+  int _currentWebViewIndex = -1; // 当前正在尝试的 WebView 索引
+  String _sampleStatusMessage = ''; // WebView 提取状态消息
+  bool _showWebView = false; // 是否显示 WebView（调试用）
+
   // 每个源的搜索进度状态
   Map<String, SourceSearchProgress> _sourceProgressMap = {};
-  List<String> _enabledSourceNames = [];  // 所有已启用的源名称
+  List<String> _enabledSourceNames = []; // 所有已启用的源名称
 
   // Active Source
   String _activeSource = 'mikan'; // 'mikan' or 'dmhy'
@@ -365,7 +365,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // 先获取所有已启用的源名称，用于初始化UI
       final enabledNames = await getEnabledSourceNames();
       if (!mounted) return;
-      
+
       setState(() {
         _enabledSourceNames = enabledNames;
         // 初始化所有源的状态为 Pending
@@ -382,33 +382,52 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         _sampleStatusMessage = '正在搜索 ${enabledNames.length} 个源...';
       });
 
-      // 使用带进度的流式API
-      await for (final progress in genericSearchWithProgress(animeName: widget.anime.title)) {
+      // 使用带进度的流式API，传入当前集号
+      final currentEpNumber = widget.currentEpisode.sort.toInt();
+
+      // Calculate relative episode number (1-based index in the episode list)
+      // This helps when Bangumi uses absolute numbering (e.g. 13) but source uses relative (e.g. 1)
+      final epIndex = widget.allEpisodes.indexWhere(
+        (e) => e.id == widget.currentEpisode.id,
+      );
+      final relativeEpNumber = epIndex != -1 ? epIndex + 1 : currentEpNumber;
+
+      await for (final progress in genericSearchWithProgress(
+        animeName: widget.anime.title,
+        absoluteEpisode: currentEpNumber,
+        relativeEpisode: relativeEpNumber,
+      )) {
         if (!mounted) return;
-        
+
         setState(() {
           // 更新该源的进度
           _sourceProgressMap[progress.sourceName] = progress;
-          
+
           // 如果搜索成功，添加到成功列表
-          if (progress.step == SearchStep.success && progress.playPageUrl != null) {
+          if (progress.step == SearchStep.success &&
+              progress.playPageUrl != null) {
             final result = SearchPlayResult(
               sourceName: progress.sourceName,
               playPageUrl: progress.playPageUrl!,
               videoRegex: progress.videoRegex ?? '',
               directVideoUrl: progress.directVideoUrl,
             );
-            
+
             // 避免重复添加
-            if (!_samplePlayPages.any((p) => p.sourceName == progress.sourceName)) {
+            if (!_samplePlayPages.any(
+              (p) => p.sourceName == progress.sourceName,
+            )) {
               _samplePlayPages.add(result);
             }
-            
+
             // 如果有直接视频URL，添加到成功列表
-            if (progress.directVideoUrl != null && progress.directVideoUrl!.isNotEmpty) {
-              if (!_sampleSuccessfulSources.any((s) => s.sourceName == progress.sourceName)) {
+            if (progress.directVideoUrl != null &&
+                progress.directVideoUrl!.isNotEmpty) {
+              if (!_sampleSuccessfulSources.any(
+                (s) => s.sourceName == progress.sourceName,
+              )) {
                 _sampleSuccessfulSources.add(result);
-                
+
                 // 如果是第一个成功的源，自动选中
                 if (_sampleSuccessfulSources.length == 1) {
                   _sampleVideoUrl = progress.directVideoUrl;
@@ -417,21 +436,25 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               }
             }
           }
-          
+
           // 更新状态消息
           final completedCount = _sourceProgressMap.values
-              .where((p) => p.step == SearchStep.success || p.step == SearchStep.failed)
+              .where(
+                (p) =>
+                    p.step == SearchStep.success || p.step == SearchStep.failed,
+              )
               .length;
-          _sampleStatusMessage = '搜索进度: $completedCount/${_enabledSourceNames.length}';
+          _sampleStatusMessage =
+              '搜索进度: $completedCount/${_enabledSourceNames.length}';
         });
       }
-      
+
       // 所有源搜索完毕
       if (!mounted) return;
-      
+
       // 检查是否有任何成功的源
       final hasAnyPlayPage = _samplePlayPages.isNotEmpty;
-      
+
       if (!hasAnyPlayPage) {
         setState(() {
           _sampleError = '未在任何源中找到该动画';
@@ -439,9 +462,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         });
         return;
       }
-      
+
       // 如果有找到播放页但没有直接链接的源，尝试 WebView 提取
-      if (_sampleSuccessfulSources.isEmpty || 
+      if (_sampleSuccessfulSources.isEmpty ||
           _samplePlayPages.length > _sampleSuccessfulSources.length) {
         setState(() {
           _sampleStatusMessage = '搜索完成，正在提取剩余源...';
@@ -450,10 +473,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       } else {
         setState(() {
           _isLoadingSample = false;
-          _sampleStatusMessage = '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
+          _sampleStatusMessage =
+              '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
         });
       }
-      
     } catch (e) {
       debugPrint("Error loading Sample source: $e");
       if (mounted) {
@@ -464,17 +487,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
     }
   }
-  
+
   /// 尝试使用 WebView 从下一个源提取视频
   void _tryNextWebView(int index) {
     if (!mounted) return;
-    
+
     // 寻找下一个没有直接链接的源
     int nextIndex = index;
     while (nextIndex < _samplePlayPages.length) {
       final page = _samplePlayPages[nextIndex];
       // 如果这个源还没有成功获取到视频链接（不管是直接获取的还是之前提取成功的）
-      bool alreadySuccessful = _sampleSuccessfulSources.any((s) => s.playPageUrl == page.playPageUrl);
+      bool alreadySuccessful = _sampleSuccessfulSources.any(
+        (s) => s.playPageUrl == page.playPageUrl,
+      );
       if (!alreadySuccessful) {
         break;
       }
@@ -488,26 +513,28 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         if (_sampleSuccessfulSources.isEmpty) {
           _sampleError = '所有源都无法提取视频链接';
         } else {
-          _sampleStatusMessage = '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
+          _sampleStatusMessage =
+              '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
         }
         _currentWebViewIndex = -1;
       });
       return;
     }
-    
+
     final page = _samplePlayPages[nextIndex];
     setState(() {
       _currentWebViewIndex = nextIndex;
-      _sampleStatusMessage = '正在提取: ${page.sourceName} (${nextIndex + 1}/${_samplePlayPages.length})';
+      _sampleStatusMessage =
+          '正在提取: ${page.sourceName} (${nextIndex + 1}/${_samplePlayPages.length})';
     });
   }
-  
+
   /// WebView 提取结果回调
   void _onWebViewResult(VideoExtractResult result) {
     if (!mounted) return;
-    
+
     int currentIndex = _currentWebViewIndex;
-    
+
     if (result.success) {
       setState(() {
         if (currentIndex >= 0 && currentIndex < _samplePlayPages.length) {
@@ -519,7 +546,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             videoRegex: page.videoRegex,
             directVideoUrl: result.videoUrl,
           );
-          
+
           _sampleSuccessfulSources.add(updatedPage);
           _sampleStatusMessage = '从 ${page.sourceName} 获取到视频链接';
 
@@ -533,11 +560,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             _videoError = null;
           }
         }
-        
+
         _currentWebViewIndex = -1;
       });
     }
-    
+
     // 继续下一个源的提取（无论成功还是失败）
     _tryNextWebView(currentIndex + 1);
   }
@@ -1709,17 +1736,24 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 const SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFBB86FC)),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFFBB86FC),
+                  ),
                 ),
                 const SizedBox(width: 10),
               ],
               Expanded(
                 child: Text(
-                  _isLoadingSample ? _sampleStatusMessage : 
-                  (_sampleError != null ? '搜索失败' : 
-                   '搜索完成 (${_sampleSuccessfulSources.length}/${_enabledSourceNames.length} 个可用)'),
+                  _isLoadingSample
+                      ? _sampleStatusMessage
+                      : (_sampleError != null
+                            ? '搜索失败'
+                            : '搜索完成 (${_sampleSuccessfulSources.length}/${_enabledSourceNames.length} 个可用)'),
                   style: TextStyle(
-                    color: _sampleError != null ? Colors.redAccent : Colors.white70,
+                    color: _sampleError != null
+                        ? Colors.redAccent
+                        : Colors.white70,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1733,12 +1767,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   color: Colors.white54,
                   tooltip: '重新搜索',
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
                 ),
             ],
           ),
         ),
-        
+
         // 如果有错误信息，显示在顶部
         if (_sampleError != null)
           Container(
@@ -1747,22 +1784,31 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             decoration: BoxDecoration(
               color: Colors.redAccent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: Colors.redAccent.withValues(alpha: 0.3),
+              ),
             ),
             child: Row(
               children: [
-                const Icon(Icons.error_outline, color: Colors.redAccent, size: 16),
+                const Icon(
+                  Icons.error_outline,
+                  color: Colors.redAccent,
+                  size: 16,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     _sampleError!,
-                    style: const TextStyle(color: Colors.redAccent, fontSize: 11),
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-        
+
         // 所有源的搜索状态列表
         if (_enabledSourceNames.isNotEmpty) ...[
           const SizedBox(height: 4),
@@ -1780,9 +1826,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             ),
           ),
         ],
-        
+
         // 如果正在使用 WebView 提取，显示 WebView
-        if (_currentWebViewIndex >= 0 && _currentWebViewIndex < _samplePlayPages.length) ...[
+        if (_currentWebViewIndex >= 0 &&
+            _currentWebViewIndex < _samplePlayPages.length) ...[
           const Divider(color: Colors.white10),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -1799,13 +1846,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     const SizedBox(
                       width: 12,
                       height: 12,
-                      child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFFBB86FC)),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: Color(0xFFBB86FC),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         "WebView 提取: ${_samplePlayPages[_currentWebViewIndex].sourceName}",
-                        style: const TextStyle(color: Colors.white54, fontSize: 11),
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
                   ],
@@ -1845,7 +1898,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             ),
           ),
         ],
-        
+
         // 如果有成功的源，显示播放按钮
         if (_sampleSuccessfulSources.isNotEmpty) ...[
           const Divider(color: Colors.white10),
@@ -1856,11 +1909,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.check_circle, color: Colors.green, size: 14),
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 14,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       "可用源 (${_sampleSuccessfulSources.length})",
-                      style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -1880,12 +1941,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                       margin: const EdgeInsets.only(bottom: 6),
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: isSelected 
+                        color: isSelected
                             ? const Color(0xFFBB86FC).withValues(alpha: 0.15)
                             : Colors.black26,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: isSelected 
+                          color: isSelected
                               ? const Color(0xFFBB86FC).withValues(alpha: 0.5)
                               : Colors.transparent,
                         ),
@@ -1893,9 +1954,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                       child: Row(
                         children: [
                           Icon(
-                            isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                            isSelected
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
                             size: 16,
-                            color: isSelected ? const Color(0xFFBB86FC) : Colors.white38,
+                            color: isSelected
+                                ? const Color(0xFFBB86FC)
+                                : Colors.white38,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -1905,14 +1970,21 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 Text(
                                   source.sourceName,
                                   style: TextStyle(
-                                    color: isSelected ? Colors.white : Colors.white70,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.white70,
                                     fontSize: 12,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
                                   ),
                                 ),
                                 Text(
                                   source.directVideoUrl ?? '',
-                                  style: const TextStyle(color: Colors.grey, fontSize: 8),
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 8,
+                                  ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -1926,14 +1998,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 }),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
-                  onPressed: _sampleVideoUrl != null ? () {
-                    _player.open(Media(_sampleVideoUrl!));
-                    setState(() {
-                      _currentStreamUrl = _sampleVideoUrl;
-                      _isLoadingVideo = false;
-                      _videoError = null;
-                    });
-                  } : null,
+                  onPressed: _sampleVideoUrl != null
+                      ? () {
+                          _player.open(Media(_sampleVideoUrl!));
+                          setState(() {
+                            _currentStreamUrl = _sampleVideoUrl;
+                            _isLoadingVideo = false;
+                            _videoError = null;
+                          });
+                        }
+                      : null,
                   icon: const Icon(Icons.play_arrow, size: 18),
                   label: Text(
                     "播放 - ${_sampleSuccessfulSources.isNotEmpty ? _sampleSuccessfulSources[_selectedSourceIndex].sourceName : ''}",
@@ -1949,7 +2023,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             ),
           ),
         ],
-        
+
         // 如果没有任何源且不在加载中，显示空状态
         if (_enabledSourceNames.isEmpty && !_isLoadingSample)
           Container(
@@ -1979,15 +2053,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       ],
     );
   }
-  
+
   /// 构建单个源的搜索进度项
-  Widget _buildSourceProgressItem(String sourceName, SourceSearchProgress? progress) {
+  Widget _buildSourceProgressItem(
+    String sourceName,
+    SourceSearchProgress? progress,
+  ) {
     // 根据状态决定图标和颜色
     IconData icon;
     Color iconColor;
     String statusText;
     String? errorText;
-    
+
     if (progress == null) {
       icon = Icons.hourglass_empty;
       iconColor = Colors.white24;
@@ -2032,17 +2109,20 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           break;
       }
     }
-    
-    final isActive = progress != null && 
-        progress.step != SearchStep.pending && 
-        progress.step != SearchStep.success && 
+
+    final isActive =
+        progress != null &&
+        progress.step != SearchStep.pending &&
+        progress.step != SearchStep.success &&
         progress.step != SearchStep.failed;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: isActive ? const Color(0xFFBB86FC).withValues(alpha: 0.08) : Colors.transparent,
+        color: isActive
+            ? const Color(0xFFBB86FC).withValues(alpha: 0.08)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -2073,16 +2153,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                         style: TextStyle(
                           color: isActive ? Colors.white : Colors.white70,
                           fontSize: 11,
-                          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isActive
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
                     ),
                     Text(
                       statusText,
-                      style: TextStyle(
-                        color: iconColor,
-                        fontSize: 10,
-                      ),
+                      style: TextStyle(color: iconColor, fontSize: 10),
                     ),
                   ],
                 ),
@@ -2107,15 +2186,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       ),
     );
   }
-  
+
   /// 构建 WebView 提取器
   Widget _buildWebViewExtractor() {
-    if (_currentWebViewIndex < 0 || _currentWebViewIndex >= _samplePlayPages.length) {
+    if (_currentWebViewIndex < 0 ||
+        _currentWebViewIndex >= _samplePlayPages.length) {
       return const SizedBox.shrink();
     }
-    
+
     final page = _samplePlayPages[_currentWebViewIndex];
-    
+
     return WebViewVideoExtractorWidget(
       key: ValueKey('webview_${page.playPageUrl}'),
       url: page.playPageUrl,
