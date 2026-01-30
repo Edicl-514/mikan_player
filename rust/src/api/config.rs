@@ -6,6 +6,7 @@ pub struct RuntimeConfig {
     pub bangumi_url: String,
     pub mikan_url: String,
     pub playback_sub_url: String,
+    pub disabled_sources: Vec<String>,
 }
 
 lazy_static! {
@@ -14,6 +15,7 @@ lazy_static! {
         bangumi_url: "https://bangumi.tv".to_string(),
         mikan_url: "https://mikanani.kas.pub".to_string(),
         playback_sub_url: "https://sub.creamycake.org/v1/css1.json".to_string(),
+        disabled_sources: vec![],
     });
 }
 
@@ -63,4 +65,18 @@ pub fn get_mikan_url() -> String {
 
 pub fn get_playback_sub_url() -> String {
     CONFIG.read().unwrap().playback_sub_url.clone()
+}
+
+pub fn set_disabled_sources(sources: Vec<String>) {
+    let mut config = CONFIG.write().unwrap();
+    config.disabled_sources = sources;
+    log::info!("Disabled sources updated: {:?}", config.disabled_sources);
+}
+
+pub fn is_source_enabled(name: &str) -> bool {
+    !CONFIG
+        .read()
+        .unwrap()
+        .disabled_sources
+        .contains(&name.to_string())
 }

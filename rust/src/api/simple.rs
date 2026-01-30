@@ -35,6 +35,20 @@ pub fn update_config(bgm: String, bangumi: String, mikan: String, playback_sub: 
     crate::api::config::update_config(bgm, bangumi, mikan, playback_sub);
 }
 
+pub fn set_disabled_sources(sources: Vec<String>) {
+    crate::api::config::set_disabled_sources(sources);
+}
+
+pub async fn get_playback_sources() -> Vec<crate::api::generic_scraper::SourceState> {
+    match crate::api::generic_scraper::get_playback_sources().await {
+        Ok(s) => s,
+        Err(e) => {
+            log::error!("Failed to get playback sources: {}", e);
+            vec![]
+        }
+    }
+}
+
 /// 预加载播放源配置（应用启动和设置更改时调用）
 /// 这会尝试从订阅地址拉取最新的配置，失败时使用本地备份
 pub async fn preload_playback_source_config() -> String {

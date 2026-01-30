@@ -1,9 +1,15 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use fancy_regex::Regex;
 use scraper::{Html, Selector};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize}; // Added Serialize
 use serde_json::Value;
 use std::fs;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SourceState {
+    pub name: String,
+    pub enabled: bool,
+}
 
 lazy_static::lazy_static! {
     /// 匹配季数相关的关键词
@@ -391,6 +397,21 @@ pub async fn preload_playback_sources() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// 获取所有播放源的状态
+pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
+    let client = crate::api::network::create_client()?;
+    let content = load_playback_source_config(&client).await?;
+    let root: SampleRoot = serde_json::from_str(&content)?;
+
+    let mut sources = Vec::new();
+    for source in root.exported_media_source_data_list.media_sources {
+        let name = source.arguments.name;
+        let enabled = crate::api::config::is_source_enabled(&name);
+        sources.push(SourceState { name, enabled });
+    }
+    Ok(sources)
+}
+
 /// 搜索所有源，返回所有找到的播放页面URL列表
 /// Flutter 端可以使用 WebView 加载这些 URL 来拦截视频请求
 pub async fn generic_search_play_pages(anime_name: String) -> anyhow::Result<Vec<SearchPlayResult>> {
@@ -404,6 +425,14 @@ pub async fn generic_search_play_pages(anime_name: String) -> anyhow::Result<Vec
         .exported_media_source_data_list
         .media_sources
         .iter()
+        .filter(|source| {
+             if !crate::api::config::is_source_enabled(&source.arguments.name) {
+                 log::info!("Skipping disabled source: {}", source.arguments.name);
+                 false
+             } else {
+                 true
+             }
+        })
         .map(|source| {
             let client = client.clone();
             let source = source.clone();
@@ -443,7 +472,13 @@ pub async fn generic_search_play_pages_stream(
     
     let mut tasks = FuturesUnordered::new();
     
+    // Create configured tasks
     for source in root.exported_media_source_data_list.media_sources {
+        if !crate::api::config::is_source_enabled(&source.arguments.name) {
+             log::info!("Skipping disabled source: {}", source.arguments.name);
+             continue;
+        }
+
         let client = client.clone();
         let anime_name = anime_name.clone();
         let task = async move {
@@ -630,6 +665,9 @@ pub async fn generic_search_and_play(anime_name: String) -> anyhow::Result<Strin
 
     // 2. Iterate sources and try to find the anime
     for source in root.exported_media_source_data_list.media_sources {
+        if !crate::api::config::is_source_enabled(&source.arguments.name) {
+             continue;
+        }
         log::info!("Trying source: {}", source.arguments.name);
 
         // --- Step 1: Search ---

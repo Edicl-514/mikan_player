@@ -4,6 +4,7 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'generic_scraper.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `ensure_initialized`
@@ -24,6 +25,12 @@ Future<void> updateConfig({
   mikan: mikan,
   playbackSub: playbackSub,
 );
+
+Future<void> setDisabledSources({required List<String> sources}) =>
+    RustLib.instance.api.crateApiSimpleSetDisabledSources(sources: sources);
+
+Future<List<SourceState>> getPlaybackSources() =>
+    RustLib.instance.api.crateApiSimpleGetPlaybackSources();
 
 /// 预加载播放源配置（应用启动和设置更改时调用）
 /// 这会尝试从订阅地址拉取最新的配置，失败时使用本地备份

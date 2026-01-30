@@ -32,15 +32,15 @@ Future<void> main() async {
       // 使用应用数据目录存储 WebView2 数据
       final appDataDir = await getApplicationSupportDirectory();
       final webViewDataPath = '${appDataDir.path}\\WebView2';
-      
+
       webViewEnvironment = await WebViewEnvironment.create(
-        settings: WebViewEnvironmentSettings(
-          userDataFolder: webViewDataPath,
-        ),
+        settings: WebViewEnvironmentSettings(userDataFolder: webViewDataPath),
       );
       debugPrint('WebView2 initialized: $availableVersion');
     } else {
-      debugPrint('WARNING: WebView2 Runtime not found. Some features may not work.');
+      debugPrint(
+        'WARNING: WebView2 Runtime not found. Some features may not work.',
+      );
     }
   }
 
@@ -73,6 +73,9 @@ Future<void> _syncSettings() async {
       mikan: mikan,
       playbackSub: playbackSub,
     );
+
+    final disabledSources = prefs.getStringList('disabled_sources') ?? [];
+    await rust.setDisabledSources(sources: disabledSources);
 
     // 应用启动时预加载播放源配置
     debugPrint('Preloading playback source config on app startup...');

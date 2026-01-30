@@ -142,6 +142,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<SearchPlayResult> dco_decode_list_search_play_result(dynamic raw);
 
   @protected
+  List<SourceState> dco_decode_list_source_state(dynamic raw);
+
+  @protected
   List<TorrentStats> dco_decode_list_torrent_stats(dynamic raw);
 
   @protected
@@ -175,6 +178,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SearchPlayResult dco_decode_search_play_result(dynamic raw);
+
+  @protected
+  SourceState dco_decode_source_state(dynamic raw);
 
   @protected
   TorrentStats dco_decode_torrent_stats(dynamic raw);
@@ -332,6 +338,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<SourceState> sse_decode_list_source_state(SseDeserializer deserializer);
+
+  @protected
   List<TorrentStats> sse_decode_list_torrent_stats(
     SseDeserializer deserializer,
   );
@@ -373,6 +382,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SearchPlayResult sse_decode_search_play_result(SseDeserializer deserializer);
+
+  @protected
+  SourceState sse_decode_source_state(SseDeserializer deserializer);
 
   @protected
   TorrentStats sse_decode_torrent_stats(SseDeserializer deserializer);
@@ -567,6 +579,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_source_state(
+    List<SourceState> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_torrent_stats(
     List<TorrentStats> self,
     SseSerializer serializer,
@@ -619,6 +637,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     SearchPlayResult self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_source_state(SourceState self, SseSerializer serializer);
 
   @protected
   void sse_encode_torrent_stats(TorrentStats self, SseSerializer serializer);

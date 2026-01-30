@@ -36,3 +36,9 @@ Future<String> getMikanUrl() =>
 
 Future<String> getPlaybackSubUrl() =>
     RustLib.instance.api.crateApiConfigGetPlaybackSubUrl();
+
+Future<void> setDisabledSources({required List<String> sources}) =>
+    RustLib.instance.api.crateApiConfigSetDisabledSources(sources: sources);
+
+Future<bool> isSourceEnabled({required String name}) =>
+    RustLib.instance.api.crateApiConfigIsSourceEnabled(name: name);
