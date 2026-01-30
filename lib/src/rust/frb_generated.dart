@@ -145,14 +145,20 @@ abstract class RustLibApi extends BaseApi {
 
   Future<List<SearchPlayResult>> crateApiGenericScraperGenericSearchPlayPages({
     required String animeName,
+    int? absoluteEpisode,
+    int? relativeEpisode,
   });
 
   Stream<SearchPlayResult> crateApiGenericScraperGenericSearchPlayPagesStream({
     required String animeName,
+    int? absoluteEpisode,
+    int? relativeEpisode,
   });
 
   Stream<SourceSearchProgress> crateApiGenericScraperGenericSearchWithProgress({
     required String animeName,
+    int? absoluteEpisode,
+    int? relativeEpisode,
   });
 
   Future<String> crateApiSimpleGetAllTorrentsInfo();
@@ -679,12 +685,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<List<SearchPlayResult>> crateApiGenericScraperGenericSearchPlayPages({
     required String animeName,
+    int? absoluteEpisode,
+    int? relativeEpisode,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(animeName, serializer);
+          sse_encode_opt_box_autoadd_u_32(absoluteEpisode, serializer);
+          sse_encode_opt_box_autoadd_u_32(relativeEpisode, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -697,7 +707,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiGenericScraperGenericSearchPlayPagesConstMeta,
-        argValues: [animeName],
+        argValues: [animeName, absoluteEpisode, relativeEpisode],
         apiImpl: this,
       ),
     );
@@ -706,12 +716,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiGenericScraperGenericSearchPlayPagesConstMeta =>
       const TaskConstMeta(
         debugName: "generic_search_play_pages",
-        argNames: ["animeName"],
+        argNames: ["animeName", "absoluteEpisode", "relativeEpisode"],
       );
 
   @override
   Stream<SearchPlayResult> crateApiGenericScraperGenericSearchPlayPagesStream({
     required String animeName,
+    int? absoluteEpisode,
+    int? relativeEpisode,
   }) {
     final sink = RustStreamSink<SearchPlayResult>();
     unawaited(
@@ -720,6 +732,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           callFfi: (port_) {
             final serializer = SseSerializer(generalizedFrbRustBinding);
             sse_encode_String(animeName, serializer);
+            sse_encode_opt_box_autoadd_u_32(absoluteEpisode, serializer);
+            sse_encode_opt_box_autoadd_u_32(relativeEpisode, serializer);
             sse_encode_StreamSink_search_play_result_Sse(sink, serializer);
             pdeCallFfi(
               generalizedFrbRustBinding,
@@ -734,7 +748,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           ),
           constMeta:
               kCrateApiGenericScraperGenericSearchPlayPagesStreamConstMeta,
-          argValues: [animeName, sink],
+          argValues: [animeName, absoluteEpisode, relativeEpisode, sink],
           apiImpl: this,
         ),
       ),
@@ -746,12 +760,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiGenericScraperGenericSearchPlayPagesStreamConstMeta =>
       const TaskConstMeta(
         debugName: "generic_search_play_pages_stream",
-        argNames: ["animeName", "sink"],
+        argNames: ["animeName", "absoluteEpisode", "relativeEpisode", "sink"],
       );
 
   @override
   Stream<SourceSearchProgress> crateApiGenericScraperGenericSearchWithProgress({
     required String animeName,
+    int? absoluteEpisode,
+    int? relativeEpisode,
   }) {
     final sink = RustStreamSink<SourceSearchProgress>();
     unawaited(
@@ -760,6 +776,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           callFfi: (port_) {
             final serializer = SseSerializer(generalizedFrbRustBinding);
             sse_encode_String(animeName, serializer);
+            sse_encode_opt_box_autoadd_u_32(absoluteEpisode, serializer);
+            sse_encode_opt_box_autoadd_u_32(relativeEpisode, serializer);
             sse_encode_StreamSink_source_search_progress_Sse(sink, serializer);
             pdeCallFfi(
               generalizedFrbRustBinding,
@@ -773,7 +791,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeErrorData: sse_decode_AnyhowException,
           ),
           constMeta: kCrateApiGenericScraperGenericSearchWithProgressConstMeta,
-          argValues: [animeName, sink],
+          argValues: [animeName, absoluteEpisode, relativeEpisode, sink],
           apiImpl: this,
         ),
       ),
@@ -784,7 +802,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiGenericScraperGenericSearchWithProgressConstMeta =>
       const TaskConstMeta(
         debugName: "generic_search_with_progress",
-        argNames: ["animeName", "sink"],
+        argNames: ["animeName", "absoluteEpisode", "relativeEpisode", "sink"],
       );
 
   @override
@@ -1728,6 +1746,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
   DmhyResource dco_decode_dmhy_resource(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1932,6 +1956,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_mikan_search_result(raw);
+  }
+
+  @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_u_32(raw);
   }
 
   @protected
@@ -2289,6 +2319,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_u_32(deserializer));
+  }
+
+  @protected
   DmhyResource sse_decode_dmhy_resource(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_title = sse_decode_String(deserializer);
@@ -2640,6 +2676,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_u_32(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   RankingAnime sse_decode_ranking_anime(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_title = sse_decode_String(deserializer);
@@ -2976,6 +3023,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self, serializer);
+  }
+
+  @protected
   void sse_encode_dmhy_resource(DmhyResource self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.title, serializer);
@@ -3279,6 +3332,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_mikan_search_result(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_u_32(self, serializer);
     }
   }
 

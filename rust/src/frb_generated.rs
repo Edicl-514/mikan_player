@@ -568,13 +568,18 @@ fn wire__crate__api__generic_scraper__generic_search_play_pages_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_anime_name = <String>::sse_decode(&mut deserializer);
+            let api_absolute_episode = <Option<u32>>::sse_decode(&mut deserializer);
+            let api_relative_episode = <Option<u32>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok =
-                            crate::api::generic_scraper::generic_search_play_pages(api_anime_name)
-                                .await?;
+                        let output_ok = crate::api::generic_scraper::generic_search_play_pages(
+                            api_anime_name,
+                            api_absolute_episode,
+                            api_relative_episode,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -606,6 +611,8 @@ fn wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_anime_name = <String>::sse_decode(&mut deserializer);
+            let api_absolute_episode = <Option<u32>>::sse_decode(&mut deserializer);
+            let api_relative_episode = <Option<u32>>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
                 crate::api::generic_scraper::SearchPlayResult,
                 flutter_rust_bridge::for_generated::SseCodec,
@@ -617,6 +624,8 @@ fn wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
                         let output_ok =
                             crate::api::generic_scraper::generic_search_play_pages_stream(
                                 api_anime_name,
+                                api_absolute_episode,
+                                api_relative_episode,
                                 api_sink,
                             )
                             .await?;
@@ -651,6 +660,8 @@ fn wire__crate__api__generic_scraper__generic_search_with_progress_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_anime_name = <String>::sse_decode(&mut deserializer);
+            let api_absolute_episode = <Option<u32>>::sse_decode(&mut deserializer);
+            let api_relative_episode = <Option<u32>>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
                 crate::api::generic_scraper::SourceSearchProgress,
                 flutter_rust_bridge::for_generated::SseCodec,
@@ -661,6 +672,8 @@ fn wire__crate__api__generic_scraper__generic_search_with_progress_impl(
                     (move || async move {
                         let output_ok = crate::api::generic_scraper::generic_search_with_progress(
                             api_anime_name,
+                            api_absolute_episode,
+                            api_relative_episode,
                             api_sink,
                         )
                         .await?;
@@ -2149,6 +2162,17 @@ impl SseDecode for Option<crate::api::mikan::MikanSearchResult> {
     }
 }
 
+impl SseDecode for Option<u32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<u32>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for crate::api::ranking::RankingAnime {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3341,6 +3365,16 @@ impl SseEncode for Option<crate::api::mikan::MikanSearchResult> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::mikan::MikanSearchResult>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<u32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <u32>::sse_encode(value, serializer);
         }
     }
 }

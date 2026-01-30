@@ -86,6 +86,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MikanSearchResult dco_decode_box_autoadd_mikan_search_result(dynamic raw);
 
   @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
   DmhyResource dco_decode_dmhy_resource(dynamic raw);
 
   @protected
@@ -176,6 +179,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MikanSearchResult? dco_decode_opt_box_autoadd_mikan_search_result(
     dynamic raw,
   );
+
+  @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
 
   @protected
   RankingAnime dco_decode_ranking_anime(dynamic raw);
@@ -276,6 +282,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MikanSearchResult sse_decode_box_autoadd_mikan_search_result(
     SseDeserializer deserializer,
   );
+
+  @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
   DmhyResource sse_decode_dmhy_resource(SseDeserializer deserializer);
@@ -392,6 +401,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MikanSearchResult? sse_decode_opt_box_autoadd_mikan_search_result(
     SseDeserializer deserializer,
   );
+
+  @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
   RankingAnime sse_decode_ranking_anime(SseDeserializer deserializer);
@@ -514,6 +526,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     MikanSearchResult self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_dmhy_resource(DmhyResource self, SseSerializer serializer);
@@ -658,6 +673,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     MikanSearchResult? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
 
   @protected
   void sse_encode_ranking_anime(RankingAnime self, SseSerializer serializer);

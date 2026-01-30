@@ -171,49 +171,129 @@ fn extract_core_name(name: &str) -> String {
     result.trim().to_string()
 }
 
-/// 计算标题匹配分数 (0-100)
+/// 计算标题匹配分数 (0-100)，使用 Jaccard 相似度
 fn calculate_match_score(title: &str, full_name: &str, core_name: &str) -> i32 {
     let title_lower = title.to_lowercase();
     let full_lower = full_name.to_lowercase();
     let core_lower = core_name.to_lowercase();
     
-    // 完全匹配
-    if title_lower == full_lower {
-        return 100;
-    }
-    
-    // 标题包含完整搜索词
-    if title_lower.contains(&full_lower) {
-        return 95;
-    }
-    
-    // 搜索词包含标题（标题可能是简写）
-    if full_lower.contains(&title_lower) && title_lower.len() > 3 {
-        return 85;
-    }
-    
-    // 标题包含核心名称
-    if title_lower.contains(&core_lower) {
-        return 80;
-    }
-    
-    // 核心名称包含标题
-    if core_lower.contains(&title_lower) && title_lower.len() > 3 {
-        return 70;
-    }
-    
-    // 计算关键词重叠
+    // 计算标题与完整查询名的字符级 Jaccard 相似度
     let title_chars: std::collections::HashSet<char> = title_lower.chars().filter(|c| !c.is_whitespace()).collect();
+    let full_chars: std::collections::HashSet<char> = full_lower.chars().filter(|c| !c.is_whitespace()).collect();
+    
+    let intersection_full = title_chars.intersection(&full_chars).count();
+    let union_full = title_chars.union(&full_chars).count();
+    
+    let jaccard_full = if union_full > 0 {
+        intersection_full as f64 / union_full as f64
+    } else {
+        0.0
+    };
+    
+    // 计算标题与核心名的字符级 Jaccard 相似度
     let core_chars: std::collections::HashSet<char> = core_lower.chars().filter(|c| !c.is_whitespace()).collect();
     
-    if !title_chars.is_empty() && !core_chars.is_empty() {
-        let intersection = title_chars.intersection(&core_chars).count();
-        let union = title_chars.union(&core_chars).count();
-        let jaccard = (intersection as f64 / union as f64 * 100.0) as i32;
-        return jaccard;
+    let intersection_core = title_chars.intersection(&core_chars).count();
+    let union_core = title_chars.union(&core_chars).count();
+    
+    let jaccard_core = if union_core > 0 {
+        intersection_core as f64 / union_core as f64
+    } else {
+        0.0
+    };
+    
+    // 加权组合：优先考虑与完整查询名的相似度（包含季数等关键信息）
+    // 权重：完整查询名 70%，核心名 30%
+    let weighted_score = (jaccard_full * 0.7 + jaccard_core * 0.3) * 100.0;
+    
+    weighted_score as i32
+}
+
+/// 从集数列表中选择指定集号的链接
+/// absolute_ep: 绝对集号（如第15集）
+/// relative_ep: 相对集号（如当季第3集）
+/// 优先匹配绝对集号，找不到则回退到相对集号
+fn select_episode_by_number(
+    episode_elements: &[scraper::element_ref::ElementRef],
+    absolute_ep: Option<u32>,
+    relative_ep: Option<u32>,
+) -> Option<String> {
+    if episode_elements.is_empty() {
+        return None;
     }
     
-    0
+    // 如果没有指定集号，返回第一集
+    if absolute_ep.is_none() && relative_ep.is_none() {
+        return episode_elements.first()
+            .and_then(|ep| ep.value().attr("href"))
+            .map(|s| s.to_string());
+    }
+    
+    // 尝试从元素文本中提取集号
+    let extract_episode_number = |text: &str| -> Option<u32> {
+        // 匹配常见的集数格式：第X集、第X话、EP X、Episode X、X等
+        let patterns = [
+            r"第(\d+)[集话]",
+            r"EP\.?\s*(\d+)",
+            r"Episode\s*(\d+)",
+            r"第?(\d+)",
+            r"^(\d+)$",
+        ];
+        
+        for pattern in &patterns {
+            if let Ok(re) = Regex::new(pattern) {
+                if let Ok(Some(caps)) = re.captures(text) {
+                    if let Some(num_str) = caps.get(1) {
+                        if let Ok(num) = num_str.as_str().parse::<u32>() {
+                            return Some(num);
+                        }
+                    }
+                }
+            }
+        }
+        None
+    };
+    
+    // 构建集号到索引的映射
+    let mut ep_map: std::collections::HashMap<u32, usize> = std::collections::HashMap::new();
+    for (idx, element) in episode_elements.iter().enumerate() {
+        let text = element.text().collect::<String>().trim().to_string();
+        if let Some(ep_num) = extract_episode_number(&text) {
+            ep_map.insert(ep_num, idx);
+        }
+    }
+    
+    log::info!("Episode map: {:?}", ep_map);
+    
+    // 优先尝试绝对集号
+    if let Some(abs_ep) = absolute_ep {
+        if let Some(&idx) = ep_map.get(&abs_ep) {
+            log::info!("Found episode by absolute number: {}", abs_ep);
+            return episode_elements.get(idx)
+                .and_then(|ep| ep.value().attr("href"))
+                .map(|s| s.to_string());
+        } else {
+            log::info!("Absolute episode {} not found, trying relative episode", abs_ep);
+        }
+    }
+    
+    // 回退到相对集号
+    if let Some(rel_ep) = relative_ep {
+        if let Some(&idx) = ep_map.get(&rel_ep) {
+            log::info!("Found episode by relative number: {}", rel_ep);
+            return episode_elements.get(idx)
+                .and_then(|ep| ep.value().attr("href"))
+                .map(|s| s.to_string());
+        } else {
+            log::info!("Relative episode {} not found", rel_ep);
+        }
+    }
+    
+    // 如果都找不到，返回第一集作为后备
+    log::warn!("Could not find specified episode, falling back to first episode");
+    episode_elements.first()
+        .and_then(|ep| ep.value().attr("href"))
+        .map(|s| s.to_string())
 }
 
 /// 修复被混淆的视频URL
@@ -479,7 +559,16 @@ pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
 
 /// 搜索所有源，返回所有找到的播放页面URL列表
 /// Flutter 端可以使用 WebView 加载这些 URL 来拦截视频请求
-pub async fn generic_search_play_pages(anime_name: String) -> anyhow::Result<Vec<SearchPlayResult>> {
+/// 
+/// # 参数
+/// * `anime_name` - 动画名称
+/// * `absolute_episode` - 绝对集号（如第15集），优先匹配
+/// * `relative_episode` - 相对集号（如当季第3集），绝对集号找不到时回退使用
+pub async fn generic_search_play_pages(
+    anime_name: String,
+    absolute_episode: Option<u32>,
+    relative_episode: Option<u32>,
+) -> anyhow::Result<Vec<SearchPlayResult>> {
     let client = crate::api::network::create_client()?;
     let content = load_playback_source_config(&client).await?;
 
@@ -504,7 +593,7 @@ pub async fn generic_search_play_pages(anime_name: String) -> anyhow::Result<Vec
             let anime_name = anime_name.clone();
             async move {
                 log::info!("Searching source: {}", source.arguments.name);
-                search_single_source(&client, &source, &anime_name).await
+                search_single_source(&client, &source, &anime_name, absolute_episode, relative_episode).await
             }
         })
         .collect();
@@ -525,6 +614,8 @@ pub async fn generic_search_play_pages(anime_name: String) -> anyhow::Result<Vec
 /// 这样可以让UI实时显示搜索结果，而不是等所有源都搜索完毕
 pub async fn generic_search_play_pages_stream(
     anime_name: String,
+    absolute_episode: Option<u32>,
+    relative_episode: Option<u32>,
     sink: crate::frb_generated::StreamSink<SearchPlayResult>,
 ) -> anyhow::Result<()> {
     let client = crate::api::network::create_client()?;
@@ -548,7 +639,7 @@ pub async fn generic_search_play_pages_stream(
         let anime_name = anime_name.clone();
         let task = async move {
             log::info!("Searching source: {}", source.arguments.name);
-            search_single_source(&client, &source, &anime_name).await
+            search_single_source(&client, &source, &anime_name, absolute_episode, relative_episode).await
         };
         tasks.push(task);
     }
@@ -586,6 +677,8 @@ pub async fn get_enabled_source_names() -> anyhow::Result<Vec<String>> {
 /// 搜索所有源，以流的形式返回详细进度（包含搜索步骤和错误信息）
 pub async fn generic_search_with_progress(
     anime_name: String,
+    absolute_episode: Option<u32>,
+    relative_episode: Option<u32>,
     sink: crate::frb_generated::StreamSink<SourceSearchProgress>,
 ) -> anyhow::Result<()> {
     let client = crate::api::network::create_client()?;
@@ -621,7 +714,7 @@ pub async fn generic_search_with_progress(
             }).ok();
             
             // 执行搜索并返回带进度的结果
-            search_single_source_with_progress(&client, &source, &anime_name, &sink).await
+            search_single_source_with_progress(&client, &source, &anime_name, absolute_episode, relative_episode, &sink).await
         };
         tasks.push(task);
     }
@@ -639,6 +732,8 @@ async fn search_single_source_with_progress(
     client: &reqwest::Client,
     source: &MediaSource,
     anime_name: &str,
+    absolute_episode: Option<u32>,
+    relative_episode: Option<u32>,
     sink: &crate::frb_generated::StreamSink<SourceSearchProgress>,
 ) -> anyhow::Result<()> {
     let source_name = source.arguments.name.clone();
@@ -697,12 +792,84 @@ async fn search_single_source_with_progress(
             if let Some(ref format) = source.arguments.search_config.selector_subject_format_a {
                 if let Ok(list_sel) = Selector::parse(&format.select_lists) {
                     let links: Vec<_> = document.select(&list_sel).collect();
+                    let mut all_results = Vec::new();
+                    
+                    log::info!("[{}] === 搜索结果列表 (Format A) ===", source_name);
+                    log::info!("[{}] 目标: '{}' | 核心名: '{}'", source_name, anime_name, core_name);
+                    log::info!("[{}] 总共找到 {} 个结果", source_name, links.len());
 
                     for link_el in links.iter() {
                         let title = link_el.text().collect::<String>().trim().to_string();
                         let href = link_el.value().attr("href").unwrap_or("").to_string();
 
                         let score = calculate_match_score(&title, anime_name, &core_name);
+                        all_results.push((title.clone(), score, href.clone()));
+                        
+                        log::info!("[{}] 结果 #{}: '{}' | 分数: {} | URL: {}", 
+                            source_name, all_results.len(), title, score,
+                            if href.len() > 100 { format!("{}...", &href[..100]) } else { href.clone() });
+                        
+                        if score > best_match_score && score >=30 {
+                            best_match_score = score;
+                            if href.starts_with("http") {
+                                found_url = href;
+                            } else {
+                                let base_url = if let Ok(u) = url::Url::parse(&search_url) {
+                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                } else {
+                                    "".to_string()
+                                };
+                                found_url = format!("{}{}", base_url, href);
+                            }
+                        }
+                    }
+                    
+                    if !all_results.is_empty() {
+                        let top_matches: Vec<_> = all_results.iter()
+                            .filter(|(_, score, _)| *score >= 50)
+                            .collect();
+                        if !top_matches.is_empty() {
+                            log::info!("[{}] ✓ 符合条件的结果 (分数≥50):", source_name);
+                            for (title, score, _) in top_matches {
+                                log::info!("[{}]   - '{}' (分数: {})", source_name, title, score);
+                            }
+                        } else {
+                            log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<50)", source_name);
+                            if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max() {
+                                log::warn!("[{}] 最高分: {}", source_name, max_score);
+                            }
+                        }
+                        if best_match_score >= 50 {
+                            log::info!("[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})", source_name, best_match_score);
+                        }
+                    }
+                }
+            }
+        } else {
+            // 使用 selectorSubjectFormatIndexed (默认)
+            if let Some(ref format) = source.arguments.search_config.selector_subject_format_indexed {
+                if let (Ok(name_sel), Ok(link_sel)) = (
+                    Selector::parse(&format.select_names),
+                    Selector::parse(&format.select_links),
+                ) {
+                    let names: Vec<_> = document.select(&name_sel).collect();
+                    let links: Vec<_> = document.select(&link_sel).collect();
+                    let mut all_results = Vec::new();
+                    
+                    log::info!("[{}] === 搜索结果列表 (Format Indexed) ===", source_name);
+                    log::info!("[{}] 目标: '{}' | 核心名: '{}'", source_name, anime_name, core_name);
+                    log::info!("[{}] 总共找到 {} 个结果", source_name, names.len().min(links.len()));
+
+                    for (name_el, link_el) in names.iter().zip(links.iter()) {
+                        let title = name_el.text().collect::<String>().trim().to_string();
+                        let href = link_el.value().attr("href").unwrap_or("").to_string();
+
+                        let score = calculate_match_score(&title, anime_name, &core_name);
+                        all_results.push((title.clone(), score, href.clone()));
+                        
+                        log::info!("[{}] 结果 #{}: '{}' | 分数: {} | URL: {}", 
+                            source_name, all_results.len(), title, score,
+                            if href.len() > 100 { format!("{}...", &href[..100]) } else { href.clone() });
                         
                         if score > best_match_score && score >= 50 {
                             best_match_score = score;
@@ -718,36 +885,24 @@ async fn search_single_source_with_progress(
                             }
                         }
                     }
-                }
-            }
-        } else {
-            // 使用 selectorSubjectFormatIndexed (默认)
-            if let Some(ref format) = source.arguments.search_config.selector_subject_format_indexed {
-                if let (Ok(name_sel), Ok(link_sel)) = (
-                    Selector::parse(&format.select_names),
-                    Selector::parse(&format.select_links),
-                ) {
-                    let names: Vec<_> = document.select(&name_sel).collect();
-                    let links: Vec<_> = document.select(&link_sel).collect();
-
-                    for (name_el, link_el) in names.iter().zip(links.iter()) {
-                        let title = name_el.text().collect::<String>().trim().to_string();
-                        let href = link_el.value().attr("href").unwrap_or("").to_string();
-
-                        let score = calculate_match_score(&title, anime_name, &core_name);
-                        
-                        if score > best_match_score && score >= 50 {
-                            best_match_score = score;
-                            if href.starts_with("http") {
-                                found_url = href;
-                            } else {
-                                let base_url = if let Ok(u) = url::Url::parse(&search_url) {
-                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                } else {
-                                    "".to_string()
-                                };
-                                found_url = format!("{}{}", base_url, href);
+                    
+                    if !all_results.is_empty() {
+                        let top_matches: Vec<_> = all_results.iter()
+                            .filter(|(_, score, _)| *score >= 50)
+                            .collect();
+                        if !top_matches.is_empty() {
+                            log::info!("[{}] ✓ 符合条件的结果 (分数≥50):", source_name);
+                            for (title, score, _) in top_matches {
+                                log::info!("[{}]   - '{}' (分数: {})", source_name, title, score);
                             }
+                        } else {
+                            log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<50)", source_name);
+                            if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max() {
+                                log::warn!("[{}] 最高分: {}", source_name, max_score);
+                            }
+                        }
+                        if best_match_score >= 50 {
+                            log::info!("[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})", source_name, best_match_score);
                         }
                     }
                 }
@@ -826,8 +981,8 @@ async fn search_single_source_with_progress(
                 Selector::parse(&format.select_episodes_from_list),
             ) {
                 if let Some(list_container) = detail_doc.select(&list_sel).next() {
-                    if let Some(ep) = list_container.select(&item_sel).next() {
-                        let href = ep.value().attr("href").unwrap_or("").to_string();
+                    let episodes: Vec<_> = list_container.select(&item_sel).collect();
+                    if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode) {
                         if !href.is_empty() {
                             if href.starts_with("http") {
                                 found_url = href;
@@ -845,8 +1000,8 @@ async fn search_single_source_with_progress(
             }
         } else if let Some(ref format) = source.arguments.search_config.selector_channel_format_no_channel {
             if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
-                if let Some(ep) = detail_doc.select(&ep_sel).next() {
-                    let href = ep.value().attr("href").unwrap_or("").to_string();
+                let episodes: Vec<_> = detail_doc.select(&ep_sel).collect();
+                if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode) {
                     if !href.is_empty() {
                         if href.starts_with("http") {
                             found_url = href;
@@ -916,6 +1071,8 @@ async fn search_single_source(
     client: &reqwest::Client,
     source: &MediaSource,
     anime_name: &str,
+    absolute_episode: Option<u32>,
+    relative_episode: Option<u32>,
 ) -> anyhow::Result<SearchPlayResult> {
     let source_name = source.arguments.name.clone();
     let video_regex = source.arguments.search_config.match_video.match_video_url.clone();
@@ -950,17 +1107,23 @@ async fn search_single_source(
             if let Some(ref format) = source.arguments.search_config.selector_subject_format_a {
                 if let Ok(list_sel) = Selector::parse(&format.select_lists) {
                     let links: Vec<_> = document.select(&list_sel).collect();
+                    let mut all_results = Vec::new();
                     
-                    log::info!("[{}] Found {} results (format A)", source_name, links.len());
+                    log::info!("[{}] === 搜索结果列表 (Format A) ===", source_name);
+                    log::info!("[{}] 目标: '{}' | 核心名: '{}'", source_name, anime_name, core_name);
+                    log::info!("[{}] 总共找到 {} 个结果", source_name, links.len());
 
                     for link_el in links.iter() {
                         let title = link_el.text().collect::<String>().trim().to_string();
                         let href = link_el.value().attr("href").unwrap_or("").to_string();
 
-                        log::info!("[{}] Result: {} -> {}", source_name, title, href);
-
                         // 计算匹配分数
                         let score = calculate_match_score(&title, anime_name, &core_name);
+                        all_results.push((title.clone(), score, href.clone()));
+                        
+                        log::info!("[{}] 结果 #{}: '{}' | 分数: {} | URL: {}", 
+                            source_name, all_results.len(), title, score,
+                            if href.len() > 100 { format!("{}...", &href[..100]) } else { href.clone() });
                         
                         if score > best_match_score && score >= 50 {
                             best_match_score = score;
@@ -974,7 +1137,26 @@ async fn search_single_source(
                                 };
                                 found_url = format!("{}{}", base_url, href);
                             }
-                            log::info!("[{}] Best match so far: {} (score: {})", source_name, title, score);
+                        }
+                    }
+                    
+                    if !all_results.is_empty() {
+                        let top_matches: Vec<_> = all_results.iter()
+                            .filter(|(_, score, _)| *score >= 50)
+                            .collect();
+                        if !top_matches.is_empty() {
+                            log::info!("[{}] ✓ 符合条件的结果 (分数≥50):", source_name);
+                            for (title, score, _) in top_matches {
+                                log::info!("[{}]   - '{}' (分数: {})", source_name, title, score);
+                            }
+                        } else {
+                            log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<50)", source_name);
+                            if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max() {
+                                log::warn!("[{}] 最高分: {}", source_name, max_score);
+                            }
+                        }
+                        if best_match_score >= 50 {
+                            log::info!("[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})", source_name, best_match_score);
                         }
                     }
                 }
@@ -988,17 +1170,23 @@ async fn search_single_source(
                 ) {
                     let names: Vec<_> = document.select(&name_sel).collect();
                     let links: Vec<_> = document.select(&link_sel).collect();
+                    let mut all_results = Vec::new();
                     
-                    log::info!("[{}] Found {} results (format indexed)", source_name, names.len().min(links.len()));
+                    log::info!("[{}] === 搜索结果列表 (Format Indexed) ===", source_name);
+                    log::info!("[{}] 目标: '{}' | 核心名: '{}'", source_name, anime_name, core_name);
+                    log::info!("[{}] 总共找到 {} 个结果", source_name, names.len().min(links.len()));
 
                     for (name_el, link_el) in names.iter().zip(links.iter()) {
                         let title = name_el.text().collect::<String>().trim().to_string();
                         let href = link_el.value().attr("href").unwrap_or("").to_string();
 
-                        log::info!("[{}] Result: {} -> {}", source_name, title, href);
-
                         // 计算匹配分数
                         let score = calculate_match_score(&title, anime_name, &core_name);
+                        all_results.push((title.clone(), score, href.clone()));
+                        
+                        log::info!("[{}] 结果 #{}: '{}' | 分数: {} | URL: {}", 
+                            source_name, all_results.len(), title, score,
+                            if href.len() > 100 { format!("{}...", &href[..100]) } else { href.clone() });
                         
                         if score > best_match_score && score >= 50 {
                             best_match_score = score;
@@ -1012,7 +1200,26 @@ async fn search_single_source(
                                 };
                                 found_url = format!("{}{}", base_url, href);
                             }
-                            log::info!("[{}] Best match so far: {} (score: {})", source_name, title, score);
+                        }
+                    }
+                    
+                    if !all_results.is_empty() {
+                        let top_matches: Vec<_> = all_results.iter()
+                            .filter(|(_, score, _)| *score >= 50)
+                            .collect();
+                        if !top_matches.is_empty() {
+                            log::info!("[{}] ✓ 符合条件的结果 (分数≥50):", source_name);
+                            for (title, score, _) in top_matches {
+                                log::info!("[{}]   - '{}' (分数: {})", source_name, title, score);
+                            }
+                        } else {
+                            log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<50)", source_name);
+                            if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max() {
+                                log::warn!("[{}] 最高分: {}", source_name, max_score);
+                            }
+                        }
+                        if best_match_score >= 50 {
+                            log::info!("[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})", source_name, best_match_score);
                         }
                     }
                 }
@@ -1040,8 +1247,8 @@ async fn search_single_source(
                 Selector::parse(&format.select_episodes_from_list),
             ) {
                 if let Some(list_container) = detail_doc.select(&list_sel).next() {
-                    if let Some(ep) = list_container.select(&item_sel).next() {
-                        let href = ep.value().attr("href").unwrap_or("").to_string();
+                    let episodes: Vec<_> = list_container.select(&item_sel).collect();
+                    if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode) {
                         if !href.is_empty() {
                             if href.starts_with("http") {
                                 found_url = href;
@@ -1059,8 +1266,8 @@ async fn search_single_source(
             }
         } else if let Some(ref format) = source.arguments.search_config.selector_channel_format_no_channel {
             if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
-                if let Some(ep) = detail_doc.select(&ep_sel).next() {
-                    let href = ep.value().attr("href").unwrap_or("").to_string();
+                let episodes: Vec<_> = detail_doc.select(&ep_sel).collect();
+                if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode) {
                     if !href.is_empty() {
                         if href.starts_with("http") {
                             found_url = href;
@@ -1211,9 +1418,9 @@ pub async fn generic_search_and_play(anime_name: String) -> anyhow::Result<Strin
                 ) {
                     // Find list container (often multiple tabs, we take first valid)
                     if let Some(list_container) = detail_doc.select(&list_sel).next() {
-                        // Find first episode
-                        if let Some(ep) = list_container.select(&item_sel).next() {
-                            let href = ep.value().attr("href").unwrap_or("").to_string();
+                        let episodes: Vec<_> = list_container.select(&item_sel).collect();
+                        // generic_search_and_play 暂时不支持集号选择，默认第一集
+                        if let Some(href) = select_episode_by_number(&episodes, None, None) {
                             if !href.is_empty() {
                                 // Relative URL handling
                                 if href.starts_with("http") {
@@ -1236,8 +1443,9 @@ pub async fn generic_search_and_play(anime_name: String) -> anyhow::Result<Strin
                 .selector_channel_format_no_channel
             {
                 if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
-                    if let Some(ep) = detail_doc.select(&ep_sel).next() {
-                        let href = ep.value().attr("href").unwrap_or("").to_string();
+                    let episodes: Vec<_> = detail_doc.select(&ep_sel).collect();
+                    // generic_search_and_play 暂时不支持集号选择，默认第一集
+                    if let Some(href) = select_episode_by_number(&episodes, None, None) {
                         if !href.is_empty() {
                             // Relative URL handling
                             if href.starts_with("http") {
