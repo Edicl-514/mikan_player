@@ -17,6 +17,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   final _mikanController = TextEditingController();
   final _playbackSubController = TextEditingController();
   bool _isLoading = true;
+  bool _isRefreshing = false;
   List<generic_scraper.SourceState> _sources = [];
   Set<String> _disabledSources = {};
 
@@ -99,6 +100,44 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     }
   }
 
+  Future<void> _refreshPlaybackSources() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      // 强制重新拉取JSON
+      await rust.preloadPlaybackSourceConfig();
+      
+      // 刷新源列表
+      final sources = await rust.getPlaybackSources();
+      setState(() {
+        _sources = sources;
+        _disabledSources = sources
+            .where((s) => !s.enabled)
+            .map((s) => s.name)
+            .toSet();
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('播放源已刷新')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('刷新失败: $e')),
+        );
+      }
+      debugPrint('Failed to refresh playback sources: $e');
+    } finally {
+      setState(() {
+        _isRefreshing = false;
+      });
+    }
+  }
+
   void _resetDefaults() {
     setState(() {
       _bgmController.text = 'https://bgmlist.com';
@@ -149,10 +188,36 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                   hint: 'https://mikanani.kas.pub',
                 ),
                 const SizedBox(height: 16),
-                _buildTextField(
-                  controller: _playbackSubController,
-                  label: '播放源订阅地址',
-                  hint: 'https://sub.creamycake.org/v1/css1.json',
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildTextField(
+                        controller: _playbackSubController,
+                        label: '播放源订阅地址',
+                        hint: 'https://sub.creamycake.org/v1/css1.json',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: IconButton(
+                        icon: _isRefreshing
+                            ? SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                              )
+                            : const Icon(Icons.refresh),
+                        onPressed: _isRefreshing ? null : _refreshPlaybackSources,
+                        tooltip: '刷新播放源',
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 if (_sources.isNotEmpty) ...[

@@ -64,6 +64,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   int _currentWebViewIndex = -1;  // 当前正在尝试的 WebView 索引
   String _sampleStatusMessage = '';  // WebView 提取状态消息
   bool _showWebView = false;  // 是否显示 WebView（调试用）
+  
+  // 每个源的搜索进度状态
+  Map<String, SourceSearchProgress> _sourceProgressMap = {};
+  List<String> _enabledSourceNames = [];  // 所有已启用的源名称
 
   // Active Source
   String _activeSource = 'mikan'; // 'mikan' or 'dmhy'
@@ -352,46 +356,83 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _sampleSuccessfulSources = [];
       _selectedSourceIndex = 0;
       _currentWebViewIndex = -1;
-      _sampleStatusMessage = '正在搜索各视频源...';
+      _sampleStatusMessage = '正在获取播放源列表...';
+      _sourceProgressMap = {};
+      _enabledSourceNames = [];
     });
 
     try {
-      // 使用流式API，每个源搜索完成后立即显示
-      int foundCount = 0;
-      int successfulCount = 0;
+      // 先获取所有已启用的源名称，用于初始化UI
+      final enabledNames = await getEnabledSourceNames();
+      if (!mounted) return;
       
-      await for (final result in genericSearchPlayPagesStream(animeName: widget.anime.title)) {
+      setState(() {
+        _enabledSourceNames = enabledNames;
+        // 初始化所有源的状态为 Pending
+        for (final name in enabledNames) {
+          _sourceProgressMap[name] = SourceSearchProgress(
+            sourceName: name,
+            step: SearchStep.pending,
+            error: null,
+            playPageUrl: null,
+            videoRegex: null,
+            directVideoUrl: null,
+          );
+        }
+        _sampleStatusMessage = '正在搜索 ${enabledNames.length} 个源...';
+      });
+
+      // 使用带进度的流式API
+      await for (final progress in genericSearchWithProgress(animeName: widget.anime.title)) {
         if (!mounted) return;
         
-        foundCount++;
-        
-        // 立即添加到列表
         setState(() {
-          _samplePlayPages.add(result);
-          _sampleStatusMessage = '正在搜索... 已找到 $foundCount 个源';
-        });
-        
-        // 如果这个源有直接的视频URL，立即添加到成功列表
-        if (result.directVideoUrl != null && result.directVideoUrl!.isNotEmpty) {
-          successfulCount++;
-          setState(() {
-            _sampleSuccessfulSources.add(result);
-            _sampleStatusMessage = '正在搜索... 已找到 $successfulCount 个可用源';
+          // 更新该源的进度
+          _sourceProgressMap[progress.sourceName] = progress;
+          
+          // 如果搜索成功，添加到成功列表
+          if (progress.step == SearchStep.success && progress.playPageUrl != null) {
+            final result = SearchPlayResult(
+              sourceName: progress.sourceName,
+              playPageUrl: progress.playPageUrl!,
+              videoRegex: progress.videoRegex ?? '',
+              directVideoUrl: progress.directVideoUrl,
+            );
             
-            // 如果这是第一个成功的源，立即播放
-            if (_sampleSuccessfulSources.length == 1) {
-              _sampleVideoUrl = result.directVideoUrl;
-              _selectedSourceIndex = 0;
-              _isLoadingSample = false;
+            // 避免重复添加
+            if (!_samplePlayPages.any((p) => p.sourceName == progress.sourceName)) {
+              _samplePlayPages.add(result);
             }
-          });
-        }
+            
+            // 如果有直接视频URL，添加到成功列表
+            if (progress.directVideoUrl != null && progress.directVideoUrl!.isNotEmpty) {
+              if (!_sampleSuccessfulSources.any((s) => s.sourceName == progress.sourceName)) {
+                _sampleSuccessfulSources.add(result);
+                
+                // 如果是第一个成功的源，自动选中
+                if (_sampleSuccessfulSources.length == 1) {
+                  _sampleVideoUrl = progress.directVideoUrl;
+                  _selectedSourceIndex = 0;
+                }
+              }
+            }
+          }
+          
+          // 更新状态消息
+          final completedCount = _sourceProgressMap.values
+              .where((p) => p.step == SearchStep.success || p.step == SearchStep.failed)
+              .length;
+          _sampleStatusMessage = '搜索进度: $completedCount/${_enabledSourceNames.length}';
+        });
       }
       
       // 所有源搜索完毕
       if (!mounted) return;
       
-      if (_samplePlayPages.isEmpty) {
+      // 检查是否有任何成功的源
+      final hasAnyPlayPage = _samplePlayPages.isNotEmpty;
+      
+      if (!hasAnyPlayPage) {
         setState(() {
           _sampleError = '未在任何源中找到该动画';
           _isLoadingSample = false;
@@ -399,16 +440,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         return;
       }
       
-      setState(() {
-        if (_sampleSuccessfulSources.isNotEmpty) {
-          _sampleStatusMessage = '找到 ${_sampleSuccessfulSources.length} 个可用源';
-          _isLoadingSample = false;
-        } else {
-          // 如果没有直接获取到视频URL的源，开始用 WebView 逐个尝试
-          _sampleStatusMessage = '未找到直接可用源，尝试使用 WebView 提取...';
+      // 如果有找到播放页但没有直接链接的源，尝试 WebView 提取
+      if (_sampleSuccessfulSources.isEmpty || 
+          _samplePlayPages.length > _sampleSuccessfulSources.length) {
+        setState(() {
+          _sampleStatusMessage = '搜索完成，正在提取剩余源...';
           _tryNextWebView(0);
-        }
-      });
+        });
+      } else {
+        setState(() {
+          _isLoadingSample = false;
+          _sampleStatusMessage = '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
+        });
+      }
       
     } catch (e) {
       debugPrint("Error loading Sample source: $e");
@@ -425,20 +469,36 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   void _tryNextWebView(int index) {
     if (!mounted) return;
     
-    if (index >= _samplePlayPages.length) {
+    // 寻找下一个没有直接链接的源
+    int nextIndex = index;
+    while (nextIndex < _samplePlayPages.length) {
+      final page = _samplePlayPages[nextIndex];
+      // 如果这个源还没有成功获取到视频链接（不管是直接获取的还是之前提取成功的）
+      bool alreadySuccessful = _sampleSuccessfulSources.any((s) => s.playPageUrl == page.playPageUrl);
+      if (!alreadySuccessful) {
+        break;
+      }
+      nextIndex++;
+    }
+
+    if (nextIndex >= _samplePlayPages.length) {
       // 所有源都尝试过了
       setState(() {
         _isLoadingSample = false;
-        _sampleError = '所有源都无法提取视频链接';
+        if (_sampleSuccessfulSources.isEmpty) {
+          _sampleError = '所有源都无法提取视频链接';
+        } else {
+          _sampleStatusMessage = '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
+        }
         _currentWebViewIndex = -1;
       });
       return;
     }
     
-    final page = _samplePlayPages[index];
+    final page = _samplePlayPages[nextIndex];
     setState(() {
-      _currentWebViewIndex = index;
-      _sampleStatusMessage = '正在从 ${page.sourceName} 提取视频... (${index + 1}/${_samplePlayPages.length})';
+      _currentWebViewIndex = nextIndex;
+      _sampleStatusMessage = '正在提取: ${page.sourceName} (${nextIndex + 1}/${_samplePlayPages.length})';
     });
   }
   
@@ -446,19 +506,40 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   void _onWebViewResult(VideoExtractResult result) {
     if (!mounted) return;
     
+    int currentIndex = _currentWebViewIndex;
+    
     if (result.success) {
       setState(() {
-        _sampleVideoUrl = result.videoUrl;
-        _isLoadingSample = false;
-        _currentWebViewIndex = -1;
-        if (_currentWebViewIndex >= 0 && _currentWebViewIndex < _samplePlayPages.length) {
-          _sampleStatusMessage = '从 ${_samplePlayPages[_currentWebViewIndex].sourceName} 获取到视频链接';
+        if (currentIndex >= 0 && currentIndex < _samplePlayPages.length) {
+          final page = _samplePlayPages[currentIndex];
+          // 将成功提取的源添加到成功列表
+          final updatedPage = SearchPlayResult(
+            sourceName: page.sourceName,
+            playPageUrl: page.playPageUrl,
+            videoRegex: page.videoRegex,
+            directVideoUrl: result.videoUrl,
+          );
+          
+          _sampleSuccessfulSources.add(updatedPage);
+          _sampleStatusMessage = '从 ${page.sourceName} 获取到视频链接';
+
+          // 如果这是第一个成功提取且没有其他源在播放
+          if (_sampleSuccessfulSources.length == 1 && _sampleVideoUrl == null) {
+            _sampleVideoUrl = result.videoUrl;
+            _selectedSourceIndex = 0;
+            _player.open(Media(_sampleVideoUrl!));
+            _currentStreamUrl = _sampleVideoUrl;
+            _isLoadingVideo = false;
+            _videoError = null;
+          }
         }
+        
+        _currentWebViewIndex = -1;
       });
-    } else {
-      // 当前源失败，尝试下一个
-      _tryNextWebView(_currentWebViewIndex + 1);
     }
+    
+    // 继续下一个源的提取（无论成功还是失败）
+    _tryNextWebView(currentIndex + 1);
   }
 
   @override
@@ -1615,282 +1696,415 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   /// 构建全网搜源的内容
   Widget _buildSampleSourceContent() {
-    // 1. 如果有成功的源，显示源列表供选择
-    if (_sampleSuccessfulSources.isNotEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E2C),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white10),
+    // 1. 显示所有源的搜索状态（始终显示）
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 状态标题
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              if (_isLoadingSample) ...[
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFBB86FC)),
+                ),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: Text(
+                  _isLoadingSample ? _sampleStatusMessage : 
+                  (_sampleError != null ? '搜索失败' : 
+                   '搜索完成 (${_sampleSuccessfulSources.length}/${_enabledSourceNames.length} 个可用)'),
+                  style: TextStyle(
+                    color: _sampleError != null ? Colors.redAccent : Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              // 重试按钮
+              if (!_isLoadingSample)
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 18),
+                  onPressed: _loadSampleSource,
+                  color: Colors.white54,
+                  tooltip: '重新搜索',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                ),
+            ],
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        
+        // 如果有错误信息，显示在顶部
+        if (_sampleError != null)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+            ),
+            child: Row(
               children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                const Icon(Icons.error_outline, color: Colors.redAccent, size: 16),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    "找到 ${_sampleSuccessfulSources.length} 个可用源",
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                    ),
+                    _sampleError!,
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 11),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            
-            // 源选择列表
-            ...List.generate(_sampleSuccessfulSources.length, (index) {
-              final source = _sampleSuccessfulSources[index];
-              final isSelected = index == _selectedSourceIndex;
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedSourceIndex = index;
-                    _sampleVideoUrl = source.directVideoUrl;
-                  });
-                },
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: isSelected 
-                        ? const Color(0xFFBB86FC).withValues(alpha: 0.15)
-                        : Colors.black26,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: isSelected 
-                          ? const Color(0xFFBB86FC).withValues(alpha: 0.5)
-                          : Colors.transparent,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                        size: 18,
-                        color: isSelected ? const Color(0xFFBB86FC) : Colors.white38,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              source.sourceName,
-                              style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.white70,
-                                fontSize: 13,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              source.directVideoUrl ?? '',
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 9,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            
-            const SizedBox(height: 8),
-            ElevatedButton.icon(
-              onPressed: _sampleVideoUrl != null ? () {
-                _player.open(Media(_sampleVideoUrl!));
-                setState(() {
-                  _currentStreamUrl = _sampleVideoUrl;
-                  _isLoadingVideo = false;
-                  _videoError = null;
-                });
-              } : null,
-              icon: const Icon(Icons.play_arrow),
-              label: Text("播放 - ${_sampleSuccessfulSources.isNotEmpty ? _sampleSuccessfulSources[_selectedSourceIndex].sourceName : ''}"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFBB86FC),
-                foregroundColor: Colors.black,
-                minimumSize: const Size.fromHeight(40),
-              ),
+          ),
+        
+        // 所有源的搜索状态列表
+        if (_enabledSourceNames.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 250),
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _enabledSourceNames.length,
+              itemBuilder: (context, index) {
+                final sourceName = _enabledSourceNames[index];
+                final progress = _sourceProgressMap[sourceName];
+                return _buildSourceProgressItem(sourceName, progress);
+              },
             ),
-          ],
-        ),
-      );
-    }
-    
-    // 2. 如果有错误，显示错误信息
-    if (_sampleError != null) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.redAccent, size: 32),
-            const SizedBox(height: 8),
-            const Text(
-              "搜索失败",
-              style: TextStyle(color: Colors.redAccent, fontSize: 14),
+          ),
+        ],
+        
+        // 如果正在使用 WebView 提取，显示 WebView
+        if (_currentWebViewIndex >= 0 && _currentWebViewIndex < _samplePlayPages.length) ...[
+          const Divider(color: Colors.white10),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.black26,
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 4),
-            Text(
-              _sampleError!,
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: _loadSampleSource,
-              icon: const Icon(Icons.refresh),
-              label: const Text("重试"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white12,
-                foregroundColor: Colors.white70,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    
-    // 3. 如果正在加载，显示进度
-    if (_isLoadingSample) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 状态消息
-            Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFBB86FC)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _sampleStatusMessage,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-            
-            // 如果正在使用 WebView 提取，显示 WebView
-            if (_currentWebViewIndex >= 0 && _currentWebViewIndex < _samplePlayPages.length) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
                   children: [
-                    Text(
-                      "正在尝试: ${_samplePlayPages[_currentWebViewIndex].sourceName}",
-                      style: const TextStyle(color: Colors.white54, fontSize: 11),
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFFBB86FC)),
                     ),
-                    Text(
-                      _samplePlayPages[_currentWebViewIndex].playPageUrl,
-                      style: const TextStyle(color: Colors.grey, fontSize: 9),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "WebView 提取: ${_samplePlayPages[_currentWebViewIndex].sourceName}",
+                        style: const TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    // WebView Widget
-                    _buildWebViewExtractor(),
                   ],
                 ),
-              ),
-              // 调试开关
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Checkbox(
+                Text(
+                  _samplePlayPages[_currentWebViewIndex].playPageUrl,
+                  style: const TextStyle(color: Colors.grey, fontSize: 9),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                _buildWebViewExtractor(),
+              ],
+            ),
+          ),
+          // 调试开关
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Checkbox(
                     value: _showWebView,
                     onChanged: (v) => setState(() => _showWebView = v ?? false),
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                   ),
-                  const Text(
-                    "显示 WebView (调试)",
-                    style: TextStyle(color: Colors.white38, fontSize: 10),
-                  ),
-                ],
-              ),
-            ],
-            
-            // 显示所有找到的源
-            if (_samplePlayPages.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              const Text(
-                "找到的视频源:",
-                style: TextStyle(color: Colors.white54, fontSize: 11),
-              ),
-              const SizedBox(height: 4),
-              ...List.generate(_samplePlayPages.length, (index) {
-                final page = _samplePlayPages[index];
-                final isCurrent = index == _currentWebViewIndex;
-                final isPassed = index < _currentWebViewIndex;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isCurrent ? const Color(0xFFBB86FC).withValues(alpha: 0.1) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    children: [
-                      if (isCurrent)
-                        const SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFFBB86FC)),
-                        )
-                      else if (isPassed)
-                        const Icon(Icons.close, size: 12, color: Colors.redAccent)
-                      else
-                        const Icon(Icons.circle_outlined, size: 12, color: Colors.white24),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          page.sourceName,
-                          style: TextStyle(
-                            color: isCurrent ? Colors.white : Colors.white54,
-                            fontSize: 11,
-                          ),
+                ),
+                const SizedBox(width: 4),
+                const Text(
+                  "显示 WebView (调试)",
+                  style: TextStyle(color: Colors.white38, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+        ],
+        
+        // 如果有成功的源，显示播放按钮
+        if (_sampleSuccessfulSources.isNotEmpty) ...[
+          const Divider(color: Colors.white10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.green, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      "可用源 (${_sampleSuccessfulSources.length})",
+                      style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // 成功源列表
+                ...List.generate(_sampleSuccessfulSources.length, (index) {
+                  final source = _sampleSuccessfulSources[index];
+                  final isSelected = index == _selectedSourceIndex;
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedSourceIndex = index;
+                        _sampleVideoUrl = source.directVideoUrl;
+                      });
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isSelected 
+                            ? const Color(0xFFBB86FC).withValues(alpha: 0.15)
+                            : Colors.black26,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: isSelected 
+                              ? const Color(0xFFBB86FC).withValues(alpha: 0.5)
+                              : Colors.transparent,
                         ),
                       ),
-                    ],
+                      child: Row(
+                        children: [
+                          Icon(
+                            isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                            size: 16,
+                            color: isSelected ? const Color(0xFFBB86FC) : Colors.white38,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  source.sourceName,
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.white : Colors.white70,
+                                    fontSize: 12,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                                Text(
+                                  source.directVideoUrl ?? '',
+                                  style: const TextStyle(color: Colors.grey, fontSize: 8),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: _sampleVideoUrl != null ? () {
+                    _player.open(Media(_sampleVideoUrl!));
+                    setState(() {
+                      _currentStreamUrl = _sampleVideoUrl;
+                      _isLoadingVideo = false;
+                      _videoError = null;
+                    });
+                  } : null,
+                  icon: const Icon(Icons.play_arrow, size: 18),
+                  label: Text(
+                    "播放 - ${_sampleSuccessfulSources.isNotEmpty ? _sampleSuccessfulSources[_selectedSourceIndex].sourceName : ''}",
+                    style: const TextStyle(fontSize: 12),
                   ),
-                );
-              }),
-            ],
-          ],
-        ),
-      );
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFBB86FC),
+                    foregroundColor: Colors.black,
+                    minimumSize: const Size.fromHeight(36),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        
+        // 如果没有任何源且不在加载中，显示空状态
+        if (_enabledSourceNames.isEmpty && !_isLoadingSample)
+          Container(
+            padding: const EdgeInsets.all(24),
+            alignment: Alignment.center,
+            child: Column(
+              children: [
+                const Icon(Icons.search_off, color: Colors.white24, size: 32),
+                const SizedBox(height: 8),
+                const Text(
+                  "未找到资源",
+                  style: TextStyle(color: Colors.white24, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: _loadSampleSource,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text("重试", style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white12,
+                    foregroundColor: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+  
+  /// 构建单个源的搜索进度项
+  Widget _buildSourceProgressItem(String sourceName, SourceSearchProgress? progress) {
+    // 根据状态决定图标和颜色
+    IconData icon;
+    Color iconColor;
+    String statusText;
+    String? errorText;
+    
+    if (progress == null) {
+      icon = Icons.hourglass_empty;
+      iconColor = Colors.white24;
+      statusText = '等待中';
+    } else {
+      switch (progress.step) {
+        case SearchStep.pending:
+          icon = Icons.hourglass_empty;
+          iconColor = Colors.white24;
+          statusText = '等待中';
+          break;
+        case SearchStep.searching:
+          icon = Icons.search;
+          iconColor = const Color(0xFFBB86FC);
+          statusText = '搜索中...';
+          break;
+        case SearchStep.fetchingDetail:
+          icon = Icons.article_outlined;
+          iconColor = const Color(0xFFBB86FC);
+          statusText = '获取详情页...';
+          break;
+        case SearchStep.fetchingEpisodes:
+          icon = Icons.list_alt;
+          iconColor = const Color(0xFFBB86FC);
+          statusText = '获取剧集列表...';
+          break;
+        case SearchStep.extractingVideo:
+          icon = Icons.video_library;
+          iconColor = const Color(0xFFBB86FC);
+          statusText = '提取视频链接...';
+          break;
+        case SearchStep.success:
+          icon = Icons.check_circle;
+          iconColor = Colors.green;
+          statusText = progress.directVideoUrl != null ? '成功' : '找到播放页';
+          break;
+        case SearchStep.failed:
+          icon = Icons.error_outline;
+          iconColor = Colors.redAccent;
+          statusText = '失败';
+          errorText = progress.error;
+          break;
+      }
     }
     
-    // 4. 默认状态：未找到资源
+    final isActive = progress != null && 
+        progress.step != SearchStep.pending && 
+        progress.step != SearchStep.success && 
+        progress.step != SearchStep.failed;
+    
     return Container(
-      padding: const EdgeInsets.all(24),
-      alignment: Alignment.center,
-      child: const Text("未找到资源", style: TextStyle(color: Colors.white24)),
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFFBB86FC).withValues(alpha: 0.08) : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        children: [
+          // 状态图标
+          if (isActive)
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: iconColor,
+              ),
+            )
+          else
+            Icon(icon, size: 14, color: iconColor),
+          const SizedBox(width: 8),
+          // 源名称
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        sourceName,
+                        style: TextStyle(
+                          color: isActive ? Colors.white : Colors.white70,
+                          fontSize: 11,
+                          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      statusText,
+                      style: TextStyle(
+                        color: iconColor,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+                // 显示错误信息
+                if (errorText != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      errorText,
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 9,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
   

@@ -6,9 +6,9 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `calculate_match_score`, `deobfuscate_video_url`, `extract_core_name`, `load_playback_source_config`, `preprocess_search_term`, `search_single_source`, `try_extract_player_aaaa_url`
+// These functions are ignored because they are not marked as `pub`: `calculate_match_score`, `deobfuscate_video_url`, `extract_core_name`, `load_playback_source_config`, `preprocess_search_term`, `search_single_source_with_progress`, `search_single_source`, `try_extract_player_aaaa_url`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ExportedMediaSourceDataList`, `MatchVideo`, `MediaSource`, `SEASON_RE`, `SampleRoot`, `SearchConfig`, `SelectorChannelFormatFlattened`, `SelectorChannelFormatNoChannel`, `SelectorSubjectFormatIndexed`, `SourceArguments`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
 
 /// 预加载播放源配置（应用启动和设置更改时调用）
 /// 验证订阅地址的JSON格式是否有效
@@ -32,6 +32,17 @@ Future<List<SearchPlayResult>> genericSearchPlayPages({
 Stream<SearchPlayResult> genericSearchPlayPagesStream({
   required String animeName,
 }) => RustLib.instance.api.crateApiGenericScraperGenericSearchPlayPagesStream(
+  animeName: animeName,
+);
+
+/// 获取所有已启用源的列表（用于初始化UI显示）
+Future<List<String>> getEnabledSourceNames() =>
+    RustLib.instance.api.crateApiGenericScraperGetEnabledSourceNames();
+
+/// 搜索所有源，以流的形式返回详细进度（包含搜索步骤和错误信息）
+Stream<SourceSearchProgress> genericSearchWithProgress({
+  required String animeName,
+}) => RustLib.instance.api.crateApiGenericScraperGenericSearchWithProgress(
   animeName: animeName,
 );
 
@@ -74,6 +85,81 @@ class SearchPlayResult {
       other is SearchPlayResult &&
           runtimeType == other.runtimeType &&
           sourceName == other.sourceName &&
+          playPageUrl == other.playPageUrl &&
+          videoRegex == other.videoRegex &&
+          directVideoUrl == other.directVideoUrl;
+}
+
+/// 搜索进度状态
+enum SearchStep {
+  /// 等待中
+  pending,
+
+  /// 正在搜索
+  searching,
+
+  /// 正在获取详情页
+  fetchingDetail,
+
+  /// 正在获取剧集列表
+  fetchingEpisodes,
+
+  /// 正在提取视频URL
+  extractingVideo,
+
+  /// 搜索成功
+  success,
+
+  /// 搜索失败
+  failed,
+}
+
+/// 带状态的搜索进度
+class SourceSearchProgress {
+  /// 源名称
+  final String sourceName;
+
+  /// 当前搜索步骤
+  final SearchStep step;
+
+  /// 错误信息（如果有）
+  final String? error;
+
+  /// 播放页面 URL（如果找到）
+  final String? playPageUrl;
+
+  /// 用于匹配视频URL的正则表达式
+  final String? videoRegex;
+
+  /// 直接解析得到的视频URL（如果有）
+  final String? directVideoUrl;
+
+  const SourceSearchProgress({
+    required this.sourceName,
+    required this.step,
+    this.error,
+    this.playPageUrl,
+    this.videoRegex,
+    this.directVideoUrl,
+  });
+
+  @override
+  int get hashCode =>
+      sourceName.hashCode ^
+      step.hashCode ^
+      error.hashCode ^
+      playPageUrl.hashCode ^
+      videoRegex.hashCode ^
+      directVideoUrl.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SourceSearchProgress &&
+          runtimeType == other.runtimeType &&
+          sourceName == other.sourceName &&
+          step == other.step &&
+          error == other.error &&
           playPageUrl == other.playPageUrl &&
           videoRegex == other.videoRegex &&
           directVideoUrl == other.directVideoUrl;

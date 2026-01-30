@@ -342,6 +342,42 @@ pub struct SearchPlayResult {
     pub direct_video_url: Option<String>,
 }
 
+/// 搜索进度状态
+#[derive(Debug, Clone)]
+pub enum SearchStep {
+    /// 等待中
+    Pending,
+    /// 正在搜索
+    Searching,
+    /// 正在获取详情页
+    FetchingDetail,
+    /// 正在获取剧集列表
+    FetchingEpisodes,
+    /// 正在提取视频URL
+    ExtractingVideo,
+    /// 搜索成功
+    Success,
+    /// 搜索失败
+    Failed,
+}
+
+/// 带状态的搜索进度
+#[derive(Debug, Clone)]
+pub struct SourceSearchProgress {
+    /// 源名称
+    pub source_name: String,
+    /// 当前搜索步骤
+    pub step: SearchStep,
+    /// 错误信息（如果有）
+    pub error: Option<String>,
+    /// 播放页面 URL（如果找到）
+    pub play_page_url: Option<String>,
+    /// 用于匹配视频URL的正则表达式
+    pub video_regex: Option<String>,
+    /// 直接解析得到的视频URL（如果有）
+    pub direct_video_url: Option<String>,
+}
+
 /// 从订阅地址拉取播放源配置 JSON
 /// 优先使用用户设置的订阅地址，失败时尝试本地备份
 async fn load_playback_source_config(client: &reqwest::Client) -> anyhow::Result<String> {
@@ -498,6 +534,317 @@ pub async fn generic_search_play_pages_stream(
         }
     }
     
+    Ok(())
+}
+
+/// 获取所有已启用源的列表（用于初始化UI显示）
+pub async fn get_enabled_source_names() -> anyhow::Result<Vec<String>> {
+    let client = crate::api::network::create_client()?;
+    let content = load_playback_source_config(&client).await?;
+    let root: SampleRoot = serde_json::from_str(&content)?;
+
+    let names: Vec<String> = root
+        .exported_media_source_data_list
+        .media_sources
+        .iter()
+        .filter(|s| crate::api::config::is_source_enabled(&s.arguments.name))
+        .map(|s| s.arguments.name.clone())
+        .collect();
+    
+    Ok(names)
+}
+
+/// 搜索所有源，以流的形式返回详细进度（包含搜索步骤和错误信息）
+pub async fn generic_search_with_progress(
+    anime_name: String,
+    sink: crate::frb_generated::StreamSink<SourceSearchProgress>,
+) -> anyhow::Result<()> {
+    let client = crate::api::network::create_client()?;
+    let content = load_playback_source_config(&client).await?;
+
+    let root: SampleRoot = serde_json::from_str(&content)?;
+    
+    use futures::stream::{FuturesUnordered, StreamExt};
+    
+    let mut tasks = FuturesUnordered::new();
+    
+    // Create configured tasks for all enabled sources
+    for source in root.exported_media_source_data_list.media_sources {
+        if !crate::api::config::is_source_enabled(&source.arguments.name) {
+             log::info!("Skipping disabled source: {}", source.arguments.name);
+             continue;
+        }
+
+        let client = client.clone();
+        let anime_name = anime_name.clone();
+        let sink = sink.clone();
+        let task = async move {
+            let source_name = source.arguments.name.clone();
+            
+            // 发送初始状态
+            sink.add(SourceSearchProgress {
+                source_name: source_name.clone(),
+                step: SearchStep::Searching,
+                error: None,
+                play_page_url: None,
+                video_regex: None,
+                direct_video_url: None,
+            }).ok();
+            
+            // 执行搜索并返回带进度的结果
+            search_single_source_with_progress(&client, &source, &anime_name, &sink).await
+        };
+        tasks.push(task);
+    }
+    
+    // 等待所有任务完成
+    while let Some(_) = tasks.next().await {
+        // 结果已经通过 sink 发送
+    }
+    
+    Ok(())
+}
+
+/// 搜索单个源（带进度报告）
+async fn search_single_source_with_progress(
+    client: &reqwest::Client,
+    source: &MediaSource,
+    anime_name: &str,
+    sink: &crate::frb_generated::StreamSink<SourceSearchProgress>,
+) -> anyhow::Result<()> {
+    let source_name = source.arguments.name.clone();
+    let video_regex = source.arguments.search_config.match_video.match_video_url.clone();
+    
+    // 预处理搜索词
+    let search_term = preprocess_search_term(anime_name);
+    let core_name = extract_core_name(anime_name);
+    
+    // Step 1: 搜索
+    let search_url = source
+        .arguments
+        .search_config
+        .search_url
+        .replace("{keyword}", &search_term);
+    
+    let resp_text = match client.get(&search_url).send().await {
+        Ok(resp) => match resp.text().await {
+            Ok(text) => text,
+            Err(e) => {
+                sink.add(SourceSearchProgress {
+                    source_name: source_name.clone(),
+                    step: SearchStep::Failed,
+                    error: Some(format!("搜索请求失败: {}", e)),
+                    play_page_url: None,
+                    video_regex: None,
+                    direct_video_url: None,
+                }).ok();
+                return Err(anyhow::anyhow!("Search request failed"));
+            }
+        },
+        Err(e) => {
+            sink.add(SourceSearchProgress {
+                source_name: source_name.clone(),
+                step: SearchStep::Failed,
+                error: Some(format!("网络错误: {}", e)),
+                play_page_url: None,
+                video_regex: None,
+                direct_video_url: None,
+            }).ok();
+            return Err(anyhow::anyhow!("Network error"));
+        }
+    };
+    
+    // 解析搜索结果
+    let detail_url = {
+        let document = Html::parse_document(&resp_text);
+        let mut found_url = String::new();
+        let mut best_match_score = 0;
+        
+        if let Some(ref format) = source.arguments.search_config.selector_subject_format_indexed {
+            if let (Ok(name_sel), Ok(link_sel)) = (
+                Selector::parse(&format.select_names),
+                Selector::parse(&format.select_links),
+            ) {
+                let names: Vec<_> = document.select(&name_sel).collect();
+                let links: Vec<_> = document.select(&link_sel).collect();
+
+                for (name_el, link_el) in names.iter().zip(links.iter()) {
+                    let title = name_el.text().collect::<String>().trim().to_string();
+                    let href = link_el.value().attr("href").unwrap_or("").to_string();
+
+                    let score = calculate_match_score(&title, anime_name, &core_name);
+                    
+                    if score > best_match_score && score >= 50 {
+                        best_match_score = score;
+                        if href.starts_with("http") {
+                            found_url = href;
+                        } else {
+                            let base_url = if let Ok(u) = url::Url::parse(&search_url) {
+                                format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                            } else {
+                                "".to_string()
+                            };
+                            found_url = format!("{}{}", base_url, href);
+                        }
+                    }
+                }
+            }
+        }
+        found_url
+    };
+
+    if detail_url.is_empty() {
+        sink.add(SourceSearchProgress {
+            source_name: source_name.clone(),
+            step: SearchStep::Failed,
+            error: Some("未找到匹配的动画".to_string()),
+            play_page_url: None,
+            video_regex: None,
+            direct_video_url: None,
+        }).ok();
+        return Err(anyhow::anyhow!("No matching anime found"));
+    }
+
+    // Step 2: 获取详情页
+    sink.add(SourceSearchProgress {
+        source_name: source_name.clone(),
+        step: SearchStep::FetchingDetail,
+        error: None,
+        play_page_url: None,
+        video_regex: None,
+        direct_video_url: None,
+    }).ok();
+
+    let detail_resp_text = match client.get(&detail_url).send().await {
+        Ok(resp) => match resp.text().await {
+            Ok(text) => text,
+            Err(e) => {
+                sink.add(SourceSearchProgress {
+                    source_name: source_name.clone(),
+                    step: SearchStep::Failed,
+                    error: Some(format!("获取详情页失败: {}", e)),
+                    play_page_url: None,
+                    video_regex: None,
+                    direct_video_url: None,
+                }).ok();
+                return Err(anyhow::anyhow!("Detail fetch failed"));
+            }
+        },
+        Err(e) => {
+            sink.add(SourceSearchProgress {
+                source_name: source_name.clone(),
+                step: SearchStep::Failed,
+                error: Some(format!("详情页网络错误: {}", e)),
+                play_page_url: None,
+                video_regex: None,
+                direct_video_url: None,
+            }).ok();
+            return Err(anyhow::anyhow!("Detail network error"));
+        }
+    };
+
+    // Step 3: 获取剧集列表
+    sink.add(SourceSearchProgress {
+        source_name: source_name.clone(),
+        step: SearchStep::FetchingEpisodes,
+        error: None,
+        play_page_url: None,
+        video_regex: None,
+        direct_video_url: None,
+    }).ok();
+
+    let episode_url = {
+        let detail_doc = Html::parse_document(&detail_resp_text);
+        let mut found_url = String::new();
+        
+        if let Some(ref format) = source.arguments.search_config.selector_channel_format_flattened {
+            if let (Ok(list_sel), Ok(item_sel)) = (
+                Selector::parse(&format.select_episode_lists),
+                Selector::parse(&format.select_episodes_from_list),
+            ) {
+                if let Some(list_container) = detail_doc.select(&list_sel).next() {
+                    if let Some(ep) = list_container.select(&item_sel).next() {
+                        let href = ep.value().attr("href").unwrap_or("").to_string();
+                        if !href.is_empty() {
+                            if href.starts_with("http") {
+                                found_url = href;
+                            } else {
+                                let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                } else {
+                                    "".to_string()
+                                };
+                                found_url = format!("{}{}", base_url, href);
+                            }
+                        }
+                    }
+                }
+            }
+        } else if let Some(ref format) = source.arguments.search_config.selector_channel_format_no_channel {
+            if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
+                if let Some(ep) = detail_doc.select(&ep_sel).next() {
+                    let href = ep.value().attr("href").unwrap_or("").to_string();
+                    if !href.is_empty() {
+                        if href.starts_with("http") {
+                            found_url = href;
+                        } else {
+                            let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                                format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                            } else {
+                                "".to_string()
+                            };
+                            found_url = format!("{}{}", base_url, href);
+                        }
+                    }
+                }
+            }
+        }
+        found_url
+    };
+
+    if episode_url.is_empty() {
+        sink.add(SourceSearchProgress {
+            source_name: source_name.clone(),
+            step: SearchStep::Failed,
+            error: Some("未找到剧集列表".to_string()),
+            play_page_url: None,
+            video_regex: None,
+            direct_video_url: None,
+        }).ok();
+        return Err(anyhow::anyhow!("No episodes found"));
+    }
+
+    // Step 4: 尝试提取视频URL
+    sink.add(SourceSearchProgress {
+        source_name: source_name.clone(),
+        step: SearchStep::ExtractingVideo,
+        error: None,
+        play_page_url: Some(episode_url.clone()),
+        video_regex: Some(video_regex.clone()),
+        direct_video_url: None,
+    }).ok();
+
+    let mut direct_video_url = None;
+    
+    if let Ok(resp) = client.get(&episode_url).send().await {
+        if let Ok(video_page_text) = resp.text().await {
+            if let Some(player_url) = try_extract_player_aaaa_url(&video_page_text) {
+                log::info!("[{}] Found direct video URL from player_aaaa: {}", source_name, player_url);
+                direct_video_url = Some(player_url);
+            }
+        }
+    }
+
+    // 发送成功结果
+    sink.add(SourceSearchProgress {
+        source_name: source_name.clone(),
+        step: SearchStep::Success,
+        error: None,
+        play_page_url: Some(episode_url),
+        video_regex: Some(video_regex),
+        direct_video_url,
+    }).ok();
+
     Ok(())
 }
 

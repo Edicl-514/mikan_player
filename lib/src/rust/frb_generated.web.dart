@@ -37,6 +37,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<SourceSearchProgress>
+  dco_decode_StreamSink_source_search_progress_Sse(dynamic raw);
+
+  @protected
   String dco_decode_String(dynamic raw);
 
   @protected
@@ -180,6 +184,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SearchPlayResult dco_decode_search_play_result(dynamic raw);
 
   @protected
+  SearchStep dco_decode_search_step(dynamic raw);
+
+  @protected
+  SourceSearchProgress dco_decode_source_search_progress(dynamic raw);
+
+  @protected
   SourceState dco_decode_source_state(dynamic raw);
 
   @protected
@@ -205,6 +215,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<SearchPlayResult> sse_decode_StreamSink_search_play_result_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<SourceSearchProgress>
+  sse_decode_StreamSink_source_search_progress_Sse(
     SseDeserializer deserializer,
   );
 
@@ -384,6 +400,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SearchPlayResult sse_decode_search_play_result(SseDeserializer deserializer);
 
   @protected
+  SearchStep sse_decode_search_step(SseDeserializer deserializer);
+
+  @protected
+  SourceSearchProgress sse_decode_source_search_progress(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SourceState sse_decode_source_state(SseDeserializer deserializer);
 
   @protected
@@ -413,6 +437,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_search_play_result_Sse(
     RustStreamSink<SearchPlayResult> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_source_search_progress_Sse(
+    RustStreamSink<SourceSearchProgress> self,
     SseSerializer serializer,
   );
 
@@ -635,6 +665,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_search_play_result(
     SearchPlayResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_search_step(SearchStep self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_source_search_progress(
+    SourceSearchProgress self,
     SseSerializer serializer,
   );
 
