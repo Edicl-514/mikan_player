@@ -35,6 +35,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   late ScrollController _pcEpisodeScrollController;
   late ScrollController _mobileEpisodeScrollController;
   bool _isDescriptionExpanded = false;
+  bool _isEpisodesExpanded = false;
 
   List<BangumiEpisodeComment> _comments = [];
   bool _isLoadingComments = false;
@@ -896,111 +897,178 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           const SizedBox(height: 24),
 
           // Episodes Grid (Horizontal or collapsed)
-          _buildSectionHeader("选集"),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 138,
-            child: Scrollbar(
-              controller: _mobileEpisodeScrollController,
-              thumbVisibility: true,
-              child: ListView.separated(
-                controller: _mobileEpisodeScrollController,
-                padding: const EdgeInsets.only(bottom: 8),
-                scrollDirection: Axis.horizontal,
-                itemCount: widget.allEpisodes.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  final ep = widget.allEpisodes[index];
-                  final isSelected = ep == widget.currentEpisode;
-                  final borderColor = isSelected
-                      ? const Color(0xFFBB86FC)
-                      : Colors.white10;
-                  final textColor = Colors.white;
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isEpisodesExpanded = !_isEpisodesExpanded;
+                if (_isEpisodesExpanded) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (_mobileEpisodeScrollController.hasClients) {
+                      final index = widget.allEpisodes.indexOf(
+                        widget.currentEpisode,
+                      );
+                      if (index != -1) {
+                        final screenWidth = MediaQuery.of(context).size.width;
+                        // Item width 140 + separator 12 = 152
+                        final targetOffset =
+                            (index * 152.0) -
+                            (screenWidth / 2) +
+                            (140 / 2) +
+                            16; // 16 is padding
 
-                  return Material(
-                    color: isSelected
-                        ? const Color(0xFFBB86FC).withValues(alpha: 0.1)
-                        : const Color(0xFF1E1E2C),
-                    borderRadius: BorderRadius.circular(8),
-                    child: InkWell(
-                      onTap: () {
-                        if (!isSelected) {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (context) => PlayerPage(
-                                anime: widget.anime,
-                                currentEpisode: ep,
-                                allEpisodes: widget.allEpisodes,
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        width: 140,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "EP ${ep.sort % 1 == 0 ? ep.sort.toInt() : ep.sort}",
-                              style: TextStyle(
-                                color: isSelected
-                                    ? const Color(0xFFBB86FC)
-                                    : Colors.white54,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            if (ep.name.isNotEmpty)
-                              Text(
-                                ep.name,
-                                style: TextStyle(
-                                  color: textColor.withValues(alpha: 0.7),
-                                  fontSize: 10,
-                                  height: 1.3,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            if (ep.nameCn.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                ep.nameCn,
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.3,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                            const Spacer(),
-                            if (ep.airdate.isNotEmpty)
-                              Text(
-                                ep.airdate,
-                                style: const TextStyle(
-                                  color: Colors.white24,
-                                  fontSize: 9,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
+                        _mobileEpisodeScrollController.animateTo(
+                          targetOffset.clamp(
+                            0.0,
+                            _mobileEpisodeScrollController
+                                .position
+                                .maxScrollExtent,
+                          ),
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                        );
+                      }
+                    }
+                  });
+                }
+              });
+            },
+            borderRadius: BorderRadius.circular(4),
+            child: Row(
+              children: [
+                // Custom implementation of section header style
+                Container(
+                  width: 4,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFBB86FC),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  "选集",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  _isEpisodesExpanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
+                  color: Colors.white70,
+                  size: 20,
+                ),
+              ],
             ),
           ),
+          const SizedBox(height: 12),
+          if (_isEpisodesExpanded)
+            SizedBox(
+              height: 138,
+              child: Scrollbar(
+                controller: _mobileEpisodeScrollController,
+                thumbVisibility: true,
+                child: ListView.separated(
+                  controller: _mobileEpisodeScrollController,
+                  padding: const EdgeInsets.only(bottom: 8),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: widget.allEpisodes.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final ep = widget.allEpisodes[index];
+                    final isSelected = ep == widget.currentEpisode;
+                    final borderColor = isSelected
+                        ? const Color(0xFFBB86FC)
+                        : Colors.white10;
+                    final textColor = Colors.white;
+
+                    return Material(
+                      color: isSelected
+                          ? const Color(0xFFBB86FC).withValues(alpha: 0.1)
+                          : const Color(0xFF1E1E2C),
+                      borderRadius: BorderRadius.circular(8),
+                      child: InkWell(
+                        onTap: () {
+                          if (!isSelected) {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (context) => PlayerPage(
+                                  anime: widget.anime,
+                                  currentEpisode: ep,
+                                  allEpisodes: widget.allEpisodes,
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          width: 140,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "EP ${ep.sort % 1 == 0 ? ep.sort.toInt() : ep.sort}",
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? const Color(0xFFBB86FC)
+                                      : Colors.white54,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              if (ep.name.isNotEmpty)
+                                Text(
+                                  ep.name,
+                                  style: TextStyle(
+                                    color: textColor.withValues(alpha: 0.7),
+                                    fontSize: 10,
+                                    height: 1.3,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              if (ep.nameCn.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  ep.nameCn,
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.3,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                              const Spacer(),
+                              if (ep.airdate.isNotEmpty)
+                                Text(
+                                  ep.airdate,
+                                  style: const TextStyle(
+                                    color: Colors.white24,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
           const SizedBox(height: 24),
 
           // Play Source Control
@@ -1767,15 +1835,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? const Color(0xFFBB86FC) : Colors.white70,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                fontSize: 13,
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? const Color(0xFFBB86FC) : Colors.white70,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
             if (isLoading)
               SizedBox(
                 width: 12,
