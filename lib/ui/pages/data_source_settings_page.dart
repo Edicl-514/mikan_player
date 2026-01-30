@@ -108,7 +108,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     try {
       // 强制重新拉取JSON
       await rust.preloadPlaybackSourceConfig();
-      
+
       // 刷新源列表
       final sources = await rust.getPlaybackSources();
       setState(() {
@@ -120,15 +120,15 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('播放源已刷新')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('播放源已刷新')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('刷新失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('刷新失败: $e')));
       }
       debugPrint('Failed to refresh playback sources: $e');
     } finally {
@@ -213,7 +213,9 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                                 ),
                               )
                             : const Icon(Icons.refresh),
-                        onPressed: _isRefreshing ? null : _refreshPlaybackSources,
+                        onPressed: _isRefreshing
+                            ? null
+                            : _refreshPlaybackSources,
                         tooltip: '刷新播放源',
                       ),
                     ),
@@ -221,32 +223,107 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                 ),
                 const SizedBox(height: 24),
                 if (_sources.isNotEmpty) ...[
-                  const Text(
-                    '订阅源开关 (全网搜)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Card(
-                    child: Column(
-                      children: _sources.map((source) {
-                        final isEnabled = !_disabledSources.contains(
-                          source.name,
-                        );
-                        return SwitchListTile(
-                          title: Text(source.name),
-                          value: isEnabled,
-                          onChanged: (val) {
-                            setState(() {
-                              if (val) {
-                                _disabledSources.remove(source.name);
-                              } else {
-                                _disabledSources.add(source.name);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4, bottom: 8),
+                    child: Text(
+                      '订阅源开关 (全网搜)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
+                  ),
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _sources.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final source = _sources[index];
+                      final isEnabled = !_disabledSources.contains(source.name);
+                      return Card(
+                        margin: EdgeInsets.zero,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: Theme.of(context).dividerColor.withAlpha(50),
+                          ),
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: source.iconUrl.isNotEmpty
+                                ? Image.network(
+                                    source.iconUrl,
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                              width: 40,
+                                              height: 40,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.surfaceVariant,
+                                              child: const Icon(Icons.source),
+                                            ),
+                                  )
+                                : Container(
+                                    width: 40,
+                                    height: 40,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceVariant,
+                                    child: const Icon(Icons.source),
+                                  ),
+                          ),
+                          title: Text(
+                            source.name,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: source.description.isNotEmpty
+                              ? Text(
+                                  source.description,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall?.color,
+                                  ),
+                                )
+                              : Text(
+                                  '自定义网络搜视源',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall?.color,
+                                  ),
+                                ),
+                          trailing: Switch(
+                            value: isEnabled,
+                            onChanged: (val) {
+                              setState(() {
+                                if (val) {
+                                  _disabledSources.remove(source.name);
+                                } else {
+                                  _disabledSources.add(source.name);
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
                 const SizedBox(height: 32),

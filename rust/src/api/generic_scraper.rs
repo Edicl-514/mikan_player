@@ -8,6 +8,8 @@ use std::fs;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SourceState {
     pub name: String,
+    pub description: String,
+    pub icon_url: String,
     pub enabled: bool,
 }
 
@@ -74,6 +76,9 @@ pub struct MediaSource {
 #[derive(Debug, Deserialize, Clone)]
 pub struct SourceArguments {
     pub name: String,
+    pub description: Option<String>,
+    #[serde(rename = "iconUrl")]
+    pub icon_url: Option<String>,
     #[serde(rename = "searchConfig")]
     pub search_config: SearchConfig,
 }
@@ -675,8 +680,15 @@ pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
     let mut sources = Vec::new();
     for source in root.exported_media_source_data_list.media_sources {
         let name = source.arguments.name;
+        let description = source.arguments.description.unwrap_or_default();
+        let icon_url = source.arguments.icon_url.unwrap_or_default();
         let enabled = crate::api::config::is_source_enabled(&name);
-        sources.push(SourceState { name, enabled });
+        sources.push(SourceState {
+            name,
+            description,
+            icon_url,
+            enabled,
+        });
     }
     Ok(sources)
 }

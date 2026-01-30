@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `calculate_match_score`, `deobfuscate_video_url`, `extract_core_name`, `load_playback_source_config`, `preprocess_search_term`, `search_single_source_with_progress`, `search_single_source`, `select_episode_by_number`, `try_extract_player_aaaa_url`
+// These functions are ignored because they are not marked as `pub`: `calculate_match_score`, `deobfuscate_video_url`, `extract_core_name`, `generic_search_and_play_internal`, `load_playback_source_config`, `parse_chinese_number`, `preprocess_search_term`, `search_single_source_with_progress`, `search_single_source`, `select_episode_by_number`, `try_extract_player_aaaa_url`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ExportedMediaSourceDataList`, `MatchVideo`, `MediaSource`, `SEASON_RE`, `SampleRoot`, `SearchConfig`, `SelectorChannelFormatFlattened`, `SelectorChannelFormatNoChannel`, `SelectorSubjectFormatA`, `SelectorSubjectFormatIndexed`, `SourceArguments`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
 
@@ -63,6 +63,24 @@ Stream<SourceSearchProgress> genericSearchWithProgress({
   relativeEpisode: relativeEpisode,
 );
 
+/// 搜索并播放动画（支持集号选择）
+///
+/// # 参数
+/// * `anime_name` - 动画名称
+/// * `absolute_episode` - 绝对集号（如第15集），优先匹配
+/// * `relative_episode` - 相对集号（如当季第3集），绝对集号找不到时回退使用
+Future<String> genericSearchAndPlayWithEpisode({
+  required String animeName,
+  int? absoluteEpisode,
+  int? relativeEpisode,
+}) =>
+    RustLib.instance.api.crateApiGenericScraperGenericSearchAndPlayWithEpisode(
+      animeName: animeName,
+      absoluteEpisode: absoluteEpisode,
+      relativeEpisode: relativeEpisode,
+    );
+
+/// 搜索并播放动画（默认第一集，保持向后兼容）
 Future<String> genericSearchAndPlay({required String animeName}) => RustLib
     .instance
     .api
@@ -184,12 +202,23 @@ class SourceSearchProgress {
 
 class SourceState {
   final String name;
+  final String description;
+  final String iconUrl;
   final bool enabled;
 
-  const SourceState({required this.name, required this.enabled});
+  const SourceState({
+    required this.name,
+    required this.description,
+    required this.iconUrl,
+    required this.enabled,
+  });
 
   @override
-  int get hashCode => name.hashCode ^ enabled.hashCode;
+  int get hashCode =>
+      name.hashCode ^
+      description.hashCode ^
+      iconUrl.hashCode ^
+      enabled.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -197,5 +226,7 @@ class SourceState {
       other is SourceState &&
           runtimeType == other.runtimeType &&
           name == other.name &&
+          description == other.description &&
+          iconUrl == other.iconUrl &&
           enabled == other.enabled;
 }
