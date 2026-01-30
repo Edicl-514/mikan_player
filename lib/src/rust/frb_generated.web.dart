@@ -9,6 +9,7 @@
 import 'api/bangumi.dart';
 import 'api/config.dart';
 import 'api/crawler.dart';
+import 'api/danmaku.dart';
 import 'api/dmhy.dart';
 import 'api/generic_scraper.dart';
 import 'api/mikan.dart';
@@ -92,6 +93,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
+  Danmaku dco_decode_danmaku(dynamic raw);
+
+  @protected
+  DanmakuAnime dco_decode_danmaku_anime(dynamic raw);
+
+  @protected
+  DanmakuEpisode dco_decode_danmaku_episode(dynamic raw);
+
+  @protected
+  DanmakuMatch dco_decode_danmaku_match(dynamic raw);
+
+  @protected
   DmhyResource dco_decode_dmhy_resource(dynamic raw);
 
   @protected
@@ -133,6 +146,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<BangumiRelatedSubject> dco_decode_list_bangumi_related_subject(
     dynamic raw,
   );
+
+  @protected
+  List<Danmaku> dco_decode_list_danmaku(dynamic raw);
+
+  @protected
+  List<DanmakuAnime> dco_decode_list_danmaku_anime(dynamic raw);
+
+  @protected
+  List<DanmakuEpisode> dco_decode_list_danmaku_episode(dynamic raw);
+
+  @protected
+  List<DanmakuMatch> dco_decode_list_danmaku_match(dynamic raw);
 
   @protected
   List<DmhyResource> dco_decode_list_dmhy_resource(dynamic raw);
@@ -304,6 +329,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
+  Danmaku sse_decode_danmaku(SseDeserializer deserializer);
+
+  @protected
+  DanmakuAnime sse_decode_danmaku_anime(SseDeserializer deserializer);
+
+  @protected
+  DanmakuEpisode sse_decode_danmaku_episode(SseDeserializer deserializer);
+
+  @protected
+  DanmakuMatch sse_decode_danmaku_match(SseDeserializer deserializer);
+
+  @protected
   DmhyResource sse_decode_dmhy_resource(SseDeserializer deserializer);
 
   @protected
@@ -353,6 +390,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiRelatedSubject> sse_decode_list_bangumi_related_subject(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<Danmaku> sse_decode_list_danmaku(SseDeserializer deserializer);
+
+  @protected
+  List<DanmakuAnime> sse_decode_list_danmaku_anime(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<DanmakuEpisode> sse_decode_list_danmaku_episode(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<DanmakuMatch> sse_decode_list_danmaku_match(
     SseDeserializer deserializer,
   );
 
@@ -569,6 +624,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_danmaku(Danmaku self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_danmaku_anime(DanmakuAnime self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_danmaku_episode(
+    DanmakuEpisode self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_danmaku_match(DanmakuMatch self, SseSerializer serializer);
+
+  @protected
   void sse_encode_dmhy_resource(DmhyResource self, SseSerializer serializer);
 
   @protected
@@ -628,6 +698,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_bangumi_related_subject(
     List<BangumiRelatedSubject> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_danmaku(List<Danmaku> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_danmaku_anime(
+    List<DanmakuAnime> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_danmaku_episode(
+    List<DanmakuEpisode> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_danmaku_match(
+    List<DanmakuMatch> self,
     SseSerializer serializer,
   );
 

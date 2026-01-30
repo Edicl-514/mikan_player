@@ -6,6 +6,7 @@
 import 'api/bangumi.dart';
 import 'api/config.dart';
 import 'api/crawler.dart';
+import 'api/danmaku.dart';
 import 'api/dmhy.dart';
 import 'api/generic_scraper.dart';
 import 'api/mikan.dart';
@@ -74,7 +75,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1079407555;
+  int get rustContentHash => -2113655404;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -85,6 +86,28 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
+  Future<List<Danmaku>> crateApiDanmakuDanmakuGetByTitle({
+    required String animeTitle,
+    required int episodeNumber,
+  });
+
+  Future<List<Danmaku>> crateApiDanmakuDanmakuGetComments({
+    required PlatformInt64 episodeId,
+  });
+
+  Future<List<DanmakuEpisode>> crateApiDanmakuDanmakuGetEpisodes({
+    required PlatformInt64 animeId,
+  });
+
+  Future<List<DanmakuMatch>> crateApiDanmakuDanmakuMatchAnime({
+    required String fileName,
+    String? fileHash,
+  });
+
+  Future<List<DanmakuAnime>> crateApiDanmakuDanmakuSearchAnime({
+    required String keyword,
+  });
+
   Future<List<ArchiveQuarter>> crateApiCrawlerFetchArchiveList();
 
   Future<List<RankingAnime>> crateApiRankingFetchBangumiBrowser({
@@ -251,6 +274,175 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
+  Future<List<Danmaku>> crateApiDanmakuDanmakuGetByTitle({
+    required String animeTitle,
+    required int episodeNumber,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(animeTitle, serializer);
+          sse_encode_i_32(episodeNumber, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_danmaku,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiDanmakuDanmakuGetByTitleConstMeta,
+        argValues: [animeTitle, episodeNumber],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDanmakuDanmakuGetByTitleConstMeta =>
+      const TaskConstMeta(
+        debugName: "danmaku_get_by_title",
+        argNames: ["animeTitle", "episodeNumber"],
+      );
+
+  @override
+  Future<List<Danmaku>> crateApiDanmakuDanmakuGetComments({
+    required PlatformInt64 episodeId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(episodeId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_danmaku,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiDanmakuDanmakuGetCommentsConstMeta,
+        argValues: [episodeId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDanmakuDanmakuGetCommentsConstMeta =>
+      const TaskConstMeta(
+        debugName: "danmaku_get_comments",
+        argNames: ["episodeId"],
+      );
+
+  @override
+  Future<List<DanmakuEpisode>> crateApiDanmakuDanmakuGetEpisodes({
+    required PlatformInt64 animeId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(animeId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_danmaku_episode,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiDanmakuDanmakuGetEpisodesConstMeta,
+        argValues: [animeId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDanmakuDanmakuGetEpisodesConstMeta =>
+      const TaskConstMeta(
+        debugName: "danmaku_get_episodes",
+        argNames: ["animeId"],
+      );
+
+  @override
+  Future<List<DanmakuMatch>> crateApiDanmakuDanmakuMatchAnime({
+    required String fileName,
+    String? fileHash,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(fileName, serializer);
+          sse_encode_opt_String(fileHash, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_danmaku_match,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiDanmakuDanmakuMatchAnimeConstMeta,
+        argValues: [fileName, fileHash],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDanmakuDanmakuMatchAnimeConstMeta =>
+      const TaskConstMeta(
+        debugName: "danmaku_match_anime",
+        argNames: ["fileName", "fileHash"],
+      );
+
+  @override
+  Future<List<DanmakuAnime>> crateApiDanmakuDanmakuSearchAnime({
+    required String keyword,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(keyword, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_danmaku_anime,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiDanmakuDanmakuSearchAnimeConstMeta,
+        argValues: [keyword],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDanmakuDanmakuSearchAnimeConstMeta =>
+      const TaskConstMeta(
+        debugName: "danmaku_search_anime",
+        argNames: ["keyword"],
+      );
+
+  @override
   Future<List<ArchiveQuarter>> crateApiCrawlerFetchArchiveList() {
     return handler.executeNormal(
       NormalTask(
@@ -259,7 +451,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 1,
+            funcId: 6,
             port: port_,
           );
         },
@@ -295,7 +487,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 7,
             port: port_,
           );
         },
@@ -328,7 +520,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 8,
             port: port_,
           );
         },
@@ -363,7 +555,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 9,
             port: port_,
           );
         },
@@ -397,7 +589,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 10,
             port: port_,
           );
         },
@@ -430,7 +622,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 11,
             port: port_,
           );
         },
@@ -465,7 +657,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 12,
             port: port_,
           );
         },
@@ -498,7 +690,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 13,
             port: port_,
           );
         },
@@ -533,7 +725,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 14,
             port: port_,
           );
         },
@@ -568,7 +760,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 15,
             port: port_,
           );
         },
@@ -601,7 +793,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 16,
             port: port_,
           );
         },
@@ -634,7 +826,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 17,
             port: port_,
           );
         },
@@ -667,7 +859,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 18,
             port: port_,
           );
         },
@@ -704,7 +896,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 19,
             port: port_,
           );
         },
@@ -743,7 +935,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 20,
             port: port_,
           );
         },
@@ -783,7 +975,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 16,
+              funcId: 21,
               port: port_,
             );
           },
@@ -827,7 +1019,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 17,
+              funcId: 22,
               port: port_,
             );
           },
@@ -859,7 +1051,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 23,
             port: port_,
           );
         },
@@ -886,7 +1078,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 24,
             port: port_,
           );
         },
@@ -913,7 +1105,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 25,
             port: port_,
           );
         },
@@ -940,7 +1132,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 26,
             port: port_,
           );
         },
@@ -967,7 +1159,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 27,
             port: port_,
           );
         },
@@ -999,7 +1191,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1029,7 +1221,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1056,7 +1248,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1083,7 +1275,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1110,7 +1302,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1137,7 +1329,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1164,7 +1356,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1194,7 +1386,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1225,7 +1417,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1252,7 +1444,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1280,7 +1472,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1307,7 +1499,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 39,
             port: port_,
           );
         },
@@ -1337,7 +1529,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 40,
             port: port_,
           );
         },
@@ -1367,7 +1559,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 41,
             port: port_,
           );
         },
@@ -1400,7 +1592,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 42,
             port: port_,
           );
         },
@@ -1433,7 +1625,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 43,
             port: port_,
           );
         },
@@ -1464,7 +1656,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 39,
+            funcId: 44,
             port: port_,
           );
         },
@@ -1496,7 +1688,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 40,
+            funcId: 45,
             port: port_,
           );
         },
@@ -1534,7 +1726,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 41,
+            funcId: 46,
             port: port_,
           );
         },
@@ -1572,7 +1764,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 42,
+            funcId: 47,
             port: port_,
           );
         },
@@ -1807,6 +1999,62 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Danmaku dco_decode_danmaku(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return Danmaku(
+      time: dco_decode_f_64(arr[0]),
+      danmakuType: dco_decode_i_32(arr[1]),
+      color: dco_decode_u_32(arr[2]),
+      text: dco_decode_String(arr[3]),
+    );
+  }
+
+  @protected
+  DanmakuAnime dco_decode_danmaku_anime(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return DanmakuAnime(
+      animeId: dco_decode_i_64(arr[0]),
+      animeTitle: dco_decode_String(arr[1]),
+      animeType: dco_decode_String(arr[2]),
+      typeDescription: dco_decode_opt_String(arr[3]),
+      imageUrl: dco_decode_opt_String(arr[4]),
+    );
+  }
+
+  @protected
+  DanmakuEpisode dco_decode_danmaku_episode(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return DanmakuEpisode(
+      episodeId: dco_decode_i_64(arr[0]),
+      episodeTitle: dco_decode_String(arr[1]),
+      episodeNumber: dco_decode_opt_String(arr[2]),
+    );
+  }
+
+  @protected
+  DanmakuMatch dco_decode_danmaku_match(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return DanmakuMatch(
+      episodeId: dco_decode_i_64(arr[0]),
+      animeId: dco_decode_i_64(arr[1]),
+      animeTitle: dco_decode_String(arr[2]),
+      episodeTitle: dco_decode_String(arr[3]),
+    );
+  }
+
+  @protected
   DmhyResource dco_decode_dmhy_resource(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1899,6 +2147,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return (raw as List<dynamic>)
         .map(dco_decode_bangumi_related_subject)
         .toList();
+  }
+
+  @protected
+  List<Danmaku> dco_decode_list_danmaku(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_danmaku).toList();
+  }
+
+  @protected
+  List<DanmakuAnime> dco_decode_list_danmaku_anime(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_danmaku_anime).toList();
+  }
+
+  @protected
+  List<DanmakuEpisode> dco_decode_list_danmaku_episode(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_danmaku_episode).toList();
+  }
+
+  @protected
+  List<DanmakuMatch> dco_decode_list_danmaku_match(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_danmaku_match).toList();
   }
 
   @protected
@@ -2420,6 +2692,66 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Danmaku sse_decode_danmaku(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_time = sse_decode_f_64(deserializer);
+    var var_danmakuType = sse_decode_i_32(deserializer);
+    var var_color = sse_decode_u_32(deserializer);
+    var var_text = sse_decode_String(deserializer);
+    return Danmaku(
+      time: var_time,
+      danmakuType: var_danmakuType,
+      color: var_color,
+      text: var_text,
+    );
+  }
+
+  @protected
+  DanmakuAnime sse_decode_danmaku_anime(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_animeId = sse_decode_i_64(deserializer);
+    var var_animeTitle = sse_decode_String(deserializer);
+    var var_animeType = sse_decode_String(deserializer);
+    var var_typeDescription = sse_decode_opt_String(deserializer);
+    var var_imageUrl = sse_decode_opt_String(deserializer);
+    return DanmakuAnime(
+      animeId: var_animeId,
+      animeTitle: var_animeTitle,
+      animeType: var_animeType,
+      typeDescription: var_typeDescription,
+      imageUrl: var_imageUrl,
+    );
+  }
+
+  @protected
+  DanmakuEpisode sse_decode_danmaku_episode(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_episodeId = sse_decode_i_64(deserializer);
+    var var_episodeTitle = sse_decode_String(deserializer);
+    var var_episodeNumber = sse_decode_opt_String(deserializer);
+    return DanmakuEpisode(
+      episodeId: var_episodeId,
+      episodeTitle: var_episodeTitle,
+      episodeNumber: var_episodeNumber,
+    );
+  }
+
+  @protected
+  DanmakuMatch sse_decode_danmaku_match(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_episodeId = sse_decode_i_64(deserializer);
+    var var_animeId = sse_decode_i_64(deserializer);
+    var var_animeTitle = sse_decode_String(deserializer);
+    var var_episodeTitle = sse_decode_String(deserializer);
+    return DanmakuMatch(
+      episodeId: var_episodeId,
+      animeId: var_animeId,
+      animeTitle: var_animeTitle,
+      episodeTitle: var_episodeTitle,
+    );
+  }
+
+  @protected
   DmhyResource sse_decode_dmhy_resource(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_title = sse_decode_String(deserializer);
@@ -2572,6 +2904,60 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <BangumiRelatedSubject>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_bangumi_related_subject(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<Danmaku> sse_decode_list_danmaku(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <Danmaku>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_danmaku(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<DanmakuAnime> sse_decode_list_danmaku_anime(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DanmakuAnime>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_danmaku_anime(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<DanmakuEpisode> sse_decode_list_danmaku_episode(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DanmakuEpisode>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_danmaku_episode(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<DanmakuMatch> sse_decode_list_danmaku_match(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <DanmakuMatch>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_danmaku_match(deserializer));
     }
     return ans_;
   }
@@ -3194,6 +3580,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_danmaku(Danmaku self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self.time, serializer);
+    sse_encode_i_32(self.danmakuType, serializer);
+    sse_encode_u_32(self.color, serializer);
+    sse_encode_String(self.text, serializer);
+  }
+
+  @protected
+  void sse_encode_danmaku_anime(DanmakuAnime self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.animeId, serializer);
+    sse_encode_String(self.animeTitle, serializer);
+    sse_encode_String(self.animeType, serializer);
+    sse_encode_opt_String(self.typeDescription, serializer);
+    sse_encode_opt_String(self.imageUrl, serializer);
+  }
+
+  @protected
+  void sse_encode_danmaku_episode(
+    DanmakuEpisode self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.episodeId, serializer);
+    sse_encode_String(self.episodeTitle, serializer);
+    sse_encode_opt_String(self.episodeNumber, serializer);
+  }
+
+  @protected
+  void sse_encode_danmaku_match(DanmakuMatch self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.episodeId, serializer);
+    sse_encode_i_64(self.animeId, serializer);
+    sse_encode_String(self.animeTitle, serializer);
+    sse_encode_String(self.episodeTitle, serializer);
+  }
+
+  @protected
   void sse_encode_dmhy_resource(DmhyResource self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.title, serializer);
@@ -3323,6 +3748,51 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_bangumi_related_subject(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_danmaku(List<Danmaku> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_danmaku(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_danmaku_anime(
+    List<DanmakuAnime> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_danmaku_anime(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_danmaku_episode(
+    List<DanmakuEpisode> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_danmaku_episode(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_danmaku_match(
+    List<DanmakuMatch> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_danmaku_match(item, serializer);
     }
   }
 
