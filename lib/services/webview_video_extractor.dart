@@ -178,6 +178,7 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
   Timer? _timeoutTimer;
   bool _isCompleted = false;
   int _totalUrlsChecked = 0;
+  int _navigationCount = 0; // 记录主动导航到解析接口的次数
 
   @override
   void initState() {
@@ -228,12 +229,32 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
     }
     
     // 检查是否是播放器解析接口（这些URL通常在iframe中，需要实际导航）
+    // 1. 路径特征：包含 /player/ 或 /parse/
+    // 2. 文件特征：是 .php 或者带有参数的 .html
+    // 3. 排除：静态资源目录 /static/，加载页 loading.html，以及初始URL自身
+    final uri = Uri.tryParse(url);
+    final queryParams = uri?.queryParameters ?? {};
+    final hasParserParams = queryParams.containsKey('url') || 
+                            queryParams.containsKey('v') || 
+                            queryParams.containsKey('vid') || 
+                            queryParams.containsKey('id') ||
+                            queryParams.containsKey('code') ||
+                            queryParams.containsKey('api') ||
+                            queryParams.containsKey('input');
+
     final isPlayerParser = (url.contains('/player/') || url.contains('/parse')) &&
-                          (url.contains('.php') || url.contains('.html')) &&
-                          !url.contains(widget.url); // 不是初始URL
+                          (url.contains('.php') || (url.contains('.html') && hasParserParams)) &&
+                          !url.contains('loading.html') &&
+                          !url.contains('/static/') &&
+                          !url.contains(widget.url);
     
     if (isPlayerParser) {
-      _log('🎬 检测到播放器解析接口: $url');
+      if (_navigationCount >= 3) {
+        _log('⚠️ 已达到最大跳转尝试次数 ($_navigationCount)，忽略此接口: $url');
+        return false;
+      }
+      _navigationCount++;
+      _log('🎬 检测到播放器解析接口 (第$_navigationCount次跳转): $url');
       _log('   将导航到此URL以拦截内部视频请求...');
       // 导航到播放器解析页面，这样可以拦截其内部的网络请求
       _webViewController?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
@@ -319,7 +340,14 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
         }
       },
       onReceivedError: (controller, request, error) {
-        _log('加载错误: ${error.description}');
+        if (request.isForMainFrame ?? false) {
+          _log('页面加载错误: ${error.description} (URL: ${request.url})');
+        }
+      },
+      onReceivedHttpError: (controller, request, errorResponse) {
+        if (request.isForMainFrame ?? false) {
+          _log('HTTP 错误 (${errorResponse.statusCode}): ${request.url}');
+        }
       },
       shouldInterceptRequest: (controller, request) async {
         final url = request.url.toString();
