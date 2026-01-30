@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/main.dart' show webViewEnvironment;
@@ -85,12 +86,18 @@ class WebViewVideoExtractor {
 
   // 视频URL匹配正则
   static final List<RegExp> _videoPatterns = [
+    // 标准 m3u8 格式
     RegExp(r'https?://[^\s"<>]+\.m3u8[^\s"<>]*', caseSensitive: false),
-    RegExp(r'https?://[^\s"<>]+\.mp4[^\s"<>]*', caseSensitive: false),
+    // 标准 mp4 格式（包括 .f0.mp4 这样的变体）
+    RegExp(r'https?://[^\s"<>]+\.mp4(\?[^\s"<>]*)?', caseSensitive: false),
+    // flv 格式
     RegExp(r'https?://[^\s"<>]+\.flv[^\s"<>]*', caseSensitive: false),
+    // playlist.m3u8
     RegExp(r'https?://[^\s"<>]+/playlist\.m3u8', caseSensitive: false),
+    // CDN 特征
     RegExp(r'akamaized\.net[^\s"<>]+', caseSensitive: false),
     RegExp(r'bilivideo\.com[^\s"<>]+', caseSensitive: false),
+    RegExp(r'qq\.com/[^\s"<>]*\.(mp4|m3u8)', caseSensitive: false),
   ];
 
   // 需要排除的URL模式
@@ -170,6 +177,7 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
   String? _foundVideoUrl;
   Timer? _timeoutTimer;
   bool _isCompleted = false;
+  int _totalUrlsChecked = 0;
 
   @override
   void initState() {
@@ -180,8 +188,9 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
   void _startTimeout() {
     _timeoutTimer = Timer(widget.timeout, () {
       if (!_isCompleted) {
+        _log('⏱️ 超时！共拦截 $_totalUrlsChecked 个URL，但未找到匹配的视频URL');
         _complete(VideoExtractResult(
-          error: '提取超时，未能在 ${widget.timeout.inSeconds} 秒内找到视频链接',
+          error: '提取超时，未能在 ${widget.timeout.inSeconds} 秒内找到视频链接（共检查了 $_totalUrlsChecked 个URL）',
         ));
       }
     });
@@ -202,19 +211,60 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
   bool _checkAndCaptureUrl(String url) {
     if (_capturedUrls.contains(url)) return false;
     _capturedUrls.add(url);
+    _totalUrlsChecked++;
 
     final extractor = WebViewVideoExtractor();
     
+    // 检查是否看起来像视频URL（用于调试）
+    final looksLikeVideo = url.contains('.m3u8') || 
+                           url.contains('.mp4') || 
+                           url.contains('.flv') ||
+                           url.contains('akamaized') ||
+                           url.contains('bilivideo') ||
+                           url.contains('qq.com');
+    
+    if (looksLikeVideo) {
+      _log('🔍 检测到疑似视频URL: $url');
+    }
+    
+    // 检查是否是播放器解析接口（这些URL通常在iframe中，需要实际导航）
+    final isPlayerParser = (url.contains('/player/') || url.contains('/parse')) &&
+                          (url.contains('.php') || url.contains('.html')) &&
+                          !url.contains(widget.url); // 不是初始URL
+    
+    if (isPlayerParser) {
+      _log('🎬 检测到播放器解析接口: $url');
+      _log('   将导航到此URL以拦截内部视频请求...');
+      // 导航到播放器解析页面，这样可以拦截其内部的网络请求
+      _webViewController?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+      return false; // 不标记为完成，继续等待视频URL
+    }
+    
+    // 记录所有URL（方便调试）
+    if (_totalUrlsChecked <= 50) {
+      debugPrint('[WebView-URL#$_totalUrlsChecked] $url');
+    }
+    
     // 首先用自定义正则检查
-    if (extractor._matchesCustomRegex(url, widget.customVideoRegex)) {
-      _log('✓ 匹配自定义正则: $url');
-      _foundVideoUrl = url;
-      _complete(VideoExtractResult(videoUrl: url));
-      return true;
+    if (widget.customVideoRegex != null && widget.customVideoRegex!.isNotEmpty) {
+      final matched = extractor._matchesCustomRegex(url, widget.customVideoRegex);
+      if (looksLikeVideo) {
+        _log('   自定义正则 "${widget.customVideoRegex}" 匹配结果: $matched');
+      }
+      if (matched) {
+        _log('✓ 匹配自定义正则: $url');
+        _foundVideoUrl = url;
+        _complete(VideoExtractResult(videoUrl: url));
+        return true;
+      }
     }
 
     // 然后用内置模式检查
-    if (extractor._isVideoUrl(url)) {
+    final builtInMatched = extractor._isVideoUrl(url);
+    if (looksLikeVideo) {
+      _log('   内置模式匹配结果: $builtInMatched');
+    }
+    if (builtInMatched) {
       _log('✓ 匹配内置模式: $url');
       _foundVideoUrl = url;
       _complete(VideoExtractResult(videoUrl: url));
@@ -255,13 +305,14 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
       },
       onLoadStop: (controller, url) async {
         _log('页面加载完成: $url');
+        _log('已拦截 $_totalUrlsChecked 个URL');
         
         // 页面加载完成后，尝试从页面内容中提取视频URL
         // 有些网站的视频URL是通过JS动态生成的
         try {
           final html = await controller.getHtml();
           if (html != null) {
-            _tryExtractFromHtml(html);
+            await _tryExtractFromHtml(html);
           }
         } catch (e) {
           _log('获取页面HTML失败: $e');
@@ -316,20 +367,27 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
   }
 
   /// 尝试从HTML内容中提取视频URL
-  void _tryExtractFromHtml(String html) {
-    // 尝试提取 player_aaaa 变量
-    final playerAaaaRegex = RegExp(r'var\s+player_aaaa\s*=\s*(\{[^;]+\})');
-    final match = playerAaaaRegex.firstMatch(html);
-    if (match != null) {
-      _log('找到 player_aaaa 变量');
-      // 这里可以进一步解析，但已经在 Rust 端实现了
-    }
+  Future<void> _tryExtractFromHtml(String html) async {
+    _log('开始从HTML提取视频URL...');
 
-    // 尝试直接匹配视频URL
-    final urlRegex = RegExp(r'''https?://[^\s"<>'\\]+\.(m3u8|mp4)[^\s"<>'\\]*''');
+    // 尝试直接匹配视频URL（更宽松的模式）
+    // 匹配 .mp4（包括 .f0.mp4 这样的变体）
+    final urlRegex = RegExp(r'''https?://[^\s"<>'\\]+\.mp4(\?[^\s"<>'\\]*)?''', caseSensitive: false);
     final urlMatches = urlRegex.allMatches(html);
     for (final urlMatch in urlMatches) {
       final url = urlMatch.group(0)!;
+      _log('从HTML提取到URL: $url');
+      if (_checkAndCaptureUrl(url)) {
+        return;
+      }
+    }
+    
+    // 也尝试匹配 m3u8
+    final m3u8Regex = RegExp(r'''https?://[^\s"<>'\\]+\.m3u8[^\s"<>'\\]*''', caseSensitive: false);
+    final m3u8Matches = m3u8Regex.allMatches(html);
+    for (final m3u8Match in m3u8Matches) {
+      final url = m3u8Match.group(0)!;
+      _log('从HTML提取到URL: $url');
       if (_checkAndCaptureUrl(url)) {
         return;
       }

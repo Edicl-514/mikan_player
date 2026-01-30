@@ -336,9 +336,22 @@ fn try_extract_player_aaaa_url(page_text: &str) -> Option<String> {
             let final_url = deobfuscate_video_url(&decoded_url);
             log::info!("DEBUG: Final URL (after deobfuscate): {}", final_url);
             
-            // 检查解码后的URL是否是有效的视频URL
-            if final_url.contains("m3u8") || final_url.contains("mp4") || final_url.starts_with("http") {
+            // 严格检查解码后的URL是否是真正的视频URL
+            // 必须包含视频格式后缀，且不能是HTML页面
+            let is_video_url = (final_url.contains(".m3u8") 
+                || final_url.contains(".mp4") 
+                || final_url.contains(".flv")
+                || final_url.contains(".ts")
+                || final_url.contains(".mkv")
+                || final_url.contains(".avi"))
+                && !final_url.contains(".html"); // 排除HTML页面
+  
+            
+            if is_video_url {
+                log::info!("DEBUG: Validated as video URL");
                 return Some(final_url);
+            } else {
+                log::warn!("DEBUG: URL does not appear to be a direct video URL, skipping player_aaaa extraction");
             }
         }
     }
