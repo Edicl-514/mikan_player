@@ -1634,6 +1634,14 @@ impl SseDecode for flutter_rust_bridge::for_generated::anyhow::Error {
     }
 }
 
+impl SseDecode for std::collections::HashMap<String, String> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <Vec<(String, String)>>::sse_decode(deserializer);
+        return inner.into_iter().collect();
+    }
+}
+
 impl SseDecode
     for StreamSink<
         crate::api::generic_scraper::SearchPlayResult,
@@ -2063,6 +2071,18 @@ impl SseDecode for Vec<crate::api::ranking::RankingAnime> {
     }
 }
 
+impl SseDecode for Vec<(String, String)> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<(String, String)>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::generic_scraper::SearchPlayResult> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2144,6 +2164,19 @@ impl SseDecode for crate::api::mikan::MikanSearchResult {
             name: var_name,
             image_url: var_imageUrl,
         };
+    }
+}
+
+impl SseDecode for Option<std::collections::HashMap<String, String>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<std::collections::HashMap<String, String>>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
     }
 }
 
@@ -2239,6 +2272,15 @@ impl SseDecode for crate::api::ranking::RankingAnime {
     }
 }
 
+impl SseDecode for (String, String) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_field0 = <String>::sse_decode(deserializer);
+        let mut var_field1 = <String>::sse_decode(deserializer);
+        return (var_field0, var_field1);
+    }
+}
+
 impl SseDecode for crate::api::generic_scraper::SearchPlayResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2246,11 +2288,16 @@ impl SseDecode for crate::api::generic_scraper::SearchPlayResult {
         let mut var_playPageUrl = <String>::sse_decode(deserializer);
         let mut var_videoRegex = <String>::sse_decode(deserializer);
         let mut var_directVideoUrl = <Option<String>>::sse_decode(deserializer);
+        let mut var_cookies = <Option<String>>::sse_decode(deserializer);
+        let mut var_headers =
+            <Option<std::collections::HashMap<String, String>>>::sse_decode(deserializer);
         return crate::api::generic_scraper::SearchPlayResult {
             source_name: var_sourceName,
             play_page_url: var_playPageUrl,
             video_regex: var_videoRegex,
             direct_video_url: var_directVideoUrl,
+            cookies: var_cookies,
+            headers: var_headers,
         };
     }
 }
@@ -2281,6 +2328,9 @@ impl SseDecode for crate::api::generic_scraper::SourceSearchProgress {
         let mut var_playPageUrl = <Option<String>>::sse_decode(deserializer);
         let mut var_videoRegex = <Option<String>>::sse_decode(deserializer);
         let mut var_directVideoUrl = <Option<String>>::sse_decode(deserializer);
+        let mut var_cookies = <Option<String>>::sse_decode(deserializer);
+        let mut var_headers =
+            <Option<std::collections::HashMap<String, String>>>::sse_decode(deserializer);
         return crate::api::generic_scraper::SourceSearchProgress {
             source_name: var_sourceName,
             step: var_step,
@@ -2288,6 +2338,8 @@ impl SseDecode for crate::api::generic_scraper::SourceSearchProgress {
             play_page_url: var_playPageUrl,
             video_regex: var_videoRegex,
             direct_video_url: var_directVideoUrl,
+            cookies: var_cookies,
+            headers: var_headers,
         };
     }
 }
@@ -2861,6 +2913,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SearchPlayRe
             self.play_page_url.into_into_dart().into_dart(),
             self.video_regex.into_into_dart().into_dart(),
             self.direct_video_url.into_into_dart().into_dart(),
+            self.cookies.into_into_dart().into_dart(),
+            self.headers.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -2912,6 +2966,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceSearch
             self.play_page_url.into_into_dart().into_dart(),
             self.video_regex.into_into_dart().into_dart(),
             self.direct_video_url.into_into_dart().into_dart(),
+            self.cookies.into_into_dart().into_dart(),
+            self.headers.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -3007,6 +3063,13 @@ impl SseEncode for flutter_rust_bridge::for_generated::anyhow::Error {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(format!("{:?}", self), serializer);
+    }
+}
+
+impl SseEncode for std::collections::HashMap<String, String> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<(String, String)>>::sse_encode(self.into_iter().collect(), serializer);
     }
 }
 
@@ -3315,6 +3378,16 @@ impl SseEncode for Vec<crate::api::ranking::RankingAnime> {
     }
 }
 
+impl SseEncode for Vec<(String, String)> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <(String, String)>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::generic_scraper::SearchPlayResult> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3372,6 +3445,16 @@ impl SseEncode for crate::api::mikan::MikanSearchResult {
         <String>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.name, serializer);
         <String>::sse_encode(self.image_url, serializer);
+    }
+}
+
+impl SseEncode for Option<std::collections::HashMap<String, String>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <std::collections::HashMap<String, String>>::sse_encode(value, serializer);
+        }
     }
 }
 
@@ -3448,6 +3531,14 @@ impl SseEncode for crate::api::ranking::RankingAnime {
     }
 }
 
+impl SseEncode for (String, String) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.0, serializer);
+        <String>::sse_encode(self.1, serializer);
+    }
+}
+
 impl SseEncode for crate::api::generic_scraper::SearchPlayResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3455,6 +3546,8 @@ impl SseEncode for crate::api::generic_scraper::SearchPlayResult {
         <String>::sse_encode(self.play_page_url, serializer);
         <String>::sse_encode(self.video_regex, serializer);
         <Option<String>>::sse_encode(self.direct_video_url, serializer);
+        <Option<String>>::sse_encode(self.cookies, serializer);
+        <Option<std::collections::HashMap<String, String>>>::sse_encode(self.headers, serializer);
     }
 }
 
@@ -3488,6 +3581,8 @@ impl SseEncode for crate::api::generic_scraper::SourceSearchProgress {
         <Option<String>>::sse_encode(self.play_page_url, serializer);
         <Option<String>>::sse_encode(self.video_regex, serializer);
         <Option<String>>::sse_encode(self.direct_video_url, serializer);
+        <Option<String>>::sse_encode(self.cookies, serializer);
+        <Option<std::collections::HashMap<String, String>>>::sse_encode(self.headers, serializer);
     }
 }
 

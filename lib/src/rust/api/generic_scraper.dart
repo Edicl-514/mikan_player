@@ -100,11 +100,19 @@ class SearchPlayResult {
   /// 直接解析得到的视频URL（如果有）
   final String? directVideoUrl;
 
+  /// 播放所需的 Cookie
+  final String? cookies;
+
+  /// 播放所需的 Headers (Referer, User-Agent etc)
+  final Map<String, String>? headers;
+
   const SearchPlayResult({
     required this.sourceName,
     required this.playPageUrl,
     required this.videoRegex,
     this.directVideoUrl,
+    this.cookies,
+    this.headers,
   });
 
   @override
@@ -112,7 +120,9 @@ class SearchPlayResult {
       sourceName.hashCode ^
       playPageUrl.hashCode ^
       videoRegex.hashCode ^
-      directVideoUrl.hashCode;
+      directVideoUrl.hashCode ^
+      cookies.hashCode ^
+      headers.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -122,7 +132,9 @@ class SearchPlayResult {
           sourceName == other.sourceName &&
           playPageUrl == other.playPageUrl &&
           videoRegex == other.videoRegex &&
-          directVideoUrl == other.directVideoUrl;
+          directVideoUrl == other.directVideoUrl &&
+          cookies == other.cookies &&
+          headers == other.headers;
 }
 
 /// 搜索进度状态
@@ -169,6 +181,12 @@ class SourceSearchProgress {
   /// 直接解析得到的视频URL（如果有）
   final String? directVideoUrl;
 
+  /// 播放所需的 Cookie
+  final String? cookies;
+
+  /// 播放所需的 Headers
+  final Map<String, String>? headers;
+
   const SourceSearchProgress({
     required this.sourceName,
     required this.step,
@@ -176,6 +194,8 @@ class SourceSearchProgress {
     this.playPageUrl,
     this.videoRegex,
     this.directVideoUrl,
+    this.cookies,
+    this.headers,
   });
 
   @override
@@ -185,7 +205,9 @@ class SourceSearchProgress {
       error.hashCode ^
       playPageUrl.hashCode ^
       videoRegex.hashCode ^
-      directVideoUrl.hashCode;
+      directVideoUrl.hashCode ^
+      cookies.hashCode ^
+      headers.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -197,7 +219,9 @@ class SourceSearchProgress {
           error == other.error &&
           playPageUrl == other.playPageUrl &&
           videoRegex == other.videoRegex &&
-          directVideoUrl == other.directVideoUrl;
+          directVideoUrl == other.directVideoUrl &&
+          cookies == other.cookies &&
+          headers == other.headers;
 }
 
 class SourceState {

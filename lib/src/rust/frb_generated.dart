@@ -1599,6 +1599,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Map<String, String> dco_decode_Map_String_String_None(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return Map.fromEntries(
+      dco_decode_list_record_string_string(
+        raw,
+      ).map((e) => MapEntry(e.$1, e.$2)),
+    );
+  }
+
+  @protected
   RustStreamSink<SearchPlayResult> dco_decode_StreamSink_search_play_result_Sse(
     dynamic raw,
   ) {
@@ -1920,6 +1930,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<(String, String)> dco_decode_list_record_string_string(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_record_string_string).toList();
+  }
+
+  @protected
   List<SearchPlayResult> dco_decode_list_search_play_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_search_play_result).toList();
@@ -1969,6 +1985,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       name: dco_decode_String(arr[1]),
       imageUrl: dco_decode_String(arr[2]),
     );
+  }
+
+  @protected
+  Map<String, String>? dco_decode_opt_Map_String_String_None(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_Map_String_String_None(raw);
   }
 
   @protected
@@ -2027,16 +2049,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  (String, String) dco_decode_record_string_string(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2) {
+      throw Exception('Expected 2 elements, got ${arr.length}');
+    }
+    return (dco_decode_String(arr[0]), dco_decode_String(arr[1]));
+  }
+
+  @protected
   SearchPlayResult dco_decode_search_play_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return SearchPlayResult(
       sourceName: dco_decode_String(arr[0]),
       playPageUrl: dco_decode_String(arr[1]),
       videoRegex: dco_decode_String(arr[2]),
       directVideoUrl: dco_decode_opt_String(arr[3]),
+      cookies: dco_decode_opt_String(arr[4]),
+      headers: dco_decode_opt_Map_String_String_None(arr[5]),
     );
   }
 
@@ -2050,8 +2084,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   SourceSearchProgress dco_decode_source_search_progress(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return SourceSearchProgress(
       sourceName: dco_decode_String(arr[0]),
       step: dco_decode_search_step(arr[1]),
@@ -2059,6 +2093,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       playPageUrl: dco_decode_opt_String(arr[3]),
       videoRegex: dco_decode_opt_String(arr[4]),
       directVideoUrl: dco_decode_opt_String(arr[5]),
+      cookies: dco_decode_opt_String(arr[6]),
+      headers: dco_decode_opt_Map_String_String_None(arr[7]),
     );
   }
 
@@ -2139,6 +2175,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_String(deserializer);
     return AnyhowException(inner);
+  }
+
+  @protected
+  Map<String, String> sse_decode_Map_String_String_None(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_list_record_string_string(deserializer);
+    return Map.fromEntries(inner.map((e) => MapEntry(e.$1, e.$2)));
   }
 
   @protected
@@ -2578,6 +2623,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<(String, String)> sse_decode_list_record_string_string(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <(String, String)>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_record_string_string(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<SearchPlayResult> sse_decode_list_search_play_result(
     SseDeserializer deserializer,
   ) {
@@ -2661,6 +2720,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       name: var_name,
       imageUrl: var_imageUrl,
     );
+  }
+
+  @protected
+  Map<String, String>? sse_decode_opt_Map_String_String_None(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_Map_String_String_None(deserializer));
+    } else {
+      return null;
+    }
   }
 
   @protected
@@ -2755,17 +2827,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  (String, String) sse_decode_record_string_string(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_field0 = sse_decode_String(deserializer);
+    var var_field1 = sse_decode_String(deserializer);
+    return (var_field0, var_field1);
+  }
+
+  @protected
   SearchPlayResult sse_decode_search_play_result(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_sourceName = sse_decode_String(deserializer);
     var var_playPageUrl = sse_decode_String(deserializer);
     var var_videoRegex = sse_decode_String(deserializer);
     var var_directVideoUrl = sse_decode_opt_String(deserializer);
+    var var_cookies = sse_decode_opt_String(deserializer);
+    var var_headers = sse_decode_opt_Map_String_String_None(deserializer);
     return SearchPlayResult(
       sourceName: var_sourceName,
       playPageUrl: var_playPageUrl,
       videoRegex: var_videoRegex,
       directVideoUrl: var_directVideoUrl,
+      cookies: var_cookies,
+      headers: var_headers,
     );
   }
 
@@ -2787,6 +2873,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_playPageUrl = sse_decode_opt_String(deserializer);
     var var_videoRegex = sse_decode_opt_String(deserializer);
     var var_directVideoUrl = sse_decode_opt_String(deserializer);
+    var var_cookies = sse_decode_opt_String(deserializer);
+    var var_headers = sse_decode_opt_Map_String_String_None(deserializer);
     return SourceSearchProgress(
       sourceName: var_sourceName,
       step: var_step,
@@ -2794,6 +2882,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       playPageUrl: var_playPageUrl,
       videoRegex: var_videoRegex,
       directVideoUrl: var_directVideoUrl,
+      cookies: var_cookies,
+      headers: var_headers,
     );
   }
 
@@ -2884,6 +2974,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.message, serializer);
+  }
+
+  @protected
+  void sse_encode_Map_String_String_None(
+    Map<String, String> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_record_string_string(
+      self.entries.map((e) => (e.key, e.value)).toList(),
+      serializer,
+    );
   }
 
   @protected
@@ -3262,6 +3364,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_record_string_string(
+    List<(String, String)> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_record_string_string(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_search_play_result(
     List<SearchPlayResult> self,
     SseSerializer serializer,
@@ -3331,6 +3445,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.id, serializer);
     sse_encode_String(self.name, serializer);
     sse_encode_String(self.imageUrl, serializer);
+  }
+
+  @protected
+  void sse_encode_opt_Map_String_String_None(
+    Map<String, String>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_Map_String_String_None(self, serializer);
+    }
   }
 
   @protected
@@ -3412,6 +3539,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_record_string_string(
+    (String, String) self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.$1, serializer);
+    sse_encode_String(self.$2, serializer);
+  }
+
+  @protected
   void sse_encode_search_play_result(
     SearchPlayResult self,
     SseSerializer serializer,
@@ -3421,6 +3558,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.playPageUrl, serializer);
     sse_encode_String(self.videoRegex, serializer);
     sse_encode_opt_String(self.directVideoUrl, serializer);
+    sse_encode_opt_String(self.cookies, serializer);
+    sse_encode_opt_Map_String_String_None(self.headers, serializer);
   }
 
   @protected
@@ -3441,6 +3580,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.playPageUrl, serializer);
     sse_encode_opt_String(self.videoRegex, serializer);
     sse_encode_opt_String(self.directVideoUrl, serializer);
+    sse_encode_opt_String(self.cookies, serializer);
+    sse_encode_opt_Map_String_String_None(self.headers, serializer);
   }
 
   @protected

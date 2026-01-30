@@ -156,6 +156,9 @@ pub struct MatchVideo {
     #[serde(rename = "matchNestedUrl")]
     pub match_nested_url: Option<String>,
 
+    #[serde(rename = "cookies")]
+    pub cookies: Option<String>,
+
     #[serde(rename = "addHeadersToVideo")]
     pub add_headers_to_video: Option<std::collections::HashMap<String, String>>,
 }
@@ -578,6 +581,10 @@ pub struct SearchPlayResult {
     pub video_regex: String,
     /// 直接解析得到的视频URL（如果有）
     pub direct_video_url: Option<String>,
+    /// 播放所需的 Cookie
+    pub cookies: Option<String>,
+    /// 播放所需的 Headers (Referer, User-Agent etc)
+    pub headers: Option<std::collections::HashMap<String, String>>,
 }
 
 /// 搜索进度状态
@@ -614,6 +621,10 @@ pub struct SourceSearchProgress {
     pub video_regex: Option<String>,
     /// 直接解析得到的视频URL（如果有）
     pub direct_video_url: Option<String>,
+    /// 播放所需的 Cookie
+    pub cookies: Option<String>,
+    /// 播放所需的 Headers
+    pub headers: Option<std::collections::HashMap<String, String>>,
 }
 
 /// 从订阅地址拉取播放源配置 JSON
@@ -847,6 +858,8 @@ pub async fn generic_search_with_progress(
                 play_page_url: None,
                 video_regex: None,
                 direct_video_url: None,
+                cookies: None,
+                headers: None,
             }).ok();
             
             // 执行搜索并返回带进度的结果
@@ -874,6 +887,8 @@ async fn search_single_source_with_progress(
 ) -> anyhow::Result<()> {
     let source_name = source.arguments.name.clone();
     let video_regex = source.arguments.search_config.match_video.match_video_url.clone();
+    let cookies = source.arguments.search_config.match_video.cookies.clone();
+    let headers = source.arguments.search_config.match_video.add_headers_to_video.clone();
     
     // 预处理搜索词
     let search_term = preprocess_search_term(anime_name);
@@ -897,6 +912,8 @@ async fn search_single_source_with_progress(
                     play_page_url: None,
                     video_regex: None,
                     direct_video_url: None,
+                    cookies: None,
+                    headers: None,
                 }).ok();
                 return Err(anyhow::anyhow!("Search request failed"));
             }
@@ -909,6 +926,8 @@ async fn search_single_source_with_progress(
                 play_page_url: None,
                 video_regex: None,
                 direct_video_url: None,
+                cookies: None,
+                headers: None,
             }).ok();
             return Err(anyhow::anyhow!("Network error"));
         }
@@ -1055,6 +1074,8 @@ async fn search_single_source_with_progress(
             play_page_url: None,
             video_regex: None,
             direct_video_url: None,
+            cookies: None,
+            headers: None,
         }).ok();
         return Err(anyhow::anyhow!("No matching anime found"));
     }
@@ -1067,6 +1088,8 @@ async fn search_single_source_with_progress(
         play_page_url: None,
         video_regex: None,
         direct_video_url: None,
+        cookies: None,
+        headers: None,
     }).ok();
 
     let detail_resp_text = match client.get(&detail_url).send().await {
@@ -1080,6 +1103,8 @@ async fn search_single_source_with_progress(
                     play_page_url: None,
                     video_regex: None,
                     direct_video_url: None,
+                    cookies: None,
+                    headers: None,
                 }).ok();
                 return Err(anyhow::anyhow!("Detail fetch failed"));
             }
@@ -1092,6 +1117,8 @@ async fn search_single_source_with_progress(
                 play_page_url: None,
                 video_regex: None,
                 direct_video_url: None,
+                cookies: None,
+                headers: None,
             }).ok();
             return Err(anyhow::anyhow!("Detail network error"));
         }
@@ -1105,6 +1132,8 @@ async fn search_single_source_with_progress(
         play_page_url: None,
         video_regex: None,
         direct_video_url: None,
+        cookies: None,
+        headers: None,
     }).ok();
 
     let episode_url = {
@@ -1166,6 +1195,8 @@ async fn search_single_source_with_progress(
             play_page_url: None,
             video_regex: None,
             direct_video_url: None,
+            cookies: None,
+            headers: None,
         }).ok();
         return Err(anyhow::anyhow!("No episodes found"));
     }
@@ -1178,11 +1209,23 @@ async fn search_single_source_with_progress(
         play_page_url: Some(episode_url.clone()),
         video_regex: Some(video_regex.clone()),
         direct_video_url: None,
+        cookies: cookies.clone(),
+        headers: headers.clone(),
     }).ok();
 
     let mut direct_video_url = None;
     
-    if let Ok(resp) = client.get(&episode_url).send().await {
+    let mut request_builder = client.get(&episode_url);
+    if let Some(ref headers) = source.arguments.search_config.match_video.add_headers_to_video {
+        for (k, v) in headers {
+            request_builder = request_builder.header(k, v);
+        }
+    }
+    if let Some(ref cookies) = source.arguments.search_config.match_video.cookies {
+        request_builder = request_builder.header("Cookie", cookies);
+    }
+    
+    if let Ok(resp) = request_builder.send().await {
         if let Ok(video_page_text) = resp.text().await {
             if let Some(player_url) = try_extract_player_aaaa_url(&video_page_text) {
                 log::info!("[{}] Found direct video URL from player_aaaa: {}", source_name, player_url);
@@ -1199,6 +1242,8 @@ async fn search_single_source_with_progress(
         play_page_url: Some(episode_url),
         video_regex: Some(video_regex),
         direct_video_url,
+        cookies,
+        headers,
     }).ok();
 
     Ok(())
@@ -1214,6 +1259,8 @@ async fn search_single_source(
 ) -> anyhow::Result<SearchPlayResult> {
     let source_name = source.arguments.name.clone();
     let video_regex = source.arguments.search_config.match_video.match_video_url.clone();
+    let cookies = source.arguments.search_config.match_video.cookies.clone();
+    let headers = source.arguments.search_config.match_video.add_headers_to_video.clone();
     
     // 预处理搜索词（去除标点、季数等）
     let search_term = preprocess_search_term(anime_name);
@@ -1436,7 +1483,17 @@ async fn search_single_source(
     let mut direct_video_url = None;
     
     // 尝试获取页面并解析 player_aaaa
-    if let Ok(resp) = client.get(&episode_url).send().await {
+    let mut request_builder = client.get(&episode_url);
+    if let Some(ref headers) = source.arguments.search_config.match_video.add_headers_to_video {
+        for (k, v) in headers {
+            request_builder = request_builder.header(k, v);
+        }
+    }
+    if let Some(ref cookies) = source.arguments.search_config.match_video.cookies {
+        request_builder = request_builder.header("Cookie", cookies);
+    }
+
+    if let Ok(resp) = request_builder.send().await {
         if let Ok(video_page_text) = resp.text().await {
             if let Some(player_url) = try_extract_player_aaaa_url(&video_page_text) {
                 log::info!("[{}] Found direct video URL from player_aaaa: {}", source_name, player_url);
@@ -1450,6 +1507,8 @@ async fn search_single_source(
         play_page_url: episode_url,
         video_regex,
         direct_video_url,
+        cookies,
+        headers,
     })
 }
 
@@ -1639,15 +1698,14 @@ async fn generic_search_and_play_internal(
         let mut request_builder = client.get(&episode_url);
 
         // Add custom headers if configured (e.g. User-Agent)
-        if let Some(ref headers) = source
-            .arguments
-            .search_config
-            .match_video
-            .add_headers_to_video
-        {
+        if let Some(ref headers) = source.arguments.search_config.match_video.add_headers_to_video {
             for (k, v) in headers {
                 request_builder = request_builder.header(k, v);
             }
+        }
+        // Add cookies if configured
+        if let Some(ref cookies) = source.arguments.search_config.match_video.cookies {
+            request_builder = request_builder.header("Cookie", cookies);
         }
 
         let mut video_page_text = match request_builder.send().await {
@@ -1749,7 +1807,17 @@ async fn generic_search_and_play_internal(
 
                                 log::info!("FOUND NESTED URL: {}", nested_url);
                                 // Fetch the nested page
-                                if let Ok(resp) = client.get(&nested_url).send().await {
+                                let mut nested_req = client.get(&nested_url);
+                                if let Some(ref headers) = source.arguments.search_config.match_video.add_headers_to_video {
+                                    for (k, v) in headers {
+                                        nested_req = nested_req.header(k, v);
+                                    }
+                                }
+                                if let Some(ref cookies) = source.arguments.search_config.match_video.cookies {
+                                    nested_req = nested_req.header("Cookie", cookies);
+                                }
+                                
+                                if let Ok(resp) = nested_req.send().await {
                                     if let Ok(text) = resp.text().await {
                                         video_page_text = text;
                                     }

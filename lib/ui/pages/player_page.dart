@@ -377,6 +377,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             playPageUrl: null,
             videoRegex: null,
             directVideoUrl: null,
+            cookies: null,
+            headers: null,
           );
         }
         _sampleStatusMessage = '正在搜索 ${enabledNames.length} 个源...';
@@ -411,6 +413,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               playPageUrl: progress.playPageUrl!,
               videoRegex: progress.videoRegex ?? '',
               directVideoUrl: progress.directVideoUrl,
+              cookies: progress.cookies,
+              headers: progress.headers,
             );
 
             // 避免重复添加
@@ -545,6 +549,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             playPageUrl: page.playPageUrl,
             videoRegex: page.videoRegex,
             directVideoUrl: result.videoUrl,
+            cookies: page.cookies,
+            headers: page.headers,
           );
 
           _sampleSuccessfulSources.add(updatedPage);
@@ -554,7 +560,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           if (_sampleSuccessfulSources.length == 1 && _sampleVideoUrl == null) {
             _sampleVideoUrl = result.videoUrl;
             _selectedSourceIndex = 0;
-            _player.open(Media(_sampleVideoUrl!));
+
+            final headers = <String, String>{};
+            if (updatedPage.headers != null)
+              headers.addAll(updatedPage.headers!);
+            if (updatedPage.cookies != null)
+              headers['Cookie'] = updatedPage.cookies!;
+
+            _player.open(Media(_sampleVideoUrl!, httpHeaders: headers));
             _currentStreamUrl = _sampleVideoUrl;
             _isLoadingVideo = false;
             _videoError = null;
@@ -2000,7 +2013,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 ElevatedButton.icon(
                   onPressed: _sampleVideoUrl != null
                       ? () {
-                          _player.open(Media(_sampleVideoUrl!));
+                          final source =
+                              _sampleSuccessfulSources[_selectedSourceIndex];
+                          final headers = <String, String>{};
+                          if (source.headers != null)
+                            headers.addAll(source.headers!);
+                          if (source.cookies != null)
+                            headers['Cookie'] = source.cookies!;
+
+                          _player.open(
+                            Media(_sampleVideoUrl!, httpHeaders: headers),
+                          );
                           setState(() {
                             _currentStreamUrl = _sampleVideoUrl;
                             _isLoadingVideo = false;
