@@ -65,6 +65,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   String _sampleStatusMessage = ''; // WebView 提取状态消息
   bool _showWebView = false; // 是否显示 WebView（调试用）
 
+  // Auto Play Logic
+  bool _hasAutoPlayed = false;
+  int _currentAutoPlayTier = 0;
+
   // 每个源的搜索进度状态
   Map<String, SourceSearchProgress> _sourceProgressMap = {};
   List<String> _enabledSourceNames = []; // 所有已启用的源名称
@@ -347,6 +351,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
+  Map<String, int> _sourceTiers = {};
+
   Future<void> _loadSampleSource() async {
     setState(() {
       _isLoadingSample = true;
@@ -359,15 +365,23 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _sampleStatusMessage = '正在获取播放源列表...';
       _sourceProgressMap = {};
       _enabledSourceNames = [];
+      _sourceTiers = {};
+      _hasAutoPlayed = false;
+      _currentAutoPlayTier = 0;
     });
 
     try {
-      // 先获取所有已启用的源名称，用于初始化UI
-      final enabledNames = await getEnabledSourceNames();
+      // 获取所有源（包括详细信息如Tier）
+      final sources = await getPlaybackSources();
+      final enabledSources = sources.where((s) => s.enabled).toList();
+      final enabledNames = enabledSources.map((s) => s.name).toList();
+
       if (!mounted) return;
 
       setState(() {
         _enabledSourceNames = enabledNames;
+        _sourceTiers = {for (var s in enabledSources) s.name: s.tier};
+
         // 初始化所有源的状态为 Pending
         for (final name in enabledNames) {
           _sourceProgressMap[name] = SourceSearchProgress(
@@ -388,7 +402,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final currentEpNumber = widget.currentEpisode.sort.toInt();
 
       // Calculate relative episode number (1-based index in the episode list)
-      // This helps when Bangumi uses absolute numbering (e.g. 13) but source uses relative (e.g. 1)
       final epIndex = widget.allEpisodes.indexWhere(
         (e) => e.id == widget.currentEpisode.id,
       );
@@ -431,12 +444,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 (s) => s.sourceName == progress.sourceName,
               )) {
                 _sampleSuccessfulSources.add(result);
-
-                // 如果是第一个成功的源，自动选中
-                if (_sampleSuccessfulSources.length == 1) {
-                  _sampleVideoUrl = progress.directVideoUrl;
-                  _selectedSourceIndex = 0;
-                }
               }
             }
           }
@@ -450,6 +457,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               .length;
           _sampleStatusMessage =
               '搜索进度: $completedCount/${_enabledSourceNames.length}';
+
+          // 尝试自动播放（基于Tier逻辑）
+          _attemptAutoPlay();
         });
       }
 
@@ -470,6 +480,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // 如果有找到播放页但没有直接链接的源，尝试 WebView 提取
       if (_sampleSuccessfulSources.isEmpty ||
           _samplePlayPages.length > _sampleSuccessfulSources.length) {
+        // Sort play pages by Tier before WebView extraction
+        _samplePlayPages.sort((a, b) {
+          final tierA = _sourceTiers[a.sourceName] ?? 999;
+          final tierB = _sourceTiers[b.sourceName] ?? 999;
+          return tierA.compareTo(tierB);
+        });
+
         setState(() {
           _sampleStatusMessage = '搜索完成，正在提取剩余源...';
           _tryNextWebView(0);
@@ -490,6 +507,82 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         });
       }
     }
+  }
+
+  void _attemptAutoPlay() {
+    if (_hasAutoPlayed || _sampleVideoUrl != null) return;
+
+    // Determine max tier
+    int maxTier = 0;
+    if (_sourceTiers.isNotEmpty) {
+      maxTier = _sourceTiers.values.reduce((a, b) => a > b ? a : b);
+    }
+    // Safety cap
+    if (maxTier > 100) maxTier = 100;
+
+    // Iterate through tiers starting from current target
+    while (_currentAutoPlayTier <= maxTier) {
+      final tier = _currentAutoPlayTier;
+
+      // Check for available candidates in this tier
+      final candidates = _sampleSuccessfulSources
+          .where((s) => (_sourceTiers[s.sourceName] ?? 999) == tier)
+          .toList();
+
+      if (candidates.isNotEmpty) {
+        // Found a candidate in the current tier! Play the first one.
+        // Since we are inside the stream, "first one" is "earliest parsed".
+        _playSource(candidates.first);
+        return;
+      }
+
+      // Check if there are any pending sources for this tier
+      final hasPending = _sourceProgressMap.values.any(
+        (p) =>
+            (_sourceTiers[p.sourceName] ?? 999) == tier &&
+            p.step != SearchStep.success &&
+            p.step != SearchStep.failed,
+      );
+
+      if (hasPending) {
+        // We are still waiting for sources in this tier.
+        // Do not proceed to higher tiers.
+        return;
+      }
+
+      // If no candidates AND no pending sources for this tier,
+      // it means all sources in this tier failed (or no direct link).
+      // Move to next tier.
+      _currentAutoPlayTier++;
+    }
+  }
+
+  void _playSource(SearchPlayResult source) {
+    if (_sampleVideoUrl != null) return;
+
+    debugPrint(
+      "Auto-playing source: ${source.sourceName} (Tier ${_sourceTiers[source.sourceName]})",
+    );
+
+    setState(() {
+      _hasAutoPlayed = true;
+      _sampleVideoUrl = source.directVideoUrl;
+      // Ensure index is correct in the display list
+      _selectedSourceIndex = _sampleSuccessfulSources.indexOf(source);
+      if (_selectedSourceIndex == -1) {
+        // Should not happen if source is from _sampleSuccessfulSources
+        _selectedSourceIndex = 0;
+      }
+
+      final headers = <String, String>{};
+      if (source.headers != null) headers.addAll(source.headers!);
+      if (source.cookies != null) headers['Cookie'] = source.cookies!;
+
+      _player.open(Media(_sampleVideoUrl!, httpHeaders: headers));
+      _currentStreamUrl = _sampleVideoUrl;
+      _isLoadingVideo = false;
+      _videoError = null;
+    });
   }
 
   /// 尝试使用 WebView 从下一个源提取视频
@@ -557,20 +650,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _sampleStatusMessage = '从 ${page.sourceName} 获取到视频链接';
 
           // 如果这是第一个成功提取且没有其他源在播放
-          if (_sampleSuccessfulSources.length == 1 && _sampleVideoUrl == null) {
-            _sampleVideoUrl = result.videoUrl;
-            _selectedSourceIndex = 0;
-
-            final headers = <String, String>{};
-            if (updatedPage.headers != null)
-              headers.addAll(updatedPage.headers!);
-            if (updatedPage.cookies != null)
-              headers['Cookie'] = updatedPage.cookies!;
-
-            _player.open(Media(_sampleVideoUrl!, httpHeaders: headers));
-            _currentStreamUrl = _sampleVideoUrl;
-            _isLoadingVideo = false;
-            _videoError = null;
+          if (_sampleVideoUrl == null) {
+            _playSource(updatedPage);
           }
         }
 

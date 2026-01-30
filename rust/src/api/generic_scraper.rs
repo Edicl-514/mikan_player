@@ -703,7 +703,7 @@ pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
         let name = source.arguments.name;
         let description = source.arguments.description.unwrap_or_default();
         let icon_url = source.arguments.icon_url.unwrap_or_default();
-        let tier = source.arguments.tier.unwrap_or(0);
+        let tier = source.arguments.tier.unwrap_or(1);
         let default_subtitle_language = source
             .arguments
             .search_config
@@ -1005,15 +1005,15 @@ async fn search_single_source_with_progress(
                     
                     if !all_results.is_empty() {
                         let top_matches: Vec<_> = all_results.iter()
-                            .filter(|(_, score, _)| *score >= 50)
+                            .filter(|(_, score, _)| *score >= 40)
                             .collect();
                         if !top_matches.is_empty() {
-                            log::info!("[{}] ✓ 符合条件的结果 (分数≥50):", source_name);
+                            log::info!("[{}] ✓ 符合条件的结果 (分数≥40):", source_name);
                             for (title, score, _) in top_matches {
                                 log::info!("[{}]   - '{}' (分数: {})", source_name, title, score);
                             }
                         } else {
-                            log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<50)", source_name);
+                            log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<40)", source_name);
                             if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max() {
                                 log::warn!("[{}] 最高分: {}", source_name, max_score);
                             }
