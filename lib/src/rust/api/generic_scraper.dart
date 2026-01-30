@@ -6,15 +6,28 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `calculate_match_score`, `deobfuscate_video_url`, `extract_core_name`, `preprocess_search_term`, `search_single_source`, `try_extract_player_aaaa_url`
+// These functions are ignored because they are not marked as `pub`: `calculate_match_score`, `deobfuscate_video_url`, `extract_core_name`, `load_playback_source_config`, `preprocess_search_term`, `search_single_source`, `try_extract_player_aaaa_url`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ExportedMediaSourceDataList`, `MatchVideo`, `MediaSource`, `SEASON_RE`, `SampleRoot`, `SearchConfig`, `SelectorChannelFormatFlattened`, `SelectorChannelFormatNoChannel`, `SelectorSubjectFormatIndexed`, `SourceArguments`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
+
+/// 预加载播放源配置（应用启动和设置更改时调用）
+/// 验证订阅地址的JSON格式是否有效
+Future<void> preloadPlaybackSources() =>
+    RustLib.instance.api.crateApiGenericScraperPreloadPlaybackSources();
 
 /// 搜索所有源，返回所有找到的播放页面URL列表
 /// Flutter 端可以使用 WebView 加载这些 URL 来拦截视频请求
 Future<List<SearchPlayResult>> genericSearchPlayPages({
   required String animeName,
 }) => RustLib.instance.api.crateApiGenericScraperGenericSearchPlayPages(
+  animeName: animeName,
+);
+
+/// 搜索所有源，以流的形式返回结果（每个源搜索完成后立即返回）
+/// 这样可以让UI实时显示搜索结果，而不是等所有源都搜索完毕
+Stream<SearchPlayResult> genericSearchPlayPagesStream({
+  required String animeName,
+}) => RustLib.instance.api.crateApiGenericScraperGenericSearchPlayPagesStream(
   animeName: animeName,
 );
 

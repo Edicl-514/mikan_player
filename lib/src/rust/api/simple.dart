@@ -25,6 +25,11 @@ Future<void> updateConfig({
   playbackSub: playbackSub,
 );
 
+/// 预加载播放源配置（应用启动和设置更改时调用）
+/// 这会尝试从订阅地址拉取最新的配置，失败时使用本地备份
+Future<String> preloadPlaybackSourceConfig() =>
+    RustLib.instance.api.crateApiSimplePreloadPlaybackSourceConfig();
+
 Future<String> startTorrent({required String magnet}) =>
     RustLib.instance.api.crateApiSimpleStartTorrent(magnet: magnet);
 

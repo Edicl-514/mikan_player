@@ -73,6 +73,10 @@ Future<void> _syncSettings() async {
       mikan: mikan,
       playbackSub: playbackSub,
     );
+
+    // 应用启动时预加载播放源配置
+    debugPrint('Preloading playback source config on app startup...');
+    await rust.preloadPlaybackSourceConfig();
   } catch (e) {
     debugPrint('Failed to sync settings: $e');
   }

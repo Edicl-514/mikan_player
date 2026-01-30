@@ -35,6 +35,22 @@ pub fn update_config(bgm: String, bangumi: String, mikan: String, playback_sub: 
     crate::api::config::update_config(bgm, bangumi, mikan, playback_sub);
 }
 
+/// 预加载播放源配置（应用启动和设置更改时调用）
+/// 这会尝试从订阅地址拉取最新的配置，失败时使用本地备份
+pub async fn preload_playback_source_config() -> String {
+    log::info!("Starting to preload playback source config...");
+    match crate::api::generic_scraper::preload_playback_sources().await {
+        Ok(_) => {
+            log::info!("Playback source config preloaded successfully");
+            "success".to_string()
+        }
+        Err(e) => {
+            log::warn!("Failed to preload playback source config: {}", e);
+            format!("error: {}", e)
+        }
+    }
+}
+
 struct AppState {
     session: Arc<Session>,
 }

@@ -336,29 +336,68 @@ pub struct SearchPlayResult {
     pub direct_video_url: Option<String>,
 }
 
-/// 搜索所有源，返回所有找到的播放页面URL列表
-/// Flutter 端可以使用 WebView 加载这些 URL 来拦截视频请求
-pub async fn generic_search_play_pages(anime_name: String) -> anyhow::Result<Vec<SearchPlayResult>> {
-    let paths = vec![
+/// 从订阅地址拉取播放源配置 JSON
+/// 优先使用用户设置的订阅地址，失败时尝试本地备份
+async fn load_playback_source_config(client: &reqwest::Client) -> anyhow::Result<String> {
+    let sub_url = crate::api::config::get_playback_sub_url();
+    log::info!("Loading playback source config from: {}", sub_url);
+
+    // 首先尝试从订阅地址拉取
+    match client.get(&sub_url).send().await {
+        Ok(resp) => match resp.text().await {
+            Ok(content) => {
+                log::info!("Successfully loaded config from subscription URL");
+                return Ok(content);
+            }
+            Err(e) => {
+                log::warn!("Failed to read response from subscription URL: {}", e);
+            }
+        },
+        Err(e) => {
+            log::warn!("Failed to fetch from subscription URL: {}", e);
+        }
+    }
+
+    // 降级策略：尝试从本地文件读取备份
+    log::info!("Trying to load from local backup files...");
+    let local_paths = vec![
         "sample.json",
         "../sample.json",
         "d:/code/mikan_player/sample.json",
     ];
 
-    let mut content = String::new();
-    for p in paths {
+    for p in local_paths {
         if let Ok(c) = fs::read_to_string(p) {
-            content = c;
-            break;
+            log::info!("Loaded config from local file: {}", p);
+            return Ok(c);
         }
     }
 
-    if content.is_empty() {
-        return Err(anyhow::anyhow!("Could not find or read sample.json"));
-    }
+    Err(anyhow::anyhow!(
+        "Could not load playback source config from subscription URL or local files"
+    ))
+}
+
+/// 预加载播放源配置（应用启动和设置更改时调用）
+/// 验证订阅地址的JSON格式是否有效
+pub async fn preload_playback_sources() -> anyhow::Result<()> {
+    let client = crate::api::network::create_client()?;
+    let content = load_playback_source_config(&client).await?;
+
+    // 验证JSON格式
+    let _root: SampleRoot = serde_json::from_str(&content)?;
+    log::info!("Playback source config validated successfully");
+
+    Ok(())
+}
+
+/// 搜索所有源，返回所有找到的播放页面URL列表
+/// Flutter 端可以使用 WebView 加载这些 URL 来拦截视频请求
+pub async fn generic_search_play_pages(anime_name: String) -> anyhow::Result<Vec<SearchPlayResult>> {
+    let client = crate::api::network::create_client()?;
+    let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
-    let client = crate::api::network::create_client()?;
     
     // 并发搜索所有源
     let futures: Vec<_> = root
@@ -386,6 +425,45 @@ pub async fn generic_search_play_pages(anime_name: String) -> anyhow::Result<Vec
         .collect();
     
     Ok(results)
+}
+
+/// 搜索所有源，以流的形式返回结果（每个源搜索完成后立即返回）
+/// 这样可以让UI实时显示搜索结果，而不是等所有源都搜索完毕
+pub async fn generic_search_play_pages_stream(
+    anime_name: String,
+    sink: crate::frb_generated::StreamSink<SearchPlayResult>,
+) -> anyhow::Result<()> {
+    let client = crate::api::network::create_client()?;
+    let content = load_playback_source_config(&client).await?;
+
+    let root: SampleRoot = serde_json::from_str(&content)?;
+    
+    // 使用 FuturesUnordered 来处理每个源的搜索结果
+    use futures::stream::{FuturesUnordered, StreamExt};
+    
+    let mut tasks = FuturesUnordered::new();
+    
+    for source in root.exported_media_source_data_list.media_sources {
+        let client = client.clone();
+        let anime_name = anime_name.clone();
+        let task = async move {
+            log::info!("Searching source: {}", source.arguments.name);
+            search_single_source(&client, &source, &anime_name).await
+        };
+        tasks.push(task);
+    }
+    
+    // 每个源搜索完成后立即发送结果
+    while let Some(result) = tasks.next().await {
+        if let Ok(search_result) = result {
+            log::info!("Source '{}' completed, sending result to stream", search_result.source_name);
+            sink.add(search_result).ok();
+        } else if let Err(e) = result {
+            log::warn!("Source search failed: {}", e);
+        }
+    }
+    
+    Ok(())
 }
 
 /// 搜索单个源
@@ -544,30 +622,11 @@ async fn search_single_source(
 }
 
 pub async fn generic_search_and_play(anime_name: String) -> anyhow::Result<String> {
-    // 1. Load sample.json
-    // We assume the file is at the root of the workspace for now, or relative to the executable?
-    // The user context says "d:/code/mikan_player/sample.json".
-    // We can try to read from there directly or relative.
-    let paths = vec![
-        "sample.json",
-        "../sample.json",
-        "d:/code/mikan_player/sample.json",
-    ];
-
-    let mut content = String::new();
-    for p in paths {
-        if let Ok(c) = fs::read_to_string(p) {
-            content = c;
-            break;
-        }
-    }
-
-    if content.is_empty() {
-        return Err(anyhow::anyhow!("Could not find or read sample.json"));
-    }
+    // 1. 从订阅地址拉取播放源配置 JSON
+    let client = crate::api::network::create_client()?;
+    let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
-    let client = crate::api::network::create_client()?;
 
     // 2. Iterate sources and try to find the anime
     for source in root.exported_media_source_data_list.media_sources {

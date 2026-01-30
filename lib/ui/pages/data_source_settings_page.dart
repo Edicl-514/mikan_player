@@ -62,6 +62,13 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       playbackSub: _playbackSubController.text,
     );
 
+    // 设置更改后预加载播放源配置
+    try {
+      await rust.preloadPlaybackSourceConfig();
+    } catch (e) {
+      debugPrint('Warning: Failed to preload playback source config: $e');
+    }
+
     if (mounted) {
       ScaffoldMessenger.of(
         context,

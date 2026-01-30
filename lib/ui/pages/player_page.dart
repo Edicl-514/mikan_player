@@ -356,12 +356,42 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     });
 
     try {
-      // 1. 首先获取所有源的播放页面URL
-      final playPages = await genericSearchPlayPages(animeName: widget.anime.title);
+      // 使用流式API，每个源搜索完成后立即显示
+      int foundCount = 0;
+      int successfulCount = 0;
       
+      await for (final result in genericSearchPlayPagesStream(animeName: widget.anime.title)) {
+        if (!mounted) return;
+        
+        foundCount++;
+        
+        // 立即添加到列表
+        setState(() {
+          _samplePlayPages.add(result);
+          _sampleStatusMessage = '正在搜索... 已找到 $foundCount 个源';
+        });
+        
+        // 如果这个源有直接的视频URL，立即添加到成功列表
+        if (result.directVideoUrl != null && result.directVideoUrl!.isNotEmpty) {
+          successfulCount++;
+          setState(() {
+            _sampleSuccessfulSources.add(result);
+            _sampleStatusMessage = '正在搜索... 已找到 $successfulCount 个可用源';
+            
+            // 如果这是第一个成功的源，立即播放
+            if (_sampleSuccessfulSources.length == 1) {
+              _sampleVideoUrl = result.directVideoUrl;
+              _selectedSourceIndex = 0;
+              _isLoadingSample = false;
+            }
+          });
+        }
+      }
+      
+      // 所有源搜索完毕
       if (!mounted) return;
       
-      if (playPages.isEmpty) {
+      if (_samplePlayPages.isEmpty) {
         setState(() {
           _sampleError = '未在任何源中找到该动画';
           _isLoadingSample = false;
@@ -370,30 +400,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
       
       setState(() {
-        _samplePlayPages = playPages;
-        _sampleStatusMessage = '找到 ${playPages.length} 个源';
-      });
-      
-      // 2. 收集所有已经直接获取到视频URL的源
-      final successfulSources = playPages.where(
-        (page) => page.directVideoUrl != null && page.directVideoUrl!.isNotEmpty
-      ).toList();
-      
-      if (successfulSources.isNotEmpty) {
-        if (mounted) {
-          setState(() {
-            _sampleSuccessfulSources = successfulSources;
-            _sampleVideoUrl = successfulSources.first.directVideoUrl;
-            _selectedSourceIndex = 0;
-            _isLoadingSample = false;
-            _sampleStatusMessage = '找到 ${successfulSources.length} 个可用源';
-          });
+        if (_sampleSuccessfulSources.isNotEmpty) {
+          _sampleStatusMessage = '找到 ${_sampleSuccessfulSources.length} 个可用源';
+          _isLoadingSample = false;
+        } else {
+          // 如果没有直接获取到视频URL的源，开始用 WebView 逐个尝试
+          _sampleStatusMessage = '未找到直接可用源，尝试使用 WebView 提取...';
+          _tryNextWebView(0);
         }
-        return;
-      }
-      
-      // 3. 如果没有直接获取到，开始用 WebView 逐个尝试
-      _tryNextWebView(0);
+      });
       
     } catch (e) {
       debugPrint("Error loading Sample source: $e");
