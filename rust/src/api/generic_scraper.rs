@@ -83,7 +83,13 @@ pub struct SearchConfig {
     #[serde(rename = "searchUrl")]
     pub search_url: String,
 
+    // Subject format selector
+    #[serde(rename = "subjectFormatId")]
+    pub subject_format_id: Option<String>,
+
     // Selectors for result list
+    #[serde(rename = "selectorSubjectFormatA")]
+    pub selector_subject_format_a: Option<SelectorSubjectFormatA>,
     #[serde(rename = "selectorSubjectFormatIndexed")]
     pub selector_subject_format_indexed: Option<SelectorSubjectFormatIndexed>,
 
@@ -99,11 +105,21 @@ pub struct SearchConfig {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct SelectorSubjectFormatA {
+    #[serde(rename = "selectLists")]
+    pub select_lists: String,
+    #[serde(rename = "preferShorterName")]
+    pub prefer_shorter_name: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct SelectorSubjectFormatIndexed {
     #[serde(rename = "selectNames")]
     pub select_names: String,
     #[serde(rename = "selectLinks")]
     pub select_links: String,
+    #[serde(rename = "preferShorterName")]
+    pub prefer_shorter_name: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -660,31 +676,65 @@ async fn search_single_source_with_progress(
         let mut found_url = String::new();
         let mut best_match_score = 0;
         
-        if let Some(ref format) = source.arguments.search_config.selector_subject_format_indexed {
-            if let (Ok(name_sel), Ok(link_sel)) = (
-                Selector::parse(&format.select_names),
-                Selector::parse(&format.select_links),
-            ) {
-                let names: Vec<_> = document.select(&name_sel).collect();
-                let links: Vec<_> = document.select(&link_sel).collect();
+        // 根据 subjectFormatId 选择使用哪个 selector
+        let format_id = source.arguments.search_config.subject_format_id.as_deref().unwrap_or("indexed");
+        
+        if format_id == "a" {
+            // 使用 selectorSubjectFormatA
+            if let Some(ref format) = source.arguments.search_config.selector_subject_format_a {
+                if let Ok(list_sel) = Selector::parse(&format.select_lists) {
+                    let links: Vec<_> = document.select(&list_sel).collect();
 
-                for (name_el, link_el) in names.iter().zip(links.iter()) {
-                    let title = name_el.text().collect::<String>().trim().to_string();
-                    let href = link_el.value().attr("href").unwrap_or("").to_string();
+                    for link_el in links.iter() {
+                        let title = link_el.text().collect::<String>().trim().to_string();
+                        let href = link_el.value().attr("href").unwrap_or("").to_string();
 
-                    let score = calculate_match_score(&title, anime_name, &core_name);
-                    
-                    if score > best_match_score && score >= 50 {
-                        best_match_score = score;
-                        if href.starts_with("http") {
-                            found_url = href;
-                        } else {
-                            let base_url = if let Ok(u) = url::Url::parse(&search_url) {
-                                format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                        let score = calculate_match_score(&title, anime_name, &core_name);
+                        
+                        if score > best_match_score && score >= 50 {
+                            best_match_score = score;
+                            if href.starts_with("http") {
+                                found_url = href;
                             } else {
-                                "".to_string()
-                            };
-                            found_url = format!("{}{}", base_url, href);
+                                let base_url = if let Ok(u) = url::Url::parse(&search_url) {
+                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                } else {
+                                    "".to_string()
+                                };
+                                found_url = format!("{}{}", base_url, href);
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // 使用 selectorSubjectFormatIndexed (默认)
+            if let Some(ref format) = source.arguments.search_config.selector_subject_format_indexed {
+                if let (Ok(name_sel), Ok(link_sel)) = (
+                    Selector::parse(&format.select_names),
+                    Selector::parse(&format.select_links),
+                ) {
+                    let names: Vec<_> = document.select(&name_sel).collect();
+                    let links: Vec<_> = document.select(&link_sel).collect();
+
+                    for (name_el, link_el) in names.iter().zip(links.iter()) {
+                        let title = name_el.text().collect::<String>().trim().to_string();
+                        let href = link_el.value().attr("href").unwrap_or("").to_string();
+
+                        let score = calculate_match_score(&title, anime_name, &core_name);
+                        
+                        if score > best_match_score && score >= 50 {
+                            best_match_score = score;
+                            if href.starts_with("http") {
+                                found_url = href;
+                            } else {
+                                let base_url = if let Ok(u) = url::Url::parse(&search_url) {
+                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                } else {
+                                    "".to_string()
+                                };
+                                found_url = format!("{}{}", base_url, href);
+                            }
                         }
                     }
                 }
@@ -879,38 +929,78 @@ async fn search_single_source(
         let mut found_url = String::new();
         let mut best_match_score = 0;
         
-        if let Some(ref format) = source.arguments.search_config.selector_subject_format_indexed {
-            if let (Ok(name_sel), Ok(link_sel)) = (
-                Selector::parse(&format.select_names),
-                Selector::parse(&format.select_links),
-            ) {
-                let names: Vec<_> = document.select(&name_sel).collect();
-                let links: Vec<_> = document.select(&link_sel).collect();
-                
-                log::info!("[{}] Found {} results", source_name, names.len().min(links.len()));
-
-                for (name_el, link_el) in names.iter().zip(links.iter()) {
-                    let title = name_el.text().collect::<String>().trim().to_string();
-                    let href = link_el.value().attr("href").unwrap_or("").to_string();
-
-                    log::info!("[{}] Result: {} -> {}", source_name, title, href);
-
-                    // 计算匹配分数
-                    let score = calculate_match_score(&title, anime_name, &core_name);
+        // 根据 subjectFormatId 选择使用哪个 selector
+        let format_id = source.arguments.search_config.subject_format_id.as_deref().unwrap_or("indexed");
+        
+        if format_id == "a" {
+            // 使用 selectorSubjectFormatA
+            if let Some(ref format) = source.arguments.search_config.selector_subject_format_a {
+                if let Ok(list_sel) = Selector::parse(&format.select_lists) {
+                    let links: Vec<_> = document.select(&list_sel).collect();
                     
-                    if score > best_match_score && score >= 50 {
-                        best_match_score = score;
-                        if href.starts_with("http") {
-                            found_url = href;
-                        } else {
-                            let base_url = if let Ok(u) = url::Url::parse(&search_url) {
-                                format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                    log::info!("[{}] Found {} results (format A)", source_name, links.len());
+
+                    for link_el in links.iter() {
+                        let title = link_el.text().collect::<String>().trim().to_string();
+                        let href = link_el.value().attr("href").unwrap_or("").to_string();
+
+                        log::info!("[{}] Result: {} -> {}", source_name, title, href);
+
+                        // 计算匹配分数
+                        let score = calculate_match_score(&title, anime_name, &core_name);
+                        
+                        if score > best_match_score && score >= 50 {
+                            best_match_score = score;
+                            if href.starts_with("http") {
+                                found_url = href;
                             } else {
-                                "".to_string()
-                            };
-                            found_url = format!("{}{}", base_url, href);
+                                let base_url = if let Ok(u) = url::Url::parse(&search_url) {
+                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                } else {
+                                    "".to_string()
+                                };
+                                found_url = format!("{}{}", base_url, href);
+                            }
+                            log::info!("[{}] Best match so far: {} (score: {})", source_name, title, score);
                         }
-                        log::info!("[{}] Best match so far: {} (score: {})", source_name, title, score);
+                    }
+                }
+            }
+        } else {
+            // 使用 selectorSubjectFormatIndexed (默认)
+            if let Some(ref format) = source.arguments.search_config.selector_subject_format_indexed {
+                if let (Ok(name_sel), Ok(link_sel)) = (
+                    Selector::parse(&format.select_names),
+                    Selector::parse(&format.select_links),
+                ) {
+                    let names: Vec<_> = document.select(&name_sel).collect();
+                    let links: Vec<_> = document.select(&link_sel).collect();
+                    
+                    log::info!("[{}] Found {} results (format indexed)", source_name, names.len().min(links.len()));
+
+                    for (name_el, link_el) in names.iter().zip(links.iter()) {
+                        let title = name_el.text().collect::<String>().trim().to_string();
+                        let href = link_el.value().attr("href").unwrap_or("").to_string();
+
+                        log::info!("[{}] Result: {} -> {}", source_name, title, href);
+
+                        // 计算匹配分数
+                        let score = calculate_match_score(&title, anime_name, &core_name);
+                        
+                        if score > best_match_score && score >= 50 {
+                            best_match_score = score;
+                            if href.starts_with("http") {
+                                found_url = href;
+                            } else {
+                                let base_url = if let Ok(u) = url::Url::parse(&search_url) {
+                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                } else {
+                                    "".to_string()
+                                };
+                                found_url = format!("{}{}", base_url, href);
+                            }
+                            log::info!("[{}] Best match so far: {} (score: {})", source_name, title, score);
+                        }
                     }
                 }
             }
