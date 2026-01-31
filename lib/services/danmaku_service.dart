@@ -134,18 +134,20 @@ class DanmakuService extends ChangeNotifier {
   }
 
   /// 通过标题和集数获取弹幕（便捷方法）
-  Future<void> loadDanmakuByTitle(String animeTitle, int episodeNumber) async {
+  Future<void> loadDanmakuByTitle(String animeTitle, String episodeNumber,
+      {int? relativeEpisode}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
       debugPrint(
-        '[Danmaku] Loading by title: $animeTitle, episode: $episodeNumber',
+        '[Danmaku] Loading by title: $animeTitle, episode: $episodeNumber (rel: $relativeEpisode)',
       );
       final danmakuList = await danmakuGetByTitle(
         animeTitle: animeTitle,
         episodeNumber: episodeNumber,
+        relativeEpisode: relativeEpisode,
       );
 
       _danmakuList = danmakuList;
@@ -164,19 +166,21 @@ class DanmakuService extends ChangeNotifier {
   /// 通过 Bangumi TV subject_id 和集数获取弹幕（便捷方法）
   Future<void> loadDanmakuByBangumiId(
     int subjectId,
-    String episodeNumber,
-  ) async {
+    String episodeNumber, {
+    int? relativeEpisode,
+  }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
       debugPrint(
-        '[Danmaku] Loading by Bangumi ID: $subjectId, episode: $episodeNumber',
+        '[Danmaku] Loading by Bangumi ID: $subjectId, episode: $episodeNumber (rel: $relativeEpisode)',
       );
       final danmakuList = await danmakuGetByBangumiId(
         subjectId: subjectId,
         episodeNumber: episodeNumber,
+        relativeEpisode: relativeEpisode,
       );
 
       _danmakuList = danmakuList;

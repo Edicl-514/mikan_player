@@ -524,14 +524,16 @@ pub async fn danmaku_match_anime(
 ///
 /// # 参数
 /// - `anime_title`: 动画标题
-/// - `episode_number`: 集数 (从1开始)
+/// - `episode_number`: 集数编号 (例如: "1", "2")
+/// - `relative_episode`: 相对集号 (1-based 索引，作为回退)
 ///
 /// # 返回
 /// 弹幕列表，如果找不到则返回空列表
 #[frb]
 pub async fn danmaku_get_by_title(
     anime_title: String,
-    episode_number: i32,
+    episode_number: String,
+    relative_episode: Option<i32>,
 ) -> Result<Vec<Danmaku>, String> {
     // 1. 搜索动画
     let animes = danmaku_search_anime(anime_title.clone()).await?;
@@ -546,28 +548,50 @@ pub async fn danmaku_get_by_title(
     let episodes = danmaku_get_episodes(anime.anime_id).await?;
 
     // 3. 找到对应集数的剧集
-    let episode_idx = (episode_number - 1) as usize;
-    if episode_idx >= episodes.len() {
+    // 优先匹配集数编号
+    let mut episode = episodes.iter().find(|e| {
+        e.episode_number
+            .as_ref()
+            .map(|n| n == &episode_number)
+            .unwrap_or(false)
+    });
+
+    // 如果编号不匹配，尝试通过相对集号（索引）匹配
+    if episode.is_none() {
+        if let Some(rel_ep) = relative_episode {
+            let episode_idx = (rel_ep - 1) as usize;
+            if episode_idx < episodes.len() {
+                log::info!(
+                    "[Danmaku] Episode {} not found by number for '{}', using relative episode {}",
+                    episode_number,
+                    anime_title,
+                    rel_ep
+                );
+                episode = Some(&episodes[episode_idx]);
+            }
+        }
+    }
+
+    if let Some(ep) = episode {
+        // 4. 获取弹幕
+        log::info!(
+            "[Danmaku] Loading comments for '{}' - {} (ID: {})",
+            anime.anime_title,
+            ep.episode_title,
+            ep.episode_id
+        );
+
+        danmaku_get_comments(ep.episode_id).await
+    } else {
         log::warn!(
-            "[Danmaku] Episode {} not found for '{}' (total: {})",
+            "[Danmaku] Episode {} (rel: {:?}) not found for '{}' (total: {})",
             episode_number,
+            relative_episode,
             anime_title,
             episodes.len()
         );
-        return Ok(vec![]);
+        Ok(vec![])
     }
-
-    let episode = &episodes[episode_idx];
-
-    // 4. 获取弹幕
-    log::info!(
-        "[Danmaku] Loading comments for '{}' - {} (ID: {})",
-        anime.anime_title,
-        episode.episode_title,
-        episode.episode_id
-    );
-
-    danmaku_get_comments(episode.episode_id).await
 }
 
 /// 便捷方法：通过 Bangumi TV subject_id 和集数获取弹幕
@@ -575,6 +599,7 @@ pub async fn danmaku_get_by_title(
 /// # 参数
 /// - `subject_id`: Bangumi TV 的 subject_id
 /// - `episode_number`: 集数编号 (例如: "1", "2", "SP1" 等)
+/// - `relative_episode`: 相对集号 (1-based 索引，作为回退)
 ///
 /// # 返回
 /// 弹幕列表，如果找不到则返回空列表
@@ -582,6 +607,7 @@ pub async fn danmaku_get_by_title(
 pub async fn danmaku_get_by_bangumi_id(
     subject_id: i64,
     episode_number: String,
+    relative_episode: Option<i32>,
 ) -> Result<Vec<Danmaku>, String> {
     // 1. 获取剧集列表
     let episodes = danmaku_get_bangumi_episodes(subject_id).await?;
@@ -595,23 +621,42 @@ pub async fn danmaku_get_by_bangumi_id(
     }
 
     // 2. 找到对应集数的剧集
-    let episode = episodes.iter().find(|e| e.episode_number == episode_number);
+    // 优先匹配集数编号
+    let mut episode = episodes.iter().find(|e| e.episode_number == episode_number);
+
+    // 如果编号不匹配，尝试通过相对集号（索引）匹配
+    if episode.is_none() {
+        if let Some(rel_ep) = relative_episode {
+            let episode_idx = (rel_ep - 1) as usize;
+            if episode_idx < episodes.len() {
+                log::info!(
+                    "[Danmaku] Episode {} not found by number for subject {}, using relative episode {}",
+                    episode_number,
+                    subject_id,
+                    rel_ep
+                );
+                episode = Some(&episodes[episode_idx]);
+            }
+        }
+    }
 
     if let Some(ep) = episode {
         log::info!(
-            "[Danmaku] Found episode: {} (ID: {}) for subject {} ep {}",
+            "[Danmaku] Found episode: {} (ID: {}) for subject {} ep {} (rel: {:?})",
             ep.episode_title,
             ep.episode_id,
             subject_id,
-            episode_number
+            episode_number,
+            relative_episode
         );
 
         // 3. 获取弹幕
         danmaku_get_comments(ep.episode_id).await
     } else {
         log::warn!(
-            "[Danmaku] Episode {} not found for subject {} (total: {} episodes)",
+            "[Danmaku] Episode {} (rel: {:?}) not found for subject {} (total: {} episodes)",
             episode_number,
+            relative_episode,
             subject_id,
             episodes.len()
         );
@@ -672,7 +717,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_danmaku_by_bangumi_id() {
         // 【我推的孩子】 第三季 第1话
-        let result = danmaku_get_by_bangumi_id(517057, "1".to_string()).await;
+        let result = danmaku_get_by_bangumi_id(517057, "1".to_string(), Some(1)).await;
         assert!(result.is_ok());
         let danmakus = result.unwrap();
         assert!(!danmakus.is_empty());

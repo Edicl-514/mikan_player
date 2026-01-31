@@ -66,7 +66,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   List<SearchPlayResult> _samplePlayPages = [];
   List<SearchPlayResult> _sampleSuccessfulSources = []; // 成功获取到视频URL的源列表
   int _selectedSourceIndex = 0; // 当前选中的源索引
-  int _currentWebViewIndex = -1; // 当前正在尝试的 WebView 索引
+  // 并发WebView管理
+  final Map<String, bool> _activeWebViews = {}; // 正在运行的WebView (sourceName -> isActive)
+  final Map<String, String> _webViewStatus = {}; // WebView状态消息 (sourceName -> message)
+  final int _maxConcurrentWebViews = 3; // 最大并发WebView数量
   String _sampleStatusMessage = ''; // WebView 提取状态消息
   bool _showWebView = false; // 是否显示 WebView（调试用）
 
@@ -145,7 +148,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final animeTitle = widget.anime.title;
     final episodeNumber = widget.currentEpisode.sort.toInt();
 
-    debugPrint('[Danmaku] Loading danmaku for: $animeTitle EP$episodeNumber');
+    // Calculate relative episode number (1-based index in the episode list)
+    final epIndex = widget.allEpisodes.indexWhere(
+      (e) => e.id == widget.currentEpisode.id,
+    );
+    final relativeEpNumber = epIndex != -1 ? epIndex + 1 : episodeNumber;
+
+    debugPrint(
+        '[Danmaku] Loading danmaku for: $animeTitle EP$episodeNumber (rel: $relativeEpNumber)');
 
     // Prefer Bangumi TV subject_id if available for more accurate matching
     if (widget.anime.bangumiId != null && widget.anime.bangumiId!.isNotEmpty) {
@@ -155,6 +165,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         await _danmakuService.loadDanmakuByBangumiId(
           subjectId,
           episodeNumber.toString(),
+          relativeEpisode: relativeEpNumber,
         );
         return;
       }
@@ -162,7 +173,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     // Fallback to title-based search
     debugPrint('[Danmaku] Using title-based search');
-    await _danmakuService.loadDanmakuByTitle(animeTitle, episodeNumber);
+    await _danmakuService.loadDanmakuByTitle(
+      animeTitle,
+      episodeNumber.toString(),
+      relativeEpisode: relativeEpNumber,
+    );
   }
 
   Future<void> _loadComments() async {
@@ -418,7 +433,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _samplePlayPages = [];
       _sampleSuccessfulSources = [];
       _selectedSourceIndex = 0;
-      _currentWebViewIndex = -1;
+      _activeWebViews.clear();
+      _webViewStatus.clear();
       _sampleStatusMessage = '正在获取播放源列表...';
       _sourceProgressMap = {};
       _enabledSourceNames = [];
@@ -534,7 +550,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         return;
       }
 
-      // 如果有找到播放页但没有直接链接的源，尝试 WebView 提取
+      // 如果有找到播放页但没有直接链接的源，启动并发WebView提取
       if (_sampleSuccessfulSources.isEmpty ||
           _samplePlayPages.length > _sampleSuccessfulSources.length) {
         // Sort play pages by Tier before WebView extraction
@@ -546,7 +562,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
         setState(() {
           _sampleStatusMessage = '搜索完成，正在提取剩余源...';
-          _tryNextWebView(0);
+          _startConcurrentWebViewExtraction();
         });
       } else {
         setState(() {
@@ -642,58 +658,60 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     });
   }
 
-  /// 尝试使用 WebView 从下一个源提取视频
-  void _tryNextWebView(int index) {
+  /// 启动并发WebView提取
+  void _startConcurrentWebViewExtraction() {
     if (!mounted) return;
 
-    // 寻找下一个没有直接链接的源
-    int nextIndex = index;
-    while (nextIndex < _samplePlayPages.length) {
-      final page = _samplePlayPages[nextIndex];
-      // 如果这个源还没有成功获取到视频链接（不管是直接获取的还是之前提取成功的）
-      bool alreadySuccessful = _sampleSuccessfulSources.any(
+    // 找到所有需要WebView提取的源（还没有直接视频链接的）
+    final needsExtraction = _samplePlayPages.where((page) {
+      return !_sampleSuccessfulSources.any(
         (s) => s.playPageUrl == page.playPageUrl,
       );
-      if (!alreadySuccessful) {
-        break;
-      }
-      nextIndex++;
-    }
+    }).toList();
 
-    if (nextIndex >= _samplePlayPages.length) {
-      // 所有源都尝试过了
+    if (needsExtraction.isEmpty) {
       setState(() {
         _isLoadingSample = false;
-        if (_sampleSuccessfulSources.isEmpty) {
-          _sampleError = '所有源都无法提取视频链接';
-        } else {
-          _sampleStatusMessage =
-              '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
-        }
-        _currentWebViewIndex = -1;
+        _sampleStatusMessage =
+            '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
       });
       return;
     }
 
-    final page = _samplePlayPages[nextIndex];
+    // 启动前N个源的WebView提取（根据_maxConcurrentWebViews限制）
+    for (var i = 0; i < needsExtraction.length && i < _maxConcurrentWebViews; i++) {
+      final page = needsExtraction[i];
+      setState(() {
+        _activeWebViews[page.sourceName] = true;
+        _webViewStatus[page.sourceName] = '正在提取...';
+      });
+    }
+
     setState(() {
-      _currentWebViewIndex = nextIndex;
-      _sampleStatusMessage =
-          '正在提取: ${page.sourceName} (${nextIndex + 1}/${_samplePlayPages.length})';
+      final total = _samplePlayPages.length;
+      final completed = _sampleSuccessfulSources.length;
+      final active = _activeWebViews.length;
+      _sampleStatusMessage = '提取中: $completed/$total 完成，$active 并发运行';
     });
   }
 
-  /// WebView 提取结果回调
-  void _onWebViewResult(VideoExtractResult result) {
+  /// WebView 提取结果回调（并发版本）
+  void _onWebViewResult(String sourceName, VideoExtractResult result) {
     if (!mounted) return;
 
-    int currentIndex = _currentWebViewIndex;
+    setState(() {
+      // 移除活动WebView
+      _activeWebViews.remove(sourceName);
+      _webViewStatus.remove(sourceName);
 
-    if (result.success) {
-      setState(() {
-        if (currentIndex >= 0 && currentIndex < _samplePlayPages.length) {
-          final page = _samplePlayPages[currentIndex];
-          // 将成功提取的源添加到成功列表
+      if (result.success) {
+        // 找到对应的播放页并更新
+        final pageIndex = _samplePlayPages.indexWhere(
+          (p) => p.sourceName == sourceName,
+        );
+        
+        if (pageIndex >= 0) {
+          final page = _samplePlayPages[pageIndex];
           final updatedPage = SearchPlayResult(
             sourceName: page.sourceName,
             playPageUrl: page.playPageUrl,
@@ -704,20 +722,63 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           );
 
           _sampleSuccessfulSources.add(updatedPage);
-          _sampleStatusMessage = '从 ${page.sourceName} 获取到视频链接';
 
           // 如果这是第一个成功提取且没有其他源在播放
           if (_sampleVideoUrl == null) {
             _playSource(updatedPage);
           }
         }
+      }
 
-        _currentWebViewIndex = -1;
-      });
+      // 更新状态消息
+      final total = _samplePlayPages.length;
+      final completed = _sampleSuccessfulSources.length;
+      final active = _activeWebViews.length;
+      _sampleStatusMessage = '提取中: $completed/$total 完成，$active 并发运行';
+
+      // 启动下一个待提取的源（如果有）
+      _startNextWebViewExtraction();
+    });
+  }
+
+  /// 启动下一个WebView提取任务
+  void _startNextWebViewExtraction() {
+    if (!mounted) return;
+
+    // 如果已经达到并发上限，不启动新的
+    if (_activeWebViews.length >= _maxConcurrentWebViews) return;
+
+    // 找到下一个需要提取的源
+    final needsExtraction = _samplePlayPages.where((page) {
+      final alreadySuccessful = _sampleSuccessfulSources.any(
+        (s) => s.playPageUrl == page.playPageUrl,
+      );
+      final alreadyActive = _activeWebViews.containsKey(page.sourceName);
+      return !alreadySuccessful && !alreadyActive;
+    }).toList();
+
+    if (needsExtraction.isEmpty) {
+      // 检查是否所有提取都完成了
+      if (_activeWebViews.isEmpty) {
+        setState(() {
+          _isLoadingSample = false;
+          if (_sampleSuccessfulSources.isEmpty) {
+            _sampleError = '所有源都无法提取视频链接';
+          } else {
+            _sampleStatusMessage =
+                '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
+          }
+        });
+      }
+      return;
     }
 
-    // 继续下一个源的提取（无论成功还是失败）
-    _tryNextWebView(currentIndex + 1);
+    // 启动下一个
+    final page = needsExtraction.first;
+    setState(() {
+      _activeWebViews[page.sourceName] = true;
+      _webViewStatus[page.sourceName] = '正在提取...';
+    });
   }
 
   @override
@@ -790,7 +851,28 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final isWide = MediaQuery.of(context).size.width > 900;
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F13), // Deep dark background
-      body: isWide ? _buildPCLayout(context) : _buildMobileLayout(context),
+      body: Stack(
+        children: [
+          // 主界面
+          isWide ? _buildPCLayout(context) : _buildMobileLayout(context),
+          
+          // 后台WebView容器（始终存在，用于后台视频提取）
+          Positioned(
+            left: 0,
+            top: 0,
+            width: _showWebView ? 400 : 1,
+            height: _showWebView ? 300 : 1,
+            child: Visibility(
+              visible: _showWebView, // 调试时可以显示
+              maintainState: true, // 保持状态，确保WebView在隐藏时仍然运行
+              child: Container(
+                color: Colors.black,
+                child: _buildWebViewExtractors(),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1997,7 +2079,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     } else if (id == 'sample') {
       isLoading = _isLoadingSample;
       hasError = _sampleError != null;
-      count = _sampleVideoUrl != null ? 1 : 0;
+      count = _sampleSuccessfulSources.length;
     }
 
     return InkWell(
@@ -2175,9 +2257,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           ),
         ],
 
-        // 如果正在使用 WebView 提取，显示 WebView
-        if (_currentWebViewIndex >= 0 &&
-            _currentWebViewIndex < _samplePlayPages.length) ...[
+        // 如果正在使用 WebView 提取，显示所有活动的WebView
+        if (_activeWebViews.isNotEmpty) ...[
           const Divider(color: Colors.white10),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -2189,36 +2270,60 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.5,
-                        color: Color(0xFFBB86FC),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        "WebView 提取: ${_samplePlayPages[_currentWebViewIndex].sourceName}",
-                        style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
                 Text(
-                  _samplePlayPages[_currentWebViewIndex].playPageUrl,
-                  style: const TextStyle(color: Colors.grey, fontSize: 9),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  '并发WebView提取 (${_activeWebViews.length}/$_maxConcurrentWebViews)',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
-                _buildWebViewExtractor(),
+                // 显示所有活动WebView的状态
+                ..._activeWebViews.keys.map((sourceName) {
+                  final page = _samplePlayPages.firstWhere(
+                    (p) => p.sourceName == sourceName,
+                  );
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        const SizedBox(
+                          width: 10,
+                          height: 10,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: Color(0xFFBB86FC),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                sourceName,
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 10,
+                                ),
+                              ),
+                              Text(
+                                page.playPageUrl,
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 8,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
               ],
             ),
           ),
@@ -2545,23 +2650,30 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
   }
 
-  /// 构建 WebView 提取器
-  Widget _buildWebViewExtractor() {
-    if (_currentWebViewIndex < 0 ||
-        _currentWebViewIndex >= _samplePlayPages.length) {
+  /// 构建所有活动的 WebView 提取器（并发）
+  Widget _buildWebViewExtractors() {
+    if (_activeWebViews.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final page = _samplePlayPages[_currentWebViewIndex];
+    // 构建所有活动WebView的列表
+    return Column(
+      children: _activeWebViews.keys.map((sourceName) {
+        // 找到对应的页面信息
+        final page = _samplePlayPages.firstWhere(
+          (p) => p.sourceName == sourceName,
+        );
 
-    return WebViewVideoExtractorWidget(
-      key: ValueKey('webview_${page.playPageUrl}'),
-      url: page.playPageUrl,
-      customVideoRegex: page.videoRegex != r'$^' ? page.videoRegex : null,
-      timeout: const Duration(seconds: 20),
-      showWebView: _showWebView,
-      onResult: _onWebViewResult,
-      onLog: (msg) => debugPrint('[WebView] $msg'),
+        return WebViewVideoExtractorWidget(
+          key: ValueKey('webview_$sourceName'),
+          url: page.playPageUrl,
+          customVideoRegex: page.videoRegex != r'$^' ? page.videoRegex : null,
+          timeout: const Duration(seconds: 20),
+          showWebView: _showWebView,
+          onResult: (result) => _onWebViewResult(sourceName, result),
+          onLog: (msg) => debugPrint('[WebView][$sourceName] $msg'),
+        );
+      }).toList(),
     );
   }
 

@@ -76,16 +76,19 @@ Future<List<DanmakuMatch>> danmakuMatchAnime({
 ///
 /// # 参数
 /// - `anime_title`: 动画标题
-/// - `episode_number`: 集数 (从1开始)
+/// - `episode_number`: 集数编号 (例如: "1", "2")
+/// - `relative_episode`: 相对集号 (1-based 索引，作为回退)
 ///
 /// # 返回
 /// 弹幕列表，如果找不到则返回空列表
 Future<List<Danmaku>> danmakuGetByTitle({
   required String animeTitle,
-  required int episodeNumber,
+  required String episodeNumber,
+  int? relativeEpisode,
 }) => RustLib.instance.api.crateApiDanmakuDanmakuGetByTitle(
   animeTitle: animeTitle,
   episodeNumber: episodeNumber,
+  relativeEpisode: relativeEpisode,
 );
 
 /// 便捷方法：通过 Bangumi TV subject_id 和集数获取弹幕
@@ -93,15 +96,18 @@ Future<List<Danmaku>> danmakuGetByTitle({
 /// # 参数
 /// - `subject_id`: Bangumi TV 的 subject_id
 /// - `episode_number`: 集数编号 (例如: "1", "2", "SP1" 等)
+/// - `relative_episode`: 相对集号 (1-based 索引，作为回退)
 ///
 /// # 返回
 /// 弹幕列表，如果找不到则返回空列表
 Future<List<Danmaku>> danmakuGetByBangumiId({
   required PlatformInt64 subjectId,
   required String episodeNumber,
+  int? relativeEpisode,
 }) => RustLib.instance.api.crateApiDanmakuDanmakuGetByBangumiId(
   subjectId: subjectId,
   episodeNumber: episodeNumber,
+  relativeEpisode: relativeEpisode,
 );
 
 /// Bangumi TV 剧集信息 (从 Dandanplay Bangumi API 获取)

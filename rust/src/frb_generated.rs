@@ -107,6 +107,7 @@ fn wire__crate__api__danmaku__danmaku_get_by_bangumi_id_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_subject_id = <i64>::sse_decode(&mut deserializer);
             let api_episode_number = <String>::sse_decode(&mut deserializer);
+            let api_relative_episode = <Option<i32>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, String>(
@@ -114,6 +115,7 @@ fn wire__crate__api__danmaku__danmaku_get_by_bangumi_id_impl(
                         let output_ok = crate::api::danmaku::danmaku_get_by_bangumi_id(
                             api_subject_id,
                             api_episode_number,
+                            api_relative_episode,
                         )
                         .await?;
                         Ok(output_ok)
@@ -147,7 +149,8 @@ fn wire__crate__api__danmaku__danmaku_get_by_title_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_anime_title = <String>::sse_decode(&mut deserializer);
-            let api_episode_number = <i32>::sse_decode(&mut deserializer);
+            let api_episode_number = <String>::sse_decode(&mut deserializer);
+            let api_relative_episode = <Option<i32>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, String>(
@@ -155,6 +158,7 @@ fn wire__crate__api__danmaku__danmaku_get_by_title_impl(
                         let output_ok = crate::api::danmaku::danmaku_get_by_title(
                             api_anime_title,
                             api_episode_number,
+                            api_relative_episode,
                         )
                         .await?;
                         Ok(output_ok)

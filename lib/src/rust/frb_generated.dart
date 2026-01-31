@@ -93,11 +93,13 @@ abstract class RustLibApi extends BaseApi {
   Future<List<Danmaku>> crateApiDanmakuDanmakuGetByBangumiId({
     required PlatformInt64 subjectId,
     required String episodeNumber,
+    int? relativeEpisode,
   });
 
   Future<List<Danmaku>> crateApiDanmakuDanmakuGetByTitle({
     required String animeTitle,
-    required int episodeNumber,
+    required String episodeNumber,
+    int? relativeEpisode,
   });
 
   Future<List<Danmaku>> crateApiDanmakuDanmakuGetComments({
@@ -319,6 +321,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<List<Danmaku>> crateApiDanmakuDanmakuGetByBangumiId({
     required PlatformInt64 subjectId,
     required String episodeNumber,
+    int? relativeEpisode,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -326,6 +329,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(subjectId, serializer);
           sse_encode_String(episodeNumber, serializer);
+          sse_encode_opt_box_autoadd_i_32(relativeEpisode, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -338,7 +342,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiDanmakuDanmakuGetByBangumiIdConstMeta,
-        argValues: [subjectId, episodeNumber],
+        argValues: [subjectId, episodeNumber, relativeEpisode],
         apiImpl: this,
       ),
     );
@@ -347,20 +351,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiDanmakuDanmakuGetByBangumiIdConstMeta =>
       const TaskConstMeta(
         debugName: "danmaku_get_by_bangumi_id",
-        argNames: ["subjectId", "episodeNumber"],
+        argNames: ["subjectId", "episodeNumber", "relativeEpisode"],
       );
 
   @override
   Future<List<Danmaku>> crateApiDanmakuDanmakuGetByTitle({
     required String animeTitle,
-    required int episodeNumber,
+    required String episodeNumber,
+    int? relativeEpisode,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(animeTitle, serializer);
-          sse_encode_i_32(episodeNumber, serializer);
+          sse_encode_String(episodeNumber, serializer);
+          sse_encode_opt_box_autoadd_i_32(relativeEpisode, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -373,7 +379,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiDanmakuDanmakuGetByTitleConstMeta,
-        argValues: [animeTitle, episodeNumber],
+        argValues: [animeTitle, episodeNumber, relativeEpisode],
         apiImpl: this,
       ),
     );
@@ -382,7 +388,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiDanmakuDanmakuGetByTitleConstMeta =>
       const TaskConstMeta(
         debugName: "danmaku_get_by_title",
-        argNames: ["animeTitle", "episodeNumber"],
+        argNames: ["animeTitle", "episodeNumber", "relativeEpisode"],
       );
 
   @override
