@@ -1716,6 +1716,29 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
   }
 
+  void _onSourceSelected(int index) {
+    if (index < 0 || index >= _sampleSuccessfulSources.length) return;
+    if (index == _selectedSourceIndex) return;
+
+    final source = _sampleSuccessfulSources[index];
+    if (source.directVideoUrl == null) return;
+
+    setState(() {
+      _selectedSourceIndex = index;
+      _sampleVideoUrl = source.directVideoUrl;
+
+      final headers = <String, String>{};
+      if (source.headers != null) headers.addAll(source.headers!);
+      if (source.cookies != null) headers['Cookie'] = source.cookies!;
+
+      // 停止之前的播放，防止后台继续播放
+      _player.stop();
+      _player.open(Media(_sampleVideoUrl!, httpHeaders: headers));
+      _currentStreamUrl = _sampleVideoUrl;
+      _playingSourceLabel = source.sourceName;
+    });
+  }
+
   Widget _buildVideoPlayerPlaceholder(
     BuildContext context, {
     required bool isMobile,
@@ -1736,6 +1759,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           allEpisodes: widget.allEpisodes,
           currentEpisode: widget.currentEpisode,
           onEpisodeSelected: _onEpisodeSelected,
+          availableSources: _sampleSuccessfulSources,
+          currentSourceIndex: _selectedSourceIndex,
+          currentSourceLabel: _playingSourceLabel,
+          onSourceSelected: _onSourceSelected,
           isLoading: _isLoadingVideo || _loadingMagnet != null,
           videoTitle: '${widget.anime.title} - 第${widget.currentEpisode.sort.toInt()}集',
         ),

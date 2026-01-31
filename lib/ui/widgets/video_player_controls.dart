@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
+import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/ui/widgets/danmaku_overlay.dart';
 import 'package:mikan_player/ui/widgets/danmaku_settings.dart';
@@ -24,6 +25,12 @@ class CustomVideoControls extends StatelessWidget {
   final BangumiEpisode currentEpisode;
   final Function(BangumiEpisode) onEpisodeSelected;
 
+  // 播放源相关
+  final List<SearchPlayResult> availableSources;
+  final int currentSourceIndex;
+  final Function(int) onSourceSelected;
+  final String currentSourceLabel;
+
   // 加载状态
   final bool isLoading;
 
@@ -42,6 +49,10 @@ class CustomVideoControls extends StatelessWidget {
     required this.allEpisodes,
     required this.currentEpisode,
     required this.onEpisodeSelected,
+    required this.availableSources,
+    required this.currentSourceIndex,
+    required this.onSourceSelected,
+    this.currentSourceLabel = '未知',
     this.isLoading = false,
     this.videoTitle,
   });
@@ -526,48 +537,16 @@ class CustomVideoControls extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: Material(
               color: Colors.transparent,
-              child: Container(
-                width: 320,
-                height: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1A1A24),
-                  borderRadius: BorderRadius.horizontal(left: Radius.circular(16)),
-                ),
-                child: SafeArea(
-                  child: Column(
-                    children: [
-                      // 标题栏
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            const Text(
-                              '显示设置',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const Spacer(),
-                            IconButton(
-                              onPressed: () => Navigator.pop(context),
-                              icon: const Icon(Icons.close, color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Divider(color: Colors.white12, height: 1),
-                      // 设置内容
-                      Expanded(
-                        child: DanmakuSettingsBottomSheet(
-                          danmakuService: danmakuService,
-                          scrollController: ScrollController(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              child: _SettingsPanel(
+                isFullscreen: true,
+                danmakuService: danmakuService,
+                availableSources: availableSources,
+                currentSourceIndex: currentSourceIndex,
+                currentSourceLabel: currentSourceLabel,
+                onSourceSelected: (index) {
+                  Navigator.pop(context);
+                  onSourceSelected(index);
+                },
               ),
             ),
           );
@@ -595,54 +574,17 @@ class CustomVideoControls extends StatelessWidget {
           initialChildSize: 0.6,
           minChildSize: 0.4,
           maxChildSize: 0.85,
-          builder: (context, scrollController) => Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFF1A1A24),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Column(
-              children: [
-                // 拖动指示器
-                Container(
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white30,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                // 标题栏
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      const Text(
-                        '显示设置',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close, color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(color: Colors.white12, height: 1),
-                // 设置内容
-                Expanded(
-                  child: DanmakuSettingsBottomSheet(
-                    danmakuService: danmakuService,
-                    scrollController: scrollController,
-                  ),
-                ),
-              ],
-            ),
+          builder: (context, scrollController) => _SettingsPanel(
+            isFullscreen: false,
+            danmakuService: danmakuService,
+            availableSources: availableSources,
+            currentSourceIndex: currentSourceIndex,
+            currentSourceLabel: currentSourceLabel,
+            onSourceSelected: (index) {
+              Navigator.pop(context);
+              onSourceSelected(index);
+            },
+            scrollController: scrollController,
           ),
         ),
       );
@@ -650,53 +592,45 @@ class CustomVideoControls extends StatelessWidget {
   }
 
   void _showSettingsMenu(BuildContext context) {
-    // 根据是否全屏选择不同的显示方式
-    final isFullscreen = state.widget.controller.player.state.width != null &&
-        MediaQuery.of(context).orientation == Orientation.landscape;
-    
-    if (isMobile && !isFullscreen) {
-      // 移动端非全屏：从底部弹出
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isScrollControlled: true,
-        builder: (context) => DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          builder: (context, scrollController) => Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFF13131A),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Column(
-              children: [
-                // 拖动指示器
-                Container(
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white30,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                // 设置面板内容
-                Expanded(
-                  child: DanmakuSettingsBottomSheet(
-                    danmakuService: danmakuService,
-                    scrollController: scrollController,
-                  ),
-                ),
-              ],
+    // 桌面端：使用侧边栏
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '关闭设置',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Align(
+          alignment: Alignment.centerRight,
+          child: Material(
+            color: Colors.transparent,
+            child: _SettingsPanel(
+              isFullscreen: true,
+              danmakuService: danmakuService,
+              availableSources: availableSources,
+              currentSourceIndex: currentSourceIndex,
+              currentSourceLabel: currentSourceLabel,
+              onSourceSelected: (index) {
+                Navigator.pop(context);
+                onSourceSelected(index);
+              },
             ),
           ),
-        ),
-      );
-    } else {
-      // 全屏或桌面端：使用侧边栏
-      onToggleDanmakuSettings();
-    }
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          )),
+          child: child,
+        );
+      },
+    );
   }
 
   /// 全屏时从右侧滑入的选集面板
@@ -892,6 +826,350 @@ class CustomVideoControls extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 设置面板组件 - 支持一级菜单导航
+class _SettingsPanel extends StatefulWidget {
+  final bool isFullscreen;
+  final DanmakuService danmakuService;
+  final List<SearchPlayResult> availableSources;
+  final int currentSourceIndex;
+  final String currentSourceLabel;
+  final Function(int) onSourceSelected;
+  final ScrollController? scrollController;
+
+  const _SettingsPanel({
+    required this.isFullscreen,
+    required this.danmakuService,
+    required this.availableSources,
+    required this.currentSourceIndex,
+    required this.currentSourceLabel,
+    required this.onSourceSelected,
+    this.scrollController,
+  });
+
+  @override
+  State<_SettingsPanel> createState() => _SettingsPanelState();
+}
+
+class _SettingsPanelState extends State<_SettingsPanel> {
+  // 0: 主菜单, 1: 弹幕设置, 2: 字幕设置, 3: 播放源
+  int _currentPage = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: widget.isFullscreen ? 320 : double.infinity,
+      height: widget.isFullscreen ? double.infinity : null,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A24),
+        borderRadius: widget.isFullscreen
+            ? const BorderRadius.horizontal(left: Radius.circular(16))
+            : const BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      child: SafeArea(
+        left: false,
+        right: widget.isFullscreen,
+        bottom: !widget.isFullscreen,
+        child: Column(
+          children: [
+            // 非全屏时显示拖动指示器
+            if (!widget.isFullscreen)
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white30,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            // 标题栏
+            _buildHeader(),
+            const Divider(color: Colors.white12, height: 1),
+            // 内容区域
+            Expanded(
+              child: _buildContent(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    String title;
+    switch (_currentPage) {
+      case 1:
+        title = '弹幕设置';
+        break;
+      case 2:
+        title = '字幕设置';
+        break;
+      case 3:
+        title = '播放源';
+        break;
+      default:
+        title = '设置';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: Row(
+        children: [
+          if (_currentPage != 0)
+            IconButton(
+              onPressed: () => setState(() => _currentPage = 0),
+              icon: const Icon(Icons.arrow_back, color: Colors.white70, size: 20),
+            )
+          else
+            const SizedBox(width: 48),
+          Expanded(
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    switch (_currentPage) {
+      case 1:
+        return DanmakuSettingsBottomSheet(
+          danmakuService: widget.danmakuService,
+          scrollController: widget.scrollController ?? ScrollController(),
+        );
+      case 2:
+        return _buildSubtitleSettings();
+      case 3:
+        return _buildSourceList();
+      default:
+        return _buildMainMenu();
+    }
+  }
+
+  Widget _buildMainMenu() {
+    return ListView(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        _buildMenuItem(
+          icon: Icons.comment_outlined,
+          title: '弹幕设置',
+          subtitle: widget.danmakuService.settings.enabled ? '已开启' : '已关闭',
+          onTap: () => setState(() => _currentPage = 1),
+        ),
+        _buildMenuItem(
+          icon: Icons.subtitles_outlined,
+          title: '字幕设置',
+          subtitle: '暂无字幕',
+          onTap: () => setState(() => _currentPage = 2),
+        ),
+        _buildMenuItem(
+          icon: Icons.video_library_outlined,
+          title: '播放源',
+          subtitle: widget.availableSources.isEmpty
+              ? '暂无可用源'
+              : '${widget.currentSourceLabel} (${widget.availableSources.length}个可用)',
+          onTap: () => setState(() => _currentPage = 3),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMenuItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: Colors.white70, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubtitleSettings() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.subtitles_off_outlined,
+            size: 64,
+            color: Colors.white.withValues(alpha: 0.2),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '字幕功能开发中',
+            style: TextStyle(
+              color: Colors.white54,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSourceList() {
+    if (widget.availableSources.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.videocam_off_outlined,
+              size: 64,
+              color: Colors.white.withValues(alpha: 0.2),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '暂无可用播放源',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: widget.availableSources.length,
+      itemBuilder: (context, index) {
+        final source = widget.availableSources[index];
+        final isSelected = index == widget.currentSourceIndex;
+
+        return InkWell(
+          onTap: () => widget.onSourceSelected(index),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? const Color(0xFFBB86FC).withValues(alpha: 0.15)
+                  : Colors.white.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isSelected
+                    ? const Color(0xFFBB86FC).withValues(alpha: 0.5)
+                    : Colors.transparent,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFFBB86FC).withValues(alpha: 0.2)
+                        : Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.play_circle_outline,
+                    color: isSelected ? const Color(0xFFBB86FC) : Colors.white54,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        source.sourceName,
+                        style: TextStyle(
+                          color: isSelected ? const Color(0xFFBB86FC) : Colors.white,
+                          fontSize: 14,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      if (source.directVideoUrl != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          source.directVideoUrl!,
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 10,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (isSelected)
+                  const Icon(
+                    Icons.check_circle,
+                    color: Color(0xFFBB86FC),
+                    size: 20,
+                  ),
+              ],
+            ),
           ),
         );
       },
