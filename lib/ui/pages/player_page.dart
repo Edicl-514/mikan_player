@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -11,6 +12,9 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/services/webview_video_extractor.dart';
+import 'package:mikan_player/services/danmaku_service.dart';
+import 'package:mikan_player/ui/widgets/danmaku_overlay.dart';
+import 'package:mikan_player/ui/widgets/danmaku_settings.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 
@@ -88,6 +92,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   String? _videoError;
   final DownloadManager _downloadManager = DownloadManager();
 
+  // Danmaku
+  final DanmakuService _danmakuService = DanmakuService();
+  double _currentVideoTime = 0;
+  bool _isVideoPaused = false;
+  bool _showDanmakuSettings = false;
+  StreamSubscription? _positionSubscription;
+  StreamSubscription? _playingSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -100,6 +112,24 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _videoController = VideoController(_player);
     _isPlayerInitialized = true;
 
+    // Subscribe to player position for danmaku sync
+    _positionSubscription = _player.stream.position.listen((position) {
+      if (mounted) {
+        setState(() {
+          _currentVideoTime = position.inMilliseconds / 1000.0;
+        });
+      }
+    });
+
+    // Subscribe to playing state for danmaku pause
+    _playingSubscription = _player.stream.playing.listen((playing) {
+      if (mounted) {
+        setState(() {
+          _isVideoPaused = !playing;
+        });
+      }
+    });
+
     _loadComments();
     _loadRecommendations();
     _loadRecommendations();
@@ -107,6 +137,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _loadMikanSource();
     _loadDmhySource();
     _loadSampleSource();
+    _loadDanmaku();
+  }
+
+  // Load danmaku based on anime title and episode
+  Future<void> _loadDanmaku() async {
+    final animeTitle = widget.anime.title;
+    final episodeNumber = widget.currentEpisode.sort.toInt();
+
+    debugPrint('[Danmaku] Loading danmaku for: $animeTitle EP$episodeNumber');
+
+    await _danmakuService.loadDanmakuByTitle(animeTitle, episodeNumber);
   }
 
   Future<void> _loadComments() async {
@@ -723,6 +764,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _mobileTabController.dispose();
     _pcEpisodeScrollController.dispose();
     _mobileEpisodeScrollController.dispose();
+    _positionSubscription?.cancel();
+    _playingSubscription?.cancel();
     _player.dispose();
     super.dispose();
   }
@@ -1536,6 +1579,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           // Actual video player
           Video(controller: _videoController, controls: AdaptiveVideoControls),
 
+          // Danmaku overlay
+          IgnorePointer(
+            child: DanmakuOverlay(
+              currentTime: _currentVideoTime,
+              danmakuList: _danmakuService.danmakuList,
+              settings: _danmakuService.settings,
+              isPaused: _isVideoPaused,
+              isPlaying: _currentStreamUrl != null,
+            ),
+          ),
+
           // Loading overlay
           if (_isLoadingVideo || _loadingMagnet != null)
             Container(
@@ -1548,6 +1602,35 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     SizedBox(height: 16),
                     Text("正在加载视频流...", style: TextStyle(color: Colors.white70)),
                   ],
+                ),
+              ),
+            ),
+
+          // Danmaku controls overlay (top right)
+          Positioned(
+            top: isMobile ? 8 : 16,
+            right: isMobile ? 8 : 16,
+            child: _buildDanmakuControls(),
+          ),
+
+          // Danmaku settings panel
+          if (_showDanmakuSettings)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => setState(() => _showDanmakuSettings = false),
+                child: Container(
+                  color: Colors.black54,
+                  alignment: Alignment.center,
+                  child: GestureDetector(
+                    onTap: () {}, // Prevent close when tapping panel
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420, maxHeight: 550),
+                      child: DanmakuSettingsPanel(
+                        danmakuService: _danmakuService,
+                        onClose: () => setState(() => _showDanmakuSettings = false),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1723,6 +1806,82 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildDanmakuControls() {
+    return ListenableBuilder(
+      listenable: _danmakuService,
+      builder: (context, _) {
+        final settings = _danmakuService.settings;
+        final hasData = _danmakuService.danmakuList.isNotEmpty;
+        final isLoading = _danmakuService.isLoading;
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Danmaku count badge
+              if (hasData)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFBB86FC).withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${_danmakuService.danmakuCount}',
+                    style: const TextStyle(
+                      color: Color(0xFFBB86FC),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )
+              else if (isLoading)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFFBB86FC),
+                  ),
+                ),
+
+              if (hasData) const SizedBox(width: 4),
+
+              // Toggle button
+              IconButton(
+                icon: Icon(
+                  settings.enabled ? Icons.subtitles : Icons.subtitles_off,
+                  color: hasData
+                      ? (settings.enabled ? const Color(0xFFBB86FC) : Colors.white54)
+                      : Colors.white30,
+                  size: 20,
+                ),
+                tooltip: settings.enabled ? '关闭弹幕' : '开启弹幕',
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: EdgeInsets.zero,
+                onPressed: hasData ? _danmakuService.toggleEnabled : null,
+              ),
+
+              // Settings button
+              IconButton(
+                icon: const Icon(Icons.tune, color: Colors.white54, size: 20),
+                tooltip: '弹幕设置',
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: EdgeInsets.zero,
+                onPressed: () => setState(() => _showDanmakuSettings = true),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

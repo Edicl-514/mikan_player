@@ -8,10 +8,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// AppId
-const APP_ID: &str = " dandanplay_rust_client";
+const APP_ID: &str = " ";
 
 /// AppSecret
-const APP_SECRET: &str = " dandanplay_secret_key";
+const APP_SECRET: &str = " ";
 
 // ============================================================================
 // 数据结构定义
