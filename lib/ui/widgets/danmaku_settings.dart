@@ -161,19 +161,34 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               ),
             ),
             _buildSliderTile(
-              '同屏数量',
-              '${settings.maxCount}',
-              settings.maxCount.toDouble(),
-              10,
-              100,
+              '字体字重',
+              _getFontWeightLabel(settings.fontWeight),
+              settings.fontWeight.toDouble(),
+              0,
+              8,
               (value) => widget.danmakuService.updateSettings(
-                settings.copyWith(maxCount: value.toInt()),
+                settings.copyWith(fontWeight: value.toInt()),
+              ),
+            ),
+            _buildSliderTile(
+              '描边宽度',
+              '${settings.strokeWidth.toStringAsFixed(1)}',
+              settings.strokeWidth,
+              0.0,
+              5.0,
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(strokeWidth: value),
               ),
             ),
           ],
         );
       },
     );
+  }
+
+  String _getFontWeightLabel(int weight) {
+    const labels = ['极细', '特细', '细', '较细', '正常', '较粗', '粗', '特粗', '极粗'];
+    return labels[weight.clamp(0, 8)];
   }
 
   Widget _buildDanmakuSource() {
@@ -667,19 +682,34 @@ class _VideoSidePanelState extends State<VideoSidePanel>
               ),
             ),
             _buildSliderTile(
-              '同屏数量',
-              '${settings.maxCount}',
-              settings.maxCount.toDouble(),
-              10,
-              100,
+              '字体字重',
+              _getFontWeightLabel(settings.fontWeight),
+              settings.fontWeight.toDouble(),
+              0,
+              8,
               (value) => widget.danmakuService.updateSettings(
-                settings.copyWith(maxCount: value.toInt()),
+                settings.copyWith(fontWeight: value.toInt()),
+              ),
+            ),
+            _buildSliderTile(
+              '描边宽度',
+              '${settings.strokeWidth.toStringAsFixed(1)}',
+              settings.strokeWidth,
+              0.0,
+              5.0,
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(strokeWidth: value),
               ),
             ),
           ],
         );
       },
     );
+  }
+
+  String _getFontWeightLabel(int weight) {
+    const labels = ['极细', '特细', '细', '较细', '正常', '较粗', '粗', '特粗', '极粗'];
+    return labels[weight.clamp(0, 8)];
   }
 
   Widget _buildDanmakuSource() {

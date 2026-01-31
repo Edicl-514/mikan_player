@@ -12,18 +12,20 @@ class DanmakuSettings {
   final bool showScrolling; // 显示滚动弹幕
   final bool showTop; // 显示顶部弹幕
   final bool showBottom; // 显示底部弹幕
-  final int maxCount; // 同屏最大弹幕数
+  final int fontWeight; // 字体粗细 (0-8, 对应 w100-w900)
+  final double strokeWidth; // 描边宽度
 
   const DanmakuSettings({
     this.enabled = true,
     this.opacity = 0.8,
-    this.fontSize = 24.0,
-    this.speed = 8.0,
+    this.fontSize = 22.0,
+    this.speed = 10.0,
     this.displayArea = 0.75,
     this.showScrolling = true,
     this.showTop = true,
     this.showBottom = true,
-    this.maxCount = 50,
+    this.fontWeight = 4, // 默认 w500 (normal)
+    this.strokeWidth = 2.5,
   });
 
   DanmakuSettings copyWith({
@@ -35,7 +37,8 @@ class DanmakuSettings {
     bool? showScrolling,
     bool? showTop,
     bool? showBottom,
-    int? maxCount,
+    int? fontWeight,
+    double? strokeWidth,
   }) {
     return DanmakuSettings(
       enabled: enabled ?? this.enabled,
@@ -46,7 +49,8 @@ class DanmakuSettings {
       showScrolling: showScrolling ?? this.showScrolling,
       showTop: showTop ?? this.showTop,
       showBottom: showBottom ?? this.showBottom,
-      maxCount: maxCount ?? this.maxCount,
+      fontWeight: fontWeight ?? this.fontWeight,
+      strokeWidth: strokeWidth ?? this.strokeWidth,
     );
   }
 }
@@ -93,7 +97,8 @@ class DanmakuService extends ChangeNotifier {
         showScrolling: prefs.getBool('danmaku_showScrolling') ?? true,
         showTop: prefs.getBool('danmaku_showTop') ?? true,
         showBottom: prefs.getBool('danmaku_showBottom') ?? true,
-        maxCount: prefs.getInt('danmaku_maxCount') ?? 50,
+        fontWeight: prefs.getInt('danmaku_fontWeight') ?? 4,
+        strokeWidth: prefs.getDouble('danmaku_strokeWidth') ?? 1.5,
       );
       notifyListeners();
     } catch (e) {
@@ -113,7 +118,8 @@ class DanmakuService extends ChangeNotifier {
       await prefs.setBool('danmaku_showScrolling', _settings.showScrolling);
       await prefs.setBool('danmaku_showTop', _settings.showTop);
       await prefs.setBool('danmaku_showBottom', _settings.showBottom);
-      await prefs.setInt('danmaku_maxCount', _settings.maxCount);
+      await prefs.setInt('danmaku_fontWeight', _settings.fontWeight);
+      await prefs.setDouble('danmaku_strokeWidth', _settings.strokeWidth);
     } catch (e) {
       debugPrint('Error saving danmaku settings: $e');
     }
@@ -134,8 +140,11 @@ class DanmakuService extends ChangeNotifier {
   }
 
   /// 通过标题和集数获取弹幕（便捷方法）
-  Future<void> loadDanmakuByTitle(String animeTitle, String episodeNumber,
-      {int? relativeEpisode}) async {
+  Future<void> loadDanmakuByTitle(
+    String animeTitle,
+    String episodeNumber, {
+    int? relativeEpisode,
+  }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();

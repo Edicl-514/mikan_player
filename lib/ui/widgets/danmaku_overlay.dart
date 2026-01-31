@@ -230,7 +230,8 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
         hideScroll: !widget.settings.showScrolling,
         hideTop: !widget.settings.showTop,
         hideBottom: !widget.settings.showBottom,
-        strokeWidth: 1.5,
+        fontWeight: widget.settings.fontWeight,
+        strokeWidth: widget.settings.strokeWidth,
         safeArea: true,
       ),
     );
@@ -279,7 +280,8 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
         hideScroll: !widget.settings.showScrolling,
         hideTop: !widget.settings.showTop,
         hideBottom: !widget.settings.showBottom,
-        strokeWidth: 1.5,
+        fontWeight: widget.settings.fontWeight,
+        strokeWidth: widget.settings.strokeWidth,
         safeArea: true,
       ),
     );
