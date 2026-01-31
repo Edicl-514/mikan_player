@@ -390,7 +390,7 @@ class CustomVideoControls extends StatelessWidget {
             ),
             _buildIntegratedButton(
               icon: Icons.playlist_play,
-              onPressed: () => _showEpisodeSelection(context),
+              onPressed: () => _showEpisodeSidePanel(context),
             ),
             const SizedBox(width: 8),
             _buildIntegratedButton(
@@ -762,7 +762,7 @@ class CustomVideoControls extends StatelessWidget {
                                 ),
                               ),
                               child: Text(
-                                ep.sort.toString(),
+                                ep.sort.toInt().toString(),
                                 style: TextStyle(
                                   color: isSelected
                                       ? const Color(0xFFBB86FC)
@@ -853,7 +853,7 @@ class CustomVideoControls extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          ep.sort.toString(),
+                          ep.sort.toInt().toString(),
                           style: TextStyle(
                             color: isSelected
                                 ? const Color(0xFFBB86FC)
