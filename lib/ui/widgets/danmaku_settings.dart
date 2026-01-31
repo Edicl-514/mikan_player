@@ -2,22 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/src/rust/api/danmaku.dart';
 
-/// 弹幕设置面板
-class DanmakuSettingsPanel extends StatefulWidget {
+/// 移动端底部弹出式弹幕设置面板
+class DanmakuSettingsBottomSheet extends StatefulWidget {
   final DanmakuService danmakuService;
-  final VoidCallback? onClose;
+  final ScrollController scrollController;
 
-  const DanmakuSettingsPanel({
+  const DanmakuSettingsBottomSheet({
     super.key,
     required this.danmakuService,
-    this.onClose,
+    required this.scrollController,
   });
 
   @override
-  State<DanmakuSettingsPanel> createState() => _DanmakuSettingsPanelState();
+  State<DanmakuSettingsBottomSheet> createState() => _DanmakuSettingsBottomSheetState();
 }
 
-class _DanmakuSettingsPanelState extends State<DanmakuSettingsPanel>
+class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
@@ -37,59 +37,540 @@ class _DanmakuSettingsPanelState extends State<DanmakuSettingsPanel>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E2E),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: Color(0xFF2D2D44), width: 1),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.subtitles, color: Color(0xFFBB86FC)),
-                const SizedBox(width: 12),
-                const Text(
-                  '弹幕设置',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                if (widget.onClose != null)
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white70),
-                    onPressed: widget.onClose,
-                  ),
-              ],
+    return Column(
+      children: [
+        // Tab 栏
+        Container(
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: Colors.white10, width: 1),
             ),
           ),
-
-          // Tabs
-          TabBar(
+          child: TabBar(
             controller: _tabController,
-            labelColor: const Color(0xFFBB86FC),
-            unselectedLabelColor: Colors.white54,
             indicatorColor: const Color(0xFFBB86FC),
+            indicatorSize: TabBarIndicatorSize.label,
+            labelColor: const Color(0xFFBB86FC),
+            unselectedLabelColor: Colors.white70,
+            dividerColor: Colors.transparent,
+            labelStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
             tabs: const [
               Tab(text: '显示设置'),
               Tab(text: '弹幕源'),
             ],
           ),
+        ),
+        // 内容区域
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildDisplaySettings(),
+              _buildDanmakuSource(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
-          // Tab Content
-          SizedBox(
-            height: 400,
+  Widget _buildDisplaySettings() {
+    return ListenableBuilder(
+      listenable: widget.danmakuService,
+      builder: (context, _) {
+        final settings = widget.danmakuService.settings;
+        return ListView(
+          controller: widget.scrollController,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          children: [
+            _buildSwitchTile(
+              '显示弹幕',
+              settings.enabled,
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(enabled: value),
+              ),
+            ),
+            const Divider(color: Colors.white10, height: 1),
+            
+            _buildSectionHeader('显示类型'),
+            _buildSwitchTile(
+              '滚动弹幕',
+              settings.showScrolling,
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(showScrolling: value),
+              ),
+            ),
+            _buildSwitchTile(
+              '顶部弹幕',
+              settings.showTop,
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(showTop: value),
+              ),
+            ),
+            _buildSwitchTile(
+              '底部弹幕',
+              settings.showBottom,
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(showBottom: value),
+              ),
+            ),
+            const Divider(color: Colors.white10, height: 1),
+
+            _buildSectionHeader('样式设置'),
+            _buildSliderTile(
+              '不透明度',
+              '${(settings.opacity * 100).toInt()}%',
+              settings.opacity,
+              0.1,
+              1.0,
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(opacity: value),
+              ),
+            ),
+            _buildSliderTile(
+              '字体大小',
+              '${settings.fontSize.toInt()}px',
+              settings.fontSize,
+              14,
+              40,
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(fontSize: value),
+              ),
+            ),
+            _buildSliderTile(
+              '弹幕速度',
+              '${settings.speed.toInt()}秒',
+              settings.speed,
+              4,
+              16,
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(speed: value),
+              ),
+            ),
+            _buildSliderTile(
+              '显示区域',
+              '${(settings.displayArea * 100).toInt()}%',
+              settings.displayArea,
+              0.25,
+              1.0,
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(displayArea: value),
+              ),
+            ),
+            _buildSliderTile(
+              '同屏数量',
+              '${settings.maxCount}',
+              settings.maxCount.toDouble(),
+              10,
+              100,
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(maxCount: value.toInt()),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDanmakuSource() {
+    return ListenableBuilder(
+      listenable: widget.danmakuService,
+      builder: (context, _) {
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: '搜索番剧名称...',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  filled: true,
+                  fillColor: Colors.white.withValues(alpha: 0.1),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.search, color: Color(0xFFBB86FC), size: 18),
+                    onPressed: () {
+                      if (_searchController.text.isNotEmpty) {
+                        widget.danmakuService.searchAnime(_searchController.text);
+                      }
+                    },
+                  ),
+                ),
+                onSubmitted: (value) {
+                  if (value.isNotEmpty) {
+                    widget.danmakuService.searchAnime(value);
+                  }
+                },
+              ),
+            ),
+            if (widget.danmakuService.isLoading)
+              const Expanded(
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFBB86FC),
+                    strokeWidth: 2,
+                  ),
+                ),
+              )
+            else if (widget.danmakuService.error != null)
+              Expanded(
+                child: Center(
+                  child: Text(
+                    widget.danmakuService.error!,
+                    style: const TextStyle(color: Colors.redAccent),
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView(
+                  controller: widget.scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    if (widget.danmakuService.selectedAnime != null) ...[
+                      const Text(
+                        '当前匹配',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildSelectedAnimeCard(widget.danmakuService.selectedAnime!),
+                      const SizedBox(height: 24),
+                    ],
+                    if (widget.danmakuService.searchResults.isNotEmpty) ...[
+                      const Text(
+                        '搜索结果',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...widget.danmakuService.searchResults.map(
+                        (anime) => _buildAnimeCard(anime),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                    if (widget.danmakuService.episodes.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          const Text(
+                            '剧集列表',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '共 ${widget.danmakuService.episodes.length} 集',
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: widget.danmakuService.episodes.map((ep) {
+                          final isSelected = widget.danmakuService.selectedEpisode?.episodeId == ep.episodeId;
+                          return InkWell(
+                            onTap: () => widget.danmakuService.selectEpisode(ep),
+                            borderRadius: BorderRadius.circular(4),
+                            child: Container(
+                              width: 48,
+                              height: 32,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isSelected 
+                                  ? const Color(0xFFBB86FC) 
+                                  : Colors.white.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                ep.episodeTitle,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.black : Colors.white70,
+                                  fontSize: 12,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSelectedAnimeCard(DanmakuAnime anime) {
+    return InkWell(
+      onTap: () => widget.danmakuService.selectAnime(anime),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFBB86FC).withValues(alpha: 0.15),
+          border: Border.all(
+            color: const Color(0xFFBB86FC),
+            width: 1,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          anime.animeTitle,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimeCard(DanmakuAnime anime) {
+    return InkWell(
+      onTap: () => widget.danmakuService.selectAnime(anime),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              anime.animeTitle,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (anime.typeDescription != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                anime.typeDescription!,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                ),
+              ),
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Color(0xFFBB86FC),
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSwitchTile(
+    String title,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+            ),
+            SizedBox(
+              height: 24,
+              child: Switch(
+                value: value,
+                onChanged: onChanged,
+                activeColor: const Color(0xFFBB86FC),
+                activeTrackColor: const Color(0xFFBB86FC).withValues(alpha: 0.3),
+                inactiveThumbColor: Colors.grey,
+                inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSliderTile(
+    String title,
+    String valueText,
+    double value,
+    double min,
+    double max,
+    ValueChanged<double> onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+              Text(
+                valueText,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        SliderTheme(
+          data: SliderThemeData(
+            activeTrackColor: const Color(0xFFBB86FC),
+            inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
+            thumbColor: Colors.white,
+            trackHeight: 2,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+          ),
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class VideoSidePanel extends StatefulWidget {
+  final DanmakuService danmakuService;
+  final VoidCallback? onClose;
+  final int initialIndex;
+
+  const VideoSidePanel({
+    super.key,
+    required this.danmakuService,
+    this.onClose,
+    this.initialIndex = 0,
+  });
+
+  @override
+  State<VideoSidePanel> createState() => _VideoSidePanelState();
+}
+
+class _VideoSidePanelState extends State<VideoSidePanel>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialIndex,
+    );
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 320,
+      height: double.infinity,
+      color: const Color(0xFF13131A).withValues(alpha: 0.95),
+      child: Column(
+        children: [
+          // 顶部 Tab 栏
+          Container(
+            height: 48,
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Colors.white10, width: 1),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TabBar(
+                    controller: _tabController,
+                    indicatorColor: const Color(0xFFBB86FC),
+                    indicatorSize: TabBarIndicatorSize.label,
+                    labelColor: const Color(0xFFBB86FC),
+                    unselectedLabelColor: Colors.white70,
+                    dividerColor: Colors.transparent,
+                    labelStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    tabs: const [
+                      Tab(text: '显示设置'),
+                      Tab(text: '弹幕源'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 内容区域
+          Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
@@ -109,133 +590,91 @@ class _DanmakuSettingsPanelState extends State<DanmakuSettingsPanel>
       builder: (context, _) {
         final settings = widget.danmakuService.settings;
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           children: [
-            // 弹幕开关
             _buildSwitchTile(
               '显示弹幕',
-              Icons.visibility,
               settings.enabled,
-              (value) {
-                widget.danmakuService.updateSettings(
-                  settings.copyWith(enabled: value),
-                );
-              },
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(enabled: value),
+              ),
             ),
-
-            const SizedBox(height: 16),
-
-            // 弹幕类型过滤
-            _buildSectionTitle('弹幕类型'),
+            const Divider(color: Colors.white10, height: 1),
+            
+            _buildSectionHeader('显示类型'),
             _buildSwitchTile(
               '滚动弹幕',
-              Icons.arrow_forward,
               settings.showScrolling,
-              (value) {
-                widget.danmakuService.updateSettings(
-                  settings.copyWith(showScrolling: value),
-                );
-              },
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(showScrolling: value),
+              ),
             ),
             _buildSwitchTile(
               '顶部弹幕',
-              Icons.vertical_align_top,
               settings.showTop,
-              (value) {
-                widget.danmakuService.updateSettings(
-                  settings.copyWith(showTop: value),
-                );
-              },
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(showTop: value),
+              ),
             ),
             _buildSwitchTile(
               '底部弹幕',
-              Icons.vertical_align_bottom,
               settings.showBottom,
-              (value) {
-                widget.danmakuService.updateSettings(
-                  settings.copyWith(showBottom: value),
-                );
-              },
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(showBottom: value),
+              ),
             ),
+            const Divider(color: Colors.white10, height: 1),
 
-            const SizedBox(height: 16),
-
-            // 透明度
-            _buildSectionTitle('透明度'),
-            _buildSlider(
+            _buildSectionHeader('样式设置'),
+            _buildSliderTile(
+              '不透明度',
+              '${(settings.opacity * 100).toInt()}%',
               settings.opacity,
               0.1,
               1.0,
-              '${(settings.opacity * 100).toInt()}%',
-              (value) {
-                widget.danmakuService.updateSettings(
-                  settings.copyWith(opacity: value),
-                );
-              },
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(opacity: value),
+              ),
             ),
-
-            const SizedBox(height: 16),
-
-            // 字体大小
-            _buildSectionTitle('字体大小'),
-            _buildSlider(
+            _buildSliderTile(
+              '字体大小',
+              '${settings.fontSize.toInt()}px',
               settings.fontSize,
               14,
               40,
-              '${settings.fontSize.toInt()}px',
-              (value) {
-                widget.danmakuService.updateSettings(
-                  settings.copyWith(fontSize: value),
-                );
-              },
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(fontSize: value),
+              ),
             ),
-
-            const SizedBox(height: 16),
-
-            // 弹幕速度
-            _buildSectionTitle('弹幕速度'),
-            _buildSlider(
+            _buildSliderTile(
+              '弹幕速度',
+              '${settings.speed.toInt()}秒',
               settings.speed,
               4,
               16,
-              '${settings.speed.toInt()}秒',
-              (value) {
-                widget.danmakuService.updateSettings(
-                  settings.copyWith(speed: value),
-                );
-              },
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(speed: value),
+              ),
             ),
-
-            const SizedBox(height: 16),
-
-            // 显示区域
-            _buildSectionTitle('显示区域'),
-            _buildSlider(
+            _buildSliderTile(
+              '显示区域',
+              '${(settings.displayArea * 100).toInt()}%',
               settings.displayArea,
               0.25,
               1.0,
-              '${(settings.displayArea * 100).toInt()}%',
-              (value) {
-                widget.danmakuService.updateSettings(
-                  settings.copyWith(displayArea: value),
-                );
-              },
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(displayArea: value),
+              ),
             ),
-
-            const SizedBox(height: 16),
-
-            // 同屏数量
-            _buildSectionTitle('同屏最大数量'),
-            _buildSlider(
+            _buildSliderTile(
+              '同屏数量',
+              '${settings.maxCount}',
               settings.maxCount.toDouble(),
               10,
               100,
-              '${settings.maxCount}',
-              (value) {
-                widget.danmakuService.updateSettings(
-                  settings.copyWith(maxCount: value.toInt()),
-                );
-              },
+              (value) => widget.danmakuService.updateSettings(
+                settings.copyWith(maxCount: value.toInt()),
+              ),
             ),
           ],
         );
@@ -247,322 +686,197 @@ class _DanmakuSettingsPanelState extends State<DanmakuSettingsPanel>
     return ListenableBuilder(
       listenable: widget.danmakuService,
       builder: (context, _) {
-        return ListView(
-          padding: const EdgeInsets.all(16),
+        return Column(
           children: [
-            // 状态信息
-            _buildStatusCard(),
-
-            const SizedBox(height: 16),
-
-            // 搜索框
-            TextField(
-              controller: _searchController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: '搜索番剧名称...',
-                hintStyle: const TextStyle(color: Colors.white38),
-                filled: true,
-                fillColor: const Color(0xFF2D2D44),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: '搜索番剧名称...',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  filled: true,
+                  fillColor: Colors.white.withValues(alpha: 0.1),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.search, color:  Color(0xFFBB86FC), size: 18),
+                    onPressed: () {
+                      if (_searchController.text.isNotEmpty) {
+                        widget.danmakuService.searchAnime(_searchController.text);
+                      }
+                    },
+                  ),
                 ),
-                prefixIcon: const Icon(Icons.search, color: Colors.white54),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.send, color: Color(0xFFBB86FC)),
-                  onPressed: () {
-                    if (_searchController.text.isNotEmpty) {
-                      widget.danmakuService.searchAnime(_searchController.text);
-                    }
-                  },
-                ),
+                onSubmitted: (value) {
+                  if (value.isNotEmpty) {
+                    widget.danmakuService.searchAnime(value);
+                  }
+                },
               ),
-              onSubmitted: (value) {
-                if (value.isNotEmpty) {
-                  widget.danmakuService.searchAnime(value);
-                }
-              },
             ),
-
-            const SizedBox(height: 16),
-
-            // 搜索结果或剧集列表
             if (widget.danmakuService.isLoading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: CircularProgressIndicator(color: Color(0xFFBB86FC)),
+              const Expanded(
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFBB86FC),
+                    strokeWidth: 2,
+                  ),
                 ),
               )
             else if (widget.danmakuService.error != null)
-              _buildErrorCard()
-            else if (widget.danmakuService.selectedAnime != null)
-              _buildEpisodeList()
-            else if (widget.danmakuService.searchResults.isNotEmpty)
-              _buildSearchResults(),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    widget.danmakuService.error!,
+                    style: const TextStyle(color: Colors.redAccent),
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                     if (widget.danmakuService.selectedAnime != null) ...[
+                      const Text(
+                        '当前匹配',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // 使用 _buildAnimeCard 但需要确保它可以处理这两种情况，或者我们这里重写逻辑
+                      // _buildAnimeCard(widget.danmakuService.selectedAnime!, ),
+                       InkWell(
+                         onTap: () => widget.danmakuService.selectAnime(widget.danmakuService.selectedAnime!),
+                         borderRadius: BorderRadius.circular(8),
+                         child: Container(
+                           padding: const EdgeInsets.all(12),
+                           decoration: BoxDecoration(
+                             color: const Color(0xFFBB86FC).withValues(alpha: 0.15),
+                             border: Border.all(
+                               color: const Color(0xFFBB86FC),
+                               width: 1,
+                             ),
+                             borderRadius: BorderRadius.circular(8),
+                           ),
+                           child: Column(
+                             crossAxisAlignment: CrossAxisAlignment.start,
+                             children: [
+                               Text(
+                                 widget.danmakuService.selectedAnime!.animeTitle,
+                                 style: const TextStyle(
+                                   color: Colors.white,
+                                   fontSize: 13,
+                                   fontWeight: FontWeight.bold,
+                                 ),
+                               ),
+                                // 假设 DanmakuAnime 没有 seasonTitle，所以这里不显示
+                             ],
+                           ),
+                         ),
+                       ),
+                      const SizedBox(height: 24),
+                    ],
+                    if (widget.danmakuService.searchResults.isNotEmpty) ...[
+                      const Text(
+                        '搜索结果',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...widget.danmakuService.searchResults.map(
+                        (anime) => _buildAnimeCard(anime, false),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                    if (widget.danmakuService.episodes.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          const Text(
+                            '剧集列表',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '共 ${widget.danmakuService.episodes.length} 集',
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: widget.danmakuService.episodes.map((ep) {
+                          // selectedEpisode 是 DanmakuEpisode 类型
+                          // ep 是 DanmakuEpisode 类型
+                          final isSelected = widget.danmakuService.selectedEpisode?.episodeId == ep.episodeId;
+                          return InkWell(
+                            onTap: () => widget.danmakuService.selectEpisode(ep),
+                            borderRadius: BorderRadius.circular(4),
+                            child: Container(
+                              width: 48,
+                              height: 32,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isSelected 
+                                  ? const Color(0xFFBB86FC) 
+                                  : Colors.white.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                ep.episodeTitle, // 之前看到是 episodeTitle
+                                style: TextStyle(
+                                  color: isSelected ? Colors.black : Colors.white70,
+                                  fontSize: 12,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
           ],
         );
       },
     );
   }
 
-  Widget _buildStatusCard() {
-    final service = widget.danmakuService;
-
-    String statusText;
-    IconData statusIcon;
-    Color statusColor;
-
-    if (service.danmakuList.isNotEmpty) {
-      statusText = '已加载 ${service.danmakuCount} 条弹幕';
-      statusIcon = Icons.check_circle;
-      statusColor = Colors.green;
-    } else if (service.isLoading) {
-      statusText = '正在加载弹幕...';
-      statusIcon = Icons.hourglass_empty;
-      statusColor = Colors.orange;
-    } else {
-      statusText = '未加载弹幕';
-      statusIcon = Icons.info_outline;
-      statusColor = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2D2D44),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(statusIcon, color: statusColor, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  statusText,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                ),
-                if (service.selectedAnime != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '${service.selectedAnime!.animeTitle}${service.selectedEpisode != null ? ' - ${service.selectedEpisode!.episodeTitle}' : ''}',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (service.danmakuList.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.white54, size: 20),
-              onPressed: () {
-                if (service.selectedEpisode != null) {
-                  service.selectEpisode(service.selectedEpisode!);
-                }
-              },
-              tooltip: '重新加载',
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline, color: Colors.red, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              widget.danmakuService.error ?? '未知错误',
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchResults() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionTitle('搜索结果 (${widget.danmakuService.searchResults.length})'),
-        ...widget.danmakuService.searchResults.map((anime) {
-          return _buildAnimeCard(anime);
-        }),
-      ],
-    );
-  }
-
-  Widget _buildAnimeCard(DanmakuAnime anime) {
-    return Card(
-      color: const Color(0xFF2D2D44),
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: anime.imageUrl != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.network(
-                  anime.imageUrl!,
-                  width: 48,
-                  height: 64,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 48,
-                    height: 64,
-                    color: const Color(0xFF3D3D54),
-                    child: const Icon(Icons.movie, color: Colors.white38),
-                  ),
-                ),
-              )
-            : Container(
-                width: 48,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3D3D54),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Icon(Icons.movie, color: Colors.white38),
-              ),
-        title: Text(
-          anime.animeTitle,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          anime.typeDescription ?? anime.animeType,
-          style: const TextStyle(color: Colors.white54, fontSize: 12),
-        ),
-        trailing: const Icon(Icons.chevron_right, color: Colors.white54),
-        onTap: () {
-          widget.danmakuService.selectAnime(anime);
-        },
-      ),
-    );
-  }
-
-  Widget _buildEpisodeList() {
-    final selectedAnime = widget.danmakuService.selectedAnime!;
-    final episodes = widget.danmakuService.episodes;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 返回按钮
-        TextButton.icon(
-          icon: const Icon(Icons.arrow_back, size: 18),
-          label: const Text('返回搜索结果'),
-          style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFFBB86FC),
-          ),
-          onPressed: () {
-            widget.danmakuService.clearDanmaku();
-            if (_searchController.text.isNotEmpty) {
-              widget.danmakuService.searchAnime(_searchController.text);
-            }
-          },
-        ),
-
-        const SizedBox(height: 8),
-
-        // 当前选中的番剧
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF3D3D54),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.movie, color: Color(0xFFBB86FC)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  selectedAnime.animeTitle,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        _buildSectionTitle('选择剧集 (${episodes.length})'),
-
-        // 剧集网格
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 2,
-          ),
-          itemCount: episodes.length,
-          itemBuilder: (context, index) {
-            final episode = episodes[index];
-            final isSelected = widget.danmakuService.selectedEpisode == episode;
-
-            return Material(
-              color: isSelected
-                  ? const Color(0xFFBB86FC)
-                  : const Color(0xFF2D2D44),
-              borderRadius: BorderRadius.circular(8),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () {
-                  widget.danmakuService.selectEpisode(episode);
-                },
-                child: Center(
-                  child: Text(
-                    episode.episodeNumber ?? episode.episodeTitle,
-                    style: TextStyle(
-                      color: isSelected ? Colors.black : Colors.white,
-                      fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
       child: Text(
         title,
         style: const TextStyle(
-          color: Colors.white70,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
+          color: Color(0xFFBB86FC),
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
@@ -570,172 +884,126 @@ class _DanmakuSettingsPanelState extends State<DanmakuSettingsPanel>
 
   Widget _buildSwitchTile(
     String title,
-    IconData icon,
     bool value,
     ValueChanged<bool> onChanged,
   ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      child: ListTile(
-        dense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-        leading: Icon(icon, color: Colors.white54, size: 20),
-        title: Text(
-          title,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-        ),
-        trailing: Switch(
-          value: value,
-          onChanged: onChanged,
-          activeColor: const Color(0xFFBB86FC),
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+            ),
+            SizedBox(
+              height: 24,
+              child: Switch(
+                value: value,
+                onChanged: onChanged,
+                activeColor: const Color(0xFFBB86FC),
+                activeTrackColor: const Color(0xFFBB86FC).withValues(alpha: 0.3),
+                inactiveThumbColor: Colors.grey,
+                inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSlider(
+  Widget _buildSliderTile(
+    String title,
+    String valueText,
     double value,
     double min,
     double max,
-    String label,
     ValueChanged<double> onChanged,
   ) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
+              Text(
+                valueText,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        SliderTheme(
+          data: SliderThemeData(
+            activeTrackColor: const Color(0xFFBB86FC),
+            inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
+            thumbColor: Colors.white,
+            trackHeight: 2,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+          ),
           child: Slider(
             value: value,
             min: min,
             max: max,
             onChanged: onChanged,
-            activeColor: const Color(0xFFBB86FC),
-            inactiveColor: const Color(0xFF3D3D54),
-          ),
-        ),
-        SizedBox(
-          width: 60,
-          child: Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 13),
-            textAlign: TextAlign.right,
           ),
         ),
       ],
     );
   }
-}
-
-/// 弹幕开关按钮（用于播放器控制栏）
-class DanmakuToggleButton extends StatelessWidget {
-  final DanmakuService danmakuService;
-  final VoidCallback? onSettingsPressed;
-
-  const DanmakuToggleButton({
-    super.key,
-    required this.danmakuService,
-    this.onSettingsPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: danmakuService,
-      builder: (context, _) {
-        final enabled = danmakuService.settings.enabled;
-        final hasData = danmakuService.danmakuList.isNotEmpty;
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
+  
+  Widget _buildAnimeCard(DanmakuAnime anime, bool isSelected) {
+    return InkWell(
+      onTap: () => widget.danmakuService.selectAnime(anime),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected 
+              ? const Color(0xFFBB86FC).withValues(alpha: 0.15) 
+              : Colors.white.withValues(alpha: 0.05),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFBB86FC) : Colors.transparent,
+            width: 1,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 弹幕开关
-            IconButton(
-              icon: Icon(
-                enabled ? Icons.subtitles : Icons.subtitles_off,
-                color: hasData
-                    ? (enabled ? const Color(0xFFBB86FC) : Colors.white54)
-                    : Colors.white30,
+            Text(
+              anime.animeTitle,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
               ),
-              tooltip: enabled ? '关闭弹幕' : '开启弹幕',
-              onPressed: hasData ? danmakuService.toggleEnabled : null,
             ),
-
-            // 设置按钮
-            if (onSettingsPressed != null)
-              IconButton(
-                icon: const Icon(Icons.tune, color: Colors.white54),
-                tooltip: '弹幕设置',
-                onPressed: onSettingsPressed,
-              ),
+             if (anime.typeDescription != null) ...[
+               const SizedBox(height: 4),
+               Text(
+                 anime.typeDescription!,
+                 style: const TextStyle(
+                   color: Colors.white70,
+                   fontSize: 12,
+                 ),
+               ),
+             ]
           ],
-        );
-      },
-    );
-  }
-}
-
-/// 弹幕信息徽章
-class DanmakuBadge extends StatelessWidget {
-  final DanmakuService danmakuService;
-
-  const DanmakuBadge({
-    super.key,
-    required this.danmakuService,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: danmakuService,
-      builder: (context, _) {
-        if (danmakuService.isLoading) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.orange,
-                  ),
-                ),
-                SizedBox(width: 6),
-                Text(
-                  '加载中',
-                  style: TextStyle(color: Colors.orange, fontSize: 11),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final count = danmakuService.danmakuCount;
-        if (count == 0) {
-          return const SizedBox.shrink();
-        }
-
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: const Color(0xFFBB86FC).withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            '弹幕 $count',
-            style: const TextStyle(
-              color: Color(0xFFBB86FC),
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

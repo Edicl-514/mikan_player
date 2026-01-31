@@ -50,6 +50,22 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
   void didUpdateWidget(DanmakuOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    // 1. 如果始终处于关闭状态，直接返回
+    if (!oldWidget.settings.enabled && !widget.settings.enabled) return;
+
+    // 2. 如果从开启变为关闭：清理控制器引用
+    if (oldWidget.settings.enabled && !widget.settings.enabled) {
+      _controller = null;
+      _isInitialized = false;
+      return;
+    }
+
+    // 3. 如果从关闭变为开启：等待 _onControllerCreated 初始化，跳过本次更新
+    if (!oldWidget.settings.enabled && widget.settings.enabled) {
+      return;
+    }
+
+    // 4. 保持开启状态：必须已初始化才继续
     if (!_isInitialized) return;
 
     // 如果时间跳跃（seek），重置弹幕
@@ -93,6 +109,12 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
     }
   }
 
+  @override
+  void dispose() {
+    _controller = null;
+    super.dispose();
+  }
+
   void _resetDanmaku() {
     if (!_isInitialized) return;
     _controller?.clear();
@@ -119,7 +141,7 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
   }
 
   void _processDanmaku() {
-    if (!_isInitialized) return;
+    if (!mounted || !_isInitialized) return;
     if (!widget.settings.enabled) return;
     if (widget.danmakuList.isEmpty) return;
     if (_controller == null) return;
@@ -177,21 +199,28 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
   }
 
   void _addDanmaku(Danmaku danmakuItem) {
+    if (!mounted || _controller == null) return;
+    
     final r = (danmakuItem.color >> 16) & 0xFF;
     final g = (danmakuItem.color >> 8) & 0xFF;
     final b = danmakuItem.color & 0xFF;
     final color = Color.fromARGB(255, r, g, b);
 
-    _controller?.addDanmaku(
-      danmaku.DanmakuContentItem(
-        danmakuItem.text,
-        color: color,
-        type: _getDanmakuType(danmakuItem.danmakuType),
-      ),
-    );
+    try {
+      _controller?.addDanmaku(
+        danmaku.DanmakuContentItem(
+          danmakuItem.text,
+          color: color,
+          type: _getDanmakuType(danmakuItem.danmakuType),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error adding danmaku: $e');
+    }
   }
 
   void _updateOption() {
+    if (!widget.settings.enabled) return;
     _controller?.updateOption(
       danmaku.DanmakuOption(
         fontSize: widget.settings.fontSize,
@@ -217,6 +246,9 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
       setState(() {
         _isInitialized = true;
       });
+
+      // 更新 _lastTime 防止初始化时触发 seek 判定
+      _lastTime = widget.currentTime;
 
       // 初始化时，如果已暂停则暂停控制器
       if (widget.isPaused || !widget.isPlaying) {

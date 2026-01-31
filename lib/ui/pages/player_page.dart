@@ -655,6 +655,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (source.headers != null) headers.addAll(source.headers!);
       if (source.cookies != null) headers['Cookie'] = source.cookies!;
 
+      // 停止之前的播放，防止后台继续播放
+      _player.stop();
       _player.open(Media(_sampleVideoUrl!, httpHeaders: headers));
       _currentStreamUrl = _sampleVideoUrl;
       _playingSourceLabel = source.sourceName;
@@ -851,6 +853,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _mobileEpisodeScrollController.dispose();
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
+    // 确保播放器完全停止后再释放
+    _player.stop();
     _player.dispose();
     super.dispose();
   }
@@ -2419,6 +2423,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           if (source.cookies != null)
                             headers['Cookie'] = source.cookies!;
 
+                          // 停止之前的播放，防止后台继续播放
+                          _player.stop();
                           _player.open(
                             Media(_sampleVideoUrl!, httpHeaders: headers),
                           );
@@ -2830,6 +2836,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                               debugPrint("[Player] Got stream URL: $streamUrl");
                               _currentStreamUrl = streamUrl;
 
+                              // 停止之前的播放，防止后台继续播放
+                              await _player.stop();
                               await _player.open(Media(streamUrl));
 
                               setState(() {

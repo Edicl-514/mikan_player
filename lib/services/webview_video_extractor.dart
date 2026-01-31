@@ -295,6 +295,55 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
     return false;
   }
 
+  /// 注入JS脚本来静音所有媒体元素并阻止自动播放
+  void _injectMuteScript(InAppWebViewController controller) {
+    controller.evaluateJavascript(source: '''
+      (function() {
+        // 静音并暂停所有现有的video和audio元素
+        function muteAllMedia() {
+          document.querySelectorAll('video, audio').forEach(function(el) {
+            el.muted = true;
+            el.volume = 0;
+            el.pause();
+            el.autoplay = false;
+            // 移除src以彻底阻止播放
+            // el.src = '';
+          });
+        }
+        
+        // 立即执行
+        muteAllMedia();
+        
+        // 监听DOM变化，处理动态添加的媒体元素
+        var observer = new MutationObserver(function(mutations) {
+          muteAllMedia();
+        });
+        observer.observe(document.body || document.documentElement, {
+          childList: true,
+          subtree: true
+        });
+        
+        // 覆盖HTMLMediaElement的play方法，阻止自动播放
+        var originalPlay = HTMLMediaElement.prototype.play;
+        HTMLMediaElement.prototype.play = function() {
+          this.muted = true;
+          this.volume = 0;
+          // 返回一个resolved的Promise，避免网站检测到播放失败
+          return Promise.resolve();
+        };
+        
+        // 覆盖Audio构造函数
+        var OriginalAudio = window.Audio;
+        window.Audio = function(src) {
+          var audio = new OriginalAudio(src);
+          audio.muted = true;
+          audio.volume = 0;
+          return audio;
+        };
+      })();
+    ''');
+  }
+
   @override
   void dispose() {
     _timeoutTimer?.cancel();
@@ -308,8 +357,11 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
       webViewEnvironment: webViewEnvironment,  // 使用全局 WebView 环境（Windows 需要）
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
-        mediaPlaybackRequiresUserGesture: false,
-        allowsInlineMediaPlayback: true,
+        // 禁止自动播放媒体，防止后台WebView播放声音
+        mediaPlaybackRequiresUserGesture: true,
+        allowsInlineMediaPlayback: false,
+        // 静音所有媒体
+        isFraudulentWebsiteWarningEnabled: false,
         useHybridComposition: true,
         useShouldInterceptRequest: true,
         // 允许混合内容
@@ -320,13 +372,20 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
       onWebViewCreated: (controller) {
         _webViewController = controller;
         _log('WebView 创建完成，开始加载: ${widget.url}');
+        // 立即注入JS来静音所有媒体元素
+        _injectMuteScript(controller);
       },
       onLoadStart: (controller, url) {
         _log('开始加载: $url');
+        // 每次导航开始时注入静音脚本
+        _injectMuteScript(controller);
       },
       onLoadStop: (controller, url) async {
         _log('页面加载完成: $url');
         _log('已拦截 $_totalUrlsChecked 个URL');
+        
+        // 页面加载完成后再次注入静音脚本，确保所有动态创建的媒体元素都被静音
+        _injectMuteScript(controller);
         
         // 页面加载完成后，尝试从页面内容中提取视频URL
         // 有些网站的视频URL是通过JS动态生成的
