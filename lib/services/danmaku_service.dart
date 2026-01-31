@@ -140,9 +140,42 @@ class DanmakuService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      debugPrint('[Danmaku] Loading by title: $animeTitle, episode: $episodeNumber');
+      debugPrint(
+        '[Danmaku] Loading by title: $animeTitle, episode: $episodeNumber',
+      );
       final danmakuList = await danmakuGetByTitle(
         animeTitle: animeTitle,
+        episodeNumber: episodeNumber,
+      );
+
+      _danmakuList = danmakuList;
+      _danmakuList.sort((a, b) => a.time.compareTo(b.time));
+      _isLoading = false;
+      debugPrint('[Danmaku] Loaded ${_danmakuList.length} danmaku');
+      notifyListeners();
+    } catch (e) {
+      _isLoading = false;
+      _error = e.toString();
+      debugPrint('[Danmaku] Error: $e');
+      notifyListeners();
+    }
+  }
+
+  /// 通过 Bangumi TV subject_id 和集数获取弹幕（便捷方法）
+  Future<void> loadDanmakuByBangumiId(
+    int subjectId,
+    String episodeNumber,
+  ) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      debugPrint(
+        '[Danmaku] Loading by Bangumi ID: $subjectId, episode: $episodeNumber',
+      );
+      final danmakuList = await danmakuGetByBangumiId(
+        subjectId: subjectId,
         episodeNumber: episodeNumber,
       );
 
@@ -215,7 +248,9 @@ class DanmakuService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      debugPrint('[Danmaku] Loading danmaku for episode: ${episode.episodeTitle}');
+      debugPrint(
+        '[Danmaku] Loading danmaku for episode: ${episode.episodeTitle}',
+      );
       _currentEpisodeId = episode.episodeId.toInt();
       _danmakuList = await danmakuGetComments(episodeId: episode.episodeId);
       _danmakuList.sort((a, b) => a.time.compareTo(b.time));
@@ -246,7 +281,9 @@ class DanmakuService extends ChangeNotifier {
       if (matches.isNotEmpty) {
         // 使用第一个匹配结果
         final match = matches.first;
-        debugPrint('[Danmaku] Matched: ${match.animeTitle} - ${match.episodeTitle}');
+        debugPrint(
+          '[Danmaku] Matched: ${match.animeTitle} - ${match.episodeTitle}',
+        );
 
         _currentEpisodeId = match.episodeId.toInt();
         _danmakuList = await danmakuGetComments(episodeId: match.episodeId);
@@ -288,7 +325,9 @@ class DanmakuService extends ChangeNotifier {
   List<Danmaku> filterDanmaku(List<Danmaku> danmakuList) {
     return danmakuList.where((d) {
       // 过滤弹幕类型
-      if (d.danmakuType >= 1 && d.danmakuType <= 3 && !_settings.showScrolling) {
+      if (d.danmakuType >= 1 &&
+          d.danmakuType <= 3 &&
+          !_settings.showScrolling) {
         return false;
       }
       if (d.danmakuType == 4 && !_settings.showBottom) {

@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -2113655404;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -58087173;
 
 // Section: executor
 
@@ -45,6 +45,85 @@ flutter_rust_bridge::frb_generated_default_handler!();
 
 // Section: wire_funcs
 
+fn wire__crate__api__danmaku__danmaku_get_bangumi_episodes_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "danmaku_get_bangumi_episodes",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_subject_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::danmaku::danmaku_get_bangumi_episodes(api_subject_id)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__danmaku__danmaku_get_by_bangumi_id_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "danmaku_get_by_bangumi_id",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_subject_id = <i64>::sse_decode(&mut deserializer);
+            let api_episode_number = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, String>(
+                    (move || async move {
+                        let output_ok = crate::api::danmaku::danmaku_get_by_bangumi_id(
+                            api_subject_id,
+                            api_episode_number,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__danmaku__danmaku_get_by_title_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2042,6 +2121,22 @@ impl SseDecode for crate::api::bangumi::BangumiRelatedSubject {
     }
 }
 
+impl SseDecode for crate::api::danmaku::BangumiTvEpisode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_episodeId = <i64>::sse_decode(deserializer);
+        let mut var_episodeTitle = <String>::sse_decode(deserializer);
+        let mut var_episodeNumber = <String>::sse_decode(deserializer);
+        let mut var_airDate = <Option<String>>::sse_decode(deserializer);
+        return crate::api::danmaku::BangumiTvEpisode {
+            episode_id: var_episodeId,
+            episode_title: var_episodeTitle,
+            episode_number: var_episodeNumber,
+            air_date: var_airDate,
+        };
+    }
+}
+
 impl SseDecode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2267,6 +2362,20 @@ impl SseDecode for Vec<crate::api::bangumi::BangumiRelatedSubject> {
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
             ans_.push(<crate::api::bangumi::BangumiRelatedSubject>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::danmaku::BangumiTvEpisode> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::danmaku::BangumiTvEpisode>::sse_decode(
                 deserializer,
             ));
         }
@@ -2754,149 +2863,161 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        1 => {
+        1 => wire__crate__api__danmaku__danmaku_get_bangumi_episodes_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        2 => wire__crate__api__danmaku__danmaku_get_by_bangumi_id_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        3 => {
             wire__crate__api__danmaku__danmaku_get_by_title_impl(port, ptr, rust_vec_len, data_len)
         }
-        2 => {
+        4 => {
             wire__crate__api__danmaku__danmaku_get_comments_impl(port, ptr, rust_vec_len, data_len)
         }
-        3 => {
+        5 => {
             wire__crate__api__danmaku__danmaku_get_episodes_impl(port, ptr, rust_vec_len, data_len)
         }
-        4 => wire__crate__api__danmaku__danmaku_match_anime_impl(port, ptr, rust_vec_len, data_len),
-        5 => {
+        6 => wire__crate__api__danmaku__danmaku_match_anime_impl(port, ptr, rust_vec_len, data_len),
+        7 => {
             wire__crate__api__danmaku__danmaku_search_anime_impl(port, ptr, rust_vec_len, data_len)
         }
-        6 => wire__crate__api__crawler__fetch_archive_list_impl(port, ptr, rust_vec_len, data_len),
-        7 => {
+        8 => wire__crate__api__crawler__fetch_archive_list_impl(port, ptr, rust_vec_len, data_len),
+        9 => {
             wire__crate__api__ranking__fetch_bangumi_browser_impl(port, ptr, rust_vec_len, data_len)
         }
-        8 => wire__crate__api__bangumi__fetch_bangumi_characters_impl(
+        10 => wire__crate__api__bangumi__fetch_bangumi_characters_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        9 => wire__crate__api__bangumi__fetch_bangumi_comments_impl(
+        11 => wire__crate__api__bangumi__fetch_bangumi_comments_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        10 => wire__crate__api__bangumi__fetch_bangumi_episode_comments_impl(
+        12 => wire__crate__api__bangumi__fetch_bangumi_episode_comments_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        11 => wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
+        13 => wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        12 => {
+        14 => {
             wire__crate__api__ranking__fetch_bangumi_ranking_impl(port, ptr, rust_vec_len, data_len)
         }
-        13 => wire__crate__api__bangumi__fetch_bangumi_relations_impl(
+        15 => wire__crate__api__bangumi__fetch_bangumi_relations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__dmhy__fetch_dmhy_resources_impl(port, ptr, rust_vec_len, data_len),
-        15 => {
+        16 => wire__crate__api__dmhy__fetch_dmhy_resources_impl(port, ptr, rust_vec_len, data_len),
+        17 => {
             wire__crate__api__crawler__fetch_extra_subjects_impl(port, ptr, rust_vec_len, data_len)
         }
-        16 => {
+        18 => {
             wire__crate__api__crawler__fetch_schedule_basic_impl(port, ptr, rust_vec_len, data_len)
         }
-        17 => wire__crate__api__crawler__fill_anime_details_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__generic_scraper__generic_search_and_play_impl(
+        19 => wire__crate__api__crawler__fill_anime_details_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__generic_scraper__generic_search_and_play_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        19 => wire__crate__api__generic_scraper__generic_search_and_play_with_episode_impl(
+        21 => wire__crate__api__generic_scraper__generic_search_and_play_with_episode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        20 => wire__crate__api__generic_scraper__generic_search_play_pages_impl(
+        22 => wire__crate__api__generic_scraper__generic_search_play_pages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
+        23 => wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => wire__crate__api__generic_scraper__generic_search_with_progress_impl(
+        24 => wire__crate__api__generic_scraper__generic_search_with_progress_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => {
+        25 => {
             wire__crate__api__simple__get_all_torrents_info_impl(port, ptr, rust_vec_len, data_len)
         }
-        24 => wire__crate__api__config__get_bangumi_api_url_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__config__get_bangumi_url_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__config__get_bgmlist_url_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__generic_scraper__get_enabled_source_names_impl(
+        26 => wire__crate__api__config__get_bangumi_api_url_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__config__get_bangumi_url_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__config__get_bgmlist_url_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__generic_scraper__get_enabled_source_names_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__config__get_mikan_url_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__generic_scraper__get_playback_sources_impl(
+        30 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__config__get_mikan_url_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__generic_scraper__get_playback_sources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => {
+        33 => {
             wire__crate__api__simple__get_playback_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        32 => {
+        34 => {
             wire__crate__api__config__get_playback_sub_url_impl(port, ptr, rust_vec_len, data_len)
         }
-        33 => wire__crate__api__network__get_system_proxy_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__simple__get_torrent_stats_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__simple__get_tracker_info_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__simple__preload_playback_source_config_impl(
+        35 => wire__crate__api__network__get_system_proxy_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__simple__get_torrent_stats_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__simple__get_tracker_info_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__simple__preload_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        40 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
+        42 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        41 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
-        42 => {
+        43 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
+        44 => {
             wire__crate__api__config__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        43 => {
+        45 => {
             wire__crate__api__simple__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        44 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3134,6 +3255,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiRelatedSubjec
     for crate::api::bangumi::BangumiRelatedSubject
 {
     fn into_into_dart(self) -> crate::api::bangumi::BangumiRelatedSubject {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::danmaku::BangumiTvEpisode {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.episode_id.into_into_dart().into_dart(),
+            self.episode_title.into_into_dart().into_dart(),
+            self.episode_number.into_into_dart().into_dart(),
+            self.air_date.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::danmaku::BangumiTvEpisode
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::danmaku::BangumiTvEpisode>
+    for crate::api::danmaku::BangumiTvEpisode
+{
+    fn into_into_dart(self) -> crate::api::danmaku::BangumiTvEpisode {
         self
     }
 }
@@ -3629,6 +3773,16 @@ impl SseEncode for crate::api::bangumi::BangumiRelatedSubject {
     }
 }
 
+impl SseEncode for crate::api::danmaku::BangumiTvEpisode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.episode_id, serializer);
+        <String>::sse_encode(self.episode_title, serializer);
+        <String>::sse_encode(self.episode_number, serializer);
+        <Option<String>>::sse_encode(self.air_date, serializer);
+    }
+}
+
 impl SseEncode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3794,6 +3948,16 @@ impl SseEncode for Vec<crate::api::bangumi::BangumiRelatedSubject> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::bangumi::BangumiRelatedSubject>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::danmaku::BangumiTvEpisode> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::danmaku::BangumiTvEpisode>::sse_encode(item, serializer);
         }
     }
 }

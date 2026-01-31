@@ -56,6 +56,19 @@ pub struct DanmakuEpisode {
     pub episode_number: Option<String>,
 }
 
+/// Bangumi TV 剧集信息 (从 Dandanplay Bangumi API 获取)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiTvEpisode {
+    /// 剧集ID (用于获取弹幕)
+    pub episode_id: i64,
+    /// 剧集标题
+    pub episode_title: String,
+    /// 剧集编号
+    pub episode_number: String,
+    /// 播放日期
+    pub air_date: Option<String>,
+}
+
 /// 匹配结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DanmakuMatch {
@@ -133,6 +146,25 @@ struct MatchResultApi {
 struct MatchResponse {
     is_matched: bool,
     matches: Vec<MatchResultApi>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BangumiTvEpisodeApi {
+    episode_id: i64,
+    episode_title: String,
+    episode_number: String,
+    air_date: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BangumiTvDetail {
+    episodes: Vec<BangumiTvEpisodeApi>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BangumiTvResponse {
+    bangumi: BangumiTvDetail,
 }
 
 // ============================================================================
@@ -315,6 +347,61 @@ pub async fn danmaku_get_episodes(anime_id: i64) -> Result<Vec<DanmakuEpisode>, 
         .collect())
 }
 
+/// 通过 Bangumi TV subject_id 获取剧集列表
+///
+/// # 参数
+/// - `subject_id`: Bangumi TV 的 subject_id (例如: 517057)
+///
+/// # 返回
+/// 剧集列表
+#[frb]
+pub async fn danmaku_get_bangumi_episodes(
+    subject_id: i64,
+) -> Result<Vec<BangumiTvEpisode>, String> {
+    let url = format!(
+        "https://api.dandanplay.net/api/v2/bangumi/bgmtv/{}",
+        subject_id
+    );
+
+    let headers = build_signed_headers(&url)?;
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .headers(headers)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    let status = response.status();
+    let text = response.text().await.map_err(|e| e.to_string())?;
+
+    if !status.is_success() {
+        return Err(format!("API error {}: {}", status, text));
+    }
+
+    let api_response: BangumiTvResponse = serde_json::from_str(&text)
+        .map_err(|e| format!("Parse error: {} - Response: {}", e, text))?;
+
+    log::info!(
+        "[Danmaku] Loaded {} episodes from Bangumi TV subject {}",
+        api_response.bangumi.episodes.len(),
+        subject_id
+    );
+
+    Ok(api_response
+        .bangumi
+        .episodes
+        .into_iter()
+        .map(|e| BangumiTvEpisode {
+            episode_id: e.episode_id,
+            episode_title: e.episode_title,
+            episode_number: e.episode_number,
+            air_date: e.air_date,
+        })
+        .collect())
+}
+
 /// 获取弹幕列表
 ///
 /// # 参数
@@ -483,6 +570,55 @@ pub async fn danmaku_get_by_title(
     danmaku_get_comments(episode.episode_id).await
 }
 
+/// 便捷方法：通过 Bangumi TV subject_id 和集数获取弹幕
+///
+/// # 参数
+/// - `subject_id`: Bangumi TV 的 subject_id
+/// - `episode_number`: 集数编号 (例如: "1", "2", "SP1" 等)
+///
+/// # 返回
+/// 弹幕列表，如果找不到则返回空列表
+#[frb]
+pub async fn danmaku_get_by_bangumi_id(
+    subject_id: i64,
+    episode_number: String,
+) -> Result<Vec<Danmaku>, String> {
+    // 1. 获取剧集列表
+    let episodes = danmaku_get_bangumi_episodes(subject_id).await?;
+
+    if episodes.is_empty() {
+        log::warn!(
+            "[Danmaku] No episodes found for Bangumi TV subject: {}",
+            subject_id
+        );
+        return Ok(vec![]);
+    }
+
+    // 2. 找到对应集数的剧集
+    let episode = episodes.iter().find(|e| e.episode_number == episode_number);
+
+    if let Some(ep) = episode {
+        log::info!(
+            "[Danmaku] Found episode: {} (ID: {}) for subject {} ep {}",
+            ep.episode_title,
+            ep.episode_id,
+            subject_id,
+            episode_number
+        );
+
+        // 3. 获取弹幕
+        danmaku_get_comments(ep.episode_id).await
+    } else {
+        log::warn!(
+            "[Danmaku] Episode {} not found for subject {} (total: {} episodes)",
+            episode_number,
+            subject_id,
+            episodes.len()
+        );
+        Ok(vec![])
+    }
+}
+
 // ============================================================================
 // 测试
 // ============================================================================
@@ -515,5 +651,31 @@ mod tests {
         let danmakus = result.unwrap();
         assert!(!danmakus.is_empty());
         println!("Got {} danmaku comments", danmakus.len());
+    }
+
+    #[tokio::test]
+    async fn test_get_bangumi_episodes() {
+        // 【我推的孩子】 第三季 的 subject_id
+        let result = danmaku_get_bangumi_episodes(517057).await;
+        assert!(result.is_ok());
+        let episodes = result.unwrap();
+        assert!(!episodes.is_empty());
+        println!("Found {} episodes", episodes.len());
+        for ep in episodes.iter().take(3) {
+            println!(
+                "Episode {}: {} (ID: {})",
+                ep.episode_number, ep.episode_title, ep.episode_id
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_danmaku_by_bangumi_id() {
+        // 【我推的孩子】 第三季 第1话
+        let result = danmaku_get_by_bangumi_id(517057, "1".to_string()).await;
+        assert!(result.is_ok());
+        let danmakus = result.unwrap();
+        assert!(!danmakus.is_empty());
+        println!("Got {} danmaku comments for episode 1", danmakus.len());
     }
 }

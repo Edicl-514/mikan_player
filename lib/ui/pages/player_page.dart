@@ -147,6 +147,21 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     debugPrint('[Danmaku] Loading danmaku for: $animeTitle EP$episodeNumber');
 
+    // Prefer Bangumi TV subject_id if available for more accurate matching
+    if (widget.anime.bangumiId != null && widget.anime.bangumiId!.isNotEmpty) {
+      final subjectId = int.tryParse(widget.anime.bangumiId!);
+      if (subjectId != null) {
+        debugPrint('[Danmaku] Using Bangumi TV subject_id: $subjectId');
+        await _danmakuService.loadDanmakuByBangumiId(
+          subjectId,
+          episodeNumber.toString(),
+        );
+        return;
+      }
+    }
+
+    // Fallback to title-based search
+    debugPrint('[Danmaku] Using title-based search');
     await _danmakuService.loadDanmakuByTitle(animeTitle, episodeNumber);
   }
 
@@ -1624,10 +1639,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   child: GestureDetector(
                     onTap: () {}, // Prevent close when tapping panel
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 420, maxHeight: 550),
+                      constraints: const BoxConstraints(
+                        maxWidth: 420,
+                        maxHeight: 550,
+                      ),
                       child: DanmakuSettingsPanel(
                         danmakuService: _danmakuService,
-                        onClose: () => setState(() => _showDanmakuSettings = false),
+                        onClose: () =>
+                            setState(() => _showDanmakuSettings = false),
                       ),
                     ),
                   ),
@@ -1829,7 +1848,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               // Danmaku count badge
               if (hasData)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFBB86FC).withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(10),
@@ -1860,7 +1882,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 icon: Icon(
                   settings.enabled ? Icons.subtitles : Icons.subtitles_off,
                   color: hasData
-                      ? (settings.enabled ? const Color(0xFFBB86FC) : Colors.white54)
+                      ? (settings.enabled
+                            ? const Color(0xFFBB86FC)
+                            : Colors.white54)
                       : Colors.white30,
                   size: 20,
                 ),

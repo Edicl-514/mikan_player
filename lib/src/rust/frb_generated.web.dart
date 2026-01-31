@@ -75,6 +75,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiRelatedSubject dco_decode_bangumi_related_subject(dynamic raw);
 
   @protected
+  BangumiTvEpisode dco_decode_bangumi_tv_episode(dynamic raw);
+
+  @protected
   bool dco_decode_bool(dynamic raw);
 
   @protected
@@ -146,6 +149,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<BangumiRelatedSubject> dco_decode_list_bangumi_related_subject(
     dynamic raw,
   );
+
+  @protected
+  List<BangumiTvEpisode> dco_decode_list_bangumi_tv_episode(dynamic raw);
 
   @protected
   List<Danmaku> dco_decode_list_danmaku(dynamic raw);
@@ -307,6 +313,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  BangumiTvEpisode sse_decode_bangumi_tv_episode(SseDeserializer deserializer);
+
+  @protected
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
@@ -390,6 +399,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiRelatedSubject> sse_decode_list_bangumi_related_subject(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<BangumiTvEpisode> sse_decode_list_bangumi_tv_episode(
     SseDeserializer deserializer,
   );
 
@@ -600,6 +614,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_bangumi_tv_episode(
+    BangumiTvEpisode self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
@@ -698,6 +718,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_bangumi_related_subject(
     List<BangumiRelatedSubject> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_bangumi_tv_episode(
+    List<BangumiTvEpisode> self,
     SseSerializer serializer,
   );
 

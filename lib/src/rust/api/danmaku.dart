@@ -7,8 +7,8 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `build_signed_headers`, `extract_url_path`, `generate_signature`, `parse_danmaku_comment`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BangumiDetail`, `BangumiResponse`, `DanmakuComment`, `DanmakuResponse`, `EpisodeApi`, `MatchResponse`, `MatchResultApi`, `SearchAnimeApi`, `SearchResponse`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BangumiDetail`, `BangumiResponse`, `BangumiTvDetail`, `BangumiTvEpisodeApi`, `BangumiTvResponse`, `DanmakuComment`, `DanmakuResponse`, `EpisodeApi`, `MatchResponse`, `MatchResultApi`, `SearchAnimeApi`, `SearchResponse`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// 搜索动画
 ///
@@ -30,6 +30,19 @@ Future<List<DanmakuAnime>> danmakuSearchAnime({required String keyword}) =>
 Future<List<DanmakuEpisode>> danmakuGetEpisodes({
   required PlatformInt64 animeId,
 }) => RustLib.instance.api.crateApiDanmakuDanmakuGetEpisodes(animeId: animeId);
+
+/// 通过 Bangumi TV subject_id 获取剧集列表
+///
+/// # 参数
+/// - `subject_id`: Bangumi TV 的 subject_id (例如: 517057)
+///
+/// # 返回
+/// 剧集列表
+Future<List<BangumiTvEpisode>> danmakuGetBangumiEpisodes({
+  required PlatformInt64 subjectId,
+}) => RustLib.instance.api.crateApiDanmakuDanmakuGetBangumiEpisodes(
+  subjectId: subjectId,
+);
 
 /// 获取弹幕列表
 ///
@@ -74,6 +87,61 @@ Future<List<Danmaku>> danmakuGetByTitle({
   animeTitle: animeTitle,
   episodeNumber: episodeNumber,
 );
+
+/// 便捷方法：通过 Bangumi TV subject_id 和集数获取弹幕
+///
+/// # 参数
+/// - `subject_id`: Bangumi TV 的 subject_id
+/// - `episode_number`: 集数编号 (例如: "1", "2", "SP1" 等)
+///
+/// # 返回
+/// 弹幕列表，如果找不到则返回空列表
+Future<List<Danmaku>> danmakuGetByBangumiId({
+  required PlatformInt64 subjectId,
+  required String episodeNumber,
+}) => RustLib.instance.api.crateApiDanmakuDanmakuGetByBangumiId(
+  subjectId: subjectId,
+  episodeNumber: episodeNumber,
+);
+
+/// Bangumi TV 剧集信息 (从 Dandanplay Bangumi API 获取)
+class BangumiTvEpisode {
+  /// 剧集ID (用于获取弹幕)
+  final PlatformInt64 episodeId;
+
+  /// 剧集标题
+  final String episodeTitle;
+
+  /// 剧集编号
+  final String episodeNumber;
+
+  /// 播放日期
+  final String? airDate;
+
+  const BangumiTvEpisode({
+    required this.episodeId,
+    required this.episodeTitle,
+    required this.episodeNumber,
+    this.airDate,
+  });
+
+  @override
+  int get hashCode =>
+      episodeId.hashCode ^
+      episodeTitle.hashCode ^
+      episodeNumber.hashCode ^
+      airDate.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiTvEpisode &&
+          runtimeType == other.runtimeType &&
+          episodeId == other.episodeId &&
+          episodeTitle == other.episodeTitle &&
+          episodeNumber == other.episodeNumber &&
+          airDate == other.airDate;
+}
 
 /// 弹幕数据
 class Danmaku {
