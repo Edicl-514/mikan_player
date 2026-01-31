@@ -13,8 +13,6 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/services/webview_video_extractor.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
-import 'package:mikan_player/ui/widgets/danmaku_overlay.dart';
-import 'package:mikan_player/ui/widgets/danmaku_settings.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
@@ -1735,6 +1733,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           currentEpisode: widget.currentEpisode,
           onEpisodeSelected: _onEpisodeSelected,
           isLoading: _isLoadingVideo || _loadingMagnet != null,
+          videoTitle: '${widget.anime.title} - 第${widget.currentEpisode.sort.toInt()}集',
         ),
       );
     }
