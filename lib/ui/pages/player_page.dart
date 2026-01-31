@@ -67,8 +67,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   List<SearchPlayResult> _sampleSuccessfulSources = []; // 成功获取到视频URL的源列表
   int _selectedSourceIndex = 0; // 当前选中的源索引
   // 并发WebView管理
-  final Map<String, bool> _activeWebViews = {}; // 正在运行的WebView (sourceName -> isActive)
-  final Map<String, String> _webViewStatus = {}; // WebView状态消息 (sourceName -> message)
+  final Map<String, bool> _activeWebViews =
+      {}; // 正在运行的WebView (sourceName -> isActive)
+  final Map<String, String> _webViewStatus =
+      {}; // WebView状态消息 (sourceName -> message)
   final int _maxConcurrentWebViews = 3; // 最大并发WebView数量
   String _sampleStatusMessage = ''; // WebView 提取状态消息
   bool _showWebView = false; // 是否显示 WebView（调试用）
@@ -82,7 +84,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   List<String> _enabledSourceNames = []; // 所有已启用的源名称
 
   // Active Source
-  String _activeSource = 'mikan'; // 'mikan' or 'dmhy'
+  String _activeSource = 'bt'; // 'bt' or 'sample'
+  bool _isSourceControlExpanded = false;
 
   // Video Player
   late final Player _player;
@@ -93,6 +96,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   String? _loadingMagnet; // Track which specific magnet is being loaded
   String? _currentStreamUrl;
   String? _videoError;
+  String _playingSourceLabel = '未播放';
   final DownloadManager _downloadManager = DownloadManager();
 
   // Danmaku
@@ -155,7 +159,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final relativeEpNumber = epIndex != -1 ? epIndex + 1 : episodeNumber;
 
     debugPrint(
-        '[Danmaku] Loading danmaku for: $animeTitle EP$episodeNumber (rel: $relativeEpNumber)');
+      '[Danmaku] Loading danmaku for: $animeTitle EP$episodeNumber (rel: $relativeEpNumber)',
+    );
 
     // Prefer Bangumi TV subject_id if available for more accurate matching
     if (widget.anime.bangumiId != null && widget.anime.bangumiId!.isNotEmpty) {
@@ -653,6 +658,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
       _player.open(Media(_sampleVideoUrl!, httpHeaders: headers));
       _currentStreamUrl = _sampleVideoUrl;
+      _playingSourceLabel = source.sourceName;
       _isLoadingVideo = false;
       _videoError = null;
     });
@@ -679,7 +685,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     // 启动前N个源的WebView提取（根据_maxConcurrentWebViews限制）
-    for (var i = 0; i < needsExtraction.length && i < _maxConcurrentWebViews; i++) {
+    for (
+      var i = 0;
+      i < needsExtraction.length && i < _maxConcurrentWebViews;
+      i++
+    ) {
       final page = needsExtraction[i];
       setState(() {
         _activeWebViews[page.sourceName] = true;
@@ -709,7 +719,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         final pageIndex = _samplePlayPages.indexWhere(
           (p) => p.sourceName == sourceName,
         );
-        
+
         if (pageIndex >= 0) {
           final page = _samplePlayPages[pageIndex];
           final updatedPage = SearchPlayResult(
@@ -855,7 +865,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         children: [
           // 主界面
           isWide ? _buildPCLayout(context) : _buildMobileLayout(context),
-          
+
           // 后台WebView容器（始终存在，用于后台视频提取）
           Positioned(
             left: 0,
@@ -974,6 +984,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 "${widget.allEpisodes.length} Episodes",
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
+              // View count removed
+              /*
               const Spacer(),
               const Icon(Icons.remove_red_eye, size: 14, color: Colors.grey),
               const SizedBox(width: 4),
@@ -981,6 +993,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 "1.2M",
                 style: TextStyle(color: Colors.grey, fontSize: 12),
               ),
+              */
+              const Spacer(),
             ],
           ),
           const SizedBox(height: 16),
@@ -991,47 +1005,55 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 _isDescriptionExpanded = !_isDescriptionExpanded;
               });
             },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.currentEpisode.description.isNotEmpty
-                      ? widget.currentEpisode.description
-                      : "暂无简介",
-                  maxLines: _isDescriptionExpanded ? null : 2,
-                  overflow: _isDescriptionExpanded
-                      ? null
-                      : TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    height: 1.5,
-                  ),
-                ),
-                if (widget.currentEpisode.description.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text(
-                          _isDescriptionExpanded ? "收起" : "展开",
-                          style: const TextStyle(
-                            color: Color(0xFFBB86FC),
-                            fontSize: 12,
-                          ),
-                        ),
-                        Icon(
-                          _isDescriptionExpanded
-                              ? Icons.keyboard_arrow_up
-                              : Icons.keyboard_arrow_down,
-                          size: 16,
-                          color: const Color(0xFFBB86FC),
-                        ),
-                      ],
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color.fromARGB(255, 20, 20, 25),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.currentEpisode.description.isNotEmpty
+                        ? widget.currentEpisode.description
+                        : "暂无简介",
+                    maxLines: _isDescriptionExpanded ? null : 2,
+                    overflow: _isDescriptionExpanded
+                        ? null
+                        : TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      height: 1.5,
                     ),
                   ),
-              ],
+                  if (widget.currentEpisode.description.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            _isDescriptionExpanded ? "收起" : "展开",
+                            style: const TextStyle(
+                              color: Color(0xFFBB86FC),
+                              fontSize: 12,
+                            ),
+                          ),
+                          Icon(
+                            _isDescriptionExpanded
+                                ? Icons.keyboard_arrow_up
+                                : Icons.keyboard_arrow_down,
+                            size: 16,
+                            color: const Color(0xFFBB86FC),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -1214,7 +1236,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           // Play Source Control
           _buildSectionHeader("播放源"),
           const SizedBox(height: 12),
-          _buildPlaySourceSelector(),
+          _buildPlaySourceSelector(isMobile: true),
           const SizedBox(height: 12),
           _buildResourceList(),
           const SizedBox(height: 24),
@@ -1303,13 +1325,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                       child: Column(
                         children: [
                           // Video Player (Large)
-                          AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: Container(
-                              color: Colors.black,
-                              child: _buildVideoPlayerPlaceholder(
-                                context,
-                                isMobile: false,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: AspectRatio(
+                                aspectRatio: 16 / 9,
+                                child: Container(
+                                  color: Colors.black,
+                                  child: _buildVideoPlayerPlaceholder(
+                                    context,
+                                    isMobile: false,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -1320,11 +1348,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                               horizontal: 24,
                               vertical: 16,
                             ),
-                            color: const Color(0xFF16161E),
+                            color: const Color(0xFF0F0F13),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Action Buttons
+                                // Action Buttons Removed
+                                /*
                                 Row(
                                   children: [
                                     _buildPCActionButton(
@@ -1343,6 +1372,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                   ],
                                 ),
                                 const SizedBox(height: 16),
+                                */
 
                                 // Collapsible Description
                                 GestureDetector(
@@ -1352,61 +1382,79 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                           !_isDescriptionExpanded;
                                     });
                                   },
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        widget
-                                                .currentEpisode
-                                                .description
-                                                .isNotEmpty
-                                            ? widget.currentEpisode.description
-                                            : "暂无简介",
-                                        maxLines: _isDescriptionExpanded
-                                            ? null
-                                            : 2,
-                                        overflow: _isDescriptionExpanded
-                                            ? null
-                                            : TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 14,
-                                          height: 1.5,
-                                        ),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color.fromARGB(
+                                        255,
+                                        20,
+                                        20,
+                                        25,
                                       ),
-                                      if (widget
-                                          .currentEpisode
-                                          .description
-                                          .isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 4,
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.end,
-                                            children: [
-                                              Text(
-                                                _isDescriptionExpanded
-                                                    ? "收起"
-                                                    : "展开",
-                                                style: const TextStyle(
-                                                  color: Color(0xFFBB86FC),
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                              Icon(
-                                                _isDescriptionExpanded
-                                                    ? Icons.keyboard_arrow_up
-                                                    : Icons.keyboard_arrow_down,
-                                                size: 16,
-                                                color: const Color(0xFFBB86FC),
-                                              ),
-                                            ],
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.white10),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          widget
+                                                  .currentEpisode
+                                                  .description
+                                                  .isNotEmpty
+                                              ? widget
+                                                    .currentEpisode
+                                                    .description
+                                              : "暂无简介",
+                                          maxLines: _isDescriptionExpanded
+                                              ? null
+                                              : 2,
+                                          overflow: _isDescriptionExpanded
+                                              ? null
+                                              : TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 14,
+                                            height: 1.5,
                                           ),
                                         ),
-                                    ],
+                                        if (widget
+                                            .currentEpisode
+                                            .description
+                                            .isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 4,
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.end,
+                                              children: [
+                                                Text(
+                                                  _isDescriptionExpanded
+                                                      ? "收起"
+                                                      : "展开",
+                                                  style: const TextStyle(
+                                                    color: Color(0xFFBB86FC),
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                                Icon(
+                                                  _isDescriptionExpanded
+                                                      ? Icons.keyboard_arrow_up
+                                                      : Icons
+                                                            .keyboard_arrow_down,
+                                                  size: 16,
+                                                  color: const Color(
+                                                    0xFFBB86FC,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 24),
@@ -1421,7 +1469,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-                                _buildPlaySourceSelector(),
+                                _buildPlaySourceSelector(isMobile: false),
                                 const SizedBox(height: 12),
                                 _buildResourceList(),
                               ],
@@ -2035,12 +2083,103 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           ),
         ),
         const Spacer(),
-        const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
+        // const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
       ],
     );
   }
 
-  Widget _buildPlaySourceSelector() {
+  Widget _buildPlaySourceSelector({required bool isMobile}) {
+    final btCount = _mikanResources.length + _dmhyResources.length;
+    final onlineCount = _sampleSuccessfulSources.length;
+    final currentLabel = _playingSourceLabel;
+
+    if (!_isSourceControlExpanded) {
+      return InkWell(
+        onTap: () => setState(() => _isSourceControlExpanded = true),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color.fromARGB(255, 20, 20, 25),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: isMobile
+                    ? Row(
+                        children: [
+                          const Text(
+                            "已找到 ",
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Text(
+                            "$btCount",
+                            style: const TextStyle(
+                              color: Color(0xFFBB86FC),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: const Icon(
+                              Icons.download_for_offline,
+                              size: 14,
+                              color: Color(0xFFBB86FC),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            "$onlineCount",
+                            style: const TextStyle(
+                              color: Color(0xFF03DAC6),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: const Icon(
+                              Icons.subscriptions,
+                              size: 14,
+                              color: Color(0xFF03DAC6),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              "当前：$currentLabel",
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        "已找到 $btCount 个BT源， $onlineCount 个订阅源，当前源：$currentLabel",
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+              ),
+              const Icon(Icons.keyboard_arrow_down, color: Colors.white70),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       height: 40,
       decoration: BoxDecoration(
@@ -2050,11 +2189,22 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       ),
       child: Row(
         children: [
-          Expanded(child: _buildSourceTab("Mikan Project", "mikan")),
+          Expanded(child: _buildSourceTab("BT", "bt")),
           Container(width: 1, color: Colors.white10),
-          Expanded(child: _buildSourceTab("动漫花园", "dmhy")),
-          Container(width: 1, color: Colors.white10),
-          Expanded(child: _buildSourceTab("全网搜", "sample")),
+          Expanded(child: _buildSourceTab("订阅源", "sample")),
+          InkWell(
+            onTap: () => setState(() => _isSourceControlExpanded = false),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              height: double.infinity,
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.keyboard_arrow_up,
+                color: Colors.white70,
+                size: 20,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -2068,14 +2218,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     bool hasError = false;
     int count = 0;
 
-    if (id == 'mikan') {
-      isLoading = _isLoadingMikan;
-      hasError = _mikanError != null;
-      count = _mikanResources.length;
-    } else if (id == 'dmhy') {
-      isLoading = _isLoadingDmhy;
-      hasError = _dmhyError != null;
-      count = _dmhyResources.length;
+    if (id == 'bt') {
+      isLoading = _isLoadingMikan || _isLoadingDmhy;
+      hasError = _mikanError != null || _dmhyError != null;
+      count = _mikanResources.length + _dmhyResources.length;
     } else if (id == 'sample') {
       isLoading = _isLoadingSample;
       hasError = _sampleError != null;
@@ -2121,7 +2267,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   color: isSelected ? const Color(0xFFBB86FC) : Colors.grey,
                 ),
               )
-            else if (hasError)
+            else if (hasError && count == 0) // Only show error if no data
               Icon(
                 Icons.error_outline,
                 size: 14,
@@ -2466,6 +2612,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           );
                           setState(() {
                             _currentStreamUrl = _sampleVideoUrl;
+                            _playingSourceLabel = source.sourceName;
                             _isLoadingVideo = false;
                             _videoError = null;
                           });
@@ -2678,18 +2825,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildResourceList() {
+    if (!_isSourceControlExpanded) {
+      return const SizedBox.shrink();
+    }
     List<dynamic> resources = [];
-    if (_activeSource == 'mikan') {
-      resources = _mikanResources;
-    } else if (_activeSource == 'dmhy') {
-      resources = _dmhyResources;
+    if (_activeSource == 'bt') {
+      resources = [..._mikanResources, ..._dmhyResources];
     } else if (_activeSource == 'sample') {
       return _buildSampleSourceContent();
     }
 
     if (resources.isEmpty) {
-      if ((_activeSource == 'mikan' && _isLoadingMikan) ||
-          (_activeSource == 'dmhy' && _isLoadingDmhy)) {
+      if ((_activeSource == 'bt' && (_isLoadingMikan || _isLoadingDmhy))) {
         return const SizedBox.shrink(); // Loader is in tab
       }
       return Container(
@@ -2875,6 +3022,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
                               setState(() {
                                 _loadingMagnet = null;
+                                _playingSourceLabel = "BT";
                               });
                             } catch (e) {
                               debugPrint("[Player] Error playing magnet: $e");
@@ -3384,38 +3532,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildPCActionButton(IconData icon, String label) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {},
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: Colors.white70, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

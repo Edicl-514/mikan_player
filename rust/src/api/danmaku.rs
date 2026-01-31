@@ -412,7 +412,7 @@ pub async fn danmaku_get_bangumi_episodes(
 #[frb]
 pub async fn danmaku_get_comments(episode_id: i64) -> Result<Vec<Danmaku>, String> {
     let url = format!(
-        "https://api.dandanplay.net/api/v2/comment/{}?withRelated=true&chConvert=0",
+        "https://api.dandanplay.net/api/v2/comment/{}?withRelated=true&chConvert=1",
         episode_id
     );
 
