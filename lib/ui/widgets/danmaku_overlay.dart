@@ -37,10 +37,20 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
   danmaku.DanmakuController? _controller;
   double _lastTime = 0;
   int _lastProcessedIndex = 0;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastTime = widget.currentTime;
+    _lastProcessedIndex = _findStartIndex(widget.currentTime);
+  }
 
   @override
   void didUpdateWidget(DanmakuOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (!_isInitialized) return;
 
     // 如果时间跳跃（seek），重置弹幕
     if ((widget.currentTime - _lastTime).abs() > 2.0) {
@@ -84,6 +94,7 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
   }
 
   void _resetDanmaku() {
+    if (!_isInitialized) return;
     _controller?.clear();
     _lastProcessedIndex = _findStartIndex(widget.currentTime);
   }
@@ -108,6 +119,7 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
   }
 
   void _processDanmaku() {
+    if (!_isInitialized) return;
     if (!widget.settings.enabled) return;
     if (widget.danmakuList.isEmpty) return;
     if (_controller == null) return;
@@ -198,10 +210,25 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
   void _onControllerCreated(danmaku.DanmakuController controller) {
     _controller = controller;
 
-    // 初始化时，如果已暂停则暂停控制器
-    if (widget.isPaused || !widget.isPlaying) {
-      _controller?.pause();
-    }
+    // 使用 WidgetsBinding 延迟初始化，避免在 build 过程中调用 setState 或操作未就绪的控制器
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isInitialized = true;
+      });
+
+      // 初始化时，如果已暂停则暂停控制器
+      if (widget.isPaused || !widget.isPlaying) {
+        _controller?.pause();
+      }
+
+      // 初始化后立即定位到当前时间
+      _resetDanmaku();
+      if (widget.isPlaying && !widget.isPaused) {
+        _processDanmaku();
+      }
+    });
   }
 
   @override
