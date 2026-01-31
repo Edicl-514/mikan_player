@@ -4,6 +4,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
+import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/ui/widgets/danmaku_overlay.dart';
 import 'package:mikan_player/ui/widgets/danmaku_settings.dart';
 
@@ -19,6 +20,9 @@ class CustomVideoControls extends StatelessWidget {
   final bool isVideoPaused;
   final bool showDanmakuSettings;
   final VoidCallback onToggleDanmakuSettings;
+
+  // 字幕相关
+  final SubtitleService subtitleService;
 
   // 选集相关
   final List<BangumiEpisode> allEpisodes;
@@ -46,6 +50,7 @@ class CustomVideoControls extends StatelessWidget {
     required this.isVideoPaused,
     required this.showDanmakuSettings,
     required this.onToggleDanmakuSettings,
+    required this.subtitleService,
     required this.allEpisodes,
     required this.currentEpisode,
     required this.onEpisodeSelected,
@@ -294,11 +299,27 @@ class CustomVideoControls extends StatelessWidget {
               },
             ),
             const SizedBox(width: 8),
-            _buildIntegratedButton(
-              icon: Icons.closed_caption_outlined,
-              onPressed: null, // 字幕功能待实现
+            ListenableBuilder(
+              listenable: subtitleService,
+              builder: (context, _) {
+                final hasSubtitles = subtitleService.hasSubtitles;
+                if (!hasSubtitles) return const SizedBox.shrink();
+                final isEnabled = subtitleService.isSubtitleVisible;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildIntegratedButton(
+                      icon: isEnabled
+                          ? Icons.closed_caption
+                          : Icons.closed_caption_off,
+                      isActive: isEnabled,
+                      onPressed: subtitleService.toggleEnabled,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                );
+              },
             ),
-            const SizedBox(width: 8),
             _buildIntegratedButton(
               icon: Icons.settings,
               onPressed: () => _showSettingsMenu(context),
@@ -346,11 +367,27 @@ class CustomVideoControls extends StatelessWidget {
               },
             ),
             const SizedBox(width: 8),
-            _buildIntegratedButton(
-              icon: Icons.closed_caption_outlined,
-              onPressed: null, // 字幕功能待实现
+            ListenableBuilder(
+              listenable: subtitleService,
+              builder: (context, _) {
+                final hasSubtitles = subtitleService.hasSubtitles;
+                if (!hasSubtitles) return const SizedBox.shrink();
+                final isEnabled = subtitleService.isSubtitleVisible;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildIntegratedButton(
+                      icon: isEnabled
+                          ? Icons.closed_caption
+                          : Icons.closed_caption_off,
+                      isActive: isEnabled,
+                      onPressed: subtitleService.toggleEnabled,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                );
+              },
             ),
-            const SizedBox(width: 8),
             _buildIntegratedButton(
               icon: Icons.playlist_play,
               onPressed: () => _showEpisodeSelection(context),
@@ -540,6 +577,7 @@ class CustomVideoControls extends StatelessWidget {
               child: _SettingsPanel(
                 isFullscreen: true,
                 danmakuService: danmakuService,
+                subtitleService: subtitleService,
                 availableSources: availableSources,
                 currentSourceIndex: currentSourceIndex,
                 currentSourceLabel: currentSourceLabel,
@@ -577,6 +615,7 @@ class CustomVideoControls extends StatelessWidget {
           builder: (context, scrollController) => _SettingsPanel(
             isFullscreen: false,
             danmakuService: danmakuService,
+            subtitleService: subtitleService,
             availableSources: availableSources,
             currentSourceIndex: currentSourceIndex,
             currentSourceLabel: currentSourceLabel,
@@ -607,6 +646,7 @@ class CustomVideoControls extends StatelessWidget {
             child: _SettingsPanel(
               isFullscreen: true,
               danmakuService: danmakuService,
+              subtitleService: subtitleService,
               availableSources: availableSources,
               currentSourceIndex: currentSourceIndex,
               currentSourceLabel: currentSourceLabel,
@@ -837,6 +877,7 @@ class CustomVideoControls extends StatelessWidget {
 class _SettingsPanel extends StatefulWidget {
   final bool isFullscreen;
   final DanmakuService danmakuService;
+  final SubtitleService subtitleService;
   final List<SearchPlayResult> availableSources;
   final int currentSourceIndex;
   final String currentSourceLabel;
@@ -846,6 +887,7 @@ class _SettingsPanel extends StatefulWidget {
   const _SettingsPanel({
     required this.isFullscreen,
     required this.danmakuService,
+    required this.subtitleService,
     required this.availableSources,
     required this.currentSourceIndex,
     required this.currentSourceLabel,
@@ -966,6 +1008,21 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   }
 
   Widget _buildMainMenu() {
+    // 获取字幕状态描述
+    String subtitleStatus;
+    if (widget.subtitleService.hasSubtitles) {
+      if (widget.subtitleService.isSubtitleVisible) {
+        final currentTrack = widget.subtitleService.currentTrack;
+        subtitleStatus = currentTrack != null
+            ? widget.subtitleService.getTrackDisplayName(currentTrack)
+            : '已开启';
+      } else {
+        subtitleStatus = '已关闭';
+      }
+    } else {
+      subtitleStatus = '暂无字幕';
+    }
+
     return ListView(
       controller: widget.scrollController,
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -979,7 +1036,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         _buildMenuItem(
           icon: Icons.subtitles_outlined,
           title: '字幕设置',
-          subtitle: '暂无字幕',
+          subtitle: subtitleStatus,
           onTap: () => setState(() => _currentPage = 2),
         ),
         _buildMenuItem(
@@ -1047,24 +1104,359 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   }
 
   Widget _buildSubtitleSettings() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.subtitles_off_outlined,
-            size: 64,
-            color: Colors.white.withValues(alpha: 0.2),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            '字幕功能开发中',
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 14,
+    return ListenableBuilder(
+      listenable: widget.subtitleService,
+      builder: (context, _) {
+        final service = widget.subtitleService;
+        final settings = service.settings;
+        final hasSubtitles = service.hasSubtitles;
+        final actualTracks = service.actualSubtitleTracks;
+
+        return ListView(
+          controller: widget.scrollController,
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          children: [
+            // 字幕开关
+            _buildSwitchRow(
+              title: '显示字幕',
+              value: settings.enabled,
+              onChanged: hasSubtitles ? (v) => service.setEnabled(v) : null,
             ),
+
+            const SizedBox(height: 16),
+            const Divider(color: Colors.white12, height: 1),
+            const SizedBox(height: 16),
+
+            // 字幕轨道选择
+            const Text(
+              '字幕轨道',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            if (!hasSubtitles)
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.subtitles_off_outlined,
+                      size: 48,
+                      color: Colors.white.withValues(alpha: 0.2),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      '当前视频没有内嵌字幕',
+                      style: TextStyle(
+                        color: Colors.white38,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...actualTracks.map((track) {
+                final isSelected = service.currentTrack?.id == track.id;
+                return _buildTrackItem(
+                  title: service.getTrackDisplayName(track),
+                  subtitle: track.language ?? '',
+                  isSelected: isSelected,
+                  onTap: () => service.selectTrack(track),
+                );
+              }),
+
+            // 关闭字幕选项
+            if (hasSubtitles)
+              _buildTrackItem(
+                title: '关闭字幕',
+                subtitle: '',
+                isSelected: !service.isSubtitleVisible,
+                onTap: () => service.disableSubtitle(),
+              ),
+
+            const SizedBox(height: 16),
+            const Divider(color: Colors.white12, height: 1),
+            const SizedBox(height: 16),
+
+            // 字幕样式设置
+            const Text(
+              '字幕样式',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 字体大小滑块
+            _buildSliderRow(
+              title: '字体大小',
+              value: settings.fontSize,
+              min: 12,
+              max: 48,
+              divisions: 18,
+              displayValue: '${settings.fontSize.round()}',
+              onChanged: (v) => service.setFontSize(v),
+            ),
+
+            const SizedBox(height: 12),
+
+            // 背景透明度滑块
+            _buildSliderRow(
+              title: '背景透明度',
+              value: settings.backgroundOpacity,
+              min: 0,
+              max: 1,
+              divisions: 10,
+              displayValue: '${(settings.backgroundOpacity * 100).round()}%',
+              onChanged: (v) => service.setBackgroundOpacity(v),
+            ),
+
+            const SizedBox(height: 12),
+
+            // 底部边距滑块
+            _buildSliderRow(
+              title: '底部边距',
+              value: settings.bottomPadding,
+              min: 0,
+              max: 150,
+              divisions: 15,
+              displayValue: '${settings.bottomPadding.round()}',
+              onChanged: (v) => service.setBottomPadding(v),
+            ),
+
+            const SizedBox(height: 12),
+
+            // 描边宽度滑块
+            _buildSliderRow(
+              title: '描边宽度',
+              value: settings.outlineWidth,
+              min: 0,
+              max: 4,
+              divisions: 8,
+              displayValue: settings.outlineWidth.toStringAsFixed(1),
+              onChanged: (v) => service.setOutlineWidth(v),
+            ),
+
+            const SizedBox(height: 16),
+
+            // 字体颜色选择
+            const Text(
+              '字体颜色',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: SubtitleColorPresets.fontColors.map((color) {
+                final isSelected = settings.fontColor.toARGB32() == color.toARGB32();
+                return _buildColorOption(
+                  color: color,
+                  isSelected: isSelected,
+                  onTap: () => service.setFontColor(color),
+                );
+              }).toList(),
+            ),
+
+            const SizedBox(height: 24),
+
+            // 预览
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Text(
+                  '字幕预览效果',
+                  style: settings.toTextStyle(),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSwitchRow({
+    required String title,
+    required bool value,
+    required ValueChanged<bool>? onChanged,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
           ),
-        ],
+        ),
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeTrackColor: const Color(0xFFBB86FC),
+          inactiveTrackColor: Colors.white24,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSliderRow({
+    required String title,
+    required double value,
+    required double min,
+    required double max,
+    required int divisions,
+    required String displayValue,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+              ),
+            ),
+            Text(
+              displayValue,
+              style: const TextStyle(
+                color: Color(0xFFBB86FC),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        SliderTheme(
+          data: SliderThemeData(
+            activeTrackColor: const Color(0xFFBB86FC),
+            inactiveTrackColor: Colors.white24,
+            thumbColor: const Color(0xFFBB86FC),
+            overlayColor: const Color(0xFFBB86FC).withValues(alpha: 0.2),
+            trackHeight: 3,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+          ),
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTrackItem({
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFFBB86FC).withValues(alpha: 0.15)
+              : Colors.white.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFFBB86FC).withValues(alpha: 0.5)
+                : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: isSelected ? const Color(0xFFBB86FC) : Colors.white,
+                      fontSize: 14,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 11,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              const Icon(
+                Icons.check_circle,
+                color: Color(0xFFBB86FC),
+                size: 18,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildColorOption({
+    required Color color,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isSelected ? const Color(0xFFBB86FC) : Colors.white24,
+            width: isSelected ? 3 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFBB86FC).withValues(alpha: 0.4),
+                    blurRadius: 8,
+                  ),
+                ]
+              : null,
+        ),
       ),
     );
   }

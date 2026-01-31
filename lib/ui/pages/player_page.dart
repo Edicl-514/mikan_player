@@ -13,6 +13,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/services/webview_video_extractor.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
+import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
@@ -106,6 +107,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   StreamSubscription? _positionSubscription;
   StreamSubscription? _playingSubscription;
 
+  // Subtitle
+  final SubtitleService _subtitleService = SubtitleService();
+
   @override
   void initState() {
     super.initState();
@@ -117,6 +121,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _player = Player();
     _videoController = VideoController(_player);
     _isPlayerInitialized = true;
+
+    // Bind subtitle service to player
+    _subtitleService.bindPlayer(_player);
 
     // Subscribe to player position for danmaku sync
     _positionSubscription = _player.stream.position.listen((position) {
@@ -853,6 +860,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _mobileEpisodeScrollController.dispose();
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
+    _subtitleService.dispose();
     // 确保播放器完全停止后再释放
     _player.stop();
     _player.dispose();
@@ -1745,27 +1753,40 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }) {
     // If player is initialized and we have a stream, show actual player
     if (_isPlayerInitialized && _currentStreamUrl != null) {
-      return Video(
-        controller: _videoController,
-        controls: (state) => CustomVideoControls(
-          state: state,
-          isMobile: isMobile,
-          danmakuService: _danmakuService,
-          currentVideoTime: _currentVideoTime,
-          isVideoPaused: _isVideoPaused,
-          showDanmakuSettings: _showDanmakuSettings,
-          onToggleDanmakuSettings: () =>
-              setState(() => _showDanmakuSettings = !_showDanmakuSettings),
-          allEpisodes: widget.allEpisodes,
-          currentEpisode: widget.currentEpisode,
-          onEpisodeSelected: _onEpisodeSelected,
-          availableSources: _sampleSuccessfulSources,
-          currentSourceIndex: _selectedSourceIndex,
-          currentSourceLabel: _playingSourceLabel,
-          onSourceSelected: _onSourceSelected,
-          isLoading: _isLoadingVideo || _loadingMagnet != null,
-          videoTitle: '${widget.anime.title} - 第${widget.currentEpisode.sort.toInt()}集',
-        ),
+      // Use ListenableBuilder to rebuild when subtitle settings change
+      return ListenableBuilder(
+        listenable: _subtitleService,
+        builder: (context, _) {
+          final subtitleSettings = _subtitleService.settings;
+          return Video(
+            controller: _videoController,
+            subtitleViewConfiguration: SubtitleViewConfiguration(
+              visible: subtitleSettings.enabled,
+              style: subtitleSettings.toTextStyle(),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, subtitleSettings.bottomPadding),
+            ),
+            controls: (state) => CustomVideoControls(
+              state: state,
+              isMobile: isMobile,
+              danmakuService: _danmakuService,
+              subtitleService: _subtitleService,
+              currentVideoTime: _currentVideoTime,
+              isVideoPaused: _isVideoPaused,
+              showDanmakuSettings: _showDanmakuSettings,
+              onToggleDanmakuSettings: () =>
+                  setState(() => _showDanmakuSettings = !_showDanmakuSettings),
+              allEpisodes: widget.allEpisodes,
+              currentEpisode: widget.currentEpisode,
+              onEpisodeSelected: _onEpisodeSelected,
+              availableSources: _sampleSuccessfulSources,
+              currentSourceIndex: _selectedSourceIndex,
+              currentSourceLabel: _playingSourceLabel,
+              onSourceSelected: _onSourceSelected,
+              isLoading: _isLoadingVideo || _loadingMagnet != null,
+              videoTitle: '${widget.anime.title} - 第${widget.currentEpisode.sort.toInt()}集',
+            ),
+          );
+        },
       );
     }
 
