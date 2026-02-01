@@ -237,10 +237,24 @@ class CustomVideoControls extends StatelessWidget {
       ),
     ];
 
-    // 桌面端 - 非全屏顶部按钮栏（不显示任何内容）
-    final desktopNormalTopButtonBar = <Widget>[];
+    // 桌面端 - 非全屏顶部按钮栏（显示空降按钮）
+    final desktopNormalTopButtonBar = [
+      const Spacer(),
+      _buildIntegratedButton(
+        icon: Icons.fast_rewind,
+        label: "空降-85s",
+        onPressed: () => _onSkipTime(-85),
+      ),
+      const SizedBox(width: 8),
+      _buildIntegratedButton(
+        icon: Icons.fast_forward,
+        label: "空降+85s",
+        onPressed: () => _onSkipTime(85),
+      ),
+      const SizedBox(width: 16),
+    ];
 
-    // 桌面端 - 全屏顶部按钮栏（显示标题）
+    // 桌面端 - 全屏顶部按钮栏（显示标题和空降按钮）
     final desktopFullscreenTopButtonBar = [
       if (videoTitle != null) ...[
         const SizedBox(width: 16),
@@ -254,6 +268,18 @@ class CustomVideoControls extends StatelessWidget {
         ),
       ],
       const Spacer(),
+      _buildIntegratedButton(
+        icon: Icons.fast_rewind,
+        label: "空降-85s",
+        onPressed: () => _onSkipTime(-85),
+      ),
+      const SizedBox(width: 8),
+      _buildIntegratedButton(
+        icon: Icons.fast_forward,
+        label: "空降+85s",
+        onPressed: () => _onSkipTime(85),
+      ),
+      const SizedBox(width: 16),
     ];
 
     return MaterialVideoControlsTheme(
@@ -574,6 +600,20 @@ class CustomVideoControls extends StatelessWidget {
     if (currentIndex < allEpisodes.length - 1) {
       onEpisodeSelected(allEpisodes[currentIndex + 1]);
     }
+  }
+
+  /// 跳转指定秒数（正数向前跳，负数向后跳）
+  void _onSkipTime(int seconds) {
+    final player = state.widget.controller.player;
+    final currentPosition = player.state.position;
+    final newPosition = currentPosition + Duration(seconds: seconds);
+
+    // 确保新位置不小于0
+    final targetPosition = newPosition < Duration.zero
+        ? Duration.zero
+        : newPosition;
+
+    player.seek(targetPosition);
   }
 
   /// 移动端设置菜单
@@ -1568,12 +1608,14 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFBB86FC)
-                                    .withValues(alpha: 0.2),
+                                color: const Color(
+                                  0xFFBB86FC,
+                                ).withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
-                                  color: const Color(0xFFBB86FC)
-                                      .withValues(alpha: 0.3),
+                                  color: const Color(
+                                    0xFFBB86FC,
+                                  ).withValues(alpha: 0.3),
                                 ),
                               ),
                               child: Text(

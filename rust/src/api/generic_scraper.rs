@@ -741,21 +741,7 @@ pub struct SourceSearchProgress {
 
 /// 获取播放源配置缓存文件路径
 fn get_cache_file_path() -> anyhow::Result<std::path::PathBuf> {
-    let app_data_dir = if cfg!(target_os = "windows") {
-        std::env::var("APPDATA")
-            .or_else(|_| std::env::var("LOCALAPPDATA"))
-            .map(|p| std::path::PathBuf::from(p))
-    } else if cfg!(target_os = "macos") {
-        std::env::var("HOME")
-            .map(|p| std::path::PathBuf::from(p).join("Library/Application Support"))
-    } else {
-        std::env::var("HOME")
-            .map(|p| std::path::PathBuf::from(p).join(".config"))
-    };
-
-    let base_dir = app_data_dir
-        .unwrap_or_else(|_| std::path::PathBuf::from("."))
-        .join("mikan_player");
+    let base_dir = std::path::PathBuf::from(crate::api::config::get_cache_dir());
 
     // 确保目录存在
     if !base_dir.exists() {

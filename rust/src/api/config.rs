@@ -7,6 +7,8 @@ pub struct RuntimeConfig {
     pub mikan_url: String,
     pub playback_sub_url: String,
     pub disabled_sources: Vec<String>,
+    pub cache_dir: String,
+    pub download_dir: String,
 }
 
 lazy_static! {
@@ -16,6 +18,8 @@ lazy_static! {
         mikan_url: "https://mikanani.kas.pub".to_string(),
         playback_sub_url: "https://sub.creamycake.org/v1/css1.json".to_string(),
         disabled_sources: vec![],
+        cache_dir: ".".to_string(),
+        download_dir: "downloads".to_string(),
     });
 }
 
@@ -25,6 +29,17 @@ fn normalize_url(url: &str) -> String {
         s.pop();
     }
     s
+}
+
+pub fn init_config(cache_dir: String, download_dir: String) {
+    let mut config = CONFIG.write().unwrap();
+    config.cache_dir = cache_dir;
+    config.download_dir = download_dir;
+    log::info!(
+        "Config initialized: cache_dir={}, download_dir={}",
+        config.cache_dir,
+        config.download_dir
+    );
 }
 
 pub fn update_config(bgm: String, bangumi: String, mikan: String, playback_sub: String) {
@@ -65,6 +80,14 @@ pub fn get_mikan_url() -> String {
 
 pub fn get_playback_sub_url() -> String {
     CONFIG.read().unwrap().playback_sub_url.clone()
+}
+
+pub fn get_cache_dir() -> String {
+    CONFIG.read().unwrap().cache_dir.clone()
+}
+
+pub fn get_download_dir() -> String {
+    CONFIG.read().unwrap().download_dir.clone()
 }
 
 pub fn set_disabled_sources(sources: Vec<String>) {

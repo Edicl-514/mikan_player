@@ -19,8 +19,16 @@ WebViewEnvironment? webViewEnvironment;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Rust Logic
+  // Initialize Rust Logic with platform-specific paths
+  final appSupportDir = await getApplicationSupportDirectory();
+  final cacheDir = Directory('${appSupportDir.path}/cache');
+  final downloadDir = Directory('${appSupportDir.path}/downloads');
+
+  if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
+  if (!await downloadDir.exists()) await downloadDir.create(recursive: true);
+
   await RustLib.init();
+  await rust.initEngine(cacheDir: cacheDir.path, downloadDir: downloadDir.path);
 
   // Initialize MediaKit
   MediaKit.ensureInitialized();

@@ -9,8 +9,10 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-#[frb(init)]
-pub fn init_app() {
+pub fn init_engine(cache_dir: String, download_dir: String) {
+    // Initialize config with paths
+    crate::api::config::init_config(cache_dir, download_dir);
+
     // Disable heavy logs from rqbit and related crates
     env_logger::Builder::from_env(
         env_logger::Env::default()
@@ -127,12 +129,8 @@ async fn ensure_initialized() -> anyhow::Result<Arc<tokio::sync::Mutex<AppState>
     // Note: librqbit 8.1.1 may not have disable_pex option
     // PEX is usually enabled by default in modern BitTorrent clients
 
-    // Change download directory to a local "downloads" folder instead of Temp.
-    // This often avoids aggressive Antivirus/Indexing interference on Windows.
-    let download_dir = std::env::current_exe()?
-        .parent()
-        .unwrap_or(&std::env::current_dir()?)
-        .join("downloads");
+    // Use the provided download directory from config
+    let download_dir = std::path::PathBuf::from(crate::api::config::get_download_dir());
 
     if !download_dir.exists() {
         std::fs::create_dir_all(&download_dir)?;
