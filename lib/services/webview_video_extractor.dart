@@ -80,7 +80,8 @@ class VideoExtractResult {
 /// WebView 视频提取器
 /// 通过 WebView 加载播放页面，拦截网络请求来获取真实视频 URL
 class WebViewVideoExtractor {
-  static final WebViewVideoExtractor _instance = WebViewVideoExtractor._internal();
+  static final WebViewVideoExtractor _instance =
+      WebViewVideoExtractor._internal();
   factory WebViewVideoExtractor() => _instance;
   WebViewVideoExtractor._internal();
 
@@ -145,6 +146,46 @@ class WebViewVideoExtractor {
       return false;
     }
   }
+
+  /// 使用自定义正则提取URL（优先提取命名捕获组 'v'）
+  String? _extractUrlWithCustomRegex(String url, String? regexStr) {
+    if (regexStr == null || regexStr.isEmpty || regexStr == r'$^') {
+      return null;
+    }
+    try {
+      final regex = RegExp(regexStr);
+      final match = regex.firstMatch(url);
+      if (match != null) {
+        // 尝试提取命名捕获组 'v'
+        try {
+          final capturedUrl = match.namedGroup('v');
+          if (capturedUrl != null && capturedUrl.isNotEmpty) {
+            return capturedUrl;
+          }
+        } catch (e) {
+          // 如果没有命名捕获组，使用第一个捕获组或整个匹配
+        }
+        // 如果没有命名捕获组 'v'，尝试使用第一个普通捕获组
+        if (match.groupCount > 0) {
+          final group1 = match.group(1);
+          if (group1 != null && group1.isNotEmpty) {
+            // 启发式判断：只有当捕获组看起来像是一个完整的 URL 时才使用它
+            // 否则可能是误捕获了扩展名（如 (m3u8|mp4)）
+            if (group1.contains('://') ||
+                group1.startsWith('/') ||
+                group1.startsWith('//')) {
+              return group1;
+            }
+          }
+        }
+        // 最后才使用整个匹配
+        return match.group(0);
+      }
+    } catch (e) {
+      debugPrint('Error extracting with regex: $regexStr, error: $e');
+    }
+    return null;
+  }
 }
 
 /// WebView 视频提取 Widget
@@ -168,10 +209,12 @@ class WebViewVideoExtractorWidget extends StatefulWidget {
   });
 
   @override
-  State<WebViewVideoExtractorWidget> createState() => _WebViewVideoExtractorWidgetState();
+  State<WebViewVideoExtractorWidget> createState() =>
+      _WebViewVideoExtractorWidgetState();
 }
 
-class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidget> {
+class _WebViewVideoExtractorWidgetState
+    extends State<WebViewVideoExtractorWidget> {
   InAppWebViewController? _webViewController;
   final Set<String> _capturedUrls = {};
   String? _foundVideoUrl;
@@ -190,9 +233,12 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
     _timeoutTimer = Timer(widget.timeout, () {
       if (!_isCompleted) {
         _log('⏱️ 超时！共拦截 $_totalUrlsChecked 个URL，但未找到匹配的视频URL');
-        _complete(VideoExtractResult(
-          error: '提取超时，未能在 ${widget.timeout.inSeconds} 秒内找到视频链接（共检查了 $_totalUrlsChecked 个URL）',
-        ));
+        _complete(
+          VideoExtractResult(
+            error:
+                '提取超时，未能在 ${widget.timeout.inSeconds} 秒内找到视频链接（共检查了 $_totalUrlsChecked 个URL）',
+          ),
+        );
       }
     });
   }
@@ -216,39 +262,42 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
     _totalUrlsChecked++;
 
     final extractor = WebViewVideoExtractor();
-    
+
     // 检查是否看起来像视频URL（用于调试）
-    final looksLikeVideo = url.contains('.m3u8') || 
-                           url.contains('.mp4') || 
-                           url.contains('.flv') ||
-                           url.contains('akamaized') ||
-                           url.contains('bilivideo') ||
-                           url.contains('qq.com');
-    
+    final looksLikeVideo =
+        url.contains('.m3u8') ||
+        url.contains('.mp4') ||
+        url.contains('.flv') ||
+        url.contains('akamaized') ||
+        url.contains('bilivideo') ||
+        url.contains('qq.com');
+
     if (looksLikeVideo) {
       _log('🔍 检测到疑似视频URL: $url');
     }
-    
+
     // 检查是否是播放器解析接口（这些URL通常在iframe中，需要实际导航）
     // 1. 路径特征：包含 /player/ 或 /parse/
     // 2. 文件特征：是 .php 或者带有参数的 .html
     // 3. 排除：静态资源目录 /static/，加载页 loading.html，以及初始URL自身
     final uri = Uri.tryParse(url);
     final queryParams = uri?.queryParameters ?? {};
-    final hasParserParams = queryParams.containsKey('url') || 
-                            queryParams.containsKey('v') || 
-                            queryParams.containsKey('vid') || 
-                            queryParams.containsKey('id') ||
-                            queryParams.containsKey('code') ||
-                            queryParams.containsKey('api') ||
-                            queryParams.containsKey('input');
+    final hasParserParams =
+        queryParams.containsKey('url') ||
+        queryParams.containsKey('v') ||
+        queryParams.containsKey('vid') ||
+        queryParams.containsKey('id') ||
+        queryParams.containsKey('code') ||
+        queryParams.containsKey('api') ||
+        queryParams.containsKey('input');
 
-    final isPlayerParser = (url.contains('/player/') || url.contains('/parse')) &&
-                          (url.contains('.php') || (url.contains('.html') && hasParserParams)) &&
-                          !url.contains('loading.html') &&
-                          !url.contains('/static/') &&
-                          !url.contains(widget.url);
-    
+    final isPlayerParser =
+        (url.contains('/player/') || url.contains('/parse')) &&
+        (url.contains('.php') || (url.contains('.html') && hasParserParams)) &&
+        !url.contains('loading.html') &&
+        !url.contains('/static/') &&
+        !url.contains(widget.url);
+
     if (isPlayerParser) {
       if (_navigationCount >= 3) {
         _log('⚠️ 已达到最大跳转尝试次数 ($_navigationCount)，忽略此接口: $url');
@@ -261,27 +310,45 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
       _webViewController?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
       return false; // 不标记为完成，继续等待视频URL
     }
-    
+
     // 记录所有URL（方便调试）
     if (_totalUrlsChecked <= 50) {
       debugPrint('[WebView-URL#$_totalUrlsChecked] $url');
     }
-    
+
     // 首先用自定义正则检查
-    if (widget.customVideoRegex != null && widget.customVideoRegex!.isNotEmpty) {
-      final matched = extractor._matchesCustomRegex(url, widget.customVideoRegex);
+    if (widget.customVideoRegex != null &&
+        widget.customVideoRegex!.isNotEmpty) {
+      final matched = extractor._matchesCustomRegex(
+        url,
+        widget.customVideoRegex,
+      );
       if (looksLikeVideo) {
         _log('   自定义正则 "${widget.customVideoRegex}" 匹配结果: $matched');
       }
       if (matched) {
-        _log('✓ 匹配自定义正则: $url');
-        _foundVideoUrl = url;
-        _complete(VideoExtractResult(videoUrl: url));
-        return true;
+        // 优先提取捕获组 'v' 的值，如果没有则使用整个URL
+        final extractedUrl = extractor._extractUrlWithCustomRegex(
+          url,
+          widget.customVideoRegex,
+        );
+        if (extractedUrl != null && extractedUrl.isNotEmpty) {
+          _log('✓ 匹配自定义正则并提取捕获组: $extractedUrl');
+          _foundVideoUrl = extractedUrl;
+          _complete(VideoExtractResult(videoUrl: extractedUrl));
+          return true;
+        } else {
+          _log('✓ 匹配自定义正则（无捕获组）: $url');
+          _foundVideoUrl = url;
+          _complete(VideoExtractResult(videoUrl: url));
+          return true;
+        }
       }
+      // 如果有自定义正则但不匹配，不继续用内置模式（防止被不精确的兜底规则捕获）
+      return false;
     }
 
-    // 然后用内置模式检查
+    // 只有在没有自定义正则时，才用内置模式检查
     final builtInMatched = extractor._isVideoUrl(url);
     if (looksLikeVideo) {
       _log('   内置模式匹配结果: $builtInMatched');
@@ -298,7 +365,8 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
 
   /// 注入JS脚本来静音所有媒体元素并阻止自动播放
   void _injectMuteScript(InAppWebViewController controller) {
-    controller.evaluateJavascript(source: '''
+    controller.evaluateJavascript(
+      source: '''
       (function() {
         // 静音并暂停所有现有的video和audio元素
         function muteAllMedia() {
@@ -342,7 +410,8 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
           return audio;
         };
       })();
-    ''');
+    ''',
+    );
   }
 
   @override
@@ -355,7 +424,7 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
   Widget build(BuildContext context) {
     final webView = InAppWebView(
       initialUrlRequest: URLRequest(url: WebUri(widget.url)),
-      webViewEnvironment: webViewEnvironment,  // 使用全局 WebView 环境（Windows 需要）
+      webViewEnvironment: webViewEnvironment, // 使用全局 WebView 环境（Windows 需要）
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         // 禁止自动播放媒体，防止后台WebView播放声音
@@ -368,7 +437,8 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
         // 允许混合内容
         mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
         // 设置 User-Agent
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        userAgent:
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       ),
       onWebViewCreated: (controller) {
         _webViewController = controller;
@@ -384,16 +454,16 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
       onLoadStop: (controller, url) async {
         _log('页面加载完成: $url');
         _log('已拦截 $_totalUrlsChecked 个URL');
-        
+
         // 页面加载完成后再次注入静音脚本，确保所有动态创建的媒体元素都被静音
         _injectMuteScript(controller);
-        
+
         // 如果已经找到视频URL，就不需要从HTML提取了
         if (_isCompleted) {
           _log('已找到视频URL，跳过HTML提取');
           return;
         }
-        
+
         // 页面加载完成后，尝试从页面内容中提取视频URL
         // 有些网站的视频URL是通过JS动态生成的
         try {
@@ -442,9 +512,7 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
     if (widget.showWebView) {
       return Container(
         height: 300,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey),
-        ),
+        decoration: BoxDecoration(border: Border.all(color: Colors.grey)),
         child: webView,
       );
     }
@@ -453,10 +521,7 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
     return SizedBox(
       width: 1,
       height: 1,
-      child: Opacity(
-        opacity: 0,
-        child: webView,
-      ),
+      child: Opacity(opacity: 0, child: webView),
     );
   }
 
@@ -466,7 +531,10 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
 
     // 尝试直接匹配视频URL（更宽松的模式）
     // 匹配 .mp4（包括 .f0.mp4 这样的变体）
-    final urlRegex = RegExp(r'''https?://[^\s"<>'\\]+\.mp4(\?[^\s"<>'\\]*)?''', caseSensitive: false);
+    final urlRegex = RegExp(
+      r'''https?://[^\s"<>'\\]+\.mp4(\?[^\s"<>'\\]*)?''',
+      caseSensitive: false,
+    );
     final urlMatches = urlRegex.allMatches(html);
     for (final urlMatch in urlMatches) {
       final url = urlMatch.group(0)!;
@@ -475,9 +543,12 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
         return;
       }
     }
-    
+
     // 也尝试匹配 m3u8
-    final m3u8Regex = RegExp(r'''https?://[^\s"<>'\\]+\.m3u8[^\s"<>'\\]*''', caseSensitive: false);
+    final m3u8Regex = RegExp(
+      r'''https?://[^\s"<>'\\]+\.m3u8[^\s"<>'\\]*''',
+      caseSensitive: false,
+    );
     final m3u8Matches = m3u8Regex.allMatches(html);
     for (final m3u8Match in m3u8Matches) {
       final url = m3u8Match.group(0)!;

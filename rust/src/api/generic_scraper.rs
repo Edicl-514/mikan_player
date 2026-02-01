@@ -1660,15 +1660,8 @@ async fn search_single_source_with_progress(
         request_builder = request_builder.header("Cookie", cookies);
     }
     
-    if let Ok(resp) = request_builder.send().await {
-        if let Ok(video_page_text) = resp.text().await {
-            if let Some(player_url) = try_extract_player_aaaa_url(&video_page_text) {
-                log::info!("[{}] Found direct video URL from player_aaaa: {}", source_name, player_url);
-                direct_video_url = Some(player_url);
-            }
-        }
-    }
-
+    // 不再使用内置的player_aaaa提取，直接返回搜索结果让WebView处理
+    
     // 发送成功结果
     sink.add(SourceSearchProgress {
         source_name: source_name.clone(),
@@ -1931,14 +1924,7 @@ async fn search_single_source(
         request_builder = request_builder.header("Cookie", cookies);
     }
 
-    if let Ok(resp) = request_builder.send().await {
-        if let Ok(video_page_text) = resp.text().await {
-            if let Some(player_url) = try_extract_player_aaaa_url(&video_page_text) {
-                log::info!("[{}] Found direct video URL from player_aaaa: {}", source_name, player_url);
-                direct_video_url = Some(player_url);
-            }
-        }
-    }
+    // 不再使用内置的player_aaaa提取，直接返回搜索结果让WebView处理
 
     Ok(SearchPlayResult {
         source_name,
@@ -2269,13 +2255,7 @@ async fn generic_search_and_play_internal(
             }
         }
 
-        // 优先尝试从 player_aaaa 变量中提取视频URL
-        // 这是很多视频网站使用的通用模式
-        if let Some(player_url) = try_extract_player_aaaa_url(&video_page_text) {
-            log::info!("FOUND VIDEO URL from player_aaaa: {}", player_url);
-            return Ok(player_url);
-        }
-
+        // 直接使用JSON配置的正则表达式，不使用内置兜底逻辑
         let regex_str = &source.arguments.search_config.match_video.match_video_url;
         log::info!("Matching video with regex: {}", regex_str);
 
@@ -2315,37 +2295,15 @@ async fn generic_search_and_play_internal(
                     return Ok(video_url);
                 }
             } else {
-                log::warn!("No video match found in text with primary regex.");
-
-                // Fallback: try to find any http link ending in m3u8 or containing url=...m3u8
-                // This is a heuristic to help the user debug or play even if the regex in JSON is slightly off
-                log::info!("Attempting fallback heuristic search...");
-                let fallback_re = Regex::new(
-                    r#"(https?://[^"'\s\(\)<>]+?\.m3u8)|(url=(https?%3A%2F%2F[^"'\s]+))"#,
-                )
-                .unwrap();
-                if let Ok(Some(caps)) = fallback_re.captures(&video_page_text) {
-                    let mut video_url = caps.get(0).map_or("", |m| m.as_str()).to_string();
-                    // If it matched the url= group
-                    if video_url.starts_with("url=") {
-                        video_url = video_url.replace("url=", "");
-                    }
-
-                    if video_url.contains("%") {
-                        if let Ok(decoded) = urlencoding::decode(&video_url) {
-                            video_url = decoded.into_owned();
-                        }
-                    }
-                    log::info!("FOUND VIDEO URL (FALLBACK): {}", video_url);
-                    return Ok(video_url);
-                }
+                log::warn!("No video match found in text with regex: {}", regex_str);
+                // 不使用兜底逻辑，直接返回错误，让用户修改JSON配置
             }
         } else {
             log::error!("Failed to compile regex: {}", regex_str);
         }
     }
 
-    Err(anyhow::anyhow!("No video found in any source"))
+    Err(anyhow::anyhow!("No video found - regex did not match the page content"))
 }
 
 /// 搜索单个源，返回包含所有channel和剧集信息的完整结果
@@ -2795,14 +2753,7 @@ pub async fn get_episode_play_url(
         request_builder = request_builder.header("Cookie", cookies);
     }
 
-    if let Ok(resp) = request_builder.send().await {
-        if let Ok(video_page_text) = resp.text().await {
-            if let Some(player_url) = try_extract_player_aaaa_url(&video_page_text) {
-                log::info!("[{}] Found direct video URL from player_aaaa: {}", source_name, player_url);
-                direct_video_url = Some(player_url);
-            }
-        }
-    }
+    // 不再使用内置的player_aaaa提取，直接返回搜索结果让WebView处理
     
     Ok(SearchPlayResult {
         source_name,
