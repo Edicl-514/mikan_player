@@ -6,28 +6,20 @@ use flutter_rust_bridge::frb;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::env;
-use dotenvy::dotenv;
 
-/// 从环境变量读取 App ID (`DANDANPLAY_APP_ID`)
+/// 从编译时环境变量读取 App ID (`DANDANPLAY_APP_ID`)
 fn get_app_id() -> Result<String, String> {
-    match env::var("DANDANPLAY_APP_ID") {
-        Ok(v) => Ok(v),
-        Err(_) => {
-            let _ = dotenv();
-            env::var("DANDANPLAY_APP_ID").map_err(|e| format!("Environment variable DANDANPLAY_APP_ID not set: {}", e))
-        }
+    match option_env!("DANDANPLAY_APP_ID") {
+        Some(v) if !v.is_empty() => Ok(v.to_string()),
+        _ => Err("Environment variable DANDANPLAY_APP_ID not set during compilation".to_string())
     }
 }
 
-/// 从环境变量读取 App Secret (`DANDANPLAY_APP_SECRET`)
+/// 从编译时环境变量读取 App Secret (`DANDANPLAY_APP_SECRET`)
 fn get_app_secret() -> Result<String, String> {
-    match env::var("DANDANPLAY_APP_SECRET") {
-        Ok(v) => Ok(v),
-        Err(_) => {
-            let _ = dotenv();
-            env::var("DANDANPLAY_APP_SECRET").map_err(|e| format!("Environment variable DANDANPLAY_APP_SECRET not set: {}", e))
-        }
+    match option_env!("DANDANPLAY_APP_SECRET") {
+        Some(v) if !v.is_empty() => Ok(v.to_string()),
+        _ => Err("Environment variable DANDANPLAY_APP_SECRET not set during compilation".to_string())
     }
 }
 

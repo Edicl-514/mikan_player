@@ -2,6 +2,7 @@
 name = "rust"
 version = "0.1.0"
 edition = "2024"
+build = "build.rs"
 
 [lib]
 crate-type = ["cdylib", "staticlib"]
@@ -32,7 +33,6 @@ base64 = "0.22"
 futures = "0.3"
 aes = "0.8"
 sha2 = "0.10"
-dotenvy = "0.15"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
