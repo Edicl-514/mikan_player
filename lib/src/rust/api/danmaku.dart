@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_signed_headers`, `extract_url_path`, `generate_signature`, `parse_danmaku_comment`
+// These functions are ignored because they are not marked as `pub`: `build_signed_headers`, `extract_url_path`, `generate_signature`, `get_app_id`, `get_app_secret`, `parse_danmaku_comment`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BangumiDetail`, `BangumiResponse`, `BangumiTvDetail`, `BangumiTvEpisodeApi`, `BangumiTvResponse`, `DanmakuComment`, `DanmakuResponse`, `EpisodeApi`, `MatchResponse`, `MatchResultApi`, `SearchAnimeApi`, `SearchResponse`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 

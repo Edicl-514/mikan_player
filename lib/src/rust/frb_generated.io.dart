@@ -39,6 +39,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<SearchResultWithChannels>
+  dco_decode_StreamSink_search_result_with_channels_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<SourceSearchProgress>
   dco_decode_StreamSink_source_search_progress_Sse(dynamic raw);
 
@@ -94,6 +98,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
+  BigInt dco_decode_box_autoadd_usize(dynamic raw);
+
+  @protected
+  ChannelInfo dco_decode_channel_info(dynamic raw);
+
+  @protected
   Danmaku dco_decode_danmaku(dynamic raw);
 
   @protected
@@ -107,6 +117,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DmhyResource dco_decode_dmhy_resource(dynamic raw);
+
+  @protected
+  EpisodeInfo dco_decode_episode_info(dynamic raw);
 
   @protected
   double dco_decode_f_64(dynamic raw);
@@ -152,6 +165,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<BangumiTvEpisode> dco_decode_list_bangumi_tv_episode(dynamic raw);
 
   @protected
+  List<ChannelInfo> dco_decode_list_channel_info(dynamic raw);
+
+  @protected
   List<Danmaku> dco_decode_list_danmaku(dynamic raw);
 
   @protected
@@ -165,6 +181,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<DmhyResource> dco_decode_list_dmhy_resource(dynamic raw);
+
+  @protected
+  List<EpisodeInfo> dco_decode_list_episode_info(dynamic raw);
 
   @protected
   List<MikanEpisodeResource> dco_decode_list_mikan_episode_resource(
@@ -182,6 +201,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<SearchPlayResult> dco_decode_list_search_play_result(dynamic raw);
+
+  @protected
+  List<SearchResultWithChannels> dco_decode_list_search_result_with_channels(
+    dynamic raw,
+  );
 
   @protected
   List<SourceState> dco_decode_list_source_state(dynamic raw);
@@ -222,6 +246,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
 
   @protected
+  BigInt? dco_decode_opt_box_autoadd_usize(dynamic raw);
+
+  @protected
+  List<ChannelInfo>? dco_decode_opt_list_channel_info(dynamic raw);
+
+  @protected
   RankingAnime dco_decode_ranking_anime(dynamic raw);
 
   @protected
@@ -229,6 +259,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SearchPlayResult dco_decode_search_play_result(dynamic raw);
+
+  @protected
+  SearchResultWithChannels dco_decode_search_result_with_channels(dynamic raw);
 
   @protected
   SearchStep dco_decode_search_step(dynamic raw);
@@ -258,6 +291,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void dco_decode_unit(dynamic raw);
 
   @protected
+  BigInt dco_decode_usize(dynamic raw);
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
@@ -267,6 +303,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<SearchPlayResult> sse_decode_StreamSink_search_play_result_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<SearchResultWithChannels>
+  sse_decode_StreamSink_search_result_with_channels_Sse(
     SseDeserializer deserializer,
   );
 
@@ -336,6 +378,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
+  BigInt sse_decode_box_autoadd_usize(SseDeserializer deserializer);
+
+  @protected
+  ChannelInfo sse_decode_channel_info(SseDeserializer deserializer);
+
+  @protected
   Danmaku sse_decode_danmaku(SseDeserializer deserializer);
 
   @protected
@@ -349,6 +397,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DmhyResource sse_decode_dmhy_resource(SseDeserializer deserializer);
+
+  @protected
+  EpisodeInfo sse_decode_episode_info(SseDeserializer deserializer);
 
   @protected
   double sse_decode_f_64(SseDeserializer deserializer);
@@ -406,6 +457,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ChannelInfo> sse_decode_list_channel_info(SseDeserializer deserializer);
+
+  @protected
   List<Danmaku> sse_decode_list_danmaku(SseDeserializer deserializer);
 
   @protected
@@ -429,6 +483,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<EpisodeInfo> sse_decode_list_episode_info(SseDeserializer deserializer);
+
+  @protected
   List<MikanEpisodeResource> sse_decode_list_mikan_episode_resource(
     SseDeserializer deserializer,
   );
@@ -448,6 +505,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<SearchPlayResult> sse_decode_list_search_play_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<SearchResultWithChannels> sse_decode_list_search_result_with_channels(
     SseDeserializer deserializer,
   );
 
@@ -500,6 +562,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
+  BigInt? sse_decode_opt_box_autoadd_usize(SseDeserializer deserializer);
+
+  @protected
+  List<ChannelInfo>? sse_decode_opt_list_channel_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RankingAnime sse_decode_ranking_anime(SseDeserializer deserializer);
 
   @protected
@@ -509,6 +579,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SearchPlayResult sse_decode_search_play_result(SseDeserializer deserializer);
+
+  @protected
+  SearchResultWithChannels sse_decode_search_result_with_channels(
+    SseDeserializer deserializer,
+  );
 
   @protected
   SearchStep sse_decode_search_step(SseDeserializer deserializer);
@@ -540,6 +615,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_decode_unit(SseDeserializer deserializer);
 
   @protected
+  BigInt sse_decode_usize(SseDeserializer deserializer);
+
+  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -554,6 +632,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_search_play_result_Sse(
     RustStreamSink<SearchPlayResult> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_search_result_with_channels_Sse(
+    RustStreamSink<SearchResultWithChannels> self,
     SseSerializer serializer,
   );
 
@@ -642,6 +726,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_usize(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_channel_info(ChannelInfo self, SseSerializer serializer);
+
+  @protected
   void sse_encode_danmaku(Danmaku self, SseSerializer serializer);
 
   @protected
@@ -658,6 +748,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_dmhy_resource(DmhyResource self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_episode_info(EpisodeInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
@@ -726,6 +819,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_channel_info(
+    List<ChannelInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_danmaku(List<Danmaku> self, SseSerializer serializer);
 
   @protected
@@ -749,6 +848,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_dmhy_resource(
     List<DmhyResource> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_episode_info(
+    List<EpisodeInfo> self,
     SseSerializer serializer,
   );
 
@@ -779,6 +884,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_search_play_result(
     List<SearchPlayResult> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_search_result_with_channels(
+    List<SearchResultWithChannels> self,
     SseSerializer serializer,
   );
 
@@ -843,6 +954,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_usize(BigInt? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_list_channel_info(
+    List<ChannelInfo>? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_ranking_anime(RankingAnime self, SseSerializer serializer);
 
   @protected
@@ -854,6 +974,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_search_play_result(
     SearchPlayResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_search_result_with_channels(
+    SearchResultWithChannels self,
     SseSerializer serializer,
   );
 
@@ -886,6 +1012,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_usize(BigInt self, SseSerializer serializer);
 }
 
 // Section: wire_class

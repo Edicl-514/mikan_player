@@ -108,6 +108,10 @@ pub struct SearchConfig {
     #[serde(rename = "selectorSubjectFormatIndexed")]
     pub selector_subject_format_indexed: Option<SelectorSubjectFormatIndexed>,
 
+    // Channel format selector: "index-grouped" (多线路) or "no-channel" (无线路区分)
+    #[serde(rename = "channelFormatId")]
+    pub channel_format_id: Option<String>,
+
     // Selectors for channel/episodes
     #[serde(rename = "selectorChannelFormatFlattened")]
     pub selector_channel_format_flattened: Option<SelectorChannelFormatFlattened>,
@@ -139,10 +143,19 @@ pub struct SelectorSubjectFormatIndexed {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct SelectorChannelFormatFlattened {
+    /// 选择channel名称的CSS选择器（如线路A、简中、繁中等）
+    #[serde(rename = "selectChannelNames")]
+    pub select_channel_names: Option<String>,
+    /// 从channel名称中提取名字的正则表达式，使用命名捕获组 (?<ch>...)
+    #[serde(rename = "matchChannelName")]
+    pub match_channel_name: Option<String>,
     #[serde(rename = "selectEpisodeLists")]
     pub select_episode_lists: String,
     #[serde(rename = "selectEpisodesFromList")]
     pub select_episodes_from_list: String,
+    /// 从剧集链接元素中提取链接的CSS选择器（可选，默认从元素自身href获取）
+    #[serde(rename = "selectEpisodeLinksFromList")]
+    pub select_episode_links_from_list: Option<String>,
     #[serde(rename = "matchEpisodeSortFromName")]
     pub match_episode_sort_from_name: Option<String>,
 }
@@ -151,6 +164,9 @@ pub struct SelectorChannelFormatFlattened {
 pub struct SelectorChannelFormatNoChannel {
     #[serde(rename = "selectEpisodes")]
     pub select_episodes: String,
+    /// 从剧集元素中提取链接的CSS选择器（可选，默认从元素自身href获取）
+    #[serde(rename = "selectEpisodeLinks")]
+    pub select_episode_links: Option<String>,
     #[serde(rename = "matchEpisodeSortFromName")]
     pub match_episode_sort_from_name: Option<String>,
 }
@@ -232,6 +248,33 @@ fn parse_chinese_number(s: &str) -> Option<u32> {
     } else {
         None
     }
+}
+
+/// 从channel元素文本中提取channel名称
+/// 支持使用正则表达式提取命名捕获组 (?<ch>...)
+fn extract_channel_name(text: &str, pattern: Option<&str>) -> String {
+    let text = text.trim();
+    
+    // 如果有自定义正则表达式，使用它来提取channel名称
+    if let Some(pattern_str) = pattern {
+        if !pattern_str.is_empty() && pattern_str != "$^" {
+            if let Ok(re) = Regex::new(pattern_str) {
+                if let Ok(Some(caps)) = re.captures(text) {
+                    // 优先尝试命名捕获组 "ch"
+                    if let Some(ch_match) = caps.name("ch") {
+                        return ch_match.as_str().trim().to_string();
+                    }
+                    // 回退到第一个捕获组
+                    if let Some(group1) = caps.get(1) {
+                        return group1.as_str().trim().to_string();
+                    }
+                }
+            }
+        }
+    }
+    
+    // 默认返回原文本
+    text.to_string()
 }
 
 /// 提取动画名称的核心部分（去除"第X季"等后缀）
@@ -581,6 +624,53 @@ fn try_extract_player_aaaa_url(page_text: &str) -> Option<String> {
     None
 }
 
+/// Channel（线路）信息
+#[derive(Debug, Clone, Serialize)]
+pub struct ChannelInfo {
+    /// Channel 名称（如"线路A"、"简中"、"繁中"等）
+    pub name: String,
+    /// Channel 索引
+    pub index: usize,
+}
+
+/// 剧集信息
+#[derive(Debug, Clone, Serialize)]
+pub struct EpisodeInfo {
+    /// 剧集名称/标题
+    pub name: String,
+    /// 剧集URL
+    pub url: String,
+    /// 剧集号（如果能解析出来）
+    pub episode_number: Option<u32>,
+    /// 所属channel索引
+    pub channel_index: usize,
+}
+
+/// 包含多channel信息的搜索结果
+#[derive(Debug, Clone, Serialize)]
+pub struct SearchResultWithChannels {
+    /// 源名称
+    pub source_name: String,
+    /// 动画详情页URL
+    pub detail_url: String,
+    /// 匹配到的动画名称
+    pub matched_title: String,
+    /// 所有可用的channels（线路）
+    pub channels: Vec<ChannelInfo>,
+    /// 所有剧集列表（按channel分组）
+    pub episodes: Vec<EpisodeInfo>,
+    /// 用于匹配视频URL的正则表达式
+    pub video_regex: String,
+    /// 播放所需的 Cookie
+    pub cookies: Option<String>,
+    /// 播放所需的 Headers
+    pub headers: Option<std::collections::HashMap<String, String>>,
+    /// 默认字幕语言
+    pub default_subtitle_language: Option<String>,
+    /// 默认分辨率
+    pub default_resolution: Option<String>,
+}
+
 /// 搜索结果：包含播放页面URL和视频URL匹配正则
 pub struct SearchPlayResult {
     /// 源名称
@@ -595,6 +685,10 @@ pub struct SearchPlayResult {
     pub cookies: Option<String>,
     /// 播放所需的 Headers (Referer, User-Agent etc)
     pub headers: Option<std::collections::HashMap<String, String>>,
+    /// Channel 名称（如果有多channel）
+    pub channel_name: Option<String>,
+    /// Channel 索引
+    pub channel_index: Option<usize>,
 }
 
 /// 搜索进度状态
@@ -635,6 +729,12 @@ pub struct SourceSearchProgress {
     pub cookies: Option<String>,
     /// 播放所需的 Headers
     pub headers: Option<std::collections::HashMap<String, String>>,
+    /// Channel 名称（如果有多channel）
+    pub channel_name: Option<String>,
+    /// Channel 索引
+    pub channel_index: Option<usize>,
+    /// 所有可用的channels（搜索成功时填充）
+    pub all_channels: Option<Vec<ChannelInfo>>,
 }
 
 /// 从订阅地址拉取播放源配置 JSON
@@ -884,6 +984,9 @@ pub async fn generic_search_with_progress(
                 direct_video_url: None,
                 cookies: None,
                 headers: None,
+                channel_name: None,
+                channel_index: None,
+                all_channels: None,
             }).ok();
             
             // 执行搜索并返回带进度的结果
@@ -938,6 +1041,9 @@ async fn search_single_source_with_progress(
                     direct_video_url: None,
                     cookies: None,
                     headers: None,
+                    channel_name: None,
+                    channel_index: None,
+                    all_channels: None,
                 }).ok();
                 return Err(anyhow::anyhow!("Search request failed"));
             }
@@ -952,6 +1058,9 @@ async fn search_single_source_with_progress(
                 direct_video_url: None,
                 cookies: None,
                 headers: None,
+                channel_name: None,
+                channel_index: None,
+                all_channels: None,
             }).ok();
             return Err(anyhow::anyhow!("Network error"));
         }
@@ -1100,6 +1209,9 @@ async fn search_single_source_with_progress(
             direct_video_url: None,
             cookies: None,
             headers: None,
+            channel_name: None,
+            channel_index: None,
+            all_channels: None,
         }).ok();
         return Err(anyhow::anyhow!("No matching anime found"));
     }
@@ -1114,6 +1226,9 @@ async fn search_single_source_with_progress(
         direct_video_url: None,
         cookies: None,
         headers: None,
+        channel_name: None,
+        channel_index: None,
+        all_channels: None,
     }).ok();
 
     let detail_resp_text = match client.get(&detail_url).send().await {
@@ -1129,6 +1244,9 @@ async fn search_single_source_with_progress(
                     direct_video_url: None,
                     cookies: None,
                     headers: None,
+                    channel_name: None,
+                    channel_index: None,
+                    all_channels: None,
                 }).ok();
                 return Err(anyhow::anyhow!("Detail fetch failed"));
             }
@@ -1143,6 +1261,9 @@ async fn search_single_source_with_progress(
                 direct_video_url: None,
                 cookies: None,
                 headers: None,
+                channel_name: None,
+                channel_index: None,
+                all_channels: None,
             }).ok();
             return Err(anyhow::anyhow!("Detail network error"));
         }
@@ -1158,58 +1279,138 @@ async fn search_single_source_with_progress(
         direct_video_url: None,
         cookies: None,
         headers: None,
+        channel_name: None,
+        channel_index: None,
+        all_channels: None,
     }).ok();
 
-    let episode_url = {
+    // 解析所有channels (使用代码块确保Html在await前被drop)
+    let (channels, episode_url, selected_channel_name, selected_channel_index) = {
         let detail_doc = Html::parse_document(&detail_resp_text);
-        let mut found_url = String::new();
+        let mut channels: Vec<ChannelInfo> = Vec::new();
+        let mut episode_url = String::new();
+        let mut selected_channel_name: Option<String> = None;
+        let mut selected_channel_index: Option<usize> = None;
         
-        if let Some(ref format) = source.arguments.search_config.selector_channel_format_flattened {
-            if let (Ok(list_sel), Ok(item_sel)) = (
-                Selector::parse(&format.select_episode_lists),
-                Selector::parse(&format.select_episodes_from_list),
-            ) {
-                if let Some(list_container) = detail_doc.select(&list_sel).next() {
-                    let episodes: Vec<_> = list_container.select(&item_sel).collect();
+        let channel_format_id = source.arguments.search_config.channel_format_id.as_deref().unwrap_or("no-channel");
+        
+        if channel_format_id == "index-grouped" {
+            if let Some(ref format) = source.arguments.search_config.selector_channel_format_flattened {
+                // 1. 获取所有channel名称
+                if let Some(ref channel_selector) = format.select_channel_names {
+                    if !channel_selector.is_empty() {
+                        if let Ok(ch_sel) = Selector::parse(channel_selector) {
+                            let channel_pattern = format.match_channel_name.as_deref();
+                            for (idx, ch_el) in detail_doc.select(&ch_sel).enumerate() {
+                                let raw_text = ch_el.text().collect::<String>();
+                                let channel_name = extract_channel_name(&raw_text, channel_pattern);
+                                if !channel_name.is_empty() {
+                                    log::info!("[{}] Found channel {}: '{}'", source_name, idx, channel_name);
+                                    channels.push(ChannelInfo {
+                                        name: channel_name,
+                                        index: idx,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                log::info!("[{}] Total channels found: {}", source_name, channels.len());
+                
+                // 2. 获取第一个channel的剧集
+                if let (Ok(list_sel), Ok(item_sel)) = (
+                    Selector::parse(&format.select_episode_lists),
+                    Selector::parse(&format.select_episodes_from_list),
+                ) {
+                    if let Some(list_container) = detail_doc.select(&list_sel).next() {
+                        let episodes: Vec<_> = list_container.select(&item_sel).collect();
+                        let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                        if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode, ep_pattern) {
+                            if !href.is_empty() {
+                                episode_url = if href.starts_with("http") {
+                                    href
+                                } else {
+                                    let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                    } else {
+                                        "".to_string()
+                                    };
+                                    format!("{}{}", base_url, href)
+                                };
+                                // 记录选中的channel（默认第一个）
+                                if !channels.is_empty() {
+                                    selected_channel_name = Some(channels[0].name.clone());
+                                    selected_channel_index = Some(0);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // no-channel 模式
+            if let Some(ref format) = source.arguments.search_config.selector_channel_format_no_channel {
+                // 创建默认channel
+                channels.push(ChannelInfo {
+                    name: "默认线路".to_string(),
+                    index: 0,
+                });
+                
+                if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
+                    let episodes: Vec<_> = detail_doc.select(&ep_sel).collect();
                     let ep_pattern = format.match_episode_sort_from_name.as_deref();
                     if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode, ep_pattern) {
                         if !href.is_empty() {
-                            if href.starts_with("http") {
-                                found_url = href;
+                            episode_url = if href.starts_with("http") {
+                                href
                             } else {
                                 let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
                                     format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
                                 } else {
                                     "".to_string()
                                 };
-                                found_url = format!("{}{}", base_url, href);
-                            }
-                        }
-                    }
-                }
-            }
-        } else if let Some(ref format) = source.arguments.search_config.selector_channel_format_no_channel {
-            if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
-                let episodes: Vec<_> = detail_doc.select(&ep_sel).collect();
-                let ep_pattern = format.match_episode_sort_from_name.as_deref();
-                if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode, ep_pattern) {
-                    if !href.is_empty() {
-                        if href.starts_with("http") {
-                            found_url = href;
-                        } else {
-                            let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
-                                format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                            } else {
-                                "".to_string()
+                                format!("{}{}", base_url, href)
                             };
-                            found_url = format!("{}{}", base_url, href);
+                            selected_channel_name = Some("默认线路".to_string());
+                            selected_channel_index = Some(0);
                         }
                     }
                 }
             }
         }
-        found_url
-    };
+        
+        // 如果channels为空但使用了旧的配置格式，尝试用旧逻辑
+        if channels.is_empty() && episode_url.is_empty() {
+            if let Some(ref format) = source.arguments.search_config.selector_channel_format_flattened {
+                if let (Ok(list_sel), Ok(item_sel)) = (
+                    Selector::parse(&format.select_episode_lists),
+                    Selector::parse(&format.select_episodes_from_list),
+                ) {
+                    if let Some(list_container) = detail_doc.select(&list_sel).next() {
+                        let episodes: Vec<_> = list_container.select(&item_sel).collect();
+                        let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                        if let Some(href) = select_episode_by_number(&episodes, absolute_episode, relative_episode, ep_pattern) {
+                            if !href.is_empty() {
+                                episode_url = if href.starts_with("http") {
+                                    href
+                                } else {
+                                    let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                    } else {
+                                        "".to_string()
+                                    };
+                                    format!("{}{}", base_url, href)
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        (channels, episode_url, selected_channel_name, selected_channel_index)
+    }; // detail_doc 在这里被 drop
 
     if episode_url.is_empty() {
         sink.add(SourceSearchProgress {
@@ -1221,11 +1422,16 @@ async fn search_single_source_with_progress(
             direct_video_url: None,
             cookies: None,
             headers: None,
+            channel_name: None,
+            channel_index: None,
+            all_channels: if channels.is_empty() { None } else { Some(channels) },
         }).ok();
         return Err(anyhow::anyhow!("No episodes found"));
     }
 
     // Step 4: 尝试提取视频URL
+    let all_channels = if channels.is_empty() { None } else { Some(channels.clone()) };
+    
     sink.add(SourceSearchProgress {
         source_name: source_name.clone(),
         step: SearchStep::ExtractingVideo,
@@ -1235,6 +1441,9 @@ async fn search_single_source_with_progress(
         direct_video_url: None,
         cookies: cookies.clone(),
         headers: headers.clone(),
+        channel_name: selected_channel_name.clone(),
+        channel_index: selected_channel_index,
+        all_channels: all_channels.clone(),
     }).ok();
 
     let mut direct_video_url = None;
@@ -1268,6 +1477,9 @@ async fn search_single_source_with_progress(
         direct_video_url,
         cookies,
         headers,
+        channel_name: selected_channel_name,
+        channel_index: selected_channel_index,
+        all_channels,
     }).ok();
 
     Ok(())
@@ -1533,6 +1745,8 @@ async fn search_single_source(
         direct_video_url,
         cookies,
         headers,
+        channel_name: None,  // 单集搜索模式不返回channel信息
+        channel_index: None,
     })
 }
 
@@ -1930,4 +2144,472 @@ async fn generic_search_and_play_internal(
     }
 
     Err(anyhow::anyhow!("No video found in any source"))
+}
+
+/// 搜索单个源，返回包含所有channel和剧集信息的完整结果
+/// 此函数用于获取多线路（如"简中"/"繁中"、"线路A"/"线路B"）的详细信息
+async fn search_single_source_with_channels(
+    client: &reqwest::Client,
+    source: &MediaSource,
+    anime_name: &str,
+) -> anyhow::Result<SearchResultWithChannels> {
+    let source_name = source.arguments.name.clone();
+    let video_regex = source.arguments.search_config.match_video.match_video_url.clone();
+    let cookies = source.arguments.search_config.match_video.cookies.clone();
+    let headers = source.arguments.search_config.match_video.add_headers_to_video.clone();
+    let default_subtitle_language = source.arguments.search_config.default_subtitle_language.clone();
+    let default_resolution = source.arguments.search_config.default_resolution.clone();
+    
+    // 预处理搜索词
+    let search_term = preprocess_search_term(anime_name);
+    let core_name = extract_core_name(anime_name);
+    log::info!("[{}] Search term: '{}', Core name: '{}'", source_name, search_term, core_name);
+    
+    // Step 1: 搜索
+    let search_url = source
+        .arguments
+        .search_config
+        .search_url
+        .replace("{keyword}", &search_term);
+    log::info!("[{}] Searching: {}", source_name, search_url);
+
+    let resp_text = client.get(&search_url).send().await?.text().await?;
+    
+    // 解析搜索结果
+    let (detail_url, matched_title) = {
+        let document = Html::parse_document(&resp_text);
+        let mut found_url = String::new();
+        let mut found_title = String::new();
+        let mut best_match_score = 0;
+        
+        let format_id = source.arguments.search_config.subject_format_id.as_deref().unwrap_or("indexed");
+        
+        if format_id == "a" {
+            if let Some(ref format) = source.arguments.search_config.selector_subject_format_a {
+                if let Ok(list_sel) = Selector::parse(&format.select_lists) {
+                    for link_el in document.select(&list_sel) {
+                        let title = link_el.text().collect::<String>().trim().to_string();
+                        let href = link_el.value().attr("href").unwrap_or("").to_string();
+                        let score = calculate_match_score(&title, anime_name, &core_name);
+                        
+                        if score > best_match_score && score >= 30 {
+                            best_match_score = score;
+                            found_title = title;
+                            found_url = if href.starts_with("http") {
+                                href
+                            } else {
+                                let base_url = if let Ok(u) = url::Url::parse(&search_url) {
+                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                } else {
+                                    "".to_string()
+                                };
+                                format!("{}{}", base_url, href)
+                            };
+                        }
+                    }
+                }
+            }
+        } else {
+            if let Some(ref format) = source.arguments.search_config.selector_subject_format_indexed {
+                if let (Ok(name_sel), Ok(link_sel)) = (
+                    Selector::parse(&format.select_names),
+                    Selector::parse(&format.select_links),
+                ) {
+                    let names: Vec<_> = document.select(&name_sel).collect();
+                    let links: Vec<_> = document.select(&link_sel).collect();
+                    
+                    for (name_el, link_el) in names.iter().zip(links.iter()) {
+                        let title = name_el.text().collect::<String>().trim().to_string();
+                        let href = link_el.value().attr("href").unwrap_or("").to_string();
+                        let score = calculate_match_score(&title, anime_name, &core_name);
+                        
+                        if score > best_match_score && score >= 50 {
+                            best_match_score = score;
+                            found_title = title;
+                            found_url = if href.starts_with("http") {
+                                href
+                            } else {
+                                let base_url = if let Ok(u) = url::Url::parse(&search_url) {
+                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                } else {
+                                    "".to_string()
+                                };
+                                format!("{}{}", base_url, href)
+                            };
+                        }
+                    }
+                }
+            }
+        }
+        (found_url, found_title)
+    };
+
+    if detail_url.is_empty() {
+        return Err(anyhow::anyhow!("No matching anime found"));
+    }
+
+    log::info!("[{}] Found detail URL: {} (title: {})", source_name, detail_url, matched_title);
+
+    // Step 2: 获取详情页并解析channels和episodes
+    let detail_resp_text = client.get(&detail_url).send().await?.text().await?;
+    let detail_doc = Html::parse_document(&detail_resp_text);
+    
+    let mut channels: Vec<ChannelInfo> = Vec::new();
+    let mut episodes: Vec<EpisodeInfo> = Vec::new();
+    
+    let channel_format_id = source.arguments.search_config.channel_format_id.as_deref().unwrap_or("no-channel");
+    
+    if channel_format_id == "index-grouped" {
+        // 多线路模式
+        if let Some(ref format) = source.arguments.search_config.selector_channel_format_flattened {
+            // 1. 获取所有channel名称
+            if let Some(ref channel_selector) = format.select_channel_names {
+                if !channel_selector.is_empty() {
+                    if let Ok(ch_sel) = Selector::parse(channel_selector) {
+                        let channel_pattern = format.match_channel_name.as_deref();
+                        for (idx, ch_el) in detail_doc.select(&ch_sel).enumerate() {
+                            let raw_text = ch_el.text().collect::<String>();
+                            let channel_name = extract_channel_name(&raw_text, channel_pattern);
+                            if !channel_name.is_empty() {
+                                log::info!("[{}] Found channel {}: '{}'", source_name, idx, channel_name);
+                                channels.push(ChannelInfo {
+                                    name: channel_name,
+                                    index: idx,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 2. 获取每个channel对应的剧集列表
+            if let (Ok(list_sel), Ok(item_sel)) = (
+                Selector::parse(&format.select_episode_lists),
+                Selector::parse(&format.select_episodes_from_list),
+            ) {
+                let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                
+                for (channel_idx, list_container) in detail_doc.select(&list_sel).enumerate() {
+                    // 如果channels为空，创建默认channel
+                    if channels.is_empty() {
+                        channels.push(ChannelInfo {
+                            name: "默认线路".to_string(),
+                            index: 0,
+                        });
+                    }
+                    
+                    for ep_el in list_container.select(&item_sel) {
+                        let ep_name = ep_el.text().collect::<String>().trim().to_string();
+                        let ep_href = ep_el.value().attr("href").unwrap_or("").to_string();
+                        
+                        if ep_href.is_empty() {
+                            continue;
+                        }
+                        
+                        // 提取集数
+                        let episode_number = extract_episode_number_from_text(&ep_name, ep_pattern);
+                        
+                        let full_url = if ep_href.starts_with("http") {
+                            ep_href
+                        } else {
+                            let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                                format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                            } else {
+                                "".to_string()
+                            };
+                            format!("{}{}", base_url, ep_href)
+                        };
+                        
+                        episodes.push(EpisodeInfo {
+                            name: ep_name,
+                            url: full_url,
+                            episode_number,
+                            channel_index: channel_idx.min(channels.len().saturating_sub(1)),
+                        });
+                    }
+                }
+            }
+        }
+    } else {
+        // 无线路区分模式（no-channel）
+        if let Some(ref format) = source.arguments.search_config.selector_channel_format_no_channel {
+            // 创建默认channel
+            channels.push(ChannelInfo {
+                name: "默认线路".to_string(),
+                index: 0,
+            });
+            
+            if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
+                let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                
+                for ep_el in detail_doc.select(&ep_sel) {
+                    let ep_name = ep_el.text().collect::<String>().trim().to_string();
+                    let ep_href = ep_el.value().attr("href").unwrap_or("").to_string();
+                    
+                    if ep_href.is_empty() {
+                        continue;
+                    }
+                    
+                    let episode_number = extract_episode_number_from_text(&ep_name, ep_pattern);
+                    
+                    let full_url = if ep_href.starts_with("http") {
+                        ep_href
+                    } else {
+                        let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                            format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                        } else {
+                            "".to_string()
+                        };
+                        format!("{}{}", base_url, ep_href)
+                    };
+                    
+                    episodes.push(EpisodeInfo {
+                        name: ep_name,
+                        url: full_url,
+                        episode_number,
+                        channel_index: 0,
+                    });
+                }
+            }
+        }
+    }
+    
+    log::info!("[{}] Found {} channels and {} episodes", source_name, channels.len(), episodes.len());
+    
+    Ok(SearchResultWithChannels {
+        source_name,
+        detail_url,
+        matched_title,
+        channels,
+        episodes,
+        video_regex,
+        cookies,
+        headers,
+        default_subtitle_language,
+        default_resolution,
+    })
+}
+
+/// 从文本中提取集数
+fn extract_episode_number_from_text(text: &str, custom_pattern: Option<&str>) -> Option<u32> {
+    // 如果提供了自定义正则表达式，优先使用
+    if let Some(pattern) = custom_pattern {
+        if !pattern.is_empty() && pattern != "$^" {
+            if let Ok(re) = Regex::new(pattern) {
+                if let Ok(Some(caps)) = re.captures(text) {
+                    if let Some(ep_match) = caps.name("ep") {
+                        let ep_str = ep_match.as_str();
+                        if let Some(num) = parse_chinese_number(ep_str) {
+                            return Some(num);
+                        }
+                        if let Ok(num) = ep_str.parse::<u32>() {
+                            return Some(num);
+                        }
+                    }
+                    if let Some(num_match) = caps.get(1) {
+                        let num_str = num_match.as_str();
+                        if let Some(num) = parse_chinese_number(num_str) {
+                            return Some(num);
+                        }
+                        if let Ok(num) = num_str.parse::<u32>() {
+                            return Some(num);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // 默认的集数匹配模式
+    let default_patterns = [
+        r"第\s*(?<ep>[一二三四五六七八九十百千\d]+)\s*[集话]",
+        r"EP\.?\s*(\d+)",
+        r"Episode\s*(\d+)",
+        r"第\s*(\d+)",
+        r"^(\d+)$",
+        r"\[(?<ep>\d+)\]",
+        r"【(?<ep>\d+)】",
+        r"\s+(?<ep>\d+)\s*$",
+    ];
+    
+    for pattern in &default_patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Ok(Some(caps)) = re.captures(text) {
+                if let Some(ep_match) = caps.name("ep") {
+                    let ep_str = ep_match.as_str();
+                    if let Some(num) = parse_chinese_number(ep_str) {
+                        return Some(num);
+                    }
+                    if let Ok(num) = ep_str.parse::<u32>() {
+                        return Some(num);
+                    }
+                }
+                if let Some(num_str) = caps.get(1) {
+                    if let Ok(num) = num_str.as_str().parse::<u32>() {
+                        return Some(num);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// 搜索所有源，返回包含多channel信息的完整结果
+/// 此API用于UI展示所有可用的线路和剧集供用户选择
+pub async fn generic_search_with_channels(
+    anime_name: String,
+) -> anyhow::Result<Vec<SearchResultWithChannels>> {
+    let client = crate::api::network::create_client()?;
+    let content = load_playback_source_config(&client).await?;
+
+    let root: SampleRoot = serde_json::from_str(&content)?;
+    
+    // 并发搜索所有源
+    let futures: Vec<_> = root
+        .exported_media_source_data_list
+        .media_sources
+        .iter()
+        .filter(|source| crate::api::config::is_source_enabled(&source.arguments.name))
+        .map(|source| {
+            let client = client.clone();
+            let source = source.clone();
+            let anime_name = anime_name.clone();
+            async move {
+                log::info!("Searching source with channels: {}", source.arguments.name);
+                search_single_source_with_channels(&client, &source, &anime_name).await
+            }
+        })
+        .collect();
+    
+    let all_results = futures::future::join_all(futures).await;
+    
+    let results: Vec<SearchResultWithChannels> = all_results
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .collect();
+    
+    Ok(results)
+}
+
+/// 搜索所有源，以流的形式返回包含多channel信息的结果
+pub async fn generic_search_with_channels_stream(
+    anime_name: String,
+    sink: crate::frb_generated::StreamSink<SearchResultWithChannels>,
+) -> anyhow::Result<()> {
+    let client = crate::api::network::create_client()?;
+    let content = load_playback_source_config(&client).await?;
+
+    let root: SampleRoot = serde_json::from_str(&content)?;
+    
+    use futures::stream::{FuturesUnordered, StreamExt};
+    
+    let mut tasks = FuturesUnordered::new();
+    
+    for source in root.exported_media_source_data_list.media_sources {
+        if !crate::api::config::is_source_enabled(&source.arguments.name) {
+            continue;
+        }
+
+        let client = client.clone();
+        let anime_name = anime_name.clone();
+        let task = async move {
+            search_single_source_with_channels(&client, &source, &anime_name).await
+        };
+        tasks.push(task);
+    }
+    
+    while let Some(result) = tasks.next().await {
+        if let Ok(search_result) = result {
+            log::info!("Source '{}' completed with {} channels", 
+                search_result.source_name, search_result.channels.len());
+            sink.add(search_result).ok();
+        }
+    }
+    
+    Ok(())
+}
+
+/// 根据指定的channel和集号获取播放页面URL
+/// 此API用于在用户选择了具体的线路和集数后获取播放页面
+pub async fn get_episode_play_url(
+    source_name: String,
+    anime_name: String,
+    channel_index: usize,
+    episode_number: Option<u32>,
+) -> anyhow::Result<SearchPlayResult> {
+    let client = crate::api::network::create_client()?;
+    let content = load_playback_source_config(&client).await?;
+
+    let root: SampleRoot = serde_json::from_str(&content)?;
+    
+    // 找到指定的源
+    let source = root
+        .exported_media_source_data_list
+        .media_sources
+        .iter()
+        .find(|s| s.arguments.name == source_name)
+        .ok_or_else(|| anyhow::anyhow!("Source not found: {}", source_name))?;
+    
+    // 获取完整的channel和episode信息
+    let result = search_single_source_with_channels(&client, source, &anime_name).await?;
+    
+    // 根据channel_index和episode_number找到目标episode
+    let target_episode = if let Some(ep_num) = episode_number {
+        // 在指定channel中查找指定集数
+        result.episodes.iter()
+            .filter(|ep| ep.channel_index == channel_index)
+            .find(|ep| ep.episode_number == Some(ep_num))
+            .or_else(|| {
+                // 如果找不到，尝试在所有channel中找
+                result.episodes.iter()
+                    .find(|ep| ep.episode_number == Some(ep_num))
+            })
+    } else {
+        // 如果没有指定集数，返回指定channel的第一集
+        result.episodes.iter()
+            .filter(|ep| ep.channel_index == channel_index)
+            .next()
+    };
+    
+    let episode = target_episode
+        .ok_or_else(|| anyhow::anyhow!("Episode not found"))?;
+    
+    // 获取channel名称
+    let channel_name = result.channels
+        .get(channel_index)
+        .map(|ch| ch.name.clone());
+    
+    // 尝试提取视频URL
+    let mut direct_video_url = None;
+    
+    let mut request_builder = client.get(&episode.url);
+    if let Some(ref headers) = result.headers {
+        for (k, v) in headers {
+            request_builder = request_builder.header(k, v);
+        }
+    }
+    if let Some(ref cookies) = result.cookies {
+        request_builder = request_builder.header("Cookie", cookies);
+    }
+
+    if let Ok(resp) = request_builder.send().await {
+        if let Ok(video_page_text) = resp.text().await {
+            if let Some(player_url) = try_extract_player_aaaa_url(&video_page_text) {
+                log::info!("[{}] Found direct video URL from player_aaaa: {}", source_name, player_url);
+                direct_video_url = Some(player_url);
+            }
+        }
+    }
+    
+    Ok(SearchPlayResult {
+        source_name,
+        play_page_url: episode.url.clone(),
+        video_regex: result.video_regex,
+        direct_video_url,
+        cookies: result.cookies,
+        headers: result.headers,
+        channel_name,
+        channel_index: Some(channel_index),
+    })
 }

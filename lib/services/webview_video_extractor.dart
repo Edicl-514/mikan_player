@@ -206,6 +206,7 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
     if (_isCompleted) return;
     _isCompleted = true;
     _timeoutTimer?.cancel();
+    _log('🎉 提取完成！videoUrl=${result.videoUrl}, error=${result.error}');
     widget.onResult(result);
   }
 
@@ -386,6 +387,12 @@ class _WebViewVideoExtractorWidgetState extends State<WebViewVideoExtractorWidge
         
         // 页面加载完成后再次注入静音脚本，确保所有动态创建的媒体元素都被静音
         _injectMuteScript(controller);
+        
+        // 如果已经找到视频URL，就不需要从HTML提取了
+        if (_isCompleted) {
+          _log('已找到视频URL，跳过HTML提取');
+          return;
+        }
         
         // 页面加载完成后，尝试从页面内容中提取视频URL
         // 有些网站的视频URL是通过JS动态生成的

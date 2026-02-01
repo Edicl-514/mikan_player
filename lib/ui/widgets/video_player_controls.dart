@@ -1541,17 +1541,51 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        source.sourceName,
-                        style: TextStyle(
-                          color: isSelected
-                              ? const Color(0xFFBB86FC)
-                              : Colors.white,
-                          fontSize: 14,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              source.sourceName,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? const Color(0xFFBB86FC)
+                                    : Colors.white,
+                                fontSize: 14,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (source.channelName != null &&
+                              source.channelName!.isNotEmpty)
+                            Container(
+                              margin: const EdgeInsets.only(left: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFBB86FC)
+                                    .withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: const Color(0xFFBB86FC)
+                                      .withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Text(
+                                source.channelName!,
+                                style: const TextStyle(
+                                  color: Color(0xFFBB86FC),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       if (source.directVideoUrl != null) ...[
                         const SizedBox(height: 2),

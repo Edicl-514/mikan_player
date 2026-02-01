@@ -505,6 +505,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       )) {
         if (!mounted) return;
 
+        // Debug: Print channel information
+        if (progress.allChannels != null && progress.allChannels!.isNotEmpty) {
+          debugPrint(
+            '[Channel Info] ${progress.sourceName}: Found ${progress.allChannels!.length} channels: '
+            '${progress.allChannels!.map((c) => '${c.name}(${c.index})').join(', ')}',
+          );
+        }
+
         setState(() {
           // 更新该源的进度
           _sourceProgressMap[progress.sourceName] = progress;
@@ -512,29 +520,86 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           // 如果搜索成功，添加到成功列表
           if (progress.step == SearchStep.success &&
               progress.playPageUrl != null) {
-            final result = SearchPlayResult(
-              sourceName: progress.sourceName,
-              playPageUrl: progress.playPageUrl!,
-              videoRegex: progress.videoRegex ?? '',
-              directVideoUrl: progress.directVideoUrl,
-              cookies: progress.cookies,
-              headers: progress.headers,
+            // 调试输出channel信息
+            debugPrint(
+              '[Search Success] ${progress.sourceName}: '
+              'channelName=${progress.channelName}, '
+              'channelIndex=${progress.channelIndex}, '
+              'allChannels=${progress.allChannels?.length ?? 0}',
             );
+            
+            // 如果有多个channels，为每个channel创建一个结果
+            if (progress.allChannels != null && progress.allChannels!.isNotEmpty) {
+              debugPrint(
+                '[Multi-Channel] ${progress.sourceName}: Creating results for ${progress.allChannels!.length} channels',
+              );
+              
+              for (int i = 0; i < progress.allChannels!.length; i++) {
+                final channel = progress.allChannels![i];
+                final result = SearchPlayResult(
+                  sourceName: progress.sourceName,
+                  playPageUrl: progress.playPageUrl!,
+                  videoRegex: progress.videoRegex ?? '',
+                  directVideoUrl: progress.directVideoUrl,
+                  cookies: progress.cookies,
+                  headers: progress.headers,
+                  channelName: channel.name,
+                  channelIndex: channel.index,
+                );
 
-            // 避免重复添加
-            if (!_samplePlayPages.any(
-              (p) => p.sourceName == progress.sourceName,
-            )) {
-              _samplePlayPages.add(result);
-            }
+                // 避免重复添加（使用sourceName + channelIndex作为唯一标识）
+                final key = '${progress.sourceName}_${channel.index}';
+                if (!_samplePlayPages.any(
+                  (p) => '${p.sourceName}_${p.channelIndex}' == key,
+                )) {
+                  debugPrint(
+                    '[Add Channel Result] ${progress.sourceName} - Channel: ${channel.name}(${channel.index})',
+                  );
+                  _samplePlayPages.add(result);
+                }
 
-            // 如果有直接视频URL，添加到成功列表
-            if (progress.directVideoUrl != null &&
-                progress.directVideoUrl!.isNotEmpty) {
-              if (!_sampleSuccessfulSources.any(
-                (s) => s.sourceName == progress.sourceName,
+                // 如果有直接视频URL，也添加到成功列表
+                if (progress.directVideoUrl != null &&
+                    progress.directVideoUrl!.isNotEmpty) {
+                  if (!_sampleSuccessfulSources.any(
+                    (s) => '${s.sourceName}_${s.channelIndex}' == key,
+                  )) {
+                    _sampleSuccessfulSources.add(result);
+                  }
+                }
+              }
+            } else {
+              // 兼容模式：如果没有allChannels信息，使用旧逻辑
+              debugPrint(
+                '[Single Result] ${progress.sourceName}: No channel info, using legacy mode',
+              );
+              
+              final result = SearchPlayResult(
+                sourceName: progress.sourceName,
+                playPageUrl: progress.playPageUrl!,
+                videoRegex: progress.videoRegex ?? '',
+                directVideoUrl: progress.directVideoUrl,
+                cookies: progress.cookies,
+                headers: progress.headers,
+                channelName: progress.channelName,
+                channelIndex: progress.channelIndex,
+              );
+
+              // 避免重复添加
+              if (!_samplePlayPages.any(
+                (p) => p.sourceName == progress.sourceName,
               )) {
-                _sampleSuccessfulSources.add(result);
+                _samplePlayPages.add(result);
+              }
+
+              // 如果有直接视频URL，添加到成功列表
+              if (progress.directVideoUrl != null &&
+                  progress.directVideoUrl!.isNotEmpty) {
+                if (!_sampleSuccessfulSources.any(
+                  (s) => s.sourceName == progress.sourceName,
+                )) {
+                  _sampleSuccessfulSources.add(result);
+                }
               }
             }
           }
@@ -671,7 +736,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
       // 停止之前的播放，防止后台继续播放
       _player.stop();
-      _player.open(Media(_sampleVideoUrl!, httpHeaders: headers));
+      debugPrint('[_playSource] Opening media url=$_sampleVideoUrl headers=$headers');
+      try {
+        _player.open(Media(_sampleVideoUrl!, httpHeaders: headers));
+      } catch (e, st) {
+        debugPrint('[_playSource] _player.open threw: $e\n$st');
+        _videoError = '播放器打开失败: $e';
+      }
       _currentStreamUrl = _sampleVideoUrl;
       _playingSourceLabel = source.sourceName;
       _isLoadingVideo = false;
@@ -683,10 +754,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   void _startConcurrentWebViewExtraction() {
     if (!mounted) return;
 
+    // 创建唯一标识：sourceName + channelIndex
+    String getPageKey(SearchPlayResult page) {
+      return '${page.sourceName}_${page.channelIndex ?? -1}';
+    }
+
     // 找到所有需要WebView提取的源（还没有直接视频链接的）
     final needsExtraction = _samplePlayPages.where((page) {
+      final pageKey = getPageKey(page);
       return !_sampleSuccessfulSources.any(
-        (s) => s.playPageUrl == page.playPageUrl,
+        (s) => getPageKey(s) == pageKey,
       );
     }).toList();
 
@@ -706,9 +783,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       i++
     ) {
       final page = needsExtraction[i];
+      final pageKey = getPageKey(page);
       setState(() {
-        _activeWebViews[page.sourceName] = true;
-        _webViewStatus[page.sourceName] = '正在提取...';
+        _activeWebViews[pageKey] = true;
+        _webViewStatus[pageKey] = '正在提取...';
       });
     }
 
@@ -721,36 +799,71 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   /// WebView 提取结果回调（并发版本）
-  void _onWebViewResult(String sourceName, VideoExtractResult result) {
+  void _onWebViewResult(String pageKey, VideoExtractResult result) {
+    debugPrint('[_onWebViewResult] pageKey=$pageKey, success=${result.success}, videoUrl=${result.videoUrl}, error=${result.error}');
     if (!mounted) return;
 
     setState(() {
       // 移除活动WebView
-      _activeWebViews.remove(sourceName);
-      _webViewStatus.remove(sourceName);
+      _activeWebViews.remove(pageKey);
+      _webViewStatus.remove(pageKey);
 
       if (result.success) {
-        // 找到对应的播放页并更新
-        final pageIndex = _samplePlayPages.indexWhere(
-          (p) => p.sourceName == sourceName,
-        );
+        // 从pageKey解析出sourceName和channelIndex
+        final parts = pageKey.split('_');
+        if (parts.length >= 2) {
+          final sourceName = parts.sublist(0, parts.length - 1).join('_');
+          final channelIndexStr = parts.last;
+          final channelIndex =
+              channelIndexStr == '-1' ? null : int.tryParse(channelIndexStr);
 
-        if (pageIndex >= 0) {
-          final page = _samplePlayPages[pageIndex];
-          final updatedPage = SearchPlayResult(
-            sourceName: page.sourceName,
-            playPageUrl: page.playPageUrl,
-            videoRegex: page.videoRegex,
-            directVideoUrl: result.videoUrl,
-            cookies: page.cookies,
-            headers: page.headers,
+          // 找到对应的播放页并更新
+          final pageIndex = _samplePlayPages.indexWhere(
+            (p) {
+              final pIdx = p.channelIndex == null ? null : p.channelIndex!.toInt();
+              return p.sourceName == sourceName && (pIdx == channelIndex);
+            },
           );
 
-          _sampleSuccessfulSources.add(updatedPage);
+          debugPrint('[_onWebViewResult] resolved pageIndex=$pageIndex for sourceName=$sourceName channelIndex=$channelIndex');
 
-          // 如果这是第一个成功提取且没有其他源在播放
-          if (_sampleVideoUrl == null) {
-            _playSource(updatedPage);
+          if (pageIndex >= 0) {
+            final page = _samplePlayPages[pageIndex];
+            debugPrint('[_onWebViewResult] matched page: playPageUrl=${page.playPageUrl} channelName=${page.channelName}');
+
+            final updatedPage = SearchPlayResult(
+              sourceName: page.sourceName,
+              playPageUrl: page.playPageUrl,
+              videoRegex: page.videoRegex,
+              directVideoUrl: result.videoUrl,
+              cookies: page.cookies,
+              headers: page.headers,
+              channelName: page.channelName,
+              channelIndex: page.channelIndex,
+            );
+
+            _sampleSuccessfulSources.add(updatedPage);
+
+            // 如果这是第一个成功提取且没有其他源在播放
+            debugPrint('[_onWebViewResult] _sampleVideoUrl currently=$_sampleVideoUrl');
+            if (_sampleVideoUrl == null) {
+              debugPrint('[_onWebViewResult] Calling _playSource for ${updatedPage.sourceName}');
+              _playSource(updatedPage);
+            } else {
+              debugPrint('[_onWebViewResult] Skipping _playSource because _sampleVideoUrl already set');
+            }
+          } else {
+            debugPrint('[_onWebViewResult] No matching page found for pageKey=$pageKey');
+            // 打印当前的 sample play pages 简要信息，帮助调试匹配失败原因
+            try {
+              final summary = _samplePlayPages
+                  .map((p) => '${p.sourceName}#${p.channelIndex ?? -1}:${p.playPageUrl}')
+                  .take(20)
+                  .join(' | ');
+              debugPrint('[_onWebViewResult] _samplePlayPages summary: $summary');
+            } catch (e) {
+              debugPrint('[_onWebViewResult] Failed to summarize _samplePlayPages: $e');
+            }
           }
         }
       }
@@ -773,12 +886,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // 如果已经达到并发上限，不启动新的
     if (_activeWebViews.length >= _maxConcurrentWebViews) return;
 
+    // 创建唯一标识：sourceName + channelIndex
+    String getPageKey(SearchPlayResult page) {
+      return '${page.sourceName}_${page.channelIndex ?? -1}';
+    }
+
     // 找到下一个需要提取的源
     final needsExtraction = _samplePlayPages.where((page) {
+      final pageKey = getPageKey(page);
       final alreadySuccessful = _sampleSuccessfulSources.any(
-        (s) => s.playPageUrl == page.playPageUrl,
+        (s) => getPageKey(s) == pageKey,
       );
-      final alreadyActive = _activeWebViews.containsKey(page.sourceName);
+      final alreadyActive = _activeWebViews.containsKey(pageKey);
       return !alreadySuccessful && !alreadyActive;
     }).toList();
 
@@ -800,9 +919,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     // 启动下一个
     final page = needsExtraction.first;
+    final pageKey = getPageKey(page);
     setState(() {
-      _activeWebViews[page.sourceName] = true;
-      _webViewStatus[page.sourceName] = '正在提取...';
+      _activeWebViews[pageKey] = true;
+      _webViewStatus[pageKey] = '正在提取...';
     });
   }
 
@@ -2346,10 +2466,25 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 8),
                 // 显示所有活动WebView的状态
-                ..._activeWebViews.keys.map((sourceName) {
+                ..._activeWebViews.keys.map((pageKey) {
+                  // 从pageKey解析出sourceName和channelIndex
+                  final parts = pageKey.split('_');
+                  final sourceName = parts.length > 1 
+                      ? parts.sublist(0, parts.length - 1).join('_') 
+                      : pageKey;
+                  final channelIndexStr = parts.isNotEmpty ? parts.last : '-1';
+                  final channelIndex =
+                      channelIndexStr == '-1' ? null : int.tryParse(channelIndexStr);
+
+                  // 找到对应页面
                   final page = _samplePlayPages.firstWhere(
-                    (p) => p.sourceName == sourceName,
+                    (p) {
+                      final pIdx = p.channelIndex == null ? null : p.channelIndex!.toInt();
+                      return p.sourceName == sourceName && (pIdx == channelIndex);
+                    },
+                    orElse: () => _samplePlayPages.first,
                   );
+
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 6),
                     child: Row(
@@ -2367,12 +2502,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                sourceName,
-                                style: const TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 10,
-                                ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      sourceName,
+                                      style: const TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ),
+                                  if (page.channelName != null &&
+                                      page.channelName!.isNotEmpty)
+                                    Text(
+                                      " - ${page.channelName}",
+                                      style: const TextStyle(
+                                        color: Color(0xFFBB86FC),
+                                        fontSize: 9,
+                                      ),
+                                    ),
+                                ],
                               ),
                               Text(
                                 page.playPageUrl,
@@ -2486,17 +2636,47 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  source.sourceName,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.white70,
-                                    fontSize: 12,
-                                    fontWeight: isSelected
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                  ),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        source.sourceName,
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Colors.white70,
+                                          fontSize: 12,
+                                          fontWeight: isSelected
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                        ),
+                                      ),
+                                    ),
+                                    // 显示channel信息
+                                    if (source.channelName != null &&
+                                        source.channelName!.isNotEmpty)
+                                      Container(
+                                        margin: const EdgeInsets.only(left: 6),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFBB86FC)
+                                              .withValues(alpha: 0.3),
+                                          borderRadius:
+                                              BorderRadius.circular(3),
+                                        ),
+                                        child: Text(
+                                          source.channelName!,
+                                          style: const TextStyle(
+                                            color: Color(0xFFBB86FC),
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 Text(
                                   source.directVideoUrl ?? '',
@@ -2532,9 +2712,21 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           _player.open(
                             Media(_sampleVideoUrl!, httpHeaders: headers),
                           );
+                          
+                          // 构建播放源标签
+                          String playingLabel =
+                              _sampleSuccessfulSources[_selectedSourceIndex]
+                                  .sourceName;
+                          if (_sampleSuccessfulSources[_selectedSourceIndex]
+                                  .channelName !=
+                              null) {
+                            playingLabel +=
+                                " - ${_sampleSuccessfulSources[_selectedSourceIndex].channelName}";
+                          }
+                          
                           setState(() {
                             _currentStreamUrl = _sampleVideoUrl;
-                            _playingSourceLabel = source.sourceName;
+                            _playingSourceLabel = playingLabel;
                             _isLoadingVideo = false;
                             _videoError = null;
                           });
@@ -2542,7 +2734,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                       : null,
                   icon: const Icon(Icons.play_arrow, size: 18),
                   label: Text(
-                    "播放 - ${_sampleSuccessfulSources.isNotEmpty ? _sampleSuccessfulSources[_selectedSourceIndex].sourceName : ''}",
+                    "播放 - ${_sampleSuccessfulSources.isNotEmpty ? (_sampleSuccessfulSources[_selectedSourceIndex].channelName != null ? '${_sampleSuccessfulSources[_selectedSourceIndex].sourceName}(${_sampleSuccessfulSources[_selectedSourceIndex].channelName})' : _sampleSuccessfulSources[_selectedSourceIndex].sourceName) : ''}",
                     style: const TextStyle(fontSize: 12),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -2727,20 +2919,33 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     // 构建所有活动WebView的列表
     return Column(
-      children: _activeWebViews.keys.map((sourceName) {
+      children: _activeWebViews.keys.map((pageKey) {
+        // 从pageKey解析出sourceName和channelIndex
+        final parts = pageKey.split('_');
+        final sourceName = parts.length > 1 
+            ? parts.sublist(0, parts.length - 1).join('_') 
+            : pageKey;
+        final channelIndexStr = parts.isNotEmpty ? parts.last : '-1';
+        final channelIndex =
+            channelIndexStr == '-1' ? null : int.tryParse(channelIndexStr);
+
         // 找到对应的页面信息
         final page = _samplePlayPages.firstWhere(
-          (p) => p.sourceName == sourceName,
+          (p) {
+            final pIdx = p.channelIndex == null ? null : p.channelIndex!.toInt();
+            return p.sourceName == sourceName && (pIdx == channelIndex);
+          },
+          orElse: () => _samplePlayPages.first,
         );
 
         return WebViewVideoExtractorWidget(
-          key: ValueKey('webview_$sourceName'),
+          key: ValueKey('webview_$pageKey'),
           url: page.playPageUrl,
           customVideoRegex: page.videoRegex != r'$^' ? page.videoRegex : null,
           timeout: const Duration(seconds: 20),
           showWebView: _showWebView,
-          onResult: (result) => _onWebViewResult(sourceName, result),
-          onLog: (msg) => debugPrint('[WebView][$sourceName] $msg'),
+          onResult: (result) => _onWebViewResult(pageKey, result),
+          onLog: (msg) => debugPrint('[WebView][$pageKey] $msg'),
         );
       }).toList(),
     );

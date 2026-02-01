@@ -75,7 +75,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -58087173;
+  int get rustContentHash => -374594;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -195,6 +195,14 @@ abstract class RustLibApi extends BaseApi {
     int? relativeEpisode,
   });
 
+  Future<List<SearchResultWithChannels>>
+  crateApiGenericScraperGenericSearchWithChannels({required String animeName});
+
+  Stream<SearchResultWithChannels>
+  crateApiGenericScraperGenericSearchWithChannelsStream({
+    required String animeName,
+  });
+
   Stream<SourceSearchProgress> crateApiGenericScraperGenericSearchWithProgress({
     required String animeName,
     int? absoluteEpisode,
@@ -210,6 +218,13 @@ abstract class RustLibApi extends BaseApi {
   Future<String> crateApiConfigGetBgmlistUrl();
 
   Future<List<String>> crateApiGenericScraperGetEnabledSourceNames();
+
+  Future<SearchPlayResult> crateApiGenericScraperGetEpisodePlayUrl({
+    required String sourceName,
+    required String animeName,
+    required BigInt channelIndex,
+    int? episodeNumber,
+  });
 
   Future<List<MikanEpisodeResource>> crateApiMikanGetMikanResources({
     required String mikanId,
@@ -1084,6 +1099,82 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<List<SearchResultWithChannels>>
+  crateApiGenericScraperGenericSearchWithChannels({required String animeName}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(animeName, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 24,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_search_result_with_channels,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiGenericScraperGenericSearchWithChannelsConstMeta,
+        argValues: [animeName],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGenericScraperGenericSearchWithChannelsConstMeta =>
+      const TaskConstMeta(
+        debugName: "generic_search_with_channels",
+        argNames: ["animeName"],
+      );
+
+  @override
+  Stream<SearchResultWithChannels>
+  crateApiGenericScraperGenericSearchWithChannelsStream({
+    required String animeName,
+  }) {
+    final sink = RustStreamSink<SearchResultWithChannels>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(animeName, serializer);
+            sse_encode_StreamSink_search_result_with_channels_Sse(
+              sink,
+              serializer,
+            );
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 25,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_AnyhowException,
+          ),
+          constMeta:
+              kCrateApiGenericScraperGenericSearchWithChannelsStreamConstMeta,
+          argValues: [animeName, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta
+  get kCrateApiGenericScraperGenericSearchWithChannelsStreamConstMeta =>
+      const TaskConstMeta(
+        debugName: "generic_search_with_channels_stream",
+        argNames: ["animeName", "sink"],
+      );
+
+  @override
   Stream<SourceSearchProgress> crateApiGenericScraperGenericSearchWithProgress({
     required String animeName,
     int? absoluteEpisode,
@@ -1102,7 +1193,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 24,
+              funcId: 26,
               port: port_,
             );
           },
@@ -1134,7 +1225,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1161,7 +1252,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1188,7 +1279,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1215,7 +1306,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1242,7 +1333,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1261,6 +1352,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_enabled_source_names", argNames: []);
 
   @override
+  Future<SearchPlayResult> crateApiGenericScraperGetEpisodePlayUrl({
+    required String sourceName,
+    required String animeName,
+    required BigInt channelIndex,
+    int? episodeNumber,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(sourceName, serializer);
+          sse_encode_String(animeName, serializer);
+          sse_encode_usize(channelIndex, serializer);
+          sse_encode_opt_box_autoadd_u_32(episodeNumber, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 32,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_search_play_result,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiGenericScraperGetEpisodePlayUrlConstMeta,
+        argValues: [sourceName, animeName, channelIndex, episodeNumber],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGenericScraperGetEpisodePlayUrlConstMeta =>
+      const TaskConstMeta(
+        debugName: "get_episode_play_url",
+        argNames: ["sourceName", "animeName", "channelIndex", "episodeNumber"],
+      );
+
+  @override
   Future<List<MikanEpisodeResource>> crateApiMikanGetMikanResources({
     required String mikanId,
     required int currentEpisodeSort,
@@ -1274,7 +1404,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1304,7 +1434,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1331,7 +1461,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1358,7 +1488,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1385,7 +1515,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1412,7 +1542,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1439,7 +1569,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 39,
             port: port_,
           );
         },
@@ -1469,7 +1599,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 40,
             port: port_,
           );
         },
@@ -1500,7 +1630,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 41,
             port: port_,
           );
         },
@@ -1527,7 +1657,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 39,
+            funcId: 42,
             port: port_,
           );
         },
@@ -1555,7 +1685,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 40,
+            funcId: 43,
             port: port_,
           );
         },
@@ -1582,7 +1712,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 41,
+            funcId: 44,
             port: port_,
           );
         },
@@ -1612,7 +1742,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 42,
+            funcId: 45,
             port: port_,
           );
         },
@@ -1642,7 +1772,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 43,
+            funcId: 46,
             port: port_,
           );
         },
@@ -1675,7 +1805,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 44,
+            funcId: 47,
             port: port_,
           );
         },
@@ -1708,7 +1838,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 45,
+            funcId: 48,
             port: port_,
           );
         },
@@ -1739,7 +1869,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 46,
+            funcId: 49,
             port: port_,
           );
         },
@@ -1771,7 +1901,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 47,
+            funcId: 50,
             port: port_,
           );
         },
@@ -1809,7 +1939,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 48,
+            funcId: 51,
             port: port_,
           );
         },
@@ -1847,7 +1977,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 49,
+            funcId: 52,
             port: port_,
           );
         },
@@ -1887,6 +2017,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RustStreamSink<SearchPlayResult> dco_decode_StreamSink_search_play_result_Sse(
     dynamic raw,
   ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
+  RustStreamSink<SearchResultWithChannels>
+  dco_decode_StreamSink_search_result_with_channels_Sse(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     throw UnimplementedError();
   }
@@ -2096,6 +2233,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt dco_decode_box_autoadd_usize(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_usize(raw);
+  }
+
+  @protected
+  ChannelInfo dco_decode_channel_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return ChannelInfo(
+      name: dco_decode_String(arr[0]),
+      index: dco_decode_usize(arr[1]),
+    );
+  }
+
+  @protected
   Danmaku dco_decode_danmaku(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -2163,6 +2318,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       size: dco_decode_String(arr[2]),
       publishDate: dco_decode_String(arr[3]),
       episode: dco_decode_opt_box_autoadd_i_32(arr[4]),
+    );
+  }
+
+  @protected
+  EpisodeInfo dco_decode_episode_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return EpisodeInfo(
+      name: dco_decode_String(arr[0]),
+      url: dco_decode_String(arr[1]),
+      episodeNumber: dco_decode_opt_box_autoadd_u_32(arr[2]),
+      channelIndex: dco_decode_usize(arr[3]),
     );
   }
 
@@ -2253,6 +2422,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ChannelInfo> dco_decode_list_channel_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_channel_info).toList();
+  }
+
+  @protected
   List<Danmaku> dco_decode_list_danmaku(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_danmaku).toList();
@@ -2280,6 +2455,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<DmhyResource> dco_decode_list_dmhy_resource(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_dmhy_resource).toList();
+  }
+
+  @protected
+  List<EpisodeInfo> dco_decode_list_episode_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_episode_info).toList();
   }
 
   @protected
@@ -2314,6 +2495,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<SearchPlayResult> dco_decode_list_search_play_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_search_play_result).toList();
+  }
+
+  @protected
+  List<SearchResultWithChannels> dco_decode_list_search_result_with_channels(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_search_result_with_channels)
+        .toList();
   }
 
   @protected
@@ -2407,6 +2598,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt? dco_decode_opt_box_autoadd_usize(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_usize(raw);
+  }
+
+  @protected
+  List<ChannelInfo>? dco_decode_opt_list_channel_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_channel_info(raw);
+  }
+
+  @protected
   RankingAnime dco_decode_ranking_anime(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -2437,8 +2640,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   SearchPlayResult dco_decode_search_play_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return SearchPlayResult(
       sourceName: dco_decode_String(arr[0]),
       playPageUrl: dco_decode_String(arr[1]),
@@ -2446,6 +2649,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       directVideoUrl: dco_decode_opt_String(arr[3]),
       cookies: dco_decode_opt_String(arr[4]),
       headers: dco_decode_opt_Map_String_String_None(arr[5]),
+      channelName: dco_decode_opt_String(arr[6]),
+      channelIndex: dco_decode_opt_box_autoadd_usize(arr[7]),
+    );
+  }
+
+  @protected
+  SearchResultWithChannels dco_decode_search_result_with_channels(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return SearchResultWithChannels(
+      sourceName: dco_decode_String(arr[0]),
+      detailUrl: dco_decode_String(arr[1]),
+      matchedTitle: dco_decode_String(arr[2]),
+      channels: dco_decode_list_channel_info(arr[3]),
+      episodes: dco_decode_list_episode_info(arr[4]),
+      videoRegex: dco_decode_String(arr[5]),
+      cookies: dco_decode_opt_String(arr[6]),
+      headers: dco_decode_opt_Map_String_String_None(arr[7]),
+      defaultSubtitleLanguage: dco_decode_opt_String(arr[8]),
+      defaultResolution: dco_decode_opt_String(arr[9]),
     );
   }
 
@@ -2459,8 +2684,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   SourceSearchProgress dco_decode_source_search_progress(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
     return SourceSearchProgress(
       sourceName: dco_decode_String(arr[0]),
       step: dco_decode_search_step(arr[1]),
@@ -2470,6 +2695,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       directVideoUrl: dco_decode_opt_String(arr[5]),
       cookies: dco_decode_opt_String(arr[6]),
       headers: dco_decode_opt_Map_String_String_None(arr[7]),
+      channelName: dco_decode_opt_String(arr[8]),
+      channelIndex: dco_decode_opt_box_autoadd_usize(arr[9]),
+      allChannels: dco_decode_opt_list_channel_info(arr[10]),
     );
   }
 
@@ -2549,6 +2777,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt dco_decode_usize(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeU64(raw);
+  }
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_String(deserializer);
@@ -2566,6 +2800,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   RustStreamSink<SearchPlayResult> sse_decode_StreamSink_search_play_result_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
+  RustStreamSink<SearchResultWithChannels>
+  sse_decode_StreamSink_search_result_with_channels_Sse(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -2810,6 +3053,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt sse_decode_box_autoadd_usize(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_usize(deserializer));
+  }
+
+  @protected
+  ChannelInfo sse_decode_channel_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_name = sse_decode_String(deserializer);
+    var var_index = sse_decode_usize(deserializer);
+    return ChannelInfo(name: var_name, index: var_index);
+  }
+
+  @protected
   Danmaku sse_decode_danmaku(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_time = sse_decode_f_64(deserializer);
@@ -2883,6 +3140,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       size: var_size,
       publishDate: var_publishDate,
       episode: var_episode,
+    );
+  }
+
+  @protected
+  EpisodeInfo sse_decode_episode_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_name = sse_decode_String(deserializer);
+    var var_url = sse_decode_String(deserializer);
+    var var_episodeNumber = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_channelIndex = sse_decode_usize(deserializer);
+    return EpisodeInfo(
+      name: var_name,
+      url: var_url,
+      episodeNumber: var_episodeNumber,
+      channelIndex: var_channelIndex,
     );
   }
 
@@ -3041,6 +3313,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ChannelInfo> sse_decode_list_channel_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ChannelInfo>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_channel_info(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<Danmaku> sse_decode_list_danmaku(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -3109,6 +3393,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<EpisodeInfo> sse_decode_list_episode_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <EpisodeInfo>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_episode_info(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<MikanEpisodeResource> sse_decode_list_mikan_episode_resource(
     SseDeserializer deserializer,
   ) {
@@ -3167,6 +3463,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <SearchPlayResult>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_search_play_result(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<SearchResultWithChannels> sse_decode_list_search_result_with_channels(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SearchResultWithChannels>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_search_result_with_channels(deserializer));
     }
     return ans_;
   }
@@ -3327,6 +3637,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt? sse_decode_opt_box_autoadd_usize(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_usize(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  List<ChannelInfo>? sse_decode_opt_list_channel_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_channel_info(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   RankingAnime sse_decode_ranking_anime(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_title = sse_decode_String(deserializer);
@@ -3366,6 +3700,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_directVideoUrl = sse_decode_opt_String(deserializer);
     var var_cookies = sse_decode_opt_String(deserializer);
     var var_headers = sse_decode_opt_Map_String_String_None(deserializer);
+    var var_channelName = sse_decode_opt_String(deserializer);
+    var var_channelIndex = sse_decode_opt_box_autoadd_usize(deserializer);
     return SearchPlayResult(
       sourceName: var_sourceName,
       playPageUrl: var_playPageUrl,
@@ -3373,6 +3709,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       directVideoUrl: var_directVideoUrl,
       cookies: var_cookies,
       headers: var_headers,
+      channelName: var_channelName,
+      channelIndex: var_channelIndex,
+    );
+  }
+
+  @protected
+  SearchResultWithChannels sse_decode_search_result_with_channels(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_sourceName = sse_decode_String(deserializer);
+    var var_detailUrl = sse_decode_String(deserializer);
+    var var_matchedTitle = sse_decode_String(deserializer);
+    var var_channels = sse_decode_list_channel_info(deserializer);
+    var var_episodes = sse_decode_list_episode_info(deserializer);
+    var var_videoRegex = sse_decode_String(deserializer);
+    var var_cookies = sse_decode_opt_String(deserializer);
+    var var_headers = sse_decode_opt_Map_String_String_None(deserializer);
+    var var_defaultSubtitleLanguage = sse_decode_opt_String(deserializer);
+    var var_defaultResolution = sse_decode_opt_String(deserializer);
+    return SearchResultWithChannels(
+      sourceName: var_sourceName,
+      detailUrl: var_detailUrl,
+      matchedTitle: var_matchedTitle,
+      channels: var_channels,
+      episodes: var_episodes,
+      videoRegex: var_videoRegex,
+      cookies: var_cookies,
+      headers: var_headers,
+      defaultSubtitleLanguage: var_defaultSubtitleLanguage,
+      defaultResolution: var_defaultResolution,
     );
   }
 
@@ -3396,6 +3763,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_directVideoUrl = sse_decode_opt_String(deserializer);
     var var_cookies = sse_decode_opt_String(deserializer);
     var var_headers = sse_decode_opt_Map_String_String_None(deserializer);
+    var var_channelName = sse_decode_opt_String(deserializer);
+    var var_channelIndex = sse_decode_opt_box_autoadd_usize(deserializer);
+    var var_allChannels = sse_decode_opt_list_channel_info(deserializer);
     return SourceSearchProgress(
       sourceName: var_sourceName,
       step: var_step,
@@ -3405,6 +3775,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       directVideoUrl: var_directVideoUrl,
       cookies: var_cookies,
       headers: var_headers,
+      channelName: var_channelName,
+      channelIndex: var_channelIndex,
+      allChannels: var_allChannels,
     );
   }
 
@@ -3495,6 +3868,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt sse_decode_usize(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getBigUint64();
+  }
+
+  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -3525,6 +3904,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       self.setupAndSerialize(
         codec: SseCodec(
           decodeSuccessData: sse_decode_search_play_result,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
+  void sse_encode_StreamSink_search_result_with_channels_Sse(
+    RustStreamSink<SearchResultWithChannels> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_search_result_with_channels,
           decodeErrorData: sse_decode_AnyhowException,
         ),
       ),
@@ -3724,6 +4120,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_usize(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(self, serializer);
+  }
+
+  @protected
+  void sse_encode_channel_info(ChannelInfo self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.name, serializer);
+    sse_encode_usize(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_danmaku(Danmaku self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_f_64(self.time, serializer);
@@ -3770,6 +4179,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.size, serializer);
     sse_encode_String(self.publishDate, serializer);
     sse_encode_opt_box_autoadd_i_32(self.episode, serializer);
+  }
+
+  @protected
+  void sse_encode_episode_info(EpisodeInfo self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.url, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.episodeNumber, serializer);
+    sse_encode_usize(self.channelIndex, serializer);
   }
 
   @protected
@@ -3908,6 +4326,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_channel_info(
+    List<ChannelInfo> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_channel_info(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_danmaku(List<Danmaku> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
@@ -3961,6 +4391,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_dmhy_resource(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_episode_info(
+    List<EpisodeInfo> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_episode_info(item, serializer);
     }
   }
 
@@ -4019,6 +4461,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_search_play_result(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_search_result_with_channels(
+    List<SearchResultWithChannels> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_search_result_with_channels(item, serializer);
     }
   }
 
@@ -4162,6 +4616,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_usize(
+    BigInt? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_usize(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_list_channel_info(
+    List<ChannelInfo>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_channel_info(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_ranking_anime(RankingAnime self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.title, serializer);
@@ -4195,6 +4675,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.directVideoUrl, serializer);
     sse_encode_opt_String(self.cookies, serializer);
     sse_encode_opt_Map_String_String_None(self.headers, serializer);
+    sse_encode_opt_String(self.channelName, serializer);
+    sse_encode_opt_box_autoadd_usize(self.channelIndex, serializer);
+  }
+
+  @protected
+  void sse_encode_search_result_with_channels(
+    SearchResultWithChannels self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.sourceName, serializer);
+    sse_encode_String(self.detailUrl, serializer);
+    sse_encode_String(self.matchedTitle, serializer);
+    sse_encode_list_channel_info(self.channels, serializer);
+    sse_encode_list_episode_info(self.episodes, serializer);
+    sse_encode_String(self.videoRegex, serializer);
+    sse_encode_opt_String(self.cookies, serializer);
+    sse_encode_opt_Map_String_String_None(self.headers, serializer);
+    sse_encode_opt_String(self.defaultSubtitleLanguage, serializer);
+    sse_encode_opt_String(self.defaultResolution, serializer);
   }
 
   @protected
@@ -4217,6 +4717,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.directVideoUrl, serializer);
     sse_encode_opt_String(self.cookies, serializer);
     sse_encode_opt_Map_String_String_None(self.headers, serializer);
+    sse_encode_opt_String(self.channelName, serializer);
+    sse_encode_opt_box_autoadd_usize(self.channelIndex, serializer);
+    sse_encode_opt_list_channel_info(self.allChannels, serializer);
   }
 
   @protected
@@ -4276,5 +4779,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_unit(void self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  void sse_encode_usize(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putBigUint64(self);
   }
 }

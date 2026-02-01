@@ -6,9 +6,9 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `calculate_match_score`, `deobfuscate_video_url`, `extract_core_name`, `generic_search_and_play_internal`, `load_playback_source_config`, `parse_chinese_number`, `preprocess_search_term`, `search_single_source_with_progress`, `search_single_source`, `select_episode_by_number`, `try_extract_player_aaaa_url`
+// These functions are ignored because they are not marked as `pub`: `calculate_match_score`, `deobfuscate_video_url`, `extract_channel_name`, `extract_core_name`, `extract_episode_number_from_text`, `generic_search_and_play_internal`, `load_playback_source_config`, `parse_chinese_number`, `preprocess_search_term`, `search_single_source_with_channels`, `search_single_source_with_progress`, `search_single_source`, `select_episode_by_number`, `try_extract_player_aaaa_url`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ExportedMediaSourceDataList`, `MatchVideo`, `MediaSource`, `SEASON_RE`, `SampleRoot`, `SearchConfig`, `SelectorChannelFormatFlattened`, `SelectorChannelFormatNoChannel`, `SelectorSubjectFormatA`, `SelectorSubjectFormatIndexed`, `SourceArguments`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
 
 /// 预加载播放源配置（应用启动和设置更改时调用）
 /// 验证订阅地址的JSON格式是否有效
@@ -86,6 +86,97 @@ Future<String> genericSearchAndPlay({required String animeName}) => RustLib
     .api
     .crateApiGenericScraperGenericSearchAndPlay(animeName: animeName);
 
+/// 搜索所有源，返回包含多channel信息的完整结果
+/// 此API用于UI展示所有可用的线路和剧集供用户选择
+Future<List<SearchResultWithChannels>> genericSearchWithChannels({
+  required String animeName,
+}) => RustLib.instance.api.crateApiGenericScraperGenericSearchWithChannels(
+  animeName: animeName,
+);
+
+/// 搜索所有源，以流的形式返回包含多channel信息的结果
+Stream<SearchResultWithChannels> genericSearchWithChannelsStream({
+  required String animeName,
+}) =>
+    RustLib.instance.api.crateApiGenericScraperGenericSearchWithChannelsStream(
+      animeName: animeName,
+    );
+
+/// 根据指定的channel和集号获取播放页面URL
+/// 此API用于在用户选择了具体的线路和集数后获取播放页面
+Future<SearchPlayResult> getEpisodePlayUrl({
+  required String sourceName,
+  required String animeName,
+  required BigInt channelIndex,
+  int? episodeNumber,
+}) => RustLib.instance.api.crateApiGenericScraperGetEpisodePlayUrl(
+  sourceName: sourceName,
+  animeName: animeName,
+  channelIndex: channelIndex,
+  episodeNumber: episodeNumber,
+);
+
+/// Channel（线路）信息
+class ChannelInfo {
+  /// Channel 名称（如"线路A"、"简中"、"繁中"等）
+  final String name;
+
+  /// Channel 索引
+  final BigInt index;
+
+  const ChannelInfo({required this.name, required this.index});
+
+  @override
+  int get hashCode => name.hashCode ^ index.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChannelInfo &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          index == other.index;
+}
+
+/// 剧集信息
+class EpisodeInfo {
+  /// 剧集名称/标题
+  final String name;
+
+  /// 剧集URL
+  final String url;
+
+  /// 剧集号（如果能解析出来）
+  final int? episodeNumber;
+
+  /// 所属channel索引
+  final BigInt channelIndex;
+
+  const EpisodeInfo({
+    required this.name,
+    required this.url,
+    this.episodeNumber,
+    required this.channelIndex,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      url.hashCode ^
+      episodeNumber.hashCode ^
+      channelIndex.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EpisodeInfo &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          url == other.url &&
+          episodeNumber == other.episodeNumber &&
+          channelIndex == other.channelIndex;
+}
+
 /// 搜索结果：包含播放页面URL和视频URL匹配正则
 class SearchPlayResult {
   /// 源名称
@@ -106,6 +197,12 @@ class SearchPlayResult {
   /// 播放所需的 Headers (Referer, User-Agent etc)
   final Map<String, String>? headers;
 
+  /// Channel 名称（如果有多channel）
+  final String? channelName;
+
+  /// Channel 索引
+  final BigInt? channelIndex;
+
   const SearchPlayResult({
     required this.sourceName,
     required this.playPageUrl,
@@ -113,6 +210,8 @@ class SearchPlayResult {
     this.directVideoUrl,
     this.cookies,
     this.headers,
+    this.channelName,
+    this.channelIndex,
   });
 
   @override
@@ -122,7 +221,9 @@ class SearchPlayResult {
       videoRegex.hashCode ^
       directVideoUrl.hashCode ^
       cookies.hashCode ^
-      headers.hashCode;
+      headers.hashCode ^
+      channelName.hashCode ^
+      channelIndex.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -134,7 +235,84 @@ class SearchPlayResult {
           videoRegex == other.videoRegex &&
           directVideoUrl == other.directVideoUrl &&
           cookies == other.cookies &&
-          headers == other.headers;
+          headers == other.headers &&
+          channelName == other.channelName &&
+          channelIndex == other.channelIndex;
+}
+
+/// 包含多channel信息的搜索结果
+class SearchResultWithChannels {
+  /// 源名称
+  final String sourceName;
+
+  /// 动画详情页URL
+  final String detailUrl;
+
+  /// 匹配到的动画名称
+  final String matchedTitle;
+
+  /// 所有可用的channels（线路）
+  final List<ChannelInfo> channels;
+
+  /// 所有剧集列表（按channel分组）
+  final List<EpisodeInfo> episodes;
+
+  /// 用于匹配视频URL的正则表达式
+  final String videoRegex;
+
+  /// 播放所需的 Cookie
+  final String? cookies;
+
+  /// 播放所需的 Headers
+  final Map<String, String>? headers;
+
+  /// 默认字幕语言
+  final String? defaultSubtitleLanguage;
+
+  /// 默认分辨率
+  final String? defaultResolution;
+
+  const SearchResultWithChannels({
+    required this.sourceName,
+    required this.detailUrl,
+    required this.matchedTitle,
+    required this.channels,
+    required this.episodes,
+    required this.videoRegex,
+    this.cookies,
+    this.headers,
+    this.defaultSubtitleLanguage,
+    this.defaultResolution,
+  });
+
+  @override
+  int get hashCode =>
+      sourceName.hashCode ^
+      detailUrl.hashCode ^
+      matchedTitle.hashCode ^
+      channels.hashCode ^
+      episodes.hashCode ^
+      videoRegex.hashCode ^
+      cookies.hashCode ^
+      headers.hashCode ^
+      defaultSubtitleLanguage.hashCode ^
+      defaultResolution.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SearchResultWithChannels &&
+          runtimeType == other.runtimeType &&
+          sourceName == other.sourceName &&
+          detailUrl == other.detailUrl &&
+          matchedTitle == other.matchedTitle &&
+          channels == other.channels &&
+          episodes == other.episodes &&
+          videoRegex == other.videoRegex &&
+          cookies == other.cookies &&
+          headers == other.headers &&
+          defaultSubtitleLanguage == other.defaultSubtitleLanguage &&
+          defaultResolution == other.defaultResolution;
 }
 
 /// 搜索进度状态
@@ -187,6 +365,15 @@ class SourceSearchProgress {
   /// 播放所需的 Headers
   final Map<String, String>? headers;
 
+  /// Channel 名称（如果有多channel）
+  final String? channelName;
+
+  /// Channel 索引
+  final BigInt? channelIndex;
+
+  /// 所有可用的channels（搜索成功时填充）
+  final List<ChannelInfo>? allChannels;
+
   const SourceSearchProgress({
     required this.sourceName,
     required this.step,
@@ -196,6 +383,9 @@ class SourceSearchProgress {
     this.directVideoUrl,
     this.cookies,
     this.headers,
+    this.channelName,
+    this.channelIndex,
+    this.allChannels,
   });
 
   @override
@@ -207,7 +397,10 @@ class SourceSearchProgress {
       videoRegex.hashCode ^
       directVideoUrl.hashCode ^
       cookies.hashCode ^
-      headers.hashCode;
+      headers.hashCode ^
+      channelName.hashCode ^
+      channelIndex.hashCode ^
+      allChannels.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -221,7 +414,10 @@ class SourceSearchProgress {
           videoRegex == other.videoRegex &&
           directVideoUrl == other.directVideoUrl &&
           cookies == other.cookies &&
-          headers == other.headers;
+          headers == other.headers &&
+          channelName == other.channelName &&
+          channelIndex == other.channelIndex &&
+          allChannels == other.allChannels;
 }
 
 class SourceState {
