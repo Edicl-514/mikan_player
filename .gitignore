@@ -1,4 +1,10 @@
-# Miscellaneous
+# Ignore local environment files containing secrets
+.env
+.env.local
+.env.*.local
+
+# Ignore IDE files
+.idea/# Miscellaneous
 *.class
 *.log
 *.pyc

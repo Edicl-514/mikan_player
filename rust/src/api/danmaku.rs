@@ -6,12 +6,30 @@ use flutter_rust_bridge::frb;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::env;
+use dotenvy::dotenv;
 
-/// AppId
-const APP_ID: &str = " ";
+/// 从环境变量读取 App ID (`DANDANPLAY_APP_ID`)
+fn get_app_id() -> Result<String, String> {
+    match env::var("DANDANPLAY_APP_ID") {
+        Ok(v) => Ok(v),
+        Err(_) => {
+            let _ = dotenv();
+            env::var("DANDANPLAY_APP_ID").map_err(|e| format!("Environment variable DANDANPLAY_APP_ID not set: {}", e))
+        }
+    }
+}
 
-/// AppSecret
-const APP_SECRET: &str = " ";
+/// 从环境变量读取 App Secret (`DANDANPLAY_APP_SECRET`)
+fn get_app_secret() -> Result<String, String> {
+    match env::var("DANDANPLAY_APP_SECRET") {
+        Ok(v) => Ok(v),
+        Err(_) => {
+            let _ = dotenv();
+            env::var("DANDANPLAY_APP_SECRET").map_err(|e| format!("Environment variable DANDANPLAY_APP_SECRET not set: {}", e))
+        }
+    }
+}
 
 // ============================================================================
 // 数据结构定义
@@ -190,11 +208,11 @@ fn extract_url_path(url: &str) -> Option<String> {
 
 /// 生成 X-Signature 签名
 /// 算法: Base64(SHA256(AppId + Timestamp + UrlPath + AppSecret))
-fn generate_signature(url: &str, timestamp: i64) -> Result<String, String> {
+fn generate_signature(url: &str, timestamp: i64, app_id: &str, app_secret: &str) -> Result<String, String> {
     let url_path = extract_url_path(url).ok_or("Invalid URL")?;
 
     // 拼接签名数据: AppId + Timestamp + UrlPath + AppSecret
-    let data_to_hash = format!("{}{}{}{}", APP_ID, timestamp, url_path, APP_SECRET);
+    let data_to_hash = format!("{}{}{}{}", app_id, timestamp, url_path, app_secret);
 
     // SHA256 哈希
     let mut hasher = Sha256::new();
@@ -212,7 +230,10 @@ fn build_signed_headers(url: &str) -> Result<HeaderMap, String> {
         .map_err(|e| e.to_string())?
         .as_secs() as i64;
 
-    let signature = generate_signature(url, timestamp)?;
+    let app_id = get_app_id()?;
+    let app_secret = get_app_secret()?;
+
+    let signature = generate_signature(url, timestamp, &app_id, &app_secret)?;
 
     let mut headers = HeaderMap::new();
     headers.insert("Accept", HeaderValue::from_static("application/json"));
@@ -220,7 +241,10 @@ fn build_signed_headers(url: &str) -> Result<HeaderMap, String> {
         "User-Agent",
         HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
     );
-    headers.insert("X-AppId", HeaderValue::from_static(APP_ID));
+    headers.insert(
+        "X-AppId",
+        HeaderValue::from_str(&app_id).map_err(|e| e.to_string())?,
+    );
     headers.insert(
         "X-Signature",
         HeaderValue::from_str(&signature).map_err(|e| e.to_string())?,
