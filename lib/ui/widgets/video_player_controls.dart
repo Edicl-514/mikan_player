@@ -64,6 +64,11 @@ class CustomVideoControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 计算当前集数索引，用于控制按钮显示
+    final currentIndex = allEpisodes.indexOf(currentEpisode);
+    final isFirstEpisode = currentIndex <= 0;
+    final isLastEpisode = currentIndex >= allEpisodes.length - 1;
+
     // 移动端 - 非全屏顶部按钮栏
     final mobileNormalTopButtonBar = [
       IconButton(
@@ -193,17 +198,21 @@ class CustomVideoControls extends StatelessWidget {
                     Row(
                       children: [
                         const SizedBox(width: 16),
-                        _buildSkipButton(
-                          icon: Icons.skip_previous,
-                          onPressed: () => _onSkipPrevious(),
-                        ),
-                        const SizedBox(width: 8),
+                        if (!isFirstEpisode) ...[
+                          _buildSkipButton(
+                            icon: Icons.skip_previous,
+                            onPressed: () => _onSkipPrevious(),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                         const MaterialPlayOrPauseButton(),
-                        const SizedBox(width: 8),
-                        _buildSkipButton(
-                          icon: Icons.skip_next,
-                          onPressed: () => _onSkipNext(),
-                        ),
+                        if (!isLastEpisode) ...[
+                          const SizedBox(width: 8),
+                          _buildSkipButton(
+                            icon: Icons.skip_next,
+                            onPressed: () => _onSkipNext(),
+                          ),
+                        ],
                         const SizedBox(width: 8),
                         const MaterialPositionIndicator(),
                         const Spacer(),
@@ -266,17 +275,21 @@ class CustomVideoControls extends StatelessWidget {
           bottomButtonBar: [
             const SizedBox(width: 8),
             // 左下角：播放控制
-            _buildSkipButton(
-              icon: Icons.skip_previous,
-              onPressed: () => _onSkipPrevious(),
-            ),
-            const SizedBox(width: 8),
+            if (!isFirstEpisode) ...[
+              _buildSkipButton(
+                icon: Icons.skip_previous,
+                onPressed: () => _onSkipPrevious(),
+              ),
+              const SizedBox(width: 8),
+            ],
             const MaterialDesktopPlayOrPauseButton(iconSize: 32),
-            const SizedBox(width: 8),
-            _buildSkipButton(
-              icon: Icons.skip_next,
-              onPressed: () => _onSkipNext(),
-            ),
+            if (!isLastEpisode) ...[
+              const SizedBox(width: 8),
+              _buildSkipButton(
+                icon: Icons.skip_next,
+                onPressed: () => _onSkipNext(),
+              ),
+            ],
             const SizedBox(width: 8),
             const MaterialDesktopVolumeButton(),
             const SizedBox(width: 8),
@@ -334,17 +347,21 @@ class CustomVideoControls extends StatelessWidget {
           bottomButtonBar: [
             const SizedBox(width: 16),
             // 左下角：播放控制
-            _buildSkipButton(
-              icon: Icons.skip_previous,
-              onPressed: () => _onSkipPrevious(),
-            ),
-            const SizedBox(width: 8),
+            if (!isFirstEpisode) ...[
+              _buildSkipButton(
+                icon: Icons.skip_previous,
+                onPressed: () => _onSkipPrevious(),
+              ),
+              const SizedBox(width: 8),
+            ],
             const MaterialDesktopPlayOrPauseButton(iconSize: 32),
-            const SizedBox(width: 8),
-            _buildSkipButton(
-              icon: Icons.skip_next,
-              onPressed: () => _onSkipNext(),
-            ),
+            if (!isLastEpisode) ...[
+              const SizedBox(width: 8),
+              _buildSkipButton(
+                icon: Icons.skip_next,
+                onPressed: () => _onSkipNext(),
+              ),
+            ],
             const SizedBox(width: 16),
             const MaterialDesktopVolumeButton(),
             const SizedBox(width: 16),
@@ -560,7 +577,10 @@ class CustomVideoControls extends StatelessWidget {
   }
 
   /// 移动端设置菜单
-  void _showMobileSettingsMenu(BuildContext context, {required bool isFullscreen}) {
+  void _showMobileSettingsMenu(
+    BuildContext context, {
+    required bool isFullscreen,
+  }) {
     if (isFullscreen) {
       // 全屏时使用从右侧滑入的侧边栏
       showGeneralDialog(
@@ -591,13 +611,13 @@ class CustomVideoControls extends StatelessWidget {
         },
         transitionBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1, 0),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-            )),
+            position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                .animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
+                ),
             child: child,
           );
         },
@@ -660,13 +680,10 @@ class CustomVideoControls extends StatelessWidget {
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1, 0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          )),
+          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+              .animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              ),
           child: child,
         );
       },
@@ -691,7 +708,9 @@ class CustomVideoControls extends StatelessWidget {
               height: double.infinity,
               decoration: const BoxDecoration(
                 color: Color(0xFF1A1A24),
-                borderRadius: BorderRadius.horizontal(left: Radius.circular(16)),
+                borderRadius: BorderRadius.horizontal(
+                  left: Radius.circular(16),
+                ),
               ),
               child: SafeArea(
                 child: Column(
@@ -721,7 +740,10 @@ class CustomVideoControls extends StatelessWidget {
                           const Spacer(),
                           IconButton(
                             onPressed: () => Navigator.pop(context),
-                            icon: const Icon(Icons.close, color: Colors.white70),
+                            icon: const Icon(
+                              Icons.close,
+                              color: Colors.white70,
+                            ),
                           ),
                         ],
                       ),
@@ -731,12 +753,13 @@ class CustomVideoControls extends StatelessWidget {
                     Expanded(
                       child: GridView.builder(
                         padding: const EdgeInsets.all(16),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
-                          childAspectRatio: 1.2,
-                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 4,
+                              mainAxisSpacing: 10,
+                              crossAxisSpacing: 10,
+                              childAspectRatio: 1.2,
+                            ),
                         itemCount: allEpisodes.length,
                         itemBuilder: (context, index) {
                           final ep = allEpisodes[index];
@@ -751,7 +774,9 @@ class CustomVideoControls extends StatelessWidget {
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? const Color(0xFFBB86FC).withValues(alpha: 0.2)
+                                    ? const Color(
+                                        0xFFBB86FC,
+                                      ).withValues(alpha: 0.2)
                                     : Colors.white.withValues(alpha: 0.05),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
@@ -786,13 +811,10 @@ class CustomVideoControls extends StatelessWidget {
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1, 0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          )),
+          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+              .animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              ),
           child: child,
         );
       },
@@ -935,9 +957,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             _buildHeader(),
             const Divider(color: Colors.white12, height: 1),
             // 内容区域
-            Expanded(
-              child: _buildContent(),
-            ),
+            Expanded(child: _buildContent()),
           ],
         ),
       ),
@@ -967,7 +987,11 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           if (_currentPage != 0)
             IconButton(
               onPressed: () => setState(() => _currentPage = 0),
-              icon: const Icon(Icons.arrow_back, color: Colors.white70, size: 20),
+              icon: const Icon(
+                Icons.arrow_back,
+                color: Colors.white70,
+                size: 20,
+              ),
             )
           else
             const SizedBox(width: 48),
@@ -1088,10 +1112,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                 ],
               ),
@@ -1151,10 +1172,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                     const SizedBox(height: 12),
                     const Text(
                       '当前视频没有内嵌字幕',
-                      style: TextStyle(
-                        color: Colors.white38,
-                        fontSize: 13,
-                      ),
+                      style: TextStyle(color: Colors.white38, fontSize: 13),
                     ),
                   ],
                 ),
@@ -1260,7 +1278,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
               spacing: 8,
               runSpacing: 8,
               children: SubtitleColorPresets.fontColors.map((color) {
-                final isSelected = settings.fontColor.toARGB32() == color.toARGB32();
+                final isSelected =
+                    settings.fontColor.toARGB32() == color.toARGB32();
                 return _buildColorOption(
                   color: color,
                   isSelected: isSelected,
@@ -1279,10 +1298,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
-                child: Text(
-                  '字幕预览效果',
-                  style: settings.toTextStyle(),
-                ),
+                child: Text('字幕预览效果', style: settings.toTextStyle()),
               ),
             ),
 
@@ -1301,13 +1317,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-          ),
-        ),
+        Text(title, style: const TextStyle(color: Colors.white, fontSize: 14)),
         Switch(
           value: value,
           onChanged: onChanged,
@@ -1335,10 +1345,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-              ),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
             ),
             Text(
               displayValue,
@@ -1403,9 +1410,13 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                   Text(
                     title,
                     style: TextStyle(
-                      color: isSelected ? const Color(0xFFBB86FC) : Colors.white,
+                      color: isSelected
+                          ? const Color(0xFFBB86FC)
+                          : Colors.white,
                       fontSize: 14,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                   ),
                   if (subtitle.isNotEmpty)
@@ -1475,10 +1486,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             const SizedBox(height: 16),
             const Text(
               '暂无可用播放源',
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Colors.white54, fontSize: 14),
             ),
           ],
         ),
@@ -1522,7 +1530,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                   ),
                   child: Icon(
                     Icons.play_circle_outline,
-                    color: isSelected ? const Color(0xFFBB86FC) : Colors.white54,
+                    color: isSelected
+                        ? const Color(0xFFBB86FC)
+                        : Colors.white54,
                     size: 20,
                   ),
                 ),
@@ -1534,9 +1544,13 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                       Text(
                         source.sourceName,
                         style: TextStyle(
-                          color: isSelected ? const Color(0xFFBB86FC) : Colors.white,
+                          color: isSelected
+                              ? const Color(0xFFBB86FC)
+                              : Colors.white,
                           fontSize: 14,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
                       if (source.directVideoUrl != null) ...[
