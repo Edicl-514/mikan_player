@@ -108,6 +108,7 @@ class BangumiComment {
   final String userName;
   final int? rate;
   final String content;
+  final String contentHtml;
   final String time;
   final String avatar;
 
@@ -115,6 +116,7 @@ class BangumiComment {
     required this.userName,
     this.rate,
     required this.content,
+    required this.contentHtml,
     required this.time,
     required this.avatar,
   });
@@ -124,6 +126,7 @@ class BangumiComment {
       userName.hashCode ^
       rate.hashCode ^
       content.hashCode ^
+      contentHtml.hashCode ^
       time.hashCode ^
       avatar.hashCode;
 
@@ -135,6 +138,7 @@ class BangumiComment {
           userName == other.userName &&
           rate == other.rate &&
           content == other.content &&
+          contentHtml == other.contentHtml &&
           time == other.time &&
           avatar == other.avatar;
 }

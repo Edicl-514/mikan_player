@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
+import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'player_page.dart';
 
 class BangumiDetailsPage extends StatefulWidget {
@@ -1752,13 +1754,28 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        comment.content,
-                        style: TextStyle(
+                      HtmlWidget(
+                        comment.contentHtml.isNotEmpty
+                            ? comment.contentHtml
+                            : comment.content,
+                        textStyle: TextStyle(
                           fontSize: 13,
                           color: textColor.withValues(alpha: 0.8),
                           height: 1.4,
                         ),
+                        customWidgetBuilder: (element) {
+                          if (element.classes.contains('text_mask')) {
+                            return BangumiMaskText(
+                              html: element.innerHtml,
+                              textStyle: TextStyle(
+                                fontSize: 13,
+                                color: textColor.withValues(alpha: 0.8),
+                                height: 1.4,
+                              ),
+                            );
+                          }
+                          return null;
+                        },
                       ),
                     ],
                   ),

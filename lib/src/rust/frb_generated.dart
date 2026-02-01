@@ -2107,14 +2107,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BangumiComment dco_decode_bangumi_comment(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return BangumiComment(
       userName: dco_decode_String(arr[0]),
       rate: dco_decode_opt_box_autoadd_i_32(arr[1]),
       content: dco_decode_String(arr[2]),
-      time: dco_decode_String(arr[3]),
-      avatar: dco_decode_String(arr[4]),
+      contentHtml: dco_decode_String(arr[3]),
+      time: dco_decode_String(arr[4]),
+      avatar: dco_decode_String(arr[5]),
     );
   }
 
@@ -2906,12 +2907,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_userName = sse_decode_String(deserializer);
     var var_rate = sse_decode_opt_box_autoadd_i_32(deserializer);
     var var_content = sse_decode_String(deserializer);
+    var var_contentHtml = sse_decode_String(deserializer);
     var var_time = sse_decode_String(deserializer);
     var var_avatar = sse_decode_String(deserializer);
     return BangumiComment(
       userName: var_userName,
       rate: var_rate,
       content: var_content,
+      contentHtml: var_contentHtml,
       time: var_time,
       avatar: var_avatar,
     );
@@ -4008,6 +4011,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.userName, serializer);
     sse_encode_opt_box_autoadd_i_32(self.rate, serializer);
     sse_encode_String(self.content, serializer);
+    sse_encode_String(self.contentHtml, serializer);
     sse_encode_String(self.time, serializer);
     sse_encode_String(self.avatar, serializer);
   }

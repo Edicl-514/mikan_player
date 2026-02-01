@@ -51,6 +51,7 @@ pub struct BangumiComment {
     pub user_name: String,
     pub rate: Option<i32>,
     pub content: String,
+    pub content_html: String,
     pub time: String,
     pub avatar: String,
 }
@@ -326,13 +327,24 @@ pub async fn fetch_bangumi_comments(
             };
 
             // Content
-            let content = if let Some(content_sel) = &content_selector {
-                item.select(content_sel)
-                    .next()
+            let (content, content_html) = if let Some(content_sel) = &content_selector {
+                let node = item.select(content_sel).next();
+                let text = node
                     .map(|e| e.text().collect::<String>().trim().to_string())
-                    .unwrap_or_default()
+                    .unwrap_or_default();
+                let html = node
+                    .map(|e| {
+                        e.html()
+                            .replace("src=\"//", "src=\"https://")
+                            .replace(
+                                "src=\"/img/",
+                                &format!("src=\"{}/img/", crate::api::config::get_bangumi_url()),
+                            )
+                    })
+                    .unwrap_or_default();
+                (text, html)
             } else {
-                String::new()
+                (String::new(), String::new())
             };
 
             // Time tag (starts with @)
@@ -347,11 +359,12 @@ pub async fn fetch_bangumi_comments(
                 }
             }
 
-            if !user_name.is_empty() && !content.is_empty() {
+            if !user_name.is_empty() && (!content.is_empty() || !content_html.is_empty()) {
                 comments.push(BangumiComment {
                     user_name,
                     rate,
                     content,
+                    content_html,
                     time,
                     avatar,
                 });

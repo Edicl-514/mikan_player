@@ -2174,12 +2174,14 @@ impl SseDecode for crate::api::bangumi::BangumiComment {
         let mut var_userName = <String>::sse_decode(deserializer);
         let mut var_rate = <Option<i32>>::sse_decode(deserializer);
         let mut var_content = <String>::sse_decode(deserializer);
+        let mut var_contentHtml = <String>::sse_decode(deserializer);
         let mut var_time = <String>::sse_decode(deserializer);
         let mut var_avatar = <String>::sse_decode(deserializer);
         return crate::api::bangumi::BangumiComment {
             user_name: var_userName,
             rate: var_rate,
             content: var_content,
+            content_html: var_contentHtml,
             time: var_time,
             avatar: var_avatar,
         };
@@ -3448,6 +3450,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiComment {
             self.user_name.into_into_dart().into_dart(),
             self.rate.into_into_dart().into_dart(),
             self.content.into_into_dart().into_dart(),
+            self.content_html.into_into_dart().into_dart(),
             self.time.into_into_dart().into_dart(),
             self.avatar.into_into_dart().into_dart(),
         ]
@@ -4117,6 +4120,7 @@ impl SseEncode for crate::api::bangumi::BangumiComment {
         <String>::sse_encode(self.user_name, serializer);
         <Option<i32>>::sse_encode(self.rate, serializer);
         <String>::sse_encode(self.content, serializer);
+        <String>::sse_encode(self.content_html, serializer);
         <String>::sse_encode(self.time, serializer);
         <String>::sse_encode(self.avatar, serializer);
     }

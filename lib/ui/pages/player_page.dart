@@ -15,6 +15,7 @@ import 'package:mikan_player/services/webview_video_extractor.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls.dart';
+import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 
@@ -47,6 +48,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   List<BangumiEpisodeComment> _comments = [];
   bool _isLoadingComments = false;
   String? _commentsError;
+  String _commentSortMode = 'default'; // 'default' or 'time'
 
   List<RankingAnime> _recommendations = [];
   bool _isLoadingRecommendations = false;
@@ -213,6 +215,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (mounted) {
         setState(() {
           _comments = comments;
+          _sortComments();
           _isLoadingComments = false;
         });
       }
@@ -224,6 +227,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _isLoadingComments = false;
         });
       }
+    }
+  }
+
+  void _sortComments() {
+    if (_commentSortMode == 'default') {
+      _comments.sort((a, b) => a.id.compareTo(b.id));
+    } else {
+      _comments.sort((a, b) => b.time.compareTo(a.time));
     }
   }
 
@@ -1626,7 +1637,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildSectionHeader("评论区"),
+                            _buildSectionHeader(
+                              "评论区",
+                              trailing: _buildSortButton(),
+                            ),
                             const SizedBox(height: 16),
                           ],
                         ),
@@ -2102,7 +2116,55 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSortButton() {
+    return PopupMenuButton<String>(
+      onSelected: (value) {
+        if (_commentSortMode != value) {
+          setState(() {
+            _commentSortMode = value;
+            _sortComments();
+          });
+        }
+      },
+      position: PopupMenuPosition.under,
+      color: const Color(0xFF1E1E2C),
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'default',
+          child: Row(
+            children: [
+              Icon(Icons.sort, size: 18, color: Colors.white70),
+              SizedBox(width: 8),
+              Text("默认排序", style: TextStyle(color: Colors.white, fontSize: 13)),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'time',
+          child: Row(
+            children: [
+              Icon(Icons.access_time, size: 18, color: Colors.white70),
+              SizedBox(width: 8),
+              Text("按时间排序", style: TextStyle(color: Colors.white, fontSize: 13)),
+            ],
+          ),
+        ),
+      ],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.sort, color: Colors.white54, size: 16),
+          const SizedBox(width: 4),
+          Text(
+            _commentSortMode == 'default' ? "默认排序" : "按时间排序",
+            style: const TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, {Widget? trailing}) {
     return Row(
       children: [
         Container(
@@ -2122,8 +2184,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             fontWeight: FontWeight.bold,
           ),
         ),
-        const Spacer(),
-        // const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
+        if (trailing != null) ...[
+          const Spacer(),
+          trailing,
+        ] else ...[
+          const Spacer(),
+          // const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
+        ],
       ],
     );
   }
@@ -3228,12 +3295,36 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         child: Text("暂无评论", style: TextStyle(color: Colors.white54)),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _comments.length,
-      itemBuilder: (context, index) {
-        return _buildCommentItem(_comments[index]);
-      },
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(
+            children: [
+              const Text(
+                "全部评论",
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              _buildSortButton(),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: Colors.white10),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            itemCount: _comments.length,
+            itemBuilder: (context, index) {
+              return _buildCommentItem(_comments[index]);
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -3305,6 +3396,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   customStylesBuilder: (element) {
                     if (element.localName == 'img') {
                       return {'max-width': '100%', 'max-height': '350px'};
+                    }
+                    return null;
+                  },
+                  customWidgetBuilder: (element) {
+                    if (element.classes.contains('text_mask')) {
+                      return BangumiMaskText(
+                        html: element.innerHtml,
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                      );
                     }
                     return null;
                   },
@@ -3384,6 +3487,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                             'max-width': '100%',
                                             'max-height': '350px',
                                           };
+                                        }
+                                        return null;
+                                      },
+                                      customWidgetBuilder: (element) {
+                                        if (element.classes.contains('text_mask')) {
+                                          return BangumiMaskText(
+                                            html: element.innerHtml,
+                                            textStyle: const TextStyle(
+                                              fontSize: 13,
+                                              height: 1.4,
+                                            ),
+                                          );
                                         }
                                         return null;
                                       },
