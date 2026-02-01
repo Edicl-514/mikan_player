@@ -173,10 +173,12 @@ class DanmakuService extends ChangeNotifier {
   }
 
   /// 通过 Bangumi TV subject_id 和集数获取弹幕（便捷方法）
+  /// 失败时会自动使用动漫名称+集号重试
   Future<void> loadDanmakuByBangumiId(
     int subjectId,
     String episodeNumber, {
     int? relativeEpisode,
+    String? animeTitle, // 用于失败重试
   }) async {
     _isLoading = true;
     _error = null;
@@ -198,9 +200,33 @@ class DanmakuService extends ChangeNotifier {
       debugPrint('[Danmaku] Loaded ${_danmakuList.length} danmaku');
       notifyListeners();
     } catch (e) {
+      debugPrint('[Danmaku] Bangumi ID fetch failed: $e');
+      
+      // 如果提供了动漫名称，尝试使用标题+集号重试
+      if (animeTitle != null && animeTitle.isNotEmpty) {
+        debugPrint('[Danmaku] Retrying with title-based search: $animeTitle');
+        try {
+          final danmakuList = await danmakuGetByTitle(
+            animeTitle: animeTitle,
+            episodeNumber: episodeNumber,
+            relativeEpisode: relativeEpisode,
+          );
+          
+          _danmakuList = danmakuList;
+          _danmakuList.sort((a, b) => a.time.compareTo(b.time));
+          _isLoading = false;
+          debugPrint('[Danmaku] Retry successful, loaded ${_danmakuList.length} danmaku');
+          notifyListeners();
+          return;
+        } catch (retryError) {
+          debugPrint('[Danmaku] Title-based retry also failed: $retryError');
+          _error = '使用 Bangumi ID 和标题重试均失败: $retryError';
+        }
+      } else {
+        _error = e.toString();
+      }
+      
       _isLoading = false;
-      _error = e.toString();
-      debugPrint('[Danmaku] Error: $e');
       notifyListeners();
     }
   }

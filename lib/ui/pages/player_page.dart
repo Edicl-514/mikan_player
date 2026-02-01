@@ -177,6 +177,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           subjectId,
           episodeNumber.toString(),
           relativeEpisode: relativeEpNumber,
+          animeTitle: animeTitle, // 传入动漫名称用于失败重试
         );
         return;
       }

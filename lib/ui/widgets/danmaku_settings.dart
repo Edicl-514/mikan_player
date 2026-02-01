@@ -255,6 +255,20 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                   controller: widget.scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
+                    // 显示当前已加载的弹幕信息
+                    if (widget.danmakuService.danmakuCount > 0) ...[
+                      const Text(
+                        '已加载弹幕',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildLoadedDanmakuInfoCard(),
+                      const SizedBox(height: 24),
+                    ],
                     if (widget.danmakuService.selectedAnime != null) ...[
                       const Text(
                         '当前匹配',
@@ -343,6 +357,66 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
           ],
         );
       },
+    );
+  }
+
+  Widget _buildLoadedDanmakuInfoCard() {
+    final service = widget.danmakuService;
+    final count = service.danmakuCount;
+    
+    String infoText = '';
+    if (service.selectedAnime != null) {
+      infoText = service.selectedAnime!.animeTitle;
+      if (service.selectedEpisode != null) {
+        infoText += ' - ${service.selectedEpisode!.episodeTitle}';
+      }
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF4CAF50).withValues(alpha: 0.15),
+        border: Border.all(
+          color: const Color(0xFF4CAF50),
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.check_circle,
+                color: Color(0xFF4CAF50),
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '弹幕数量: $count 条',
+                style: const TextStyle(
+                  color: Color(0xFF4CAF50),
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          if (infoText.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              infoText,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -775,6 +849,20 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
+                    // 显示当前已加载的弹幕信息
+                    if (widget.danmakuService.danmakuCount > 0) ...[
+                      const Text(
+                        '已加载弹幕',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildLoadedDanmakuInfoCard(),
+                      const SizedBox(height: 24),
+                    ],
                      if (widget.danmakuService.selectedAnime != null) ...[
                       const Text(
                         '当前匹配',
@@ -990,6 +1078,66 @@ class _VideoSidePanelState extends State<VideoSidePanel>
           ),
         ),
       ],
+    );
+  }
+  
+  Widget _buildLoadedDanmakuInfoCard() {
+    final service = widget.danmakuService;
+    final count = service.danmakuCount;
+    
+    String infoText = '';
+    if (service.selectedAnime != null) {
+      infoText = service.selectedAnime!.animeTitle;
+      if (service.selectedEpisode != null) {
+        infoText += ' - ${service.selectedEpisode!.episodeTitle}';
+      }
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF4CAF50).withValues(alpha: 0.15),
+        border: Border.all(
+          color: const Color(0xFF4CAF50),
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.check_circle,
+                color: Color(0xFF4CAF50),
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '弹幕数量: $count 条',
+                style: const TextStyle(
+                  color: Color(0xFF4CAF50),
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          if (infoText.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              infoText,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
     );
   }
   
