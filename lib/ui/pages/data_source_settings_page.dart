@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/src/rust/api/generic_scraper.dart'
     as generic_scraper;
+import 'data_source_config_page.dart';
 
 class DataSourceSettingsPage extends StatefulWidget {
   const DataSourceSettingsPage({super.key});
@@ -39,12 +40,12 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Fetch latest sources from Rust
+    // 从本地缓存读取播放源列表
     List<generic_scraper.SourceState> sources = [];
     try {
       sources = await rust.getPlaybackSources();
     } catch (e) {
-      debugPrint('Failed to load playback sources: $e');
+      debugPrint('Failed to load playback sources from cache: $e');
     }
 
     setState(() {
@@ -85,13 +86,6 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       playbackSub: _playbackSubController.text,
     );
 
-    // 设置更改后预加载播放源配置
-    try {
-      await rust.preloadPlaybackSourceConfig();
-    } catch (e) {
-      debugPrint('Warning: Failed to preload playback source config: $e');
-    }
-
     if (mounted) {
       ScaffoldMessenger.of(
         context,
@@ -106,10 +100,10 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     });
 
     try {
-      // 强制重新拉取JSON
-      await rust.preloadPlaybackSourceConfig();
+      // 从订阅地址重新拉取JSON并保存到本地
+      await rust.refreshPlaybackSourceConfig();
 
-      // 刷新源列表
+      // 刷新源列表（从本地缓存读取）
       final sources = await rust.getPlaybackSources();
       setState(() {
         _sources = sources;
@@ -252,6 +246,18 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                           ),
                         ),
                         child: ListTile(
+                          onTap: () async {
+                            final changed = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    DataSourceConfigPage(source: source),
+                              ),
+                            );
+                            if (changed == true) {
+                              _loadSettings();
+                            }
+                          },
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 4,
@@ -363,6 +369,20 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                 ),
               ],
             ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final changed = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DataSourceConfigPage(source: null),
+            ),
+          );
+          if (changed == true) {
+            _loadSettings();
+          }
+        },
+        child: const Icon(Icons.add),
+      ),
     );
   }
 

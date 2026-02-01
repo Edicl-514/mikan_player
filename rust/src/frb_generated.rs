@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -374594;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 950842705;
 
 // Section: executor
 
@@ -45,6 +45,44 @@ flutter_rust_bridge::frb_generated_default_handler!();
 
 // Section: wire_funcs
 
+fn wire__crate__api__generic_scraper__add_source_config_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "add_source_config",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_new_config =
+                <crate::api::generic_scraper::SourceConfigUpdate>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::generic_scraper::add_source_config(api_new_config).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__danmaku__danmaku_get_bangumi_episodes_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1757,6 +1795,79 @@ fn wire__crate__api__generic_scraper__preload_playback_sources_impl(
         },
     )
 }
+fn wire__crate__api__generic_scraper__refresh_playback_source_config_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "refresh_playback_source_config",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::generic_scraper::refresh_playback_source_config().await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__simple__refresh_playback_source_config_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "refresh_playback_source_config",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::simple::refresh_playback_source_config().await,
+                        )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__mikan__search_mikan_anime_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2022,6 +2133,45 @@ fn wire__crate__api__simple__update_config_impl(
                     })?;
                     Ok(output_ok)
                 })())
+            }
+        },
+    )
+}
+fn wire__crate__api__generic_scraper__update_single_source_config_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "update_single_source_config",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_update =
+                <crate::api::generic_scraper::SourceConfigUpdate>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::generic_scraper::update_single_source_config(api_update)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
         },
     )
@@ -3014,6 +3164,32 @@ impl SseDecode for crate::api::generic_scraper::SearchStep {
     }
 }
 
+impl SseDecode for crate::api::generic_scraper::SourceConfigUpdate {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_newName = <Option<String>>::sse_decode(deserializer);
+        let mut var_tier = <Option<i32>>::sse_decode(deserializer);
+        let mut var_defaultSubtitleLanguage = <Option<String>>::sse_decode(deserializer);
+        let mut var_defaultResolution = <Option<String>>::sse_decode(deserializer);
+        let mut var_searchUrl = <Option<String>>::sse_decode(deserializer);
+        let mut var_iconUrl = <Option<String>>::sse_decode(deserializer);
+        let mut var_description = <Option<String>>::sse_decode(deserializer);
+        let mut var_searchConfigJson = <Option<String>>::sse_decode(deserializer);
+        return crate::api::generic_scraper::SourceConfigUpdate {
+            name: var_name,
+            new_name: var_newName,
+            tier: var_tier,
+            default_subtitle_language: var_defaultSubtitleLanguage,
+            default_resolution: var_defaultResolution,
+            search_url: var_searchUrl,
+            icon_url: var_iconUrl,
+            description: var_description,
+            search_config_json: var_searchConfigJson,
+        };
+    }
+}
+
 impl SseDecode for crate::api::generic_scraper::SourceSearchProgress {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3055,6 +3231,8 @@ impl SseDecode for crate::api::generic_scraper::SourceState {
         let mut var_tier = <i32>::sse_decode(deserializer);
         let mut var_defaultSubtitleLanguage = <String>::sse_decode(deserializer);
         let mut var_defaultResolution = <String>::sse_decode(deserializer);
+        let mut var_searchUrl = <String>::sse_decode(deserializer);
+        let mut var_searchConfigJson = <String>::sse_decode(deserializer);
         let mut var_enabled = <bool>::sse_decode(deserializer);
         return crate::api::generic_scraper::SourceState {
             name: var_name,
@@ -3063,6 +3241,8 @@ impl SseDecode for crate::api::generic_scraper::SourceState {
             tier: var_tier,
             default_subtitle_language: var_defaultSubtitleLanguage,
             default_resolution: var_defaultResolution,
+            search_url: var_searchUrl,
+            search_config_json: var_searchConfigJson,
             enabled: var_enabled,
         };
     }
@@ -3154,179 +3334,203 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        1 => wire__crate__api__danmaku__danmaku_get_bangumi_episodes_impl(
+        1 => wire__crate__api__generic_scraper__add_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        2 => wire__crate__api__danmaku__danmaku_get_by_bangumi_id_impl(
+        2 => wire__crate__api__danmaku__danmaku_get_bangumi_episodes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        3 => {
+        3 => wire__crate__api__danmaku__danmaku_get_by_bangumi_id_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        4 => {
             wire__crate__api__danmaku__danmaku_get_by_title_impl(port, ptr, rust_vec_len, data_len)
         }
-        4 => {
+        5 => {
             wire__crate__api__danmaku__danmaku_get_comments_impl(port, ptr, rust_vec_len, data_len)
         }
-        5 => {
+        6 => {
             wire__crate__api__danmaku__danmaku_get_episodes_impl(port, ptr, rust_vec_len, data_len)
         }
-        6 => wire__crate__api__danmaku__danmaku_match_anime_impl(port, ptr, rust_vec_len, data_len),
-        7 => {
+        7 => wire__crate__api__danmaku__danmaku_match_anime_impl(port, ptr, rust_vec_len, data_len),
+        8 => {
             wire__crate__api__danmaku__danmaku_search_anime_impl(port, ptr, rust_vec_len, data_len)
         }
-        8 => wire__crate__api__crawler__fetch_archive_list_impl(port, ptr, rust_vec_len, data_len),
-        9 => {
+        9 => wire__crate__api__crawler__fetch_archive_list_impl(port, ptr, rust_vec_len, data_len),
+        10 => {
             wire__crate__api__ranking__fetch_bangumi_browser_impl(port, ptr, rust_vec_len, data_len)
         }
-        10 => wire__crate__api__bangumi__fetch_bangumi_characters_impl(
+        11 => wire__crate__api__bangumi__fetch_bangumi_characters_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        11 => wire__crate__api__bangumi__fetch_bangumi_comments_impl(
+        12 => wire__crate__api__bangumi__fetch_bangumi_comments_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        12 => wire__crate__api__bangumi__fetch_bangumi_episode_comments_impl(
+        13 => wire__crate__api__bangumi__fetch_bangumi_episode_comments_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        13 => wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
+        14 => wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => {
+        15 => {
             wire__crate__api__ranking__fetch_bangumi_ranking_impl(port, ptr, rust_vec_len, data_len)
         }
-        15 => wire__crate__api__bangumi__fetch_bangumi_relations_impl(
+        16 => wire__crate__api__bangumi__fetch_bangumi_relations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        16 => wire__crate__api__dmhy__fetch_dmhy_resources_impl(port, ptr, rust_vec_len, data_len),
-        17 => {
+        17 => wire__crate__api__dmhy__fetch_dmhy_resources_impl(port, ptr, rust_vec_len, data_len),
+        18 => {
             wire__crate__api__crawler__fetch_extra_subjects_impl(port, ptr, rust_vec_len, data_len)
         }
-        18 => {
+        19 => {
             wire__crate__api__crawler__fetch_schedule_basic_impl(port, ptr, rust_vec_len, data_len)
         }
-        19 => wire__crate__api__crawler__fill_anime_details_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__generic_scraper__generic_search_and_play_impl(
+        20 => wire__crate__api__crawler__fill_anime_details_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__generic_scraper__generic_search_and_play_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__generic_scraper__generic_search_and_play_with_episode_impl(
+        22 => wire__crate__api__generic_scraper__generic_search_and_play_with_episode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => wire__crate__api__generic_scraper__generic_search_play_pages_impl(
+        23 => wire__crate__api__generic_scraper__generic_search_play_pages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
+        24 => wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__generic_scraper__generic_search_with_channels_impl(
+        25 => wire__crate__api__generic_scraper__generic_search_with_channels_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__generic_scraper__generic_search_with_channels_stream_impl(
+        26 => wire__crate__api__generic_scraper__generic_search_with_channels_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__generic_scraper__generic_search_with_progress_impl(
+        27 => wire__crate__api__generic_scraper__generic_search_with_progress_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => {
+        28 => {
             wire__crate__api__simple__get_all_torrents_info_impl(port, ptr, rust_vec_len, data_len)
         }
-        28 => wire__crate__api__config__get_bangumi_api_url_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__config__get_bangumi_url_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__config__get_bgmlist_url_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__generic_scraper__get_enabled_source_names_impl(
+        29 => wire__crate__api__config__get_bangumi_api_url_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__config__get_bangumi_url_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__config__get_bgmlist_url_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__generic_scraper__get_enabled_source_names_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        32 => wire__crate__api__generic_scraper__get_episode_play_url_impl(
+        33 => wire__crate__api__generic_scraper__get_episode_play_url_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__config__get_mikan_url_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__generic_scraper__get_playback_sources_impl(
+        34 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__config__get_mikan_url_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__generic_scraper__get_playback_sources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => {
+        37 => {
             wire__crate__api__simple__get_playback_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        37 => {
+        38 => {
             wire__crate__api__config__get_playback_sub_url_impl(port, ptr, rust_vec_len, data_len)
         }
-        38 => wire__crate__api__network__get_system_proxy_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__simple__get_torrent_stats_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__simple__get_tracker_info_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__simple__preload_playback_source_config_impl(
+        39 => wire__crate__api__network__get_system_proxy_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__simple__get_torrent_stats_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__simple__get_tracker_info_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__simple__init_app_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__simple__preload_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        45 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
+        46 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        46 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
-        47 => {
+        47 => wire__crate__api__generic_scraper__refresh_playback_source_config_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        48 => wire__crate__api__simple__refresh_playback_source_config_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        49 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
+        50 => {
             wire__crate__api__config__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        48 => {
+        51 => {
             wire__crate__api__simple__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        49 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__generic_scraper__update_single_source_config_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
         _ => unreachable!(),
     }
 }
@@ -3903,6 +4107,34 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::SearchStep>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceConfigUpdate {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.name.into_into_dart().into_dart(),
+            self.new_name.into_into_dart().into_dart(),
+            self.tier.into_into_dart().into_dart(),
+            self.default_subtitle_language.into_into_dart().into_dart(),
+            self.default_resolution.into_into_dart().into_dart(),
+            self.search_url.into_into_dart().into_dart(),
+            self.icon_url.into_into_dart().into_dart(),
+            self.description.into_into_dart().into_dart(),
+            self.search_config_json.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::generic_scraper::SourceConfigUpdate
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::SourceConfigUpdate>
+    for crate::api::generic_scraper::SourceConfigUpdate
+{
+    fn into_into_dart(self) -> crate::api::generic_scraper::SourceConfigUpdate {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceSearchProgress {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -3942,6 +4174,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceState 
             self.tier.into_into_dart().into_dart(),
             self.default_subtitle_language.into_into_dart().into_dart(),
             self.default_resolution.into_into_dart().into_dart(),
+            self.search_url.into_into_dart().into_dart(),
+            self.search_config_json.into_into_dart().into_dart(),
             self.enabled.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -4723,6 +4957,21 @@ impl SseEncode for crate::api::generic_scraper::SearchStep {
     }
 }
 
+impl SseEncode for crate::api::generic_scraper::SourceConfigUpdate {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.name, serializer);
+        <Option<String>>::sse_encode(self.new_name, serializer);
+        <Option<i32>>::sse_encode(self.tier, serializer);
+        <Option<String>>::sse_encode(self.default_subtitle_language, serializer);
+        <Option<String>>::sse_encode(self.default_resolution, serializer);
+        <Option<String>>::sse_encode(self.search_url, serializer);
+        <Option<String>>::sse_encode(self.icon_url, serializer);
+        <Option<String>>::sse_encode(self.description, serializer);
+        <Option<String>>::sse_encode(self.search_config_json, serializer);
+    }
+}
+
 impl SseEncode for crate::api::generic_scraper::SourceSearchProgress {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4752,6 +5001,8 @@ impl SseEncode for crate::api::generic_scraper::SourceState {
         <i32>::sse_encode(self.tier, serializer);
         <String>::sse_encode(self.default_subtitle_language, serializer);
         <String>::sse_encode(self.default_resolution, serializer);
+        <String>::sse_encode(self.search_url, serializer);
+        <String>::sse_encode(self.search_config_json, serializer);
         <bool>::sse_encode(self.enabled, serializer);
     }
 }

@@ -37,6 +37,11 @@ Future<List<SourceState>> getPlaybackSources() =>
 Future<String> preloadPlaybackSourceConfig() =>
     RustLib.instance.api.crateApiSimplePreloadPlaybackSourceConfig();
 
+/// 刷新播放源配置（从订阅地址重新拉取并保存到本地缓存）
+/// 只在用户点击刷新按钮时调用
+Future<String> refreshPlaybackSourceConfig() =>
+    RustLib.instance.api.crateApiSimpleRefreshPlaybackSourceConfig();
+
 Future<String> startTorrent({required String magnet}) =>
     RustLib.instance.api.crateApiSimpleStartTorrent(magnet: magnet);
 

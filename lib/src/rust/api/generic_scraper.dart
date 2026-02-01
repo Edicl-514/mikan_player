@@ -6,18 +6,34 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `calculate_match_score`, `deobfuscate_video_url`, `extract_channel_name`, `extract_core_name`, `extract_episode_number_from_text`, `generic_search_and_play_internal`, `load_playback_source_config`, `parse_chinese_number`, `preprocess_search_term`, `search_single_source_with_channels`, `search_single_source_with_progress`, `search_single_source`, `select_episode_by_number`, `try_extract_player_aaaa_url`
+// These functions are ignored because they are not marked as `pub`: `calculate_match_score`, `deobfuscate_video_url`, `extract_channel_name`, `extract_core_name`, `extract_episode_number_from_text`, `generic_search_and_play_internal`, `get_cache_file_path`, `load_from_cache`, `load_playback_source_config`, `parse_chinese_number`, `preprocess_search_term`, `save_to_cache`, `search_single_source_with_channels`, `search_single_source_with_progress`, `search_single_source`, `select_episode_by_number`, `try_extract_player_aaaa_url`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ExportedMediaSourceDataList`, `MatchVideo`, `MediaSource`, `SEASON_RE`, `SampleRoot`, `SearchConfig`, `SelectorChannelFormatFlattened`, `SelectorChannelFormatNoChannel`, `SelectorSubjectFormatA`, `SelectorSubjectFormatIndexed`, `SourceArguments`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
 
-/// 预加载播放源配置（应用启动和设置更改时调用）
-/// 验证订阅地址的JSON格式是否有效
+/// 从订阅地址刷新播放源配置并保存到本地缓存
+Future<String> refreshPlaybackSourceConfig() =>
+    RustLib.instance.api.crateApiGenericScraperRefreshPlaybackSourceConfig();
+
+/// 预加载播放源配置（应用启动时调用）
+/// 尝试从本地缓存加载配置，如果缓存不存在则从订阅地址拉取
 Future<void> preloadPlaybackSources() =>
     RustLib.instance.api.crateApiGenericScraperPreloadPlaybackSources();
 
 /// 获取所有播放源的状态
 Future<List<SourceState>> getPlaybackSources() =>
     RustLib.instance.api.crateApiGenericScraperGetPlaybackSources();
+
+/// 更新单个源的配置
+Future<void> updateSingleSourceConfig({required SourceConfigUpdate update}) =>
+    RustLib.instance.api.crateApiGenericScraperUpdateSingleSourceConfig(
+      update: update,
+    );
+
+/// 添加新的源配置
+Future<void> addSourceConfig({required SourceConfigUpdate newConfig}) => RustLib
+    .instance
+    .api
+    .crateApiGenericScraperAddSourceConfig(newConfig: newConfig);
 
 /// 搜索所有源，返回所有找到的播放页面URL列表
 /// Flutter 端可以使用 WebView 加载这些 URL 来拦截视频请求
@@ -339,6 +355,57 @@ enum SearchStep {
   failed,
 }
 
+class SourceConfigUpdate {
+  final String name;
+  final String? newName;
+  final int? tier;
+  final String? defaultSubtitleLanguage;
+  final String? defaultResolution;
+  final String? searchUrl;
+  final String? iconUrl;
+  final String? description;
+  final String? searchConfigJson;
+
+  const SourceConfigUpdate({
+    required this.name,
+    this.newName,
+    this.tier,
+    this.defaultSubtitleLanguage,
+    this.defaultResolution,
+    this.searchUrl,
+    this.iconUrl,
+    this.description,
+    this.searchConfigJson,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^
+      newName.hashCode ^
+      tier.hashCode ^
+      defaultSubtitleLanguage.hashCode ^
+      defaultResolution.hashCode ^
+      searchUrl.hashCode ^
+      iconUrl.hashCode ^
+      description.hashCode ^
+      searchConfigJson.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SourceConfigUpdate &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          newName == other.newName &&
+          tier == other.tier &&
+          defaultSubtitleLanguage == other.defaultSubtitleLanguage &&
+          defaultResolution == other.defaultResolution &&
+          searchUrl == other.searchUrl &&
+          iconUrl == other.iconUrl &&
+          description == other.description &&
+          searchConfigJson == other.searchConfigJson;
+}
+
 /// 带状态的搜索进度
 class SourceSearchProgress {
   /// 源名称
@@ -427,6 +494,8 @@ class SourceState {
   final int tier;
   final String defaultSubtitleLanguage;
   final String defaultResolution;
+  final String searchUrl;
+  final String searchConfigJson;
   final bool enabled;
 
   const SourceState({
@@ -436,6 +505,8 @@ class SourceState {
     required this.tier,
     required this.defaultSubtitleLanguage,
     required this.defaultResolution,
+    required this.searchUrl,
+    required this.searchConfigJson,
     required this.enabled,
   });
 
@@ -447,6 +518,8 @@ class SourceState {
       tier.hashCode ^
       defaultSubtitleLanguage.hashCode ^
       defaultResolution.hashCode ^
+      searchUrl.hashCode ^
+      searchConfigJson.hashCode ^
       enabled.hashCode;
 
   @override
@@ -460,5 +533,7 @@ class SourceState {
           tier == other.tier &&
           defaultSubtitleLanguage == other.defaultSubtitleLanguage &&
           defaultResolution == other.defaultResolution &&
+          searchUrl == other.searchUrl &&
+          searchConfigJson == other.searchConfigJson &&
           enabled == other.enabled;
 }

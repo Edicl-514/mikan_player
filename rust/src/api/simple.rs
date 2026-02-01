@@ -65,6 +65,22 @@ pub async fn preload_playback_source_config() -> String {
     }
 }
 
+/// 刷新播放源配置（从订阅地址重新拉取并保存到本地缓存）
+/// 只在用户点击刷新按钮时调用
+pub async fn refresh_playback_source_config() -> String {
+    log::info!("Starting to refresh playback source config from subscription URL...");
+    match crate::api::generic_scraper::refresh_playback_source_config().await {
+        Ok(_) => {
+            log::info!("Playback source config refreshed successfully");
+            "success".to_string()
+        }
+        Err(e) => {
+            log::error!("Failed to refresh playback source config: {}", e);
+            format!("error: {}", e)
+        }
+    }
+}
+
 struct AppState {
     session: Arc<Session>,
 }

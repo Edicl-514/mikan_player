@@ -95,6 +95,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MikanSearchResult dco_decode_box_autoadd_mikan_search_result(dynamic raw);
 
   @protected
+  SourceConfigUpdate dco_decode_box_autoadd_source_config_update(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
@@ -267,6 +270,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SearchStep dco_decode_search_step(dynamic raw);
 
   @protected
+  SourceConfigUpdate dco_decode_source_config_update(dynamic raw);
+
+  @protected
   SourceSearchProgress dco_decode_source_search_progress(dynamic raw);
 
   @protected
@@ -371,6 +377,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MikanSearchResult sse_decode_box_autoadd_mikan_search_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SourceConfigUpdate sse_decode_box_autoadd_source_config_update(
     SseDeserializer deserializer,
   );
 
@@ -589,6 +600,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SearchStep sse_decode_search_step(SseDeserializer deserializer);
 
   @protected
+  SourceConfigUpdate sse_decode_source_config_update(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SourceSearchProgress sse_decode_source_search_progress(
     SseDeserializer deserializer,
   );
@@ -719,6 +735,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_mikan_search_result(
     MikanSearchResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_source_config_update(
+    SourceConfigUpdate self,
     SseSerializer serializer,
   );
 
@@ -985,6 +1007,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_search_step(SearchStep self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_source_config_update(
+    SourceConfigUpdate self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_source_search_progress(

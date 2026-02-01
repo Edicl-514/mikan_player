@@ -13,6 +13,8 @@ pub struct SourceState {
     pub tier: i32,
     pub default_subtitle_language: String,
     pub default_resolution: String,
+    pub search_url: String,
+    pub search_config_json: String,
     pub enabled: bool,
 }
 
@@ -57,26 +59,26 @@ fn preprocess_search_term(name: &str) -> String {
     final_search_str
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SampleRoot {
     #[serde(rename = "exportedMediaSourceDataList")]
     pub exported_media_source_data_list: ExportedMediaSourceDataList,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ExportedMediaSourceDataList {
     #[serde(rename = "mediaSources")]
     pub media_sources: Vec<MediaSource>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MediaSource {
     #[serde(rename = "factoryId")]
     pub factory_id: String,
     pub arguments: SourceArguments,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SourceArguments {
     pub name: String,
     pub description: Option<String>,
@@ -87,7 +89,7 @@ pub struct SourceArguments {
     pub search_config: SearchConfig,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SearchConfig {
     #[serde(rename = "searchUrl")]
     pub search_url: String,
@@ -123,7 +125,7 @@ pub struct SearchConfig {
     pub match_video: MatchVideo,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SelectorSubjectFormatA {
     #[serde(rename = "selectLists")]
     pub select_lists: String,
@@ -131,7 +133,7 @@ pub struct SelectorSubjectFormatA {
     pub prefer_shorter_name: Option<bool>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SelectorSubjectFormatIndexed {
     #[serde(rename = "selectNames")]
     pub select_names: String,
@@ -141,7 +143,7 @@ pub struct SelectorSubjectFormatIndexed {
     pub prefer_shorter_name: Option<bool>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SelectorChannelFormatFlattened {
     /// 选择channel名称的CSS选择器（如线路A、简中、繁中等）
     #[serde(rename = "selectChannelNames")]
@@ -160,7 +162,7 @@ pub struct SelectorChannelFormatFlattened {
     pub match_episode_sort_from_name: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SelectorChannelFormatNoChannel {
     #[serde(rename = "selectEpisodes")]
     pub select_episodes: String,
@@ -171,7 +173,7 @@ pub struct SelectorChannelFormatNoChannel {
     pub match_episode_sort_from_name: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MatchVideo {
     #[serde(rename = "matchVideoUrl")]
     pub match_video_url: String,
@@ -737,59 +739,100 @@ pub struct SourceSearchProgress {
     pub all_channels: Option<Vec<ChannelInfo>>,
 }
 
-/// 从订阅地址拉取播放源配置 JSON
-/// 优先使用用户设置的订阅地址，失败时尝试本地备份
-async fn load_playback_source_config(client: &reqwest::Client) -> anyhow::Result<String> {
-    let sub_url = crate::api::config::get_playback_sub_url();
-    log::info!("Loading playback source config from: {}", sub_url);
+/// 获取播放源配置缓存文件路径
+fn get_cache_file_path() -> anyhow::Result<std::path::PathBuf> {
+    let app_data_dir = if cfg!(target_os = "windows") {
+        std::env::var("APPDATA")
+            .or_else(|_| std::env::var("LOCALAPPDATA"))
+            .map(|p| std::path::PathBuf::from(p))
+    } else if cfg!(target_os = "macos") {
+        std::env::var("HOME")
+            .map(|p| std::path::PathBuf::from(p).join("Library/Application Support"))
+    } else {
+        std::env::var("HOME")
+            .map(|p| std::path::PathBuf::from(p).join(".config"))
+    };
 
-    // 首先尝试从订阅地址拉取
-    match client.get(&sub_url).send().await {
-        Ok(resp) => match resp.text().await {
-            Ok(content) => {
-                log::info!("Successfully loaded config from subscription URL");
-                return Ok(content);
-            }
-            Err(e) => {
-                log::warn!("Failed to read response from subscription URL: {}", e);
-            }
-        },
-        Err(e) => {
-            log::warn!("Failed to fetch from subscription URL: {}", e);
-        }
+    let base_dir = app_data_dir
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("mikan_player");
+
+    // 确保目录存在
+    if !base_dir.exists() {
+        fs::create_dir_all(&base_dir)?;
     }
 
-    // 降级策略：尝试从本地文件读取备份
-    log::info!("Trying to load from local backup files...");
-    let local_paths = vec![
-        "sample.json",
-        "../sample.json",
-        "d:/code/mikan_player/sample.json",
-    ];
-
-    for p in local_paths {
-        if let Ok(c) = fs::read_to_string(p) {
-            log::info!("Loaded config from local file: {}", p);
-            return Ok(c);
-        }
-    }
-
-    Err(anyhow::anyhow!(
-        "Could not load playback source config from subscription URL or local files"
-    ))
+    Ok(base_dir.join("playback_sources_cache.json"))
 }
 
-/// 预加载播放源配置（应用启动和设置更改时调用）
-/// 验证订阅地址的JSON格式是否有效
-pub async fn preload_playback_sources() -> anyhow::Result<()> {
+/// 从本地缓存读取播放源配置
+fn load_from_cache() -> anyhow::Result<String> {
+    let cache_path = get_cache_file_path()?;
+    log::info!("Loading playback source config from cache: {:?}", cache_path);
+    
+    if cache_path.exists() {
+        let content = fs::read_to_string(&cache_path)?;
+        log::info!("Successfully loaded config from cache");
+        Ok(content)
+    } else {
+        Err(anyhow::anyhow!("Cache file does not exist"))
+    }
+}
+
+/// 保存播放源配置到本地缓存
+fn save_to_cache(content: &str) -> anyhow::Result<()> {
+    let cache_path = get_cache_file_path()?;
+    log::info!("Saving playback source config to cache: {:?}", cache_path);
+    fs::write(&cache_path, content)?;
+    log::info!("Successfully saved config to cache");
+    Ok(())
+}
+
+/// 从本地缓存加载播放源配置，如果缓存不存在则返回错误
+async fn load_playback_source_config(_client: &reqwest::Client) -> anyhow::Result<String> {
+    // 只从本地缓存读取
+    load_from_cache()
+}
+
+/// 从订阅地址刷新播放源配置并保存到本地缓存
+pub async fn refresh_playback_source_config() -> anyhow::Result<String> {
     let client = crate::api::network::create_client()?;
-    let content = load_playback_source_config(&client).await?;
+    let sub_url = crate::api::config::get_playback_sub_url();
+    log::info!("Refreshing playback source config from: {}", sub_url);
+
+    // 从订阅地址拉取
+    let resp = client.get(&sub_url).send().await?;
+    let content = resp.text().await?;
+    log::info!("Successfully fetched config from subscription URL");
 
     // 验证JSON格式
     let _root: SampleRoot = serde_json::from_str(&content)?;
     log::info!("Playback source config validated successfully");
 
-    Ok(())
+    // 保存到本地缓存
+    save_to_cache(&content)?;
+
+    Ok(content)
+}
+
+/// 预加载播放源配置（应用启动时调用）
+/// 尝试从本地缓存加载配置，如果缓存不存在则从订阅地址拉取
+pub async fn preload_playback_sources() -> anyhow::Result<()> {
+    // 先尝试从缓存加载
+    match load_from_cache() {
+        Ok(content) => {
+            // 验证JSON格式
+            let _root: SampleRoot = serde_json::from_str(&content)?;
+            log::info!("Playback source config loaded from cache and validated");
+            Ok(())
+        }
+        Err(e) => {
+            // 缓存不存在，从网络拉取
+            log::warn!("Failed to load from cache: {}, fetching from network...", e);
+            refresh_playback_source_config().await?;
+            Ok(())
+        }
+    }
 }
 
 /// 获取所有播放源的状态
@@ -800,6 +843,8 @@ pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
 
     let mut sources = Vec::new();
     for source in root.exported_media_source_data_list.media_sources {
+        let search_config_json = serde_json::to_string_pretty(&source.arguments.search_config)
+            .unwrap_or_else(|_| "{}".to_string());
         let name = source.arguments.name;
         let description = source.arguments.description.unwrap_or_default();
         let icon_url = source.arguments.icon_url.unwrap_or_default();
@@ -814,6 +859,7 @@ pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
             .search_config
             .default_resolution
             .unwrap_or_default();
+        let search_url = source.arguments.search_config.search_url.clone();
         let enabled = crate::api::config::is_source_enabled(&name);
         sources.push(SourceState {
             name,
@@ -822,11 +868,167 @@ pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
             tier,
             default_subtitle_language,
             default_resolution,
+            search_url,
+            search_config_json,
             enabled,
         });
     }
     Ok(sources)
 }
+
+#[derive(Debug, Clone)]
+pub struct SourceConfigUpdate {
+    pub name: String,
+    pub new_name: Option<String>,
+    pub tier: Option<i32>,
+    pub default_subtitle_language: Option<String>,
+    pub default_resolution: Option<String>,
+    pub search_url: Option<String>,
+    pub icon_url: Option<String>,
+    pub description: Option<String>,
+    pub search_config_json: Option<String>,
+}
+
+/// 更新单个源的配置
+pub async fn update_single_source_config(update: SourceConfigUpdate) -> anyhow::Result<()> {
+    let client = crate::api::network::create_client()?;
+    let content = load_playback_source_config(&client).await?;
+    let mut root: SampleRoot = serde_json::from_str(&content)?;
+
+    let mut found = false;
+    for source in &mut root.exported_media_source_data_list.media_sources {
+        if source.arguments.name == update.name {
+            if let Some(n) = update.new_name.clone() {
+                source.arguments.name = n;
+            }
+            if let Some(t) = update.tier {
+                source.arguments.tier = Some(t);
+            }
+            if let Some(desc) = &update.description {
+                source.arguments.description = Some(desc.clone());
+            }
+
+            if let Some(json) = &update.search_config_json {
+                // 尝试解析完整的 SearchConfig JSON
+                match serde_json::from_str::<SearchConfig>(json) {
+                     Ok(config) => {
+                         source.arguments.search_config = config;
+                     }
+                     Err(e) => {
+                         log::error!("Failed to parse search_config_json: {}", e);
+                         return Err(anyhow::anyhow!("Invalid JSON format for search config: {}", e));
+                     }
+                }
+            } else {
+                // 单个字段更新 (向后兼容)
+                if let Some(lang) = &update.default_subtitle_language {
+                    source.arguments.search_config.default_subtitle_language = Some(lang.clone());
+                }
+                if let Some(res) = &update.default_resolution {
+                    source.arguments.search_config.default_resolution = Some(res.clone());
+                }
+                if let Some(url) = &update.search_url {
+                    source.arguments.search_config.search_url = url.clone();
+                }
+            }
+            if let Some(i) = update.icon_url.clone() {
+                source.arguments.icon_url = Some(i);
+            }
+
+            found = true;
+            break;
+        }
+    }
+
+    if found {
+        let new_content = serde_json::to_string_pretty(&root)?;
+        save_to_cache(&new_content)?;
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("Source not found: {}", update.name))
+    }
+}
+
+/// 添加新的源配置
+pub async fn add_source_config(new_config: SourceConfigUpdate) -> anyhow::Result<()> {
+    // 检查名称是否为空
+    if new_config.name.is_empty() {
+        return Err(anyhow::anyhow!("Source name cannot be empty"));
+    }
+
+    let client = crate::api::network::create_client()?;
+    let content = match load_playback_source_config(&client).await {
+         Ok(c) => c,
+         Err(_) => {
+             // 如果不存在，创建空配置
+             let empty = SampleRoot {
+                 exported_media_source_data_list: ExportedMediaSourceDataList {
+                     media_sources: vec![]
+                 }
+             };
+             serde_json::to_string_pretty(&empty)?
+         }
+    };
+    
+    let mut root: SampleRoot = serde_json::from_str(&content).unwrap_or_else(|_| SampleRoot {
+         exported_media_source_data_list: ExportedMediaSourceDataList {
+            media_sources: vec![]
+        }
+    });
+
+    // 检查重复名称
+    for source in &root.exported_media_source_data_list.media_sources {
+        if source.arguments.name == new_config.name {
+             return Err(anyhow::anyhow!("Source with name '{}' already exists", new_config.name));
+        }
+    }
+
+    // 构建 SearchConfig
+    let search_config = if let Some(json) = &new_config.search_config_json {
+        serde_json::from_str::<SearchConfig>(json)
+            .map_err(|e| anyhow::anyhow!("Invalid SearchConfig JSON: {}", e))?
+    } else {
+        // 构建默认配置
+        SearchConfig {
+             search_url: new_config.search_url.clone().unwrap_or_default(),
+             default_subtitle_language: new_config.default_subtitle_language.clone(),
+             default_resolution: new_config.default_resolution.clone(),
+             subject_format_id: None,
+             selector_subject_format_a: None,
+             selector_subject_format_indexed: None,
+             channel_format_id: None,
+             selector_channel_format_flattened: None,
+             selector_channel_format_no_channel: None,
+             match_video: MatchVideo {
+                 match_video_url: String::new(),
+                 enable_nested_url: None,
+                 match_nested_url: None,
+                 cookies: None,
+                 add_headers_to_video: None,
+             },
+        }
+    };
+
+    let new_source = MediaSource {
+        factory_id: "web-selector".to_string(),
+        arguments: SourceArguments {
+            name: new_config.name,
+            description: new_config.description,
+            icon_url: new_config.icon_url,
+            tier: new_config.tier,
+            search_config,
+        }
+    };
+    
+    // 添加到列表
+    root.exported_media_source_data_list.media_sources.push(new_source);
+    
+    let new_content = serde_json::to_string_pretty(&root)?;
+    save_to_cache(&new_content)?;
+    
+    Ok(())
+}
+
 
 /// 搜索所有源，返回所有找到的播放页面URL列表
 /// Flutter 端可以使用 WebView 加载这些 URL 来拦截视频请求
