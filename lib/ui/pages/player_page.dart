@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -40,6 +40,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   late ScrollController _mobileEpisodeScrollController;
   bool _isDescriptionExpanded = false;
   bool _isEpisodesExpanded = false;
+
+  // Current episode (can be switched internally)
+  late BangumiEpisode _currentEpisode;
 
   List<BangumiEpisodeComment> _comments = [];
   bool _isLoadingComments = false;
@@ -117,6 +120,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _pcEpisodeScrollController = ScrollController();
     _mobileEpisodeScrollController = ScrollController();
 
+    // Initialize current episode from widget
+    _currentEpisode = widget.currentEpisode;
+
     // Initialize video player
     _player = Player();
     _videoController = VideoController(_player);
@@ -156,11 +162,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // Load danmaku based on anime title and episode
   Future<void> _loadDanmaku() async {
     final animeTitle = widget.anime.title;
-    final episodeNumber = widget.currentEpisode.sort.toInt();
+    final episodeNumber = _currentEpisode.sort.toInt();
 
     // Calculate relative episode number (1-based index in the episode list)
     final epIndex = widget.allEpisodes.indexWhere(
-      (e) => e.id == widget.currentEpisode.id,
+      (e) => e.id == _currentEpisode.id,
     );
     final relativeEpNumber = epIndex != -1 ? epIndex + 1 : episodeNumber;
 
@@ -193,7 +199,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Future<void> _loadComments() async {
-    if (widget.currentEpisode.id == 0) return;
+    if (_currentEpisode.id == 0) return;
 
     setState(() {
       _isLoadingComments = true;
@@ -202,7 +208,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     try {
       final comments = await fetchBangumiEpisodeComments(
-        episodeId: widget.currentEpisode.id,
+        episodeId: _currentEpisode.id,
       );
       if (mounted) {
         setState(() {
@@ -344,7 +350,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     try {
       final resources = await fetchDmhyResources(
         subjectId: widget.anime.bangumiId!,
-        targetEpisode: widget.currentEpisode.sort.toInt(),
+        targetEpisode: _currentEpisode.sort.toInt(),
       );
 
       if (mounted) {
@@ -367,7 +373,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   Future<void> _loadMikanSource() async {
     debugPrint("[Mikan] Starting search for playback sources...");
     debugPrint("[Mikan] Target anime title: ${widget.anime.title}");
-    debugPrint("[Mikan] Current episode sort: ${widget.currentEpisode.sort}");
+    debugPrint("[Mikan] Current episode sort: ${_currentEpisode.sort}");
 
     setState(() {
       _isLoadingMikan = true;
@@ -401,14 +407,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         });
       }
 
-      if (widget.currentEpisode.id != 0) {
+      if (_currentEpisode.id != 0) {
         final resources = await getMikanResources(
           mikanId: result.id,
-          currentEpisodeSort: widget.currentEpisode.sort.toInt(),
+          currentEpisodeSort: _currentEpisode.sort.toInt(),
         );
 
         debugPrint(
-          "[Mikan] Initial load: Found ${resources.length} resources for EP ${widget.currentEpisode.sort.toInt()}",
+          "[Mikan] Initial load: Found ${resources.length} resources for EP ${_currentEpisode.sort.toInt()}",
         );
 
         if (mounted) {
@@ -484,11 +490,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       });
 
       // 使用带进度的流式API，传入当前集号
-      final currentEpNumber = widget.currentEpisode.sort.toInt();
+      final currentEpNumber = _currentEpisode.sort.toInt();
 
       // Calculate relative episode number (1-based index in the episode list)
       final epIndex = widget.allEpisodes.indexWhere(
-        (e) => e.id == widget.currentEpisode.id,
+        (e) => e.id == _currentEpisode.id,
       );
       final relativeEpNumber = epIndex != -1 ? epIndex + 1 : currentEpNumber;
 
@@ -803,14 +809,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(PlayerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentEpisode.id != widget.currentEpisode.id) {
+    if (oldWidget.currentEpisode.id != _currentEpisode.id) {
       _loadComments();
     }
     if (oldWidget.anime.bangumiId != widget.anime.bangumiId) {
       _loadRecommendations();
       _loadMikanSource(); // Anime changed, reload search
       _loadDmhySource();
-    } else if (oldWidget.currentEpisode.sort != widget.currentEpisode.sort) {
+    } else if (oldWidget.currentEpisode.sort != _currentEpisode.sort) {
       // Episode changed, reload resources using existing mikan anime info if available
       if (_mikanAnime != null) {
         _reloadMikanResourcesForEpisode();
@@ -824,7 +830,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   Future<void> _reloadMikanResourcesForEpisode() async {
     debugPrint(
-      "[Mikan] Reloading resources for new episode: ${widget.currentEpisode.sort.toInt()}",
+      "[Mikan] Reloading resources for new episode: ${_currentEpisode.sort.toInt()}",
     );
     debugPrint("[Mikan] Using existing anime ID: ${_mikanAnime!.id}");
 
@@ -835,7 +841,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     try {
       final resources = await getMikanResources(
         mikanId: _mikanAnime!.id,
-        currentEpisodeSort: widget.currentEpisode.sort.toInt(),
+        currentEpisodeSort: _currentEpisode.sort.toInt(),
       );
       if (mounted) {
         setState(() {
@@ -964,9 +970,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           const SizedBox(height: 8),
           // Episode Info
           Text(
-            widget.currentEpisode.nameCn.isNotEmpty
-                ? widget.currentEpisode.nameCn
-                : widget.currentEpisode.name,
+            _currentEpisode.nameCn.isNotEmpty
+                ? _currentEpisode.nameCn
+                : _currentEpisode.name,
             style: const TextStyle(
               color: Colors.white70,
               fontSize: 16,
@@ -983,7 +989,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  "EP ${widget.currentEpisode.sort % 1 == 0 ? widget.currentEpisode.sort.toInt() : widget.currentEpisode.sort}",
+                  "EP ${_currentEpisode.sort % 1 == 0 ? _currentEpisode.sort.toInt() : _currentEpisode.sort}",
                   style: const TextStyle(
                     color: Color(0xFFBB86FC),
                     fontSize: 12,
@@ -1028,8 +1034,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.currentEpisode.description.isNotEmpty
-                        ? widget.currentEpisode.description
+                    _currentEpisode.description.isNotEmpty
+                        ? _currentEpisode.description
                         : "暂无简介",
                     maxLines: _isDescriptionExpanded ? null : 2,
                     overflow: _isDescriptionExpanded
@@ -1041,7 +1047,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                       height: 1.5,
                     ),
                   ),
-                  if (widget.currentEpisode.description.isNotEmpty)
+                  if (_currentEpisode.description.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Row(
@@ -1079,7 +1085,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (_mobileEpisodeScrollController.hasClients) {
                       final index = widget.allEpisodes.indexOf(
-                        widget.currentEpisode,
+                        _currentEpisode,
                       );
                       if (index != -1) {
                         final screenWidth = MediaQuery.of(context).size.width;
@@ -1153,7 +1159,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   separatorBuilder: (_, _) => const SizedBox(width: 12),
                   itemBuilder: (context, index) {
                     final ep = widget.allEpisodes[index];
-                    final isSelected = ep == widget.currentEpisode;
+                    final isSelected = ep == _currentEpisode;
                     final borderColor = isSelected
                         ? const Color(0xFFBB86FC)
                         : Colors.white10;
@@ -1314,7 +1320,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                "EP ${widget.currentEpisode.sort % 1 == 0 ? widget.currentEpisode.sort.toInt() : widget.currentEpisode.sort} - ${widget.currentEpisode.nameCn.isNotEmpty ? widget.currentEpisode.nameCn : widget.currentEpisode.name}",
+                                "EP ${_currentEpisode.sort % 1 == 0 ? _currentEpisode.sort.toInt() : _currentEpisode.sort} - ${_currentEpisode.nameCn.isNotEmpty ? _currentEpisode.nameCn : _currentEpisode.name}",
                                 style: const TextStyle(
                                   color: Colors.white70,
                                   fontSize: 14,
@@ -1622,7 +1628,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           final ep = widget.allEpisodes[index];
-          final isSelected = ep == widget.currentEpisode;
+          final isSelected = ep == _currentEpisode;
 
           return Container(
             decoration: BoxDecoration(
@@ -1713,16 +1719,65 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _onEpisodeSelected(BangumiEpisode ep) {
-    if (ep.id == widget.currentEpisode.id) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => PlayerPage(
-          anime: widget.anime,
-          currentEpisode: ep,
-          allEpisodes: widget.allEpisodes,
-        ),
-      ),
-    );
+    if (ep.id == _currentEpisode.id) return;
+    
+    // Stop current player
+    _player.stop();
+    
+    // Update current episode and reset all states
+    setState(() {
+      _currentEpisode = ep;
+      
+      // Reset video playback state
+      _currentStreamUrl = null;
+      _sampleVideoUrl = null;
+      _videoError = null;
+      _isLoadingVideo = false;
+      _loadingMagnet = null;
+      _playingSourceLabel = 'Switching...';
+      
+      // Reset all source states
+      _isLoadingMikan = false;
+      _mikanError = null;
+      _mikanResources = [];
+      
+      _isLoadingDmhy = false;
+      _dmhyError = null;
+      _dmhyResources = [];
+      
+      _isLoadingSample = false;
+      _sampleError = null;
+      _samplePlayPages = [];
+      _sampleSuccessfulSources = [];
+      _selectedSourceIndex = 0;
+      _activeWebViews.clear();
+      _webViewStatus.clear();
+      _sampleStatusMessage = '';
+      _sourceProgressMap = {};
+      _hasAutoPlayed = false;
+      _currentAutoPlayTier = 0;
+      
+      // Reset comments
+      _comments = [];
+      _isLoadingComments = false;
+      _commentsError = null;
+    });
+    
+    // Clear and reload danmaku
+    _danmakuService.clearDanmaku();
+    _loadDanmaku();
+    
+    // Reload comments
+    _loadComments();
+    
+    // Reload video sources
+    if (_mikanAnime != null) {
+      _reloadMikanResourcesForEpisode();
+    } else {
+      _loadMikanSource();
+    }
+    _loadDmhySource();
+    _loadSampleSource();
   }
 
   void _onSourceSelected(int index) {
@@ -1777,14 +1832,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               onToggleDanmakuSettings: () =>
                   setState(() => _showDanmakuSettings = !_showDanmakuSettings),
               allEpisodes: widget.allEpisodes,
-              currentEpisode: widget.currentEpisode,
+              currentEpisode: _currentEpisode,
               onEpisodeSelected: _onEpisodeSelected,
               availableSources: _sampleSuccessfulSources,
               currentSourceIndex: _selectedSourceIndex,
               currentSourceLabel: _playingSourceLabel,
               onSourceSelected: _onSourceSelected,
               isLoading: _isLoadingVideo || _loadingMagnet != null,
-              videoTitle: '${widget.anime.title} - 第${widget.currentEpisode.sort.toInt()}集',
+              videoTitle: '${widget.anime.title} - 第${_currentEpisode.sort.toInt()}集',
             ),
           );
         },
