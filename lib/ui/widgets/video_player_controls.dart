@@ -1,5 +1,9 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
@@ -7,6 +11,9 @@ import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/ui/widgets/danmaku_overlay.dart';
 import 'package:mikan_player/ui/widgets/danmaku_settings.dart';
+
+import 'package:screen_brightness/screen_brightness.dart';
+import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 
 /// 自定义视频播放器控件 - 整合弹幕与播放控制
 /// 深度集成 media_kit_video 的 Material 风格控件
@@ -494,12 +501,23 @@ class CustomVideoControls extends StatelessWidget {
                   ),
                 ),
 
-              // 3. 原生控制层 (根据主题渲染)
-              // 注意：AdaptiveVideoControls 会读取上层 MaterialVideoControlsTheme
-              // 如果我们在这里没有显式传参数，它会自己构建一个 UI。
-              // 既然我们已经用 Stack 手动包裹了 DanmakuOverlay 和 AdaptiveVideoControls，
-              // 就不应该再在外层返回这个 Stack。
+              // 3. 原生控制层
               AdaptiveVideoControls(state),
+
+              // 4. 移动端手势层 (在控制层之上)
+              if (isMobile)
+                Positioned.fill(
+                  child: _MobileMultiTapDetector(
+                    isEnabled: true,
+                    player: state.widget.controller.player,
+                    onLeftDouble: () => _onSkipTime(-10),
+                    onLeftTriple: () => _onSkipTime(-85),
+                    onCenterDouble: _togglePlayPause,
+                    onRightDouble: () => _onSkipTime(10),
+                    onRightTriple: () => _onSkipTime(85),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
 
               // 4. 右侧设置面板 (类似 Bilibili 风格)
               if (showDanmakuSettings) ...[
@@ -614,6 +632,16 @@ class CustomVideoControls extends StatelessWidget {
         : newPosition;
 
     player.seek(targetPosition);
+  }
+
+  void _togglePlayPause() {
+    final player = state.widget.controller.player;
+    final isPlaying = player.state.playing;
+    if (isPlaying) {
+      player.pause();
+    } else {
+      player.play();
+    }
   }
 
   /// 移动端设置菜单
@@ -928,6 +956,447 @@ class CustomVideoControls extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+enum _MobileTapZone { left, center, right }
+
+class _MobileMultiTapDetector extends StatefulWidget {
+  final bool isEnabled;
+  final Player player;
+  final VoidCallback onLeftDouble;
+  final VoidCallback onLeftTriple;
+  final VoidCallback onCenterDouble;
+  final VoidCallback onRightDouble;
+  final VoidCallback onRightTriple;
+  final Widget child;
+
+  const _MobileMultiTapDetector({
+    required this.isEnabled,
+    required this.player,
+    required this.onLeftDouble,
+    required this.onLeftTriple,
+    required this.onCenterDouble,
+    required this.onRightDouble,
+    required this.onRightTriple,
+    required this.child,
+  });
+
+  @override
+  State<_MobileMultiTapDetector> createState() =>
+      _MobileMultiTapDetectorState();
+}
+
+class _MobileMultiTapDetectorState extends State<_MobileMultiTapDetector> {
+  static const Duration _multiTapTimeout = Duration(milliseconds: 320);
+  static const Duration _overlayDisplayDuration = Duration(milliseconds: 600);
+  static const Duration _overlayFadeDuration = Duration(milliseconds: 160);
+
+  Timer? _tapTimer;
+  Timer? _overlayTimer;
+  int _tapCount = 0;
+  DateTime? _lastTapTime;
+  _MobileTapZone? _lastZone;
+
+  bool _isDragging = false;
+  _MobileTapZone? _dragZone;
+  double? _dragStartDy;
+  double? _dragStartBrightness;
+  double? _dragStartVolume;
+
+  bool _isDraggingHorizontal = false;
+  double? _dragStartDx;
+  Duration? _dragStartPosition;
+  Duration? _dragTargetPosition;
+
+  bool _overlayVisible = false;
+  IconData _overlayIcon = Icons.play_arrow;
+  String _overlayLabel = '';
+
+  @override
+  void dispose() {
+    _tapTimer?.cancel();
+    _overlayTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handleTap(PointerDownEvent event, BoxConstraints constraints) {
+    if (!widget.isEnabled) return;
+    if (_isDragging) return;
+    if (event.kind != PointerDeviceKind.touch &&
+        event.kind != PointerDeviceKind.stylus) {
+      return;
+    }
+
+    final width = constraints.maxWidth;
+    if (width <= 0) return;
+
+    final zone = _resolveZone(event.localPosition.dx, width);
+    final now = DateTime.now();
+
+    final isSameZone = _lastZone == zone;
+    final isWithinTimeout =
+        _lastTapTime != null &&
+        now.difference(_lastTapTime!) <= _multiTapTimeout;
+
+    if (!isSameZone || !isWithinTimeout) {
+      _tapCount = 0;
+    }
+
+    _tapCount += 1;
+    _lastZone = zone;
+    _lastTapTime = now;
+
+    _tapTimer?.cancel();
+
+    if (_tapCount >= 3) {
+      _fireAction(zone, isTriple: true);
+      _resetTapState();
+      return;
+    }
+
+    _tapTimer = Timer(_multiTapTimeout, () {
+      if (!mounted) return;
+      if (_tapCount == 2) {
+        _fireAction(zone, isTriple: false);
+      }
+      _resetTapState();
+    });
+  }
+
+  void _handleVerticalDragStart(
+    DragStartDetails details,
+    BoxConstraints constraints,
+  ) {
+    if (!widget.isEnabled) return;
+    final zone = _resolveZone(details.localPosition.dx, constraints.maxWidth);
+    if (zone == _MobileTapZone.center) return;
+
+    _isDragging = true;
+    _dragZone = zone;
+    _dragStartDy = details.localPosition.dy;
+    _resetTapState();
+
+    if (zone == _MobileTapZone.left) {
+      _prepareBrightnessOverlay();
+    } else {
+      // 隐藏系统音量条
+      try {
+        FlutterVolumeController.updateShowSystemUI(false);
+      } catch (_) {}
+      _prepareVolumeOverlay();
+    }
+  }
+
+  void _handleVerticalDragUpdate(
+    DragUpdateDetails details,
+    BoxConstraints constraints,
+  ) {
+    if (!widget.isEnabled) return;
+    if (!_isDragging || _dragZone == null || _dragStartDy == null) return;
+    if (constraints.maxHeight <= 0) return;
+
+    final delta =
+        (_dragStartDy! - details.localPosition.dy) / constraints.maxHeight;
+
+    if (_dragZone == _MobileTapZone.left) {
+      if (_dragStartBrightness == null) return;
+      final target = (_dragStartBrightness! + delta).clamp(0.0, 1.0);
+      _setBrightness(target);
+      _showBrightnessOverlay(target);
+    } else if (_dragZone == _MobileTapZone.right) {
+      if (_dragStartVolume == null) return;
+      final target = (_dragStartVolume! + delta).clamp(0.0, 1.0);
+      _setSystemVolume(target);
+      _showVolumeOverlay(target);
+    }
+  }
+
+  void _handleVerticalDragEnd() {
+    if (!_isDragging) return;
+
+    // 恢复系统音量条显示
+    if (_dragZone == _MobileTapZone.right) {
+      try {
+        FlutterVolumeController.updateShowSystemUI(true);
+      } catch (_) {}
+    }
+
+    _isDragging = false;
+    _dragZone = null;
+    _dragStartDy = null;
+    _dragStartBrightness = null;
+    _dragStartVolume = null;
+    _scheduleOverlayHide();
+  }
+
+  _MobileTapZone _resolveZone(double dx, double width) {
+    final third = width / 3;
+    if (dx < third) return _MobileTapZone.left;
+    if (dx < third * 2) return _MobileTapZone.center;
+    return _MobileTapZone.right;
+  }
+
+  void _fireAction(_MobileTapZone zone, {required bool isTriple}) {
+    switch (zone) {
+      case _MobileTapZone.left:
+        if (isTriple) {
+          _showOverlay(Icons.fast_rewind, '快退 85s');
+          widget.onLeftTriple();
+        } else {
+          _showOverlay(Icons.replay_10, '快退 10s');
+          widget.onLeftDouble();
+        }
+        break;
+      case _MobileTapZone.center:
+        if (!isTriple) {
+          final isPlaying = widget.player.state.playing;
+          _showOverlay(
+            isPlaying ? Icons.pause : Icons.play_arrow,
+            isPlaying ? '暂停' : '播放',
+          );
+          widget.onCenterDouble();
+        }
+        break;
+      case _MobileTapZone.right:
+        if (isTriple) {
+          _showOverlay(Icons.fast_forward, '快进 85s');
+          widget.onRightTriple();
+        } else {
+          _showOverlay(Icons.forward_10, '快进 10s');
+          widget.onRightDouble();
+        }
+        break;
+    }
+  }
+
+  void _showOverlay(IconData icon, String label) {
+    _overlayTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _overlayIcon = icon;
+      _overlayLabel = label;
+      _overlayVisible = true;
+    });
+    _overlayTimer = Timer(_overlayDisplayDuration, () {
+      if (!mounted) return;
+      setState(() => _overlayVisible = false);
+    });
+  }
+
+  void _scheduleOverlayHide() {
+    _overlayTimer?.cancel();
+    _overlayTimer = Timer(_overlayDisplayDuration, () {
+      if (!mounted) return;
+      setState(() => _overlayVisible = false);
+    });
+  }
+
+  void _showBrightnessOverlay(double value) {
+    final percent = (value * 100).round();
+    _showOverlay(Icons.brightness_6, '亮度 $percent%');
+  }
+
+  void _showVolumeOverlay(double value) {
+    final percent = (value * 100).round().clamp(0, 100);
+    final icon = percent == 0
+        ? Icons.volume_off
+        : percent < 50
+        ? Icons.volume_down
+        : Icons.volume_up;
+    _showOverlay(icon, '音量 $percent%');
+  }
+
+  Future<void> _prepareBrightnessOverlay() async {
+    try {
+      final current = await ScreenBrightness().current;
+      _dragStartBrightness = current;
+      _showBrightnessOverlay(current);
+    } catch (_) {
+      _dragStartBrightness = null;
+    }
+  }
+
+  Future<void> _setBrightness(double value) async {
+    try {
+      await ScreenBrightness().setScreenBrightness(value);
+    } catch (_) {
+      // 忽略不支持的平台/权限错误
+    }
+  }
+
+  Future<void> _prepareVolumeOverlay() async {
+    try {
+      final current = await FlutterVolumeController.getVolume();
+      _dragStartVolume = current;
+      _showVolumeOverlay(current ?? 0);
+    } catch (_) {
+      _dragStartVolume = null;
+    }
+  }
+
+  Future<void> _setSystemVolume(double value) async {
+    try {
+      await FlutterVolumeController.setVolume(value);
+    } catch (_) {
+      // 忽略错误
+    }
+  }
+
+  void _resetTapState() {
+    _tapTimer?.cancel();
+    _tapTimer = null;
+    _tapCount = 0;
+    _lastTapTime = null;
+    _lastZone = null;
+  }
+
+  void _handleHorizontalDragStart(
+    DragStartDetails details,
+    BoxConstraints constraints,
+  ) {
+    if (!widget.isEnabled) return;
+
+    _isDraggingHorizontal = true;
+    _dragStartDx = details.localPosition.dx;
+    _dragStartPosition = widget.player.state.position;
+    _dragTargetPosition = _dragStartPosition;
+    _resetTapState();
+
+    _showSeekOverlay(_dragStartPosition!, _dragStartPosition!);
+  }
+
+  void _handleHorizontalDragUpdate(
+    DragUpdateDetails details,
+    BoxConstraints constraints,
+  ) {
+    if (!widget.isEnabled) return;
+    if (!_isDraggingHorizontal || _dragStartDx == null) return;
+    if (constraints.maxWidth <= 0) return;
+
+    final deltaPixels = details.localPosition.dx - _dragStartDx!;
+    // 每100像素代表10秒
+    final deltaSeconds = (deltaPixels / 100) * 10;
+
+    final duration = widget.player.state.duration;
+    final newPosition = (_dragStartPosition!.inSeconds + deltaSeconds.round())
+        .clamp(0, duration.inSeconds);
+
+    _dragTargetPosition = Duration(seconds: newPosition);
+    _showSeekOverlay(_dragStartPosition!, _dragTargetPosition!);
+  }
+
+  void _handleHorizontalDragEnd() {
+    if (!_isDraggingHorizontal) return;
+
+    if (_dragTargetPosition != null) {
+      widget.player.seek(_dragTargetPosition!);
+    }
+
+    _isDraggingHorizontal = false;
+    _dragStartDx = null;
+    _dragStartPosition = null;
+    _dragTargetPosition = null;
+    _scheduleOverlayHide();
+  }
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    final seconds = duration.inSeconds.remainder(60);
+
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    } else {
+      return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    }
+  }
+
+  void _showSeekOverlay(Duration startPos, Duration targetPos) {
+    final delta = targetPos.inSeconds - startPos.inSeconds;
+    final icon = delta >= 0 ? Icons.fast_forward : Icons.fast_rewind;
+    final label =
+        '${_formatDuration(targetPos)} ${delta >= 0 ? "+" : ""}${delta}s';
+
+    _overlayTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _overlayIcon = icon;
+      _overlayLabel = label;
+      _overlayVisible = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.isEnabled) return widget.child;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onVerticalDragStart: (details) =>
+              _handleVerticalDragStart(details, constraints),
+          onVerticalDragUpdate: (details) =>
+              _handleVerticalDragUpdate(details, constraints),
+          onVerticalDragEnd: (_) => _handleVerticalDragEnd(),
+          onVerticalDragCancel: _handleVerticalDragEnd,
+          onHorizontalDragStart: (details) =>
+              _handleHorizontalDragStart(details, constraints),
+          onHorizontalDragUpdate: (details) =>
+              _handleHorizontalDragUpdate(details, constraints),
+          onHorizontalDragEnd: (_) => _handleHorizontalDragEnd(),
+          onHorizontalDragCancel: _handleHorizontalDragEnd,
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (event) => _handleTap(event, constraints),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                widget.child,
+                IgnorePointer(
+                  child: Center(
+                    child: AnimatedOpacity(
+                      opacity: _overlayVisible ? 1.0 : 0.0,
+                      duration: _overlayFadeDuration,
+                      child: AnimatedScale(
+                        scale: _overlayVisible ? 1.0 : 0.9,
+                        duration: _overlayFadeDuration,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(_overlayIcon, color: Colors.white, size: 36),
+                              const SizedBox(height: 6),
+                              Text(
+                                _overlayLabel,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
