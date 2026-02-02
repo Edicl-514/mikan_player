@@ -77,7 +77,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   final Map<String, String> _webViewStatus =
       {}; // WebView状态消息 (sourceName -> message)
   final Set<String> _failedWebViewPageKeys = {}; // 提取失败的WebView Key
-  final int _maxConcurrentWebViews = 3; // 最大并发WebView数量
+  final int _maxConcurrentWebViews =
+      1; // 最大并发WebView数量 (Reduced from 3 to prevent lag)
   String _sampleStatusMessage = ''; // WebView 提取状态消息
   bool _showWebView = false; // 是否显示 WebView（调试用）
 
@@ -840,50 +841,56 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   /// 启动下一个WebView提取任务
+  /// 启动下一个WebView提取任务
   void _startNextWebViewExtraction() {
     if (!mounted) return;
 
-    // 如果已经达到并发上限，不启动新的
-    if (_activeWebViews.length >= _maxConcurrentWebViews) return;
+    // 延迟200ms启动，避免连续启动造成的UI卡顿，同时确保上一个WebView有足够时间释放资源
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (!mounted) return;
 
-    // 创建唯一标识：sourceName + channelIndex
-    String getPageKey(SearchPlayResult page) {
-      return '${page.sourceName}_${page.channelIndex ?? -1}';
-    }
+      // 如果已经达到并发上限，不启动新的
+      if (_activeWebViews.length >= _maxConcurrentWebViews) return;
 
-    // 找到下一个需要提取的源
-    final needsExtraction = _samplePlayPages.where((page) {
-      final pageKey = getPageKey(page);
-      final alreadySuccessful = _sampleSuccessfulSources.any(
-        (s) => getPageKey(s) == pageKey,
-      );
-      final alreadyActive = _activeWebViews.containsKey(pageKey);
-      final alreadyFailed = _failedWebViewPageKeys.contains(pageKey);
-      return !alreadySuccessful && !alreadyActive && !alreadyFailed;
-    }).toList();
-
-    if (needsExtraction.isEmpty) {
-      // 检查是否所有提取都完成了
-      if (_activeWebViews.isEmpty) {
-        setState(() {
-          _isLoadingSample = false;
-          if (_sampleSuccessfulSources.isEmpty) {
-            _sampleError = '所有源都无法提取视频链接';
-          } else {
-            _sampleStatusMessage =
-                '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
-          }
-        });
+      // 创建唯一标识：sourceName + channelIndex
+      String getPageKey(SearchPlayResult page) {
+        return '${page.sourceName}_${page.channelIndex ?? -1}';
       }
-      return;
-    }
 
-    // 启动下一个
-    final page = needsExtraction.first;
-    final pageKey = getPageKey(page);
-    setState(() {
-      _activeWebViews[pageKey] = true;
-      _webViewStatus[pageKey] = '正在提取...';
+      // 找到下一个需要提取的源
+      final needsExtraction = _samplePlayPages.where((page) {
+        final pageKey = getPageKey(page);
+        final alreadySuccessful = _sampleSuccessfulSources.any(
+          (s) => getPageKey(s) == pageKey,
+        );
+        final alreadyActive = _activeWebViews.containsKey(pageKey);
+        final alreadyFailed = _failedWebViewPageKeys.contains(pageKey);
+        return !alreadySuccessful && !alreadyActive && !alreadyFailed;
+      }).toList();
+
+      if (needsExtraction.isEmpty) {
+        // 检查是否所有提取都完成了
+        if (_activeWebViews.isEmpty) {
+          setState(() {
+            _isLoadingSample = false;
+            if (_sampleSuccessfulSources.isEmpty) {
+              _sampleError = '所有源都无法提取视频链接';
+            } else {
+              _sampleStatusMessage =
+                  '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
+            }
+          });
+        }
+        return;
+      }
+
+      // 启动下一个
+      final page = needsExtraction.first;
+      final pageKey = getPageKey(page);
+      setState(() {
+        _activeWebViews[pageKey] = true;
+        _webViewStatus[pageKey] = '正在提取...';
+      });
     });
   }
 

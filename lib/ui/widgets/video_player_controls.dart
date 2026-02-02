@@ -243,6 +243,9 @@ class CustomVideoControls extends StatelessWidget {
         // 将进度条移到按钮栏上方，更容易点击
         seekBarMargin: const EdgeInsets.only(bottom: 48),
         seekBarThumbSize: 14, // 稍微增大滑块以便更容易点击
+        // 调整触摸区域，让判定位置与视觉位置对齐
+        seekBarContainerHeight: 24, // 减小触摸区域高度（默认36px）
+        seekBarAlignment: Alignment.center, // 进度条在容器中居中对齐
       ),
       fullscreen: MaterialVideoControlsThemeData(
         topButtonBar: mobileFullscreenTopButtonBar,
@@ -252,6 +255,9 @@ class CustomVideoControls extends StatelessWidget {
         // 将进度条移到按钮栏上方，更容易点击
         seekBarMargin: const EdgeInsets.only(bottom: 48),
         seekBarThumbSize: 14, // 稍微增大滑块以便更容易点击
+        // 调整触摸区域，让判定位置与视觉位置对齐
+        seekBarContainerHeight: 24, // 减小触摸区域高度（默认36px）
+        seekBarAlignment: Alignment.center, // 进度条在容器中居中对齐
       ),
       child: MaterialDesktopVideoControlsTheme(
         normal: MaterialDesktopVideoControlsThemeData(
@@ -462,8 +468,7 @@ class CustomVideoControls extends StatelessWidget {
                   right: 0,
                   top: 0,
                   // 底部留出足够空间给进度条和按钮栏
-                  // 进度条容器 36px + 间距 4px + 按钮区域 48px = 88px，加上额外空间共 92px
-                  bottom: 92,
+                  bottom: 80,
                   child: _MobileMultiTapDetector(
                     isEnabled: true,
                     player: state.widget.controller.player,
