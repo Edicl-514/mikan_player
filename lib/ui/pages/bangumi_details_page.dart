@@ -1404,7 +1404,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         _buildSectionTitle(context, "角色", isDarkBg: isDarkBg),
         const SizedBox(height: 12),
         SizedBox(
-          height: 228, // Reduced to bring scrollbar closer
+          height:
+              240, // Increased from 228 to avoid overflow when names are long
           child: Scrollbar(
             controller: _charactersScrollController,
             thumbVisibility: true,

@@ -334,12 +334,10 @@ pub async fn fetch_bangumi_comments(
                     .unwrap_or_default();
                 let html = node
                     .map(|e| {
-                        e.html()
-                            .replace("src=\"//", "src=\"https://")
-                            .replace(
-                                "src=\"/img/",
-                                &format!("src=\"{}/img/", crate::api::config::get_bangumi_url()),
-                            )
+                        e.html().replace("src=\"//", "src=\"https://").replace(
+                            "src=\"/img/",
+                            &format!("src=\"{}/img/", crate::api::config::get_bangumi_url()),
+                        )
                     })
                     .unwrap_or_default();
                 (text, html)

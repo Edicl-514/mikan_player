@@ -1,4 +1,5 @@
 ﻿import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -455,6 +456,89 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   Map<String, int> _sourceTiers = {};
 
+  List<String> _extractAliasesFromBangumiJson(String? fullJson) {
+    if (fullJson == null || fullJson.isEmpty) return [];
+
+    try {
+      final data = jsonDecode(fullJson);
+      if (data is! Map) return [];
+
+      final infobox = data['infobox'];
+      if (infobox is! List) return [];
+
+      final aliases = <String>[];
+      for (final item in infobox) {
+        if (item is! Map) continue;
+        final key = item['key']?.toString() ?? '';
+        final lowerKey = key.toLowerCase();
+        final isAliasKey =
+            key.contains('别名') || key.contains('別名') || key.contains('别称') ||
+            lowerKey.contains('alias');
+        if (!isAliasKey) continue;
+
+        final value = item['value'];
+        final values = <String>[];
+        if (value is List) {
+          for (final v in value) {
+            if (v is Map && v['v'] != null) {
+              values.add(v['v'].toString());
+            } else if (v != null) {
+              values.add(v.toString());
+            }
+          }
+        } else if (value != null) {
+          values.add(value.toString());
+        }
+
+        for (final raw in values) {
+          for (final part in raw.split(RegExp(r'[\\/、,，;；·・]'))) {
+            final trimmed = part.trim();
+            if (trimmed.isNotEmpty) {
+              aliases.add(trimmed);
+            }
+          }
+        }
+      }
+
+      return aliases;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  String _buildSearchNameForSources() {
+    final title = widget.anime.title.trim();
+    final candidates = <String>[];
+
+    void addCandidate(String? value) {
+      if (value == null) return;
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return;
+      candidates.add(trimmed);
+    }
+
+    addCandidate(title);
+    addCandidate(widget.anime.subTitle);
+    for (final alias in _extractAliasesFromBangumiJson(widget.anime.fullJson)) {
+      addCandidate(alias);
+    }
+
+    final unique = <String>[];
+    final seen = <String>{};
+    for (final item in candidates) {
+      final key = item.toLowerCase();
+      if (seen.add(key)) {
+        unique.add(item);
+      }
+    }
+
+    if (unique.isEmpty) {
+      return title;
+    }
+
+    return unique.join('||');
+  }
+
   Future<void> _loadSampleSource() async {
     setState(() {
       _isLoadingSample = true;
@@ -510,8 +594,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       );
       final relativeEpNumber = epIndex != -1 ? epIndex + 1 : currentEpNumber;
 
+      final searchName = _buildSearchNameForSources();
+
       await for (final progress in genericSearchWithProgress(
-        animeName: widget.anime.title,
+        animeName: searchName,
         absoluteEpisode: currentEpNumber,
         relativeEpisode: relativeEpNumber,
       )) {

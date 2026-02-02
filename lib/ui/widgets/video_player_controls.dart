@@ -466,7 +466,7 @@ class CustomVideoControls extends StatelessWidget {
                 Positioned(
                   left: 0,
                   right: 0,
-                  top: 0,
+                  top: 40,
                   // 底部留出足够空间给进度条和按钮栏
                   bottom: 80,
                   child: _MobileMultiTapDetector(
