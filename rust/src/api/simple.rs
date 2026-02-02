@@ -116,7 +116,17 @@ async fn ensure_initialized() -> anyhow::Result<Arc<tokio::sync::Mutex<AppState>
     // Enable DHT for better peer discovery (especially for magnets)
     // This is crucial for discovering peers from magnet links
     options.disable_dht = false;
-    options.disable_dht_persistence = false;
+
+    // Disable DHT persistence on Android to avoid initialization errors.
+    // Some Android file systems or permission settings can cause issues with the DHT state file.
+    #[cfg(target_os = "android")]
+    {
+        options.disable_dht_persistence = true;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        options.disable_dht_persistence = false;
+    }
 
     // Optimize peer connections for faster downloads
     options.peer_opts = Some(librqbit::PeerConnectionOptions {

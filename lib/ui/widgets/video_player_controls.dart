@@ -147,101 +147,46 @@ class CustomVideoControls extends StatelessWidget {
     ];
 
     // 移动端 - 非全屏底部按钮栏
+    // 注意：进度条由 media_kit 内置的 displaySeekBar 处理
     final mobileNormalBottomButtonBar = [
-      Expanded(
-        child: SizedBox(
-          height: 48,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.bottomCenter,
-            children: [
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const MaterialSeekBar(),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const SizedBox(width: 8),
-                        const MaterialPlayOrPauseButton(),
-                        const SizedBox(width: 8),
-                        const MaterialPositionIndicator(),
-                        const Spacer(),
-                        const MaterialFullscreenButton(),
-                        const SizedBox(width: 8),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      const SizedBox(width: 8),
+      const MaterialPlayOrPauseButton(),
+      const SizedBox(width: 8),
+      const MaterialPositionIndicator(),
+      const Spacer(),
+      const MaterialFullscreenButton(),
+      const SizedBox(width: 8),
     ];
 
     // 移动端 - 全屏底部按钮栏
+    // 注意：进度条由 media_kit 内置的 displaySeekBar 处理
     final mobileFullscreenBottomButtonBar = [
-      Expanded(
-        child: SizedBox(
-          height: 48,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.bottomCenter,
-            children: [
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const MaterialSeekBar(),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const SizedBox(width: 16),
-                        if (!isFirstEpisode) ...[
-                          _buildSkipButton(
-                            icon: Icons.skip_previous,
-                            onPressed: () => _onSkipPrevious(),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        const MaterialPlayOrPauseButton(),
-                        if (!isLastEpisode) ...[
-                          const SizedBox(width: 8),
-                          _buildSkipButton(
-                            icon: Icons.skip_next,
-                            onPressed: () => _onSkipNext(),
-                          ),
-                        ],
-                        const SizedBox(width: 8),
-                        const MaterialPositionIndicator(),
-                        const Spacer(),
-                        Builder(
-                          builder: (ctx) => _buildIntegratedButton(
-                            icon: Icons.playlist_play,
-                            label: "选集",
-                            onPressed: () => _showEpisodeSidePanel(ctx),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const MaterialFullscreenButton(),
-                        const SizedBox(width: 16),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+      const SizedBox(width: 16),
+      if (!isFirstEpisode) ...[
+        _buildSkipButton(
+          icon: Icons.skip_previous,
+          onPressed: () => _onSkipPrevious(),
+        ),
+        const SizedBox(width: 8),
+      ],
+      const MaterialPlayOrPauseButton(),
+      if (!isLastEpisode) ...[
+        const SizedBox(width: 8),
+        _buildSkipButton(icon: Icons.skip_next, onPressed: () => _onSkipNext()),
+      ],
+      const SizedBox(width: 8),
+      const MaterialPositionIndicator(),
+      const Spacer(),
+      Builder(
+        builder: (ctx) => _buildIntegratedButton(
+          icon: Icons.playlist_play,
+          label: "选集",
+          onPressed: () => _showEpisodeSidePanel(ctx),
         ),
       ),
+      const SizedBox(width: 8),
+      const MaterialFullscreenButton(),
+      const SizedBox(width: 16),
     ];
 
     // 桌面端 - 非全屏顶部按钮栏（显示空降按钮）
@@ -294,13 +239,19 @@ class CustomVideoControls extends StatelessWidget {
         topButtonBar: mobileNormalTopButtonBar,
         bottomButtonBar: mobileNormalBottomButtonBar,
         primaryButtonBar: [], // 移除中间按钮
-        displaySeekBar: false,
+        displaySeekBar: true, // 使用 media_kit 内置进度条
+        // 将进度条移到按钮栏上方，更容易点击
+        seekBarMargin: const EdgeInsets.only(bottom: 48),
+        seekBarThumbSize: 14, // 稍微增大滑块以便更容易点击
       ),
       fullscreen: MaterialVideoControlsThemeData(
         topButtonBar: mobileFullscreenTopButtonBar,
         bottomButtonBar: mobileFullscreenBottomButtonBar,
         primaryButtonBar: [], // 移除中间按钮
-        displaySeekBar: false,
+        displaySeekBar: true, // 使用 media_kit 内置进度条
+        // 将进度条移到按钮栏上方，更容易点击
+        seekBarMargin: const EdgeInsets.only(bottom: 48),
+        seekBarThumbSize: 14, // 稍微增大滑块以便更容易点击
       ),
       child: MaterialDesktopVideoControlsTheme(
         normal: MaterialDesktopVideoControlsThemeData(
@@ -504,9 +455,15 @@ class CustomVideoControls extends StatelessWidget {
               // 3. 原生控制层
               AdaptiveVideoControls(state),
 
-              // 4. 移动端手势层 (在控制层之上)
+              // 4. 移动端手势层 (在控制层之上，但不覆盖底部控件区域)
               if (isMobile)
-                Positioned.fill(
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  // 底部留出足够空间给进度条和按钮栏
+                  // 进度条容器 36px + 间距 4px + 按钮区域 48px = 88px，加上额外空间共 92px
+                  bottom: 92,
                   child: _MobileMultiTapDetector(
                     isEnabled: true,
                     player: state.widget.controller.player,
@@ -1073,6 +1030,7 @@ class _MobileMultiTapDetectorState extends State<_MobileMultiTapDetector> {
     BoxConstraints constraints,
   ) {
     if (!widget.isEnabled) return;
+
     final zone = _resolveZone(details.localPosition.dx, constraints.maxWidth);
     if (zone == _MobileTapZone.center) return;
 
