@@ -42,6 +42,10 @@ class CustomVideoControls extends StatelessWidget {
   final Function(int) onSourceSelected;
   final String currentSourceLabel;
 
+  // 播放设置
+  final bool isAutoPlayNextEnabled;
+  final VoidCallback onToggleAutoPlayNext;
+
   // 加载状态
   final bool isLoading;
 
@@ -67,6 +71,8 @@ class CustomVideoControls extends StatelessWidget {
     this.currentSourceLabel = '未知',
     this.isLoading = false,
     this.videoTitle,
+    required this.isAutoPlayNextEnabled,
+    required this.onToggleAutoPlayNext,
   });
 
   @override
@@ -631,6 +637,8 @@ class CustomVideoControls extends StatelessWidget {
                 availableSources: availableSources,
                 currentSourceIndex: currentSourceIndex,
                 currentSourceLabel: currentSourceLabel,
+                isAutoPlayNextEnabled: isAutoPlayNextEnabled,
+                onToggleAutoPlayNext: onToggleAutoPlayNext,
                 onSourceSelected: (index) {
                   Navigator.pop(context);
                   onSourceSelected(index);
@@ -669,6 +677,8 @@ class CustomVideoControls extends StatelessWidget {
             availableSources: availableSources,
             currentSourceIndex: currentSourceIndex,
             currentSourceLabel: currentSourceLabel,
+            isAutoPlayNextEnabled: isAutoPlayNextEnabled,
+            onToggleAutoPlayNext: onToggleAutoPlayNext,
             onSourceSelected: (index) {
               Navigator.pop(context);
               onSourceSelected(index);
@@ -700,6 +710,8 @@ class CustomVideoControls extends StatelessWidget {
               availableSources: availableSources,
               currentSourceIndex: currentSourceIndex,
               currentSourceLabel: currentSourceLabel,
+              isAutoPlayNextEnabled: isAutoPlayNextEnabled,
+              onToggleAutoPlayNext: onToggleAutoPlayNext,
               onSourceSelected: (index) {
                 Navigator.pop(context);
                 onSourceSelected(index);
@@ -1376,6 +1388,8 @@ class _SettingsPanel extends StatefulWidget {
   final int currentSourceIndex;
   final String currentSourceLabel;
   final Function(int) onSourceSelected;
+  final bool isAutoPlayNextEnabled;
+  final VoidCallback onToggleAutoPlayNext;
   final ScrollController? scrollController;
 
   const _SettingsPanel({
@@ -1386,6 +1400,8 @@ class _SettingsPanel extends StatefulWidget {
     required this.currentSourceIndex,
     required this.currentSourceLabel,
     required this.onSourceSelected,
+    required this.isAutoPlayNextEnabled,
+    required this.onToggleAutoPlayNext,
     this.scrollController,
   });
 
@@ -1542,6 +1558,17 @@ class _SettingsPanelState extends State<_SettingsPanel> {
               ? '暂无可用源'
               : '${widget.currentSourceLabel} (${widget.availableSources.length}个可用)',
           onTap: () => setState(() => _currentPage = 3),
+        ),
+        const SizedBox(height: 16),
+        const Divider(color: Colors.white12, height: 1),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _buildSwitchRow(
+            title: '自动连播',
+            value: widget.isAutoPlayNextEnabled,
+            onChanged: (v) => widget.onToggleAutoPlayNext(),
+          ),
         ),
       ],
     );

@@ -7,6 +7,7 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/mikan.dart';
 import 'package:mikan_player/src/rust/api/dmhy.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
@@ -86,6 +87,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   // Auto Play Logic
   bool _hasAutoPlayed = false;
+  bool _isAutoPlayNextEnabled = true;
 
   // 每个源的搜索进度状态
   Map<String, SourceSearchProgress> _sourceProgressMap = {};
@@ -114,6 +116,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   bool _showDanmakuSettings = false;
   StreamSubscription? _positionSubscription;
   StreamSubscription? _playingSubscription;
+  StreamSubscription? _completedSubscription;
 
   // Subtitle
   final SubtitleService _subtitleService = SubtitleService();
@@ -160,6 +163,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
     });
 
+    // Subscribe to player completion for auto-play next
+    _completedSubscription = _player.stream.completed.listen((completed) {
+      if (completed && _isAutoPlayNextEnabled && mounted) {
+        debugPrint('[Player] Video completed, auto-playing next episode...');
+        _onSkipNext();
+      }
+    });
+
     _loadComments();
     _loadRecommendations();
     _loadRecommendations();
@@ -168,6 +179,29 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _loadDmhySource();
     _loadSampleSource();
     _loadDanmaku();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(() {
+          _isAutoPlayNextEnabled = prefs.getBool('auto_play_next') ?? true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading settings: $e');
+    }
+  }
+
+  Future<void> _saveAutoPlaySetting(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('auto_play_next', value);
+    } catch (e) {
+      debugPrint('Error saving settings: $e');
+    }
   }
 
   // Load danmaku based on anime title and episode
@@ -1078,14 +1112,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _positionSubscription?.cancel();
+    _playingSubscription?.cancel();
+    _completedSubscription?.cancel();
     _mobileTabController.dispose();
     _pcEpisodeScrollController.dispose();
     _mobileEpisodeScrollController.dispose();
-    _positionSubscription?.cancel();
-    _playingSubscription?.cancel();
     _subtitleService.dispose();
-    // 确保播放器完全停止后再释放
-    _player.stop();
+    _player.stop(); // 确保播放器完全停止后再释放
     _player.dispose();
     super.dispose();
   }
@@ -1797,7 +1831,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   delegate: SliverChildListDelegate([
                     _buildSectionHeader("播放列表"),
                     const SizedBox(height: 12),
-                    _buildInfoBox("选集", "自动连播"),
+                    const Text(
+                      "选集",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                   ]),
                 ),
@@ -1933,6 +1973,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         },
       ),
     );
+  }
+
+  void _onSkipNext() {
+    final currentIndex = widget.allEpisodes.indexOf(_currentEpisode);
+    if (currentIndex < widget.allEpisodes.length - 1) {
+      _onEpisodeSelected(widget.allEpisodes[currentIndex + 1]);
+    }
   }
 
   void _onEpisodeSelected(BangumiEpisode ep) {
@@ -2128,6 +2175,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               allEpisodes: widget.allEpisodes,
               currentEpisode: _currentEpisode,
               onEpisodeSelected: _onEpisodeSelected,
+              isAutoPlayNextEnabled: _isAutoPlayNextEnabled,
+              onToggleAutoPlayNext: () {
+                final newValue = !_isAutoPlayNextEnabled;
+                setState(() {
+                  _isAutoPlayNextEnabled = newValue;
+                });
+                _saveAutoPlaySetting(newValue);
+              },
               availableSources: _sampleSuccessfulSources,
               currentSourceIndex: _selectedSourceIndex,
               currentSourceLabel: _playingSourceLabel,
@@ -3885,31 +3940,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           heroTagPrefix: 'player_rec_${item.bangumiId}',
         ),
       ),
-    );
-  }
-
-  Widget _buildInfoBox(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Row(
-          children: [
-            Text(
-              value,
-              style: TextStyle(color: Colors.grey[400], fontSize: 13),
-            ),
-            const SizedBox(width: 4),
-            Icon(Icons.toggle_on, color: const Color(0xFFBB86FC), size: 32),
-          ],
-        ),
-      ],
     );
   }
 }
