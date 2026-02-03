@@ -12,6 +12,7 @@ import 'package:mikan_player/src/http_overrides.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
+import 'package:mikan_player/services/download_manager.dart';
 import 'dart:io';
 import 'package:mikan_player/services/user_manager.dart';
 
@@ -37,6 +38,9 @@ Future<void> main() async {
 
   // Initialize UserManager
   await UserManager().init();
+
+  // Initialize DownloadManager (load saved BT tasks)
+  await DownloadManager().initialize();
 
   // Initialize MediaKit
   MediaKit.ensureInitialized();

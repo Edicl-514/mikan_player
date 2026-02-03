@@ -5,6 +5,10 @@ import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/ui/pages/favorites_page.dart';
 import 'package:mikan_player/ui/pages/history_page.dart';
+import 'package:mikan_player/ui/pages/player_page.dart';
+import 'package:mikan_player/src/rust/api/crawler.dart';
+import 'package:mikan_player/src/rust/api/bangumi.dart';
+import 'package:mikan_player/services/playback_history_manager.dart';
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -78,7 +82,7 @@ class _MyPageState extends State<MyPage> {
                 style: TextStyle(
                   color: Theme.of(
                     context,
-                  ).colorScheme.onPrimaryContainer.withOpacity(0.8),
+                  ).colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
                 ),
               ),
               currentAccountPicture: CircleAvatar(
@@ -166,6 +170,7 @@ class _MyPageState extends State<MyPage> {
 
   Widget _buildDownloadsTile(BuildContext context) {
     final activeCount = _downloadManager.activeCount;
+    final seedingCount = _downloadManager.seedingCount;
 
     return Card(
       elevation: 0,
@@ -178,6 +183,7 @@ class _MyPageState extends State<MyPage> {
         leading: Stack(
           children: [
             Icon(Icons.download, color: Theme.of(context).colorScheme.primary),
+            // Show red badge only for active downloads (not seeding)
             if (activeCount > 0)
               Positioned(
                 right: -2,
@@ -198,6 +204,27 @@ class _MyPageState extends State<MyPage> {
                   ),
                 ),
               ),
+            // Show green badge for seeding only if no active downloads
+            if (activeCount == 0 && seedingCount > 0)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '$seedingCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
         title: const Text(
@@ -206,8 +233,10 @@ class _MyPageState extends State<MyPage> {
         ),
         subtitle: Text(
           activeCount > 0
-              ? '$activeCount active downloads'
-              : 'Manage cached episodes',
+              ? '$activeCount 下载中${seedingCount > 0 ? ', $seedingCount 做种中' : ''}'
+              : seedingCount > 0
+                  ? '$seedingCount 做种中'
+                  : '管理下载的视频',
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
@@ -496,181 +525,361 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
   Widget _buildDownloadItem(DownloadTask task) {
     final statusColor = _getStatusColor(task.status);
     final statusIcon = _getStatusIcon(task.status);
+    final canPlay = task.streamUrl != null && 
+        (task.status == DownloadTaskStatus.downloading ||
+         task.status == DownloadTaskStatus.seeding ||
+         task.status == DownloadTaskStatus.paused && task.progress > 5);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Title row
-            Row(
-              children: [
-                Icon(statusIcon, color: statusColor, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    task.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+      child: InkWell(
+        onTap: canPlay ? () => _playTask(task) : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Title row
+              Row(
+                children: [
+                  Icon(statusIcon, color: statusColor, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      task.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20, color: Colors.grey),
-                  tooltip: '删除任务',
-                  onPressed: () async {
-                    bool deleteFiles = false;
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => StatefulBuilder(
-                        builder: (context, setDialogState) => AlertDialog(
-                          title: const Text('确认删除'),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                task.status == DownloadTaskStatus.downloading ||
-                                        task.status ==
-                                            DownloadTaskStatus.seeding
-                                    ? '此任务正在下载中，确定要停止并删除吗？'
-                                    : '确定要删除此任务吗？',
-                              ),
-                              const SizedBox(height: 12),
-                              CheckboxListTile(
-                                title: const Text(
-                                  '同时删除物理文件',
-                                  style: TextStyle(fontSize: 14),
-                                ),
-                                value: deleteFiles,
-                                onChanged: (val) => setDialogState(
-                                  () => deleteFiles = val ?? false,
-                                ),
-                                contentPadding: EdgeInsets.zero,
-                                controlAffinity:
-                                    ListTileControlAffinity.leading,
-                              ),
-                            ],
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('取消'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text(
-                                '删除',
-                                style: TextStyle(color: Colors.red),
+                  // Action buttons
+                  _buildTaskActions(task),
+                ],
+              ),
+
+              // Anime name
+              if (task.animeName != null) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${task.animeName}${task.episodeNumber != null ? ' - 第${task.episodeNumber}集' : ''}',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      ),
+                    ),
+                    if (canPlay)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFBB86FC).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.play_arrow, size: 12, color: Color(0xFFBB86FC)),
+                            SizedBox(width: 2),
+                            Text(
+                              '点击播放',
+                              style: TextStyle(
+                                color: Color(0xFFBB86FC),
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
                         ),
                       ),
-                    );
-                    if (confirmed == true) {
-                      await _downloadManager.removeTask(
-                        task.id,
-                        deleteFiles: deleteFiles,
-                      );
-                    }
-                  },
+                  ],
                 ),
               ],
-            ),
 
-            // Anime name
-            if (task.animeName != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                task.animeName!,
-                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-              ),
-            ],
+              const SizedBox(height: 12),
 
-            const SizedBox(height: 12),
-
-            // Progress bar
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: task.progress / 100.0,
-                backgroundColor: Colors.grey[800],
-                valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-                minHeight: 6,
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // Stats row
-            Row(
-              children: [
-                // Progress percentage
-                Text(
-                  '${task.progress.toStringAsFixed(1)}%',
-                  style: TextStyle(
-                    color: statusColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
+              // Progress bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: task.progress / 100.0,
+                  backgroundColor: Colors.grey[800],
+                  valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                  minHeight: 6,
                 ),
-                const SizedBox(width: 12),
+              ),
 
-                // Download speed
-                if (task.status == DownloadTaskStatus.downloading) ...[
-                  const Icon(Icons.download, size: 12, color: Colors.grey),
-                  const SizedBox(width: 4),
+              const SizedBox(height: 8),
+
+              // Stats row
+              Row(
+                children: [
+                  // Progress percentage
                   Text(
-                    task.formattedSpeed,
-                    style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                    '${task.progress.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(width: 12),
-                ],
 
-                // Downloaded / Total size
-                Text(
-                  '${task.formattedDownloaded} / ${task.formattedSize}',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 11),
-                ),
+                  // Download speed (for downloading)
+                  if (task.status == DownloadTaskStatus.downloading) ...[
+                    const Icon(Icons.download, size: 12, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text(
+                      task.formattedSpeed,
+                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
 
-                const Spacer(),
+                  // Upload speed (for seeding)
+                  if (task.status == DownloadTaskStatus.seeding) ...[
+                    const Icon(Icons.upload, size: 12, color: Colors.green),
+                    const SizedBox(width: 4),
+                    Text(
+                      task.formattedUploadSpeed,
+                      style: const TextStyle(color: Colors.green, fontSize: 11),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
 
-                // Peers count
-                if (task.peers > 0) ...[
-                  const Icon(
-                    Icons.people_outline,
-                    size: 12,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(width: 4),
+                  // Downloaded / Total size
                   Text(
-                    '${task.peers} peers',
+                    '${task.formattedDownloaded} / ${task.formattedSize}',
                     style: TextStyle(color: Colors.grey[500], fontSize: 11),
                   ),
-                ],
-              ],
-            ),
 
-            // Error message
-            if (task.errorMessage != null) ...[
-              const SizedBox(height: 8),
+                  const Spacer(),
+
+                  // Peers count
+                  if (task.peers > 0) ...[
+                    const Icon(
+                      Icons.people_outline,
+                      size: 12,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${task.peers} peers',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                    ),
+                  ],
+                ],
+              ),
+
+              // Error message
+              if (task.errorMessage != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  task.errorMessage!,
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 11),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTaskActions(DownloadTask task) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Pause/Resume button
+        if (task.status == DownloadTaskStatus.downloading ||
+            task.status == DownloadTaskStatus.seeding)
+          IconButton(
+            icon: const Icon(Icons.pause, size: 20, color: Colors.orange),
+            tooltip: '暂停',
+            onPressed: () async {
+              final success = await _downloadManager.pauseTask(task.id);
+              if (mounted && !success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('暂停失败')),
+                );
+              }
+            },
+          )
+        else if (task.status == DownloadTaskStatus.paused)
+          IconButton(
+            icon: const Icon(Icons.play_arrow, size: 20, color: Colors.green),
+            tooltip: '恢复',
+            onPressed: () async {
+              final success = await _downloadManager.resumeTask(task.id);
+              if (mounted && !success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('恢复失败')),
+                );
+              }
+            },
+          ),
+        
+        // Delete button
+        IconButton(
+          icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+          tooltip: '删除任务',
+          onPressed: () => _showDeleteDialog(task),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _playTask(DownloadTask task) async {
+    if (task.streamUrl == null) return;
+    
+    // Try to find anime info from playback history
+    final historyManager = PlaybackHistoryManager();
+    final history = await historyManager.getHistory();
+    
+    AnimeInfo? anime;
+    List<BangumiEpisode> allEpisodes = [];
+    BangumiEpisode? currentEpisode;
+    
+    // Search for matching history item by anime name
+    if (task.animeName != null) {
+      for (final item in history) {
+        if (item.title == task.animeName) {
+          // Found matching anime in history, restore full info
+          anime = AnimeInfo(
+            title: item.title,
+            subTitle: item.subTitle,
+            bangumiId: item.bangumiId,
+            mikanId: item.mikanId,
+            coverUrl: item.coverUrl,
+            siteUrl: item.siteUrl,
+            broadcastDay: item.broadcastDay,
+            broadcastTime: item.broadcastTime,
+            score: item.score,
+            rank: item.rank,
+            tags: item.tags,
+            fullJson: item.fullJson,
+          );
+          
+          // Restore episodes from history
+          allEpisodes = item.toEpisodes();
+          
+          // Find the matching episode
+          final epNumber = task.episodeNumber ?? 1;
+          for (final ep in allEpisodes) {
+            if (ep.sort.toInt() == epNumber) {
+              currentEpisode = ep;
+              break;
+            }
+          }
+          break;
+        }
+      }
+    }
+    
+    // Fallback: create minimal anime/episode info if not found in history
+    anime ??= AnimeInfo(
+      title: task.animeName ?? task.name,
+      subTitle: null,
+      bangumiId: null,
+      mikanId: null,
+      coverUrl: null,
+      siteUrl: null,
+      broadcastDay: null,
+      broadcastTime: null,
+      score: null,
+      rank: null,
+      tags: const [],
+      fullJson: null,
+    );
+    
+    currentEpisode ??= BangumiEpisode(
+      id: 0,
+      sort: (task.episodeNumber ?? 1).toDouble(),
+      name: task.animeName ?? task.name, // Use anime name as episode name
+      nameCn: task.animeName != null ? '\u7b2c${task.episodeNumber ?? 1}\u96c6' : '',
+      duration: '',
+      airdate: '',
+      description: '',
+    );
+    
+    if (allEpisodes.isEmpty) {
+      allEpisodes = [currentEpisode];
+    }
+
+    if (!mounted) return;
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PlayerPage(
+          anime: anime!,
+          currentEpisode: currentEpisode!,
+          allEpisodes: allEpisodes,
+          btStreamUrl: task.streamUrl, // Pass the stream URL directly
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showDeleteDialog(DownloadTask task) async {
+    bool deleteFiles = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('确认删除'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                task.errorMessage!,
-                style: const TextStyle(color: Colors.redAccent, fontSize: 11),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                task.status == DownloadTaskStatus.downloading ||
+                        task.status == DownloadTaskStatus.seeding
+                    ? '此任务正在下载中，确定要停止并删除吗？'
+                    : '确定要删除此任务吗？',
+              ),
+              const SizedBox(height: 12),
+              CheckboxListTile(
+                title: const Text(
+                  '同时删除物理文件',
+                  style: TextStyle(fontSize: 14),
+                ),
+                value: deleteFiles,
+                onChanged: (val) => setDialogState(
+                  () => deleteFiles = val ?? false,
+                ),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
               ),
             ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text(
+                '删除',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
           ],
         ),
       ),
     );
+    if (confirmed == true) {
+      await _downloadManager.removeTask(
+        task.id,
+        deleteFiles: deleteFiles,
+      );
+    }
   }
 
   Color _getStatusColor(DownloadTaskStatus status) {

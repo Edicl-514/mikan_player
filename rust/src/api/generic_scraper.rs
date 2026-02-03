@@ -1672,7 +1672,7 @@ async fn search_single_source_with_progress(
         all_channels: all_channels.clone(),
     }).ok();
 
-    let mut direct_video_url = None;
+    let direct_video_url = None;
     
     let mut request_builder = client.get(&episode_url);
     if let Some(ref headers) = source.arguments.search_config.match_video.add_headers_to_video {
@@ -1949,7 +1949,7 @@ async fn search_single_source(
     log::info!("[{}] Found episode URL: {}", source_name, episode_url);
 
     // Step 3: 尝试直接获取视频URL（可选，主要让 WebView 处理）
-    let mut direct_video_url = None;
+    let direct_video_url = None;
     
     // 尝试获取页面并解析 player_aaaa
     let mut request_builder = client.get(&episode_url);
@@ -2812,7 +2812,7 @@ pub async fn get_episode_play_url(
         .map(|ch| ch.name.clone());
     
     // 尝试提取视频URL
-    let mut direct_video_url = None;
+    let direct_video_url = None;
     
     let mut request_builder = client.get(&episode.url);
     if let Some(ref headers) = result.headers {

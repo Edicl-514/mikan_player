@@ -75,6 +75,17 @@ Future<bool> stopTorrent({
   deleteFiles: deleteFiles,
 );
 
+/// Pause a torrent by info hash
+/// This is implemented by stopping the torrent without deleting files
+Future<bool> pauseTorrent({required String infoHash}) =>
+    RustLib.instance.api.crateApiSimplePauseTorrent(infoHash: infoHash);
+
+/// Resume a paused torrent by info hash
+/// Note: This requires the torrent to be restarted using start_torrent with the magnet link
+/// This function is kept for API compatibility but returns false as resume must be done via restart
+Future<bool> resumeTorrent({required String infoHash}) =>
+    RustLib.instance.api.crateApiSimpleResumeTorrent(infoHash: infoHash);
+
 /// Torrent download statistics
 class TorrentStats {
   final String infoHash;

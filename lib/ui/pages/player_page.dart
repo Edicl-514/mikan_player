@@ -28,6 +28,7 @@ class PlayerPage extends StatefulWidget {
   final BangumiEpisode currentEpisode;
   final List<BangumiEpisode> allEpisodes;
   final int? startPositionMs; // optional start position in milliseconds
+  final String? btStreamUrl; // optional BT stream URL to play directly
 
   const PlayerPage({
     super.key,
@@ -35,6 +36,7 @@ class PlayerPage extends StatefulWidget {
     required this.currentEpisode,
     required this.allEpisodes,
     this.startPositionMs,
+    this.btStreamUrl,
   });
 
   @override
@@ -217,13 +219,48 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     _loadComments();
     _loadRecommendations();
-    _loadRecommendations();
-    _loadMikanSource();
+    
+    // Check if we have a direct BT stream URL to play
+    if (widget.btStreamUrl != null) {
+      _playBtStreamUrl(widget.btStreamUrl!);
+    } else {
+      // Check for existing BT download for this episode
+      _checkAndPlayExistingBtDownload();
+    }
+    
     _loadMikanSource();
     _loadDmhySource();
     _loadSampleSource();
     _loadDanmaku();
     _loadSettings();
+  }
+
+  /// Check if there's an existing BT download for this episode and play it
+  Future<void> _checkAndPlayExistingBtDownload() async {
+    final task = _downloadManager.getAvailableTaskForEpisode(
+      widget.anime.title,
+      _currentEpisode.sort.toInt(),
+    );
+    
+    if (task != null && task.streamUrl != null) {
+      debugPrint('[Player] Found existing BT download for this episode: ${task.name}');
+      _playBtStreamUrl(task.streamUrl!);
+    }
+  }
+
+  /// Play a BT stream URL directly
+  void _playBtStreamUrl(String streamUrl) {
+    setState(() {
+      _currentStreamUrl = streamUrl;
+      _sampleVideoUrl = streamUrl; // Prevent online sources from auto-playing
+      _hasAutoPlayed = true; // Mark as already auto-played
+      _playingSourceLabel = 'BT下载';
+      _isLoadingVideo = false;
+      _videoError = null;
+    });
+    
+    debugPrint('[Player] Playing BT stream: $streamUrl');
+    _player.open(Media(streamUrl), play: true).then((_) => _applyPendingStartPosition());
   }
 
   Future<void> _applyPendingStartPosition() async {
@@ -651,10 +688,22 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Future<void> _loadSampleSource() async {
+    // First check if there's already a BT download for this episode
+    final btTask = _downloadManager.getAvailableTaskForEpisode(
+      widget.anime.title,
+      _currentEpisode.sort.toInt(),
+    );
+    
+    if (btTask != null && btTask.streamUrl != null && _currentStreamUrl == null) {
+      debugPrint('[Sample] Found existing BT download, using it as primary source');
+      _playBtStreamUrl(btTask.streamUrl!);
+      // Continue loading other sources in background for alternatives
+    }
+    
     setState(() {
       _isLoadingSample = true;
       _sampleError = null;
-      _sampleVideoUrl = null;
+      _sampleVideoUrl = _sampleVideoUrl; // Keep existing if BT is playing
       _samplePlayPages = [];
       _sampleSuccessfulSources = [];
       _selectedSourceIndex = 0;
@@ -887,7 +936,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _attemptAutoPlay() {
-    if (_hasAutoPlayed || _sampleVideoUrl != null) return;
+    // Don't auto-play if already playing something (including BT)
+    if (_hasAutoPlayed || _sampleVideoUrl != null || _currentStreamUrl != null) return;
 
     // 仅允许Tier 0自动播放
     final candidates = _sampleSuccessfulSources
@@ -904,7 +954,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _playSource(SearchPlayResult source) {
-    if (_sampleVideoUrl != null) return;
+    // Don't override if already playing something (including BT stream)
+    if (_sampleVideoUrl != null || _currentStreamUrl != null) return;
 
     debugPrint(
       "Auto-playing source: ${source.sourceName} (Tier ${_sourceTiers[source.sourceName]})",

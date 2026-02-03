@@ -1,4 +1,3 @@
-use flutter_rust_bridge::frb;
 use lazy_static::lazy_static;
 use librqbit::{
     AddTorrent, AddTorrentOptions, AddTorrentResponse, Session, SessionOptions, api::Api,
@@ -564,4 +563,57 @@ pub async fn stop_torrent(info_hash: String, delete_files: bool) -> bool {
         log::warn!("Torrent not found: {}", info_hash);
         false
     }
+}
+
+/// Pause a torrent by info hash
+/// This is implemented by stopping the torrent without deleting files
+pub async fn pause_torrent(info_hash: String) -> bool {
+    let state = match ensure_initialized().await {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+
+    let state_guard = state.lock().await;
+    let info_hash_lower = info_hash.to_lowercase();
+
+    // Find the torrent ID by info hash
+    let torrent_id = state_guard.session.with_torrents(|torrents| {
+        for (id, handle) in torrents {
+            if handle.info_hash().as_string().to_lowercase() == info_hash_lower {
+                return Some(id);
+            }
+        }
+        None
+    });
+
+    if let Some(id) = torrent_id {
+        // Pause by deleting without removing files
+        // The torrent will need to be restarted with the magnet link to resume
+        match state_guard
+            .session
+            .delete(TorrentIdOrHash::Id(id), false)
+            .await
+        {
+            Ok(_) => {
+                log::info!("Successfully paused torrent: {}", info_hash);
+                true
+            }
+            Err(e) => {
+                log::error!("Failed to pause torrent {}: {}", info_hash, e);
+                false
+            }
+        }
+    } else {
+        log::warn!("Torrent not found for pause: {}", info_hash);
+        false
+    }
+}
+
+/// Resume a paused torrent by info hash
+/// Note: This requires the torrent to be restarted using start_torrent with the magnet link
+/// This function is kept for API compatibility but returns false as resume must be done via restart
+pub async fn resume_torrent(info_hash: String) -> bool {
+    log::info!("Resume torrent called for {}, but torrent needs to be restarted with magnet link", info_hash);
+    // Return false to indicate that the torrent should be restarted using startTorrent
+    false
 }
