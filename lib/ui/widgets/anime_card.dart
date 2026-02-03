@@ -81,22 +81,24 @@ class _AnimeCardState extends State<AnimeCard>
                   ),
                 ),
                 Positioned(
-                  top: 8,
-                  left: 8,
+                  top: 0,
+                  left: 0,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                      horizontal: 6,
+                      vertical: 2,
                     ),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.primary,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: const BorderRadius.only(
+                        bottomRight: Radius.circular(8),
+                      ),
                     ),
                     child: Text(
                       widget.tag,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
                     ),

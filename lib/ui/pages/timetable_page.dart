@@ -89,9 +89,10 @@ class _TimeTablePageState extends State<TimeTablePage>
       final cache = CacheManager.instance;
       final cachedData = await cache.getTimetable(
         quarter: yearQuarter,
-        fetchFromNetwork: () => crawler.fetchScheduleBasic(yearQuarter: yearQuarter),
+        fetchFromNetwork: () =>
+            crawler.fetchScheduleBasic(yearQuarter: yearQuarter),
       );
-      
+
       if (!mounted) return;
 
       setState(() {
@@ -325,6 +326,31 @@ class _TimeTablePageState extends State<TimeTablePage>
                           ),
                   ),
                 ),
+                if (anime.rank != null && anime.rank! > 0)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: const BorderRadius.only(
+                          bottomRight: Radius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        '#${anime.rank}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
                 if (anime.score != null && anime.score! > 0)
                   Positioned(
                     top: 0,
@@ -385,18 +411,6 @@ class _TimeTablePageState extends State<TimeTablePage>
                         style: TextStyle(color: Colors.grey[500], fontSize: 11),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  if (anime.rank != null && anime.rank! > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2.0),
-                      child: Text(
-                        'Rank #${anime.rank}',
-                        style: TextStyle(
-                          color: Colors.blueGrey[400],
-                          fontSize: 11,
-                          fontStyle: FontStyle.italic,
-                        ),
                       ),
                     ),
                 ],

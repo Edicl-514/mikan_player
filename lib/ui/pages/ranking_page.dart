@@ -86,10 +86,8 @@ class _RankingListState extends State<RankingList>
       final items = await CacheManager.instance.getRanking(
         sortType: widget.sortType,
         page: 1,
-        fetchFromNetwork: () => ranking.fetchBangumiRanking(
-          sortType: widget.sortType,
-          page: 1,
-        ),
+        fetchFromNetwork: () =>
+            ranking.fetchBangumiRanking(sortType: widget.sortType, page: 1),
       );
       if (mounted) {
         setState(() {
@@ -207,9 +205,6 @@ class _RankingListState extends State<RankingList>
     // However, if we scroll, index + 1 is a good proxy for "Current List Position".
     // But if `item.rank` exists (parsed from "Rank X"), use it.
     final rankDisplay = item.rank != null ? '#${item.rank}' : '#${index + 1}';
-    final isTop3 =
-        (item.rank != null && item.rank! <= 3) ||
-        (item.rank == null && index < 3);
 
     return Container(
       height: 140, // Slightly taller for more info
@@ -247,26 +242,7 @@ class _RankingListState extends State<RankingList>
         borderRadius: BorderRadius.circular(8),
         child: Row(
           children: [
-            // Rank Number
-            SizedBox(
-              width: 60,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  rankDisplay,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: isTop3
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey,
-                    fontWeight: FontWeight.bold,
-                    fontStyle: FontStyle.italic,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Cover with Score
+            // Cover with Score and Rank
             AspectRatio(
               aspectRatio: 0.7,
               child: Stack(
@@ -286,6 +262,31 @@ class _RankingListState extends State<RankingList>
                                   Container(color: Colors.grey[300]),
                             )
                           : Container(color: Colors.grey[300]),
+                    ),
+                  ),
+                  // Rank Tag
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: const BorderRadius.only(
+                          bottomRight: Radius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        rankDisplay,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                   ),
                   if (item.score != null && item.score! > 0)

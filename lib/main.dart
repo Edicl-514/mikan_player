@@ -13,6 +13,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'dart:io';
+import 'package:mikan_player/services/user_manager.dart';
 
 /// 全局 WebView 环境（Windows 平台需要）
 WebViewEnvironment? webViewEnvironment;
@@ -33,6 +34,9 @@ Future<void> main() async {
 
   // Initialize Bangumi Cache Database
   await CacheManager.instance.initialize();
+
+  // Initialize UserManager
+  await UserManager().init();
 
   // Initialize MediaKit
   MediaKit.ensureInitialized();

@@ -7,6 +7,7 @@ import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
+import 'package:mikan_player/services/favorites_manager.dart';
 import 'player_page.dart';
 
 class BangumiDetailsPage extends StatefulWidget {
@@ -37,6 +38,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   bool _isLoadingCharacters = false;
   bool _isLoadingRelations = false;
   bool _isLoadingComments = false;
+  bool _isLocalFavorite = false;
 
   // Pagination State
   int _commentPage = 1;
@@ -55,6 +57,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _charactersScrollController = ScrollController();
     _relationsScrollController = ScrollController();
     _parseData();
+    _checkFavoriteStatus();
     _fetchBangumiData();
 
     _commentScrollController.addListener(() {
@@ -182,44 +185,51 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           });
 
       // Fetch Characters (使用缓存)
-      cache.getCharacters(
-        subjectId: subjectId,
-        fetchFromNetwork: () => fetchBangumiCharacters(subjectId: subjectId),
-      ).then((characters) {
-        if (!mounted) return;
-        setState(() {
-          _characters = characters;
-          _isLoadingCharacters = false;
-        });
-      }).catchError((e) {
-        debugPrint('Error fetching characters: $e');
-        if (mounted) {
-          setState(() {
-            _characters = [];
-            _isLoadingCharacters = false;
+      cache
+          .getCharacters(
+            subjectId: subjectId,
+            fetchFromNetwork: () =>
+                fetchBangumiCharacters(subjectId: subjectId),
+          )
+          .then((characters) {
+            if (!mounted) return;
+            setState(() {
+              _characters = characters;
+              _isLoadingCharacters = false;
+            });
+          })
+          .catchError((e) {
+            debugPrint('Error fetching characters: $e');
+            if (mounted) {
+              setState(() {
+                _characters = [];
+                _isLoadingCharacters = false;
+              });
+            }
           });
-        }
-      });
 
       // Fetch Relations (使用缓存)
-      cache.getRelations(
-        subjectId: subjectId,
-        fetchFromNetwork: () => fetchBangumiRelations(subjectId: subjectId),
-      ).then((relations) {
-        if (!mounted) return;
-        setState(() {
-          _relations = relations;
-          _isLoadingRelations = false;
-        });
-      }).catchError((e) {
-        debugPrint('Error fetching relations: $e');
-        if (mounted) {
-          setState(() {
-            _relations = [];
-            _isLoadingRelations = false;
+      cache
+          .getRelations(
+            subjectId: subjectId,
+            fetchFromNetwork: () => fetchBangumiRelations(subjectId: subjectId),
+          )
+          .then((relations) {
+            if (!mounted) return;
+            setState(() {
+              _relations = relations;
+              _isLoadingRelations = false;
+            });
+          })
+          .catchError((e) {
+            debugPrint('Error fetching relations: $e');
+            if (mounted) {
+              setState(() {
+                _relations = [];
+                _isLoadingRelations = false;
+              });
+            }
           });
-        }
-      });
 
       // Fetch Comments (不缓存，因为更新频繁)
       fetchBangumiComments(subjectId: subjectId, page: 1)
@@ -259,6 +269,50 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         debugPrint('Error parsing fullJson: $e');
       }
     }
+  }
+
+  Future<void> _checkFavoriteStatus() async {
+    final idStr = widget.anime.bangumiId;
+    if (idStr == null) return;
+    final id = int.tryParse(idStr);
+    if (id == null) return;
+
+    final isFav = await FavoritesManager().isFavorite(id);
+    if (mounted) {
+      setState(() {
+        _isLocalFavorite = isFav;
+      });
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    final idStr = widget.anime.bangumiId;
+    if (idStr == null) return;
+    final id = int.tryParse(idStr);
+    if (id == null) return;
+
+    final manager = FavoritesManager();
+    if (_isLocalFavorite) {
+      await manager.removeFavorite(id);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已取消收藏')));
+      }
+    } else {
+      await manager.addFavorite(
+        bangumiId: id,
+        title: widget.anime.title,
+        coverUrl: widget.anime.coverUrl ?? '',
+        score: widget.anime.score ?? 0.0,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已添加到本地收藏')));
+      }
+    }
+    _checkFavoriteStatus();
   }
 
   @override
@@ -574,9 +628,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       children: [
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.favorite_border),
-            label: const Text("收藏"),
+            onPressed: _toggleFavorite,
+            icon: Icon(
+              _isLocalFavorite ? Icons.favorite : Icons.favorite_border,
+            ),
+            label: Text(_isLocalFavorite ? "已收藏" : "收藏"),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
               backgroundColor: Colors.pinkAccent,
@@ -630,9 +686,12 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         const Spacer(),
         // Simple Collection Button for Mobile Header
         ElevatedButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.favorite_border, size: 16),
-          label: const Text("收藏"),
+          onPressed: _toggleFavorite,
+          icon: Icon(
+            _isLocalFavorite ? Icons.favorite : Icons.favorite_border,
+            size: 16,
+          ),
+          label: Text(_isLocalFavorite ? "已收藏" : "收藏"),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.pinkAccent,
             foregroundColor: Colors.white,

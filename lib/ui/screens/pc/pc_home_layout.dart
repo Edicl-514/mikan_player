@@ -3,6 +3,7 @@ import 'package:mikan_player/ui/pages/index_page.dart';
 import 'package:mikan_player/ui/pages/my_page.dart';
 import 'package:mikan_player/ui/pages/ranking_page.dart';
 import 'package:mikan_player/ui/pages/timetable_page.dart';
+import 'package:mikan_player/services/user_manager.dart';
 
 class PcHomeLayout extends StatefulWidget {
   const PcHomeLayout({super.key});
@@ -27,6 +28,26 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
     'Index',
     'My Profile',
   ];
+
+  final UserManager _userManager = UserManager();
+
+  @override
+  void initState() {
+    super.initState();
+    _userManager.addListener(_onUserUpdate);
+  }
+
+  @override
+  void dispose() {
+    _userManager.removeListener(_onUserUpdate);
+    super.dispose();
+  }
+
+  void _onUserUpdate() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -98,10 +119,18 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
                         tooltip: 'Search Anime',
                       ),
                       const SizedBox(width: 8),
-                      // Mock Avatar
-                      const CircleAvatar(
+                      // User Avatar
+                      CircleAvatar(
                         radius: 16,
-                        backgroundImage: AssetImage('assets/images/cover.png'),
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
+                        backgroundImage: _userManager.isLoggedIn
+                            ? NetworkImage(_userManager.user!.avatar.medium)
+                            : null,
+                        child: !_userManager.isLoggedIn
+                            ? const Icon(Icons.person, size: 20)
+                            : null,
                       ),
                     ],
                   ),

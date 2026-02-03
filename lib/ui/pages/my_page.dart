@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/ui/pages/settings_page.dart';
+import 'package:mikan_player/services/user_manager.dart';
+import 'package:mikan_player/ui/pages/favorites_page.dart';
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -11,20 +13,23 @@ class MyPage extends StatefulWidget {
 
 class _MyPageState extends State<MyPage> {
   final DownloadManager _downloadManager = DownloadManager();
+  final UserManager _userManager = UserManager();
 
   @override
   void initState() {
     super.initState();
-    _downloadManager.addListener(_onDownloadUpdate);
+    _downloadManager.addListener(_onStateUpdate);
+    _userManager.addListener(_onStateUpdate);
   }
 
   @override
   void dispose() {
-    _downloadManager.removeListener(_onDownloadUpdate);
+    _downloadManager.removeListener(_onStateUpdate);
+    _userManager.removeListener(_onStateUpdate);
     super.dispose();
   }
 
-  void _onDownloadUpdate() {
+  void _onStateUpdate() {
     if (mounted) {
       setState(() {});
     }
@@ -36,26 +41,56 @@ class _MyPageState extends State<MyPage> {
       padding: const EdgeInsets.all(16),
       children: [
         // Profile Header
-        UserAccountsDrawerHeader(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
+        Card(
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          accountName: Text(
-            "Otaku User",
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
+          child: InkWell(
+            onTap: () {
+              if (_userManager.isLoggedIn) {
+                _showLogoutDialog();
+              } else {
+                _showLoginDialog();
+              }
+            },
+            child: UserAccountsDrawerHeader(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+              ),
+              accountName: Text(
+                _userManager.user?.nickname ?? "点击登录",
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              accountEmail: Text(
+                _userManager.user != null
+                    ? "@${_userManager.user!.username}"
+                    : "登录同步 Bangumi 数据",
+                style: TextStyle(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onPrimaryContainer.withOpacity(0.8),
+                ),
+              ),
+              currentAccountPicture: CircleAvatar(
+                backgroundColor: Theme.of(context).colorScheme.surface,
+                backgroundImage: _userManager.user != null
+                    ? NetworkImage(_userManager.user!.avatar.large)
+                    : null,
+                child: _userManager.user == null
+                    ? Icon(
+                        Icons.person,
+                        size: 40,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+              ),
             ),
-          ),
-          accountEmail: Text(
-            "user@example.com",
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
-            ),
-          ),
-          currentAccountPicture: const CircleAvatar(
-            backgroundColor: Colors.white,
-            child: Icon(Icons.person, size: 40),
           ),
         ),
         const SizedBox(height: 16),
@@ -69,6 +104,12 @@ class _MyPageState extends State<MyPage> {
           Icons.favorite,
           'Favorites',
           'Your collected anime',
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const FavoritesPage()),
+            );
+          },
         ),
         const Divider(),
         _buildTile(
@@ -167,6 +208,110 @@ class _MyPageState extends State<MyPage> {
         onTap: onTap ?? () {},
       ),
     );
+  }
+
+  Future<void> _showLoginDialog() async {
+    final controller = TextEditingController();
+    bool loading = false;
+    String? error;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('登录 Bangumi'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('请输入 Bangumi 用户名或 ID 获取公开信息'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    labelText: '用户名 / ID',
+                    border: const OutlineInputBorder(),
+                    hintText: '例如: 1208579',
+                    errorText: error,
+                  ),
+                  enabled: !loading,
+                  autofocus: true,
+                  onSubmitted: (_) async {
+                    // Initial trigger handled by button but TextField enter is nice too
+                    // Skipping for simplicity or logic duplication avoidance
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: loading ? null : () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: loading
+                    ? null
+                    : () async {
+                        if (controller.text.trim().isEmpty) return;
+
+                        setState(() {
+                          loading = true;
+                          error = null;
+                        });
+
+                        try {
+                          await _userManager.login(controller.text.trim());
+                          if (context.mounted) Navigator.pop(context);
+                        } catch (e) {
+                          if (context.mounted) {
+                            setState(() {
+                              loading = false;
+                              error = '登录失败，请检查用户名或网络';
+                            });
+                          }
+                        }
+                      },
+                child: loading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('确定'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _showLogoutDialog() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('退出登录'),
+        content: const Text('确定要清除当前用户信息的缓存吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await _userManager.logout();
+    }
   }
 }
 
