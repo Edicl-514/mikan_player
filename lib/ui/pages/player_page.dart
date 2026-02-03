@@ -80,8 +80,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   final Map<String, String> _webViewStatus =
       {}; // WebView状态消息 (sourceName -> message)
   final Set<String> _failedWebViewPageKeys = {}; // 提取失败的WebView Key
-  final int _maxConcurrentWebViews =
-      1; // 最大并发WebView数量 (Reduced from 3 to prevent lag)
+  int _maxConcurrentWebViews =
+      3; // 最大并发WebView数量 (Reduced from 3 to prevent lag)
+  int _webViewLaunchInterval = 200; // WebView启动间隔 (毫秒)
   String _sampleStatusMessage = ''; // WebView 提取状态消息
   bool _showWebView = false; // 是否显示 WebView（调试用）
 
@@ -188,6 +189,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (mounted) {
         setState(() {
           _isAutoPlayNextEnabled = prefs.getBool('auto_play_next') ?? true;
+          _maxConcurrentWebViews = prefs.getInt('max_concurrent_webviews') ?? 1;
+          _webViewLaunchInterval =
+              prefs.getInt('webview_launch_interval') ?? 200;
         });
       }
     } catch (e) {
@@ -1007,8 +1011,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   void _startNextWebViewExtraction() {
     if (!mounted) return;
 
-    // 延迟200ms启动，避免连续启动造成的UI卡顿，同时确保上一个WebView有足够时间释放资源
-    Future.delayed(const Duration(milliseconds: 200), () {
+    // 延迟启动，避免连续启动造成的UI卡顿，同时确保上一个WebView有足够时间释放资源
+    Future.delayed(Duration(milliseconds: _webViewLaunchInterval), () {
       if (!mounted) return;
 
       // 如果已经达到并发上限，不启动新的

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/ui/pages/data_source_settings_page.dart';
+import 'package:mikan_player/ui/pages/search_settings_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -21,6 +22,20 @@ class SettingsPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const DataSourceSettingsPage(),
+                ),
+              );
+            },
+          ),
+          _buildSettingTile(
+            context,
+            Icons.search,
+            '搜索设置',
+            '设置WebView并发数量和启动间隔',
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SearchSettingsPage(),
                 ),
               );
             },
