@@ -3,6 +3,7 @@ import 'package:mikan_player/ui/pages/index_page.dart';
 import 'package:mikan_player/ui/pages/my_page.dart';
 import 'package:mikan_player/ui/pages/ranking_page.dart';
 import 'package:mikan_player/ui/pages/timetable_page.dart';
+import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/services/user_manager.dart';
 
 class PcHomeLayout extends StatefulWidget {
@@ -114,7 +115,13 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
                       const Spacer(),
                       // Search Icon
                       IconButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const SearchPage(),
+                            ),
+                          );
+                        },
                         icon: const Icon(Icons.search),
                         tooltip: 'Search Anime',
                       ),

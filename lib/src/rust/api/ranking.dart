@@ -6,6 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+// These functions are ignored because they are not marked as `pub`: `parse_bangumi_list`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
 
 Future<List<RankingAnime>> fetchBangumiRanking({
@@ -25,6 +26,14 @@ Future<List<RankingAnime>> fetchBangumiBrowser({
   sortType: sortType,
   year: year,
   tags: tags,
+  page: page,
+);
+
+Future<List<RankingAnime>> searchBangumiSubject({
+  required String keyword,
+  required int page,
+}) => RustLib.instance.api.crateApiRankingSearchBangumiSubject(
+  keyword: keyword,
   page: page,
 );
 

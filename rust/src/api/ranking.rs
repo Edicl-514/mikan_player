@@ -57,6 +57,29 @@ pub async fn fetch_bangumi_browser(
     let html = resp.text().await?;
     let document = Html::parse_document(&html);
 
+    Ok(parse_bangumi_list(&document))
+}
+
+pub async fn search_bangumi_subject(
+    keyword: String,
+    page: i32,
+) -> anyhow::Result<Vec<RankingAnime>> {
+    let client = crate::api::network::create_client()?;
+    let url = format!(
+        "{}/subject_search/{}?cat=2&page={}",
+        crate::api::config::get_bangumi_url(),
+        urlencoding::encode(&keyword),
+        page
+    );
+
+    let resp = client.get(&url).send().await?;
+    let html = resp.text().await?;
+    let document = Html::parse_document(&html);
+
+    Ok(parse_bangumi_list(&document))
+}
+
+fn parse_bangumi_list(document: &Html) -> Vec<RankingAnime> {
     let item_selector = Selector::parse("#browserItemList > li.item").unwrap();
     let title_selector = Selector::parse("h3 > a.l").unwrap();
     let original_title_selector = Selector::parse("h3 > small.grey").unwrap();
@@ -125,5 +148,5 @@ pub async fn fetch_bangumi_browser(
         });
     }
 
-    Ok(results)
+    results
 }
