@@ -56,3 +56,4 @@ check_api.py
 rust/openssl
 sample.json
 json
+lib/services/cache/
