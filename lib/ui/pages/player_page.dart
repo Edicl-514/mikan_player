@@ -19,6 +19,7 @@ import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/services/header_injection_proxy.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
+import 'package:mikan_player/services/playback_history_manager.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 
@@ -122,6 +123,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // Subtitle
   final SubtitleService _subtitleService = SubtitleService();
 
+  // Playback History
+  final PlaybackHistoryManager _historyManager = PlaybackHistoryManager();
+
   // Header Injection Proxy
   final HeaderInjectionProxy _headerProxy = HeaderInjectionProxy();
 
@@ -134,6 +138,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     // Initialize current episode from widget
     _currentEpisode = widget.currentEpisode;
+
+    _savePlaybackHistory();
 
     // Initialize video player
     _player = Player();
@@ -2030,6 +2036,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _commentsError = null;
     });
 
+    _savePlaybackHistory();
+
     // Clear and reload danmaku
     _danmakuService.clearDanmaku();
     _loadDanmaku();
@@ -2045,6 +2053,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
     _loadDmhySource();
     _loadSampleSource();
+  }
+
+  void _savePlaybackHistory() {
+    _historyManager.addOrUpdate(
+      anime: widget.anime,
+      currentEpisode: _currentEpisode,
+      allEpisodes: widget.allEpisodes,
+    );
   }
 
   // Helper to sanitize headers (remove duplicates, empty values, unify case)
