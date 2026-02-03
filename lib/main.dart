@@ -11,6 +11,7 @@ import 'package:mikan_player/src/rust/api/network.dart' as network;
 import 'package:mikan_player/src/http_overrides.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'dart:io';
 
 /// 全局 WebView 环境（Windows 平台需要）
@@ -29,6 +30,9 @@ Future<void> main() async {
 
   await RustLib.init();
   await rust.initEngine(cacheDir: cacheDir.path, downloadDir: downloadDir.path);
+
+  // Initialize Bangumi Cache Database
+  await CacheManager.instance.initialize();
 
   // Initialize MediaKit
   MediaKit.ensureInitialized();

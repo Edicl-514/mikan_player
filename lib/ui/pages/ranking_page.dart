@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart' as ranking;
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
+import 'package:mikan_player/services/cache/cache_manager.dart';
 
 class RankingPage extends StatelessWidget {
   const RankingPage({super.key});
@@ -81,9 +82,14 @@ class _RankingListState extends State<RankingList>
     });
 
     try {
-      final items = await ranking.fetchBangumiRanking(
+      // 使用缓存管理器获取数据
+      final items = await CacheManager.instance.getRanking(
         sortType: widget.sortType,
         page: 1,
+        fetchFromNetwork: () => ranking.fetchBangumiRanking(
+          sortType: widget.sortType,
+          page: 1,
+        ),
       );
       if (mounted) {
         setState(() {
@@ -113,9 +119,14 @@ class _RankingListState extends State<RankingList>
     });
 
     try {
-      final items = await ranking.fetchBangumiRanking(
+      // 使用缓存管理器获取数据
+      final items = await CacheManager.instance.getRanking(
         sortType: widget.sortType,
         page: _page + 1,
+        fetchFromNetwork: () => ranking.fetchBangumiRanking(
+          sortType: widget.sortType,
+          page: _page + 1,
+        ),
       );
       if (mounted) {
         setState(() {

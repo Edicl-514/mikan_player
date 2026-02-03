@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
+import 'package:mikan_player/services/cache/cache_manager.dart';
 
 class TimeTablePage extends StatefulWidget {
   const TimeTablePage({super.key});
@@ -84,14 +85,17 @@ class _TimeTablePageState extends State<TimeTablePage>
       _errorMessage = null;
     });
     try {
-      // 1. Fetch Basic Schedule (Fast)
-      final basicList = await crawler.fetchScheduleBasic(
-        yearQuarter: yearQuarter,
+      // 1. 尝试从缓存获取基础时间表数据
+      final cache = CacheManager.instance;
+      final cachedData = await cache.getTimetable(
+        quarter: yearQuarter,
+        fetchFromNetwork: () => crawler.fetchScheduleBasic(yearQuarter: yearQuarter),
       );
+      
       if (!mounted) return;
 
       setState(() {
-        _animes = basicList;
+        _animes = cachedData;
         _isLoading = false;
       });
 

@@ -3,6 +3,7 @@ import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
+import 'package:mikan_player/services/cache/cache_manager.dart';
 
 class IndexPage extends StatefulWidget {
   const IndexPage({super.key});
@@ -189,11 +190,19 @@ class _IndexPageState extends State<IndexPage> {
       });
 
       final int targetPage = loadMore ? _page + 1 : 1;
-      final results = await fetchBangumiBrowser(
+      
+      // 使用缓存管理器获取数据
+      final results = await CacheManager.instance.getBrowser(
         sortType: sortType,
         year: year,
         tags: tags,
         page: targetPage,
+        fetchFromNetwork: () => fetchBangumiBrowser(
+          sortType: sortType,
+          year: year,
+          tags: tags,
+          page: targetPage,
+        ),
       );
 
       if (mounted && fetchId == _currentFetchId) {

@@ -6,6 +6,7 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
+import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'player_page.dart';
 
 class BangumiDetailsPage extends StatefulWidget {
@@ -109,6 +110,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     final subjectIdStr = widget.anime.bangumiId;
     if (subjectIdStr != null) {
       final subjectId = int.parse(subjectIdStr);
+      final cache = CacheManager.instance;
 
       // If we don't have detailed data (e.g. navigated from relations), fetch it
       if (_data == null) {
@@ -124,12 +126,17 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                       debugPrint("Error parsing fetched fullJson: $e");
                     }
                   });
+                  // 缓存条目信息
+                  cache.cacheAnimeInfo(detail);
                 }
               }
             })
             .catchError((e) {
               debugPrint("Error fetching anime details: $e");
             });
+      } else {
+        // 已有数据，缓存起来
+        cache.cacheAnimeInfo(widget.anime);
       }
 
       setState(() {
@@ -142,7 +149,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         _hasMoreComments = true;
       });
 
-      // Fetch Episodes
+      // Fetch Episodes (不缓存，因为更新频繁)
       fetchBangumiEpisodes(subjectId: subjectId)
           .then((allEpisodes) {
             if (!mounted) return;
@@ -174,45 +181,47 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
             }
           });
 
-      // Fetch Characters
-      fetchBangumiCharacters(subjectId: subjectId)
-          .then((characters) {
-            if (!mounted) return;
-            setState(() {
-              _characters = characters;
-              _isLoadingCharacters = false;
-            });
-          })
-          .catchError((e) {
-            debugPrint('Error fetching characters: $e');
-            if (mounted) {
-              setState(() {
-                _characters = [];
-                _isLoadingCharacters = false;
-              });
-            }
+      // Fetch Characters (使用缓存)
+      cache.getCharacters(
+        subjectId: subjectId,
+        fetchFromNetwork: () => fetchBangumiCharacters(subjectId: subjectId),
+      ).then((characters) {
+        if (!mounted) return;
+        setState(() {
+          _characters = characters;
+          _isLoadingCharacters = false;
+        });
+      }).catchError((e) {
+        debugPrint('Error fetching characters: $e');
+        if (mounted) {
+          setState(() {
+            _characters = [];
+            _isLoadingCharacters = false;
           });
+        }
+      });
 
-      // Fetch Relations
-      fetchBangumiRelations(subjectId: subjectId)
-          .then((relations) {
-            if (!mounted) return;
-            setState(() {
-              _relations = relations;
-              _isLoadingRelations = false;
-            });
-          })
-          .catchError((e) {
-            debugPrint('Error fetching relations: $e');
-            if (mounted) {
-              setState(() {
-                _relations = [];
-                _isLoadingRelations = false;
-              });
-            }
+      // Fetch Relations (使用缓存)
+      cache.getRelations(
+        subjectId: subjectId,
+        fetchFromNetwork: () => fetchBangumiRelations(subjectId: subjectId),
+      ).then((relations) {
+        if (!mounted) return;
+        setState(() {
+          _relations = relations;
+          _isLoadingRelations = false;
+        });
+      }).catchError((e) {
+        debugPrint('Error fetching relations: $e');
+        if (mounted) {
+          setState(() {
+            _relations = [];
+            _isLoadingRelations = false;
           });
+        }
+      });
 
-      // Fetch Comments
+      // Fetch Comments (不缓存，因为更新频繁)
       fetchBangumiComments(subjectId: subjectId, page: 1)
           .then((comments) {
             if (!mounted) return;
