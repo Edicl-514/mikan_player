@@ -38,7 +38,7 @@ class CustomVideoControls extends StatelessWidget {
 
   // 播放源相关
   final List<SearchPlayResult> availableSources;
-  final int currentSourceIndex;
+  final ValueNotifier<int>? sourceIndexNotifier;
   final Function(int) onSourceSelected;
   final String currentSourceLabel;
 
@@ -66,7 +66,7 @@ class CustomVideoControls extends StatelessWidget {
     required this.currentEpisode,
     required this.onEpisodeSelected,
     required this.availableSources,
-    required this.currentSourceIndex,
+    this.sourceIndexNotifier,
     required this.onSourceSelected,
     this.currentSourceLabel = '未知',
     this.isLoading = false,
@@ -635,7 +635,7 @@ class CustomVideoControls extends StatelessWidget {
                 danmakuService: danmakuService,
                 subtitleService: subtitleService,
                 availableSources: availableSources,
-                currentSourceIndex: currentSourceIndex,
+                sourceIndexNotifier: sourceIndexNotifier,
                 currentSourceLabel: currentSourceLabel,
                 isAutoPlayNextEnabled: isAutoPlayNextEnabled,
                 onToggleAutoPlayNext: onToggleAutoPlayNext,
@@ -675,7 +675,7 @@ class CustomVideoControls extends StatelessWidget {
             danmakuService: danmakuService,
             subtitleService: subtitleService,
             availableSources: availableSources,
-            currentSourceIndex: currentSourceIndex,
+            sourceIndexNotifier: sourceIndexNotifier,
             currentSourceLabel: currentSourceLabel,
             isAutoPlayNextEnabled: isAutoPlayNextEnabled,
             onToggleAutoPlayNext: onToggleAutoPlayNext,
@@ -708,7 +708,7 @@ class CustomVideoControls extends StatelessWidget {
               danmakuService: danmakuService,
               subtitleService: subtitleService,
               availableSources: availableSources,
-              currentSourceIndex: currentSourceIndex,
+              sourceIndexNotifier: sourceIndexNotifier,
               currentSourceLabel: currentSourceLabel,
               isAutoPlayNextEnabled: isAutoPlayNextEnabled,
               onToggleAutoPlayNext: onToggleAutoPlayNext,
@@ -1385,7 +1385,7 @@ class _SettingsPanel extends StatefulWidget {
   final DanmakuService danmakuService;
   final SubtitleService subtitleService;
   final List<SearchPlayResult> availableSources;
-  final int currentSourceIndex;
+  final ValueNotifier<int>? sourceIndexNotifier;
   final String currentSourceLabel;
   final Function(int) onSourceSelected;
   final bool isAutoPlayNextEnabled;
@@ -1397,7 +1397,7 @@ class _SettingsPanel extends StatefulWidget {
     required this.danmakuService,
     required this.subtitleService,
     required this.availableSources,
-    required this.currentSourceIndex,
+    this.sourceIndexNotifier,
     required this.currentSourceLabel,
     required this.onSourceSelected,
     required this.isAutoPlayNextEnabled,
@@ -1412,6 +1412,36 @@ class _SettingsPanel extends StatefulWidget {
 class _SettingsPanelState extends State<_SettingsPanel> {
   // 0: 主菜单, 1: 弹幕设置, 2: 字幕设置, 3: 播放源
   int _currentPage = 0;
+  late int _currentSourceIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentSourceIndex = widget.sourceIndexNotifier?.value ?? 0;
+    widget.sourceIndexNotifier?.addListener(_onSourceIndexChanged);
+  }
+
+  @override
+  void didUpdateWidget(_SettingsPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.sourceIndexNotifier != oldWidget.sourceIndexNotifier) {
+      oldWidget.sourceIndexNotifier?.removeListener(_onSourceIndexChanged);
+      widget.sourceIndexNotifier?.addListener(_onSourceIndexChanged);
+      _currentSourceIndex = widget.sourceIndexNotifier?.value ?? 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.sourceIndexNotifier?.removeListener(_onSourceIndexChanged);
+    super.dispose();
+  }
+
+  void _onSourceIndexChanged() {
+    setState(() {
+      _currentSourceIndex = widget.sourceIndexNotifier!.value;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1556,7 +1586,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           title: '播放源',
           subtitle: widget.availableSources.isEmpty
               ? '暂无可用源'
-              : '${widget.currentSourceLabel} (${widget.availableSources.length}个可用)',
+              : '${widget.availableSources.isNotEmpty && _currentSourceIndex >= 0 && _currentSourceIndex < widget.availableSources.length ? widget.availableSources[_currentSourceIndex].sourceName : widget.currentSourceLabel} (${widget.availableSources.length}个可用)',
           onTap: () => setState(() => _currentPage = 3),
         ),
         const SizedBox(height: 16),
@@ -1998,10 +2028,15 @@ class _SettingsPanelState extends State<_SettingsPanel> {
       itemCount: widget.availableSources.length,
       itemBuilder: (context, index) {
         final source = widget.availableSources[index];
-        final isSelected = index == widget.currentSourceIndex;
+        final isSelected = index == _currentSourceIndex;
 
         return InkWell(
-          onTap: () => widget.onSourceSelected(index),
+          onTap: () {
+            setState(() {
+              _currentSourceIndex = index;
+            });
+            widget.onSourceSelected(index);
+          },
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

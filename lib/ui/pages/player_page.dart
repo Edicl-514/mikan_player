@@ -230,7 +230,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (_pendingStartPositionMs != null) {
       final targetPosition = _pendingStartPositionMs!;
       _pendingStartPositionMs = null;
-      
+
       try {
         // Wait for media to be ready (duration > 0)
         await for (final duration in _player.stream.duration) {
@@ -951,7 +951,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
       try {
         // Auto-play for Tier 0 sources
-        _player.open(Media(urlToPlay), play: true).then((_) => _applyPendingStartPosition());
+        _player
+            .open(Media(urlToPlay), play: true)
+            .then((_) => _applyPendingStartPosition());
         debugPrint('[_playSource] Media loaded and auto-playing (Tier 0).');
       } catch (e, st) {
         debugPrint('[_playSource] ERROR loading media: $e\n$st');
@@ -985,7 +987,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         if (parts.length >= 2) {
           final sourceName = parts.sublist(0, parts.length - 1).join('_');
           final channelIndexStr = parts.last;
-            final channelIndex = channelIndexStr == '-1'
+          final channelIndex = channelIndexStr == '-1'
               ? null
               : int.tryParse(channelIndexStr);
 
@@ -2184,6 +2186,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return refererRequiredDomains.any((domain) => host.contains(domain));
   }
 
+  // Notifier for source index to bypass Video widget rebuild issues
+  late final ValueNotifier<int> _selectedSourceIndexNotifier = ValueNotifier(0);
+
   void _onSourceSelected(int index) {
     if (index < 0 || index >= _sampleSuccessfulSources.length) return;
 
@@ -2192,49 +2197,82 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     setState(() {
       _selectedSourceIndex = index;
-
-      // Only prepare the URL and headers, don't auto-play
+      _selectedSourceIndexNotifier.value = index;
       _sampleVideoUrl = source.directVideoUrl;
-
-      // Check if this source needs Referer header (proxy)
-      final needsReferer = _needsRefererHeader(_sampleVideoUrl!);
-
-      String urlToPlay;
-      if (needsReferer) {
-        // Use proxy for sources that need Referer
-        final headers = <String, String>{
-          'Referer': source.playPageUrl,
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        };
-        urlToPlay = _headerProxy.registerUrl(_sampleVideoUrl!, headers);
-        debugPrint('[_onSourceSelected] Using proxy (needs Referer):');
-        debugPrint('  Original URL: $_sampleVideoUrl');
-        debugPrint('  Proxied URL: $urlToPlay');
-      } else {
-        // Use direct URL for sources that don't need Referer
-        urlToPlay = _sampleVideoUrl!;
-        debugPrint('[_onSourceSelected] Using direct URL (no Referer needed):');
-        debugPrint('  URL: $urlToPlay');
-      }
-
-      // Store the URL to play
-      _currentStreamUrl = urlToPlay;
       _playingSourceLabel = source.sourceName;
-
-      // Open media but start in paused state
-      _player.stop();
-
-      try {
-        _player.open(Media(urlToPlay), play: false).then((_) => _applyPendingStartPosition());
-        debugPrint(
-          '[_onSourceSelected] Media loaded (paused). User can click play to start.',
-        );
-      } catch (e, st) {
-        debugPrint('[_onSourceSelected] ERROR loading media: $e');
-        debugPrint('Stack trace: $st');
-      }
+      // We no longer set _currentStreamUrl or call _player.open here.
+      // This allows the user to click and see selection without loading the data.
     });
+    debugPrint(
+      '[_onSourceSelected] Source $index selected: ${source.sourceName}',
+    );
+  }
+
+  void _startPlaybackFromSelectedSource() {
+    if (_selectedSourceIndex < 0 ||
+        _selectedSourceIndex >= _sampleSuccessfulSources.length) {
+      return;
+    }
+
+    final source = _sampleSuccessfulSources[_selectedSourceIndex];
+    if (source.directVideoUrl == null) return;
+
+    // Save current position for resuming playback after source switch
+    // Check if we are actually playing something (duration > 0)
+    if (_player.state.duration > Duration.zero) {
+      final currentPos = _player.state.position.inMilliseconds;
+      // Only resume if played more than 1 second to avoid resume-loop at start
+      if (currentPos > 1000) {
+        _pendingStartPositionMs = currentPos;
+        debugPrint(
+          '[_startPlayback] Will resume from: ${_pendingStartPositionMs}ms',
+        );
+      }
+    }
+
+    setState(() {
+      _isLoadingVideo = true;
+      _videoError = null;
+    });
+
+    final urlToPlay = source.directVideoUrl!;
+    final needsReferer = _needsRefererHeader(urlToPlay);
+
+    String finalUrl;
+    if (needsReferer) {
+      // Use proxy for sources that need Referer
+      final headers = <String, String>{
+        'Referer': source.playPageUrl,
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      };
+      finalUrl = _headerProxy.registerUrl(urlToPlay, headers);
+      debugPrint('[_startPlayback] Using proxy for: $urlToPlay');
+    } else {
+      finalUrl = urlToPlay;
+      debugPrint('[_startPlayback] Using direct URL for: $urlToPlay');
+    }
+
+    setState(() {
+      _currentStreamUrl = finalUrl;
+    });
+
+    // Open media and start playing
+    _player.stop();
+    try {
+      _player.open(Media(finalUrl), play: true).then((_) {
+        setState(() => _isLoadingVideo = false);
+        _applyPendingStartPosition();
+      });
+      debugPrint('[_startPlayback] Media loading started.');
+    } catch (e, st) {
+      debugPrint('[_startPlayback] ERROR loading media: $e');
+      debugPrint('Stack trace: $st');
+      setState(() {
+        _isLoadingVideo = false;
+        _videoError = "播放失败: $e";
+      });
+    }
   }
 
   Widget _buildVideoPlayerPlaceholder(
@@ -2282,9 +2320,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 _saveAutoPlaySetting(newValue);
               },
               availableSources: _sampleSuccessfulSources,
-              currentSourceIndex: _selectedSourceIndex,
+              sourceIndexNotifier: _selectedSourceIndexNotifier,
               currentSourceLabel: _playingSourceLabel,
-              onSourceSelected: _onSourceSelected,
+              onSourceSelected: (index) {
+                _onSourceSelected(index);
+                _startPlaybackFromSelectedSource();
+              },
               isLoading: _isLoadingVideo || _loadingMagnet != null,
               videoTitle:
                   '${widget.anime.title} - 第${_currentEpisode.sort.toInt()}集',
@@ -3081,13 +3122,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
                   onPressed: _sampleVideoUrl != null
-                      ? () {
-                          // Media is already loaded by _onSourceSelected, just play it
-                          _player.play();
-                          debugPrint(
-                            '[PlayButton] Starting playback of already-loaded media',
-                          );
-                        }
+                      ? _startPlaybackFromSelectedSource
                       : null,
                   icon: const Icon(Icons.play_arrow, size: 18),
                   label: Text(
