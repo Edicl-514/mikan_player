@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/ui/pages/home_mobile_page.dart';
 import 'package:mikan_player/ui/pages/index_page.dart';
 import 'package:mikan_player/ui/pages/my_page.dart';
-import 'package:mikan_player/ui/pages/ranking_page.dart';
-import 'package:mikan_player/ui/pages/timetable_page.dart';
 
 class MobileHomeLayout extends StatefulWidget {
   const MobileHomeLayout({super.key});
@@ -14,27 +13,11 @@ class MobileHomeLayout extends StatefulWidget {
 class _MobileHomeLayoutState extends State<MobileHomeLayout> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = const [
-    TimeTablePage(),
-    RankingPage(),
-    IndexPage(),
-    MyPage(),
-  ];
-
-  final List<String> _titles = const [
-    'Schedule',
-    'Ranking',
-    'Anime Index',
-    'My Profile',
-  ];
+  final List<Widget> _pages = const [HomeMobilePage(), IndexPage(), MyPage()];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_titles[_selectedIndex]),
-        actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.search))],
-      ),
       body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
@@ -45,24 +28,19 @@ class _MobileHomeLayoutState extends State<MobileHomeLayout> {
         },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.calendar_today_outlined),
-            selectedIcon: Icon(Icons.calendar_today),
-            label: 'Schedule',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.leaderboard_outlined),
-            selectedIcon: Icon(Icons.leaderboard),
-            label: 'Ranking',
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: '首页',
           ),
           NavigationDestination(
             icon: Icon(Icons.category_outlined),
             selectedIcon: Icon(Icons.category),
-            label: 'Index',
+            label: '索引',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
-            label: 'My',
+            label: '我的',
           ),
         ],
       ),

@@ -11,23 +11,22 @@ class RankingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
-      child: Column(
-        children: [
-          const TabBar(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('排行榜'),
+          bottom: const TabBar(
             tabs: [
               Tab(text: '近期热门'),
               Tab(text: '排行榜'),
             ],
           ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                RankingList(sortType: 'trends'),
-                RankingList(sortType: 'rank'),
-              ],
-            ),
-          ),
-        ],
+        ),
+        body: const TabBarView(
+          children: [
+            RankingList(sortType: 'trends'),
+            RankingList(sortType: 'rank'),
+          ],
+        ),
       ),
     );
   }

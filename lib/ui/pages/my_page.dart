@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/ui/pages/settings_page.dart';
 import 'package:mikan_player/services/user_manager.dart';
+import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/ui/pages/favorites_page.dart';
 import 'package:mikan_player/ui/pages/history_page.dart';
 
@@ -38,7 +39,9 @@ class _MyPageState extends State<MyPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    Widget body = ListView(
       padding: const EdgeInsets.all(16),
       children: [
         // Profile Header
@@ -99,18 +102,12 @@ class _MyPageState extends State<MyPage> {
         // Downloads Section with badge
         _buildDownloadsTile(context),
 
-        _buildTile(
-          context,
-          Icons.history,
-          'History',
-          'Continue watching',
-          () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const HistoryPage()),
-            );
-          },
-        ),
+        _buildTile(context, Icons.history, 'History', 'Continue watching', () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const HistoryPage()),
+          );
+        }),
         _buildTile(
           context,
           Icons.favorite,
@@ -139,6 +136,32 @@ class _MyPageState extends State<MyPage> {
         _buildTile(context, Icons.info, 'About', 'Version 1.0.0', () {}),
       ],
     );
+
+    if (isMobile) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            '我的',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: '搜索番剧',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SearchPage()),
+                );
+              },
+            ),
+          ],
+        ),
+        body: body,
+      );
+    }
+
+    return body;
   }
 
   Widget _buildDownloadsTile(BuildContext context) {

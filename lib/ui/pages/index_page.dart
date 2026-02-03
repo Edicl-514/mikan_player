@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
+import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 
@@ -190,7 +191,7 @@ class _IndexPageState extends State<IndexPage> {
       });
 
       final int targetPage = loadMore ? _page + 1 : 1;
-      
+
       // 使用缓存管理器获取数据
       final results = await CacheManager.instance.getBrowser(
         sortType: sortType,
@@ -246,7 +247,9 @@ class _IndexPageState extends State<IndexPage> {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    Widget body = CustomScrollView(
       controller: _scrollController,
       slivers: [
         SliverToBoxAdapter(
@@ -331,6 +334,32 @@ class _IndexPageState extends State<IndexPage> {
           ),
       ],
     );
+
+    if (isMobile) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            '索引',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: '搜索番剧',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SearchPage()),
+                );
+              },
+            ),
+          ],
+        ),
+        body: body,
+      );
+    }
+
+    return body;
   }
 
   Widget _buildFilterRow(
