@@ -73,7 +73,7 @@ Future<void> _syncSettings() async {
     final mikan = prefs.getString('mikan_url') ?? 'https://mikanani.kas.pub';
     final playbackSub =
         prefs.getString('playback_sub_url') ??
-        'https://sub.creamycake.org/v1/css1.json';
+        'https://gitee.com/edicl/online-subscription/raw/master/online.json';
 
     await rust.updateConfig(
       bgm: bgm,

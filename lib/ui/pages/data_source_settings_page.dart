@@ -57,7 +57,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
           prefs.getString('mikan_url') ?? 'https://mikanani.kas.pub';
       _playbackSubController.text =
           prefs.getString('playback_sub_url') ??
-          'https://sub.creamycake.org/v1/css1.json';
+          'https://gitee.com/edicl/online-subscription/raw/master/online.json';
 
       _sources = sources;
       _disabledSources = sources
@@ -137,7 +137,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       _bgmController.text = 'https://bgmlist.com';
       _bangumiController.text = 'https://bangumi.tv';
       _mikanController.text = 'https://mikanani.kas.pub';
-      _playbackSubController.text = 'https://sub.creamycake.org/v1/css1.json';
+      _playbackSubController.text = 'https://gitee.com/edicl/online-subscription/raw/master/online.json';
     });
   }
 
@@ -188,7 +188,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                       child: _buildTextField(
                         controller: _playbackSubController,
                         label: '播放源订阅地址',
-                        hint: 'https://sub.creamycake.org/v1/css1.json',
+                        hint: 'https://gitee.com/edicl/online-subscription/raw/master/online.json',
                       ),
                     ),
                     const SizedBox(width: 8),

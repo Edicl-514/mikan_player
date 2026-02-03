@@ -16,7 +16,7 @@ lazy_static! {
         bgmlist_url: "https://bgmlist.com".to_string(),
         bangumi_url: "https://bangumi.tv".to_string(),
         mikan_url: "https://mikanani.kas.pub".to_string(),
-        playback_sub_url: "https://sub.creamycake.org/v1/css1.json".to_string(),
+        playback_sub_url: "https://gitee.com/edicl/online-subscription/raw/master/online.json".to_string(),
         disabled_sources: vec![],
         cache_dir: ".".to_string(),
         download_dir: "downloads".to_string(),

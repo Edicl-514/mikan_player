@@ -256,7 +256,7 @@ class _WebViewVideoExtractorWidgetState
     widget.onResult(result);
   }
 
-  bool _checkAndCaptureUrl(String url) {
+  bool _checkAndCaptureUrl(String url, {Map<String, String>? headers}) {
     if (_capturedUrls.contains(url)) return false;
     _capturedUrls.add(url);
     _totalUrlsChecked++;
@@ -274,6 +274,26 @@ class _WebViewVideoExtractorWidgetState
 
     if (looksLikeVideo) {
       _log('🔍 检测到疑似视频URL: $url');
+    }
+
+    // 确保 headers 包含 Referer，如果没有则使用初始页面URL
+    final Map<String, String> finalHeaders = {};
+    if (headers != null) {
+      headers.forEach((key, value) {
+        finalHeaders[key] = value;
+      });
+    }
+
+    if (looksLikeVideo) {
+      _log('   Headers provided: ${headers?.keys.join(", ")}');
+    }
+
+    if (!finalHeaders.containsKey('Referer') &&
+        !finalHeaders.containsKey('referer')) {
+      finalHeaders['Referer'] = widget.url;
+      if (looksLikeVideo) {
+        _log('   Added default Referer: ${widget.url}');
+      }
     }
 
     // 检查是否是播放器解析接口（这些URL通常在iframe中，需要实际导航）
@@ -335,12 +355,14 @@ class _WebViewVideoExtractorWidgetState
         if (extractedUrl != null && extractedUrl.isNotEmpty) {
           _log('✓ 匹配自定义正则并提取捕获组: $extractedUrl');
           _foundVideoUrl = extractedUrl;
-          _complete(VideoExtractResult(videoUrl: extractedUrl));
+          _complete(
+            VideoExtractResult(videoUrl: extractedUrl, headers: finalHeaders),
+          );
           return true;
         } else {
           _log('✓ 匹配自定义正则（无捕获组）: $url');
           _foundVideoUrl = url;
-          _complete(VideoExtractResult(videoUrl: url));
+          _complete(VideoExtractResult(videoUrl: url, headers: finalHeaders));
           return true;
         }
       }
@@ -356,7 +378,7 @@ class _WebViewVideoExtractorWidgetState
     if (builtInMatched) {
       _log('✓ 匹配内置模式: $url');
       _foundVideoUrl = url;
-      _complete(VideoExtractResult(videoUrl: url));
+      _complete(VideoExtractResult(videoUrl: url, headers: finalHeaders));
       return true;
     }
 
@@ -487,7 +509,7 @@ class _WebViewVideoExtractorWidgetState
       },
       shouldInterceptRequest: (controller, request) async {
         final url = request.url.toString();
-        _checkAndCaptureUrl(url);
+        _checkAndCaptureUrl(url, headers: request.headers);
         return null; // 继续正常请求
       },
       onLoadResource: (controller, resource) {

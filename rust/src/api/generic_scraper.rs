@@ -26,35 +26,7 @@ lazy_static::lazy_static! {
 /// 预处理搜索词，提取核心动画名称
 /// 参考 mikan.rs 的实现
 fn preprocess_search_term(name: &str) -> String {
-    let cleaned_name = name.trim();
-    
-    // 判断是否为标点符号（中日文标点 + ASCII标点）
-    let is_punctuation = |c: char| -> bool {
-        c.is_ascii_punctuation()
-            || "\u{3002}\u{FF01}\u{FF0C}\u{3001}\u{FF1F}\u{FF08}\u{FF09}\u{300A}\u{300B}\u{3010}\u{3011}\u{201C}\u{201D}\u{2018}\u{2019}\u{300C}\u{300D}\u{300E}\u{300F}\u{301C}\u{FF5E}\u{00B7}\u{2022}\u{2160}\u{2161}\u{2162}\u{2163}\u{2164}\u{2165}\u{2166}\u{2167}\u{2168}\u{2169}\u{216A}\u{216B}".contains(c)
-    };
-
-    // 1. 将所有标点替换为空格
-    let mut cleaned: String = name
-        .chars()
-        .map(|c| if is_punctuation(c) { ' ' } else { c })
-        .collect();
-
-    // 2. 移除季数相关关键词
-    cleaned = SEASON_RE.replace_all(&cleaned, " ").to_string();
-
-    // 3. 按空格分割，取最长的片段作为搜索词
-    let segments: Vec<&str> = cleaned
-        .split_whitespace()
-        .filter(|s| s.chars().count() >= 1)
-        .collect();
-
-    let final_search_str = segments
-        .iter()
-        .max_by_key(|s| s.chars().count())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| cleaned_name.to_string());
-
+    let final_search_str = extract_core_name(name);
     log::info!("Preprocessed search term: '{}' -> '{}'", name, final_search_str);
     final_search_str
 }
@@ -310,24 +282,45 @@ fn extract_channel_name(text: &str, pattern: Option<&str>) -> String {
     text.to_string()
 }
 
-/// 提取动画名称的核心部分（去除"第X季"等后缀）
+/// 提取动画名称的核心部分（用于搜索关键词和匹配逻辑）
 fn extract_core_name(name: &str) -> String {
-    // 去除常见的季数后缀
-    let patterns = [
-        r"\s*第[一二三四五六七八九十\d]+季",
-        r"\s*Season\s*\d+",
-        r"\s*S\d+",
-        r"\s*Part\s*\d+",
-        r"\s*\d+期",
-    ];
+    let cleaned_name = name.trim();
     
-    let mut result = name.to_string();
-    for pattern in patterns {
-        if let Ok(re) = Regex::new(pattern) {
-            result = re.replace_all(&result, "").to_string();
-        }
-    }
-    result.trim().to_string()
+    // 判断是否为标点符号（中日文标点 + ASCII标点）
+    let is_punctuation = |c: char| -> bool {
+        c.is_ascii_punctuation()
+            || "\u{3002}\u{FF01}\u{FF0C}\u{3001}\u{FF1F}\u{FF08}\u{FF09}\u{300A}\u{300B}\u{3010}\u{3011}\u{201C}\u{201D}\u{2018}\u{2019}\u{300C}\u{300D}\u{300E}\u{300F}\u{301C}\u{FF5E}\u{00B7}\u{2022}\u{2160}\u{2161}\u{2162}\u{2163}\u{2164}\u{2165}\u{2166}\u{2167}\u{2168}\u{2169}\u{216A}\u{216B}".contains(c)
+    };
+
+    // 1. 将所有标点替换为空格
+    let mut cleaned: String = name
+        .chars()
+        .map(|c| if is_punctuation(c) { ' ' } else { c })
+        .collect();
+
+    // 2. 移除季数相关关键词
+    cleaned = SEASON_RE.replace_all(&cleaned, " ").to_string();
+
+    // 3. 按空格分割，取第一个长度 >= 3 的片段作为核心词
+    let segments: Vec<&str> = cleaned
+        .split_whitespace()
+        .filter(|s| s.chars().count() >= 1)
+        .collect();
+
+    let final_core_str = segments
+        .iter()
+        .find(|s| s.chars().count() >= 3)
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            // 如果没有长度 >= 3 的，取最长的片段
+            segments
+                .iter()
+                .max_by_key(|s| s.chars().count())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| cleaned_name.to_string())
+        });
+
+    final_core_str
 }
 
 /// 计算标题匹配分数 (0-100)，使用 Jaccard 相似度
@@ -1324,7 +1317,7 @@ async fn search_single_source_with_progress(
                                 source_name, all_results.len(), title, score,
                                 if href.len() > 100 { format!("{}...", &href[..100]) } else { href.clone() });
                             
-                            if score > best_match_score && score >=30 {
+                            if score > best_match_score && score >= 30 {
                                 best_match_score = score;
                                 if href.starts_with("http") {
                                     found_url = href;
@@ -1341,20 +1334,20 @@ async fn search_single_source_with_progress(
                         
                         if !all_results.is_empty() {
                             let top_matches: Vec<_> = all_results.iter()
-                                .filter(|(_, score, _)| *score >= 40)
+                                .filter(|(_, score, _)| *score >= 30)
                                 .collect();
                             if !top_matches.is_empty() {
-                                log::info!("[{}] ✓ 符合条件的结果 (分数≥40):", source_name);
+                                log::info!("[{}] ✓ 符合条件的结果 (分数≥30):", source_name);
                                 for (title, score, _) in top_matches {
                                     log::info!("[{}]   - '{}' (分数: {})", source_name, title, score);
                                 }
                             } else {
-                                log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<40)", source_name);
+                                log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<30)", source_name);
                                 if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max() {
                                     log::warn!("[{}] 最高分: {}", source_name, max_score);
                                 }
                             }
-                            if best_match_score >= 50 {
+                            if best_match_score >= 30 {
                                 log::info!("[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})", source_name, best_match_score);
                             }
                         }
@@ -1374,11 +1367,11 @@ async fn search_single_source_with_progress(
                         log::info!("[{}] === 搜索结果列表 (Format Indexed) ===", source_name);
                         log::info!("[{}] 目标: '{}' | 核心名: '{}'", source_name, query_name, core_name);
                         log::info!("[{}] 总共找到 {} 个结果", source_name, names.len().min(links.len()));
-
+ 
                         for (name_el, link_el) in names.iter().zip(links.iter()) {
                             let title = name_el.text().collect::<String>().trim().to_string();
                             let href = link_el.value().attr("href").unwrap_or("").to_string();
-
+ 
                             let score = calculate_match_score(&title, query_name, &core_name);
                             all_results.push((title.clone(), score, href.clone()));
                             
@@ -1386,7 +1379,7 @@ async fn search_single_source_with_progress(
                                 source_name, all_results.len(), title, score,
                                 if href.len() > 100 { format!("{}...", &href[..100]) } else { href.clone() });
                             
-                            if score > best_match_score && score >= 50 {
+                            if score > best_match_score && score >= 30 {
                                 best_match_score = score;
                                 if href.starts_with("http") {
                                     found_url = href;
@@ -1403,20 +1396,20 @@ async fn search_single_source_with_progress(
                         
                         if !all_results.is_empty() {
                             let top_matches: Vec<_> = all_results.iter()
-                                .filter(|(_, score, _)| *score >= 50)
+                                .filter(|(_, score, _)| *score >= 30)
                                 .collect();
                             if !top_matches.is_empty() {
-                                log::info!("[{}] ✓ 符合条件的结果 (分数≥50):", source_name);
+                                log::info!("[{}] ✓ 符合条件的结果 (分数≥30):", source_name);
                                 for (title, score, _) in top_matches {
                                     log::info!("[{}]   - '{}' (分数: {})", source_name, title, score);
                                 }
                             } else {
-                                log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<50)", source_name);
+                                log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<30)", source_name);
                                 if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max() {
                                     log::warn!("[{}] 最高分: {}", source_name, max_score);
                                 }
                             }
-                            if best_match_score >= 50 {
+                            if best_match_score >= 30 {
                                 log::info!("[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})", source_name, best_match_score);
                             }
                         }
@@ -1780,7 +1773,7 @@ async fn search_single_source(
                                 source_name, all_results.len(), title, score,
                                 if href.len() > 100 { format!("{}...", &href[..100]) } else { href.clone() });
                             
-                            if score > best_match_score && score >= 50 {
+                            if score > best_match_score && score >= 30 {
                                 best_match_score = score;
                                 if href.starts_with("http") {
                                     found_url = href;
@@ -1797,20 +1790,20 @@ async fn search_single_source(
                         
                         if !all_results.is_empty() {
                             let top_matches: Vec<_> = all_results.iter()
-                                .filter(|(_, score, _)| *score >= 50)
+                                .filter(|(_, score, _)| *score >= 30)
                                 .collect();
                             if !top_matches.is_empty() {
-                                log::info!("[{}] ✓ 符合条件的结果 (分数≥50):", source_name);
+                                log::info!("[{}] ✓ 符合条件的结果 (分数≥30):", source_name);
                                 for (title, score, _) in top_matches {
                                     log::info!("[{}]   - '{}' (分数: {})", source_name, title, score);
                                 }
                             } else {
-                                log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<50)", source_name);
+                                log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<30)", source_name);
                                 if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max() {
                                     log::warn!("[{}] 最高分: {}", source_name, max_score);
                                 }
                             }
-                            if best_match_score >= 50 {
+                            if best_match_score >= 30 {
                                 log::info!("[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})", source_name, best_match_score);
                             }
                         }
@@ -1843,7 +1836,7 @@ async fn search_single_source(
                                 source_name, all_results.len(), title, score,
                                 if href.len() > 100 { format!("{}...", &href[..100]) } else { href.clone() });
                             
-                            if score > best_match_score && score >= 50 {
+                            if score > best_match_score && score >= 30 {
                                 best_match_score = score;
                                 if href.starts_with("http") {
                                     found_url = href;
@@ -1860,20 +1853,20 @@ async fn search_single_source(
                         
                         if !all_results.is_empty() {
                             let top_matches: Vec<_> = all_results.iter()
-                                .filter(|(_, score, _)| *score >= 50)
+                                .filter(|(_, score, _)| *score >= 30)
                                 .collect();
                             if !top_matches.is_empty() {
-                                log::info!("[{}] ✓ 符合条件的结果 (分数≥50):", source_name);
+                                log::info!("[{}] ✓ 符合条件的结果 (分数≥30):", source_name);
                                 for (title, score, _) in top_matches {
                                     log::info!("[{}]   - '{}' (分数: {})", source_name, title, score);
                                 }
                             } else {
-                                log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<50)", source_name);
+                                log::warn!("[{}] ✗ 没有符合条件的结果 (所有结果分数都<30)", source_name);
                                 if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max() {
                                     log::warn!("[{}] 最高分: {}", source_name, max_score);
                                 }
                             }
-                            if best_match_score >= 50 {
+                            if best_match_score >= 30 {
                                 log::info!("[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})", source_name, best_match_score);
                             }
                         }

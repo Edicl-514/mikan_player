@@ -15,6 +15,7 @@ import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/services/webview_video_extractor.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/services/subtitle_service.dart';
+import 'package:mikan_player/services/header_injection_proxy.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 
@@ -117,6 +118,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // Subtitle
   final SubtitleService _subtitleService = SubtitleService();
 
+  // Header Injection Proxy
+  final HeaderInjectionProxy _headerProxy = HeaderInjectionProxy();
+
   @override
   void initState() {
     super.initState();
@@ -134,6 +138,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     // Bind subtitle service to player
     _subtitleService.bindPlayer(_player);
+
+    // Start header injection proxy
+    _headerProxy.start();
 
     // Subscribe to player position for danmaku sync
     _positionSubscription = _player.stream.position.listen((position) {
@@ -472,7 +479,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         final key = item['key']?.toString() ?? '';
         final lowerKey = key.toLowerCase();
         final isAliasKey =
-            key.contains('别名') || key.contains('別名') || key.contains('别称') ||
+            key.contains('别名') ||
+            key.contains('別名') ||
+            key.contains('别称') ||
             lowerKey.contains('alias');
         if (!isAliasKey) continue;
 
@@ -783,6 +792,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         .where((s) => (_sourceTiers[s.sourceName] ?? 999) == 0)
         .toList();
 
+    debugPrint(
+      "[_attemptAutoPlay] Found ${candidates.length} Tier 0 candidates. Total sources: ${_sampleSuccessfulSources.length}",
+    );
+
     if (candidates.isNotEmpty) {
       _playSource(candidates.first);
     }
@@ -805,23 +818,44 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         _selectedSourceIndex = 0;
       }
 
-      final headers = <String, String>{};
-      if (source.headers != null) headers.addAll(source.headers!);
-      if (source.cookies != null) headers['Cookie'] = source.cookies!;
+      // Check if this source needs Referer header (proxy)
+      final needsReferer = _needsRefererHeader(_sampleVideoUrl!);
+
+      String urlToPlay;
+      if (needsReferer) {
+        // Use proxy for sources that need Referer
+        final headers = <String, String>{
+          'Referer': source.playPageUrl,
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        };
+        urlToPlay = _headerProxy.registerUrl(_sampleVideoUrl!, headers);
+        debugPrint('[_playSource] Auto-play (Tier 0) - using proxy:');
+        debugPrint('  Original URL: $_sampleVideoUrl');
+        debugPrint('  Proxied URL: $urlToPlay');
+      } else {
+        // Use direct URL for sources that don't need Referer
+        urlToPlay = _sampleVideoUrl!;
+        debugPrint('[_playSource] Auto-play (Tier 0) - using direct URL:');
+        debugPrint('  URL: $urlToPlay');
+      }
+
+      // Store the URL to play
+      _currentStreamUrl = urlToPlay;
+      _playingSourceLabel = source.sourceName;
 
       // 停止之前的播放，防止后台继续播放
       _player.stop();
-      debugPrint(
-        '[_playSource] Opening media url=$_sampleVideoUrl headers=$headers',
-      );
+
       try {
-        _player.open(Media(_sampleVideoUrl!, httpHeaders: headers));
+        // Auto-play for Tier 0 sources
+        _player.open(Media(urlToPlay), play: true);
+        debugPrint('[_playSource] Media loaded and auto-playing (Tier 0).');
       } catch (e, st) {
-        debugPrint('[_playSource] _player.open threw: $e\n$st');
+        debugPrint('[_playSource] ERROR loading media: $e\n$st');
         _videoError = '播放器打开失败: $e';
       }
-      _currentStreamUrl = _sampleVideoUrl;
-      _playingSourceLabel = source.sourceName;
+
       _isLoadingVideo = false;
       _videoError = null;
     });
@@ -871,13 +905,21 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               '[_onWebViewResult] matched page: playPageUrl=${page.playPageUrl} channelName=${page.channelName}',
             );
 
+            final resultHeaders = <String, String>{};
+            if (page.headers != null) resultHeaders.addAll(page.headers!);
+            resultHeaders.addAll(result.headers);
+
+            debugPrint(
+              '[_onWebViewResult] Captured headers: ${resultHeaders.keys.join(", ")}',
+            );
+
             final updatedPage = SearchPlayResult(
               sourceName: page.sourceName,
               playPageUrl: page.playPageUrl,
               videoRegex: page.videoRegex,
               directVideoUrl: result.videoUrl,
               cookies: page.cookies,
-              headers: page.headers,
+              headers: resultHeaders,
               channelName: page.channelName,
               channelIndex: page.channelIndex,
             );
@@ -1954,26 +1996,99 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _loadSampleSource();
   }
 
+  // Helper to sanitize headers (remove duplicates, empty values, unify case)
+  Map<String, String> _sanitizeHeaders(Map<String, String>? input) {
+    if (input == null) return {};
+    final Map<String, String> cleaned = {};
+
+    // Prioritize standard keys
+    final keyMap = {
+      'referer': 'Referer',
+      'user-agent': 'User-Agent',
+      'cookie': 'Cookie',
+      'accept': 'Accept',
+    };
+
+    input.forEach((k, v) {
+      if (v.isEmpty) return; // Skip empty values
+
+      final lowerK = k.toLowerCase();
+      final standardK = keyMap[lowerK] ?? k;
+
+      cleaned[standardK] = v;
+    });
+
+    return cleaned;
+  }
+
+  /// Check if a URL needs Referer header based on domain
+  bool _needsRefererHeader(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+
+    final host = uri.host.toLowerCase();
+
+    // List of domains that require Referer header
+    final refererRequiredDomains = [
+      'vbing.me',
+      'libvio',
+      'v.cdnlz',
+      // Add more domains here as needed
+    ];
+
+    return refererRequiredDomains.any((domain) => host.contains(domain));
+  }
+
   void _onSourceSelected(int index) {
     if (index < 0 || index >= _sampleSuccessfulSources.length) return;
-    if (index == _selectedSourceIndex) return;
 
     final source = _sampleSuccessfulSources[index];
     if (source.directVideoUrl == null) return;
 
     setState(() {
       _selectedSourceIndex = index;
+
+      // Only prepare the URL and headers, don't auto-play
       _sampleVideoUrl = source.directVideoUrl;
 
-      final headers = <String, String>{};
-      if (source.headers != null) headers.addAll(source.headers!);
-      if (source.cookies != null) headers['Cookie'] = source.cookies!;
+      // Check if this source needs Referer header (proxy)
+      final needsReferer = _needsRefererHeader(_sampleVideoUrl!);
 
-      // 停止之前的播放，防止后台继续播放
-      _player.stop();
-      _player.open(Media(_sampleVideoUrl!, httpHeaders: headers));
-      _currentStreamUrl = _sampleVideoUrl;
+      String urlToPlay;
+      if (needsReferer) {
+        // Use proxy for sources that need Referer
+        final headers = <String, String>{
+          'Referer': source.playPageUrl,
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        };
+        urlToPlay = _headerProxy.registerUrl(_sampleVideoUrl!, headers);
+        debugPrint('[_onSourceSelected] Using proxy (needs Referer):');
+        debugPrint('  Original URL: $_sampleVideoUrl');
+        debugPrint('  Proxied URL: $urlToPlay');
+      } else {
+        // Use direct URL for sources that don't need Referer
+        urlToPlay = _sampleVideoUrl!;
+        debugPrint('[_onSourceSelected] Using direct URL (no Referer needed):');
+        debugPrint('  URL: $urlToPlay');
+      }
+
+      // Store the URL to play
+      _currentStreamUrl = urlToPlay;
       _playingSourceLabel = source.sourceName;
+
+      // Open media but start in paused state
+      _player.stop();
+
+      try {
+        _player.open(Media(urlToPlay), play: false);
+        debugPrint(
+          '[_onSourceSelected] Media loaded (paused). User can click play to start.',
+        );
+      } catch (e, st) {
+        debugPrint('[_onSourceSelected] ERROR loading media: $e');
+        debugPrint('Stack trace: $st');
+      }
     });
   }
 
@@ -2717,10 +2832,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   final isSelected = index == _selectedSourceIndex;
                   return GestureDetector(
                     onTap: () {
-                      setState(() {
-                        _selectedSourceIndex = index;
-                        _sampleVideoUrl = source.directVideoUrl;
-                      });
+                      _onSourceSelected(index);
                     },
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 6),
@@ -2817,37 +2929,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 ElevatedButton.icon(
                   onPressed: _sampleVideoUrl != null
                       ? () {
-                          final source =
-                              _sampleSuccessfulSources[_selectedSourceIndex];
-                          final headers = <String, String>{};
-                          if (source.headers != null)
-                            headers.addAll(source.headers!);
-                          if (source.cookies != null)
-                            headers['Cookie'] = source.cookies!;
-
-                          // 停止之前的播放，防止后台继续播放
-                          _player.stop();
-                          _player.open(
-                            Media(_sampleVideoUrl!, httpHeaders: headers),
+                          // Media is already loaded by _onSourceSelected, just play it
+                          _player.play();
+                          debugPrint(
+                            '[PlayButton] Starting playback of already-loaded media',
                           );
-
-                          // 构建播放源标签
-                          String playingLabel =
-                              _sampleSuccessfulSources[_selectedSourceIndex]
-                                  .sourceName;
-                          if (_sampleSuccessfulSources[_selectedSourceIndex]
-                                  .channelName !=
-                              null) {
-                            playingLabel +=
-                                " - ${_sampleSuccessfulSources[_selectedSourceIndex].channelName}";
-                          }
-
-                          setState(() {
-                            _currentStreamUrl = _sampleVideoUrl;
-                            _playingSourceLabel = playingLabel;
-                            _isLoadingVideo = false;
-                            _videoError = null;
-                          });
                         }
                       : null,
                   icon: const Icon(Icons.play_arrow, size: 18),
