@@ -27,12 +27,14 @@ class PlayerPage extends StatefulWidget {
   final AnimeInfo anime;
   final BangumiEpisode currentEpisode;
   final List<BangumiEpisode> allEpisodes;
+  final int? startPositionMs; // optional start position in milliseconds
 
   const PlayerPage({
     super.key,
     required this.anime,
     required this.currentEpisode,
     required this.allEpisodes,
+    this.startPositionMs,
   });
 
   @override
@@ -125,6 +127,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   // Playback History
   final PlaybackHistoryManager _historyManager = PlaybackHistoryManager();
+  int? _pendingStartPositionMs;
+  int _lastSavedPositionMs = 0;
+  static const int _saveIntervalMs = 5000;
 
   // Header Injection Proxy
   final HeaderInjectionProxy _headerProxy = HeaderInjectionProxy();
@@ -138,6 +143,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     // Initialize current episode from widget
     _currentEpisode = widget.currentEpisode;
+
+    _pendingStartPositionMs = widget.startPositionMs;
 
     _savePlaybackHistory();
 
@@ -158,6 +165,21 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         setState(() {
           _currentVideoTime = position.inMilliseconds / 1000.0;
         });
+
+        try {
+          final posMs = position.inMilliseconds;
+          if ((posMs - _lastSavedPositionMs).abs() >= _saveIntervalMs) {
+            _lastSavedPositionMs = posMs;
+            _historyManager.addOrUpdate(
+              anime: widget.anime,
+              currentEpisode: _currentEpisode,
+              allEpisodes: widget.allEpisodes,
+              lastPositionMs: posMs,
+            );
+          }
+        } catch (e) {
+          debugPrint('Error saving playback position: $e');
+        }
       }
     });
 
@@ -167,6 +189,21 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         setState(() {
           _isVideoPaused = !playing;
         });
+        // Save position when paused
+        if (!playing) {
+          try {
+            final posMs = (_currentVideoTime * 1000).toInt();
+            _historyManager.addOrUpdate(
+              anime: widget.anime,
+              currentEpisode: _currentEpisode,
+              allEpisodes: widget.allEpisodes,
+              lastPositionMs: posMs,
+            );
+            _lastSavedPositionMs = posMs;
+          } catch (e) {
+            debugPrint('Error saving position on pause: $e');
+          }
+        }
       }
     });
 
@@ -187,6 +224,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _loadSampleSource();
     _loadDanmaku();
     _loadSettings();
+  }
+
+  Future<void> _applyPendingStartPosition() async {
+    if (_pendingStartPositionMs != null) {
+      final targetPosition = _pendingStartPositionMs!;
+      _pendingStartPositionMs = null;
+      
+      try {
+        // Wait for media to be ready (duration > 0)
+        await for (final duration in _player.stream.duration) {
+          if (duration.inMilliseconds > 0) {
+            // Media is ready, now seek
+            await _player.seek(Duration(milliseconds: targetPosition));
+            debugPrint('[Seek] Applied start position: ${targetPosition}ms');
+            break;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error applying start position: $e');
+      }
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -893,7 +951,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
       try {
         // Auto-play for Tier 0 sources
-        _player.open(Media(urlToPlay), play: true);
+        _player.open(Media(urlToPlay), play: true).then((_) => _applyPendingStartPosition());
         debugPrint('[_playSource] Media loaded and auto-playing (Tier 0).');
       } catch (e, st) {
         debugPrint('[_playSource] ERROR loading media: $e\n$st');
@@ -927,15 +985,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         if (parts.length >= 2) {
           final sourceName = parts.sublist(0, parts.length - 1).join('_');
           final channelIndexStr = parts.last;
-          final channelIndex = channelIndexStr == '-1'
+            final channelIndex = channelIndexStr == '-1'
               ? null
               : int.tryParse(channelIndexStr);
 
           // 找到对应的播放页并更新
           final pageIndex = _samplePlayPages.indexWhere((p) {
-            final pIdx = p.channelIndex == null
-                ? null
-                : p.channelIndex!.toInt();
+            final pIdx = p.channelIndex?.toInt();
             return p.sourceName == sourceName && (pIdx == channelIndex);
           });
 
@@ -1122,6 +1178,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    try {
+      final posMs = (_currentVideoTime * 1000).toInt();
+      _historyManager.addOrUpdate(
+        anime: widget.anime,
+        currentEpisode: _currentEpisode,
+        allEpisodes: widget.allEpisodes,
+        lastPositionMs: posMs,
+      );
+    } catch (e) {
+      debugPrint('Error saving final playback position: $e');
+    }
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
@@ -2056,11 +2123,22 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _savePlaybackHistory() {
-    _historyManager.addOrUpdate(
-      anime: widget.anime,
-      currentEpisode: _currentEpisode,
-      allEpisodes: widget.allEpisodes,
-    );
+    try {
+      final posMs = (_currentVideoTime * 1000).toInt();
+      _historyManager.addOrUpdate(
+        anime: widget.anime,
+        currentEpisode: _currentEpisode,
+        allEpisodes: widget.allEpisodes,
+        lastPositionMs: posMs,
+      );
+      _lastSavedPositionMs = posMs;
+    } catch (e) {
+      _historyManager.addOrUpdate(
+        anime: widget.anime,
+        currentEpisode: _currentEpisode,
+        allEpisodes: widget.allEpisodes,
+      );
+    }
   }
 
   // Helper to sanitize headers (remove duplicates, empty values, unify case)
@@ -2148,7 +2226,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _player.stop();
 
       try {
-        _player.open(Media(urlToPlay), play: false);
+        _player.open(Media(urlToPlay), play: false).then((_) => _applyPendingStartPosition());
         debugPrint(
           '[_onSourceSelected] Media loaded (paused). User can click play to start.',
         );
@@ -3425,6 +3503,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                               // 停止之前的播放，防止后台继续播放
                               await _player.stop();
                               await _player.open(Media(streamUrl));
+                              await _applyPendingStartPosition();
 
                               setState(() {
                                 _loadingMagnet = null;

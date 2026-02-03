@@ -26,6 +26,7 @@ class PlaybackHistoryItem {
   final String episodeNameCn;
   final String episodesJson;
   final int updatedAt;
+  final int lastPositionMs; // last watched position in milliseconds
 
   const PlaybackHistoryItem({
     required this.key,
@@ -47,6 +48,7 @@ class PlaybackHistoryItem {
     required this.episodeNameCn,
     required this.episodesJson,
     required this.updatedAt,
+    required this.lastPositionMs,
   });
 
   factory PlaybackHistoryItem.fromJson(Map<String, dynamic> json) {
@@ -72,6 +74,7 @@ class PlaybackHistoryItem {
       episodeNameCn: json['episodeNameCn'] as String,
       episodesJson: json['episodesJson'] as String? ?? '[]',
       updatedAt: json['updatedAt'] as int,
+      lastPositionMs: json['lastPositionMs'] as int? ?? 0,
     );
   }
 
@@ -96,6 +99,7 @@ class PlaybackHistoryItem {
       'episodeNameCn': episodeNameCn,
       'episodesJson': episodesJson,
       'updatedAt': updatedAt,
+      'lastPositionMs': lastPositionMs,
     };
   }
 
@@ -189,6 +193,7 @@ class PlaybackHistoryManager {
     required AnimeInfo anime,
     required BangumiEpisode currentEpisode,
     required List<BangumiEpisode> allEpisodes,
+    int? lastPositionMs,
   }) async {
     final history = await getHistory();
     final key = _buildKey(anime);
@@ -214,6 +219,7 @@ class PlaybackHistoryManager {
       episodeNameCn: currentEpisode.nameCn,
       episodesJson: _encodeEpisodes(allEpisodes),
       updatedAt: DateTime.now().millisecondsSinceEpoch,
+      lastPositionMs: lastPositionMs ?? 0,
     );
 
     history.insert(0, item);
@@ -231,6 +237,45 @@ class PlaybackHistoryManager {
   Future<void> remove(String key) async {
     final history = await getHistory();
     history.removeWhere((item) => item.key == key);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _storageKey,
+      jsonEncode(history.map((e) => e.toJson()).toList()),
+    );
+  }
+
+  /// Update only the playback position for an existing history item
+  Future<void> updatePosition(String key, int positionMs) async {
+    final history = await getHistory();
+    final idx = history.indexWhere((i) => i.key == key);
+    if (idx == -1) return;
+    final item = history[idx];
+    final updated = PlaybackHistoryItem(
+      key: item.key,
+      title: item.title,
+      subTitle: item.subTitle,
+      bangumiId: item.bangumiId,
+      mikanId: item.mikanId,
+      coverUrl: item.coverUrl,
+      siteUrl: item.siteUrl,
+      broadcastDay: item.broadcastDay,
+      broadcastTime: item.broadcastTime,
+      score: item.score,
+      rank: item.rank,
+      tags: item.tags,
+      fullJson: item.fullJson,
+      episodeId: item.episodeId,
+      episodeSort: item.episodeSort,
+      episodeName: item.episodeName,
+      episodeNameCn: item.episodeNameCn,
+      episodesJson: item.episodesJson,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+      lastPositionMs: positionMs,
+    );
+
+    history.removeAt(idx);
+    history.insert(0, updated);
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       _storageKey,

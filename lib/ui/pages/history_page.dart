@@ -34,6 +34,18 @@ class _HistoryPageState extends State<HistoryPage> {
     return sort.toString();
   }
 
+  String _formatMs(int ms) {
+    if (ms <= 0) return '';
+    final seconds = (ms / 1000).floor();
+    final s = seconds % 60;
+    final m = (seconds / 60).floor() % 60;
+    final h = (seconds / 3600).floor();
+    if (h > 0) {
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
   Future<void> _openHistoryItem(PlaybackHistoryItem item) async {
     var episodes = item.toEpisodes();
 
@@ -78,6 +90,7 @@ class _HistoryPageState extends State<HistoryPage> {
           anime: item.toAnimeInfo(),
           currentEpisode: currentEpisode,
           allEpisodes: episodes,
+          startPositionMs: item.lastPositionMs,
         ),
       ),
     );
@@ -167,7 +180,8 @@ class _HistoryPageState extends State<HistoryPage> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Text(
-                      '${episodeLabel}  ${item.episodeNameCn.isNotEmpty ? item.episodeNameCn : item.episodeName}',
+                      '${episodeLabel}  ${item.episodeNameCn.isNotEmpty ? item.episodeNameCn : item.episodeName}'
+                      + (item.lastPositionMs > 0 ? ' · ${_formatMs(item.lastPositionMs)}' : ''),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
