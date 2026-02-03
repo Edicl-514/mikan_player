@@ -112,6 +112,18 @@ class _FavoritesPageState extends State<FavoritesPage>
     return Scaffold(
       appBar: AppBar(
         title: const Text('我的收藏'),
+        actions: [
+          IconButton(
+            onPressed: () {
+              _fetchLocalFavorites();
+              if (_userManager.isLoggedIn) {
+                _fetchBangumiCollections();
+              }
+            },
+            icon: const Icon(Icons.refresh),
+            tooltip: '刷新所有收藏',
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [

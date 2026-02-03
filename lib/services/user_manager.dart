@@ -22,6 +22,10 @@ class UserManager extends ChangeNotifier {
       try {
         _user = User.fromJson(jsonDecode(userJson));
         notifyListeners();
+        // Auto update in background
+        login(_user!.username).catchError((e) {
+          debugPrint('Failed to auto-update user: $e');
+        });
       } catch (e) {
         debugPrint('Failed to load user: $e');
         await logout();

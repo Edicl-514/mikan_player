@@ -232,7 +232,7 @@ class _MyPageState extends State<MyPage> {
                   decoration: InputDecoration(
                     labelText: '用户名 / ID',
                     border: const OutlineInputBorder(),
-                    hintText: '例如: 1208579',
+                    hintText: '注意：是用户名不是昵称',
                     errorText: error,
                   ),
                   enabled: !loading,
