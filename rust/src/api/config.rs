@@ -9,6 +9,7 @@ pub struct RuntimeConfig {
     pub disabled_sources: Vec<String>,
     pub cache_dir: String,
     pub download_dir: String,
+    pub max_concurrent_searches: u32,
 }
 
 lazy_static! {
@@ -16,10 +17,12 @@ lazy_static! {
         bgmlist_url: "https://bgmlist.com".to_string(),
         bangumi_url: "https://bangumi.tv".to_string(),
         mikan_url: "https://mikanani.kas.pub".to_string(),
-        playback_sub_url: "https://gitee.com/edicl/online-subscription/raw/master/online.json".to_string(),
+        playback_sub_url: "https://gitee.com/edicl/online-subscription/raw/master/online.json"
+            .to_string(),
         disabled_sources: vec![],
         cache_dir: ".".to_string(),
         download_dir: "downloads".to_string(),
+        max_concurrent_searches: 3,
     });
 }
 
@@ -102,4 +105,14 @@ pub fn is_source_enabled(name: &str) -> bool {
         .unwrap()
         .disabled_sources
         .contains(&name.to_string())
+}
+
+pub fn set_max_concurrent_searches(limit: u32) {
+    let mut config = CONFIG.write().unwrap();
+    config.max_concurrent_searches = limit;
+    log::info!("Max concurrent searches set to: {}", limit);
+}
+
+pub fn get_max_concurrent_searches() -> u32 {
+    CONFIG.read().unwrap().max_concurrent_searches
 }

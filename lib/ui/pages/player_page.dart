@@ -94,6 +94,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // Auto Play Logic
   bool _hasAutoPlayed = false;
   bool _isAutoPlayNextEnabled = true;
+  bool _autoSearchOnline = true;
 
   // 每个源的搜索进度状态
   Map<String, SourceSearchProgress> _sourceProgressMap = {};
@@ -219,7 +220,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     _loadComments();
     _loadRecommendations();
-    
+
     // Check if we have a direct BT stream URL to play
     if (widget.btStreamUrl != null) {
       _playBtStreamUrl(widget.btStreamUrl!);
@@ -227,10 +228,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // Check for existing BT download for this episode
       _checkAndPlayExistingBtDownload();
     }
-    
+
     _loadMikanSource();
     _loadDmhySource();
-    _loadSampleSource();
+    // _loadSampleSource(); // Moved to _loadSettings to ensure settings are loaded first
     _loadDanmaku();
     _loadSettings();
   }
@@ -241,9 +242,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       widget.anime.title,
       _currentEpisode.sort.toInt(),
     );
-    
+
     if (task != null && task.streamUrl != null) {
-      debugPrint('[Player] Found existing BT download for this episode: ${task.name}');
+      debugPrint(
+        '[Player] Found existing BT download for this episode: ${task.name}',
+      );
       _playBtStreamUrl(task.streamUrl!);
     }
   }
@@ -258,9 +261,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _isLoadingVideo = false;
       _videoError = null;
     });
-    
+
     debugPrint('[Player] Playing BT stream: $streamUrl');
-    _player.open(Media(streamUrl), play: true).then((_) => _applyPendingStartPosition());
+    _player
+        .open(Media(streamUrl), play: true)
+        .then((_) => _applyPendingStartPosition());
   }
 
   Future<void> _applyPendingStartPosition() async {
@@ -290,6 +295,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (mounted) {
         setState(() {
           _isAutoPlayNextEnabled = prefs.getBool('auto_play_next') ?? true;
+          _autoSearchOnline = prefs.getBool('auto_search_online') ?? true;
           _maxConcurrentWebViews = prefs.getInt('max_concurrent_webviews') ?? 1;
           _webViewLaunchInterval =
               prefs.getInt('webview_launch_interval') ?? 200;
@@ -297,6 +303,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
     } catch (e) {
       debugPrint('Error loading settings: $e');
+    }
+
+    // Load sample source after settings to respect _autoSearchOnline
+    if (mounted) {
+      _loadSampleSource();
     }
   }
 
@@ -688,18 +699,30 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Future<void> _loadSampleSource() async {
+    // Ensure we have the latest setting
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _autoSearchOnline = prefs.getBool('auto_search_online') ?? true;
+    } catch (e) {
+      debugPrint('Error refreshing settings in loadSampleSource: $e');
+    }
+
     // First check if there's already a BT download for this episode
     final btTask = _downloadManager.getAvailableTaskForEpisode(
       widget.anime.title,
       _currentEpisode.sort.toInt(),
     );
-    
-    if (btTask != null && btTask.streamUrl != null && _currentStreamUrl == null) {
-      debugPrint('[Sample] Found existing BT download, using it as primary source');
+
+    if (btTask != null &&
+        btTask.streamUrl != null &&
+        _currentStreamUrl == null) {
+      debugPrint(
+        '[Sample] Found existing BT download, using it as primary source',
+      );
       _playBtStreamUrl(btTask.streamUrl!);
       // Continue loading other sources in background for alternatives
     }
-    
+
     setState(() {
       _isLoadingSample = true;
       _sampleError = null;
@@ -716,6 +739,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _sourceTiers = {};
       _hasAutoPlayed = false;
     });
+
+    if (!_autoSearchOnline) {
+      if (mounted) {
+        setState(() {
+          _isLoadingSample = false;
+          _sampleStatusMessage = '在线搜索已关闭';
+        });
+      }
+      return;
+    }
 
     try {
       // 获取所有源（包括详细信息如Tier）
@@ -937,7 +970,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   void _attemptAutoPlay() {
     // Don't auto-play if already playing something (including BT)
-    if (_hasAutoPlayed || _sampleVideoUrl != null || _currentStreamUrl != null) return;
+    if (_hasAutoPlayed || _sampleVideoUrl != null || _currentStreamUrl != null)
+      return;
 
     // 仅允许Tier 0自动播放
     final candidates = _sampleSuccessfulSources

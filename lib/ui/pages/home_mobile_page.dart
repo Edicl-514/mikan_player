@@ -678,7 +678,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                             ),
                           ),
                           Text(
-                            "EP ${item.episodeSort} · ${item.episodeName}",
+                            "EP ${item.episodeSort % 1 == 0 ? item.episodeSort.toInt() : item.episodeSort} · ${item.episodeName}",
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(

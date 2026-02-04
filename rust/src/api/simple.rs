@@ -40,6 +40,10 @@ pub fn set_disabled_sources(sources: Vec<String>) {
     crate::api::config::set_disabled_sources(sources);
 }
 
+pub fn set_max_concurrent_searches(limit: u32) {
+    crate::api::config::set_max_concurrent_searches(limit);
+}
+
 pub async fn get_playback_sources() -> Vec<crate::api::generic_scraper::SourceState> {
     match crate::api::generic_scraper::get_playback_sources().await {
         Ok(s) => s,
@@ -613,7 +617,10 @@ pub async fn pause_torrent(info_hash: String) -> bool {
 /// Note: This requires the torrent to be restarted using start_torrent with the magnet link
 /// This function is kept for API compatibility but returns false as resume must be done via restart
 pub async fn resume_torrent(info_hash: String) -> bool {
-    log::info!("Resume torrent called for {}, but torrent needs to be restarted with magnet link", info_hash);
+    log::info!(
+        "Resume torrent called for {}, but torrent needs to be restarted with magnet link",
+        info_hash
+    );
     // Return false to indicate that the torrent should be restarted using startTorrent
     false
 }

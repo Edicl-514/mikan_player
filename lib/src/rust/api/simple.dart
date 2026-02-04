@@ -37,6 +37,9 @@ Future<void> updateConfig({
 Future<void> setDisabledSources({required List<String> sources}) =>
     RustLib.instance.api.crateApiSimpleSetDisabledSources(sources: sources);
 
+Future<void> setMaxConcurrentSearches({required int limit}) =>
+    RustLib.instance.api.crateApiSimpleSetMaxConcurrentSearches(limit: limit);
+
 Future<List<SourceState>> getPlaybackSources() =>
     RustLib.instance.api.crateApiSimpleGetPlaybackSources();
 

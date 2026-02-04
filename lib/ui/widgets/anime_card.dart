@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class AnimeCard extends StatefulWidget {
   final String title;
   final String? subtitle;
-  final String tag;
+  final String? tag;
   final String? coverUrl;
   final double? score;
   final VoidCallback? onTap;
@@ -13,7 +13,7 @@ class AnimeCard extends StatefulWidget {
     super.key,
     required this.title,
     this.subtitle,
-    this.tag = 'Update',
+    this.tag,
     this.coverUrl,
     this.score,
     this.onTap,
@@ -80,30 +80,31 @@ class _AnimeCardState extends State<AnimeCard>
                     ),
                   ),
                 ),
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      borderRadius: const BorderRadius.only(
-                        bottomRight: Radius.circular(8),
+                if (widget.tag != null && widget.tag!.isNotEmpty)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
                       ),
-                    ),
-                    child: Text(
-                      widget.tag,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: const BorderRadius.only(
+                          bottomRight: Radius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        widget.tag!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ),
                 if (widget.score != null && widget.score! > 0)
                   Positioned(
                     top: 0,

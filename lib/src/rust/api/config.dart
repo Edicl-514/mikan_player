@@ -56,3 +56,9 @@ Future<void> setDisabledSources({required List<String> sources}) =>
 
 Future<bool> isSourceEnabled({required String name}) =>
     RustLib.instance.api.crateApiConfigIsSourceEnabled(name: name);
+
+Future<void> setMaxConcurrentSearches({required int limit}) =>
+    RustLib.instance.api.crateApiConfigSetMaxConcurrentSearches(limit: limit);
+
+Future<int> getMaxConcurrentSearches() =>
+    RustLib.instance.api.crateApiConfigGetMaxConcurrentSearches();

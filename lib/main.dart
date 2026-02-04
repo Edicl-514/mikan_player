@@ -97,6 +97,9 @@ Future<void> _syncSettings() async {
     final disabledSources = prefs.getStringList('disabled_sources') ?? [];
     await rust.setDisabledSources(sources: disabledSources);
 
+    final maxConcurrentSearches = prefs.getInt('max_concurrent_searches') ?? 3;
+    await rust.setMaxConcurrentSearches(limit: maxConcurrentSearches);
+
     // 应用启动时预加载播放源配置
     debugPrint('Preloading playback source config on app startup...');
     await rust.preloadPlaybackSourceConfig();
