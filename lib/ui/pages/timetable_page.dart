@@ -61,26 +61,48 @@ class _TimeTablePageState extends State<TimeTablePage>
   }
 
   Future<void> _loadArchives() async {
+    // 先计算当前季度，立即尝试从缓存加载
+    final now = DateTime.now();
+    final currentYear = now.year;
+    final currentMonth = now.month;
+    final currentQuarter = currentMonth <= 3 ? 1 : currentMonth <= 6 ? 2 : currentMonth <= 9 ? 3 : 4;
+    final currentQuarterStr = '${currentYear}q$currentQuarter';
+
+    // 先尝试从缓存加载当前季度的数据（立即显示）
+    _loadAnimes(currentQuarterStr);
+
+    // 后台加载归档列表（不阻塞 UI）
     try {
       final archives = await crawler.fetchArchiveList();
       if (mounted) {
         setState(() {
           _archives = archives;
           if (_archives.isNotEmpty) {
-            _selectedArchive = _archives.first;
+            // 检查当前季度是否在列表中
+            final currentArchive = _archives.firstWhere(
+              (a) => a.quarter == currentQuarterStr,
+              orElse: () => _archives.first,
+            );
+            _selectedArchive = currentArchive;
+            
+            // 如果选中的不是当前季度，重新加载
+            if (_selectedArchive!.quarter != currentQuarterStr) {
+              _loadAnimes(_selectedArchive!.quarter);
+            }
           }
         });
-        if (_selectedArchive != null) {
-          _loadAnimes(_selectedArchive!.quarter);
-        } else {
-          setState(() => _isLoading = false);
-        }
       }
     } catch (e) {
-      if (mounted) {
+      debugPrint('Failed to load archives, using current quarter: $e');
+      // 网络失败，但已经从缓存加载了当前季度，不影响使用
+      if (mounted && _archives.isEmpty) {
+        // 如果没有归档列表，创建一个当前季度的
         setState(() {
-          _isLoading = false;
-          _errorMessage = _parseError(e);
+          _selectedArchive = crawler.ArchiveQuarter(
+            year: currentYear.toString(),
+            quarter: currentQuarterStr,
+            title: '$currentYear年${currentQuarter}月',
+          );
         });
       }
     }

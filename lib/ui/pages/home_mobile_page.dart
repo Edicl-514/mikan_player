@@ -103,65 +103,64 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
 
   Future<void> _loadTodayAnimes() async {
     try {
-      // 1. Get archives to find current quarter
-      // We can try to guess the quarter or fetch the list. Fetching list is safer.
-      final archives = await crawler.fetchArchiveList();
-      if (archives.isNotEmpty) {
-        final currentQuarter = archives.first.quarter;
+      // 1. 直接计算当前季度，无需等待网络请求
+      final now = DateTime.now();
+      final currentYear = now.year;
+      final currentMonth = now.month;
+      final quarterNum = currentMonth <= 3 ? 1 : currentMonth <= 6 ? 2 : currentMonth <= 9 ? 3 : 4;
+      final currentQuarter = '${currentYear}q$quarterNum';
 
-        // 2. Get timetable
-        final animes = await CacheManager.instance.getTimetable(
-          quarter: currentQuarter,
-          fetchFromNetwork: () =>
-              crawler.fetchScheduleBasic(yearQuarter: currentQuarter),
-        );
+      // 2. Get timetable（优先从缓存）
+      final animes = await CacheManager.instance.getTimetable(
+        quarter: currentQuarter,
+        fetchFromNetwork: () =>
+            crawler.fetchScheduleBasic(yearQuarter: currentQuarter),
+      );
 
-        // 3. Filter for today
-        final now = DateTime.now();
-        final weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-        final todayStr = weekDays[now.weekday - 1];
+      // 3. Filter for today
+      final weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+      final todayStr = weekDays[now.weekday - 1];
 
-        var todayList = animes
-            .where((a) => a.broadcastDay == todayStr)
-            .toList();
+      var todayList = animes
+          .where((a) => a.broadcastDay == todayStr)
+          .toList();
 
-        if (mounted) {
-          setState(() {
-            _todayAnimes = todayList;
-            _isLoadingToday = false;
-          });
-          _startTodayTimer();
-        }
+      if (mounted) {
+        setState(() {
+          _todayAnimes = todayList;
+          _isLoadingToday = false;
+        });
+        _startTodayTimer();
+      }
 
-        // 4. Fill details if covers are missing
-        final missingCovers = todayList
-            .where((a) => a.coverUrl == null || a.coverUrl!.isEmpty)
-            .toList();
-        if (missingCovers.isNotEmpty) {
-          try {
-            final enriched = await crawler.fillAnimeDetails(
-              animes: missingCovers,
+      // 4. Fill details if covers are missing
+      final missingCovers = todayList
+          .where((a) => a.coverUrl == null || a.coverUrl!.isEmpty)
+          .toList();
+      if (missingCovers.isNotEmpty) {
+        try {
+          final enriched = await crawler.fillAnimeDetails(
+            animes: missingCovers,
+          );
+          // ✅ 保存到缓存，加速后续加载
+          await CacheManager.instance.cacheAnimeInfos(enriched);
+          
+          // Update the list with enriched data
+          for (final item in enriched) {
+            final index = todayList.indexWhere(
+              (a) => a.bangumiId == item.bangumiId,
             );
-            // ✅ 保存到缓存，加速后续加载
-            await CacheManager.instance.cacheAnimeInfos(enriched);
-            
-            // Update the list with enriched data
-            for (final item in enriched) {
-              final index = todayList.indexWhere(
-                (a) => a.bangumiId == item.bangumiId,
-              );
-              if (index != -1) {
-                todayList[index] = item;
-              }
+            if (index != -1) {
+              todayList[index] = item;
             }
-            if (mounted) {
-              setState(() {
-                _todayAnimes = List.from(todayList);
-              });
-            }
-          } catch (e) {
-            debugPrint('Failed to enrich today animes: $e');
           }
+          if (mounted) {
+            setState(() {
+              _todayAnimes = List.from(todayList);
+            });
+          }
+        } catch (e) {
+          debugPrint('Failed to enrich today animes: $e');
         }
       }
     } catch (e) {

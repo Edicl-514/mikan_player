@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 
 import 'bangumi_cache_service.dart';
@@ -64,15 +66,27 @@ class CacheManager {
 
     // 从网络获取
     debugPrint('Fetching timetable from network: $quarter');
-    final animes = await fetchFromNetwork();
+    try {
+      final animes = await fetchFromNetwork();
 
-    // 保存到缓存
-    await _dbCache.saveTimetable(quarter, animes);
+      // 保存到缓存
+      await _dbCache.saveTimetable(quarter, animes);
 
-    // 后台缓存封面图片
-    _cacheAnimeCovers(animes);
+      // 后台缓存封面图片
+      _cacheAnimeCovers(animes);
 
-    return animes;
+      return animes;
+    } catch (e) {
+      // 网络失败，尝试返回过期的缓存
+      debugPrint('Network failed, trying expired cache: $e');
+      final expiredCache = await _dbCache.getTimetableIncludingExpired(quarter);
+      if (expiredCache != null) {
+        debugPrint('Using expired cache for $quarter');
+        return _dbCache.animesFromTimetableCache(expiredCache);
+      }
+      // 没有任何缓存，重新抛出异常
+      rethrow;
+    }
   }
 
   /// 更新时间表缓存
@@ -97,19 +111,24 @@ class CacheManager {
 
     // 从网络获取
     debugPrint('Fetching ranking from network: $sortType page $page');
-    final results = await fetchFromNetwork();
+    try {
+      final results = await fetchFromNetwork();
 
-    // 保存到缓存
-    await _dbCache.saveRanking(
-      sortType: sortType,
-      page: page,
-      results: results,
-    );
+      // 保存到缓存
+      await _dbCache.saveRanking(
+        sortType: sortType,
+        page: page,
+        results: results,
+      );
 
-    // 后台缓存封面图片
-    _cacheRankingCovers(results);
+      // 后台缓存封面图片
+      _cacheRankingCovers(results);
 
-    return results;
+      return results;
+    } catch (e) {
+      debugPrint('Network failed for ranking: $e');
+      rethrow;
+    }
   }
 
   /// 获取索引页数据（优先从缓存）
@@ -134,21 +153,26 @@ class CacheManager {
 
     // 从网络获取
     debugPrint('Fetching browser from network: $sortType $year page $page');
-    final results = await fetchFromNetwork();
+    try {
+      final results = await fetchFromNetwork();
 
-    // 保存到缓存
-    await _dbCache.saveRanking(
-      sortType: sortType,
-      year: year,
-      tags: tags,
-      page: page,
-      results: results,
-    );
+      // 保存到缓存
+      await _dbCache.saveRanking(
+        sortType: sortType,
+        year: year,
+        tags: tags,
+        page: page,
+        results: results,
+      );
 
-    // 后台缓存封面图片
-    _cacheRankingCovers(results);
+      // 后台缓存封面图片
+      _cacheRankingCovers(results);
 
-    return results;
+      return results;
+    } catch (e) {
+      debugPrint('Network failed for browser: $e');
+      rethrow;
+    }
   }
 
   // ==================== 角色相关 ====================
@@ -167,15 +191,20 @@ class CacheManager {
 
     // 从网络获取
     debugPrint('Fetching characters from network: $subjectId');
-    final characters = await fetchFromNetwork();
+    try {
+      final characters = await fetchFromNetwork();
 
-    // 保存到缓存
-    await _dbCache.saveCharacters(subjectId, characters);
+      // 保存到缓存
+      await _dbCache.saveCharacters(subjectId, characters);
 
-    // 后台缓存角色图片
-    _cacheCharacterImages(characters);
+      // 后台缓存角色图片
+      _cacheCharacterImages(characters);
 
-    return characters;
+      return characters;
+    } catch (e) {
+      debugPrint('Network failed for characters: $e');
+      rethrow;
+    }
   }
 
   // ==================== 关联条目相关 ====================
@@ -194,18 +223,49 @@ class CacheManager {
 
     // 从网络获取
     debugPrint('Fetching relations from network: $subjectId');
-    final relations = await fetchFromNetwork();
+    try {
+      final relations = await fetchFromNetwork();
 
-    // 保存到缓存
-    await _dbCache.saveRelations(subjectId, relations);
+      // 保存到缓存
+      await _dbCache.saveRelations(subjectId, relations);
 
-    // 后台缓存关联条目图片
-    _cacheRelationImages(relations);
+      // 后台缓存关联条目图片
+      _cacheRelationImages(relations);
 
-    return relations;
+      return relations;
+    } catch (e) {
+      debugPrint('Network failed for relations: $e');
+      rethrow;
+    }
   }
 
   // ==================== 条目详情相关 ====================
+
+  /// 获取条目详情（优先从缓存）
+  /// 如果缓存存在且未过期，返回缓存的 AnimeInfo
+  /// 否则返回 null，需要从网络获取
+  Future<AnimeInfo?> getSubject(int bangumiId) async {
+    final cache = await _dbCache.getSubject(bangumiId);
+    if (cache == null) return null;
+
+    // 将缓存转换为 AnimeInfo
+    return AnimeInfo(
+      title: cache.title,
+      subTitle: cache.originalTitle,
+      bangumiId: cache.bangumiId.toString(),
+      mikanId: null,
+      coverUrl: cache.imageLarge,
+      siteUrl: null,
+      broadcastDay: cache.airWeekday,
+      broadcastTime: null,
+      score: cache.score,
+      rank: cache.rank,
+      tags: cache.tagsJson != null 
+          ? List<String>.from(jsonDecode(cache.tagsJson!))
+          : [],
+      fullJson: cache.fullJson,
+    );
+  }
 
   /// 缓存 AnimeInfo 条目
   Future<void> cacheAnimeInfo(AnimeInfo anime) async {

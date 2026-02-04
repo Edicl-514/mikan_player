@@ -187,6 +187,20 @@ class BangumiCacheService {
     final bangumiId = int.tryParse(anime.bangumiId!);
     if (bangumiId == null) return null;
 
+    // 检查缓存是否已存在且未过期
+    final existing = await getSubject(bangumiId);
+    if (existing != null) {
+      // 如果已有 fullJson，不需要更新
+      if (existing.fullJson != null) {
+        return existing;
+      }
+      // 如果新数据没有 fullJson，也不需要更新
+      if (anime.fullJson == null) {
+        return existing;
+      }
+      // 继续保存以更新 fullJson
+    }
+
     Map<String, dynamic>? fullData;
     if (anime.fullJson != null) {
       try {
@@ -223,6 +237,12 @@ class BangumiCacheService {
   Future<BangumiSubjectCache?> cacheFromRankingAnime(RankingAnime anime) async {
     final bangumiId = int.tryParse(anime.bangumiId);
     if (bangumiId == null) return null;
+
+    // 检查缓存是否已存在且未过期
+    final existing = await getSubject(bangumiId);
+    if (existing != null) {
+      return existing; // 已缓存，无需重复保存
+    }
 
     final cache = BangumiSubjectCache.create(
       bangumiId: bangumiId,
@@ -286,6 +306,7 @@ class BangumiCacheService {
         oldCaches.map((e) => e.id).toList(),
       );
       // 保存新的
+      await isar.bangumiCharacterCaches.putAll(caches);
     });
     debugPrint('Isar Cache: Save Characters $subjectId count=${caches.length}');
   }
@@ -334,7 +355,8 @@ class BangumiCacheService {
 
     if (caches.isNotEmpty && !caches.first.isExpired) {
       debugPrint('Isar Cache: Hit Relations $subjectId');
-      return caches;
+      // 过滤掉占位记录（relatedSubjectId == -1）
+      return caches.where((c) => c.relatedSubjectId != -1).toList();
     }
     debugPrint('Isar Cache: Miss Relations $subjectId');
     return [];
@@ -356,6 +378,16 @@ class BangumiCacheService {
       );
     }).toList();
 
+    // 如果关联列表为空，保存一个占位记录
+    if (caches.isEmpty) {
+      caches.add(BangumiRelationCache.create(
+        sourceSubjectId: subjectId,
+        relatedSubjectId: -1, // 占位标记
+        name: '',
+        relation: 'placeholder',
+      ));
+    }
+
     await isar.writeTxn(() async {
       // 先删除旧的关联缓存
       final oldCaches = await isar.bangumiRelationCaches
@@ -368,14 +400,16 @@ class BangumiCacheService {
       // 保存新的
       await isar.bangumiRelationCaches.putAll(caches);
     });
-    debugPrint('Isar Cache: Save Relations $subjectId count=${caches.length}');
+    debugPrint('Isar Cache: Save Relations $subjectId count=${relations.length}');
   }
 
   /// 将缓存转换为 BangumiRelatedSubject
   List<BangumiRelatedSubject> relationsFromCache(
     List<BangumiRelationCache> caches,
   ) {
-    return caches.map((cache) {
+    return caches
+        .where((cache) => cache.relatedSubjectId != -1) // 过滤占位记录
+        .map((cache) {
       return BangumiRelatedSubject(
         id: cache.relatedSubjectId,
         name: cache.name,
@@ -397,6 +431,26 @@ class BangumiCacheService {
 
     if (cache != null && !cache.isExpired) {
       debugPrint('Isar Cache: Hit Timetable $quarter');
+      return cache;
+    }
+    debugPrint('Isar Cache: Miss Timetable $quarter');
+    return null;
+  }
+
+  /// 获取时间表缓存（包括已过期的）
+  /// 用于离线模式或网络失败时的降级方案
+  Future<TimetableCache?> getTimetableIncludingExpired(String quarter) async {
+    final cache = await isar.timetableCaches
+        .filter()
+        .quarterEqualTo(quarter)
+        .findFirst();
+
+    if (cache != null) {
+      if (cache.isExpired) {
+        debugPrint('Isar Cache: Hit Timetable (expired) $quarter');
+      } else {
+        debugPrint('Isar Cache: Hit Timetable $quarter');
+      }
       return cache;
     }
     debugPrint('Isar Cache: Miss Timetable $quarter');

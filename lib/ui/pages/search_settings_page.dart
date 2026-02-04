@@ -36,7 +36,7 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _concurrencyController.text =
-          (prefs.getInt('max_concurrent_webviews') ?? 1).toString();
+          (prefs.getInt('max_concurrent_webviews') ?? 3).toString();
       _intervalController.text =
           (prefs.getInt('webview_launch_interval') ?? 200).toString();
       _searchConcurrencyController.text =

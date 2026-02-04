@@ -116,32 +116,47 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       final subjectId = int.parse(subjectIdStr);
       final cache = CacheManager.instance;
 
-      // If we don't have detailed data (e.g. navigated from relations), fetch it
+      // 先尝试从缓存获取完整数据
       if (_data == null) {
-        fillAnimeDetails(animes: [widget.anime])
-            .then((details) {
-              if (mounted && details.isNotEmpty) {
-                final detail = details.first;
-                if (detail.fullJson != null) {
-                  setState(() {
-                    try {
-                      _data = jsonDecode(detail.fullJson!);
-                    } catch (e) {
-                      debugPrint("Error parsing fetched fullJson: $e");
-                    }
-                  });
-                  // 缓存条目信息
-                  cache.cacheAnimeInfo(detail);
-                }
+        final cachedAnime = await cache.getSubject(subjectId);
+        if (cachedAnime != null && cachedAnime.fullJson != null) {
+          // 从缓存加载成功
+          debugPrint('Subject loaded from cache: $subjectId');
+          if (mounted) {
+            setState(() {
+              try {
+                _data = jsonDecode(cachedAnime.fullJson!);
+              } catch (e) {
+                debugPrint("Error parsing cached fullJson: $e");
               }
-            })
-            .catchError((e) {
-              debugPrint("Error fetching anime details: $e");
             });
-      } else {
-        // 已有数据，缓存起来
-        cache.cacheAnimeInfo(widget.anime);
+          }
+        } else {
+          // 缓存未命中，从网络获取
+          fillAnimeDetails(animes: [widget.anime])
+              .then((details) {
+                if (mounted && details.isNotEmpty) {
+                  final detail = details.first;
+                  if (detail.fullJson != null) {
+                    setState(() {
+                      try {
+                        _data = jsonDecode(detail.fullJson!);
+                      } catch (e) {
+                        debugPrint("Error parsing fetched fullJson: $e");
+                      }
+                    });
+                    // 缓存条目信息
+                    cache.cacheAnimeInfo(detail);
+                  }
+                }
+              })
+              .catchError((e) {
+                debugPrint("Error fetching anime details: $e");
+              });
+        }
       }
+      // 注意：如果 _data != null，说明 widget.anime 已有 fullJson
+      // 这些数据通常来自时间表或其他已缓存的来源，无需重复保存
 
       setState(() {
         _isLoadingEpisodes = true;
