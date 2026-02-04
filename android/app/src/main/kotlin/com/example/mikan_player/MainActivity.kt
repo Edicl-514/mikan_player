@@ -1,4 +1,4 @@
-package com.example.mikan_player
+package com.edicl.mikan_player
 
 import io.flutter.embedding.android.FlutterActivity
 
