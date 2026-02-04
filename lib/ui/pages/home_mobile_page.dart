@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/models/bangumi_user_collection.dart';
 import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
@@ -309,11 +310,14 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('首页', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          AppLocalizations.of(context).navHome,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
-            tooltip: '搜索番剧',
+            tooltip: AppLocalizations.of(context).searchHint,
             onPressed: () {
               Navigator.push(
                 context,
@@ -358,7 +362,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
             children: [
               _buildTodaySection(),
               const SizedBox(height: 24),
-              _buildSectionHeader('近期热门', () {
+              _buildSectionHeader(AppLocalizations.of(context).recentHot, () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const RankingPage()),
@@ -366,22 +370,30 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
               }),
               _buildRankingList(),
               const SizedBox(height: 24),
-              _buildSectionHeader('历史记录', () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const HistoryPage()),
-                );
-              }),
+              _buildSectionHeader(
+                AppLocalizations.of(context).historyTitle,
+                () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HistoryPage(),
+                    ),
+                  );
+                },
+              ),
               _buildHistoryList(),
               const SizedBox(height: 24),
-              _buildSectionHeader('我的收藏', () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const FavoritesPage(),
-                  ),
-                );
-              }),
+              _buildSectionHeader(
+                AppLocalizations.of(context).favoritesTitle,
+                () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const FavoritesPage(),
+                    ),
+                  );
+                },
+              ),
               _buildFavoritesList(),
               const SizedBox(height: 32),
             ],
@@ -404,7 +416,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           IconButton(
             icon: const Icon(Icons.arrow_forward),
             onPressed: onMore,
-            tooltip: '查看更多',
+            tooltip: AppLocalizations.of(context).viewMore,
           ),
         ],
       ),
@@ -434,7 +446,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('今天没有更新的番剧哦'),
+              Text(AppLocalizations.of(context).noTodayUpdate),
               TextButton(
                 onPressed: () {
                   Navigator.push(
@@ -444,7 +456,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                     ),
                   );
                 },
-                child: const Text('查看完整时间表'),
+                child: Text(AppLocalizations.of(context).viewFullTimetable),
               ),
             ],
           ),
@@ -460,9 +472,12 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                '今日放送',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              Text(
+                AppLocalizations.of(context).todayBroadcast,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               IconButton(
                 onPressed: () {
@@ -543,7 +558,9 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                             ),
                             if (anime.broadcastTime != null)
                               Text(
-                                "更新时间: ${anime.broadcastTime}",
+                                AppLocalizations.of(
+                                  context,
+                                ).updateTime(anime.broadcastTime!),
                                 style: const TextStyle(
                                   color: Colors.white70,
                                   fontSize: 12,
@@ -571,7 +588,10 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       );
     }
     if (_rankingAnimes.isEmpty) {
-      return const SizedBox(height: 180, child: Center(child: Text('暂无数据')));
+      return SizedBox(
+        height: 180,
+        child: Center(child: Text(AppLocalizations.of(context).noData)),
+      );
     }
 
     return SizedBox(
@@ -628,7 +648,10 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       );
     }
     if (_historyItems.isEmpty) {
-      return const SizedBox(height: 100, child: Center(child: Text('暂无播放记录')));
+      return SizedBox(
+        height: 100,
+        child: Center(child: Text(AppLocalizations.of(context).noHistory)),
+      );
     }
 
     return SizedBox(
@@ -707,7 +730,10 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       );
     }
     if (_favoriteItems.isEmpty) {
-      return const SizedBox(height: 100, child: Center(child: Text('暂无收藏')));
+      return SizedBox(
+        height: 100,
+        child: Center(child: Text(AppLocalizations.of(context).noFavorites)),
+      );
     }
 
     return SizedBox(

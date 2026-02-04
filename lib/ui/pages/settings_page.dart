@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/data_source_settings_page.dart';
 import 'package:mikan_player/ui/pages/search_settings_page.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
+import 'package:mikan_player/services/settings_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -42,16 +44,16 @@ class _SettingsPageState extends State<SettingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('确认清除缓存'),
-        content: const Text('这将删除所有缓存数据，包括番剧信息和图片缓存。确定要继续吗？'),
+        title: Text(AppLocalizations.of(context).confirmClearCache),
+        content: Text(AppLocalizations.of(context).clearCacheMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context).cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('确定'),
+            child: Text(AppLocalizations.of(context).confirm),
           ),
         ],
       ),
@@ -63,14 +65,18 @@ class _SettingsPageState extends State<SettingsPage> {
         await CacheManager.instance.clearAll();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('缓存已清除')),
+            SnackBar(content: Text(AppLocalizations.of(context).cacheCleared)),
           );
           _loadCacheStats();
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('清除缓存失败: $e')),
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(context).cacheClearedFailed(e.toString()),
+              ),
+            ),
           );
         }
       } finally {
@@ -81,33 +87,33 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  String _formatCacheStats() {
-    if (_cacheStats == null) return '加载中...';
-    
+  String _formatCacheStats(BuildContext context) {
+    if (_cacheStats == null) return AppLocalizations.of(context).loading;
+
     final subjects = _cacheStats!['subjects'] ?? 0;
     final characters = _cacheStats!['characters'] ?? 0;
     final relations = _cacheStats!['relations'] ?? 0;
     final timetables = _cacheStats!['timetables'] ?? 0;
     final rankings = _cacheStats!['rankings'] ?? 0;
     final imageSize = _cacheStats!['imageSizeFormatted'] ?? '0 B';
-    
+
     return '条目: $subjects, 角色: $characters, 关联: $relations\n'
-           '时间表: $timetables, 排行榜: $rankings\n'
-           '图片缓存: $imageSize';
+        '时间表: $timetables, 排行榜: $rankings\n'
+        '图片缓存: $imageSize';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context).settingsTitle)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           _buildSettingTile(
             context,
             Icons.source,
-            '数据源设置',
-            '设置 bgmlist, bangumi, 蜜柑计划的 base URL',
+            AppLocalizations.of(context).dataSourceSettings,
+            AppLocalizations.of(context).dataSourceSubtitle,
             () {
               Navigator.push(
                 context,
@@ -120,8 +126,8 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSettingTile(
             context,
             Icons.search,
-            '搜索设置',
-            '设置WebView并发数量和启动间隔',
+            AppLocalizations.of(context).searchSettings,
+            AppLocalizations.of(context).searchSubtitle,
             () {
               Navigator.push(
                 context,
@@ -131,8 +137,53 @@ class _SettingsPageState extends State<SettingsPage> {
               );
             },
           ),
+          _buildLanguageTile(context),
           _buildCacheTile(context),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLanguageTile(BuildContext context) {
+    final settings = SettingsService();
+    return Card(
+      elevation: 0,
+      color: Theme.of(
+        context,
+      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: Icon(
+          Icons.language,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        title: Text(
+          AppLocalizations.of(context).language,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(AppLocalizations.of(context).languageSubtitle),
+        trailing: DropdownButton<Locale?>(
+          value: settings.locale,
+          underline: const SizedBox(),
+          onChanged: (Locale? newLocale) {
+            settings.setLocale(newLocale);
+          },
+          items: [
+            DropdownMenuItem(
+              value: null,
+              child: Text(AppLocalizations.of(context).auto),
+            ),
+            DropdownMenuItem(
+              value: const Locale('zh'),
+              child: Text(AppLocalizations.of(context).chinese),
+            ),
+            DropdownMenuItem(
+              value: const Locale('en'),
+              child: Text(AppLocalizations.of(context).english),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -140,10 +191,9 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildCacheTile(BuildContext context) {
     return Card(
       elevation: 0,
-      color: Theme.of(context)
-          .colorScheme
-          .surfaceContainerHighest
-          .withValues(alpha: 0.3),
+      color: Theme.of(
+        context,
+      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
@@ -153,13 +203,13 @@ class _SettingsPageState extends State<SettingsPage> {
               Icons.storage,
               color: Theme.of(context).colorScheme.primary,
             ),
-            title: const Text(
-              '缓存管理',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            title: Text(
+              AppLocalizations.of(context).cacheManagement,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             subtitle: _isLoadingStats
-                ? const Text('加载中...')
-                : Text(_formatCacheStats()),
+                ? Text(AppLocalizations.of(context).loading)
+                : Text(_formatCacheStats(context)),
             trailing: _isClearingCache
                 ? const SizedBox(
                     width: 24,
@@ -169,7 +219,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 : IconButton(
                     icon: const Icon(Icons.refresh),
                     onPressed: _loadCacheStats,
-                    tooltip: '刷新',
+                    tooltip: AppLocalizations.of(context).refresh,
                   ),
           ),
           Padding(
@@ -180,7 +230,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: OutlinedButton.icon(
                     onPressed: _isClearingCache ? null : _clearCache,
                     icon: const Icon(Icons.delete_outline),
-                    label: const Text('清除全部缓存'),
+                    label: Text(AppLocalizations.of(context).clearCache),
                   ),
                 ),
               ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
@@ -14,7 +15,26 @@ class TimeTablePage extends StatefulWidget {
 class _TimeTablePageState extends State<TimeTablePage>
     with SingleTickerProviderStateMixin {
   late TabController _dayTabController;
-  final List<String> _days = ['周一', '周二', '周三', '周四', '周五', '周六', '周日', '其他'];
+  List<String> get _dayKeys => [
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+    'sunday',
+    'others',
+  ];
+  final List<String> _internalDays = [
+    '周一',
+    '周二',
+    '周三',
+    '周四',
+    '周五',
+    '周六',
+    '周日',
+    '其他',
+  ];
   List<crawler.ArchiveQuarter> _archives = [];
   crawler.ArchiveQuarter? _selectedArchive;
   List<crawler.AnimeInfo> _animes = [];
@@ -24,7 +44,7 @@ class _TimeTablePageState extends State<TimeTablePage>
   @override
   void initState() {
     super.initState();
-    _dayTabController = TabController(length: _days.length, vsync: this);
+    _dayTabController = TabController(length: _dayKeys.length, vsync: this);
     final now = DateTime.now();
     // weekday: 1 (Mon) to 7 (Sun)
     int todayIndex = now.weekday - 1;
@@ -72,12 +92,12 @@ class _TimeTablePageState extends State<TimeTablePage>
         errorStr.contains('request') ||
         errorStr.contains('handshake') ||
         errorStr.contains('timeout')) {
-      return "网络连接失败，请检查网络设置或稍后再试";
+      return AppLocalizations.of(context).networkError;
     }
     if (errorStr.contains('not found') || errorStr.contains('404')) {
-      return "资源未找到 (404)";
+      return AppLocalizations.of(context).resourceNotFound;
     }
-    return "加载失败: $e";
+    return AppLocalizations.of(context).statusError(e.toString());
   }
 
   Future<void> _loadAnimes(String yearQuarter) async {
@@ -125,9 +145,9 @@ class _TimeTablePageState extends State<TimeTablePage>
 
   Future<void> _loadDetailsForCurrentTab() async {
     final currentDayIndex = _dayTabController.index;
-    if (currentDayIndex >= _days.length) return;
+    if (currentDayIndex >= _internalDays.length) return;
 
-    final currentDay = _days[currentDayIndex];
+    final currentDay = _internalDays[currentDayIndex];
 
     final targetAnimes = _animes.where((a) {
       final day = a.broadcastDay ?? '其他';
@@ -148,7 +168,7 @@ class _TimeTablePageState extends State<TimeTablePage>
 
   Future<void> _loadDetailsForOthers() async {
     final currentDayIndex = _dayTabController.index;
-    final currentDay = _days[currentDayIndex];
+    final currentDay = _internalDays[currentDayIndex];
 
     final targetAnimes = _animes.where((a) {
       final day = a.broadcastDay ?? '其他';
@@ -220,7 +240,7 @@ class _TimeTablePageState extends State<TimeTablePage>
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Select Quarter',
+                AppLocalizations.of(context).selectQuarter,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 16),
@@ -254,7 +274,7 @@ class _TimeTablePageState extends State<TimeTablePage>
 
   Map<String, List<crawler.AnimeInfo>> get _groupedAnimes {
     final Map<String, List<crawler.AnimeInfo>> groups = {};
-    for (final day in _days) {
+    for (final day in _internalDays) {
       groups[day] = [];
     }
     for (final anime in _animes) {
@@ -424,13 +444,15 @@ class _TimeTablePageState extends State<TimeTablePage>
   Widget build(BuildContext context) {
     final grouped = _groupedAnimes;
     final now = DateTime.now();
-    final todayStr = _days[now.weekday - 1];
+    final todayStr = _internalDays[now.weekday - 1];
     final currentTimeStr =
         "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectedArchive?.title ?? 'Timetable'),
+        title: Text(
+          _selectedArchive?.title ?? AppLocalizations.of(context).navTimetable,
+        ),
         actions: [
           IconButton(
             onPressed: _archives.isEmpty ? null : _showQuarterPicker,
@@ -440,8 +462,9 @@ class _TimeTablePageState extends State<TimeTablePage>
         bottom: TabBar(
           controller: _dayTabController,
           isScrollable: true,
-          tabs: List.generate(_days.length, (index) {
-            final day = _days[index];
+          tabs: List.generate(_dayKeys.length, (index) {
+            final l10n = AppLocalizations.of(context);
+            final day = _getLocalizedDay(l10n, _dayKeys[index]);
             if (index < 7 && _selectedArchive == _archives.firstOrNull) {
               final now = DateTime.now();
               final monday = now.subtract(Duration(days: now.weekday - 1));
@@ -470,7 +493,7 @@ class _TimeTablePageState extends State<TimeTablePage>
           ? _buildErrorView()
           : TabBarView(
               controller: _dayTabController,
-              children: _days.map((day) {
+              children: _internalDays.map((day) {
                 final animes = grouped[day] ?? [];
                 if (animes.isEmpty) {
                   return Center(
@@ -483,7 +506,7 @@ class _TimeTablePageState extends State<TimeTablePage>
                           color: Colors.grey.withValues(alpha: 0.5),
                         ),
                         const SizedBox(height: 16),
-                        const Text('No anime found for this day.'),
+                        Text(AppLocalizations.of(context).noAnimeFoundDay),
                       ],
                     ),
                   );
@@ -576,14 +599,14 @@ class _TimeTablePageState extends State<TimeTablePage>
             ),
             const SizedBox(height: 16),
             Text(
-              "出错了",
+              AppLocalizations.of(context).errorOccurred,
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              _errorMessage ?? "未知错误",
+              _errorMessage ?? AppLocalizations.of(context).unknownError,
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.grey),
             ),
@@ -597,7 +620,7 @@ class _TimeTablePageState extends State<TimeTablePage>
                 _loadArchives();
               },
               icon: const Icon(Icons.refresh),
-              label: const Text("重试"),
+              label: Text(AppLocalizations.of(context).retry),
               style: ElevatedButton.styleFrom(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -612,5 +635,28 @@ class _TimeTablePageState extends State<TimeTablePage>
         ),
       ),
     );
+  }
+
+  String _getLocalizedDay(AppLocalizations l10n, String key) {
+    switch (key) {
+      case 'monday':
+        return l10n.monday;
+      case 'tuesday':
+        return l10n.tuesday;
+      case 'wednesday':
+        return l10n.wednesday;
+      case 'thursday':
+        return l10n.thursday;
+      case 'friday':
+        return l10n.friday;
+      case 'saturday':
+        return l10n.saturday;
+      case 'sunday':
+        return l10n.sunday;
+      case 'others':
+        return l10n.others;
+      default:
+        return key;
+    }
   }
 }

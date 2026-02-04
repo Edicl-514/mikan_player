@@ -14,7 +14,10 @@ import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'dart:io';
 import 'package:mikan_player/services/user_manager.dart';
+import 'package:mikan_player/services/settings_service.dart';
 import 'package:mikan_player/utils/app_directories.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 
 /// 全局 WebView 环境（Windows 平台需要）
 WebViewEnvironment? webViewEnvironment;
@@ -43,6 +46,9 @@ Future<void> main() async {
 
   // Initialize UserManager
   await UserManager().init();
+
+  // Initialize SettingsService
+  await SettingsService().init();
 
   // Initialize DownloadManager (load saved BT tasks)
   await DownloadManager().initialize();
@@ -117,16 +123,29 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Mikan Player',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.teal,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
-      home: const HomeScreen(),
+    return ListenableBuilder(
+      listenable: SettingsService(),
+      builder: (context, _) {
+        return MaterialApp(
+          locale: SettingsService().locale,
+          onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.teal,
+              brightness: Brightness.dark,
+            ),
+            useMaterial3: true,
+          ),
+          home: const HomeScreen(),
+        );
+      },
     );
   }
 }
@@ -144,7 +163,7 @@ class _HomePageState extends State<HomePage> {
 
   final TextEditingController _magnetController = TextEditingController();
   bool _isLoading = false;
-  String _statusMessage = 'Enter a magnet link to start';
+  String _statusMessage = '';
 
   @override
   void initState() {
@@ -166,7 +185,7 @@ class _HomePageState extends State<HomePage> {
 
     setState(() {
       _isLoading = true;
-      _statusMessage = 'Initializing torrent...';
+      _statusMessage = AppLocalizations.of(context).statusInitializing;
     });
 
     try {
@@ -174,13 +193,13 @@ class _HomePageState extends State<HomePage> {
       final streamUrl = await startTorrent(magnet: magnet);
 
       setState(() {
-        _statusMessage = 'Playing: $streamUrl';
+        _statusMessage = AppLocalizations.of(context).statusPlaying(streamUrl);
       });
 
       await player.open(Media(streamUrl));
     } catch (e) {
       setState(() {
-        _statusMessage = 'Error: $e';
+        _statusMessage = AppLocalizations.of(context).statusError(e.toString());
       });
     } finally {
       setState(() {
@@ -191,8 +210,12 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    _statusMessage = _statusMessage.isEmpty
+        ? AppLocalizations.of(context).statusEnterMagnet
+        : _statusMessage;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Mikan Player')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context).homeTitle)),
       body: Column(
         children: [
           Expanded(
@@ -219,8 +242,8 @@ class _HomePageState extends State<HomePage> {
                     Expanded(
                       child: TextField(
                         controller: _magnetController,
-                        decoration: const InputDecoration(
-                          hintText: 'magnet:?xt=urn:btih:...',
+                        decoration: InputDecoration(
+                          hintText: AppLocalizations.of(context).magnetHint,
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(
                             horizontal: 12,
@@ -232,7 +255,7 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(width: 8),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _handlePlay,
-                      child: const Text('Play'),
+                      child: Text(AppLocalizations.of(context).playButton),
                     ),
                   ],
                 ),

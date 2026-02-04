@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/index_page.dart';
 import 'package:mikan_player/ui/pages/my_page.dart';
 import 'package:mikan_player/ui/pages/ranking_page.dart';
@@ -23,11 +24,11 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
     MyPage(),
   ];
 
-  final List<String> _titles = const [
-    'TimeTable',
-    'Ranking',
-    'Index',
-    'My Profile',
+  List<String> _titles(BuildContext context) => [
+    AppLocalizations.of(context).navTimetable,
+    AppLocalizations.of(context).navRanking,
+    AppLocalizations.of(context).navIndex,
+    AppLocalizations.of(context).navMy,
   ];
 
   final UserManager _userManager = UserManager();
@@ -71,26 +72,26 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
               ),
             ),
             groupAlignment: -0.9,
-            destinations: const [
+            destinations: [
               NavigationRailDestination(
-                icon: Icon(Icons.calendar_today_outlined),
-                selectedIcon: Icon(Icons.calendar_today),
-                label: Text('Schedule'),
+                icon: const Icon(Icons.calendar_today_outlined),
+                selectedIcon: const Icon(Icons.calendar_today),
+                label: Text(AppLocalizations.of(context).navTimetable),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.leaderboard_outlined),
-                selectedIcon: Icon(Icons.leaderboard),
-                label: Text('Ranking'),
+                icon: const Icon(Icons.leaderboard_outlined),
+                selectedIcon: const Icon(Icons.leaderboard),
+                label: Text(AppLocalizations.of(context).navRanking),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.category_outlined),
-                selectedIcon: Icon(Icons.category),
-                label: Text('Index'),
+                icon: const Icon(Icons.category_outlined),
+                selectedIcon: const Icon(Icons.category),
+                label: Text(AppLocalizations.of(context).navIndex),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: Text('My'),
+                icon: const Icon(Icons.person_outline),
+                selectedIcon: const Icon(Icons.person),
+                label: Text(AppLocalizations.of(context).navMy),
               ),
             ],
           ),
@@ -108,7 +109,7 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
                   child: Row(
                     children: [
                       Text(
-                        _titles[_selectedIndex],
+                        _titles(context)[_selectedIndex],
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
@@ -123,7 +124,7 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
                           );
                         },
                         icon: const Icon(Icons.search),
-                        tooltip: 'Search Anime',
+                        tooltip: AppLocalizations.of(context).searchHint,
                       ),
                       const SizedBox(width: 8),
                       // User Avatar

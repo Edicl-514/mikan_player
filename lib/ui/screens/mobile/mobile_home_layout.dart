@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/home_mobile_page.dart';
 import 'package:mikan_player/ui/pages/index_page.dart';
 import 'package:mikan_player/ui/pages/my_page.dart';
@@ -26,21 +27,21 @@ class _MobileHomeLayoutState extends State<MobileHomeLayout> {
             _selectedIndex = index;
           });
         },
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: '首页',
+            icon: const Icon(Icons.home_outlined),
+            selectedIcon: const Icon(Icons.home),
+            label: AppLocalizations.of(context).navHome,
           ),
           NavigationDestination(
-            icon: Icon(Icons.category_outlined),
-            selectedIcon: Icon(Icons.category),
-            label: '索引',
+            icon: const Icon(Icons.category_outlined),
+            selectedIcon: const Icon(Icons.category),
+            label: AppLocalizations.of(context).navIndex,
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: '我的',
+            icon: const Icon(Icons.person_outline),
+            selectedIcon: const Icon(Icons.person),
+            label: AppLocalizations.of(context).navMy,
           ),
         ],
       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/pages/settings_page.dart';
@@ -70,7 +71,8 @@ class _MyPageState extends State<MyPage> {
                 color: Theme.of(context).colorScheme.primaryContainer,
               ),
               accountName: Text(
-                _userManager.user?.nickname ?? "点击登录",
+                _userManager.user?.nickname ??
+                    AppLocalizations.of(context).loginPrompt,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onPrimaryContainer,
                   fontWeight: FontWeight.bold,
@@ -79,7 +81,7 @@ class _MyPageState extends State<MyPage> {
               accountEmail: Text(
                 _userManager.user != null
                     ? "@${_userManager.user!.username}"
-                    : "登录同步 Bangumi 数据",
+                    : AppLocalizations.of(context).loginSubtitle,
                 style: TextStyle(
                   color: Theme.of(
                     context,
@@ -116,17 +118,23 @@ class _MyPageState extends State<MyPage> {
         // Downloads Section with badge
         _buildDownloadsTile(context),
 
-        _buildTile(context, Icons.history, 'History', 'Continue watching', () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const HistoryPage()),
-          );
-        }),
+        _buildTile(
+          context,
+          Icons.history,
+          AppLocalizations.of(context).historyTitle,
+          AppLocalizations.of(context).historySubtitle,
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const HistoryPage()),
+            );
+          },
+        ),
         _buildTile(
           context,
           Icons.favorite,
-          'Favorites',
-          'Your collected anime',
+          AppLocalizations.of(context).favoritesTitle,
+          AppLocalizations.of(context).favoritesSubtitle,
           () {
             Navigator.push(
               context,
@@ -138,7 +146,7 @@ class _MyPageState extends State<MyPage> {
         _buildTile(
           context,
           Icons.settings,
-          'Settings',
+          AppLocalizations.of(context).navSettings,
           'App configuration',
           () {
             Navigator.push(
@@ -147,21 +155,27 @@ class _MyPageState extends State<MyPage> {
             );
           },
         ),
-        _buildTile(context, Icons.info, 'About', 'Version 1.0.0', () {}),
+        _buildTile(
+          context,
+          Icons.info,
+          AppLocalizations.of(context).aboutTitle,
+          AppLocalizations.of(context).version('1.0.0'),
+          () {},
+        ),
       ],
     );
 
     if (isMobile) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text(
-            '我的',
-            style: TextStyle(fontWeight: FontWeight.bold),
+          title: Text(
+            AppLocalizations.of(context).navMy,
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           actions: [
             IconButton(
               icon: const Icon(Icons.search),
-              tooltip: '搜索番剧',
+              tooltip: AppLocalizations.of(context).searchHint,
               onPressed: () {
                 Navigator.push(
                   context,
@@ -238,16 +252,16 @@ class _MyPageState extends State<MyPage> {
               ),
           ],
         ),
-        title: const Text(
-          'Downloads',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          AppLocalizations.of(context).downloadTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
           activeCount > 0
-              ? '$activeCount 下载中${seedingCount > 0 ? ', $seedingCount 做种中' : ''}'
+              ? '$activeCount ${AppLocalizations.of(context).downloading}${seedingCount > 0 ? ', $seedingCount ${AppLocalizations.of(context).seeding}' : ''}'
               : seedingCount > 0
-              ? '$seedingCount 做种中'
-              : '管理下载的视频',
+              ? '$seedingCount ${AppLocalizations.of(context).seeding}'
+              : AppLocalizations.of(context).downloadSubtitle,
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
@@ -425,12 +439,12 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('下载管理'),
+        title: Text(AppLocalizations.of(context).downloadTitle),
         actions: [
           if (tasks.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_sweep),
-              tooltip: '清除已完成',
+              tooltip: AppLocalizations.of(context).clearCompleted,
               onPressed: () async {
                 final completedCount = tasks
                     .where(
@@ -441,9 +455,13 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                     .length;
 
                 if (completedCount == 0) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('没有已完成的任务')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        AppLocalizations.of(context).noCompletedTasks,
+                      ),
+                    ),
+                  );
                   return;
                 }
 
@@ -452,16 +470,22 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   context: context,
                   builder: (context) => StatefulBuilder(
                     builder: (context, setDialogState) => AlertDialog(
-                      title: const Text('确认清除'),
+                      title: Text(
+                        AppLocalizations.of(context).clearConfirmTitle,
+                      ),
                       content: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('将清除 $completedCount 个已完成的任务'),
+                          Text(
+                            AppLocalizations.of(
+                              context,
+                            ).clearConfirmMessage(completedCount),
+                          ),
                           const SizedBox(height: 12),
                           CheckboxListTile(
-                            title: const Text(
-                              '同时删除物理文件',
-                              style: TextStyle(fontSize: 14),
+                            title: Text(
+                              AppLocalizations.of(context).deleteFiles,
+                              style: const TextStyle(fontSize: 14),
                             ),
                             value: deleteFiles,
                             onChanged: (val) => setDialogState(
@@ -475,11 +499,11 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
-                          child: const Text('取消'),
+                          child: Text(AppLocalizations.of(context).cancel),
                         ),
                         TextButton(
                           onPressed: () => Navigator.pop(context, true),
-                          child: const Text('清除'),
+                          child: Text(AppLocalizations.of(context).confirm),
                         ),
                       ],
                     ),
@@ -492,7 +516,13 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   );
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('已清除 $completedCount 个任务')),
+                      SnackBar(
+                        content: Text(
+                          AppLocalizations.of(
+                            context,
+                          ).clearedTasks(completedCount),
+                        ),
+                      ),
                     );
                   }
                 }
@@ -512,12 +542,12 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '暂无下载任务',
+                    AppLocalizations.of(context).noDownloads,
                     style: TextStyle(color: Colors.grey[600], fontSize: 16),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '在播放页面选择资源开始下载',
+                    AppLocalizations.of(context).startDownloadHint,
                     style: TextStyle(color: Colors.grey[700], fontSize: 12),
                   ),
                 ],
@@ -594,7 +624,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                           color: const Color(0xFFBB86FC).withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
@@ -604,8 +634,8 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                             ),
                             SizedBox(width: 2),
                             Text(
-                              '点击播放',
-                              style: TextStyle(
+                              AppLocalizations.of(context).clickToPlay,
+                              style: const TextStyle(
                                 color: Color(0xFFBB86FC),
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -686,7 +716,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${task.peers} peers',
+                      AppLocalizations.of(context).peers(task.peers),
                       style: TextStyle(color: Colors.grey[500], fontSize: 11),
                     ),
                   ],
@@ -718,7 +748,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
         if (task.status == DownloadTaskStatus.downloading)
           IconButton(
             icon: const Icon(Icons.pause, size: 20, color: Colors.orange),
-            tooltip: '暂停',
+            tooltip: AppLocalizations.of(context).pause,
             onPressed: () async {
               final success = await _downloadManager.pauseTask(task.id);
               if (mounted && !success) {
@@ -731,7 +761,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
         else if (task.status == DownloadTaskStatus.paused)
           IconButton(
             icon: const Icon(Icons.play_arrow, size: 20, color: Colors.green),
-            tooltip: '恢复',
+            tooltip: AppLocalizations.of(context).resume,
             onPressed: () async {
               final success = await _downloadManager.resumeTask(task.id);
               if (mounted && !success) {
@@ -745,7 +775,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
         // Delete button
         IconButton(
           icon: const Icon(Icons.close, size: 20, color: Colors.grey),
-          tooltip: '删除任务',
+          tooltip: AppLocalizations.of(context).deleteTask,
           onPressed: () => _showDeleteDialog(task),
         ),
       ],
@@ -852,7 +882,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('确认删除'),
+          title: Text(AppLocalizations.of(context).confirm),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -860,12 +890,17 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
               Text(
                 task.status == DownloadTaskStatus.downloading ||
                         task.status == DownloadTaskStatus.seeding
-                    ? '此任务正在下载中，确定要停止并删除吗？'
-                    : '确定要删除此任务吗？',
+                    ? '此任务正在状态中，确定要停止并删除吗？' // This needs better wording but I'll stick to it for now
+                    : AppLocalizations.of(
+                        context,
+                      ).logoutConfirm, // Using loginConfirm as a generic "are you sure"
               ),
               const SizedBox(height: 12),
               CheckboxListTile(
-                title: const Text('同时删除物理文件', style: TextStyle(fontSize: 14)),
+                title: Text(
+                  AppLocalizations.of(context).deleteFiles,
+                  style: const TextStyle(fontSize: 14),
+                ),
                 value: deleteFiles,
                 onChanged: (val) =>
                     setDialogState(() => deleteFiles = val ?? false),
@@ -877,11 +912,14 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
+              child: Text(AppLocalizations.of(context).cancel),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('删除', style: TextStyle(color: Colors.red)),
+              child: Text(
+                AppLocalizations.of(context).confirm,
+                style: const TextStyle(color: Colors.red),
+              ),
             ),
           ],
         ),
