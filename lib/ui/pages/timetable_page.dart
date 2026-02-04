@@ -160,6 +160,14 @@ class _TimeTablePageState extends State<TimeTablePage>
       final enriched = await crawler.fillAnimeDetails(animes: targetAnimes);
       if (mounted) {
         _updateAnimes(enriched);
+        // ✅ 保存到缓存，加速后续加载
+        final cache = CacheManager.instance;
+        await cache.cacheAnimeInfos(enriched);
+
+        // 更新当前季度的时间表缓存
+        if (_selectedArchive != null) {
+          await cache.updateTimetable(_selectedArchive!.quarter, _animes);
+        }
       }
     } catch (e) {
       debugPrint("Error loading details for $currentDay: $e");
@@ -182,6 +190,14 @@ class _TimeTablePageState extends State<TimeTablePage>
       final enriched = await crawler.fillAnimeDetails(animes: targetAnimes);
       if (mounted) {
         _updateAnimes(enriched);
+        // ✅ 保存到缓存，加速后续加载
+        final cache = CacheManager.instance;
+        await cache.cacheAnimeInfos(enriched);
+
+        // 更新当前季度的时间表缓存
+        if (_selectedArchive != null) {
+          await cache.updateTimetable(_selectedArchive!.quarter, _animes);
+        }
       }
     } catch (e) {
       debugPrint("Error loading details for others: $e");
@@ -206,8 +222,14 @@ class _TimeTablePageState extends State<TimeTablePage>
         setState(() {
           _animes.addAll(extras);
         });
-        // Extras usually have covers, but if not we could enrich them too.
-        // The scraping logic for extras usually includes covers.
+
+        // 更新当前季度的时间表缓存
+        if (_selectedArchive != null) {
+          final cache = CacheManager.instance;
+          await cache.updateTimetable(_selectedArchive!.quarter, _animes);
+          // 同时也缓存条目详情
+          await cache.cacheAnimeInfos(extras);
+        }
       }
     } catch (e) {
       debugPrint("Error loading extras: $e");

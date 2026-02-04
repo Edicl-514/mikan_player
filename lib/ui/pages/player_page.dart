@@ -1176,6 +1176,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         return '${page.sourceName}_${page.channelIndex ?? -1}';
       }
 
+      // 从pageKey解析出sourceName（兼容sourceName中包含"_"）
+      String getSourceNameFromPageKey(String pageKey) {
+        final parts = pageKey.split('_');
+        if (parts.length <= 1) return pageKey;
+        return parts.sublist(0, parts.length - 1).join('_');
+      }
+
+      final activeSourceNames = _activeWebViews.keys
+          .map(getSourceNameFromPageKey)
+          .toSet();
+
       // 找到下一个需要提取的源
       final needsExtraction = _samplePlayPages.where((page) {
         final pageKey = getPageKey(page);
@@ -1184,7 +1195,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         );
         final alreadyActive = _activeWebViews.containsKey(pageKey);
         final alreadyFailed = _failedWebViewPageKeys.contains(pageKey);
-        return !alreadySuccessful && !alreadyActive && !alreadyFailed;
+        final sourceHasActive = activeSourceNames.contains(page.sourceName);
+        return !alreadySuccessful &&
+            !alreadyActive &&
+            !alreadyFailed &&
+            !sourceHasActive;
       }).toList();
 
       if (needsExtraction.isEmpty) {

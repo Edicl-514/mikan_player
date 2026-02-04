@@ -142,6 +142,9 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
             final enriched = await crawler.fillAnimeDetails(
               animes: missingCovers,
             );
+            // ✅ 保存到缓存，加速后续加载
+            await CacheManager.instance.cacheAnimeInfos(enriched);
+            
             // Update the list with enriched data
             for (final item in enriched) {
               final index = todayList.indexWhere(

@@ -3152,27 +3152,35 @@ pub async fn generic_search_with_channels(
 
     let root: SampleRoot = serde_json::from_str(&content)?;
 
-    // 并发搜索所有源
-    let futures: Vec<_> = root
-        .exported_media_source_data_list
-        .media_sources
-        .iter()
-        .filter(|source| crate::api::config::is_source_enabled(&source.arguments.name))
-        .map(|source| {
-            let client = client.clone();
-            let source = source.clone();
-            let anime_name = anime_name.clone();
-            async move {
-                log::info!("Searching source with channels: {}", source.arguments.name);
-                search_single_source_with_channels(&client, &source, &anime_name).await
-            }
-        })
-        .collect();
+    // 并发搜索所有源（每个源占用一个并发槽位）
+    let limit = crate::api::config::get_max_concurrent_searches();
+    let limit = if limit == 0 {
+        usize::MAX
+    } else {
+        limit as usize
+    };
 
-    let all_results = futures::future::join_all(futures).await;
+    use futures::stream::StreamExt;
 
-    let results: Vec<SearchResultWithChannels> =
-        all_results.into_iter().filter_map(|r| r.ok()).collect();
+    let stream = futures::stream::iter(
+        root.exported_media_source_data_list
+            .media_sources
+            .into_iter()
+            .filter(|source| crate::api::config::is_source_enabled(&source.arguments.name)),
+    )
+    .map(|source| {
+        let client = client.clone();
+        let anime_name = anime_name.clone();
+        async move {
+            log::info!("Searching source with channels: {}", source.arguments.name);
+            search_single_source_with_channels(&client, &source, &anime_name).await
+        }
+    })
+    .buffer_unordered(limit);
+
+    let all_results: Vec<_> = stream.collect().await;
+
+    let results: Vec<SearchResultWithChannels> = all_results.into_iter().filter_map(|r| r.ok()).collect();
 
     Ok(results)
 }
@@ -3187,23 +3195,30 @@ pub async fn generic_search_with_channels_stream(
 
     let root: SampleRoot = serde_json::from_str(&content)?;
 
-    use futures::stream::{FuturesUnordered, StreamExt};
+    let limit = crate::api::config::get_max_concurrent_searches();
+    let limit = if limit == 0 {
+        usize::MAX
+    } else {
+        limit as usize
+    };
 
-    let mut tasks = FuturesUnordered::new();
+    use futures::stream::StreamExt;
 
-    for source in root.exported_media_source_data_list.media_sources {
-        if !crate::api::config::is_source_enabled(&source.arguments.name) {
-            continue;
-        }
-
+    let stream = futures::stream::iter(
+        root.exported_media_source_data_list
+            .media_sources
+            .into_iter()
+            .filter(|source| crate::api::config::is_source_enabled(&source.arguments.name)),
+    )
+    .map(|source| {
         let client = client.clone();
         let anime_name = anime_name.clone();
-        let task =
-            async move { search_single_source_with_channels(&client, &source, &anime_name).await };
-        tasks.push(task);
-    }
+        async move { search_single_source_with_channels(&client, &source, &anime_name).await }
+    })
+    .buffer_unordered(limit);
 
-    while let Some(result) = tasks.next().await {
+    let mut stream = Box::pin(stream);
+    while let Some(result) = stream.next().await {
         if let Ok(search_result) = result {
             log::info!(
                 "Source '{}' completed with {} channels",
