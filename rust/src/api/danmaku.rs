@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 fn get_app_id() -> Result<String, String> {
     match option_env!("DANDANPLAY_APP_ID") {
         Some(v) if !v.is_empty() => Ok(v.to_string()),
-        _ => Err("Environment variable DANDANPLAY_APP_ID not set during compilation".to_string())
+        _ => Err("Environment variable DANDANPLAY_APP_ID not set during compilation".to_string()),
     }
 }
 
@@ -19,7 +19,9 @@ fn get_app_id() -> Result<String, String> {
 fn get_app_secret() -> Result<String, String> {
     match option_env!("DANDANPLAY_APP_SECRET") {
         Some(v) if !v.is_empty() => Ok(v.to_string()),
-        _ => Err("Environment variable DANDANPLAY_APP_SECRET not set during compilation".to_string())
+        _ => {
+            Err("Environment variable DANDANPLAY_APP_SECRET not set during compilation".to_string())
+        }
     }
 }
 
@@ -104,7 +106,7 @@ struct DanmakuComment {
 
 #[derive(Debug, Deserialize)]
 struct DanmakuResponse {
-    count: i32,
+    // count: i32,
     comments: Vec<DanmakuComment>,
 }
 
@@ -200,7 +202,12 @@ fn extract_url_path(url: &str) -> Option<String> {
 
 /// 生成 X-Signature 签名
 /// 算法: Base64(SHA256(AppId + Timestamp + UrlPath + AppSecret))
-fn generate_signature(url: &str, timestamp: i64, app_id: &str, app_secret: &str) -> Result<String, String> {
+fn generate_signature(
+    url: &str,
+    timestamp: i64,
+    app_id: &str,
+    app_secret: &str,
+) -> Result<String, String> {
     let url_path = extract_url_path(url).ok_or("Invalid URL")?;
 
     // 拼接签名数据: AppId + Timestamp + UrlPath + AppSecret

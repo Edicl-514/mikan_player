@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/main.dart' show webViewEnvironment;
@@ -217,7 +216,6 @@ class _WebViewVideoExtractorWidgetState
     extends State<WebViewVideoExtractorWidget> {
   InAppWebViewController? _webViewController;
   final Set<String> _capturedUrls = {};
-  String? _foundVideoUrl;
   Timer? _timeoutTimer;
   bool _isCompleted = false;
   int _totalUrlsChecked = 0;
@@ -354,14 +352,12 @@ class _WebViewVideoExtractorWidgetState
         );
         if (extractedUrl != null && extractedUrl.isNotEmpty) {
           _log('✓ 匹配自定义正则并提取捕获组: $extractedUrl');
-          _foundVideoUrl = extractedUrl;
           _complete(
             VideoExtractResult(videoUrl: extractedUrl, headers: finalHeaders),
           );
           return true;
         } else {
           _log('✓ 匹配自定义正则（无捕获组）: $url');
-          _foundVideoUrl = url;
           _complete(VideoExtractResult(videoUrl: url, headers: finalHeaders));
           return true;
         }
@@ -377,7 +373,6 @@ class _WebViewVideoExtractorWidgetState
     }
     if (builtInMatched) {
       _log('✓ 匹配内置模式: $url');
-      _foundVideoUrl = url;
       _complete(VideoExtractResult(videoUrl: url, headers: finalHeaders));
       return true;
     }

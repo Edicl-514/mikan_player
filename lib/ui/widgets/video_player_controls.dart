@@ -863,78 +863,78 @@ class CustomVideoControls extends StatelessWidget {
     );
   }
 
-  void _showEpisodeSelection(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF13131A),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return Container(
-          height: 400,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "选集",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 2.5,
-                  ),
-                  itemCount: allEpisodes.length,
-                  itemBuilder: (context, index) {
-                    final ep = allEpisodes[index];
-                    final isSelected = ep == currentEpisode;
-                    return InkWell(
-                      onTap: () {
-                        Navigator.pop(context);
-                        onEpisodeSelected(ep);
-                      },
-                      child: Container(
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? const Color(0xFFBB86FC).withValues(alpha: 0.2)
-                              : Colors.white.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: isSelected
-                                ? const Color(0xFFBB86FC)
-                                : Colors.transparent,
-                          ),
-                        ),
-                        child: Text(
-                          ep.sort.toInt().toString(),
-                          style: TextStyle(
-                            color: isSelected
-                                ? const Color(0xFFBB86FC)
-                                : Colors.white70,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  // void _showEpisodeSelection(BuildContext context) {
+  //   showModalBottomSheet(
+  //     context: context,
+  //     backgroundColor: const Color(0xFF13131A),
+  //     shape: const RoundedRectangleBorder(
+  //       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+  //     ),
+  //     builder: (context) {
+  //       return Container(
+  //         height: 400,
+  //         padding: const EdgeInsets.all(16),
+  //         child: Column(
+  //           crossAxisAlignment: CrossAxisAlignment.start,
+  //           children: [
+  //             const Text(
+  //               "选集",
+  //               style: TextStyle(
+  //                 color: Colors.white,
+  //                 fontSize: 18,
+  //                 fontWeight: FontWeight.bold,
+  //               ),
+  //             ),
+  //             const SizedBox(height: 16),
+  //             Expanded(
+  //               child: GridView.builder(
+  //                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+  //                   crossAxisCount: 4,
+  //                   mainAxisSpacing: 8,
+  //                   crossAxisSpacing: 8,
+  //                   childAspectRatio: 2.5,
+  //                 ),
+  //                 itemCount: allEpisodes.length,
+  //                 itemBuilder: (context, index) {
+  //                   final ep = allEpisodes[index];
+  //                   final isSelected = ep == currentEpisode;
+  //                   return InkWell(
+  //                     onTap: () {
+  //                       Navigator.pop(context);
+  //                       onEpisodeSelected(ep);
+  //                     },
+  //                     child: Container(
+  //                       alignment: Alignment.center,
+  //                       decoration: BoxDecoration(
+  //                         color: isSelected
+  //                             ? const Color(0xFFBB86FC).withValues(alpha: 0.2)
+  //                             : Colors.white.withValues(alpha: 0.05),
+  //                         borderRadius: BorderRadius.circular(8),
+  //                         border: Border.all(
+  //                           color: isSelected
+  //                               ? const Color(0xFFBB86FC)
+  //                               : Colors.transparent,
+  //                         ),
+  //                       ),
+  //                       child: Text(
+  //                         ep.sort.toInt().toString(),
+  //                         style: TextStyle(
+  //                           color: isSelected
+  //                               ? const Color(0xFFBB86FC)
+  //                               : Colors.white70,
+  //                         ),
+  //                       ),
+  //                     ),
+  //                   );
+  //                 },
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
 }
 
 enum _MobileTapZone { left, center, right }

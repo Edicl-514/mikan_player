@@ -62,9 +62,9 @@ class _HistoryPageState extends State<HistoryPage> {
 
     if (episodes.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('无法加载剧集列表')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('无法加载剧集列表')));
       }
       return;
     }
@@ -74,9 +74,7 @@ class _HistoryPageState extends State<HistoryPage> {
     if (byId.isNotEmpty) {
       currentEpisode = byId.first;
     } else {
-      final bySort = episodes
-          .where((e) => e.sort == item.episodeSort)
-          .toList();
+      final bySort = episodes.where((e) => e.sort == item.episodeSort).toList();
       if (bySort.isNotEmpty) {
         currentEpisode = bySort.first;
       }
@@ -103,11 +101,15 @@ class _HistoryPageState extends State<HistoryPage> {
         children: [
           Icon(Icons.history, size: 64, color: Colors.grey[600]),
           const SizedBox(height: 16),
-          Text('暂无播放记录',
-              style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+          Text(
+            '暂无播放记录',
+            style: TextStyle(color: Colors.grey[600], fontSize: 16),
+          ),
           const SizedBox(height: 8),
-          Text('在播放页开始观看后会自动记录',
-              style: TextStyle(color: Colors.grey[700], fontSize: 12)),
+          Text(
+            '在播放页开始观看后会自动记录',
+            style: TextStyle(color: Colors.grey[700], fontSize: 12),
+          ),
         ],
       ),
     );
@@ -132,7 +134,7 @@ class _HistoryPageState extends State<HistoryPage> {
             child: ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final item = items[index];
                 final coverUrl = item.coverUrl ?? '';
@@ -141,10 +143,9 @@ class _HistoryPageState extends State<HistoryPage> {
 
                 return Card(
                   elevation: 0,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest
-                      .withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -161,10 +162,7 @@ class _HistoryPageState extends State<HistoryPage> {
                               color: Colors.grey[800],
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(
-                              Icons.image,
-                              color: Colors.grey,
-                            ),
+                            child: const Icon(Icons.image, color: Colors.grey),
                           )
                         : CachedNetworkImage(
                             imageUrl: coverUrl,
@@ -180,8 +178,7 @@ class _HistoryPageState extends State<HistoryPage> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Text(
-                      '${episodeLabel}  ${item.episodeNameCn.isNotEmpty ? item.episodeNameCn : item.episodeName}'
-                      + (item.lastPositionMs > 0 ? ' · ${_formatMs(item.lastPositionMs)}' : ''),
+                      '$episodeLabel  ${item.episodeNameCn.isNotEmpty ? item.episodeNameCn : item.episodeName}${item.lastPositionMs > 0 ? ' · ${_formatMs(item.lastPositionMs)}' : ''}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

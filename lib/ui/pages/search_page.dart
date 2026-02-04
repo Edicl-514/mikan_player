@@ -180,7 +180,7 @@ class _SearchPageState extends State<SearchPage> {
                 tag = '#${anime.rank}';
               }
 
-              final heroTag = 'search_${anime.bangumiId}_${index}';
+              final heroTag = 'search_${anime.bangumiId}_$index';
 
               return AnimeCard(
                 title: anime.title,

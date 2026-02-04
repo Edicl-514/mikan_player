@@ -971,8 +971,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   void _attemptAutoPlay() {
     // Don't auto-play if already playing something (including BT)
-    if (_hasAutoPlayed || _sampleVideoUrl != null || _currentStreamUrl != null)
+    if (_hasAutoPlayed ||
+        _sampleVideoUrl != null ||
+        _currentStreamUrl != null) {
       return;
+    }
 
     // 仅允许Tier 0自动播放
     final candidates = _sampleSuccessfulSources
@@ -2229,31 +2232,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-  // Helper to sanitize headers (remove duplicates, empty values, unify case)
-  Map<String, String> _sanitizeHeaders(Map<String, String>? input) {
-    if (input == null) return {};
-    final Map<String, String> cleaned = {};
-
-    // Prioritize standard keys
-    final keyMap = {
-      'referer': 'Referer',
-      'user-agent': 'User-Agent',
-      'cookie': 'Cookie',
-      'accept': 'Accept',
-    };
-
-    input.forEach((k, v) {
-      if (v.isEmpty) return; // Skip empty values
-
-      final lowerK = k.toLowerCase();
-      final standardK = keyMap[lowerK] ?? k;
-
-      cleaned[standardK] = v;
-    });
-
-    return cleaned;
-  }
-
   /// Check if a URL needs Referer header based on domain
   bool _needsRefererHeader(String url) {
     final uri = Uri.tryParse(url);
@@ -2990,9 +2968,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
                   // 找到对应页面
                   final page = _samplePlayPages.firstWhere((p) {
-                    final pIdx = p.channelIndex == null
-                        ? null
-                        : p.channelIndex!.toInt();
+                    final pIdx = p.channelIndex?.toInt();
                     return p.sourceName == sourceName && (pIdx == channelIndex);
                   }, orElse: () => _samplePlayPages.first);
 
@@ -3050,7 +3026,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                       ],
                     ),
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),
@@ -3410,7 +3386,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
         // 找到对应的页面信息
         final page = _samplePlayPages.firstWhere((p) {
-          final pIdx = p.channelIndex == null ? null : p.channelIndex!.toInt();
+          final pIdx = p.channelIndex?.toInt();
           return p.sourceName == sourceName && (pIdx == channelIndex);
         }, orElse: () => _samplePlayPages.first);
 

@@ -14,7 +14,8 @@ class DanmakuSettingsBottomSheet extends StatefulWidget {
   });
 
   @override
-  State<DanmakuSettingsBottomSheet> createState() => _DanmakuSettingsBottomSheetState();
+  State<DanmakuSettingsBottomSheet> createState() =>
+      _DanmakuSettingsBottomSheetState();
 }
 
 class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
@@ -42,9 +43,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
         // Tab 栏
         Container(
           decoration: const BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: Colors.white10, width: 1),
-            ),
+            border: Border(bottom: BorderSide(color: Colors.white10, width: 1)),
           ),
           child: TabBar(
             controller: _tabController,
@@ -67,10 +66,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
         Expanded(
           child: TabBarView(
             controller: _tabController,
-            children: [
-              _buildDisplaySettings(),
-              _buildDanmakuSource(),
-            ],
+            children: [_buildDisplaySettings(), _buildDanmakuSource()],
           ),
         ),
       ],
@@ -94,7 +90,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               ),
             ),
             const Divider(color: Colors.white10, height: 1),
-            
+
             _buildSectionHeader('显示类型'),
             _buildSwitchTile(
               '滚动弹幕',
@@ -172,7 +168,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
             ),
             _buildSliderTile(
               '描边宽度',
-              '${settings.strokeWidth.toStringAsFixed(1)}',
+              settings.strokeWidth.toStringAsFixed(1),
               settings.strokeWidth,
               0.0,
               5.0,
@@ -216,10 +212,16 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                     borderSide: BorderSide.none,
                   ),
                   suffixIcon: IconButton(
-                    icon: const Icon(Icons.search, color: Color(0xFFBB86FC), size: 18),
+                    icon: const Icon(
+                      Icons.search,
+                      color: Color(0xFFBB86FC),
+                      size: 18,
+                    ),
                     onPressed: () {
                       if (_searchController.text.isNotEmpty) {
-                        widget.danmakuService.searchAnime(_searchController.text);
+                        widget.danmakuService.searchAnime(
+                          _searchController.text,
+                        );
                       }
                     },
                   ),
@@ -279,7 +281,9 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      _buildSelectedAnimeCard(widget.danmakuService.selectedAnime!),
+                      _buildSelectedAnimeCard(
+                        widget.danmakuService.selectedAnime!,
+                      ),
                       const SizedBox(height: 24),
                     ],
                     if (widget.danmakuService.searchResults.isNotEmpty) ...[
@@ -323,24 +327,32 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                         spacing: 8,
                         runSpacing: 8,
                         children: widget.danmakuService.episodes.map((ep) {
-                          final isSelected = widget.danmakuService.selectedEpisode?.episodeId == ep.episodeId;
+                          final isSelected =
+                              widget
+                                  .danmakuService
+                                  .selectedEpisode
+                                  ?.episodeId ==
+                              ep.episodeId;
                           return InkWell(
-                            onTap: () => widget.danmakuService.selectEpisode(ep),
+                            onTap: () =>
+                                widget.danmakuService.selectEpisode(ep),
                             borderRadius: BorderRadius.circular(4),
                             child: Container(
                               width: 48,
                               height: 32,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: isSelected 
-                                  ? const Color(0xFFBB86FC) 
-                                  : Colors.white.withValues(alpha: 0.1),
+                                color: isSelected
+                                    ? const Color(0xFFBB86FC)
+                                    : Colors.white.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 ep.episodeTitle,
                                 style: TextStyle(
-                                  color: isSelected ? Colors.black : Colors.white70,
+                                  color: isSelected
+                                      ? Colors.black
+                                      : Colors.white70,
                                   fontSize: 12,
                                 ),
                                 maxLines: 1,
@@ -363,7 +375,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
   Widget _buildLoadedDanmakuInfoCard() {
     final service = widget.danmakuService;
     final count = service.danmakuCount;
-    
+
     String infoText = '';
     if (service.selectedAnime != null) {
       infoText = service.selectedAnime!.animeTitle;
@@ -371,15 +383,12 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
         infoText += ' - ${service.selectedEpisode!.episodeTitle}';
       }
     }
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFF4CAF50).withValues(alpha: 0.15),
-        border: Border.all(
-          color: const Color(0xFF4CAF50),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0xFF4CAF50), width: 1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -407,10 +416,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
             const SizedBox(height: 6),
             Text(
               infoText,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -428,10 +434,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: const Color(0xFFBB86FC).withValues(alpha: 0.15),
-          border: Border.all(
-            color: const Color(0xFFBB86FC),
-            width: 1,
-          ),
+          border: Border.all(color: const Color(0xFFBB86FC), width: 1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
@@ -472,12 +475,9 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               const SizedBox(height: 4),
               Text(
                 anime.typeDescription!,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
               ),
-            ]
+            ],
           ],
         ),
       ),
@@ -520,8 +520,10 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               child: Switch(
                 value: value,
                 onChanged: onChanged,
-                activeColor: const Color(0xFFBB86FC),
-                activeTrackColor: const Color(0xFFBB86FC).withValues(alpha: 0.3),
+                activeThumbColor: const Color(0xFFBB86FC),
+                activeTrackColor: const Color(
+                  0xFFBB86FC,
+                ).withValues(alpha: 0.3),
                 inactiveThumbColor: Colors.grey,
                 inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
               ),
@@ -568,12 +570,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
           ),
-          child: Slider(
-            value: value,
-            min: min,
-            max: max,
-            onChanged: onChanged,
-          ),
+          child: Slider(value: value, min: min, max: max, onChanged: onChanged),
         ),
       ],
     );
@@ -662,10 +659,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: [
-                _buildDisplaySettings(),
-                _buildDanmakuSource(),
-              ],
+              children: [_buildDisplaySettings(), _buildDanmakuSource()],
             ),
           ),
         ],
@@ -689,7 +683,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
               ),
             ),
             const Divider(color: Colors.white10, height: 1),
-            
+
             _buildSectionHeader('显示类型'),
             _buildSwitchTile(
               '滚动弹幕',
@@ -767,7 +761,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
             ),
             _buildSliderTile(
               '描边宽度',
-              '${settings.strokeWidth.toStringAsFixed(1)}',
+              settings.strokeWidth.toStringAsFixed(1),
               settings.strokeWidth,
               0.0,
               5.0,
@@ -811,10 +805,16 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                     borderSide: BorderSide.none,
                   ),
                   suffixIcon: IconButton(
-                    icon: const Icon(Icons.search, color:  Color(0xFFBB86FC), size: 18),
+                    icon: const Icon(
+                      Icons.search,
+                      color: Color(0xFFBB86FC),
+                      size: 18,
+                    ),
                     onPressed: () {
                       if (_searchController.text.isNotEmpty) {
-                        widget.danmakuService.searchAnime(_searchController.text);
+                        widget.danmakuService.searchAnime(
+                          _searchController.text,
+                        );
                       }
                     },
                   ),
@@ -863,7 +863,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                       _buildLoadedDanmakuInfoCard(),
                       const SizedBox(height: 24),
                     ],
-                     if (widget.danmakuService.selectedAnime != null) ...[
+                    if (widget.danmakuService.selectedAnime != null) ...[
                       const Text(
                         '当前匹配',
                         style: TextStyle(
@@ -875,35 +875,39 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                       const SizedBox(height: 8),
                       // 使用 _buildAnimeCard 但需要确保它可以处理这两种情况，或者我们这里重写逻辑
                       // _buildAnimeCard(widget.danmakuService.selectedAnime!, ),
-                       InkWell(
-                         onTap: () => widget.danmakuService.selectAnime(widget.danmakuService.selectedAnime!),
-                         borderRadius: BorderRadius.circular(8),
-                         child: Container(
-                           padding: const EdgeInsets.all(12),
-                           decoration: BoxDecoration(
-                             color: const Color(0xFFBB86FC).withValues(alpha: 0.15),
-                             border: Border.all(
-                               color: const Color(0xFFBB86FC),
-                               width: 1,
-                             ),
-                             borderRadius: BorderRadius.circular(8),
-                           ),
-                           child: Column(
-                             crossAxisAlignment: CrossAxisAlignment.start,
-                             children: [
-                               Text(
-                                 widget.danmakuService.selectedAnime!.animeTitle,
-                                 style: const TextStyle(
-                                   color: Colors.white,
-                                   fontSize: 13,
-                                   fontWeight: FontWeight.bold,
-                                 ),
-                               ),
-                                // 假设 DanmakuAnime 没有 seasonTitle，所以这里不显示
-                             ],
-                           ),
-                         ),
-                       ),
+                      InkWell(
+                        onTap: () => widget.danmakuService.selectAnime(
+                          widget.danmakuService.selectedAnime!,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFFBB86FC,
+                            ).withValues(alpha: 0.15),
+                            border: Border.all(
+                              color: const Color(0xFFBB86FC),
+                              width: 1,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.danmakuService.selectedAnime!.animeTitle,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              // 假设 DanmakuAnime 没有 seasonTitle，所以这里不显示
+                            ],
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 24),
                     ],
                     if (widget.danmakuService.searchResults.isNotEmpty) ...[
@@ -949,24 +953,32 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                         children: widget.danmakuService.episodes.map((ep) {
                           // selectedEpisode 是 DanmakuEpisode 类型
                           // ep 是 DanmakuEpisode 类型
-                          final isSelected = widget.danmakuService.selectedEpisode?.episodeId == ep.episodeId;
+                          final isSelected =
+                              widget
+                                  .danmakuService
+                                  .selectedEpisode
+                                  ?.episodeId ==
+                              ep.episodeId;
                           return InkWell(
-                            onTap: () => widget.danmakuService.selectEpisode(ep),
+                            onTap: () =>
+                                widget.danmakuService.selectEpisode(ep),
                             borderRadius: BorderRadius.circular(4),
                             child: Container(
                               width: 48,
                               height: 32,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: isSelected 
-                                  ? const Color(0xFFBB86FC) 
-                                  : Colors.white.withValues(alpha: 0.1),
+                                color: isSelected
+                                    ? const Color(0xFFBB86FC)
+                                    : Colors.white.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 ep.episodeTitle, // 之前看到是 episodeTitle
                                 style: TextStyle(
-                                  color: isSelected ? Colors.black : Colors.white70,
+                                  color: isSelected
+                                      ? Colors.black
+                                      : Colors.white70,
                                   fontSize: 12,
                                 ),
                                 maxLines: 1,
@@ -1022,8 +1034,10 @@ class _VideoSidePanelState extends State<VideoSidePanel>
               child: Switch(
                 value: value,
                 onChanged: onChanged,
-                activeColor: const Color(0xFFBB86FC),
-                activeTrackColor: const Color(0xFFBB86FC).withValues(alpha: 0.3),
+                activeThumbColor: const Color(0xFFBB86FC),
+                activeTrackColor: const Color(
+                  0xFFBB86FC,
+                ).withValues(alpha: 0.3),
                 inactiveThumbColor: Colors.grey,
                 inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
               ),
@@ -1070,21 +1084,16 @@ class _VideoSidePanelState extends State<VideoSidePanel>
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
           ),
-          child: Slider(
-            value: value,
-            min: min,
-            max: max,
-            onChanged: onChanged,
-          ),
+          child: Slider(value: value, min: min, max: max, onChanged: onChanged),
         ),
       ],
     );
   }
-  
+
   Widget _buildLoadedDanmakuInfoCard() {
     final service = widget.danmakuService;
     final count = service.danmakuCount;
-    
+
     String infoText = '';
     if (service.selectedAnime != null) {
       infoText = service.selectedAnime!.animeTitle;
@@ -1092,15 +1101,12 @@ class _VideoSidePanelState extends State<VideoSidePanel>
         infoText += ' - ${service.selectedEpisode!.episodeTitle}';
       }
     }
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFF4CAF50).withValues(alpha: 0.15),
-        border: Border.all(
-          color: const Color(0xFF4CAF50),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0xFF4CAF50), width: 1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -1128,10 +1134,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
             const SizedBox(height: 6),
             Text(
               infoText,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1140,7 +1143,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
       ),
     );
   }
-  
+
   Widget _buildAnimeCard(DanmakuAnime anime, bool isSelected) {
     return InkWell(
       onTap: () => widget.danmakuService.selectAnime(anime),
@@ -1149,8 +1152,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected 
-              ? const Color(0xFFBB86FC).withValues(alpha: 0.15) 
+          color: isSelected
+              ? const Color(0xFFBB86FC).withValues(alpha: 0.15)
               : Colors.white.withValues(alpha: 0.05),
           border: Border.all(
             color: isSelected ? const Color(0xFFBB86FC) : Colors.transparent,
@@ -1169,16 +1172,13 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                 fontWeight: FontWeight.bold,
               ),
             ),
-             if (anime.typeDescription != null) ...[
-               const SizedBox(height: 4),
-               Text(
-                 anime.typeDescription!,
-                 style: const TextStyle(
-                   color: Colors.white70,
-                   fontSize: 12,
-                 ),
-               ),
-             ]
+            if (anime.typeDescription != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                anime.typeDescription!,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
           ],
         ),
       ),

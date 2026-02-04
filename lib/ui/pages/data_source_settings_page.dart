@@ -278,7 +278,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                                       height: 40,
                                       color: Theme.of(
                                         context,
-                                      ).colorScheme.surfaceVariant,
+                                      ).colorScheme.surfaceContainerHighest,
                                       child: const Icon(Icons.source),
                                     ),
                                   )
@@ -287,7 +287,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                                     height: 40,
                                     color: Theme.of(
                                       context,
-                                    ).colorScheme.surfaceVariant,
+                                    ).colorScheme.surfaceContainerHighest,
                                     child: const Icon(Icons.source),
                                   ),
                           ),

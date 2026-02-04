@@ -427,7 +427,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
         decoration: BoxDecoration(
           color: Theme.of(
             context,
-          ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+          ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Center(
@@ -518,7 +518,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.transparent,
-                              Colors.black.withOpacity(0.8),
+                              Colors.black.withValues(alpha: 0.8),
                             ],
                             stops: const [0.6, 1.0],
                           ),
@@ -646,7 +646,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
               elevation: 0,
               color: Theme.of(
                 context,
-              ).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
