@@ -10,11 +10,11 @@ import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/src/rust/api/network.dart' as network;
 import 'package:mikan_player/src/http_overrides.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'dart:io';
 import 'package:mikan_player/services/user_manager.dart';
+import 'package:mikan_player/utils/app_directories.dart';
 
 /// 全局 WebView 环境（Windows 平台需要）
 WebViewEnvironment? webViewEnvironment;
@@ -23,12 +23,17 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Rust Logic with platform-specific paths
-  final appSupportDir = await getApplicationSupportDirectory();
+  // IMPORTANT: On Windows, use a unified app data directory to avoid debug/release path conflicts
+  final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
   final cacheDir = Directory('${appSupportDir.path}/cache');
   final downloadDir = Directory('${appSupportDir.path}/downloads');
 
   if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
   if (!await downloadDir.exists()) await downloadDir.create(recursive: true);
+
+  debugPrint('App data directory: ${appSupportDir.path}');
+  debugPrint('Cache directory: ${cacheDir.path}');
+  debugPrint('Download directory: ${downloadDir.path}');
 
   await RustLib.init();
   await rust.initEngine(cacheDir: cacheDir.path, downloadDir: downloadDir.path);
@@ -49,9 +54,8 @@ Future<void> main() async {
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
     final availableVersion = await WebViewEnvironment.getAvailableVersion();
     if (availableVersion != null) {
-      // 使用应用数据目录存储 WebView2 数据
-      final appDataDir = await getApplicationSupportDirectory();
-      final webViewDataPath = '${appDataDir.path}\\WebView2';
+      // 使用统一的应用数据目录存储 WebView2 数据
+      final webViewDataPath = '${appSupportDir.path}\\WebView2';
 
       webViewEnvironment = await WebViewEnvironment.create(
         settings: WebViewEnvironmentSettings(userDataFolder: webViewDataPath),

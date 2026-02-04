@@ -181,15 +181,16 @@ class _MyPageState extends State<MyPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: Stack(
+          clipBehavior: Clip.none,
           children: [
             Icon(Icons.download, color: Theme.of(context).colorScheme.primary),
             // Show red badge only for active downloads (not seeding)
             if (activeCount > 0)
               Positioned(
-                right: -2,
-                top: -2,
+                right: 0,
+                top: 0,
                 child: Container(
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(2.5),
                   decoration: const BoxDecoration(
                     color: Colors.red,
                     shape: BoxShape.circle,
@@ -207,10 +208,10 @@ class _MyPageState extends State<MyPage> {
             // Show green badge for seeding only if no active downloads
             if (activeCount == 0 && seedingCount > 0)
               Positioned(
-                right: -2,
-                top: -2,
+                right: 0,
+                top: 0,
                 child: Container(
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(2.5),
                   decoration: const BoxDecoration(
                     color: Colors.green,
                     shape: BoxShape.circle,
@@ -235,8 +236,8 @@ class _MyPageState extends State<MyPage> {
           activeCount > 0
               ? '$activeCount 下载中${seedingCount > 0 ? ', $seedingCount 做种中' : ''}'
               : seedingCount > 0
-                  ? '$seedingCount 做种中'
-                  : '管理下载的视频',
+              ? '$seedingCount 做种中'
+              : '管理下载的视频',
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
@@ -525,10 +526,11 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
   Widget _buildDownloadItem(DownloadTask task) {
     final statusColor = _getStatusColor(task.status);
     final statusIcon = _getStatusIcon(task.status);
-    final canPlay = task.streamUrl != null && 
+    final canPlay =
+        task.streamUrl != null &&
         (task.status == DownloadTaskStatus.downloading ||
-         task.status == DownloadTaskStatus.seeding ||
-         task.status == DownloadTaskStatus.paused && task.progress > 5);
+            task.status == DownloadTaskStatus.seeding ||
+            task.status == DownloadTaskStatus.paused && task.progress > 5);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -574,7 +576,10 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                     ),
                     if (canPlay)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFBB86FC).withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(4),
@@ -582,7 +587,11 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.play_arrow, size: 12, color: Color(0xFFBB86FC)),
+                            Icon(
+                              Icons.play_arrow,
+                              size: 12,
+                              color: Color(0xFFBB86FC),
+                            ),
                             SizedBox(width: 2),
                             Text(
                               '点击播放',
@@ -696,17 +705,16 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Pause/Resume button
-        if (task.status == DownloadTaskStatus.downloading ||
-            task.status == DownloadTaskStatus.seeding)
+        if (task.status == DownloadTaskStatus.downloading)
           IconButton(
             icon: const Icon(Icons.pause, size: 20, color: Colors.orange),
             tooltip: '暂停',
             onPressed: () async {
               final success = await _downloadManager.pauseTask(task.id);
               if (mounted && !success) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('暂停失败')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('暂停失败')));
               }
             },
           )
@@ -717,13 +725,13 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
             onPressed: () async {
               final success = await _downloadManager.resumeTask(task.id);
               if (mounted && !success) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('恢复失败')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('恢复失败')));
               }
             },
           ),
-        
+
         // Delete button
         IconButton(
           icon: const Icon(Icons.close, size: 20, color: Colors.grey),
@@ -736,15 +744,15 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
 
   Future<void> _playTask(DownloadTask task) async {
     if (task.streamUrl == null) return;
-    
+
     // Try to find anime info from playback history
     final historyManager = PlaybackHistoryManager();
     final history = await historyManager.getHistory();
-    
+
     AnimeInfo? anime;
     List<BangumiEpisode> allEpisodes = [];
     BangumiEpisode? currentEpisode;
-    
+
     // Search for matching history item by anime name
     if (task.animeName != null) {
       for (final item in history) {
@@ -764,10 +772,10 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
             tags: item.tags,
             fullJson: item.fullJson,
           );
-          
+
           // Restore episodes from history
           allEpisodes = item.toEpisodes();
-          
+
           // Find the matching episode
           final epNumber = task.episodeNumber ?? 1;
           for (final ep in allEpisodes) {
@@ -780,7 +788,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
         }
       }
     }
-    
+
     // Fallback: create minimal anime/episode info if not found in history
     anime ??= AnimeInfo(
       title: task.animeName ?? task.name,
@@ -796,23 +804,25 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
       tags: const [],
       fullJson: null,
     );
-    
+
     currentEpisode ??= BangumiEpisode(
       id: 0,
       sort: (task.episodeNumber ?? 1).toDouble(),
       name: task.animeName ?? task.name, // Use anime name as episode name
-      nameCn: task.animeName != null ? '\u7b2c${task.episodeNumber ?? 1}\u96c6' : '',
+      nameCn: task.animeName != null
+          ? '\u7b2c${task.episodeNumber ?? 1}\u96c6'
+          : '',
       duration: '',
       airdate: '',
       description: '',
     );
-    
+
     if (allEpisodes.isEmpty) {
       allEpisodes = [currentEpisode];
     }
 
     if (!mounted) return;
-    
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -845,14 +855,10 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
               ),
               const SizedBox(height: 12),
               CheckboxListTile(
-                title: const Text(
-                  '同时删除物理文件',
-                  style: TextStyle(fontSize: 14),
-                ),
+                title: const Text('同时删除物理文件', style: TextStyle(fontSize: 14)),
                 value: deleteFiles,
-                onChanged: (val) => setDialogState(
-                  () => deleteFiles = val ?? false,
-                ),
+                onChanged: (val) =>
+                    setDialogState(() => deleteFiles = val ?? false),
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
               ),
@@ -865,20 +871,14 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text(
-                '删除',
-                style: TextStyle(color: Colors.red),
-              ),
+              child: const Text('删除', style: TextStyle(color: Colors.red)),
             ),
           ],
         ),
       ),
     );
     if (confirmed == true) {
-      await _downloadManager.removeTask(
-        task.id,
-        deleteFiles: deleteFiles,
-      );
+      await _downloadManager.removeTask(task.id, deleteFiles: deleteFiles);
     }
   }
 

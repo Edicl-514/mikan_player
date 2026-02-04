@@ -1,6 +1,6 @@
 import 'package:isar/isar.dart';
 import 'package:mikan_player/models/local_favorite.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:mikan_player/utils/app_directories.dart';
 
 class FavoritesManager {
   static final FavoritesManager _instance = FavoritesManager._internal();
@@ -13,7 +13,7 @@ class FavoritesManager {
   Future<void> init() async {
     if (_isInitialized) return;
 
-    final dir = await getApplicationSupportDirectory();
+    final dir = await AppDirectories.getUnifiedAppDataDirectory();
     // Use a separate database file for favorites to avoid accidental clearing
     _isar = await Isar.open(
       [LocalFavoriteSchema],

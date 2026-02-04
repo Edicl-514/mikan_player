@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.mikan_player"
+    namespace = "com.edicl.mikan_player"
     compileSdk = 36
     ndkVersion = "29.0.14206865"
 

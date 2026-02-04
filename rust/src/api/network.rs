@@ -1,7 +1,13 @@
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 use log::warn;
 use reqwest::{Client, Proxy};
 use std::process::Command;
 use std::time::Duration;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Debug)]
 pub struct ProxyConfig {
@@ -13,6 +19,7 @@ pub fn get_system_proxy() -> Option<String> {
     {
         // 1. Check ProxyEnable
         let output = Command::new("reg")
+            .creation_flags(CREATE_NO_WINDOW)
             .args(&[
                 "query",
                 "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
@@ -30,6 +37,7 @@ pub fn get_system_proxy() -> Option<String> {
 
         // 2. Get ProxyServer
         let output = Command::new("reg")
+            .creation_flags(CREATE_NO_WINDOW)
             .args(&[
                 "query",
                 "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
