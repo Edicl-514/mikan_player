@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
+import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 class TimeTablePage extends StatefulWidget {
   const TimeTablePage({super.key});
@@ -300,23 +301,20 @@ class _TimeTablePageState extends State<TimeTablePage>
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: anime.coverUrl != null
-                        ? Image.network(
-                            anime.coverUrl!,
+                        ? CachedNetworkImage(
+                            imageUrl: anime.coverUrl!,
                             width: 70,
                             height: 100,
                             fit: BoxFit.cover,
-                            gaplessPlayback: true,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                width: 70,
-                                height: 100,
-                                color: Colors.grey[300],
-                                child: const Icon(
-                                  Icons.broken_image,
-                                  color: Colors.grey,
-                                ),
-                              );
-                            },
+                            errorWidget: Container(
+                              width: 70,
+                              height: 100,
+                              color: Colors.grey[300],
+                              child: const Icon(
+                                Icons.broken_image,
+                                color: Colors.grey,
+                              ),
+                            ),
                           )
                         : Container(
                             width: 70,

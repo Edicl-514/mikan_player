@@ -22,6 +22,7 @@ import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
+import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 class PlayerPage extends StatefulWidget {
   final AnimeInfo anime;
@@ -3749,16 +3750,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             height: 32,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              image: comment.avatar.isNotEmpty
-                  ? DecorationImage(
-                      image: NetworkImage(comment.avatar),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
               color: comment.avatar.isEmpty ? Colors.grey[800] : null,
             ),
-            child: comment.avatar.isEmpty
-                ? Center(
+            child: comment.avatar.isNotEmpty
+                ? ClipOval(
+                    child: CachedNetworkImage(
+                      imageUrl: comment.avatar,
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                : Center(
                     child: Text(
                       comment.userName.isNotEmpty ? comment.userName[0] : "?",
                       style: const TextStyle(
@@ -3766,8 +3769,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                  )
-                : null,
+                  ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -3843,16 +3845,20 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 height: 24,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  image: reply.avatar.isNotEmpty
-                                      ? DecorationImage(
-                                          image: NetworkImage(reply.avatar),
-                                          fit: BoxFit.cover,
-                                        )
-                                      : null,
                                   color: reply.avatar.isEmpty
                                       ? Colors.grey[800]
                                       : null,
                                 ),
+                                child: reply.avatar.isNotEmpty
+                                    ? ClipOval(
+                                        child: CachedNetworkImage(
+                                          imageUrl: reply.avatar,
+                                          width: 24,
+                                          height: 24,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      )
+                                    : null,
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -4011,12 +4017,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   color: const Color(0xFF252535),
-                  image: item.coverUrl.isNotEmpty
-                      ? DecorationImage(
-                          image: NetworkImage(item.coverUrl),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.2),
@@ -4025,6 +4025,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     ),
                   ],
                 ),
+                child: item.coverUrl.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CachedNetworkImage(
+                          imageUrl: item.coverUrl,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    : null,
               ),
             ),
             const SizedBox(height: 8),
@@ -4067,13 +4076,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 color: const Color(0xFF252535),
-                image: item.coverUrl.isNotEmpty
-                    ? DecorationImage(
-                        image: NetworkImage(item.coverUrl),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
               ),
+              child: item.coverUrl.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        imageUrl: item.coverUrl,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : null,
             ),
             const SizedBox(width: 12),
             Expanded(

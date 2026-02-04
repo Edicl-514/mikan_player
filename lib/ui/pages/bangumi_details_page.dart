@@ -8,6 +8,7 @@ import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
+import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'player_page.dart';
 
 class BangumiDetailsPage extends StatefulWidget {
@@ -400,11 +401,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       children: [
         // 1. Blurred Background
         if (imgUrl != null)
-          Image.network(
-            imgUrl,
+          CachedNetworkImage(
+            imageUrl: imgUrl,
             fit: BoxFit.cover,
             height: 500, // extend a bit
-            errorBuilder: (_, _, _) => Container(color: Colors.grey[900]),
+            errorWidget: Container(color: Colors.grey[900]),
           )
         else
           Container(color: Colors.grey[900]),
@@ -455,16 +456,16 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                               offset: const Offset(0, 4),
                             ),
                           ],
-                          image: imgUrl != null
-                              ? DecorationImage(
-                                  image: NetworkImage(imgUrl),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
                         ),
-                        child: imgUrl == null
-                            ? const Icon(Icons.movie, color: Colors.grey)
-                            : null,
+                        child: imgUrl != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: CachedNetworkImage(
+                                  imageUrl: imgUrl,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : const Icon(Icons.movie, color: Colors.grey),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -946,10 +947,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Image.network(
-          imgUrl,
+        CachedNetworkImage(
+          imageUrl: imgUrl,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => Container(color: Colors.black87),
+          errorWidget: Container(color: Colors.black87),
         ),
         BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -989,7 +990,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(radius),
-          child: Image.network(imgUrl, fit: BoxFit.cover),
+          child: CachedNetworkImage(imageUrl: imgUrl, fit: BoxFit.cover),
         ),
       ),
     );
@@ -1510,23 +1511,23 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                 ? Colors.white10
                                 : Colors.grey[300]!,
                           ),
-                          image: imageUrl.isNotEmpty
-                              ? DecorationImage(
-                                  image: NetworkImage(imageUrl),
+                        ),
+                        child: imageUrl.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: CachedNetworkImage(
+                                  imageUrl: imageUrl,
                                   fit: BoxFit.cover,
                                   alignment: Alignment.topCenter,
-                                )
-                              : null,
-                        ),
-                        child: imageUrl.isEmpty
-                            ? Icon(
+                                ),
+                              )
+                            : Icon(
                                 Icons.person,
                                 color: isDarkBg
                                     ? Colors.white24
                                     : Colors.grey[400],
                                 size: 40,
-                              )
-                            : null,
+                              ),
                       ),
                       const SizedBox(height: 8),
                       // Character Name
@@ -1672,16 +1673,17 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                             color: cardColor,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: borderColor),
-                            image: rel.image.isNotEmpty
-                                ? DecorationImage(
-                                    image: NetworkImage(rel.image),
+                          ),
+                          child: rel.image.isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: CachedNetworkImage(
+                                    imageUrl: rel.image,
                                     fit: BoxFit.cover,
                                     alignment: Alignment.center,
-                                  )
-                                : null,
-                          ),
-                          child: rel.image.isEmpty
-                              ? Center(
+                                  ),
+                                )
+                              : Center(
                                   child: Icon(
                                     Icons.movie_outlined,
                                     color: isDarkBg
@@ -1689,8 +1691,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                         : Colors.grey[400],
                                     size: 32,
                                   ),
-                                )
-                              : null,
+                                ),
                         ),
                         const SizedBox(height: 10),
                         Text(
@@ -1765,19 +1766,35 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Avatar
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: isDarkBg ? Colors.white10 : Colors.grey[200],
-                  backgroundImage: comment.avatar.isNotEmpty
-                      ? NetworkImage(comment.avatar)
-                      : null,
-                  child: comment.avatar.isEmpty
-                      ? Icon(
-                          Icons.person,
-                          size: 20,
-                          color: isDarkBg ? Colors.white30 : Colors.grey[400],
-                        )
-                      : null,
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isDarkBg ? Colors.white10 : Colors.grey[200],
+                  ),
+                  alignment: Alignment.center,
+                  child: ClipOval(
+                    child: comment.avatar.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: comment.avatar,
+                            width: 36,
+                            height: 36,
+                            fit: BoxFit.cover,
+                            errorWidget: Icon(
+                              Icons.person,
+                              size: 20,
+                              color: isDarkBg
+                                  ? Colors.white30
+                                  : Colors.grey[400],
+                            ),
+                          )
+                        : Icon(
+                            Icons.person,
+                            size: 20,
+                            color: isDarkBg ? Colors.white30 : Colors.grey[400],
+                          ),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 // Content

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/services/download_manager.dart';
+import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/pages/settings_page.dart';
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/ui/pages/search_page.dart';
@@ -85,18 +86,27 @@ class _MyPageState extends State<MyPage> {
                   ).colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
                 ),
               ),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: Theme.of(context).colorScheme.surface,
-                backgroundImage: _userManager.user != null
-                    ? NetworkImage(_userManager.user!.avatar.large)
-                    : null,
-                child: _userManager.user == null
-                    ? Icon(
+              currentAccountPicture: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Theme.of(context).colorScheme.surface,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _userManager.user != null
+                    ? CachedNetworkImage(
+                        imageUrl: _userManager.user!.avatar.large,
+                        fit: BoxFit.cover,
+                        errorWidget: Icon(
+                          Icons.person,
+                          size: 40,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      )
+                    : Icon(
                         Icons.person,
                         size: 40,
                         color: Theme.of(context).colorScheme.primary,
-                      )
-                    : null,
+                      ),
               ),
             ),
           ),

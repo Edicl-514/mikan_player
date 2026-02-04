@@ -4,6 +4,7 @@ import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/src/rust/api/generic_scraper.dart'
     as generic_scraper;
 import 'data_source_config_page.dart';
+import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 class DataSourceSettingsPage extends StatefulWidget {
   const DataSourceSettingsPage({super.key});
@@ -137,7 +138,8 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       _bgmController.text = 'https://bgmlist.com';
       _bangumiController.text = 'https://bangumi.tv';
       _mikanController.text = 'https://mikanani.kas.pub';
-      _playbackSubController.text = 'https://gitee.com/edicl/online-subscription/raw/master/online.json';
+      _playbackSubController.text =
+          'https://gitee.com/edicl/online-subscription/raw/master/online.json';
     });
   }
 
@@ -188,7 +190,8 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                       child: _buildTextField(
                         controller: _playbackSubController,
                         label: '播放源订阅地址',
-                        hint: 'https://gitee.com/edicl/online-subscription/raw/master/online.json',
+                        hint:
+                            'https://gitee.com/edicl/online-subscription/raw/master/online.json',
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -265,21 +268,19 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                           leading: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: source.iconUrl.isNotEmpty
-                                ? Image.network(
-                                    source.iconUrl,
+                                ? CachedNetworkImage(
+                                    imageUrl: source.iconUrl,
                                     width: 40,
                                     height: 40,
                                     fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            Container(
-                                              width: 40,
-                                              height: 40,
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.surfaceVariant,
-                                              child: const Icon(Icons.source),
-                                            ),
+                                    errorWidget: Container(
+                                      width: 40,
+                                      height: 40,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.surfaceVariant,
+                                      child: const Icon(Icons.source),
+                                    ),
                                   )
                                 : Container(
                                     width: 40,

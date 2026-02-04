@@ -3,6 +3,7 @@ import 'package:mikan_player/src/rust/api/ranking.dart' as ranking;
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
+import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 class RankingPage extends StatelessWidget {
   const RankingPage({super.key});
@@ -252,13 +253,12 @@ class _RankingListState extends State<RankingList>
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: item.coverUrl.isNotEmpty
-                          ? Image.network(
-                              item.coverUrl,
+                          ? CachedNetworkImage(
+                              imageUrl: item.coverUrl,
                               fit: BoxFit.cover,
                               width: double.infinity,
                               height: double.infinity,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  Container(color: Colors.grey[300]),
+                              errorWidget: Container(color: Colors.grey[300]),
                             )
                           : Container(color: Colors.grey[300]),
                     ),

@@ -7,6 +7,7 @@ import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
+import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 import 'package:mikan_player/src/rust/api/crawler.dart' as rust_crawler;
 
@@ -318,10 +319,10 @@ class _FavoritesPageState extends State<FavoritesPage>
             SizedBox(
               width: 80,
               height: 110,
-              child: Image.network(
-                coverUrl,
+              child: CachedNetworkImage(
+                imageUrl: coverUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: Colors.grey),
+                errorWidget: Container(color: Colors.grey),
               ),
             ),
             const SizedBox(width: 12),

@@ -13,6 +13,7 @@ class CachedNetworkImage extends StatefulWidget {
   final Widget? placeholder;
   final Widget? errorWidget;
   final BorderRadius? borderRadius;
+  final AlignmentGeometry? alignment;
 
   const CachedNetworkImage({
     super.key,
@@ -20,6 +21,7 @@ class CachedNetworkImage extends StatefulWidget {
     this.width,
     this.height,
     this.fit,
+    this.alignment,
     this.placeholder,
     this.errorWidget,
     this.borderRadius,
@@ -65,10 +67,10 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
 
     try {
       final cache = ImageCacheService.instance;
-      
+
       // 先检查是否已缓存
       final cachedPath = await cache.getCachedPath(widget.imageUrl);
-      
+
       if (cachedPath != null && mounted) {
         setState(() {
           _localPath = cachedPath;
@@ -118,6 +120,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
         width: widget.width,
         height: widget.height,
         fit: widget.fit ?? BoxFit.cover,
+        alignment: widget.alignment ?? Alignment.center,
         errorBuilder: (context, error, stackTrace) {
           return widget.errorWidget ?? _buildErrorWidget();
         },
@@ -129,6 +132,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
         width: widget.width,
         height: widget.height,
         fit: widget.fit ?? BoxFit.cover,
+        alignment: widget.alignment ?? Alignment.center,
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return widget.placeholder ?? _buildPlaceholder();
@@ -140,10 +144,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
     }
 
     if (widget.borderRadius != null) {
-      return ClipRRect(
-        borderRadius: widget.borderRadius!,
-        child: imageWidget,
-      );
+      return ClipRRect(borderRadius: widget.borderRadius!, child: imageWidget);
     }
 
     return imageWidget;
@@ -154,9 +155,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
       width: widget.width,
       height: widget.height,
       color: Colors.grey[800],
-      child: const Center(
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
+      child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
     );
   }
 
@@ -165,9 +164,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
       width: widget.width,
       height: widget.height,
       color: Colors.grey[800],
-      child: const Center(
-        child: Icon(Icons.broken_image, color: Colors.grey),
-      ),
+      child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
     );
   }
 }

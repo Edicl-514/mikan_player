@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 class AnimeCard extends StatefulWidget {
   final String title;
@@ -186,11 +187,13 @@ class _AnimeCardState extends State<AnimeCard>
 
   Widget _buildCover() {
     return widget.coverUrl != null
-        ? Image.network(
-            widget.coverUrl!,
+        ? CachedNetworkImage(
+            imageUrl: widget.coverUrl!,
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) =>
-                Image.asset('assets/images/cover.png', fit: BoxFit.cover),
+            errorWidget: Image.asset(
+              'assets/images/cover.png',
+              fit: BoxFit.cover,
+            ),
           )
         : Image.asset('assets/images/cover.png', fit: BoxFit.cover);
   }
