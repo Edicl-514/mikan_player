@@ -137,6 +137,7 @@ class MyApp extends StatelessWidget {
           ],
           supportedLocales: AppLocalizations.supportedLocales,
           theme: ThemeData(
+            fontFamily: 'MiSans',
             colorScheme: ColorScheme.fromSeed(
               seedColor: Colors.teal,
               brightness: Brightness.dark,

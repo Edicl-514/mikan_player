@@ -70,7 +70,7 @@ pub fn get_bangumi_url() -> String {
 
 pub fn get_bangumi_api_url() -> String {
     let base = get_bangumi_url();
-    if base.contains("bangumi.tv") || base.contains("bgm.tv") {
+    if base.contains("bangumi.tv") || base.contains("bgm.tv") || base.contains("chii.in") {
         "https://api.bgm.tv".to_string()
     } else {
         base

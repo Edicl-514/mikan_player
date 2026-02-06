@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
@@ -22,6 +23,8 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   bool _isRefreshing = false;
   List<generic_scraper.SourceState> _sources = [];
   Set<String> _disabledSources = {};
+  bool _isAutoSettingBangumi = false;
+  bool _isAutoSettingMikan = false;
 
   @override
   void initState() {
@@ -52,10 +55,23 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     setState(() {
       _bgmController.text =
           prefs.getString('bgmlist_url') ?? 'https://bgmlist.com';
-      _bangumiController.text =
-          prefs.getString('bangumi_url') ?? 'https://bangumi.tv';
-      _mikanController.text =
-          prefs.getString('mikan_url') ?? 'https://mikanani.kas.pub';
+
+      final bangumiUrl = prefs.getString('bangumi_url');
+      if (bangumiUrl == null) {
+        _bangumiController.text = 'https://bangumi.tv';
+        // 第一次启动，后台自动检测最快源
+        _autoSelectBangumiUrl(prefs: prefs, background: true);
+      } else {
+        _bangumiController.text = bangumiUrl;
+      }
+
+      final mikanUrl = prefs.getString('mikan_url');
+      if (mikanUrl == null) {
+        _mikanController.text = 'https://mikanani.kas.pub';
+        _autoSelectMikanUrl(prefs: prefs, background: true);
+      } else {
+        _mikanController.text = mikanUrl;
+      }
       _playbackSubController.text =
           prefs.getString('playback_sub_url') ??
           'https://gitee.com/edicl/online-subscription/raw/master/online.json';
@@ -143,6 +159,127 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     });
   }
 
+  Future<int> _tcpPing(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      final stopwatch = Stopwatch()..start();
+      final socket = await Socket.connect(
+        uri.host,
+        uri.port != 0 ? uri.port : (uri.scheme == 'https' ? 443 : 80),
+        timeout: const Duration(seconds: 2),
+      );
+      stopwatch.stop();
+      await socket.close();
+      return stopwatch.elapsedMilliseconds;
+    } catch (_) {
+      return 999999;
+    }
+  }
+
+  Future<void> _autoSelectBangumiUrl({
+    SharedPreferences? prefs,
+    bool background = false,
+  }) async {
+    if (!background) {
+      setState(() {
+        _isAutoSettingBangumi = true;
+      });
+    }
+
+    final urls = ['https://bangumi.tv', 'https://bgm.tv', 'https://chii.in'];
+    int minLatency = 999999;
+    String bestUrl = urls[0];
+
+    for (final url in urls) {
+      final latency = await _tcpPing(url);
+      if (!background) {
+        debugPrint('Ping $url: ${latency}ms');
+      }
+      if (latency < minLatency) {
+        minLatency = latency;
+        bestUrl = url;
+      }
+    }
+
+    // 保存到缓存
+    final p = prefs ?? await SharedPreferences.getInstance();
+    await p.setString('bangumi_url', bestUrl);
+
+    if (mounted) {
+      if (!background) {
+        setState(() {
+          _bangumiController.text = bestUrl;
+          _isAutoSettingBangumi = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已切换至最快源: $bestUrl (${minLatency}ms)')),
+        );
+      } else {
+        // 如果是后台运行，且用户没有修改过，更新UI（可选，但用户体验更好）
+        // 这里选择只更新 TextController，不弹窗
+        if (_bangumiController.text == 'https://bangumi.tv') {
+          setState(() {
+            _bangumiController.text = bestUrl;
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _autoSelectMikanUrl({
+    SharedPreferences? prefs,
+    bool background = false,
+  }) async {
+    if (!background) {
+      setState(() {
+        _isAutoSettingMikan = true;
+      });
+    }
+
+    final urls = [
+      'https://mikanani.kas.pub',
+      'https://mikan2.yujiangqaq.com',
+      'https://mikan.makura.cc',
+      'https://mikanani.me',
+    ];
+    int minLatency = 999999;
+    String bestUrl = urls[0];
+
+    for (final url in urls) {
+      final latency = await _tcpPing(url);
+      if (!background) {
+        debugPrint('Ping $url: ${latency}ms');
+      }
+      if (latency < minLatency) {
+        minLatency = latency;
+        bestUrl = url;
+      }
+    }
+
+    // 保存到缓存
+    final p = prefs ?? await SharedPreferences.getInstance();
+    await p.setString('mikan_url', bestUrl);
+
+    if (mounted) {
+      if (!background) {
+        setState(() {
+          _mikanController.text = bestUrl;
+          _isAutoSettingMikan = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已切换至最快源: $bestUrl (${minLatency}ms)')),
+        );
+      } else {
+        // 如果是后台运行，且用户没有修改过，更新UI
+        if (_mikanController.text == 'https://mikanani.kas.pub') {
+          setState(() {
+            _mikanController.text = bestUrl;
+          });
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -176,12 +313,36 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                   controller: _bangumiController,
                   label: 'Bangumi Base URL',
                   hint: 'https://bangumi.tv',
+                  suffixIcon: IconButton(
+                    icon: _isAutoSettingBangumi
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_fix_high),
+                    tooltip: '自动选择最快源',
+                    onPressed: _isAutoSettingBangumi
+                        ? null
+                        : _autoSelectBangumiUrl,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _buildTextField(
                   controller: _mikanController,
                   label: 'Mikan Base URL',
                   hint: 'https://mikanani.kas.pub',
+                  suffixIcon: IconButton(
+                    icon: _isAutoSettingMikan
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_fix_high),
+                    tooltip: '自动选择最快源',
+                    onPressed: _isAutoSettingMikan ? null : _autoSelectMikanUrl,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -410,6 +571,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     required TextEditingController controller,
     required String label,
     required String hint,
+    Widget? suffixIcon,
   }) {
     return TextField(
       controller: controller,
@@ -418,6 +580,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
         hintText: hint,
         border: const OutlineInputBorder(),
         filled: true,
+        suffixIcon: suffixIcon,
       ),
     );
   }
