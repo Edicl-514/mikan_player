@@ -65,7 +65,13 @@ class _TimeTablePageState extends State<TimeTablePage>
     final now = DateTime.now();
     final currentYear = now.year;
     final currentMonth = now.month;
-    final currentQuarter = currentMonth <= 3 ? 1 : currentMonth <= 6 ? 2 : currentMonth <= 9 ? 3 : 4;
+    final currentQuarter = currentMonth <= 3
+        ? 1
+        : currentMonth <= 6
+        ? 2
+        : currentMonth <= 9
+        ? 3
+        : 4;
     final currentQuarterStr = '${currentYear}q$currentQuarter';
 
     // 先尝试从缓存加载当前季度的数据（立即显示）
@@ -84,7 +90,7 @@ class _TimeTablePageState extends State<TimeTablePage>
               orElse: () => _archives.first,
             );
             _selectedArchive = currentArchive;
-            
+
             // 如果选中的不是当前季度，重新加载
             if (_selectedArchive!.quarter != currentQuarterStr) {
               _loadAnimes(_selectedArchive!.quarter);
@@ -101,7 +107,7 @@ class _TimeTablePageState extends State<TimeTablePage>
           _selectedArchive = crawler.ArchiveQuarter(
             year: currentYear.toString(),
             quarter: currentQuarterStr,
-            title: '$currentYear年${currentQuarter}月',
+            title: '$currentYear年$currentQuarter月',
           );
         });
       }
