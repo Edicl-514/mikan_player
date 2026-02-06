@@ -87,5 +87,19 @@
   "unknownError": "Unknown error",
   "retry": "Retry",
   "networkError": "Network error, please check your settings or try again later",
-  "resourceNotFound": "Resource not found (404)"
+  "resourceNotFound": "Resource not found (404)",
+  "aboutIntro": "Personal anime watching software, identified as a clumsy imitation of Animeko",
+  "aboutSourceCode": "Project Source Code: ",
+  "aboutTechStack": "Tech Stack",
+  "aboutDataSources": "Data Sources",
+  "aboutDataSourcesList": "bgmlist bangumi Mikan Project DMHY DanDanPlay",
+  "aboutDisclaimer": "Network synchronization is one-way, all data is stored locally and will not affect online accounts",
+  "techStackFlutter": "Flutter: Cross-platform UI",
+  "techStackRust": "Rust: Core Logic & Scraper",
+  "techStackIsar": "Isar: Local Database",
+  "techStackMediaKit": "MediaKit: Video Player",
+  "techStackDanmaku": "CanvasDanmaku: Danmaku Rendering",
+  "sourceMeta": "Bangumi / bgmlist: Metadata & Schedule",
+  "sourceTorrent": "Mikan / DMHY: Torrents & Magnets",
+  "sourceDanmaku": "DanDanPlay: Danmaku"
 }

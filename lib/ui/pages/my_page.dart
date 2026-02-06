@@ -8,6 +8,7 @@ import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/ui/pages/favorites_page.dart';
 import 'package:mikan_player/ui/pages/history_page.dart';
 import 'package:mikan_player/ui/pages/player_page.dart';
+import 'package:mikan_player/ui/pages/about_page.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
@@ -160,7 +161,12 @@ class _MyPageState extends State<MyPage> {
           Icons.info,
           AppLocalizations.of(context).aboutTitle,
           AppLocalizations.of(context).version('1.0.0'),
-          () {},
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AboutPage()),
+            );
+          },
         ),
       ],
     );

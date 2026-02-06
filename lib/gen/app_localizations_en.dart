@@ -290,4 +290,49 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get resourceNotFound => 'Resource not found (404)';
+
+  @override
+  String get aboutIntro =>
+      'Personal anime watching software, identified as a clumsy imitation of Animeko';
+
+  @override
+  String get aboutSourceCode => 'Project Source Code: ';
+
+  @override
+  String get aboutTechStack => 'Tech Stack';
+
+  @override
+  String get aboutDataSources => 'Data Sources';
+
+  @override
+  String get aboutDataSourcesList =>
+      'bgmlist bangumi Mikan Project DMHY DanDanPlay';
+
+  @override
+  String get aboutDisclaimer =>
+      'Network synchronization is one-way, all data is stored locally and will not affect online accounts';
+
+  @override
+  String get techStackFlutter => 'Flutter: Cross-platform UI';
+
+  @override
+  String get techStackRust => 'Rust: Core Logic & Scraper';
+
+  @override
+  String get techStackIsar => 'Isar: Local Database';
+
+  @override
+  String get techStackMediaKit => 'MediaKit: Video Player';
+
+  @override
+  String get techStackDanmaku => 'CanvasDanmaku: Danmaku Rendering';
+
+  @override
+  String get sourceMeta => 'Bangumi / bgmlist: Metadata & Schedule';
+
+  @override
+  String get sourceTorrent => 'Mikan / DMHY: Torrents & Magnets';
+
+  @override
+  String get sourceDanmaku => 'DanDanPlay: Danmaku';
 }

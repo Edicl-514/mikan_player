@@ -287,4 +287,46 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get resourceNotFound => '资源未找到 (404)';
+
+  @override
+  String get aboutIntro => '自用的看动漫软件，鉴定为对Animeko的拙劣模仿';
+
+  @override
+  String get aboutSourceCode => '项目源代码：';
+
+  @override
+  String get aboutTechStack => '技术栈';
+
+  @override
+  String get aboutDataSources => '数据来源';
+
+  @override
+  String get aboutDataSourcesList => 'bgmlist bangumi 蜜柑计划 动漫花园 弹弹play';
+
+  @override
+  String get aboutDisclaimer => '网络同步是单向的，所有数据均为本地存储，不会影响在线账号';
+
+  @override
+  String get techStackFlutter => 'Flutter：跨平台 UI 构建';
+
+  @override
+  String get techStackRust => 'Rust：核心业务逻辑与爬虫';
+
+  @override
+  String get techStackIsar => 'Isar：本地数据库';
+
+  @override
+  String get techStackMediaKit => 'MediaKit：视频播放核心';
+
+  @override
+  String get techStackDanmaku => 'CanvasDanmaku：弹幕渲染';
+
+  @override
+  String get sourceMeta => 'Bangumi / bgmlist：番剧元数据与放送表';
+
+  @override
+  String get sourceTorrent => '蜜柑计划 / 动漫花园：资源与磁力链接';
+
+  @override
+  String get sourceDanmaku => '弹弹play：弹幕数据';
 }

@@ -87,5 +87,19 @@
   "unknownError": "未知错误",
   "retry": "重试",
   "networkError": "网络连接失败，请检查网络设置或稍后再试",
-  "resourceNotFound": "资源未找到 (404)"
+  "resourceNotFound": "资源未找到 (404)",
+  "aboutIntro": "自用的看动漫软件，鉴定为对Animeko的拙劣模仿",
+  "aboutSourceCode": "项目源代码：",
+  "aboutTechStack": "技术栈",
+  "aboutDataSources": "数据来源",
+  "aboutDataSourcesList": "bgmlist bangumi 蜜柑计划 动漫花园 弹弹play",
+  "aboutDisclaimer": "网络同步是单向的，所有数据均为本地存储，不会影响在线账号",
+  "techStackFlutter": "Flutter：跨平台 UI 构建",
+  "techStackRust": "Rust：核心业务逻辑与爬虫",
+  "techStackIsar": "Isar：本地数据库",
+  "techStackMediaKit": "MediaKit：视频播放核心",
+  "techStackDanmaku": "CanvasDanmaku：弹幕渲染",
+  "sourceMeta": "Bangumi / bgmlist：番剧元数据与放送表",
+  "sourceTorrent": "蜜柑计划 / 动漫花园：资源与磁力链接",
+  "sourceDanmaku": "弹弹play：弹幕数据"
 }

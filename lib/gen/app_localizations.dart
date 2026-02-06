@@ -625,6 +625,90 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'资源未找到 (404)'**
   String get resourceNotFound;
+
+  /// No description provided for @aboutIntro.
+  ///
+  /// In zh, this message translates to:
+  /// **'自用的看动漫软件，鉴定为对Animeko的拙劣模仿'**
+  String get aboutIntro;
+
+  /// No description provided for @aboutSourceCode.
+  ///
+  /// In zh, this message translates to:
+  /// **'项目源代码：'**
+  String get aboutSourceCode;
+
+  /// No description provided for @aboutTechStack.
+  ///
+  /// In zh, this message translates to:
+  /// **'技术栈'**
+  String get aboutTechStack;
+
+  /// No description provided for @aboutDataSources.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据来源'**
+  String get aboutDataSources;
+
+  /// No description provided for @aboutDataSourcesList.
+  ///
+  /// In zh, this message translates to:
+  /// **'bgmlist bangumi 蜜柑计划 动漫花园 弹弹play'**
+  String get aboutDataSourcesList;
+
+  /// No description provided for @aboutDisclaimer.
+  ///
+  /// In zh, this message translates to:
+  /// **'网络同步是单向的，所有数据均为本地存储，不会影响在线账号'**
+  String get aboutDisclaimer;
+
+  /// No description provided for @techStackFlutter.
+  ///
+  /// In zh, this message translates to:
+  /// **'Flutter：跨平台 UI 构建'**
+  String get techStackFlutter;
+
+  /// No description provided for @techStackRust.
+  ///
+  /// In zh, this message translates to:
+  /// **'Rust：核心业务逻辑与爬虫'**
+  String get techStackRust;
+
+  /// No description provided for @techStackIsar.
+  ///
+  /// In zh, this message translates to:
+  /// **'Isar：本地数据库'**
+  String get techStackIsar;
+
+  /// No description provided for @techStackMediaKit.
+  ///
+  /// In zh, this message translates to:
+  /// **'MediaKit：视频播放核心'**
+  String get techStackMediaKit;
+
+  /// No description provided for @techStackDanmaku.
+  ///
+  /// In zh, this message translates to:
+  /// **'CanvasDanmaku：弹幕渲染'**
+  String get techStackDanmaku;
+
+  /// No description provided for @sourceMeta.
+  ///
+  /// In zh, this message translates to:
+  /// **'Bangumi / bgmlist：番剧元数据与放送表'**
+  String get sourceMeta;
+
+  /// No description provided for @sourceTorrent.
+  ///
+  /// In zh, this message translates to:
+  /// **'蜜柑计划 / 动漫花园：资源与磁力链接'**
+  String get sourceTorrent;
+
+  /// No description provided for @sourceDanmaku.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹弹play：弹幕数据'**
+  String get sourceDanmaku;
 }
 
 class _AppLocalizationsDelegate
