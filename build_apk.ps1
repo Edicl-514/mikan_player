@@ -1,7 +1,8 @@
 # Windows PowerShell script to build APK with environment variables from .env
 
-# 读取 .env 文件并设置环境变量
-$envFile = ".\.env"
+# 读取 .env 文件并设置环境变量（基于脚本位置）
+$scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
+$envFile = Join-Path $scriptRoot '.env'
 if (Test-Path $envFile) {
     Get-Content $envFile | ForEach-Object {
         $line = $_.Trim()
@@ -16,20 +17,20 @@ if (Test-Path $envFile) {
     exit 1
 }
 
-# Build Rust native libraries before building APK
+# Build Rust native libraries before building APK (use paths relative to script)
 Write-Host "Building Rust native libraries for multiple ABIs..."
-$rustDir = "d:\code\mikan_player\rust"
+$rustDir = Join-Path $scriptRoot 'rust'
 if (-not (Test-Path $rustDir)) {
     Write-Host "Rust directory not found: $rustDir"
     exit 1
 }
 Push-Location $rustDir
 try {
-    $env:OPENSSL_DIR = 'D:\code\mikan_player\rust\openssl\usr\local'
+    $env:OPENSSL_DIR = Join-Path $rustDir 'openssl\usr\local'
     $env:OPENSSL_STATIC = '1'
     Write-Host "Set OPENSSL_DIR=$env:OPENSSL_DIR and OPENSSL_STATIC=$env:OPENSSL_STATIC"
 
-    $jniLibsDir = "..\android\app\src\main\jniLibs"
+    $jniLibsDir = Join-Path $scriptRoot 'android\app\src\main\jniLibs'
     if (Test-Path $jniLibsDir) {
         Write-Host "Removing existing jniLibs at $jniLibsDir"
         Remove-Item -Recurse -Force $jniLibsDir

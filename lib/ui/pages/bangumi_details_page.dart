@@ -366,19 +366,27 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                     340, // Reduced height to remove empty space and fit content better
                 pinned: true,
                 elevation: 0,
+                scrolledUnderElevation: 0,
                 backgroundColor: bgColor,
+                surfaceTintColor: bgColor,
                 flexibleSpace: FlexibleSpaceBar(
                   background: _buildMobileHeaderContent(context),
                 ),
-                bottom: const TabBar(
-                  labelColor: Colors.white,
-                  unselectedLabelColor: Colors.grey,
-                  indicatorColor: Colors.deepPurpleAccent,
-                  indicatorWeight: 3,
-                  tabs: [
-                    Tab(text: "详情"), // Details
-                    Tab(text: "评论"), // Comments (Merged Reviews & Discussion)
-                  ],
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(48),
+                  child: Container(
+                    color: bgColor,
+                    child: const TabBar(
+                      labelColor: Colors.white,
+                      unselectedLabelColor: Colors.grey,
+                      indicatorColor: Colors.deepPurpleAccent,
+                      indicatorWeight: 3,
+                      tabs: [
+                        Tab(text: "详情"), // Details
+                        Tab(text: "评论"), // Comments (Merged Reviews & Discussion)
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ];
@@ -477,6 +485,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                 borderRadius: BorderRadius.circular(8),
                                 child: CachedNetworkImage(
                                   imageUrl: imgUrl,
+                                  width: 110,
+                                  height: 160,
                                   fit: BoxFit.cover,
                                 ),
                               )
@@ -781,6 +791,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               backgroundColor: Colors.transparent,
               appBar: AppBar(
                 backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
                 elevation: 0,
                 iconTheme: const IconThemeData(color: Colors.white),
               ),
@@ -1005,7 +1016,12 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(radius),
-          child: CachedNetworkImage(imageUrl: imgUrl, fit: BoxFit.cover),
+          child: CachedNetworkImage(
+            imageUrl: imgUrl,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: 400,
+          ),
         ),
       ),
     );
