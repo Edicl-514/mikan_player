@@ -32,12 +32,24 @@ migrate_working_dir/
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
+**/macos/Flutter/ephemeral/
+**/windows/flutter/ephemeral/
+**/linux/flutter/ephemeral/
+**/ios/Flutter/ephemeral/
 .dart_tool/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
 build/
 coverage/
+
+# Generated Flutter plugin files
+**/GeneratedPluginRegistrant.java
+**/GeneratedPluginRegistrant.swift
+**/GeneratedPluginRegistrant.kt
+**/generated_plugin_registrant.cc
+**/generated_plugin_registrant.h
+**/generated_plugins.cmake
 
 # Symbolication related
 app.*.symbols
@@ -49,6 +61,14 @@ app.*.map.json
 /android/app/debug/
 /android/app/profile/
 /android/app/release/
+/android/.gradle/
+/android/build/
+
+# iOS/macOS build artifacts
+/ios/Pods/
+/ios/Podfile.lock
+/macos/Pods/
+/macos/Podfile.lock
 
 # Rust build artifacts
 rust/target/
@@ -65,4 +85,5 @@ json/raw.json
 json/node_modules/
 json/package-lock.json
 
-参考/
+android/app/src/main/jniLibs/
+android/build/

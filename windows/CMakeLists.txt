@@ -116,9 +116,11 @@ else ()
     set(CARGO_ARGS "--release")
 endif ()
 
+# Use PowerShell script to build Rust with .env variables loaded
+set(BUILD_RUST_SCRIPT "${CMAKE_SOURCE_DIR}/../build_windows_rust.ps1")
 add_custom_target(rust_build ALL
-    COMMAND cargo build ${CARGO_ARGS}
-    WORKING_DIRECTORY ${RUST_SOURCE_DIR}
+    COMMAND PowerShell -NoProfile -ExecutionPolicy Bypass -File "${BUILD_RUST_SCRIPT}" -BuildMode "${RUST_BUILD_MODE}" -RustSourceDir "${RUST_SOURCE_DIR}"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/..
     COMMENT "Building Rust code..."
     VERBATIM
 )

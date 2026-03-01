@@ -17,6 +17,48 @@ if (Test-Path $envFile) {
     exit 1
 }
 
+# ==============================================================================
+# 修补 pub 缓存中的 isar_flutter_libs build.gradle（AGP 8.x 需要 namespace，SDK版本需同步）
+# ==============================================================================
+$isarBuildGradle = Join-Path $env:LOCALAPPDATA `
+    'Pub\Cache\hosted\pub.dev\isar_flutter_libs-3.1.0+1\android\build.gradle'
+if (Test-Path $isarBuildGradle) {
+    $isarContent = Get-Content $isarBuildGradle -Raw
+    $needsPatch = $false
+    
+    # 检查并补充 namespace
+    if ($isarContent -notmatch "namespace\s+'dev\.isar\.isar_flutter_libs'") {
+        Write-Host "Patching isar_flutter_libs: adding namespace..."
+        $isarContent = $isarContent -replace `
+            "(apply plugin: 'com\.android\.library'\s+android \{)", `
+            "`$1`n    namespace 'dev.isar.isar_flutter_libs'"
+        $needsPatch = $true
+    }
+    
+    # 检查并升级 compileSdkVersion 到 36（与主项目保持一致）
+    if ($isarContent -match "compileSdkVersion\s+30") {
+        Write-Host "Patching isar_flutter_libs: upgrading compileSdkVersion to 36..."
+        $isarContent = $isarContent -replace 'compileSdkVersion\s+30', 'compileSdkVersion 36'
+        $needsPatch = $true
+    }
+    
+    # 检查并升级 minSdkVersion 到 21
+    if ($isarContent -match "minSdkVersion\s+16") {
+        Write-Host "Patching isar_flutter_libs: upgrading minSdkVersion to 21..."
+        $isarContent = $isarContent -replace 'minSdkVersion\s+16', 'minSdkVersion 21'
+        $needsPatch = $true
+    }
+    
+    if ($needsPatch) {
+        Set-Content -Path $isarBuildGradle -Value $isarContent -NoNewline
+        Write-Host "Isar patches applied."
+    } else {
+        Write-Host "Isar build.gradle already patched, skipping."
+    }
+} else {
+    Write-Host "Warning: isar_flutter_libs build.gradle not found at: $isarBuildGradle"
+}
+
 # Build Rust native libraries before building APK (use paths relative to script)
 Write-Host "Building Rust native libraries for multiple ABIs..."
 $rustDir = Join-Path $scriptRoot 'rust'

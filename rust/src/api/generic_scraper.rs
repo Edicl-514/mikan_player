@@ -1494,7 +1494,7 @@ async fn search_single_source_with_progress(
                                 }
                             );
 
-                            if score > best_match_score && score >= 30 {
+                            if score > best_match_score && score >= 36 {
                                 best_match_score = score;
                                 if href.starts_with("http") {
                                     found_url = href;
@@ -1512,10 +1512,10 @@ async fn search_single_source_with_progress(
                         if !all_results.is_empty() {
                             let top_matches: Vec<_> = all_results
                                 .iter()
-                                .filter(|(_, score, _)| *score >= 30)
+                                .filter(|(_, score, _)| *score >= 36)
                                 .collect();
                             if !top_matches.is_empty() {
-                                log::info!("[{}] ✓ 符合条件的结果 (分数≥30):", source_name);
+                                log::info!("[{}] ✓ 符合条件的结果 (分数≥36):", source_name);
                                 for (title, score, _) in top_matches {
                                     log::info!(
                                         "[{}]   - '{}' (分数: {})",
@@ -1526,7 +1526,7 @@ async fn search_single_source_with_progress(
                                 }
                             } else {
                                 log::warn!(
-                                    "[{}] ✗ 没有符合条件的结果 (所有结果分数都<30)",
+                                    "[{}] ✗ 没有符合条件的结果 (所有结果分数都<36)",
                                     source_name
                                 );
                                 if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max()
@@ -1534,7 +1534,7 @@ async fn search_single_source_with_progress(
                                     log::warn!("[{}] 最高分: {}", source_name, max_score);
                                 }
                             }
-                            if best_match_score >= 30 {
+                            if best_match_score >= 36 {
                                 log::info!(
                                     "[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})",
                                     source_name,
@@ -1592,7 +1592,7 @@ async fn search_single_source_with_progress(
                                 }
                             );
 
-                            if score > best_match_score && score >= 30 {
+                            if score > best_match_score && score >= 36 {
                                 best_match_score = score;
                                 if href.starts_with("http") {
                                     found_url = href;
@@ -1610,10 +1610,10 @@ async fn search_single_source_with_progress(
                         if !all_results.is_empty() {
                             let top_matches: Vec<_> = all_results
                                 .iter()
-                                .filter(|(_, score, _)| *score >= 30)
+                                .filter(|(_, score, _)| *score >= 36)
                                 .collect();
                             if !top_matches.is_empty() {
-                                log::info!("[{}] ✓ 符合条件的结果 (分数≥30):", source_name);
+                                log::info!("[{}] ✓ 符合条件的结果 (分数≥36):", source_name);
                                 for (title, score, _) in top_matches {
                                     log::info!(
                                         "[{}]   - '{}' (分数: {})",
@@ -1624,7 +1624,7 @@ async fn search_single_source_with_progress(
                                 }
                             } else {
                                 log::warn!(
-                                    "[{}] ✗ 没有符合条件的结果 (所有结果分数都<30)",
+                                    "[{}] ✗ 没有符合条件的结果 (所有结果分数都<36)",
                                     source_name
                                 );
                                 if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max()
@@ -1632,7 +1632,7 @@ async fn search_single_source_with_progress(
                                     log::warn!("[{}] 最高分: {}", source_name, max_score);
                                 }
                             }
-                            if best_match_score >= 30 {
+                            if best_match_score >= 36 {
                                 log::info!(
                                     "[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})",
                                     source_name,
@@ -2086,7 +2086,7 @@ async fn search_single_source(
                                 }
                             );
 
-                            if score > best_match_score && score >= 30 {
+                            if score > best_match_score && score >= 36 {
                                 best_match_score = score;
                                 if href.starts_with("http") {
                                     found_url = href;
@@ -2104,10 +2104,10 @@ async fn search_single_source(
                         if !all_results.is_empty() {
                             let top_matches: Vec<_> = all_results
                                 .iter()
-                                .filter(|(_, score, _)| *score >= 30)
+                                .filter(|(_, score, _)| *score >= 36)
                                 .collect();
                             if !top_matches.is_empty() {
-                                log::info!("[{}] ✓ 符合条件的结果 (分数≥30):", source_name);
+                                log::info!("[{}] ✓ 符合条件的结果 (分数≥36):", source_name);
                                 for (title, score, _) in top_matches {
                                     log::info!(
                                         "[{}]   - '{}' (分数: {})",
@@ -2118,7 +2118,7 @@ async fn search_single_source(
                                 }
                             } else {
                                 log::warn!(
-                                    "[{}] ✗ 没有符合条件的结果 (所有结果分数都<30)",
+                                    "[{}] ✗ 没有符合条件的结果 (所有结果分数都<36)",
                                     source_name
                                 );
                                 if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max()
@@ -2126,7 +2126,7 @@ async fn search_single_source(
                                     log::warn!("[{}] 最高分: {}", source_name, max_score);
                                 }
                             }
-                            if best_match_score >= 30 {
+                            if best_match_score >= 36 {
                                 log::info!(
                                     "[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})",
                                     source_name,
@@ -2185,7 +2185,7 @@ async fn search_single_source(
                                 }
                             );
 
-                            if score > best_match_score && score >= 30 {
+                            if score > best_match_score && score >= 36 {
                                 best_match_score = score;
                                 if href.starts_with("http") {
                                     found_url = href;
@@ -2203,10 +2203,10 @@ async fn search_single_source(
                         if !all_results.is_empty() {
                             let top_matches: Vec<_> = all_results
                                 .iter()
-                                .filter(|(_, score, _)| *score >= 30)
+                                .filter(|(_, score, _)| *score >= 36)
                                 .collect();
                             if !top_matches.is_empty() {
-                                log::info!("[{}] ✓ 符合条件的结果 (分数≥30):", source_name);
+                                log::info!("[{}] ✓ 符合条件的结果 (分数≥36):", source_name);
                                 for (title, score, _) in top_matches {
                                     log::info!(
                                         "[{}]   - '{}' (分数: {})",
@@ -2217,7 +2217,7 @@ async fn search_single_source(
                                 }
                             } else {
                                 log::warn!(
-                                    "[{}] ✗ 没有符合条件的结果 (所有结果分数都<30)",
+                                    "[{}] ✗ 没有符合条件的结果 (所有结果分数都<36)",
                                     source_name
                                 );
                                 if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max()
@@ -2225,7 +2225,7 @@ async fn search_single_source(
                                     log::warn!("[{}] 最高分: {}", source_name, max_score);
                                 }
                             }
-                            if best_match_score >= 30 {
+                            if best_match_score >= 36 {
                                 log::info!(
                                     "[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})",
                                     source_name,
@@ -2840,7 +2840,7 @@ async fn search_single_source_with_channels(
                             let href = link_el.value().attr("href").unwrap_or("").to_string();
                             let score = calculate_match_score(&title, query_name, &core_name);
 
-                            if score > best_match_score && score >= 30 {
+                            if score > best_match_score && score >= 36 {
                                 best_match_score = score;
                                 found_title = title;
                                 found_url = if href.starts_with("http") {
