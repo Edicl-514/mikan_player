@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1855560896;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -857173159;
 
 // Section: executor
 
@@ -1341,6 +1341,39 @@ fn wire__crate__api__config__get_cache_dir_impl(
         },
     )
 }
+fn wire__crate__api__captcha__get_captcha_ocr_model_info_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "get_captcha_ocr_model_info",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::captcha::get_captcha_ocr_model_info())?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__config__get_download_dir_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1875,6 +1908,80 @@ fn wire__crate__api__simple__init_engine_impl(
         },
     )
 }
+fn wire__crate__api__captcha__initialize_captcha_ocr_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "initialize_captcha_ocr",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_model_path = <String>::sse_decode(&mut deserializer);
+            let api_charset_path = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::captcha::initialize_captcha_ocr(
+                            api_model_path,
+                            api_charset_path,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__captcha__is_captcha_ocr_initialized_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "is_captcha_ocr_initialized",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::captcha::is_captcha_ocr_initialized())?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__config__is_source_enabled_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2012,6 +2119,89 @@ fn wire__crate__api__generic_scraper__preload_playback_sources_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::generic_scraper::preload_playback_sources().await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__captcha__recognize_captcha_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "recognize_captcha",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_image_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_png_fix = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::captcha::recognize_captcha(api_image_bytes, api_png_fix)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__captcha__recognize_captcha_with_constraints_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "recognize_captcha_with_constraints",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_image_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_png_fix = <bool>::sse_decode(&mut deserializer);
+            let api_options =
+                <crate::api::captcha::CaptchaConstraintOptions>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::captcha::recognize_captcha_with_constraints(
+                            api_image_bytes,
+                            api_png_fix,
+                            api_options,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -2811,6 +3001,20 @@ impl SseDecode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_u8().unwrap() != 0
+    }
+}
+
+impl SseDecode for crate::api::captcha::CaptchaConstraintOptions {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_allowedChars = <Option<String>>::sse_decode(deserializer);
+        let mut var_expectedLength = <Option<u32>>::sse_decode(deserializer);
+        let mut var_enableLookalikeMapping = <bool>::sse_decode(deserializer);
+        return crate::api::captcha::CaptchaConstraintOptions {
+            allowed_chars: var_allowedChars,
+            expected_length: var_expectedLength,
+            enable_lookalike_mapping: var_enableLookalikeMapping,
+        };
     }
 }
 
@@ -3837,102 +4041,127 @@ fn pde_ffi_dispatcher_primary_impl(
         31 => wire__crate__api__config__get_bangumi_url_impl(port, ptr, rust_vec_len, data_len),
         32 => wire__crate__api__config__get_bgmlist_url_impl(port, ptr, rust_vec_len, data_len),
         33 => wire__crate__api__config__get_cache_dir_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__config__get_download_dir_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__generic_scraper__get_enabled_source_names_impl(
+        34 => wire__crate__api__captcha__get_captcha_ocr_model_info_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__generic_scraper__get_episode_play_url_impl(
+        35 => wire__crate__api__config__get_download_dir_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__generic_scraper__get_enabled_source_names_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => wire__crate__api__config__get_max_concurrent_searches_impl(
+        37 => wire__crate__api__generic_scraper__get_episode_play_url_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        38 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__config__get_mikan_url_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__generic_scraper__get_playback_sources_impl(
+        38 => wire__crate__api__config__get_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        41 => {
+        39 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__config__get_mikan_url_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__generic_scraper__get_playback_sources_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        42 => {
             wire__crate__api__simple__get_playback_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        42 => {
+        43 => {
             wire__crate__api__config__get_playback_sub_url_impl(port, ptr, rust_vec_len, data_len)
         }
-        43 => wire__crate__api__network__get_system_proxy_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__simple__get_torrent_stats_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__simple__get_tracker_info_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__config__init_config_impl(port, ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__simple__init_engine_impl(port, ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__simple__pause_torrent_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__simple__preload_playback_source_config_impl(
+        44 => wire__crate__api__network__get_system_proxy_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__simple__get_torrent_stats_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__simple__get_tracker_info_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__config__init_config_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__simple__init_engine_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__captcha__initialize_captcha_ocr_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        52 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
+        51 => wire__crate__api__captcha__is_captcha_ocr_initialized_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__crate__api__generic_scraper__refresh_playback_source_config_impl(
+        52 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__simple__pause_torrent_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__simple__preload_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        54 => wire__crate__api__simple__refresh_playback_source_config_impl(
+        55 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__crate__api__simple__resume_torrent_impl(port, ptr, rust_vec_len, data_len),
-        56 => wire__crate__api__ranking__search_bangumi_subject_impl(
+        56 => wire__crate__api__captcha__recognize_captcha_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__captcha__recognize_captcha_with_constraints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        57 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
-        58 => {
+        58 => wire__crate__api__generic_scraper__refresh_playback_source_config_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        59 => wire__crate__api__simple__refresh_playback_source_config_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        60 => wire__crate__api__simple__resume_torrent_impl(port, ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__ranking__search_bangumi_subject_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        62 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
+        63 => {
             wire__crate__api__config__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        59 => {
+        64 => {
             wire__crate__api__simple__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        60 => wire__crate__api__config__set_max_concurrent_searches_impl(
+        65 => wire__crate__api__config__set_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        61 => wire__crate__api__simple__set_max_concurrent_searches_impl(
+        66 => wire__crate__api__simple__set_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        62 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
-        66 => wire__crate__api__generic_scraper__update_single_source_config_impl(
+        67 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__generic_scraper__update_single_source_config_impl(
             port,
             ptr,
             rust_vec_len,
@@ -4199,6 +4428,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::danmaku::BangumiTvEpisode>
     for crate::api::danmaku::BangumiTvEpisode
 {
     fn into_into_dart(self) -> crate::api::danmaku::BangumiTvEpisode {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::captcha::CaptchaConstraintOptions {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.allowed_chars.into_into_dart().into_dart(),
+            self.expected_length.into_into_dart().into_dart(),
+            self.enable_lookalike_mapping.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::captcha::CaptchaConstraintOptions
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::captcha::CaptchaConstraintOptions>
+    for crate::api::captcha::CaptchaConstraintOptions
+{
+    fn into_into_dart(self) -> crate::api::captcha::CaptchaConstraintOptions {
         self
     }
 }
@@ -4829,6 +5080,15 @@ impl SseEncode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_u8(self as _).unwrap();
+    }
+}
+
+impl SseEncode for crate::api::captcha::CaptchaConstraintOptions {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<String>>::sse_encode(self.allowed_chars, serializer);
+        <Option<u32>>::sse_encode(self.expected_length, serializer);
+        <bool>::sse_encode(self.enable_lookalike_mapping, serializer);
     }
 }
 

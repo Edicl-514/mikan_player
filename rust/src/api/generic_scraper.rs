@@ -3288,7 +3288,8 @@ pub async fn generic_search_with_channels(
 
     let all_results: Vec<_> = stream.collect().await;
 
-    let results: Vec<SearchResultWithChannels> = all_results.into_iter().filter_map(|r| r.ok()).collect();
+    let results: Vec<SearchResultWithChannels> =
+        all_results.into_iter().filter_map(|r| r.ok()).collect();
 
     Ok(results)
 }

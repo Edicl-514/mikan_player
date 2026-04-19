@@ -1,4 +1,5 @@
 pub mod bangumi;
+pub mod captcha;
 pub mod config;
 pub mod crawler;
 pub mod danmaku;

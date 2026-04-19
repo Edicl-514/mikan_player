@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/bangumi.dart';
+import 'api/captcha.dart';
 import 'api/config.dart';
 import 'api/crawler.dart';
 import 'api/danmaku.dart';
@@ -86,6 +87,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiImages dco_decode_box_autoadd_bangumi_images(dynamic raw);
 
   @protected
+  CaptchaConstraintOptions dco_decode_box_autoadd_captcha_constraint_options(
+    dynamic raw,
+  );
+
+  @protected
   double dco_decode_box_autoadd_f_64(dynamic raw);
 
   @protected
@@ -102,6 +108,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt dco_decode_box_autoadd_usize(dynamic raw);
+
+  @protected
+  CaptchaConstraintOptions dco_decode_captcha_constraint_options(dynamic raw);
 
   @protected
   ChannelInfo dco_decode_channel_info(dynamic raw);
@@ -192,6 +201,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<MikanEpisodeResource> dco_decode_list_mikan_episode_resource(
     dynamic raw,
   );
+
+  @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
@@ -370,6 +382,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  CaptchaConstraintOptions sse_decode_box_autoadd_captcha_constraint_options(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
@@ -390,6 +407,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt sse_decode_box_autoadd_usize(SseDeserializer deserializer);
+
+  @protected
+  CaptchaConstraintOptions sse_decode_captcha_constraint_options(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ChannelInfo sse_decode_channel_info(SseDeserializer deserializer);
@@ -500,6 +522,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<MikanEpisodeResource> sse_decode_list_mikan_episode_resource(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -727,6 +752,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_captcha_constraint_options(
+    CaptchaConstraintOptions self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
 
   @protected
@@ -749,6 +780,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_usize(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_captcha_constraint_options(
+    CaptchaConstraintOptions self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_channel_info(ChannelInfo self, SseSerializer serializer);
@@ -884,6 +921,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     List<MikanEpisodeResource> self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_u_8_strict(
