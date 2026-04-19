@@ -1357,6 +1357,114 @@ pub async fn generic_search_with_progress(
     Ok(())
 }
 
+/// 调试用途：从本地 JSON 文件加载播放源配置并执行搜索
+///
+/// 说明：
+/// - 只读取指定本地 JSON 文件，不读取也不写入缓存文件
+/// - 不修改订阅设置，不影响正式播放流程
+/// - 可选按源名称过滤（大小写不敏感，包含匹配）
+pub async fn debug_search_with_local_json(
+    json_path: String,
+    anime_name: String,
+    absolute_episode: Option<u32>,
+    relative_episode: Option<u32>,
+    source_name_filter: Option<String>,
+    sink: crate::frb_generated::StreamSink<SourceSearchProgress>,
+) -> anyhow::Result<()> {
+    let client = crate::api::network::create_client()?;
+
+    let content = fs::read_to_string(&json_path)
+        .map_err(|e| anyhow::anyhow!("Failed to read local JSON file '{}': {}", json_path, e))?;
+    let root: SampleRoot = serde_json::from_str(&content)
+        .map_err(|e| anyhow::anyhow!("Failed to parse local JSON file '{}': {}", json_path, e))?;
+
+    let normalized_filter = source_name_filter
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_lowercase());
+
+    let mut sources: Vec<_> = root
+        .exported_media_source_data_list
+        .media_sources
+        .into_iter()
+        .filter(|source| {
+            if let Some(filter) = &normalized_filter {
+                source.arguments.name.to_lowercase().contains(filter)
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    if sources.is_empty() {
+        let filter_desc = normalized_filter.unwrap_or_default();
+        if filter_desc.is_empty() {
+            return Err(anyhow::anyhow!(
+                "No source found in local JSON: {}",
+                json_path
+            ));
+        }
+        return Err(anyhow::anyhow!(
+            "No source matched filter '{}' in local JSON: {}",
+            filter_desc,
+            json_path
+        ));
+    }
+
+    sources.sort_by_key(|s| s.arguments.tier.unwrap_or(1));
+
+    let limit = crate::api::config::get_max_concurrent_searches();
+    let limit = if limit == 0 {
+        usize::MAX
+    } else {
+        limit as usize
+    };
+
+    use futures::stream::StreamExt;
+
+    let stream = futures::stream::iter(sources)
+        .map(|source| {
+            let client = client.clone();
+            let anime_name = anime_name.clone();
+            let sink = sink.clone();
+            async move {
+                let source_name = source.arguments.name.clone();
+
+                sink.add(SourceSearchProgress {
+                    source_name: source_name.clone(),
+                    step: SearchStep::Searching,
+                    error: None,
+                    play_page_url: None,
+                    video_regex: None,
+                    direct_video_url: None,
+                    cookies: None,
+                    headers: None,
+                    channel_name: None,
+                    channel_index: None,
+                    all_channels: None,
+                })
+                .ok();
+
+                search_single_source_with_progress(
+                    &client,
+                    &source,
+                    &anime_name,
+                    absolute_episode,
+                    relative_episode,
+                    &sink,
+                )
+                .await
+            }
+        })
+        .buffer_unordered(limit);
+
+    let mut stream = Box::pin(stream);
+    while let Some(_) = stream.next().await {}
+
+    Ok(())
+}
+
 /// 搜索单个源（带进度报告）
 async fn search_single_source_with_progress(
     client: &reqwest::Client,

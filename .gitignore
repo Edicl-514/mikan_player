@@ -80,8 +80,7 @@ rust/openssl/
 sample.json
 
 # JSON directory - only ignore generated/temporary files
-json/1.json
-json/raw.json
+json/*.json
 json/node_modules/
 json/package-lock.json
 

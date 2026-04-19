@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_search_candidates`, `calculate_match_score`, `deobfuscate_video_url`, `extract_channel_name`, `extract_core_name`, `extract_episode_number_from_text`, `generic_search_and_play_internal`, `get_cache_file_path`, `load_from_cache`, `load_playback_source_config`, `parse_chinese_number`, `preprocess_search_term`, `save_to_cache`, `search_single_source_with_channels`, `search_single_source_with_progress`, `search_single_source`, `select_episode_by_number`, `try_extract_player_aaaa_url`
+// These functions are ignored because they are not marked as `pub`: `build_search_candidates`, `calculate_match_score`, `extract_channel_name`, `extract_core_name`, `extract_episode_number_from_text`, `generic_search_and_play_internal`, `get_cache_file_path`, `load_from_cache`, `load_playback_source_config`, `parse_chinese_number`, `preprocess_search_term`, `save_to_cache`, `search_single_source_with_channels`, `search_single_source_with_progress`, `search_single_source`, `select_episode_by_number`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ExportedMediaSourceDataList`, `MatchVideo`, `MediaSource`, `SEASON_RE`, `SampleRoot`, `SearchConfig`, `SelectorChannelFormatFlattened`, `SelectorChannelFormatNoChannel`, `SelectorSubjectFormatA`, `SelectorSubjectFormatIndexed`, `SourceArguments`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
 
@@ -79,6 +79,26 @@ Stream<SourceSearchProgress> genericSearchWithProgress({
   relativeEpisode: relativeEpisode,
 );
 
+/// 调试用途：从本地 JSON 文件加载播放源配置并执行搜索
+///
+/// 说明：
+/// - 只读取指定本地 JSON 文件，不读取也不写入缓存文件
+/// - 不修改订阅设置，不影响正式播放流程
+/// - 可选按源名称过滤（大小写不敏感，包含匹配）
+Stream<SourceSearchProgress> debugSearchWithLocalJson({
+  required String jsonPath,
+  required String animeName,
+  int? absoluteEpisode,
+  int? relativeEpisode,
+  String? sourceNameFilter,
+}) => RustLib.instance.api.crateApiGenericScraperDebugSearchWithLocalJson(
+  jsonPath: jsonPath,
+  animeName: animeName,
+  absoluteEpisode: absoluteEpisode,
+  relativeEpisode: relativeEpisode,
+  sourceNameFilter: sourceNameFilter,
+);
+
 /// 搜索并播放动画（支持集号选择）
 ///
 /// # 参数
@@ -132,6 +152,10 @@ Future<SearchPlayResult> getEpisodePlayUrl({
   episodeNumber: episodeNumber,
 );
 
+/// 修复被混淆的视频URL
+/// 某些网站会对URL做简单的字符替换混淆：n->o, l->m, 域名中的.->/
+/// 尝试从页面中解析 player_aaaa 变量并提取视频 URL
+/// 这是很多视频网站使用的通用模式，视频URL存储在一个JS变量中
 /// Channel（线路）信息
 class ChannelInfo {
   /// Channel 名称（如"线路A"、"简中"、"繁中"等）

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/data_source_settings_page.dart';
 import 'package:mikan_player/ui/pages/search_settings_page.dart';
+import 'package:mikan_player/ui/pages/subscription_debug_page.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/settings_service.dart';
+import 'package:mikan_player/utils/feature_flags.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -137,6 +139,21 @@ class _SettingsPageState extends State<SettingsPage> {
               );
             },
           ),
+          if (enableSubscriptionDebug)
+            _buildSettingTile(
+              context,
+              Icons.bug_report,
+              '订阅调试（本地JSON）',
+              '手动测试订阅源搜索和可播放URL提取',
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SubscriptionDebugPage(),
+                  ),
+                );
+              },
+            ),
           _buildLanguageTile(context),
           _buildCacheTile(context),
         ],
