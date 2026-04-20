@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
@@ -24,6 +25,22 @@ import 'package:mikan_player/services/playback_history_manager.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+
+class _CaptchaPreflightTask {
+  final SourceState source;
+  final String searchKeyword;
+  final CaptchaConfig captchaConfig;
+  final int loadToken;
+  final void Function(SourceRuntimeOverride runtimeOverride) onCompleted;
+
+  const _CaptchaPreflightTask({
+    required this.source,
+    required this.searchKeyword,
+    required this.captchaConfig,
+    required this.loadToken,
+    required this.onCompleted,
+  });
+}
 
 class PlayerPage extends StatefulWidget {
   final AnimeInfo anime;
@@ -88,9 +105,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       {}; // WebView状态消息 (sourceName -> message)
   final Set<String> _failedWebViewPageKeys = {}; // 提取失败的WebView Key
   final Set<String> _resolvingChannelPlayPageKeys = {}; // 正在解析的频道播放页
+    final Queue<_CaptchaPreflightTask> _pendingCaptchaTasks =
+      Queue<_CaptchaPreflightTask>();
+    final Map<String, _CaptchaPreflightTask> _activeCaptchaTasks =
+      <String, _CaptchaPreflightTask>{};
+    final List<StreamSubscription<SourceSearchProgress>> _searchSubscriptions =
+      <StreamSubscription<SourceSearchProgress>>[];
   int _maxConcurrentWebViews =
       3; // 最大并发WebView数量 (Reduced from 3 to prevent lag)
   int _webViewLaunchInterval = 200; // WebView启动间隔 (毫秒)
+    int _sampleLoadToken = 0;
+    bool _webViewPoolPumpScheduled = false;
   String _sampleStatusMessage = ''; // WebView 提取状态消息
   bool _showWebView = false; // 是否显示 WebView（调试用）
 
@@ -712,151 +737,591 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return widget.anime.title.trim();
   }
 
-  Future<SourceRuntimeOverride> _runCaptchaPreflight({
+  Future<void> _cancelSearchSubscriptions() async {
+    if (_searchSubscriptions.isEmpty) {
+      return;
+    }
+    final pending = List<StreamSubscription<SourceSearchProgress>>.from(
+      _searchSubscriptions,
+    );
+    _searchSubscriptions.clear();
+    for (final subscription in pending) {
+      try {
+        await subscription.cancel();
+      } catch (e) {
+        debugPrint('[SampleSearch] cancel subscription failed: $e');
+      }
+    }
+  }
+
+  List<SourceRuntimeOverride> _buildSkipOverridesForSources(
+    Iterable<SourceState> sources, {
+    required String reason,
+  }) {
+    return sources
+        .map(
+          (source) => SourceRuntimeOverride(
+            sourceName: source.name,
+            skipSearchError: reason,
+          ),
+        )
+        .toList();
+  }
+
+  List<SourceRuntimeOverride> _buildSingleSourceRuntimeOverrides({
+    required List<SourceState> enabledSources,
+    required String targetSourceName,
+    required SourceRuntimeOverride targetOverride,
+  }) {
+    return enabledSources.map((source) {
+      if (source.name == targetSourceName) {
+        return targetOverride;
+      }
+      return SourceRuntimeOverride(
+        sourceName: source.name,
+        skipSearchError: 'Skipped for single-source retry',
+      );
+    }).toList();
+  }
+
+  void _queueCaptchaPreflightTask({
     required SourceState source,
     required String searchKeyword,
-  }) async {
+    required int loadToken,
+    required void Function(SourceRuntimeOverride runtimeOverride) onCompleted,
+  }) {
     final captchaConfig = CaptchaConfig.tryParse(source.captchaConfigJson);
     if (captchaConfig == null) {
-      return SourceRuntimeOverride(sourceName: source.name);
+      return;
     }
 
-    final completer = Completer<SourceRuntimeOverride>();
+    _pendingCaptchaTasks.add(
+      _CaptchaPreflightTask(
+        source: source,
+        searchKeyword: searchKeyword,
+        captchaConfig: captchaConfig,
+        loadToken: loadToken,
+        onCompleted: onCompleted,
+      ),
+    );
+  }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+  bool _isSearchStepFinished(SearchStep step) {
+    return step == SearchStep.success || step == SearchStep.failed;
+  }
+
+  bool _isSourceSearchFinished() {
+    if (_enabledSourceNames.isEmpty) {
+      return false;
+    }
+    for (final sourceName in _enabledSourceNames) {
+      final progress = _sourceProgressMap[sourceName];
+      if (progress == null || !_isSearchStepFinished(progress.step)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  String _sourceNameFromPageKey(String pageKey) {
+    final parts = pageKey.split('_');
+    if (parts.length <= 1) return pageKey;
+    return parts.sublist(0, parts.length - 1).join('_');
+  }
+
+  List<SearchPlayResult> _collectPendingWebViewExtractionTasks() {
+    final activeSourceNames = _activeWebViews.keys
+        .map(_sourceNameFromPageKey)
+        .toSet();
+
+    final pending = _samplePlayPages.where((page) {
+      final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
+      final hasPlayPageUrl = page.playPageUrl.trim().isNotEmpty;
+      final alreadySuccessful = _sampleSuccessfulSources.any(
+        (s) => _buildSourceChannelKey(s.sourceName, s.channelIndex) == pageKey,
+      );
+      final alreadyActive = _activeWebViews.containsKey(pageKey);
+      final alreadyFailed = _failedWebViewPageKeys.contains(pageKey);
+      final sourceHasActive = activeSourceNames.contains(page.sourceName);
+      return hasPlayPageUrl &&
+          !alreadySuccessful &&
+          !alreadyActive &&
+          !alreadyFailed &&
+          !sourceHasActive;
+    }).toList();
+
+    pending.sort((a, b) {
+      final tierA = _sourceTiers[a.sourceName] ?? 999;
+      final tierB = _sourceTiers[b.sourceName] ?? 999;
+      return tierA.compareTo(tierB);
+    });
+
+    return pending;
+  }
+
+  bool _hasPendingWebViewExtractionTasks() {
+    return _collectPendingWebViewExtractionTasks().isNotEmpty;
+  }
+
+  int get _activeWebViewTaskCount {
+    return _activeWebViews.length + _activeCaptchaTasks.length;
+  }
+
+  bool _startOneCaptchaTask() {
+    if (_pendingCaptchaTasks.isEmpty) {
+      return false;
+    }
+    if (_activeWebViewTaskCount >= _maxConcurrentWebViews) {
+      return false;
+    }
+
+    final task = _pendingCaptchaTasks.removeFirst();
+    _activeCaptchaTasks[task.source.name] = task;
+    _webViewStatus[task.source.name] = '正在跳过验证码...';
+    return true;
+  }
+
+  bool _startOneWebViewExtractionTask() {
+    if (_activeWebViewTaskCount >= _maxConcurrentWebViews) {
+      return false;
+    }
+
+    final pending = _collectPendingWebViewExtractionTasks();
+    if (pending.isEmpty) {
+      return false;
+    }
+
+    final page = pending.first;
+    final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
+    _activeWebViews[pageKey] = true;
+    _webViewStatus[pageKey] = '正在提取...';
+    return true;
+  }
+
+  void _scheduleWebViewPoolPump() {
+    if (!mounted || _webViewPoolPumpScheduled) {
+      return;
+    }
+
+    _webViewPoolPumpScheduled = true;
+    Future.delayed(Duration(milliseconds: _webViewLaunchInterval), () {
+      _webViewPoolPumpScheduled = false;
       if (!mounted) {
-        if (!completer.isCompleted) {
-          completer.complete(
-            SourceRuntimeOverride(
-              sourceName: source.name,
-              skipSearchError: '页面已关闭，无法完成验证码预处理',
-            ),
-          );
-        }
         return;
       }
 
-      final overlay = Overlay.of(context);
-      OverlayEntry? entry;
+      var startedAny = false;
+      while (_activeWebViewTaskCount < _maxConcurrentWebViews) {
+        if (_startOneCaptchaTask()) {
+          startedAny = true;
+          continue;
+        }
+        if (_startOneWebViewExtractionTask()) {
+          startedAny = true;
+          continue;
+        }
+        break;
+      }
 
-      entry = OverlayEntry(
-        builder: (context) => CaptchaWebViewBypassWidget(
-          key: ValueKey('captcha_bypass_${source.name}_$searchKeyword'),
-          source: source,
-          searchKeyword: searchKeyword,
-          captchaConfig: captchaConfig,
-          timeout: const Duration(seconds: 45),
-          onResult: (result) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              final currentEntry = entry;
-              if (currentEntry != null) {
-                currentEntry.remove();
-              }
-              entry = null;
-            });
-            if (completer.isCompleted) return;
+      if (startedAny && mounted) {
+        setState(() {
+          final completedCount = _sourceProgressMap.values
+              .where((p) => _isSearchStepFinished(p.step))
+              .length;
+          _sampleStatusMessage =
+              '搜索进度: $completedCount/${_enabledSourceNames.length}，'
+              '验证码进行中 ${_activeCaptchaTasks.length}，'
+              '提取并发 ${_activeWebViews.length}/$_maxConcurrentWebViews';
+        });
+      }
 
-            if (result.success) {
-              completer.complete(
-                SourceRuntimeOverride(
-                  sourceName: source.name,
-                  cookies: result.cookies,
-                  searchPageHtml: result.pageHtml,
-                  searchPageUrl: result.pageUrl,
-                  detailPageHtml: result.detailPageHtml,
-                  detailPageUrl: result.detailPageUrl,
-                ),
-              );
-            } else {
-              completer.complete(
-                SourceRuntimeOverride(
-                  sourceName: source.name,
-                  skipSearchError: result.error ?? 'Captcha preflight failed',
-                ),
-              );
-            }
-          },
-          onLog: (message) {
-            debugPrint('[CaptchaBypass][${source.name}] $message');
-          },
-          showWebView: _showWebView,
-        ),
-      );
-
-      overlay.insert(entry!);
+      _maybeFinishSampleSearch();
     });
-
-    return completer.future;
   }
 
-  Future<List<SourceRuntimeOverride>> _prepareCaptchaRuntimeOverrides({
-    required List<SourceState> enabledSources,
-    required String searchKeyword,
-  }) async {
-    final captchaSources =
-        enabledSources
-            .where(
-              (source) =>
-                  CaptchaConfig.tryParse(source.captchaConfigJson) != null,
-            )
-            .toList()
-          ..sort((a, b) => a.tier.compareTo(b.tier));
-
-    if (captchaSources.isEmpty) {
-      return const [];
+  void _onCaptchaPreflightResult(String sourceName, CaptchaBypassResult result) {
+    final task = _activeCaptchaTasks.remove(sourceName);
+    _webViewStatus.remove(sourceName);
+    if (task == null) {
+      _scheduleWebViewPoolPump();
+      return;
     }
 
-    final overrides = <SourceRuntimeOverride>[];
+    final runtimeOverride = result.success
+        ? SourceRuntimeOverride(
+            sourceName: sourceName,
+            cookies: result.cookies,
+            searchPageHtml: result.pageHtml,
+            searchPageUrl: result.pageUrl,
+            detailPageHtml: result.detailPageHtml,
+            detailPageUrl: result.detailPageUrl,
+          )
+        : SourceRuntimeOverride(
+            sourceName: sourceName,
+            skipSearchError: result.error ?? 'Captcha preflight failed',
+          );
 
-    for (var i = 0; i < captchaSources.length; i++) {
-      final source = captchaSources[i];
-      if (!mounted) break;
+    if (!mounted || task.loadToken != _sampleLoadToken) {
+      _scheduleWebViewPoolPump();
+      return;
+    }
 
+    if (runtimeOverride.skipSearchError != null) {
       setState(() {
-        _sampleStatusMessage =
-            '正在通过验证码 ${i + 1}/${captchaSources.length}: ${source.name}';
-        _sourceProgressMap[source.name] = SourceSearchProgress(
-          sourceName: source.name,
-          step: SearchStep.searching,
-          error: null,
-          playPageUrl: null,
-          videoRegex: null,
-          directVideoUrl: null,
-          cookies: null,
-          headers: null,
-          captchaConfigJson: source.captchaConfigJson,
-        );
-      });
-
-      final runtimeOverride = await _runCaptchaPreflight(
-        source: source,
-        searchKeyword: searchKeyword,
-      );
-      overrides.add(runtimeOverride);
-
-      if (!mounted) break;
-
-      setState(() {
-        _sourceProgressMap[source.name] = SourceSearchProgress(
-          sourceName: source.name,
-          step: runtimeOverride.skipSearchError == null
-              ? SearchStep.pending
-              : SearchStep.failed,
+        _sourceProgressMap[sourceName] = SourceSearchProgress(
+          sourceName: sourceName,
+          step: SearchStep.failed,
           error: runtimeOverride.skipSearchError,
           playPageUrl: null,
           videoRegex: null,
           directVideoUrl: null,
           cookies: runtimeOverride.cookies,
           headers: null,
-          captchaConfigJson: source.captchaConfigJson,
+          captchaConfigJson: task.source.captchaConfigJson,
+        );
+      });
+    } else {
+      setState(() {
+        _sourceProgressMap[sourceName] = SourceSearchProgress(
+          sourceName: sourceName,
+          step: SearchStep.pending,
+          error: null,
+          playPageUrl: null,
+          videoRegex: null,
+          directVideoUrl: null,
+          cookies: runtimeOverride.cookies,
+          headers: null,
+          captchaConfigJson: task.source.captchaConfigJson,
         );
       });
     }
 
-    return overrides;
+    task.onCompleted(runtimeOverride);
+    _scheduleWebViewPoolPump();
+    _maybeFinishSampleSearch();
+  }
+
+  void _handleSearchProgressUpdate({
+    required SourceSearchProgress progress,
+    required String searchName,
+    required int currentEpNumber,
+  }) {
+    // Debug: Print channel information
+    if (progress.allChannels != null && progress.allChannels!.isNotEmpty) {
+      debugPrint(
+        '[Channel Info] ${progress.sourceName}: Found ${progress.allChannels!.length} channels: '
+        '${progress.allChannels!.map((c) => '${c.name}(${c.index})').join(', ')}',
+      );
+    }
+
+    // 更新该源的进度
+    _sourceProgressMap[progress.sourceName] = progress;
+
+    // 如果搜索成功，添加到成功列表
+    if (progress.step == SearchStep.success && progress.playPageUrl != null) {
+      // 调试输出channel信息
+      debugPrint(
+        '[Search Success] ${progress.sourceName}: '
+        'channelName=${progress.channelName}, '
+        'channelIndex=${progress.channelIndex}, '
+        'allChannels=${progress.allChannels?.length ?? 0}',
+      );
+
+      // 标记是否需要为该源启动WebView提取
+      bool needsWebViewExtraction = false;
+
+      // 如果有多个channels，为每个channel创建一个结果
+      if (progress.allChannels != null && progress.allChannels!.isNotEmpty) {
+        debugPrint(
+          '[Multi-Channel] ${progress.sourceName}: Creating results for ${progress.allChannels!.length} channels',
+        );
+
+        final selectedChannelIndex = progress.channelIndex;
+
+        for (int i = 0; i < progress.allChannels!.length; i++) {
+          final channel = progress.allChannels![i];
+          final channelKey = _buildSourceChannelKey(
+            progress.sourceName,
+            channel.index,
+          );
+          final isSelectedChannel =
+              i == 0 || selectedChannelIndex == channel.index;
+
+          if (!isSelectedChannel) {
+            unawaited(
+              _resolveChannelPlayPageUrl(
+                sourceName: progress.sourceName,
+                animeName: searchName,
+                channelIndex: channel.index,
+                episodeNumber: currentEpNumber,
+                channelName: channel.name,
+                videoRegex: progress.videoRegex ?? '',
+                cookies: progress.cookies,
+                headers: progress.headers,
+              ),
+            );
+            continue;
+          }
+
+          final result = SearchPlayResult(
+            sourceName: progress.sourceName,
+            playPageUrl: progress.playPageUrl!,
+            videoRegex: progress.videoRegex ?? '',
+            directVideoUrl: progress.directVideoUrl,
+            cookies: progress.cookies,
+            headers: progress.headers,
+            channelName: channel.name,
+            channelIndex: channel.index,
+            captchaConfigJson: progress.captchaConfigJson,
+          );
+
+          // 避免重复添加（使用sourceName + channelIndex作为唯一标识）
+          if (!_samplePlayPages.any(
+            (p) =>
+                _buildSourceChannelKey(p.sourceName, p.channelIndex) ==
+                channelKey,
+          )) {
+            debugPrint(
+              '[Add Channel Result] ${progress.sourceName} - Channel: ${channel.name}(${channel.index})',
+            );
+            _samplePlayPages.add(result);
+
+            // 如果没有直接视频URL，标记需要WebView提取
+            if (progress.directVideoUrl == null ||
+                progress.directVideoUrl!.isEmpty) {
+              needsWebViewExtraction = true;
+            }
+          }
+
+          // 如果有直接视频URL，也添加到成功列表
+          if (progress.directVideoUrl != null &&
+              progress.directVideoUrl!.isNotEmpty) {
+            if (!_sampleSuccessfulSources.any(
+              (s) =>
+                  _buildSourceChannelKey(s.sourceName, s.channelIndex) ==
+                  channelKey,
+            )) {
+              _sampleSuccessfulSources.add(result);
+            }
+          }
+        }
+      } else {
+        // 兼容模式：如果没有allChannels信息，使用旧逻辑
+        debugPrint(
+          '[Single Result] ${progress.sourceName}: No channel info, using legacy mode',
+        );
+
+        final result = SearchPlayResult(
+          sourceName: progress.sourceName,
+          playPageUrl: progress.playPageUrl!,
+          videoRegex: progress.videoRegex ?? '',
+          directVideoUrl: progress.directVideoUrl,
+          cookies: progress.cookies,
+          headers: progress.headers,
+          channelName: progress.channelName,
+          channelIndex: progress.channelIndex,
+          captchaConfigJson: progress.captchaConfigJson,
+        );
+
+        // 避免重复添加
+        if (!_samplePlayPages.any((p) => p.sourceName == progress.sourceName)) {
+          _samplePlayPages.add(result);
+
+          // 如果没有直接视频URL，标记需要WebView提取
+          if (progress.directVideoUrl == null ||
+              progress.directVideoUrl!.isEmpty) {
+            needsWebViewExtraction = true;
+          }
+        }
+
+        // 如果有直接视频URL，添加到成功列表
+        if (progress.directVideoUrl != null &&
+            progress.directVideoUrl!.isNotEmpty) {
+          if (!_sampleSuccessfulSources.any(
+            (s) => s.sourceName == progress.sourceName,
+          )) {
+            _sampleSuccessfulSources.add(result);
+          }
+        }
+      }
+
+      // 如果该源需要WebView提取，立即尝试启动（不等待所有源完成）
+      if (needsWebViewExtraction) {
+        debugPrint(
+          '[Immediate WebView] Starting WebView extraction for ${progress.sourceName}',
+        );
+        _samplePlayPages.sort((a, b) {
+          final tierA = _sourceTiers[a.sourceName] ?? 999;
+          final tierB = _sourceTiers[b.sourceName] ?? 999;
+          return tierA.compareTo(tierB);
+        });
+        _scheduleWebViewPoolPump();
+      }
+    }
+
+    // 更新状态消息
+    final completedCount = _sourceProgressMap.values
+        .where((p) => _isSearchStepFinished(p.step))
+        .length;
+    final activeCaptcha = _activeCaptchaTasks.length;
+    final pendingCaptcha = _pendingCaptchaTasks.length;
+    _sampleStatusMessage =
+        '搜索进度: $completedCount/${_enabledSourceNames.length}，'
+        '验证码 $activeCaptcha 运行/$pendingCaptcha 排队';
+
+    // 尝试自动播放（基于Tier逻辑）
+    _attemptAutoPlay();
+  }
+
+  void _launchSearchStream({
+    required String searchName,
+    required int currentEpNumber,
+    required int relativeEpNumber,
+    required List<SourceRuntimeOverride> runtimeOverrides,
+    required Set<String> targetSources,
+    required int loadToken,
+    required String streamTag,
+  }) {
+    if (targetSources.isEmpty) {
+      return;
+    }
+
+    late final StreamSubscription<SourceSearchProgress> subscription;
+    subscription = genericSearchWithProgressRuntime(
+      animeName: searchName,
+      absoluteEpisode: currentEpNumber,
+      relativeEpisode: relativeEpNumber,
+      runtimeOverrides: runtimeOverrides,
+    ).listen(
+      (progress) {
+        if (!mounted || loadToken != _sampleLoadToken) {
+          return;
+        }
+        if (!targetSources.contains(progress.sourceName)) {
+          return;
+        }
+
+        setState(() {
+          _handleSearchProgressUpdate(
+            progress: progress,
+            searchName: searchName,
+            currentEpNumber: currentEpNumber,
+          );
+        });
+
+        _scheduleWebViewPoolPump();
+        _maybeFinishSampleSearch();
+      },
+      onError: (error, _) {
+        debugPrint('[SampleSearch][$streamTag] stream error: $error');
+        _searchSubscriptions.remove(subscription);
+        if (!mounted || loadToken != _sampleLoadToken) {
+          return;
+        }
+
+        setState(() {
+          for (final sourceName in targetSources) {
+            final current = _sourceProgressMap[sourceName];
+            final isFinished =
+                current != null && _isSearchStepFinished(current.step);
+            if (isFinished) {
+              continue;
+            }
+            _sourceProgressMap[sourceName] = SourceSearchProgress(
+              sourceName: sourceName,
+              step: SearchStep.failed,
+              error: error.toString(),
+              playPageUrl: null,
+              videoRegex: null,
+              directVideoUrl: null,
+              cookies: null,
+              headers: null,
+            );
+          }
+        });
+
+        _maybeFinishSampleSearch();
+      },
+      onDone: () {
+        _searchSubscriptions.remove(subscription);
+        if (!mounted || loadToken != _sampleLoadToken) {
+          return;
+        }
+        _maybeFinishSampleSearch();
+      },
+      cancelOnError: true,
+    );
+
+    _searchSubscriptions.add(subscription);
+  }
+
+  void _startCaptchaSourceSearch({
+    required SourceState source,
+    required SourceRuntimeOverride runtimeOverride,
+    required List<SourceState> enabledSources,
+    required String searchName,
+    required int currentEpNumber,
+    required int relativeEpNumber,
+    required int loadToken,
+  }) {
+    final runtimeOverrides = _buildSingleSourceRuntimeOverrides(
+      enabledSources: enabledSources,
+      targetSourceName: source.name,
+      targetOverride: runtimeOverride,
+    );
+
+    _launchSearchStream(
+      searchName: searchName,
+      currentEpNumber: currentEpNumber,
+      relativeEpNumber: relativeEpNumber,
+      runtimeOverrides: runtimeOverrides,
+      targetSources: {source.name},
+      loadToken: loadToken,
+      streamTag: 'captcha-${source.name}',
+    );
+  }
+
+  void _maybeFinishSampleSearch() {
+    if (!mounted || !_isLoadingSample) {
+      return;
+    }
+    if (_searchSubscriptions.isNotEmpty) {
+      return;
+    }
+    if (_pendingCaptchaTasks.isNotEmpty || _activeCaptchaTasks.isNotEmpty) {
+      return;
+    }
+    if (_activeWebViews.isNotEmpty || _resolvingChannelPlayPageKeys.isNotEmpty) {
+      return;
+    }
+    if (_hasPendingWebViewExtractionTasks()) {
+      return;
+    }
+    if (!_isSourceSearchFinished()) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingSample = false;
+      if (_samplePlayPages.isEmpty) {
+        _sampleError = '未在任何源中找到该动画';
+      } else if (_sampleSuccessfulSources.isEmpty) {
+        _sampleError = '所有源都无法提取视频链接';
+      } else {
+        _sampleStatusMessage =
+            '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
+      }
+    });
   }
 
   Future<void> _loadSampleSource() async {
+    final loadToken = ++_sampleLoadToken;
+    await _cancelSearchSubscriptions();
+
+    if (!mounted || loadToken != _sampleLoadToken) {
+      return;
+    }
+
     // Ensure we have the latest setting
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -889,6 +1354,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _sampleSuccessfulSources = [];
       _selectedSourceIndex = 0;
       _activeWebViews.clear();
+      _activeCaptchaTasks.clear();
+      _pendingCaptchaTasks.clear();
+      _searchSubscriptions.clear();
       _webViewStatus.clear();
       _failedWebViewPageKeys.clear();
       _resolvingChannelPlayPageKeys.clear();
@@ -897,6 +1365,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _enabledSourceNames = [];
       _sourceTiers = {};
       _hasAutoPlayed = false;
+      _webViewPoolPumpScheduled = false;
     });
 
     if (!_autoSearchOnline) {
@@ -913,7 +1382,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // 获取所有源（包括详细信息如Tier）
       final sources = await getPlaybackSources();
       final enabledSources = sources.where((s) => s.enabled).toList();
+      if (enabledSources.isEmpty) {
+        if (mounted && loadToken == _sampleLoadToken) {
+          setState(() {
+            _isLoadingSample = false;
+            _sampleError = '未启用任何播放源';
+          });
+        }
+        return;
+      }
+
       final enabledNames = enabledSources.map((s) => s.name).toList();
+      final captchaSources = enabledSources
+          .where((source) => CaptchaConfig.tryParse(source.captchaConfigJson) != null)
+          .toList()
+        ..sort((a, b) => a.tier.compareTo(b.tier));
+      final captchaSourceNameSet = captchaSources
+          .map((source) => source.name)
+          .toSet();
+      final nonCaptchaSources = enabledSources
+          .where((source) => !captchaSourceNameSet.contains(source.name))
+          .toList();
 
       // 使用带进度的流式API，传入当前集号
       final currentEpNumber = _currentEpisode.sort.toInt();
@@ -927,7 +1416,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final searchName = _buildSearchNameForSources();
       final captchaPreflightKeyword = _buildCaptchaPreflightKeyword();
 
-      if (!mounted) return;
+      if (!mounted || loadToken != _sampleLoadToken) return;
 
       setState(() {
         _enabledSourceNames = enabledNames;
@@ -946,223 +1435,77 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             headers: null,
           );
         }
-        _sampleStatusMessage = '正在准备 ${enabledSources.length} 个源...';
+        _sampleStatusMessage = captchaSources.isEmpty
+            ? '正在搜索 ${enabledSources.length} 个源...'
+            : '非验证码源先行搜索，验证码源并发预处理中...';
       });
 
-      final runtimeOverrides = await _prepareCaptchaRuntimeOverrides(
-        enabledSources: enabledSources,
-        searchKeyword: captchaPreflightKeyword,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _sampleStatusMessage = '正在搜索 ${enabledSources.length} 个源...';
-      });
-
-      await for (final progress in genericSearchWithProgressRuntime(
-        animeName: searchName,
-        absoluteEpisode: currentEpNumber,
-        relativeEpisode: relativeEpNumber,
-        runtimeOverrides: runtimeOverrides,
-      )) {
-        if (!mounted) return;
-
-        // Debug: Print channel information
-        if (progress.allChannels != null && progress.allChannels!.isNotEmpty) {
-          debugPrint(
-            '[Channel Info] ${progress.sourceName}: Found ${progress.allChannels!.length} channels: '
-            '${progress.allChannels!.map((c) => '${c.name}(${c.index})').join(', ')}',
-          );
-        }
-
+      if (captchaSources.isNotEmpty) {
         setState(() {
-          // 更新该源的进度
-          _sourceProgressMap[progress.sourceName] = progress;
-
-          // 如果搜索成功，添加到成功列表
-          if (progress.step == SearchStep.success &&
-              progress.playPageUrl != null) {
-            // 调试输出channel信息
-            debugPrint(
-              '[Search Success] ${progress.sourceName}: '
-              'channelName=${progress.channelName}, '
-              'channelIndex=${progress.channelIndex}, '
-              'allChannels=${progress.allChannels?.length ?? 0}',
+          for (final source in captchaSources) {
+            _sourceProgressMap[source.name] = SourceSearchProgress(
+              sourceName: source.name,
+              step: SearchStep.searching,
+              error: null,
+              playPageUrl: null,
+              videoRegex: null,
+              directVideoUrl: null,
+              cookies: null,
+              headers: null,
+              captchaConfigJson: source.captchaConfigJson,
             );
-
-            // 标记是否需要为该源启动WebView提取
-            bool needsWebViewExtraction = false;
-
-            // 如果有多个channels，为每个channel创建一个结果
-            if (progress.allChannels != null &&
-                progress.allChannels!.isNotEmpty) {
-              debugPrint(
-                '[Multi-Channel] ${progress.sourceName}: Creating results for ${progress.allChannels!.length} channels',
-              );
-
-              final selectedChannelIndex = progress.channelIndex;
-
-              for (int i = 0; i < progress.allChannels!.length; i++) {
-                final channel = progress.allChannels![i];
-                final channelKey = _buildSourceChannelKey(
-                  progress.sourceName,
-                  channel.index,
-                );
-                final isSelectedChannel =
-                    i == 0 || selectedChannelIndex == channel.index;
-
-                if (!isSelectedChannel) {
-                  unawaited(
-                    _resolveChannelPlayPageUrl(
-                      sourceName: progress.sourceName,
-                      animeName: searchName,
-                      channelIndex: channel.index,
-                      episodeNumber: currentEpNumber,
-                      channelName: channel.name,
-                      videoRegex: progress.videoRegex ?? '',
-                      cookies: progress.cookies,
-                      headers: progress.headers,
-                    ),
-                  );
-                  continue;
-                }
-
-                final result = SearchPlayResult(
-                  sourceName: progress.sourceName,
-                  playPageUrl: progress.playPageUrl!,
-                  videoRegex: progress.videoRegex ?? '',
-                  directVideoUrl: progress.directVideoUrl,
-                  cookies: progress.cookies,
-                  headers: progress.headers,
-                  channelName: channel.name,
-                  channelIndex: channel.index,
-                  captchaConfigJson: progress.captchaConfigJson,
-                );
-
-                // 避免重复添加（使用sourceName + channelIndex作为唯一标识）
-                if (!_samplePlayPages.any(
-                  (p) =>
-                      _buildSourceChannelKey(p.sourceName, p.channelIndex) ==
-                      channelKey,
-                )) {
-                  debugPrint(
-                    '[Add Channel Result] ${progress.sourceName} - Channel: ${channel.name}(${channel.index})',
-                  );
-                  _samplePlayPages.add(result);
-
-                  // 如果没有直接视频URL，标记需要WebView提取
-                  if (progress.directVideoUrl == null ||
-                      progress.directVideoUrl!.isEmpty) {
-                    needsWebViewExtraction = true;
-                  }
-                }
-
-                // 如果有直接视频URL，也添加到成功列表
-                if (progress.directVideoUrl != null &&
-                    progress.directVideoUrl!.isNotEmpty) {
-                  if (!_sampleSuccessfulSources.any(
-                    (s) =>
-                        _buildSourceChannelKey(
-                          s.sourceName,
-                          s.channelIndex,
-                        ) ==
-                        channelKey,
-                  )) {
-                    _sampleSuccessfulSources.add(result);
-                  }
-                }
-              }
-            } else {
-              // 兼容模式：如果没有allChannels信息，使用旧逻辑
-              debugPrint(
-                '[Single Result] ${progress.sourceName}: No channel info, using legacy mode',
-              );
-
-              final result = SearchPlayResult(
-                sourceName: progress.sourceName,
-                playPageUrl: progress.playPageUrl!,
-                videoRegex: progress.videoRegex ?? '',
-                directVideoUrl: progress.directVideoUrl,
-                cookies: progress.cookies,
-                headers: progress.headers,
-                channelName: progress.channelName,
-                channelIndex: progress.channelIndex,
-                captchaConfigJson: progress.captchaConfigJson,
-              );
-
-              // 避免重复添加
-              if (!_samplePlayPages.any(
-                (p) => p.sourceName == progress.sourceName,
-              )) {
-                _samplePlayPages.add(result);
-
-                // 如果没有直接视频URL，标记需要WebView提取
-                if (progress.directVideoUrl == null ||
-                    progress.directVideoUrl!.isEmpty) {
-                  needsWebViewExtraction = true;
-                }
-              }
-
-              // 如果有直接视频URL，添加到成功列表
-              if (progress.directVideoUrl != null &&
-                  progress.directVideoUrl!.isNotEmpty) {
-                if (!_sampleSuccessfulSources.any(
-                  (s) => s.sourceName == progress.sourceName,
-                )) {
-                  _sampleSuccessfulSources.add(result);
-                }
-              }
-            }
-
-            // 如果该源需要WebView提取，立即尝试启动（不等待所有源完成）
-            if (needsWebViewExtraction) {
-              debugPrint(
-                '[Immediate WebView] Starting WebView extraction for ${progress.sourceName}',
-              );
-              // 按Tier排序_samplePlayPages，确保低Tier的源优先提取
-              _samplePlayPages.sort((a, b) {
-                final tierA = _sourceTiers[a.sourceName] ?? 999;
-                final tierB = _sourceTiers[b.sourceName] ?? 999;
-                return tierA.compareTo(tierB);
-              });
-              _startNextWebViewExtraction();
-            }
           }
-
-          // 更新状态消息
-          final completedCount = _sourceProgressMap.values
-              .where(
-                (p) =>
-                    p.step == SearchStep.success || p.step == SearchStep.failed,
-              )
-              .length;
-          _sampleStatusMessage =
-              '搜索进度: $completedCount/${_enabledSourceNames.length}';
-
-          // 尝试自动播放（基于Tier逻辑）
-          _attemptAutoPlay();
         });
       }
 
-      // 所有源搜索完毕
-      if (!mounted) return;
+      if (nonCaptchaSources.isNotEmpty) {
+        final runtimeOverrides = _buildSkipOverridesForSources(
+          captchaSources,
+          reason: '等待验证码预处理完成',
+        );
 
-      setState(() {
-        // 检查是否有任何成功的源
-        if (_samplePlayPages.isEmpty) {
-          _sampleError = '未在任何源中找到该动画';
-          _isLoadingSample = false;
-        } else if (_sampleSuccessfulSources.isEmpty) {
-          _sampleStatusMessage = '搜索完成，正在提取播放链接...';
-        } else {
-          _sampleStatusMessage =
-              '搜索完成，已找到 ${_sampleSuccessfulSources.length} 个可用源';
-        }
-      });
+        _launchSearchStream(
+          searchName: searchName,
+          currentEpNumber: currentEpNumber,
+          relativeEpNumber: relativeEpNumber,
+          runtimeOverrides: runtimeOverrides,
+          targetSources: nonCaptchaSources.map((source) => source.name).toSet(),
+          loadToken: loadToken,
+          streamTag: 'non-captcha',
+        );
+      }
+
+      for (final source in captchaSources) {
+        _queueCaptchaPreflightTask(
+          source: source,
+          searchKeyword: captchaPreflightKeyword,
+          loadToken: loadToken,
+          onCompleted: (runtimeOverride) {
+            if (!mounted || loadToken != _sampleLoadToken) {
+              return;
+            }
+            if (runtimeOverride.skipSearchError != null) {
+              _maybeFinishSampleSearch();
+              return;
+            }
+            _startCaptchaSourceSearch(
+              source: source,
+              runtimeOverride: runtimeOverride,
+              enabledSources: enabledSources,
+              searchName: searchName,
+              currentEpNumber: currentEpNumber,
+              relativeEpNumber: relativeEpNumber,
+              loadToken: loadToken,
+            );
+          },
+        );
+      }
+
+      _scheduleWebViewPoolPump();
+      _maybeFinishSampleSearch();
     } catch (e) {
       debugPrint("Error loading Sample source: $e");
-      if (mounted) {
+      if (mounted && loadToken == _sampleLoadToken) {
         setState(() {
           _sampleError = e.toString();
           _isLoadingSample = false;
@@ -1460,73 +1803,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 启动下一个WebView提取任务
   /// 启动下一个WebView提取任务
   void _startNextWebViewExtraction() {
-    if (!mounted) return;
-
-    // 延迟启动，避免连续启动造成的UI卡顿，同时确保上一个WebView有足够时间释放资源
-    Future.delayed(Duration(milliseconds: _webViewLaunchInterval), () {
-      if (!mounted) return;
-
-      // 如果已经达到并发上限，不启动新的
-      if (_activeWebViews.length >= _maxConcurrentWebViews) return;
-
-      // 创建唯一标识：sourceName + channelIndex
-      String getPageKey(SearchPlayResult page) {
-        return '${page.sourceName}_${page.channelIndex ?? -1}';
-      }
-
-      // 从pageKey解析出sourceName（兼容sourceName中包含"_"）
-      String getSourceNameFromPageKey(String pageKey) {
-        final parts = pageKey.split('_');
-        if (parts.length <= 1) return pageKey;
-        return parts.sublist(0, parts.length - 1).join('_');
-      }
-
-      final activeSourceNames = _activeWebViews.keys
-          .map(getSourceNameFromPageKey)
-          .toSet();
-
-      // 找到下一个需要提取的源
-      final needsExtraction = _samplePlayPages.where((page) {
-        final pageKey = getPageKey(page);
-        final hasPlayPageUrl = page.playPageUrl.trim().isNotEmpty;
-        final alreadySuccessful = _sampleSuccessfulSources.any(
-          (s) => getPageKey(s) == pageKey,
-        );
-        final alreadyActive = _activeWebViews.containsKey(pageKey);
-        final alreadyFailed = _failedWebViewPageKeys.contains(pageKey);
-        final sourceHasActive = activeSourceNames.contains(page.sourceName);
-        return hasPlayPageUrl &&
-            !alreadySuccessful &&
-            !alreadyActive &&
-            !alreadyFailed &&
-            !sourceHasActive;
-      }).toList();
-
-      if (needsExtraction.isEmpty) {
-        // 检查是否所有提取都完成了
-        if (_activeWebViews.isEmpty &&
-            _resolvingChannelPlayPageKeys.isEmpty) {
-          setState(() {
-            _isLoadingSample = false;
-            if (_sampleSuccessfulSources.isEmpty) {
-              _sampleError = '所有源都无法提取视频链接';
-            } else {
-              _sampleStatusMessage =
-                  '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
-            }
-          });
-        }
-        return;
-      }
-
-      // 启动下一个
-      final page = needsExtraction.first;
-      final pageKey = getPageKey(page);
-      setState(() {
-        _activeWebViews[pageKey] = true;
-        _webViewStatus[pageKey] = '正在提取...';
-      });
-    });
+    _scheduleWebViewPoolPump();
   }
 
   @override
@@ -1599,6 +1876,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
+    _sampleLoadToken++;
+    for (final subscription in _searchSubscriptions) {
+      unawaited(subscription.cancel());
+    }
+    _searchSubscriptions.clear();
+    _activeCaptchaTasks.clear();
+    _pendingCaptchaTasks.clear();
     _mobileTabController.dispose();
     _pcEpisodeScrollController.dispose();
     _mobileEpisodeScrollController.dispose();
@@ -1618,7 +1902,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           // 主界面
           isWide ? _buildPCLayout(context) : _buildMobileLayout(context),
 
-          // 后台WebView容器（始终存在，用于后台视频提取）
+          // 后台WebView容器（始终存在，用于验证码预处理+视频提取）
           Positioned(
             left: 0,
             top: 0,
@@ -2471,6 +2755,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     // Stop current player
     _player.stop();
+    _sampleLoadToken++;
+    final subscriptions = List<StreamSubscription<SourceSearchProgress>>.from(
+      _searchSubscriptions,
+    );
+    _searchSubscriptions.clear();
+    for (final subscription in subscriptions) {
+      unawaited(subscription.cancel());
+    }
 
     // Update current episode and reset all states
     setState(() {
@@ -2499,10 +2791,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _sampleSuccessfulSources = [];
       _selectedSourceIndex = 0;
       _activeWebViews.clear();
+      _activeCaptchaTasks.clear();
+      _pendingCaptchaTasks.clear();
       _webViewStatus.clear();
+      _failedWebViewPageKeys.clear();
+      _resolvingChannelPlayPageKeys.clear();
       _sampleStatusMessage = '';
       _sourceProgressMap = {};
+      _enabledSourceNames = [];
+      _sourceTiers = {};
       _hasAutoPlayed = false;
+      _webViewPoolPumpScheduled = false;
 
       // Reset comments
       _comments = [];
@@ -3248,8 +3547,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           ),
         ],
 
-        // 如果正在使用 WebView 提取，显示所有活动的WebView
-        if (_activeWebViews.isNotEmpty) ...[
+        // 如果正在使用 WebView 任务池，显示所有活动任务
+        if (_activeWebViews.isNotEmpty || _activeCaptchaTasks.isNotEmpty) ...[
           const Divider(color: Colors.white10),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -3262,7 +3561,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '并发WebView提取 (${_activeWebViews.length}/$_maxConcurrentWebViews)',
+                  '并发WebView任务 ($_activeWebViewTaskCount/$_maxConcurrentWebViews)',
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
@@ -3270,23 +3569,53 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(height: 8),
-                // 显示所有活动WebView的状态
+                ..._activeCaptchaTasks.keys.map((sourceName) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        const SizedBox(
+                          width: 10,
+                          height: 10,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: Color(0xFFFFC107),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '$sourceName - 正在跳过验证码',
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 10,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                // 显示所有活动视频提取任务的状态
                 ..._activeWebViews.keys.map((pageKey) {
                   // 从pageKey解析出sourceName和channelIndex
+                  final sourceName = _sourceNameFromPageKey(pageKey);
                   final parts = pageKey.split('_');
-                  final sourceName = parts.length > 1
-                      ? parts.sublist(0, parts.length - 1).join('_')
-                      : pageKey;
                   final channelIndexStr = parts.isNotEmpty ? parts.last : '-1';
                   final channelIndex = channelIndexStr == '-1'
                       ? null
                       : int.tryParse(channelIndexStr);
 
-                  // 找到对应页面
-                  final page = _samplePlayPages.firstWhere((p) {
-                    final pIdx = p.channelIndex?.toInt();
-                    return p.sourceName == sourceName && (pIdx == channelIndex);
-                  }, orElse: () => _samplePlayPages.first);
+                  SearchPlayResult? page;
+                  for (final item in _samplePlayPages) {
+                    final pIdx = item.channelIndex?.toInt();
+                    if (item.sourceName == sourceName && pIdx == channelIndex) {
+                      page = item;
+                      break;
+                    }
+                  }
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 6),
@@ -3316,10 +3645,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                       ),
                                     ),
                                   ),
-                                  if (page.channelName != null &&
-                                      page.channelName!.isNotEmpty)
+                                  if ((page?.channelName ?? '').isNotEmpty)
                                     Text(
-                                      " - ${page.channelName}",
+                                      " - ${page!.channelName}",
                                       style: const TextStyle(
                                         color: Color(0xFFBB86FC),
                                         fontSize: 9,
@@ -3328,7 +3656,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 ],
                               ),
                               Text(
-                                page.playPageUrl,
+                                page?.playPageUrl ?? '等待匹配播放页...',
                                 style: const TextStyle(
                                   color: Colors.grey,
                                   fontSize: 8,
@@ -3683,39 +4011,77 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   /// 构建所有活动的 WebView 提取器（并发）
   Widget _buildWebViewExtractors() {
-    if (_activeWebViews.isEmpty) {
+    if (_activeWebViews.isEmpty && _activeCaptchaTasks.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    // 构建所有活动WebView的列表
-    return Column(
-      children: _activeWebViews.keys.map((pageKey) {
-        // 从pageKey解析出sourceName和channelIndex
-        final parts = pageKey.split('_');
-        final sourceName = parts.length > 1
-            ? parts.sublist(0, parts.length - 1).join('_')
-            : pageKey;
-        final channelIndexStr = parts.isNotEmpty ? parts.last : '-1';
-        final channelIndex = channelIndexStr == '-1'
-            ? null
-            : int.tryParse(channelIndexStr);
+    final children = <Widget>[];
 
-        // 找到对应的页面信息
-        final page = _samplePlayPages.firstWhere((p) {
-          final pIdx = p.channelIndex?.toInt();
-          return p.sourceName == sourceName && (pIdx == channelIndex);
-        }, orElse: () => _samplePlayPages.first);
+    // 构建活动的视频提取 WebView
+    for (final pageKey in _activeWebViews.keys) {
+      // 从pageKey解析出sourceName和channelIndex
+      final parts = pageKey.split('_');
+      final sourceName = parts.length > 1
+          ? parts.sublist(0, parts.length - 1).join('_')
+          : pageKey;
+      final channelIndexStr = parts.isNotEmpty ? parts.last : '-1';
+      final channelIndex = channelIndexStr == '-1'
+          ? null
+          : int.tryParse(channelIndexStr);
 
-        return WebViewVideoExtractorWidget(
+      SearchPlayResult? matchedPage;
+      for (final page in _samplePlayPages) {
+        final pIdx = page.channelIndex?.toInt();
+        if (page.sourceName == sourceName && pIdx == channelIndex) {
+          matchedPage = page;
+          break;
+        }
+      }
+
+      if (matchedPage == null) {
+        continue;
+      }
+
+      children.add(
+        WebViewVideoExtractorWidget(
           key: ValueKey('webview_$pageKey'),
-          url: page.playPageUrl,
-          customVideoRegex: page.videoRegex != r'$^' ? page.videoRegex : null,
+          url: matchedPage.playPageUrl,
+          customVideoRegex: matchedPage.videoRegex != r'$^'
+              ? matchedPage.videoRegex
+              : null,
           timeout: const Duration(seconds: 20),
           showWebView: _showWebView,
           onResult: (result) => _onWebViewResult(pageKey, result),
           onLog: (msg) => debugPrint('[WebView][$pageKey] $msg'),
-        );
-      }).toList(),
+        ),
+      );
+    }
+
+    // 构建活动的验证码预处理 WebView（与提取任务共用池子）
+    for (final task in _activeCaptchaTasks.values) {
+      children.add(
+        CaptchaWebViewBypassWidget(
+          key: ValueKey('captcha_pool_${task.source.name}_${task.loadToken}'),
+          source: task.source,
+          searchKeyword: task.searchKeyword,
+          captchaConfig: task.captchaConfig,
+          timeout: const Duration(seconds: 45),
+          onResult: (result) =>
+              _onCaptchaPreflightResult(task.source.name, result),
+          onLog: (message) {
+            debugPrint('[CaptchaBypass][${task.source.name}] $message');
+          },
+          showWebView: _showWebView,
+        ),
+      );
+    }
+
+    if (children.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      children: children,
     );
   }
 
