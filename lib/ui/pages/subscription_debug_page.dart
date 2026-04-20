@@ -281,7 +281,13 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
           timeout: const Duration(seconds: 45),
           showWebView: _showWebView,
           onResult: (result) {
-            entry?.remove();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              final currentEntry = entry;
+              if (currentEntry != null) {
+                currentEntry.remove();
+              }
+              entry = null;
+            });
             if (completer.isCompleted) return;
 
             if (result.success) {
@@ -314,7 +320,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
         ),
       );
 
-      overlay.insert(entry);
+      overlay.insert(entry!);
     });
 
     return completer.future;

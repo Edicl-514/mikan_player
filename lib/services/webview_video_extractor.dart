@@ -310,8 +310,12 @@ class _WebViewVideoExtractorWidgetState
         queryParams.containsKey('input');
 
     final isPlayerParser =
-        (url.contains('/player/') || url.contains('/parse')) &&
-        (url.contains('.php') || (url.contains('.html') && hasParserParams)) &&
+        ((url.contains('/player/') ||
+                url.contains('/parse') ||
+                (uri?.host.contains('player.') ?? false)) &&
+            (url.contains('.php') ||
+                url.contains('.html') ||
+                hasParserParams)) &&
         !url.contains('loading.html') &&
         !url.contains('/static/') &&
         !url.contains(widget.url);
@@ -325,7 +329,12 @@ class _WebViewVideoExtractorWidgetState
       _log('🎬 检测到播放器解析接口 (第$_navigationCount次跳转): $url');
       _log('   将导航到此URL以拦截内部视频请求...');
       // 导航到播放器解析页面，这样可以拦截其内部的网络请求
-      _webViewController?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+      _webViewController?.loadUrl(
+        urlRequest: URLRequest(
+          url: WebUri(url),
+          headers: finalHeaders.isEmpty ? null : finalHeaders,
+        ),
+      );
       return false; // 不标记为完成，继续等待视频URL
     }
 

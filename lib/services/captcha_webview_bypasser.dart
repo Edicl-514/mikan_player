@@ -541,6 +541,7 @@ class _CaptchaWebViewBypassWidgetState
 ''';
 
   Timer? _timeoutTimer;
+  InAppWebViewController? _webViewController;
   bool _isCompleted = false;
   int _captchaRetryCount = 0;
   static const _maxCaptchaRetries = 3;
@@ -578,13 +579,40 @@ class _CaptchaWebViewBypassWidgetState
     if (_isCompleted) return;
     _isCompleted = true;
     _timeoutTimer?.cancel();
+    final controller = _webViewController;
+    _webViewController = null;
+    if (controller != null) {
+      unawaited(_teardownWebView(controller));
+    }
     _log('Completed: success=${result.success}, error=${result.error}');
-    widget.onResult(result);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        widget.onResult(result);
+        return;
+      }
+      widget.onResult(result);
+    });
+  }
+
+  Future<void> _teardownWebView(InAppWebViewController controller) async {
+    try {
+      await controller.stopLoading();
+    } catch (_) {}
+    try {
+      await controller.loadUrl(
+        urlRequest: URLRequest(url: WebUri('about:blank')),
+      );
+    } catch (_) {}
   }
 
   @override
   void dispose() {
     _timeoutTimer?.cancel();
+    final controller = _webViewController;
+    _webViewController = null;
+    if (controller != null) {
+      unawaited(_teardownWebView(controller));
+    }
     super.dispose();
   }
 
@@ -617,7 +645,8 @@ class _CaptchaWebViewBypassWidgetState
         applicationNameForUserAgent: "", // remove InAppWebView info
         useHybridComposition: true,
       ),
-      onWebViewCreated: (_) {
+      onWebViewCreated: (controller) {
+        _webViewController = controller;
         _log('WebView created, loading search: $searchUrl');
         _log('Navigation headers: $navigationHeaders');
       },

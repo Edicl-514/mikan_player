@@ -746,7 +746,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           captchaConfig: captchaConfig,
           timeout: const Duration(seconds: 45),
           onResult: (result) {
-            entry?.remove();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              final currentEntry = entry;
+              if (currentEntry != null) {
+                currentEntry.remove();
+              }
+              entry = null;
+            });
             if (completer.isCompleted) return;
 
             if (result.success) {
@@ -776,7 +782,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ),
       );
 
-      overlay.insert(entry);
+      overlay.insert(entry!);
     });
 
     return completer.future;
