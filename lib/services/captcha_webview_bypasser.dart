@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -32,6 +33,7 @@ class CaptchaConfig {
   final String? submitSelector;
   final int initialDelayMs;
   final OcrConstraints? ocrConstraints;
+  final bool useWebViewForDetail;
 
   const CaptchaConfig({
     required this.enable,
@@ -43,6 +45,7 @@ class CaptchaConfig {
     this.submitSelector,
     this.initialDelayMs = 1000,
     this.ocrConstraints,
+    this.useWebViewForDetail = false,
   });
 
   factory CaptchaConfig.fromJson(Map<String, dynamic> json) {
@@ -55,6 +58,7 @@ class CaptchaConfig {
       inputSelector: json['inputSelector'] as String?,
       submitSelector: json['submitSelector'] as String?,
       initialDelayMs: json['initialDelayMs'] as int? ?? 1000,
+      useWebViewForDetail: json['useWebViewForDetail'] as bool? ?? false,
       ocrConstraints: json['ocrConstraints'] != null
           ? OcrConstraints.fromJson(
               json['ocrConstraints'] as Map<String, dynamic>,
@@ -84,6 +88,8 @@ class CaptchaBypassResult {
   final String? cookies;
   final String? pageHtml;
   final String? pageUrl;
+  final String? detailPageHtml;
+  final String? detailPageUrl;
 
   const CaptchaBypassResult({
     required this.sourceName,
@@ -92,8 +98,132 @@ class CaptchaBypassResult {
     this.cookies,
     this.pageHtml,
     this.pageUrl,
+    this.detailPageHtml,
+    this.detailPageUrl,
   });
 }
+
+class _SearchCandidate {
+  final String title;
+  final String url;
+  final int score;
+
+  const _SearchCandidate({
+    required this.title,
+    required this.url,
+    required this.score,
+  });
+}
+
+class _ExtractedCandidate {
+  final String title;
+  final String url;
+
+  const _ExtractedCandidate({required this.title, required this.url});
+}
+
+class _SearchExtractionConfig {
+  final String formatId;
+  final String? selectLists;
+  final String? selectNames;
+  final String? selectLinks;
+
+  const _SearchExtractionConfig({
+    required this.formatId,
+    this.selectLists,
+    this.selectNames,
+    this.selectLinks,
+  });
+
+  static _SearchExtractionConfig? tryParse(String? jsonStr) {
+    if (jsonStr == null || jsonStr.isEmpty) return null;
+    try {
+      final root = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final formatId = (root['subjectFormatId'] as String?) ?? 'indexed';
+      final formatA = root['selectorSubjectFormatA'] as Map<String, dynamic>?;
+      final formatIndexed =
+          root['selectorSubjectFormatIndexed'] as Map<String, dynamic>?;
+      return _SearchExtractionConfig(
+        formatId: formatId,
+        selectLists: formatA?['selectLists'] as String?,
+        selectNames: formatIndexed?['selectNames'] as String?,
+        selectLinks: formatIndexed?['selectLinks'] as String?,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String buildExtractScript({required String? baseUrl}) {
+    final baseUrlLiteral = jsonEncode(baseUrl ?? '');
+    if (formatId == 'a' &&
+        selectLists != null &&
+        selectLists!.trim().isNotEmpty) {
+      final listSelectorLiteral = jsonEncode(selectLists);
+      return '''
+(function() {
+  var baseUrl = $baseUrlLiteral;
+  var selector = $listSelectorLiteral;
+  try {
+    var nodes = Array.prototype.slice.call(document.querySelectorAll(selector));
+    var results = nodes.map(function(node) {
+      var href = node.getAttribute('href') || '';
+      try {
+        if (href && baseUrl) {
+          href = new URL(href, baseUrl).toString();
+        }
+      } catch (_) {}
+      return {
+        title: (node.textContent || '').trim(),
+        url: href
+      };
+    }).filter(function(item) {
+      return item.title && item.url;
+    });
+    return JSON.stringify(results);
+  } catch (_) {
+    return '[]';
+  }
+})()
+''';
+    }
+
+    final nameSelectorLiteral = jsonEncode(selectNames ?? '');
+    final linkSelectorLiteral = jsonEncode(selectLinks ?? '');
+    return '''
+(function() {
+  var baseUrl = $baseUrlLiteral;
+  var nameSelector = $nameSelectorLiteral;
+  var linkSelector = $linkSelectorLiteral;
+  try {
+    var names = Array.prototype.slice.call(document.querySelectorAll(nameSelector));
+    var links = Array.prototype.slice.call(document.querySelectorAll(linkSelector));
+    var length = Math.min(names.length, links.length);
+    var results = [];
+    for (var i = 0; i < length; i++) {
+      var href = links[i].getAttribute('href') || '';
+      try {
+        if (href && baseUrl) {
+          href = new URL(href, baseUrl).toString();
+        }
+      } catch (_) {}
+      results.push({
+        title: (names[i].textContent || '').trim(),
+        url: href
+      });
+    }
+    return JSON.stringify(results.filter(function(item) {
+      return item.title && item.url;
+    }));
+  } catch (_) {
+    return '[]';
+  }
+})()
+''';
+  }
+}
+
+enum _WebViewFlowStage { search, detail }
 
 class CaptchaWebViewBypassWidget extends StatefulWidget {
   final SourceState source;
@@ -122,10 +252,301 @@ class CaptchaWebViewBypassWidget extends StatefulWidget {
 
 class _CaptchaWebViewBypassWidgetState
     extends State<CaptchaWebViewBypassWidget> {
+  static const String _minimalStealthScript = r'''
+(function() {
+  if (window.__mikanCaptchaStealthInstalled) {
+    return;
+  }
+
+  try {
+    Object.defineProperty(window, '__mikanCaptchaStealthInstalled', {
+      value: true,
+      configurable: false,
+      enumerable: false,
+      writable: false
+    });
+  } catch (_) {}
+
+  function overrideGetter(target, key, getter) {
+    if (!target) return false;
+    try {
+      Object.defineProperty(target, key, {
+        configurable: true,
+        enumerable: false,
+        get: getter
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function defineValue(target, key, value) {
+    if (!target) return false;
+    try {
+      Object.defineProperty(target, key, {
+        configurable: true,
+        enumerable: false,
+        writable: false,
+        value: value
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function tryDelete(target, key) {
+    if (!target) return;
+    try {
+      delete target[key];
+    } catch (_) {}
+  }
+
+  function sanitizeConsoleArg(arg) {
+    if (arg == null) return arg;
+    var type = typeof arg;
+    if (type === 'string' || type === 'number' || type === 'boolean') {
+      return arg;
+    }
+    if (arg instanceof Error) {
+      return arg.stack || arg.message || '[Error]';
+    }
+    try {
+      return Object.prototype.toString.call(arg);
+    } catch (_) {
+      return '[object Object]';
+    }
+  }
+
+  function patchConsoleMethod(name) {
+    if (!window.console || typeof window.console[name] !== 'function') {
+      return;
+    }
+    var original = window.console[name];
+    try {
+      Object.defineProperty(window.console, name, {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: function() {
+          if (name === 'clear') {
+            return;
+          }
+          var args = Array.prototype.slice.call(arguments).map(sanitizeConsoleArg);
+          return original.apply(this, args);
+        }
+      });
+    } catch (_) {}
+  }
+
+  function patchConsole() {
+    [
+      'log',
+      'debug',
+      'info',
+      'warn',
+      'error',
+      'dir',
+      'dirxml',
+      'table',
+      'trace',
+      'clear'
+    ].forEach(patchConsoleMethod);
+  }
+
+  function clearAutomationArtifacts() {
+    var root = document.documentElement;
+    if (root) {
+      try {
+        root.removeAttribute('webdriver');
+        root.removeAttribute('driver');
+        root.removeAttribute('selenium');
+      } catch (_) {}
+    }
+
+    [
+      '__selenium_evaluate',
+      '__selenium_unwrapped',
+      '__webdriver_script_fn',
+      '__driver_evaluate',
+      '__webdriver_evaluate',
+      '__fxdriver_evaluate',
+      '__driver_unwrapped',
+      '__webdriver_unwrapped',
+      '__fxdriver_unwrapped',
+      '__webdriver_script_func'
+    ].forEach(function(key) {
+      tryDelete(document, key);
+    });
+
+    [
+      '__nightmare',
+      '_selenium',
+      'callSelenium',
+      '_Selenium_IDE_Recorder',
+      'callPhantom',
+      '_phantom',
+      '__webdriver_capture',
+      'webdriver'
+    ].forEach(function(key) {
+      tryDelete(window, key);
+    });
+  }
+
+  function makeArrayLike(items, arrayProto, namedKey) {
+    var list = Object.create(arrayProto || Object.prototype);
+    for (var i = 0; i < items.length; i++) {
+      defineValue(list, i, items[i]);
+    }
+    defineValue(list, 'length', items.length);
+    defineValue(list, 'item', function(index) {
+      index = Number(index) || 0;
+      return items[index] || null;
+    });
+    defineValue(list, 'namedItem', function(name) {
+      for (var i = 0; i < items.length; i++) {
+        if (items[i] && items[i][namedKey] === name) {
+          return items[i];
+        }
+      }
+      return null;
+    });
+    defineValue(list, 'refresh', function() {});
+    if (typeof Symbol !== 'undefined' && Symbol.iterator) {
+      defineValue(list, Symbol.iterator, function* () {
+        for (var i = 0; i < items.length; i++) {
+          yield items[i];
+        }
+      });
+    }
+    return list;
+  }
+
+  function buildPluginData() {
+    if (typeof PluginArray === 'undefined' ||
+        typeof Plugin === 'undefined' ||
+        typeof MimeTypeArray === 'undefined' ||
+        typeof MimeType === 'undefined') {
+      return null;
+    }
+
+    var mimeType = Object.create(MimeType.prototype);
+    defineValue(mimeType, 'type', 'application/pdf');
+    defineValue(mimeType, 'suffixes', 'pdf');
+    defineValue(mimeType, 'description', 'Portable Document Format');
+
+    var plugin = Object.create(Plugin.prototype);
+    defineValue(plugin, 'name', 'Chrome PDF Viewer');
+    defineValue(plugin, 'filename', 'internal-pdf-viewer');
+    defineValue(plugin, 'description', 'Portable Document Format');
+    defineValue(plugin, 'length', 1);
+    defineValue(plugin, 0, mimeType);
+    defineValue(plugin, 'item', function(index) {
+      return Number(index) === 0 ? mimeType : null;
+    });
+    defineValue(plugin, 'namedItem', function(name) {
+      return name === mimeType.type ? mimeType : null;
+    });
+
+    defineValue(mimeType, 'enabledPlugin', plugin);
+
+    return {
+      plugins: makeArrayLike([plugin], PluginArray.prototype, 'name'),
+      mimeTypes: makeArrayLike([mimeType], MimeTypeArray.prototype, 'type')
+    };
+  }
+
+  try {
+    clearAutomationArtifacts();
+    if (navigator.webdriver === true || window.webdriver === true) {
+      overrideGetter(Navigator.prototype, 'webdriver', function() {
+        return undefined;
+      }) || overrideGetter(navigator, 'webdriver', function() {
+        return undefined;
+      });
+      overrideGetter(window, 'webdriver', function() {
+        return undefined;
+      });
+    }
+  } catch (_) {}
+
+  try {
+    if (window.chrome == null) {
+      Object.defineProperty(window, 'chrome', {
+        configurable: true,
+        enumerable: false,
+        value: {}
+      });
+    } else if (window.chrome && window.chrome.runtime) {
+      tryDelete(window.chrome, 'runtime');
+    }
+  } catch (_) {}
+
+  try {
+    if (!Array.isArray(navigator.languages) || navigator.languages.length === 0) {
+      overrideGetter(Navigator.prototype, 'languages', function() {
+        return ['zh-CN', 'zh', 'en-US', 'en'];
+      }) || overrideGetter(navigator, 'languages', function() {
+        return ['zh-CN', 'zh', 'en-US', 'en'];
+      });
+    }
+  } catch (_) {}
+
+  try {
+    if (window.Notification == null) {
+      var NotificationCtor = function Notification() {};
+      defineValue(NotificationCtor, 'permission', 'default');
+      defineValue(NotificationCtor, 'requestPermission', function(callback) {
+        if (typeof callback === 'function') {
+          callback('default');
+        }
+        return Promise.resolve('default');
+      });
+      defineValue(window, 'Notification', NotificationCtor);
+    }
+  } catch (_) {}
+
+  try {
+    if ((navigator.plugins && navigator.plugins.length === 0) ||
+        (navigator.mimeTypes && navigator.mimeTypes.length === 0)) {
+      var pluginData = buildPluginData();
+      if (pluginData) {
+        overrideGetter(Navigator.prototype, 'plugins', function() {
+          return pluginData.plugins;
+        }) || overrideGetter(navigator, 'plugins', function() {
+          return pluginData.plugins;
+        });
+        overrideGetter(Navigator.prototype, 'mimeTypes', function() {
+          return pluginData.mimeTypes;
+        }) || overrideGetter(navigator, 'mimeTypes', function() {
+          return pluginData.mimeTypes;
+        });
+      }
+    }
+  } catch (_) {}
+
+  try {
+    patchConsole();
+  } catch (_) {}
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', clearAutomationArtifacts, {
+      once: true
+    });
+  } else {
+    clearAutomationArtifacts();
+  }
+})();
+''';
+
   Timer? _timeoutTimer;
   bool _isCompleted = false;
   int _captchaRetryCount = 0;
   static const _maxCaptchaRetries = 3;
+  _WebViewFlowStage _flowStage = _WebViewFlowStage.search;
+  String? _searchPageHtml;
+  String? _searchPageUrl;
 
   @override
   void initState() {
@@ -141,7 +562,8 @@ class _CaptchaWebViewBypassWidgetState
         CaptchaBypassResult(
           sourceName: widget.source.name,
           success: false,
-          error: 'Captcha preflight timed out after ${widget.timeout.inSeconds}s',
+          error:
+              'Captcha preflight timed out after ${widget.timeout.inSeconds}s',
         ),
       );
     });
@@ -172,23 +594,48 @@ class _CaptchaWebViewBypassWidgetState
       '{keyword}',
       widget.searchKeyword,
     );
+    final navigationHeaders = _buildNavigationHeaders(searchUrl);
 
     final webView = InAppWebView(
-      initialUrlRequest: URLRequest(url: WebUri(searchUrl)),
+      initialUrlRequest: URLRequest(
+        url: WebUri(searchUrl),
+        headers: navigationHeaders,
+      ),
       webViewEnvironment: webViewEnvironment,
+      initialUserScripts: UnmodifiableListView<UserScript>([
+        UserScript(
+          source: _minimalStealthScript,
+          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+        ),
+      ]),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
         userAgent:
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
             '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        applicationNameForUserAgent: "", // remove InAppWebView info
         useHybridComposition: true,
       ),
       onWebViewCreated: (_) {
         _log('WebView created, loading search: $searchUrl');
+        _log('Navigation headers: $navigationHeaders');
+      },
+      onLoadStart: (_, url) {
+        _log('Page load started: $url');
+      },
+      onProgressChanged: (_, progress) {
+        if (progress == 10 ||
+            progress == 30 ||
+            progress == 50 ||
+            progress == 80 ||
+            progress == 100) {
+          _log('Page progress: $progress%');
+        }
       },
       onLoadStop: (ctrl, url) async {
         _log('Page loaded: $url');
+        await _logEnvironmentSnapshot(ctrl);
 
         await Future.delayed(
           Duration(milliseconds: widget.captchaConfig.initialDelayMs),
@@ -207,6 +654,24 @@ class _CaptchaWebViewBypassWidgetState
       onReceivedError: (_, request, error) {
         if (request.isForMainFrame ?? false) {
           _log('Page error: ${error.description}');
+        }
+      },
+      onReceivedHttpError: (_, request, response) {
+        if (request.isForMainFrame ?? false) {
+          _log(
+            'Page HTTP error: ${response.statusCode} ${response.reasonPhrase}',
+          );
+        }
+      },
+      onConsoleMessage: (_, consoleMessage) {
+        final message = consoleMessage.message.trim();
+        if (message.isEmpty) return;
+        if (consoleMessage.messageLevel == ConsoleMessageLevel.ERROR ||
+            consoleMessage.messageLevel == ConsoleMessageLevel.WARNING ||
+            message.contains('sl-') ||
+            message.contains('challenge') ||
+            message.contains('captcha')) {
+          _log('Console[${consoleMessage.messageLevel.toString()}]: $message');
         }
       },
     );
@@ -232,8 +697,7 @@ class _CaptchaWebViewBypassWidgetState
         CaptchaBypassResult(
           sourceName: widget.source.name,
           success: false,
-          error:
-              'Captcha type "${widget.captchaConfig.type}" not supported',
+          error: 'Captcha type "${widget.captchaConfig.type}" not supported',
         ),
       );
       return;
@@ -251,9 +715,7 @@ class _CaptchaWebViewBypassWidgetState
     }
 
     _captchaRetryCount++;
-    _log(
-      'Captcha detected (attempt $_captchaRetryCount/$_maxCaptchaRetries)',
-    );
+    _log('Captcha detected (attempt $_captchaRetryCount/$_maxCaptchaRetries)');
 
     final ocrResult = await _solveImageOcrCaptcha(ctrl, widget.captchaConfig);
     if (ocrResult == null) {
@@ -301,23 +763,59 @@ class _CaptchaWebViewBypassWidgetState
     String? currentUrl,
   ) async {
     try {
-      final pageHtml = await ctrl.evaluateJavascript(
-        source:
-            '(function(){ return document.documentElement ? document.documentElement.outerHTML : null; })()',
-      );
+      final pageHtml = await _captureCurrentHtml(ctrl);
 
       final cookies = await _getCookiesForUrl(
         currentUrl ??
-            widget.source.searchUrl.replaceAll('{keyword}', widget.searchKeyword),
+            widget.source.searchUrl.replaceAll(
+              '{keyword}',
+              widget.searchKeyword,
+            ),
       );
+
+      if (widget.captchaConfig.useWebViewForDetail &&
+          _flowStage == _WebViewFlowStage.search) {
+        _searchPageHtml = pageHtml;
+        _searchPageUrl = currentUrl;
+
+        final detailCandidate = await _selectBestSearchCandidate(
+          ctrl,
+          currentUrl,
+        );
+        if (detailCandidate != null) {
+          _flowStage = _WebViewFlowStage.detail;
+          _log(
+            'Using WebView for detail page: "${detailCandidate.title}" '
+            '(score=${detailCandidate.score}) -> ${detailCandidate.url}',
+          );
+          await ctrl.loadUrl(
+            urlRequest: URLRequest(
+              url: WebUri(detailCandidate.url),
+              headers: _buildNavigationHeaders(
+                detailCandidate.url,
+                referer: currentUrl,
+              ),
+            ),
+          );
+          return;
+        }
+
+        _log('WebView detail mode enabled, but no detail candidate was found');
+      }
 
       _complete(
         CaptchaBypassResult(
           sourceName: widget.source.name,
           success: true,
           cookies: cookies,
-          pageHtml: pageHtml?.toString(),
-          pageUrl: currentUrl,
+          pageHtml: _searchPageHtml ?? pageHtml?.toString(),
+          pageUrl: _searchPageUrl ?? currentUrl,
+          detailPageHtml: _flowStage == _WebViewFlowStage.detail
+              ? pageHtml
+              : null,
+          detailPageUrl: _flowStage == _WebViewFlowStage.detail
+              ? currentUrl
+              : null,
         ),
       );
     } catch (e) {
@@ -329,6 +827,172 @@ class _CaptchaWebViewBypassWidgetState
         ),
       );
     }
+  }
+
+  Future<String?> _captureCurrentHtml(InAppWebViewController ctrl) async {
+    final pageHtml = await ctrl.evaluateJavascript(
+      source:
+          '(function(){ return document.documentElement ? document.documentElement.outerHTML : null; })()',
+    );
+    return pageHtml?.toString();
+  }
+
+  Future<_SearchCandidate?> _selectBestSearchCandidate(
+    InAppWebViewController ctrl,
+    String? currentUrl,
+  ) async {
+    final config = _SearchExtractionConfig.tryParse(
+      widget.source.searchConfigJson,
+    );
+    if (config == null) {
+      _log('Unable to parse searchConfigJson for WebView detail mode');
+      return null;
+    }
+
+    final candidates = await _extractSearchCandidates(
+      ctrl,
+      config: config,
+      currentUrl: currentUrl,
+    );
+    if (candidates.isEmpty) {
+      _log('No search candidates extracted from WebView search page');
+      return null;
+    }
+
+    final query = widget.searchKeyword.trim();
+    final core = _extractCoreName(query);
+
+    _SearchCandidate? best;
+    for (final item in candidates) {
+      final score = _calculateMatchScore(item.title, query, core);
+      if (best == null || score > best.score) {
+        best = _SearchCandidate(title: item.title, url: item.url, score: score);
+      }
+    }
+
+    return best;
+  }
+
+  static Map<String, String> _buildNavigationHeaders(
+    String url, {
+    String? referer,
+  }) {
+    try {
+      final uri = Uri.parse(url);
+      final origin = '${uri.scheme}://${uri.host}';
+      return {
+        'Accept':
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-US;q=0.7',
+        'Referer': referer ?? '$origin/',
+        'Upgrade-Insecure-Requests': '1',
+      };
+    } catch (_) {
+      return {
+        'Accept':
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-US;q=0.7',
+        if (referer != null && referer.isNotEmpty) 'Referer': referer,
+        'Upgrade-Insecure-Requests': '1',
+      };
+    }
+  }
+
+  Future<List<_ExtractedCandidate>> _extractSearchCandidates(
+    InAppWebViewController ctrl, {
+    required _SearchExtractionConfig config,
+    required String? currentUrl,
+  }) async {
+    final script = config.buildExtractScript(baseUrl: currentUrl);
+    try {
+      final raw = await ctrl.evaluateJavascript(source: script);
+      if (raw is! String || raw.isEmpty) {
+        return const [];
+      }
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return const [];
+      }
+      return decoded
+          .whereType<Map>()
+          .map(
+            (item) => _ExtractedCandidate(
+              title: (item['title'] ?? '').toString().trim(),
+              url: (item['url'] ?? '').toString().trim(),
+            ),
+          )
+          .where((item) => item.title.isNotEmpty && item.url.isNotEmpty)
+          .toList();
+    } catch (e) {
+      _log('Failed to extract search candidates in WebView: $e');
+      return const [];
+    }
+  }
+
+  static String _extractCoreName(String name) {
+    var value = name.trim();
+    final seasonPatterns = [
+      RegExp(r'第[一二三四五六七八九十\d]+\s*季', caseSensitive: false),
+      RegExp(r'part\s*\d+', caseSensitive: false),
+      RegExp(r'\bseason\s*\d+\b', caseSensitive: false),
+      RegExp(r'\b\d+(st|nd|rd|th)\s*season\b', caseSensitive: false),
+    ];
+    for (final pattern in seasonPatterns) {
+      value = value.replaceAll(pattern, ' ');
+    }
+    return value.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  static int _calculateMatchScore(String title, String query, String core) {
+    final titleNorm = _normalizeForMatch(title);
+    final queryNorm = _normalizeForMatch(query);
+    final coreNorm = _normalizeForMatch(core);
+    final titleCoreNorm = _normalizeForMatch(_extractCoreName(title));
+
+    if (titleNorm.isEmpty) return 0;
+    if (queryNorm.isNotEmpty && titleNorm == queryNorm) return 100;
+    if (coreNorm.isNotEmpty && titleCoreNorm == coreNorm) return 95;
+    if (queryNorm.isNotEmpty && titleNorm.contains(queryNorm)) return 70;
+    if (coreNorm.isNotEmpty && titleCoreNorm.contains(coreNorm)) return 57;
+    return 0;
+  }
+
+  static String _normalizeForMatch(String value) {
+    return value.toLowerCase().replaceAll(
+      RegExp(r'[^\p{L}\p{N}]+', unicode: true),
+      '',
+    );
+  }
+
+  static String _buildSelectorExistsScript(String selector) {
+    final selectorLiteral = jsonEncode(selector);
+    return '''
+(function() {
+  var selector = $selectorLiteral;
+
+  function exists(sel) {
+    var containsMatch = sel.match(/^(.*?):contains\\((["'])(.*)\\2\\)\$/);
+    if (containsMatch) {
+      var baseSelector = containsMatch[1].trim();
+      var text = containsMatch[3];
+      var nodes = document.querySelectorAll(baseSelector || '*');
+      for (var i = 0; i < nodes.length; i++) {
+        if ((nodes[i].textContent || '').indexOf(text) !== -1) {
+          return true;
+        }
+      }
+      return false;
+    }
+    return document.querySelector(sel) !== null;
+  }
+
+  try {
+    return exists(selector);
+  } catch (_) {
+    return false;
+  }
+})()
+''';
   }
 
   static Future<bool> _detectCaptcha(
@@ -346,8 +1010,7 @@ class _CaptchaWebViewBypassWidgetState
     for (final selector in selectors) {
       try {
         final exists = await ctrl.evaluateJavascript(
-          source:
-              '(function(){ return document.querySelector("${_esc(selector)}") !== null; })()',
+          source: _buildSelectorExistsScript(selector),
         );
         if (exists == true) return true;
       } catch (_) {}
@@ -363,12 +1026,80 @@ class _CaptchaWebViewBypassWidgetState
     if (selector == null || selector.isEmpty) return true;
     try {
       final exists = await ctrl.evaluateJavascript(
-        source:
-            '(function(){ return document.querySelector("${_esc(selector)}") !== null; })()',
+        source: _buildSelectorExistsScript(selector),
       );
       return exists == true;
     } catch (_) {
       return false;
+    }
+  }
+
+  Future<void> _logEnvironmentSnapshot(InAppWebViewController ctrl) async {
+    try {
+      final snapshot = await ctrl.evaluateJavascript(
+        source: '''
+(function() {
+  function hasOwn(target, key) {
+    try {
+      return !!target && Object.prototype.hasOwnProperty.call(target, key);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  return JSON.stringify({
+    webdriver: {
+      navigator: (function(){ try { return navigator.webdriver; } catch (_) { return 'error'; } })(),
+      window: (function(){ try { return window.webdriver; } catch (_) { return 'error'; } })(),
+      attr: (function(){ try { return document.documentElement && document.documentElement.getAttribute('webdriver'); } catch (_) { return 'error'; } })()
+    },
+    notification: typeof window.Notification,
+    languages: (function(){ try { return navigator.languages; } catch (_) { return 'error'; } })(),
+    platform: (function(){ try { return navigator.platform; } catch (_) { return 'error'; } })(),
+    plugins: (function(){ try { return navigator.plugins ? navigator.plugins.length : null; } catch (_) { return 'error'; } })(),
+    mimeTypes: (function(){ try { return navigator.mimeTypes ? navigator.mimeTypes.length : null; } catch (_) { return 'error'; } })(),
+    chrome: {
+      exists: typeof window.chrome !== 'undefined',
+      runtime: (function(){ try { return !!(window.chrome && window.chrome.runtime); } catch (_) { return 'error'; } })(),
+      loadTimes: (function(){ try { return !!(window.chrome && window.chrome.loadTimes); } catch (_) { return 'error'; } })()
+    },
+    suspiciousWindowKeys: (function() {
+      var keys = [
+        '__nightmare',
+        '_selenium',
+        'callSelenium',
+        '_Selenium_IDE_Recorder',
+        'callPhantom',
+        '_phantom',
+        '__webdriver_capture',
+        'webdriver'
+      ];
+      return keys.filter(function(key) { return hasOwn(window, key); });
+    })(),
+    suspiciousDocumentKeys: (function() {
+      var keys = [
+        '__selenium_evaluate',
+        '__selenium_unwrapped',
+        '__webdriver_script_fn',
+        '__driver_evaluate',
+        '__webdriver_evaluate',
+        '__fxdriver_evaluate',
+        '__driver_unwrapped',
+        '__webdriver_unwrapped',
+        '__fxdriver_unwrapped',
+        '__webdriver_script_func'
+      ];
+      return keys.filter(function(key) { return hasOwn(document, key); });
+    })()
+  });
+})()
+''',
+      );
+      if (snapshot != null) {
+        _log('Environment snapshot: $snapshot');
+      }
+    } catch (e) {
+      _log('Failed to capture environment snapshot: $e');
     }
   }
 
@@ -380,7 +1111,9 @@ class _CaptchaWebViewBypassWidgetState
     if (imageSelector == null || imageSelector.isEmpty) return null;
 
     try {
-      final imageSrc = await ctrl.evaluateJavascript(source: '''
+      final imageSrc = await ctrl.evaluateJavascript(
+        source:
+            '''
 (function(){
   var img = document.querySelector("${_esc(imageSelector)}");
   if(!img) return null;
@@ -390,7 +1123,8 @@ class _CaptchaWebViewBypassWidgetState
   c.getContext("2d").drawImage(img, 0, 0);
   return c.toDataURL("image/png");
 })()
-''');
+''',
+      );
 
       if (imageSrc == null ||
           imageSrc is! String ||
@@ -446,7 +1180,9 @@ class _CaptchaWebViewBypassWidgetState
     final submitSelector = config.submitSelector;
 
     if (inputSelector != null && inputSelector.isNotEmpty) {
-      await ctrl.evaluateJavascript(source: '''
+      await ctrl.evaluateJavascript(
+        source:
+            '''
 (function(){
   var input = document.querySelector("${_esc(inputSelector)}");
   if(input){
@@ -455,18 +1191,22 @@ class _CaptchaWebViewBypassWidgetState
     input.dispatchEvent(new Event("change", {bubbles: true}));
   }
 })()
-''');
+''',
+      );
     }
 
     await Future.delayed(const Duration(milliseconds: 300));
 
     if (submitSelector != null && submitSelector.isNotEmpty) {
-      await ctrl.evaluateJavascript(source: '''
+      await ctrl.evaluateJavascript(
+        source:
+            '''
 (function(){
   var btn = document.querySelector("${_esc(submitSelector)}");
   if(btn) btn.click();
 })()
-''');
+''',
+      );
     }
   }
 

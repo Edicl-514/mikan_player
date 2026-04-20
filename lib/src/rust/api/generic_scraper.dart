@@ -475,6 +475,8 @@ class SourceRuntimeOverride {
   final String? cookies;
   final String? searchPageHtml;
   final String? searchPageUrl;
+  final String? detailPageHtml;
+  final String? detailPageUrl;
   final String? skipSearchError;
 
   const SourceRuntimeOverride({
@@ -482,6 +484,8 @@ class SourceRuntimeOverride {
     this.cookies,
     this.searchPageHtml,
     this.searchPageUrl,
+    this.detailPageHtml,
+    this.detailPageUrl,
     this.skipSearchError,
   });
 
@@ -491,6 +495,8 @@ class SourceRuntimeOverride {
       cookies.hashCode ^
       searchPageHtml.hashCode ^
       searchPageUrl.hashCode ^
+      detailPageHtml.hashCode ^
+      detailPageUrl.hashCode ^
       skipSearchError.hashCode;
 
   @override
@@ -502,6 +508,8 @@ class SourceRuntimeOverride {
           cookies == other.cookies &&
           searchPageHtml == other.searchPageHtml &&
           searchPageUrl == other.searchPageUrl &&
+          detailPageHtml == other.detailPageHtml &&
+          detailPageUrl == other.detailPageUrl &&
           skipSearchError == other.skipSearchError;
 }
 

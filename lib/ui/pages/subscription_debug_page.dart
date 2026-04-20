@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/services/webview_video_extractor.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart'
-as generic_scraper;
+    as generic_scraper;
 import 'package:mikan_player/utils/feature_flags.dart';
 
 class SubscriptionDebugPage extends StatefulWidget {
@@ -291,6 +291,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                   cookies: result.cookies,
                   searchPageHtml: result.pageHtml,
                   searchPageUrl: result.pageUrl,
+                  detailPageHtml: result.detailPageHtml,
+                  detailPageUrl: result.detailPageUrl,
                 ),
               );
             } else {
@@ -329,9 +331,10 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
     try {
       final jsonContent = await File(jsonPath).readAsString();
       final root = jsonDecode(jsonContent) as Map<String, dynamic>;
-      final mediaSources = (root['exportedMediaSourceDataList']
-              as Map<String, dynamic>?)?['mediaSources']
-          as List<dynamic>?;
+      final mediaSources =
+          (root['exportedMediaSourceDataList']
+                  as Map<String, dynamic>?)?['mediaSources']
+              as List<dynamic>?;
 
       if (mediaSources == null) {
         return overrides;
@@ -341,7 +344,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       for (final source in mediaSources) {
         final args = source['arguments'] as Map<String, dynamic>?;
         final name = args?['name'] as String? ?? '';
-        final captchaConfigRaw = args?['captchaConfig'] as Map<String, dynamic>?;
+        final captchaConfigRaw =
+            args?['captchaConfig'] as Map<String, dynamic>?;
 
         if (sourceFilter.isNotEmpty &&
             !name.toLowerCase().contains(sourceFilter.toLowerCase())) {

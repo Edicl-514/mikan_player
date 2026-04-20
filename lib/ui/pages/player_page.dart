@@ -756,6 +756,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   cookies: result.cookies,
                   searchPageHtml: result.pageHtml,
                   searchPageUrl: result.pageUrl,
+                  detailPageHtml: result.detailPageHtml,
+                  detailPageUrl: result.detailPageUrl,
                 ),
               );
             } else {
@@ -784,10 +786,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     required List<SourceState> enabledSources,
     required String searchKeyword,
   }) async {
-    final captchaSources = enabledSources
-        .where((source) => CaptchaConfig.tryParse(source.captchaConfigJson) != null)
-        .toList()
-      ..sort((a, b) => a.tier.compareTo(b.tier));
+    final captchaSources =
+        enabledSources
+            .where(
+              (source) =>
+                  CaptchaConfig.tryParse(source.captchaConfigJson) != null,
+            )
+            .toList()
+          ..sort((a, b) => a.tier.compareTo(b.tier));
 
     if (captchaSources.isEmpty) {
       return const [];

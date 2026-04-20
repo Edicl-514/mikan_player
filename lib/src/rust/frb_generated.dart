@@ -3600,14 +3600,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   SourceRuntimeOverride dco_decode_source_runtime_override(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return SourceRuntimeOverride(
       sourceName: dco_decode_String(arr[0]),
       cookies: dco_decode_opt_String(arr[1]),
       searchPageHtml: dco_decode_opt_String(arr[2]),
       searchPageUrl: dco_decode_opt_String(arr[3]),
-      skipSearchError: dco_decode_opt_String(arr[4]),
+      detailPageHtml: dco_decode_opt_String(arr[4]),
+      detailPageUrl: dco_decode_opt_String(arr[5]),
+      skipSearchError: dco_decode_opt_String(arr[6]),
     );
   }
 
@@ -4779,12 +4781,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_cookies = sse_decode_opt_String(deserializer);
     var var_searchPageHtml = sse_decode_opt_String(deserializer);
     var var_searchPageUrl = sse_decode_opt_String(deserializer);
+    var var_detailPageHtml = sse_decode_opt_String(deserializer);
+    var var_detailPageUrl = sse_decode_opt_String(deserializer);
     var var_skipSearchError = sse_decode_opt_String(deserializer);
     return SourceRuntimeOverride(
       sourceName: var_sourceName,
       cookies: var_cookies,
       searchPageHtml: var_searchPageHtml,
       searchPageUrl: var_searchPageUrl,
+      detailPageHtml: var_detailPageHtml,
+      detailPageUrl: var_detailPageUrl,
       skipSearchError: var_skipSearchError,
     );
   }
@@ -5833,6 +5839,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.cookies, serializer);
     sse_encode_opt_String(self.searchPageHtml, serializer);
     sse_encode_opt_String(self.searchPageUrl, serializer);
+    sse_encode_opt_String(self.detailPageHtml, serializer);
+    sse_encode_opt_String(self.detailPageUrl, serializer);
     sse_encode_opt_String(self.skipSearchError, serializer);
   }
 

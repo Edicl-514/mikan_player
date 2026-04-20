@@ -28,6 +28,10 @@ pub struct SourceRuntimeOverride {
     pub search_page_html: Option<String>,
     #[serde(rename = "searchPageUrl")]
     pub search_page_url: Option<String>,
+    #[serde(rename = "detailPageHtml")]
+    pub detail_page_html: Option<String>,
+    #[serde(rename = "detailPageUrl")]
+    pub detail_page_url: Option<String>,
     #[serde(rename = "skipSearchError")]
     pub skip_search_error: Option<String>,
 }
@@ -80,10 +84,7 @@ fn build_search_candidates(anime_name: &str) -> Vec<String> {
     candidates
 }
 
-fn merge_cookie_strings(
-    configured: Option<&str>,
-    runtime: Option<&str>,
-) -> Option<String> {
+fn merge_cookie_strings(configured: Option<&str>, runtime: Option<&str>) -> Option<String> {
     let mut ordered_names: Vec<String> = Vec::new();
     let mut cookies = std::collections::HashMap::<String, String>::new();
 
@@ -115,7 +116,11 @@ fn merge_cookie_strings(
         Some(
             ordered_names
                 .into_iter()
-                .filter_map(|name| cookies.get(&name).map(|value| format!("{}={}", name, value)))
+                .filter_map(|name| {
+                    cookies
+                        .get(&name)
+                        .map(|value| format!("{}={}", name, value))
+                })
                 .collect::<Vec<_>>()
                 .join("; "),
         )
@@ -131,6 +136,52 @@ fn apply_cookie_header(
     } else {
         request
     }
+}
+
+fn apply_browser_page_headers(
+    request: reqwest::RequestBuilder,
+    target_url: &str,
+    referer: Option<&str>,
+) -> reqwest::RequestBuilder {
+    let fallback_referer = url::Url::parse(target_url).ok().and_then(|u| {
+        u.host_str()
+            .map(|host| format!("{}://{}/", u.scheme(), host))
+    });
+
+    let mut request = request
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+             (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0",
+        )
+        .header(
+            "sec-ch-ua",
+            "\"Microsoft Edge\";v=\"147\", \"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"147\"",
+        )
+        .header("sec-ch-ua-mobile", "?0")
+        .header("sec-ch-ua-platform", "\"Windows\"")
+        .header(
+            "Accept",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,\
+             image/webp,image/apng,*/*;q=0.8",
+        )
+        .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-US;q=0.7")
+        .header("Sec-Fetch-Dest", "document")
+        .header("Sec-Fetch-Mode", "navigate")
+        .header("Sec-Fetch-Site", "same-origin")
+        .header("Sec-Fetch-User", "?1")
+        .header("Priority", "u=0, i")
+        .header("Upgrade-Insecure-Requests", "1");
+
+    if let Some(value) = referer
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .or(fallback_referer)
+    {
+        request = request.header("Referer", value);
+    }
+
+    request
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -1032,7 +1083,11 @@ pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
             .unwrap_or_default();
         let search_url = source.arguments.search_config.search_url.clone();
         let enabled = crate::api::config::is_source_enabled(&name);
-        let captcha_config_json = source.arguments.captcha_config.as_ref().map(|c| serde_json::to_string_pretty(c).unwrap_or_default());
+        let captcha_config_json = source
+            .arguments
+            .captcha_config
+            .as_ref()
+            .map(|c| serde_json::to_string_pretty(c).unwrap_or_default());
         sources.push(SourceState {
             name,
             description,
@@ -1108,26 +1163,26 @@ pub async fn update_single_source_config(update: SourceConfigUpdate) -> anyhow::
                     source.arguments.search_config.search_url = url.clone();
                 }
             }
-        if let Some(i) = update.icon_url.clone() {
-            source.arguments.icon_url = Some(i);
-        }
+            if let Some(i) = update.icon_url.clone() {
+                source.arguments.icon_url = Some(i);
+            }
 
-        if let Some(json) = &update.captcha_config_json {
-            match serde_json::from_str::<CaptchaConfig>(json) {
-                Ok(config) => {
-                    source.arguments.captcha_config = Some(config);
-                }
-                Err(e) => {
-                    log::error!("Failed to parse captcha_config_json: {}", e);
-                    return Err(anyhow::anyhow!(
-                        "Invalid JSON format for captcha config: {}",
-                        e
-                    ));
+            if let Some(json) = &update.captcha_config_json {
+                match serde_json::from_str::<CaptchaConfig>(json) {
+                    Ok(config) => {
+                        source.arguments.captcha_config = Some(config);
+                    }
+                    Err(e) => {
+                        log::error!("Failed to parse captcha_config_json: {}", e);
+                        return Err(anyhow::anyhow!(
+                            "Invalid JSON format for captcha config: {}",
+                            e
+                        ));
+                    }
                 }
             }
-        }
 
-        found = true;
+            found = true;
             break;
         }
     }
@@ -1205,8 +1260,10 @@ pub async fn add_source_config(new_config: SourceConfigUpdate) -> anyhow::Result
     };
 
     let captcha_config = if let Some(json) = &new_config.captcha_config_json {
-        Some(serde_json::from_str::<CaptchaConfig>(json)
-            .map_err(|e| anyhow::anyhow!("Invalid CaptchaConfig JSON: {}", e))?)
+        Some(
+            serde_json::from_str::<CaptchaConfig>(json)
+                .map_err(|e| anyhow::anyhow!("Invalid CaptchaConfig JSON: {}", e))?,
+        )
     } else {
         None
     };
@@ -1465,9 +1522,7 @@ pub async fn generic_search_with_progress_runtime(
             let client = client.clone();
             let anime_name = anime_name.clone();
             let sink = sink.clone();
-            let runtime_override = runtime_override_map
-                .get(&source.arguments.name)
-                .cloned();
+            let runtime_override = runtime_override_map.get(&source.arguments.name).cloned();
             async move {
                 let source_name = source.arguments.name.clone();
 
@@ -1483,10 +1538,10 @@ pub async fn generic_search_with_progress_runtime(
                     headers: None,
                     channel_name: None,
                     channel_index: None,
-        all_channels: None,
-        captcha_config_json: None,
-    })
-    .ok();
+                    all_channels: None,
+                    captcha_config_json: None,
+                })
+                .ok();
 
                 if let Some(skip_error) = runtime_override
                     .as_ref()
@@ -1628,9 +1683,7 @@ pub async fn debug_search_with_local_json_runtime(
             let client = client.clone();
             let anime_name = anime_name.clone();
             let sink = sink.clone();
-            let runtime_override = runtime_override_map
-                .get(&source.arguments.name)
-                .cloned();
+            let runtime_override = runtime_override_map.get(&source.arguments.name).cloned();
             async move {
                 let source_name = source.arguments.name.clone();
 
@@ -1646,7 +1699,7 @@ pub async fn debug_search_with_local_json_runtime(
                     channel_name: None,
                     channel_index: None,
                     all_channels: None,
-            captcha_config_json: None,
+                    captcha_config_json: None,
                 })
                 .ok();
 
@@ -1717,15 +1770,24 @@ async fn search_single_source_with_progress(
         .add_headers_to_video
         .clone();
     let runtime_cookies = runtime_override.and_then(|item| item.cookies.as_deref());
-    let effective_cookies =
-        merge_cookie_strings(configured_cookies.as_deref(), runtime_cookies);
+    let effective_cookies = merge_cookie_strings(configured_cookies.as_deref(), runtime_cookies);
     let initial_search_page_html = runtime_override
         .and_then(|item| item.search_page_html.clone())
         .filter(|item| !item.is_empty());
     let initial_search_page_url = runtime_override
         .and_then(|item| item.search_page_url.clone())
         .filter(|item| !item.is_empty());
-    let captcha_config_json = source.arguments.captcha_config.as_ref().map(|c| serde_json::to_string(c).unwrap_or_default());
+    let initial_detail_page_html = runtime_override
+        .and_then(|item| item.detail_page_html.clone())
+        .filter(|item| !item.is_empty());
+    let initial_detail_page_url = runtime_override
+        .and_then(|item| item.detail_page_url.clone())
+        .filter(|item| !item.is_empty());
+    let captcha_config_json = source
+        .arguments
+        .captcha_config
+        .as_ref()
+        .map(|c| serde_json::to_string(c).unwrap_or_default());
 
     let search_candidates = build_search_candidates(anime_name);
     let mut detail_url = String::new();
@@ -1758,9 +1820,13 @@ async fn search_single_source_with_progress(
                         .unwrap_or_else(|| search_url.clone()),
                 )
             } else {
-                match apply_cookie_header(client.get(&search_url), effective_cookies.as_deref())
-                    .send()
-                    .await
+                match apply_browser_page_headers(
+                    apply_cookie_header(client.get(&search_url), effective_cookies.as_deref()),
+                    &search_url,
+                    None,
+                )
+                .send()
+                .await
                 {
                     Ok(resp) => match resp.text().await {
                         Ok(text) => (text, search_url.clone()),
@@ -1804,9 +1870,13 @@ async fn search_single_source_with_progress(
                 }
             }
         } else {
-            match apply_cookie_header(client.get(&search_url), effective_cookies.as_deref())
-                .send()
-                .await
+            match apply_browser_page_headers(
+                apply_cookie_header(client.get(&search_url), effective_cookies.as_deref()),
+                &search_url,
+                None,
+            )
+            .send()
+            .await
             {
                 Ok(resp) => match resp.text().await {
                     Ok(text) => (text, search_url.clone()),
@@ -2057,7 +2127,10 @@ async fn search_single_source_with_progress(
         };
 
         if !current_detail_url.is_empty() {
-            detail_url = current_detail_url;
+            detail_url = initial_detail_page_url
+                .clone()
+                .filter(|item| !item.is_empty())
+                .unwrap_or(current_detail_url);
             break;
         }
     }
@@ -2098,20 +2171,49 @@ async fn search_single_source_with_progress(
     })
     .ok();
 
-    let detail_resp_text = match apply_cookie_header(
-        client.get(&detail_url),
-        effective_cookies.as_deref(),
-    )
-    .send()
-    .await
-    {
-        Ok(resp) => match resp.text().await {
-            Ok(text) => text,
+    let detail_resp_text = if let Some(html) = initial_detail_page_html.clone() {
+        log::info!(
+            "[{}] Using detail page HTML captured from WebView",
+            source_name
+        );
+        html
+    } else {
+        match apply_browser_page_headers(
+            apply_cookie_header(client.get(&detail_url), effective_cookies.as_deref()),
+            &detail_url,
+            runtime_override
+                .as_ref()
+                .and_then(|item| item.search_page_url.as_deref()),
+        )
+        .send()
+        .await
+        {
+            Ok(resp) => match resp.text().await {
+                Ok(text) => text,
+                Err(e) => {
+                    sink.add(SourceSearchProgress {
+                        source_name: source_name.clone(),
+                        step: SearchStep::Failed,
+                        error: Some(format!("获取详情页失败: {}", e)),
+                        play_page_url: None,
+                        video_regex: None,
+                        direct_video_url: None,
+                        cookies: None,
+                        headers: None,
+                        channel_name: None,
+                        channel_index: None,
+                        all_channels: None,
+                        captcha_config_json: None,
+                    })
+                    .ok();
+                    return Err(anyhow::anyhow!("Detail fetch failed"));
+                }
+            },
             Err(e) => {
                 sink.add(SourceSearchProgress {
                     source_name: source_name.clone(),
                     step: SearchStep::Failed,
-                    error: Some(format!("获取详情页失败: {}", e)),
+                    error: Some(format!("详情页网络错误: {}", e)),
                     play_page_url: None,
                     video_regex: None,
                     direct_video_url: None,
@@ -2120,29 +2222,11 @@ async fn search_single_source_with_progress(
                     channel_name: None,
                     channel_index: None,
                     all_channels: None,
-            captcha_config_json: None,
+                    captcha_config_json: None,
                 })
                 .ok();
-                return Err(anyhow::anyhow!("Detail fetch failed"));
+                return Err(anyhow::anyhow!("Detail network error"));
             }
-        },
-        Err(e) => {
-            sink.add(SourceSearchProgress {
-                source_name: source_name.clone(),
-                step: SearchStep::Failed,
-                error: Some(format!("详情页网络错误: {}", e)),
-                play_page_url: None,
-                video_regex: None,
-                direct_video_url: None,
-                cookies: None,
-                headers: None,
-                channel_name: None,
-                channel_index: None,
-                all_channels: None,
-            captcha_config_json: None,
-            })
-            .ok();
-            return Err(anyhow::anyhow!("Detail network error"));
         }
     };
 
@@ -2210,6 +2294,28 @@ async fn search_single_source_with_progress(
                 }
 
                 log::info!("[{}] Total channels found: {}", source_name, channels.len());
+                if channels.is_empty() {
+                    if let Ok(title_sel) = Selector::parse("title") {
+                        let page_title = detail_doc
+                            .select(&title_sel)
+                            .next()
+                            .map(|el| el.text().collect::<String>().trim().to_string())
+                            .unwrap_or_default();
+                        let snippet: String = detail_resp_text
+                            .chars()
+                            .take(4000)
+                            .collect::<String>()
+                            .replace('\n', " ")
+                            .replace('\r', " ");
+                        log::warn!(
+                            "[{}] Detail page produced 0 channels. title='{}', len={}, snippet={}",
+                            source_name,
+                            page_title,
+                            detail_resp_text.len(),
+                            snippet
+                        );
+                    }
+                }
 
                 // 2. 获取第一个channel的剧集
                 if let (Ok(list_sel), Ok(item_sel)) = (
@@ -2345,15 +2451,15 @@ async fn search_single_source_with_progress(
             headers: None,
             channel_name: None,
             channel_index: None,
-        all_channels: if channels.is_empty() {
-            None
-        } else {
-            Some(channels)
-        },
-        captcha_config_json: captcha_config_json.clone(),
-    })
-    .ok();
-    return Err(anyhow::anyhow!("No episodes found"));
+            all_channels: if channels.is_empty() {
+                None
+            } else {
+                Some(channels)
+            },
+            captcha_config_json: captcha_config_json.clone(),
+        })
+        .ok();
+        return Err(anyhow::anyhow!("No episodes found"));
     }
 
     // Step 4: 尝试提取视频URL
@@ -2393,14 +2499,14 @@ async fn search_single_source_with_progress(
         direct_video_url,
         cookies: effective_cookies,
         headers,
-    channel_name: selected_channel_name,
-    channel_index: selected_channel_index,
-    all_channels,
-    captcha_config_json,
-})
-.ok();
+        channel_name: selected_channel_name,
+        channel_index: selected_channel_index,
+        all_channels,
+        captcha_config_json,
+    })
+    .ok();
 
-Ok(())
+    Ok(())
 }
 
 /// 搜索单个源

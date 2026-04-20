@@ -26,7 +26,7 @@
 // Section: imports
 
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
-use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
+use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
 
 // Section: boilerplate
@@ -3903,12 +3903,16 @@ impl SseDecode for crate::api::generic_scraper::SourceRuntimeOverride {
         let mut var_cookies = <Option<String>>::sse_decode(deserializer);
         let mut var_searchPageHtml = <Option<String>>::sse_decode(deserializer);
         let mut var_searchPageUrl = <Option<String>>::sse_decode(deserializer);
+        let mut var_detailPageHtml = <Option<String>>::sse_decode(deserializer);
+        let mut var_detailPageUrl = <Option<String>>::sse_decode(deserializer);
         let mut var_skipSearchError = <Option<String>>::sse_decode(deserializer);
         return crate::api::generic_scraper::SourceRuntimeOverride {
             source_name: var_sourceName,
             cookies: var_cookies,
             search_page_html: var_searchPageHtml,
             search_page_url: var_searchPageUrl,
+            detail_page_html: var_detailPageHtml,
+            detail_page_url: var_detailPageUrl,
             skip_search_error: var_skipSearchError,
         };
     }
@@ -4966,6 +4970,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceRuntim
             self.cookies.into_into_dart().into_dart(),
             self.search_page_html.into_into_dart().into_dart(),
             self.search_page_url.into_into_dart().into_dart(),
+            self.detail_page_html.into_into_dart().into_dart(),
+            self.detail_page_url.into_into_dart().into_dart(),
             self.skip_search_error.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -5850,6 +5856,8 @@ impl SseEncode for crate::api::generic_scraper::SourceRuntimeOverride {
         <Option<String>>::sse_encode(self.cookies, serializer);
         <Option<String>>::sse_encode(self.search_page_html, serializer);
         <Option<String>>::sse_encode(self.search_page_url, serializer);
+        <Option<String>>::sse_encode(self.detail_page_html, serializer);
+        <Option<String>>::sse_encode(self.detail_page_url, serializer);
         <Option<String>>::sse_encode(self.skip_search_error, serializer);
     }
 }
@@ -5964,7 +5972,7 @@ mod io {
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
-    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
+    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate
@@ -5988,7 +5996,7 @@ mod web {
     };
     use flutter_rust_bridge::for_generated::wasm_bindgen;
     use flutter_rust_bridge::for_generated::wasm_bindgen::prelude::*;
-    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
+    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate
