@@ -226,6 +226,8 @@ pub struct CaptchaConfig {
     pub input_selector: Option<String>,
     #[serde(rename = "submitSelector")]
     pub submit_selector: Option<String>,
+    #[serde(rename = "refreshSelector")]
+    pub refresh_selector: Option<String>,
     #[serde(rename = "initialDelayMs")]
     pub initial_delay_ms: Option<u64>,
     #[serde(rename = "ocrConstraints")]
