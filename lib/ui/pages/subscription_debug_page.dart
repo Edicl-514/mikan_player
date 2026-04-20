@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/services/webview_video_extractor.dart';
+import 'package:mikan_player/src/rust/api/config.dart' as rust_config;
 import 'package:mikan_player/src/rust/api/generic_scraper.dart'
     as generic_scraper;
 import 'package:mikan_player/utils/feature_flags.dart';
@@ -125,10 +126,10 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
     final jsonPath = _jsonPathController.text.trim();
     final animeName = _animeNameController.text.trim();
 
-    if (jsonPath.isEmpty || animeName.isEmpty) {
+    if (animeName.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('请先填写本地 JSON 路径和动漫名称')));
+      ).showSnackBar(const SnackBar(content: Text('请先填写动漫名称')));
       return;
     }
 
@@ -161,14 +162,35 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       return;
     }
 
-    final file = File(jsonPath);
-    if (!await file.exists()) {
+    String resolvedJsonPath;
+    try {
+      resolvedJsonPath = jsonPath.isNotEmpty
+          ? jsonPath
+          : '${await rust_config.getCacheDir()}${Platform.pathSeparator}playback_sources_cache.json';
+    } catch (e) {
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('文件不存在: $jsonPath')));
+      ).showSnackBar(SnackBar(content: Text('获取缓存目录失败: $e')));
+      return;
+    }
+
+    final file = File(resolvedJsonPath);
+    if (!await file.exists()) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            jsonPath.isEmpty
+                ? '缓存 JSON 不存在: $resolvedJsonPath'
+                : '文件不存在: $resolvedJsonPath',
+          ),
+        ),
+      );
       return;
     }
 
@@ -189,12 +211,12 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       _extractHeaders = const {};
       _appendLog(
         _searchLogs,
-        '开始调试搜索: anime=$animeName, abs=${absoluteEpisode ?? '-'}, rel=${relativeEpisode ?? '-'}, filter=${sourceFilter.isEmpty ? '-' : sourceFilter}',
+        '开始调试搜索: anime=$animeName, abs=${absoluteEpisode ?? '-'}, rel=${relativeEpisode ?? '-'}, filter=${sourceFilter.isEmpty ? '-' : sourceFilter}, json=${jsonPath.isEmpty ? '缓存' : '本地'}',
       );
     });
 
     final runtimeOverrides = await _prepareCaptchaRuntimeOverrides(
-      jsonPath: jsonPath,
+      jsonPath: resolvedJsonPath,
       animeName: animeName,
       sourceFilter: sourceFilter,
     );
@@ -203,7 +225,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
 
     _searchSubscription = generic_scraper
         .debugSearchWithLocalJsonRuntime(
-          jsonPath: jsonPath,
+          jsonPath: resolvedJsonPath,
           animeName: animeName,
           absoluteEpisode: absoluteEpisode,
           relativeEpisode: relativeEpisode,
@@ -497,8 +519,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             TextField(
               controller: _jsonPathController,
               decoration: const InputDecoration(
-                labelText: '本地 JSON 路径',
-                hintText: r'D:\temp\online.json',
+                labelText: '本地 JSON 路径（留空使用缓存）',
+                hintText: r'D:\temp\online.json，或留空',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -774,52 +796,48 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               ),
             const SizedBox(height: 8),
             if (_extractingSourceName != null)
-              SizedBox(
-                width: _showWebView ? double.infinity : 1,
-                height: _showWebView ? 300 : 1,
-                child: WebViewVideoExtractorWidget(
-                  key: ValueKey('subscription_debug_extract_$_extractSession'),
-                  url: _extractTarget!.playPageUrl,
-                  customVideoRegex: _extractTarget!.videoRegex != r'$^'
-                      ? _extractTarget!.videoRegex
-                      : null,
-                  timeout: const Duration(seconds: 25),
-                  showWebView: _showWebView,
-                  onLog: (message) {
-                    if (!mounted) {
-                      return;
+              WebViewVideoExtractorWidget(
+                key: ValueKey('subscription_debug_extract_$_extractSession'),
+                url: _extractTarget!.playPageUrl,
+                customVideoRegex: _extractTarget!.videoRegex != r'$^'
+                    ? _extractTarget!.videoRegex
+                    : null,
+                timeout: const Duration(seconds: 25),
+                showWebView: _showWebView,
+                onLog: (message) {
+                  if (!mounted) {
+                    return;
+                  }
+                  setState(() {
+                    _appendLog(_extractLogs, message, maxLines: 120);
+                  });
+                },
+                onResult: (result) {
+                  if (!mounted) {
+                    return;
+                  }
+                  setState(() {
+                    _extractingSourceName = null;
+                    _extractHeaders = result.headers;
+                    if (result.success) {
+                      _extractedVideoUrl = result.videoUrl;
+                      _extractError = null;
+                      _appendLog(
+                        _extractLogs,
+                        '提取成功: ${result.videoUrl}',
+                        maxLines: 120,
+                      );
+                    } else {
+                      _extractedVideoUrl = null;
+                      _extractError = result.error ?? '提取失败';
+                      _appendLog(
+                        _extractLogs,
+                        '提取失败: ${result.error}',
+                        maxLines: 120,
+                      );
                     }
-                    setState(() {
-                      _appendLog(_extractLogs, message, maxLines: 120);
-                    });
-                  },
-                  onResult: (result) {
-                    if (!mounted) {
-                      return;
-                    }
-                    setState(() {
-                      _extractingSourceName = null;
-                      _extractHeaders = result.headers;
-                      if (result.success) {
-                        _extractedVideoUrl = result.videoUrl;
-                        _extractError = null;
-                        _appendLog(
-                          _extractLogs,
-                          '提取成功: ${result.videoUrl}',
-                          maxLines: 120,
-                        );
-                      } else {
-                        _extractedVideoUrl = null;
-                        _extractError = result.error ?? '提取失败';
-                        _appendLog(
-                          _extractLogs,
-                          '提取失败: ${result.error}',
-                          maxLines: 120,
-                        );
-                      }
-                    });
-                  },
-                ),
+                  });
+                },
               ),
           ],
         ),
@@ -888,7 +906,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             ),
             child: const Padding(
               padding: EdgeInsets.all(12),
-              child: Text('此页面仅用于调试：只读取本地 JSON，不会修改缓存文件、不会覆盖订阅设置、不会影响正式播放流程。'),
+              child: Text(
+                '此页面仅用于调试：优先读取本地 JSON，留空时读取程序缓存中的 JSON，不会修改缓存文件、不会覆盖订阅设置、不会影响正式播放流程。',
+              ),
             ),
           ),
           const SizedBox(height: 12),

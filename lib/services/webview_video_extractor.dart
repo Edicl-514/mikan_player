@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/main.dart' show webViewEnvironment;
@@ -536,10 +537,28 @@ class _WebViewVideoExtractorWidgetState
     );
 
     if (widget.showWebView) {
-      return Container(
-        height: 300,
-        decoration: BoxDecoration(border: Border.all(color: Colors.grey)),
-        child: webView,
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          const maxWidth = 960.0;
+          final availableWidth = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : maxWidth;
+          final width = math.min(availableWidth, maxWidth);
+          final height = width * 9 / 16;
+
+          return Center(
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                ),
+                child: webView,
+              ),
+            ),
+          );
+        },
       );
     }
 

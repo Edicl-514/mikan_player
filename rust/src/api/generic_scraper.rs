@@ -2347,7 +2347,7 @@ async fn search_single_source_with_progress(
                                 // 记录选中的channel（默认第一个）
                                 if !channels.is_empty() {
                                     selected_channel_name = Some(channels[0].name.clone());
-                                    selected_channel_index = Some(0);
+                                    selected_channel_index = Some(channels[0].index);
                                 }
                             }
                         }
@@ -3531,11 +3531,16 @@ async fn search_single_source_with_channels(
                             format!("{}{}", base_url, ep_href)
                         };
 
+                        let mapped_channel_index = channels
+                            .get(channel_idx)
+                            .map(|ch| ch.index)
+                            .unwrap_or(channel_idx);
+
                         episodes.push(EpisodeInfo {
                             name: ep_name,
                             url: full_url,
                             episode_number,
-                            channel_index: channel_idx.min(channels.len().saturating_sub(1)),
+                            channel_index: mapped_channel_index,
                         });
                     }
                 }

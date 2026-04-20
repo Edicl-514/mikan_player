@@ -87,6 +87,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   final Map<String, String> _webViewStatus =
       {}; // WebView状态消息 (sourceName -> message)
   final Set<String> _failedWebViewPageKeys = {}; // 提取失败的WebView Key
+  final Set<String> _resolvingChannelPlayPageKeys = {}; // 正在解析的频道播放页
   int _maxConcurrentWebViews =
       3; // 最大并发WebView数量 (Reduced from 3 to prevent lag)
   int _webViewLaunchInterval = 200; // WebView启动间隔 (毫秒)
@@ -890,6 +891,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _activeWebViews.clear();
       _webViewStatus.clear();
       _failedWebViewPageKeys.clear();
+      _resolvingChannelPlayPageKeys.clear();
       _sampleStatusMessage = '正在获取播放源列表...';
       _sourceProgressMap = {};
       _enabledSourceNames = [];
@@ -999,8 +1001,33 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 '[Multi-Channel] ${progress.sourceName}: Creating results for ${progress.allChannels!.length} channels',
               );
 
+              final selectedChannelIndex = progress.channelIndex;
+
               for (int i = 0; i < progress.allChannels!.length; i++) {
                 final channel = progress.allChannels![i];
+                final channelKey = _buildSourceChannelKey(
+                  progress.sourceName,
+                  channel.index,
+                );
+                final isSelectedChannel =
+                    i == 0 || selectedChannelIndex == channel.index;
+
+                if (!isSelectedChannel) {
+                  unawaited(
+                    _resolveChannelPlayPageUrl(
+                      sourceName: progress.sourceName,
+                      animeName: searchName,
+                      channelIndex: channel.index,
+                      episodeNumber: currentEpNumber,
+                      channelName: channel.name,
+                      videoRegex: progress.videoRegex ?? '',
+                      cookies: progress.cookies,
+                      headers: progress.headers,
+                    ),
+                  );
+                  continue;
+                }
+
                 final result = SearchPlayResult(
                   sourceName: progress.sourceName,
                   playPageUrl: progress.playPageUrl!,
@@ -1010,12 +1037,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   headers: progress.headers,
                   channelName: channel.name,
                   channelIndex: channel.index,
+                  captchaConfigJson: progress.captchaConfigJson,
                 );
 
                 // 避免重复添加（使用sourceName + channelIndex作为唯一标识）
-                final key = '${progress.sourceName}_${channel.index}';
                 if (!_samplePlayPages.any(
-                  (p) => '${p.sourceName}_${p.channelIndex}' == key,
+                  (p) =>
+                      _buildSourceChannelKey(p.sourceName, p.channelIndex) ==
+                      channelKey,
                 )) {
                   debugPrint(
                     '[Add Channel Result] ${progress.sourceName} - Channel: ${channel.name}(${channel.index})',
@@ -1033,7 +1062,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 if (progress.directVideoUrl != null &&
                     progress.directVideoUrl!.isNotEmpty) {
                   if (!_sampleSuccessfulSources.any(
-                    (s) => '${s.sourceName}_${s.channelIndex}' == key,
+                    (s) =>
+                        _buildSourceChannelKey(
+                          s.sourceName,
+                          s.channelIndex,
+                        ) ==
+                        channelKey,
                   )) {
                     _sampleSuccessfulSources.add(result);
                   }
@@ -1054,6 +1088,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 headers: progress.headers,
                 channelName: progress.channelName,
                 channelIndex: progress.channelIndex,
+                captchaConfigJson: progress.captchaConfigJson,
               );
 
               // 避免重复添加
@@ -1132,6 +1167,102 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _sampleError = e.toString();
           _isLoadingSample = false;
         });
+      }
+    }
+  }
+
+  String _buildSourceChannelKey(String sourceName, BigInt? channelIndex) {
+    return '${sourceName}_${channelIndex ?? BigInt.from(-1)}';
+  }
+
+  Future<void> _resolveChannelPlayPageUrl({
+    required String sourceName,
+    required String animeName,
+    required BigInt channelIndex,
+    required int episodeNumber,
+    required String channelName,
+    required String videoRegex,
+    String? cookies,
+    Map<String, String>? headers,
+  }) async {
+    final pageKey = _buildSourceChannelKey(sourceName, channelIndex);
+    if (_resolvingChannelPlayPageKeys.contains(pageKey)) {
+      return;
+    }
+
+    _resolvingChannelPlayPageKeys.add(pageKey);
+    try {
+      final resolved = await getEpisodePlayUrl(
+        sourceName: sourceName,
+        animeName: animeName,
+        channelIndex: channelIndex,
+        episodeNumber: episodeNumber,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        final mergedHeaders = <String, String>{};
+        if (headers != null) {
+          mergedHeaders.addAll(headers);
+        }
+        if (resolved.headers != null) {
+          mergedHeaders.addAll(resolved.headers!);
+        }
+
+        final channelResult = SearchPlayResult(
+          sourceName: sourceName,
+          playPageUrl: resolved.playPageUrl,
+          videoRegex: resolved.videoRegex.isNotEmpty
+              ? resolved.videoRegex
+              : videoRegex,
+          directVideoUrl: resolved.directVideoUrl,
+          cookies: resolved.cookies ?? cookies,
+          headers: mergedHeaders.isEmpty ? null : mergedHeaders,
+          channelName: channelName,
+          channelIndex: channelIndex,
+          captchaConfigJson: resolved.captchaConfigJson,
+        );
+
+        final existingIndex = _samplePlayPages.indexWhere(
+          (page) =>
+              _buildSourceChannelKey(page.sourceName, page.channelIndex) ==
+              pageKey,
+        );
+
+        if (existingIndex >= 0) {
+          _samplePlayPages[existingIndex] = channelResult;
+        } else {
+          _samplePlayPages.add(channelResult);
+        }
+
+        if (channelResult.directVideoUrl != null &&
+            channelResult.directVideoUrl!.isNotEmpty) {
+          if (!_sampleSuccessfulSources.any(
+            (page) =>
+                _buildSourceChannelKey(page.sourceName, page.channelIndex) ==
+                pageKey,
+          )) {
+            _sampleSuccessfulSources.add(channelResult);
+          }
+        }
+
+        _samplePlayPages.sort((a, b) {
+          final tierA = _sourceTiers[a.sourceName] ?? 999;
+          final tierB = _sourceTiers[b.sourceName] ?? 999;
+          return tierA.compareTo(tierB);
+        });
+      });
+    } catch (e, st) {
+      debugPrint(
+        '[Channel Resolve] Failed to resolve play page for $sourceName channel=$channelName($channelIndex): $e\n$st',
+      );
+    } finally {
+      _resolvingChannelPlayPageKeys.remove(pageKey);
+      if (mounted) {
+        _startNextWebViewExtraction();
       }
     }
   }
@@ -1357,13 +1488,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // 找到下一个需要提取的源
       final needsExtraction = _samplePlayPages.where((page) {
         final pageKey = getPageKey(page);
+        final hasPlayPageUrl = page.playPageUrl.trim().isNotEmpty;
         final alreadySuccessful = _sampleSuccessfulSources.any(
           (s) => getPageKey(s) == pageKey,
         );
         final alreadyActive = _activeWebViews.containsKey(pageKey);
         final alreadyFailed = _failedWebViewPageKeys.contains(pageKey);
         final sourceHasActive = activeSourceNames.contains(page.sourceName);
-        return !alreadySuccessful &&
+        return hasPlayPageUrl &&
+            !alreadySuccessful &&
             !alreadyActive &&
             !alreadyFailed &&
             !sourceHasActive;
@@ -1371,7 +1504,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
       if (needsExtraction.isEmpty) {
         // 检查是否所有提取都完成了
-        if (_activeWebViews.isEmpty) {
+        if (_activeWebViews.isEmpty &&
+            _resolvingChannelPlayPageKeys.isEmpty) {
           setState(() {
             _isLoadingSample = false;
             if (_sampleSuccessfulSources.isEmpty) {

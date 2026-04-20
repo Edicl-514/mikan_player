@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -228,6 +229,8 @@ class _SearchExtractionConfig {
 }
 
 enum _WebViewFlowStage { search, detail }
+
+enum _CaptchaPageSignal { captcha, success, timedOut, superseded, cancelled }
 
 class CaptchaWebViewBypassWidget extends StatefulWidget {
   final SourceState source;
@@ -550,6 +553,7 @@ class _CaptchaWebViewBypassWidgetState
   bool _isCaptchaFlowRunning = false;
   int _captchaRetryCount = 0;
   static const _maxCaptchaRetries = 3;
+  int _loadEventToken = 0;
   _WebViewFlowStage _flowStage = _WebViewFlowStage.search;
   String? _searchPageHtml;
   String? _searchPageUrl;
@@ -669,6 +673,7 @@ class _CaptchaWebViewBypassWidgetState
       },
       onLoadStop: (ctrl, url) async {
         _log('Page loaded: $url');
+        final loadEventToken = ++_loadEventToken;
 
         if (_isCompleted) return;
         if (_isCaptchaFlowRunning) {
@@ -680,15 +685,93 @@ class _CaptchaWebViewBypassWidgetState
 
         await _logEnvironmentSnapshot(ctrl);
 
+        if (_isCompleted || loadEventToken != _loadEventToken) return;
+
+        final shouldGateForChallenge =
+            widget.captchaConfig.successSelector?.trim().isNotEmpty ?? false;
+
+        if (shouldGateForChallenge) {
+          _log(
+            'Waiting for captcha/success selector before starting initial delay...',
+          );
+          final preDelaySignal = await _waitForCaptchaOrSuccessSignal(
+            ctrl,
+            widget.captchaConfig,
+            loadEventToken: loadEventToken,
+            stageLabel: 'pre-delay',
+            timeout: const Duration(seconds: 20),
+          );
+          if (preDelaySignal == _CaptchaPageSignal.cancelled ||
+              preDelaySignal == _CaptchaPageSignal.superseded) {
+            return;
+          }
+          if (preDelaySignal == _CaptchaPageSignal.timedOut) {
+            _log(
+              'Readiness gate timed out before delay, falling back to legacy detection',
+            );
+          }
+        }
+
+        if (_isCompleted || loadEventToken != _loadEventToken) return;
+
+        _log(
+          'Starting initial delay (${widget.captchaConfig.initialDelayMs}ms) after readiness gate',
+        );
+
         await Future.delayed(
           Duration(milliseconds: widget.captchaConfig.initialDelayMs),
         );
 
-        if (_isCompleted) return;
+        if (_isCompleted || loadEventToken != _loadEventToken) return;
 
         final hasCaptcha = await _detectCaptcha(ctrl, widget.captchaConfig);
+
+        if (_isCompleted || loadEventToken != _loadEventToken) return;
+
         if (hasCaptcha) {
           await _handleCaptcha(ctrl);
+          return;
+        }
+
+        var hasSuccess = await _checkSuccess(
+          ctrl,
+          widget.captchaConfig,
+          allowEmptySelector: !shouldGateForChallenge,
+        );
+
+        if (_isCompleted || loadEventToken != _loadEventToken) return;
+
+        if (!hasSuccess && shouldGateForChallenge) {
+          _log(
+            'Success selector not found after delay, waiting for post-challenge render...',
+          );
+          final postDelaySignal = await _waitForCaptchaOrSuccessSignal(
+            ctrl,
+            widget.captchaConfig,
+            loadEventToken: loadEventToken,
+            stageLabel: 'post-delay',
+            timeout: const Duration(seconds: 12),
+          );
+
+          if (postDelaySignal == _CaptchaPageSignal.cancelled ||
+              postDelaySignal == _CaptchaPageSignal.superseded) {
+            return;
+          }
+
+          if (postDelaySignal == _CaptchaPageSignal.captcha) {
+            await _handleCaptcha(ctrl);
+            return;
+          }
+
+          hasSuccess = postDelaySignal == _CaptchaPageSignal.success;
+        }
+
+        if (_isCompleted || loadEventToken != _loadEventToken) return;
+
+        if (hasSuccess) {
+          final currentUrl = (await ctrl.getUrl())?.toString() ??
+              url?.toString();
+          await _completeSuccess(ctrl, currentUrl);
           return;
         }
 
@@ -720,10 +803,28 @@ class _CaptchaWebViewBypassWidgetState
     );
 
     if (widget.showWebView) {
-      return Container(
-        height: 300,
-        decoration: BoxDecoration(border: Border.all(color: Colors.grey)),
-        child: webView,
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          const maxWidth = 960.0;
+          final availableWidth = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : maxWidth;
+          final width = math.min(availableWidth, maxWidth);
+          final height = width * 9 / 16;
+
+          return Center(
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                ),
+                child: webView,
+              ),
+            ),
+          );
+        },
       );
     }
 
@@ -1131,10 +1232,11 @@ class _CaptchaWebViewBypassWidgetState
 
   static Future<bool> _checkSuccess(
     InAppWebViewController ctrl,
-    CaptchaConfig config,
-  ) async {
+    CaptchaConfig config, {
+    bool allowEmptySelector = true,
+  }) async {
     final selector = config.successSelector;
-    if (selector == null || selector.isEmpty) return true;
+    if (selector == null || selector.isEmpty) return allowEmptySelector;
     try {
       final exists = await ctrl.evaluateJavascript(
         source: _buildSelectorExistsScript(selector),
@@ -1143,6 +1245,50 @@ class _CaptchaWebViewBypassWidgetState
     } catch (_) {
       return false;
     }
+  }
+
+  Future<_CaptchaPageSignal> _waitForCaptchaOrSuccessSignal(
+    InAppWebViewController ctrl,
+    CaptchaConfig config, {
+    required int loadEventToken,
+    required String stageLabel,
+    required Duration timeout,
+  }) async {
+    const interval = Duration(milliseconds: 350);
+    final deadline = DateTime.now().add(timeout);
+    var tick = 0;
+
+    while (!_isCompleted &&
+        loadEventToken == _loadEventToken &&
+        DateTime.now().isBefore(deadline)) {
+      final hasCaptcha = await _detectCaptcha(ctrl, config);
+      if (hasCaptcha) {
+        _log('[$stageLabel] Captcha selector detected');
+        return _CaptchaPageSignal.captcha;
+      }
+
+      final hasSuccess = await _checkSuccess(
+        ctrl,
+        config,
+        allowEmptySelector: false,
+      );
+      if (hasSuccess) {
+        _log('[$stageLabel] Success selector detected');
+        return _CaptchaPageSignal.success;
+      }
+
+      tick += 1;
+      if (tick % 9 == 0) {
+        _log('[$stageLabel] Waiting for challenge to finish...');
+      }
+      await Future.delayed(interval);
+    }
+
+    if (_isCompleted) return _CaptchaPageSignal.cancelled;
+    if (loadEventToken != _loadEventToken) {
+      return _CaptchaPageSignal.superseded;
+    }
+    return _CaptchaPageSignal.timedOut;
   }
 
   Future<bool> _waitForSubmitResult(
