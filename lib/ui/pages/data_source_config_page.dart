@@ -21,10 +21,10 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
   late TextEditingController _resolutionController;
   late TextEditingController _searchUrlController;
   late TextEditingController _iconUrlController;
-late TextEditingController _descController;
-late TextEditingController _searchConfigJsonController;
-late TextEditingController _captchaConfigJsonController;
-bool _isSaving = false;
+  late TextEditingController _descController;
+  late TextEditingController _searchConfigJsonController;
+  late TextEditingController _captchaConfigJsonController;
+  bool _isSaving = false;
   bool _useAdvancedMode = false;
 
   @override
@@ -60,46 +60,46 @@ bool _isSaving = false;
       _searchUrlController = TextEditingController();
       _iconUrlController = TextEditingController();
       _descController = TextEditingController();
-        _searchConfigJsonController = TextEditingController(
-          text: const JsonEncoder.withIndent(' ').convert({
-            "searchUrl": "https://example.com/api/search?q={keyword}",
-            "defaultSubtitleLanguage": "{{defaultSubtitleLanguage}}",
-            "defaultResolution": "{{defaultResolution}}",
-            "subjectFormatId": "{{subjectFormatId}}",
-            "selectorSubjectFormatA": {
-              "selectLists": "{{selectSubjectALists}}",
-              "preferShorterName": "{{preferShorterName}}",
+      _searchConfigJsonController = TextEditingController(
+        text: const JsonEncoder.withIndent(' ').convert({
+          "searchUrl": "https://example.com/api/search?q={keyword}",
+          "defaultSubtitleLanguage": "{{defaultSubtitleLanguage}}",
+          "defaultResolution": "{{defaultResolution}}",
+          "subjectFormatId": "{{subjectFormatId}}",
+          "selectorSubjectFormatA": {
+            "selectLists": "{{selectSubjectALists}}",
+            "preferShorterName": "{{preferShorterName}}",
+          },
+          "selectorSubjectFormatIndexed": {
+            "selectNames": "{{selectSubjectIndexedNames}}",
+            "selectLinks": "{{selectSubjectIndexedLinks}}",
+            "preferShorterName": "{{preferShorterName}}",
+          },
+          "channelFormatId": "{{channelFormatId}}",
+          "selectorChannelFormatFlattened": {
+            "selectChannelNames": "{{selectChannelNames}}",
+            "matchChannelName": "{{matchChannelNameRegex}}",
+            "selectEpisodeLists": "{{selectEpisodeLists}}",
+            "selectEpisodesFromList": "{{selectEpisodesFromList}}",
+            "selectEpisodeLinksFromList": "{{selectEpisodeLinksFromList}}",
+            "matchEpisodeSortFromName": "{{matchEpisodeSortRegex}}",
+          },
+          "selectorChannelFormatNoChannel": {
+            "selectEpisodes": "{{selectEpisodes}}",
+            "selectEpisodeLinks": "{{selectEpisodeLinks}}",
+            "matchEpisodeSortFromName": "{{matchEpisodeSortRegexNoChannel}}",
+          },
+          "matchVideo": {
+            "matchVideoUrl": "{{matchVideoUrlRegex}}",
+            "enableNestedUrl": "{{enableNestedUrl}}",
+            "matchNestedUrl": "{{matchNestedUrl}}",
+            "cookies": "{{cookies}}",
+            "addHeadersToVideo": {
+              "userAgent": "{{userAgent}}",
+              "referer": "{{referer}}",
             },
-            "selectorSubjectFormatIndexed": {
-              "selectNames": "{{selectSubjectIndexedNames}}",
-              "selectLinks": "{{selectSubjectIndexedLinks}}",
-              "preferShorterName": "{{preferShorterName}}",
-            },
-            "channelFormatId": "{{channelFormatId}}",
-            "selectorChannelFormatFlattened": {
-              "selectChannelNames": "{{selectChannelNames}}",
-              "matchChannelName": "{{matchChannelNameRegex}}",
-              "selectEpisodeLists": "{{selectEpisodeLists}}",
-              "selectEpisodesFromList": "{{selectEpisodesFromList}}",
-              "selectEpisodeLinksFromList": "{{selectEpisodeLinksFromList}}",
-              "matchEpisodeSortFromName": "{{matchEpisodeSortRegex}}",
-            },
-            "selectorChannelFormatNoChannel": {
-              "selectEpisodes": "{{selectEpisodes}}",
-              "selectEpisodeLinks": "{{selectEpisodeLinks}}",
-              "matchEpisodeSortFromName": "{{matchEpisodeSortRegexNoChannel}}",
-            },
-            "matchVideo": {
-              "matchVideoUrl": "{{matchVideoUrlRegex}}",
-              "enableNestedUrl": "{{enableNestedUrl}}",
-              "matchNestedUrl": "{{matchNestedUrl}}",
-              "cookies": "{{cookies}}",
-              "addHeadersToVideo": {
-                "userAgent": "{{userAgent}}",
-                "referer": "{{referer}}",
-              },
-            },
-      }),
+          },
+        }),
       );
       _captchaConfigJsonController = TextEditingController();
       // Default to advanced mode for new sources as it is safer/more explicit
@@ -116,9 +116,9 @@ bool _isSaving = false;
     _searchUrlController.dispose();
     _iconUrlController.dispose();
     _descController.dispose();
-  _searchConfigJsonController.dispose();
-  _captchaConfigJsonController.dispose();
-  super.dispose();
+    _searchConfigJsonController.dispose();
+    _captchaConfigJsonController.dispose();
+    super.dispose();
   }
 
   Future<void> _save() async {
@@ -338,8 +338,7 @@ bool _isSaving = false;
             return null;
           },
         ),
-      ]
-      else ...[
+      ] else ...[
         if (isPc)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,

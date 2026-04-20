@@ -383,7 +383,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                       indicatorWeight: 3,
                       tabs: [
                         Tab(text: "详情"), // Details
-                        Tab(text: "评论"), // Comments (Merged Reviews & Discussion)
+                        Tab(
+                          text: "评论",
+                        ), // Comments (Merged Reviews & Discussion)
                       ],
                     ),
                   ),

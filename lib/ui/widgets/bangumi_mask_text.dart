@@ -5,11 +5,7 @@ class BangumiMaskText extends StatefulWidget {
   final String html;
   final TextStyle? textStyle;
 
-  const BangumiMaskText({
-    super.key,
-    required this.html,
-    this.textStyle,
-  });
+  const BangumiMaskText({super.key, required this.html, this.textStyle});
 
   @override
   State<BangumiMaskText> createState() => _BangumiMaskTextState();
@@ -36,10 +32,7 @@ class _BangumiMaskTextState extends State<BangumiMaskText> {
           decoration: BoxDecoration(
             color: _revealed ? Colors.transparent : const Color(0xFF555555),
             borderRadius: BorderRadius.circular(2),
-            border: Border.all(
-              color: const Color(0xFF555555),
-              width: 1,
-            ),
+            border: Border.all(color: const Color(0xFF555555), width: 1),
           ),
           child: HtmlWidget(
             widget.html,

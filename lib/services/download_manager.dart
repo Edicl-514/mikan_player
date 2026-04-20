@@ -162,7 +162,7 @@ class DownloadManager extends ChangeNotifier {
   bool _isInitialized = false;
 
   List<DownloadTask> get tasks => _tasks.values.toList();
-  
+
   /// Active tasks: downloading only (not seeding)
   List<DownloadTask> get activeTasks => _tasks.values
       .where(
@@ -179,14 +179,14 @@ class DownloadManager extends ChangeNotifier {
 
   /// All active or seeding tasks count (for badge)
   int get activeCount => activeTasks.length;
-  
+
   /// Count of seeding tasks
   int get seedingCount => seedingTasks.length;
 
   /// Initialize the download manager, load saved tasks
   Future<void> initialize() async {
     if (_isInitialized) return;
-    
+
     await _loadTasks();
     _isInitialized = true;
     _startStatsPolling();
@@ -202,30 +202,32 @@ class DownloadManager extends ChangeNotifier {
         for (final json in jsonList) {
           final task = DownloadTask.fromJson(json as Map<String, dynamic>);
           _tasks[task.id] = task;
-          
+
           // Track paused tasks
           if (task.status == DownloadTaskStatus.paused) {
             _pausedTaskIds.add(task.id);
           }
-          
+
           // Auto-resume torrents that were downloading or seeding
           // This ensures they continue after app restart
           if (task.magnet.isNotEmpty &&
               (task.status == DownloadTaskStatus.downloading ||
-               task.status == DownloadTaskStatus.seeding ||
-               task.status == DownloadTaskStatus.completed)) {
+                  task.status == DownloadTaskStatus.seeding ||
+                  task.status == DownloadTaskStatus.completed)) {
             // Resume in background without blocking
             _resumeTorrentInBackground(task);
           }
         }
-        debugPrint('[DownloadManager] Loaded ${_tasks.length} tasks from storage');
+        debugPrint(
+          '[DownloadManager] Loaded ${_tasks.length} tasks from storage',
+        );
       }
     } catch (e) {
       debugPrint('[DownloadManager] Error loading tasks: $e');
     }
     notifyListeners();
   }
-  
+
   /// Resume a torrent in the background after app restart
   Future<void> _resumeTorrentInBackground(DownloadTask task) async {
     try {
@@ -240,7 +242,9 @@ class DownloadManager extends ChangeNotifier {
         }
         debugPrint('[DownloadManager] Auto-resumed torrent: ${task.name}');
       } else {
-        debugPrint('[DownloadManager] Failed to auto-resume torrent: $streamUrl');
+        debugPrint(
+          '[DownloadManager] Failed to auto-resume torrent: $streamUrl',
+        );
       }
     } catch (e) {
       debugPrint('[DownloadManager] Error auto-resuming torrent: $e');
@@ -261,7 +265,7 @@ class DownloadManager extends ChangeNotifier {
   /// Find a task by anime name and episode number
   DownloadTask? findTaskByAnimeEpisode(String? animeName, int? episodeNumber) {
     if (animeName == null) return null;
-    
+
     for (final task in _tasks.values) {
       if (task.animeName == animeName && task.episodeNumber == episodeNumber) {
         return task;
@@ -273,17 +277,18 @@ class DownloadManager extends ChangeNotifier {
   /// Find all tasks for an anime
   List<DownloadTask> findTasksByAnime(String? animeName) {
     if (animeName == null) return [];
-    
-    return _tasks.values
-        .where((t) => t.animeName == animeName)
-        .toList();
+
+    return _tasks.values.where((t) => t.animeName == animeName).toList();
   }
 
   /// Check if there's an available (downloading/seeding/completed) task for the anime episode
-  DownloadTask? getAvailableTaskForEpisode(String? animeName, int? episodeNumber) {
+  DownloadTask? getAvailableTaskForEpisode(
+    String? animeName,
+    int? episodeNumber,
+  ) {
     final task = findTaskByAnimeEpisode(animeName, episodeNumber);
     if (task == null) return null;
-    
+
     // Only return if the task is in a playable state
     if (task.status == DownloadTaskStatus.downloading ||
         task.status == DownloadTaskStatus.seeding ||
@@ -312,8 +317,11 @@ class DownloadManager extends ChangeNotifier {
     // Check if already downloading and has valid stream URL
     if (_tasks.containsKey(tempId)) {
       final existingTask = _tasks[tempId]!;
-      if (existingTask.streamUrl != null && existingTask.streamUrl!.isNotEmpty) {
-        debugPrint('[DownloadManager] Torrent already active: ${existingTask.name}');
+      if (existingTask.streamUrl != null &&
+          existingTask.streamUrl!.isNotEmpty) {
+        debugPrint(
+          '[DownloadManager] Torrent already active: ${existingTask.name}',
+        );
         return existingTask.streamUrl;
       }
     }
@@ -387,12 +395,12 @@ class DownloadManager extends ChangeNotifier {
 
         if (_tasks.containsKey(hashLower)) {
           final task = _tasks[hashLower]!;
-          
+
           // Skip status update if task is paused (user explicitly paused it)
           if (_pausedTaskIds.contains(hashLower)) {
             continue;
           }
-          
+
           task.progress = stat.progress;
           task.downloadSpeed = stat.downloadSpeed;
           task.uploadSpeed = stat.uploadSpeed;
@@ -468,7 +476,7 @@ class DownloadManager extends ChangeNotifier {
   /// This stops the torrent without deleting files
   Future<bool> pauseTask(String id) async {
     if (!_tasks.containsKey(id)) return false;
-    
+
     try {
       // Pause by calling the Rust pause_torrent function
       // which internally stops the torrent without deleting files
@@ -493,16 +501,16 @@ class DownloadManager extends ChangeNotifier {
   /// This requires restarting the torrent using the magnet link
   Future<bool> resumeTask(String id) async {
     if (!_tasks.containsKey(id)) return false;
-    
+
     final task = _tasks[id]!;
-    
+
     try {
       // Resume requires restarting the torrent with the magnet link
       if (task.magnet.isNotEmpty) {
         final streamUrl = await startTorrent(magnet: task.magnet);
         if (!streamUrl.startsWith('Error')) {
-          task.status = task.progress >= 100.0 
-              ? DownloadTaskStatus.seeding 
+          task.status = task.progress >= 100.0
+              ? DownloadTaskStatus.seeding
               : DownloadTaskStatus.downloading;
           task.streamUrl = streamUrl;
           _pausedTaskIds.remove(id);

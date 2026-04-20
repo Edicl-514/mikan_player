@@ -380,12 +380,14 @@ class BangumiCacheService {
 
     // 如果关联列表为空，保存一个占位记录
     if (caches.isEmpty) {
-      caches.add(BangumiRelationCache.create(
-        sourceSubjectId: subjectId,
-        relatedSubjectId: -1, // 占位标记
-        name: '',
-        relation: 'placeholder',
-      ));
+      caches.add(
+        BangumiRelationCache.create(
+          sourceSubjectId: subjectId,
+          relatedSubjectId: -1, // 占位标记
+          name: '',
+          relation: 'placeholder',
+        ),
+      );
     }
 
     await isar.writeTxn(() async {
@@ -400,7 +402,9 @@ class BangumiCacheService {
       // 保存新的
       await isar.bangumiRelationCaches.putAll(caches);
     });
-    debugPrint('Isar Cache: Save Relations $subjectId count=${relations.length}');
+    debugPrint(
+      'Isar Cache: Save Relations $subjectId count=${relations.length}',
+    );
   }
 
   /// 将缓存转换为 BangumiRelatedSubject
@@ -410,14 +414,15 @@ class BangumiCacheService {
     return caches
         .where((cache) => cache.relatedSubjectId != -1) // 过滤占位记录
         .map((cache) {
-      return BangumiRelatedSubject(
-        id: cache.relatedSubjectId,
-        name: cache.name,
-        nameCn: cache.nameCn ?? '',
-        relation: cache.relation,
-        image: cache.imageUrl ?? '',
-      );
-    }).toList();
+          return BangumiRelatedSubject(
+            id: cache.relatedSubjectId,
+            name: cache.name,
+            nameCn: cache.nameCn ?? '',
+            relation: cache.relation,
+            image: cache.imageUrl ?? '',
+          );
+        })
+        .toList();
   }
 
   // ==================== 时间表缓存操作 ====================

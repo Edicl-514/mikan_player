@@ -201,7 +201,7 @@ class DanmakuService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('[Danmaku] Bangumi ID fetch failed: $e');
-      
+
       // 如果提供了动漫名称，尝试使用标题+集号重试
       if (animeTitle != null && animeTitle.isNotEmpty) {
         debugPrint('[Danmaku] Retrying with title-based search: $animeTitle');
@@ -211,11 +211,13 @@ class DanmakuService extends ChangeNotifier {
             episodeNumber: episodeNumber,
             relativeEpisode: relativeEpisode,
           );
-          
+
           _danmakuList = danmakuList;
           _danmakuList.sort((a, b) => a.time.compareTo(b.time));
           _isLoading = false;
-          debugPrint('[Danmaku] Retry successful, loaded ${_danmakuList.length} danmaku');
+          debugPrint(
+            '[Danmaku] Retry successful, loaded ${_danmakuList.length} danmaku',
+          );
           notifyListeners();
           return;
         } catch (retryError) {
@@ -225,7 +227,7 @@ class DanmakuService extends ChangeNotifier {
       } else {
         _error = e.toString();
       }
-      
+
       _isLoading = false;
       notifyListeners();
     }

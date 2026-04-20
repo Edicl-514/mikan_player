@@ -22,11 +22,7 @@ const TimetableCacheSchema = CollectionSchema(
       name: r'animesJson',
       type: IsarType.string,
     ),
-    r'cachedAt': PropertySchema(
-      id: 1,
-      name: r'cachedAt',
-      type: IsarType.long,
-    ),
+    r'cachedAt': PropertySchema(id: 1, name: r'cachedAt', type: IsarType.long),
     r'expiresAt': PropertySchema(
       id: 2,
       name: r'expiresAt',
@@ -37,11 +33,7 @@ const TimetableCacheSchema = CollectionSchema(
       name: r'isExpired',
       type: IsarType.bool,
     ),
-    r'quarter': PropertySchema(
-      id: 4,
-      name: r'quarter',
-      type: IsarType.string,
-    )
+    r'quarter': PropertySchema(id: 4, name: r'quarter', type: IsarType.string),
   },
   estimateSize: _timetableCacheEstimateSize,
   serialize: _timetableCacheSerialize,
@@ -59,9 +51,9 @@ const TimetableCacheSchema = CollectionSchema(
           name: r'quarter',
           type: IndexType.hash,
           caseSensitive: true,
-        )
+        ),
       ],
-    )
+    ),
   },
   links: {},
   embeddedSchemas: {},
@@ -141,7 +133,10 @@ List<IsarLinkBase<dynamic>> _timetableCacheGetLinks(TimetableCache object) {
 }
 
 void _timetableCacheAttach(
-    IsarCollection<dynamic> col, Id id, TimetableCache object) {
+  IsarCollection<dynamic> col,
+  Id id,
+  TimetableCache object,
+) {
   object.id = id;
 }
 
@@ -194,8 +189,10 @@ extension TimetableCacheByIndex on IsarCollection<TimetableCache> {
     return putAllByIndex(r'quarter', objects);
   }
 
-  List<Id> putAllByQuarterSync(List<TimetableCache> objects,
-      {bool saveLinks = true}) {
+  List<Id> putAllByQuarterSync(
+    List<TimetableCache> objects, {
+    bool saveLinks = true,
+  }) {
     return putAllByIndexSync(r'quarter', objects, saveLinks: saveLinks);
   }
 }
@@ -212,17 +209,16 @@ extension TimetableCacheQueryWhereSort
 extension TimetableCacheQueryWhere
     on QueryBuilder<TimetableCache, TimetableCache, QWhereClause> {
   QueryBuilder<TimetableCache, TimetableCache, QAfterWhereClause> idEqualTo(
-      Id id) {
+    Id id,
+  ) {
     return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(IdWhereClause.between(
-        lower: id,
-        upper: id,
-      ));
+      return query.addWhereClause(IdWhereClause.between(lower: id, upper: id));
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterWhereClause> idNotEqualTo(
-      Id id) {
+    Id id,
+  ) {
     return QueryBuilder.apply(this, (query) {
       if (query.whereSort == Sort.asc) {
         return query
@@ -245,8 +241,9 @@ extension TimetableCacheQueryWhere
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterWhereClause> idGreaterThan(
-      Id id,
-      {bool include = false}) {
+    Id id, {
+    bool include = false,
+  }) {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(
         IdWhereClause.greaterThan(lower: id, includeLower: include),
@@ -255,8 +252,9 @@ extension TimetableCacheQueryWhere
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterWhereClause> idLessThan(
-      Id id,
-      {bool include = false}) {
+    Id id, {
+    bool include = false,
+  }) {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(
         IdWhereClause.lessThan(upper: id, includeUpper: include),
@@ -271,56 +269,65 @@ extension TimetableCacheQueryWhere
     bool includeUpper = true,
   }) {
     return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(IdWhereClause.between(
-        lower: lowerId,
-        includeLower: includeLower,
-        upper: upperId,
-        includeUpper: includeUpper,
-      ));
+      return query.addWhereClause(
+        IdWhereClause.between(
+          lower: lowerId,
+          includeLower: includeLower,
+          upper: upperId,
+          includeUpper: includeUpper,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterWhereClause>
-      quarterEqualTo(String quarter) {
+  quarterEqualTo(String quarter) {
     return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(IndexWhereClause.equalTo(
-        indexName: r'quarter',
-        value: [quarter],
-      ));
+      return query.addWhereClause(
+        IndexWhereClause.equalTo(indexName: r'quarter', value: [quarter]),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterWhereClause>
-      quarterNotEqualTo(String quarter) {
+  quarterNotEqualTo(String quarter) {
     return QueryBuilder.apply(this, (query) {
       if (query.whereSort == Sort.asc) {
         return query
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'quarter',
-              lower: [],
-              upper: [quarter],
-              includeUpper: false,
-            ))
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'quarter',
-              lower: [quarter],
-              includeLower: false,
-              upper: [],
-            ));
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'quarter',
+                lower: [],
+                upper: [quarter],
+                includeUpper: false,
+              ),
+            )
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'quarter',
+                lower: [quarter],
+                includeLower: false,
+                upper: [],
+              ),
+            );
       } else {
         return query
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'quarter',
-              lower: [quarter],
-              includeLower: false,
-              upper: [],
-            ))
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'quarter',
-              lower: [],
-              upper: [quarter],
-              includeUpper: false,
-            ));
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'quarter',
+                lower: [quarter],
+                includeLower: false,
+                upper: [],
+              ),
+            )
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'quarter',
+                lower: [],
+                upper: [quarter],
+                includeUpper: false,
+              ),
+            );
       }
     });
   }
@@ -329,53 +336,56 @@ extension TimetableCacheQueryWhere
 extension TimetableCacheQueryFilter
     on QueryBuilder<TimetableCache, TimetableCache, QFilterCondition> {
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      animesJsonEqualTo(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+  animesJsonEqualTo(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'animesJson',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.equalTo(
+          property: r'animesJson',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      animesJsonGreaterThan(
-    String value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        include: include,
-        property: r'animesJson',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      animesJsonLessThan(
+  animesJsonGreaterThan(
     String value, {
     bool include = false,
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.lessThan(
-        include: include,
-        property: r'animesJson',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'animesJson',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      animesJsonBetween(
+  animesJsonLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'animesJson',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
+  animesJsonBetween(
     String lower,
     String upper, {
     bool includeLower = true,
@@ -383,234 +393,232 @@ extension TimetableCacheQueryFilter
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.between(
-        property: r'animesJson',
-        lower: lower,
-        includeLower: includeLower,
-        upper: upper,
-        includeUpper: includeUpper,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'animesJson',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      animesJsonStartsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+  animesJsonStartsWith(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'animesJson',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.startsWith(
+          property: r'animesJson',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      animesJsonEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+  animesJsonEndsWith(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'animesJson',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.endsWith(
+          property: r'animesJson',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      animesJsonContains(String value, {bool caseSensitive = true}) {
+  animesJsonContains(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.contains(
-        property: r'animesJson',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.contains(
+          property: r'animesJson',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      animesJsonMatches(String pattern, {bool caseSensitive = true}) {
+  animesJsonMatches(String pattern, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.matches(
-        property: r'animesJson',
-        wildcard: pattern,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.matches(
+          property: r'animesJson',
+          wildcard: pattern,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      animesJsonIsEmpty() {
+  animesJsonIsEmpty() {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'animesJson',
-        value: '',
-      ));
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'animesJson', value: ''),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      animesJsonIsNotEmpty() {
+  animesJsonIsNotEmpty() {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'animesJson',
-        value: '',
-      ));
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(property: r'animesJson', value: ''),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      cachedAtEqualTo(int value) {
+  cachedAtEqualTo(int value) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'cachedAt',
-        value: value,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'cachedAt', value: value),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      cachedAtGreaterThan(
-    int value, {
-    bool include = false,
-  }) {
+  cachedAtGreaterThan(int value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        include: include,
-        property: r'cachedAt',
-        value: value,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'cachedAt',
+          value: value,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      cachedAtLessThan(
-    int value, {
-    bool include = false,
-  }) {
+  cachedAtLessThan(int value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.lessThan(
-        include: include,
-        property: r'cachedAt',
-        value: value,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'cachedAt',
+          value: value,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      cachedAtBetween(
+  cachedAtBetween(
     int lower,
     int upper, {
     bool includeLower = true,
     bool includeUpper = true,
   }) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.between(
-        property: r'cachedAt',
-        lower: lower,
-        includeLower: includeLower,
-        upper: upper,
-        includeUpper: includeUpper,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'cachedAt',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      expiresAtEqualTo(int value) {
+  expiresAtEqualTo(int value) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'expiresAt',
-        value: value,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'expiresAt', value: value),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      expiresAtGreaterThan(
-    int value, {
-    bool include = false,
-  }) {
+  expiresAtGreaterThan(int value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        include: include,
-        property: r'expiresAt',
-        value: value,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'expiresAt',
+          value: value,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      expiresAtLessThan(
-    int value, {
-    bool include = false,
-  }) {
+  expiresAtLessThan(int value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.lessThan(
-        include: include,
-        property: r'expiresAt',
-        value: value,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'expiresAt',
+          value: value,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      expiresAtBetween(
+  expiresAtBetween(
     int lower,
     int upper, {
     bool includeLower = true,
     bool includeUpper = true,
   }) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.between(
-        property: r'expiresAt',
-        lower: lower,
-        includeLower: includeLower,
-        upper: upper,
-        includeUpper: includeUpper,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'expiresAt',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition> idEqualTo(
-      Id value) {
+    Id value,
+  ) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'id',
-        value: value,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'id', value: value),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      idGreaterThan(
-    Id value, {
-    bool include = false,
-  }) {
+  idGreaterThan(Id value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        include: include,
-        property: r'id',
-        value: value,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'id',
+          value: value,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      idLessThan(
-    Id value, {
-    bool include = false,
-  }) {
+  idLessThan(Id value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.lessThan(
-        include: include,
-        property: r'id',
-        value: value,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'id',
+          value: value,
+        ),
+      );
     });
   }
 
@@ -621,74 +629,78 @@ extension TimetableCacheQueryFilter
     bool includeUpper = true,
   }) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.between(
-        property: r'id',
-        lower: lower,
-        includeLower: includeLower,
-        upper: upper,
-        includeUpper: includeUpper,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'id',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      isExpiredEqualTo(bool value) {
+  isExpiredEqualTo(bool value) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'isExpired',
-        value: value,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'isExpired', value: value),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      quarterEqualTo(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+  quarterEqualTo(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'quarter',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.equalTo(
+          property: r'quarter',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      quarterGreaterThan(
-    String value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        include: include,
-        property: r'quarter',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      quarterLessThan(
+  quarterGreaterThan(
     String value, {
     bool include = false,
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.lessThan(
-        include: include,
-        property: r'quarter',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'quarter',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      quarterBetween(
+  quarterLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'quarter',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
+  quarterBetween(
     String lower,
     String upper, {
     bool includeLower = true,
@@ -696,84 +708,86 @@ extension TimetableCacheQueryFilter
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.between(
-        property: r'quarter',
-        lower: lower,
-        includeLower: includeLower,
-        upper: upper,
-        includeUpper: includeUpper,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'quarter',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      quarterStartsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+  quarterStartsWith(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'quarter',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.startsWith(
+          property: r'quarter',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      quarterEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+  quarterEndsWith(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'quarter',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.endsWith(
+          property: r'quarter',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      quarterContains(String value, {bool caseSensitive = true}) {
+  quarterContains(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.contains(
-        property: r'quarter',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.contains(
+          property: r'quarter',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      quarterMatches(String pattern, {bool caseSensitive = true}) {
+  quarterMatches(String pattern, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.matches(
-        property: r'quarter',
-        wildcard: pattern,
-        caseSensitive: caseSensitive,
-      ));
+      return query.addFilterCondition(
+        FilterCondition.matches(
+          property: r'quarter',
+          wildcard: pattern,
+          caseSensitive: caseSensitive,
+        ),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      quarterIsEmpty() {
+  quarterIsEmpty() {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'quarter',
-        value: '',
-      ));
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'quarter', value: ''),
+      );
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterFilterCondition>
-      quarterIsNotEmpty() {
+  quarterIsNotEmpty() {
     return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'quarter',
-        value: '',
-      ));
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(property: r'quarter', value: ''),
+      );
     });
   }
 }
@@ -787,14 +801,14 @@ extension TimetableCacheQueryLinks
 extension TimetableCacheQuerySortBy
     on QueryBuilder<TimetableCache, TimetableCache, QSortBy> {
   QueryBuilder<TimetableCache, TimetableCache, QAfterSortBy>
-      sortByAnimesJson() {
+  sortByAnimesJson() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'animesJson', Sort.asc);
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterSortBy>
-      sortByAnimesJsonDesc() {
+  sortByAnimesJsonDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'animesJson', Sort.desc);
     });
@@ -807,7 +821,7 @@ extension TimetableCacheQuerySortBy
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterSortBy>
-      sortByCachedAtDesc() {
+  sortByCachedAtDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cachedAt', Sort.desc);
     });
@@ -820,7 +834,7 @@ extension TimetableCacheQuerySortBy
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterSortBy>
-      sortByExpiresAtDesc() {
+  sortByExpiresAtDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'expiresAt', Sort.desc);
     });
@@ -833,7 +847,7 @@ extension TimetableCacheQuerySortBy
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterSortBy>
-      sortByIsExpiredDesc() {
+  sortByIsExpiredDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isExpired', Sort.desc);
     });
@@ -846,7 +860,7 @@ extension TimetableCacheQuerySortBy
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterSortBy>
-      sortByQuarterDesc() {
+  sortByQuarterDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'quarter', Sort.desc);
     });
@@ -856,14 +870,14 @@ extension TimetableCacheQuerySortBy
 extension TimetableCacheQuerySortThenBy
     on QueryBuilder<TimetableCache, TimetableCache, QSortThenBy> {
   QueryBuilder<TimetableCache, TimetableCache, QAfterSortBy>
-      thenByAnimesJson() {
+  thenByAnimesJson() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'animesJson', Sort.asc);
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterSortBy>
-      thenByAnimesJsonDesc() {
+  thenByAnimesJsonDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'animesJson', Sort.desc);
     });
@@ -876,7 +890,7 @@ extension TimetableCacheQuerySortThenBy
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterSortBy>
-      thenByCachedAtDesc() {
+  thenByCachedAtDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cachedAt', Sort.desc);
     });
@@ -889,7 +903,7 @@ extension TimetableCacheQuerySortThenBy
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterSortBy>
-      thenByExpiresAtDesc() {
+  thenByExpiresAtDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'expiresAt', Sort.desc);
     });
@@ -914,7 +928,7 @@ extension TimetableCacheQuerySortThenBy
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterSortBy>
-      thenByIsExpiredDesc() {
+  thenByIsExpiredDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isExpired', Sort.desc);
     });
@@ -927,7 +941,7 @@ extension TimetableCacheQuerySortThenBy
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QAfterSortBy>
-      thenByQuarterDesc() {
+  thenByQuarterDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'quarter', Sort.desc);
     });
@@ -936,8 +950,9 @@ extension TimetableCacheQuerySortThenBy
 
 extension TimetableCacheQueryWhereDistinct
     on QueryBuilder<TimetableCache, TimetableCache, QDistinct> {
-  QueryBuilder<TimetableCache, TimetableCache, QDistinct> distinctByAnimesJson(
-      {bool caseSensitive = true}) {
+  QueryBuilder<TimetableCache, TimetableCache, QDistinct> distinctByAnimesJson({
+    bool caseSensitive = true,
+  }) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'animesJson', caseSensitive: caseSensitive);
     });
@@ -950,21 +965,22 @@ extension TimetableCacheQueryWhereDistinct
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QDistinct>
-      distinctByExpiresAt() {
+  distinctByExpiresAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'expiresAt');
     });
   }
 
   QueryBuilder<TimetableCache, TimetableCache, QDistinct>
-      distinctByIsExpired() {
+  distinctByIsExpired() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'isExpired');
     });
   }
 
-  QueryBuilder<TimetableCache, TimetableCache, QDistinct> distinctByQuarter(
-      {bool caseSensitive = true}) {
+  QueryBuilder<TimetableCache, TimetableCache, QDistinct> distinctByQuarter({
+    bool caseSensitive = true,
+  }) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'quarter', caseSensitive: caseSensitive);
     });

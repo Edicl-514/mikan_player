@@ -132,9 +132,7 @@ class SubtitleService extends ChangeNotifier {
 
   /// 是否正在显示字幕
   bool get isSubtitleVisible =>
-      _settings.enabled &&
-      _currentTrack != null &&
-      _currentTrack!.id != 'no';
+      _settings.enabled && _currentTrack != null && _currentTrack!.id != 'no';
 
   SubtitleService() {
     _loadSettings();
@@ -150,7 +148,8 @@ class SubtitleService extends ChangeNotifier {
       debugPrint('[Subtitle] 发现 ${actualSubtitleTracks.length} 个字幕轨道');
       for (final track in actualSubtitleTracks) {
         debugPrint(
-            '[Subtitle]   - ${track.id}: ${track.title ?? "无标题"} (${track.language ?? "未知语言"})');
+          '[Subtitle]   - ${track.id}: ${track.title ?? "无标题"} (${track.language ?? "未知语言"})',
+        );
       }
       notifyListeners();
     });
@@ -159,7 +158,8 @@ class SubtitleService extends ChangeNotifier {
     player.stream.track.listen((track) {
       _currentTrack = track.subtitle;
       debugPrint(
-          '[Subtitle] 当前字幕轨道: ${_currentTrack?.id} - ${_currentTrack?.title}');
+        '[Subtitle] 当前字幕轨道: ${_currentTrack?.id} - ${_currentTrack?.title}',
+      );
       notifyListeners();
     });
 
@@ -332,10 +332,8 @@ class SubtitleService extends ChangeNotifier {
       _settings = SubtitleSettings(
         enabled: prefs.getBool('subtitle_enabled') ?? true,
         fontSize: prefs.getDouble('subtitle_font_size') ?? 24.0,
-        fontColor:
-            Color(prefs.getInt('subtitle_font_color') ?? 0xFFFFFFFF),
-        backgroundColor:
-            Color(prefs.getInt('subtitle_bg_color') ?? 0xFF000000),
+        fontColor: Color(prefs.getInt('subtitle_font_color') ?? 0xFFFFFFFF),
+        backgroundColor: Color(prefs.getInt('subtitle_bg_color') ?? 0xFF000000),
         backgroundOpacity: prefs.getDouble('subtitle_bg_opacity') ?? 0.5,
         outlineWidth: prefs.getDouble('subtitle_outline_width') ?? 1.5,
         bottomPadding: prefs.getDouble('subtitle_bottom_padding') ?? 48.0,
@@ -353,7 +351,10 @@ class SubtitleService extends ChangeNotifier {
       await prefs.setBool('subtitle_enabled', _settings.enabled);
       await prefs.setDouble('subtitle_font_size', _settings.fontSize);
       await prefs.setInt('subtitle_font_color', _settings.fontColor.toARGB32());
-      await prefs.setInt('subtitle_bg_color', _settings.backgroundColor.toARGB32());
+      await prefs.setInt(
+        'subtitle_bg_color',
+        _settings.backgroundColor.toARGB32(),
+      );
       await prefs.setDouble('subtitle_bg_opacity', _settings.backgroundOpacity);
       await prefs.setDouble('subtitle_outline_width', _settings.outlineWidth);
       await prefs.setDouble('subtitle_bottom_padding', _settings.bottomPadding);

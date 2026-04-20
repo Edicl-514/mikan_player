@@ -29,7 +29,7 @@ class ImageCacheService {
     if (_isInitialized) return;
 
     _cacheDir = await _getImageCacheDirectory();
-    
+
     // 确保目录存在
     if (!await _cacheDir!.exists()) {
       await _cacheDir!.create(recursive: true);
@@ -42,7 +42,7 @@ class ImageCacheService {
   /// 获取图片缓存目录（兼容 Windows 和 Android）
   Future<Directory> _getImageCacheDirectory() async {
     Directory baseDir;
-    
+
     if (Platform.isAndroid) {
       // Android: 使用外部存储的应用专属目录
       final dirs = await getExternalStorageDirectories();
@@ -119,7 +119,7 @@ class ImageCacheService {
     try {
       final localPath = getLocalPath(url);
       final bytes = await _downloadImage(url);
-      
+
       if (bytes != null && bytes.isNotEmpty) {
         final file = File(localPath);
         await file.writeAsBytes(bytes);
@@ -129,7 +129,7 @@ class ImageCacheService {
     } catch (e) {
       debugPrint('Error caching image: $e');
     }
-    
+
     return null;
   }
 
@@ -138,13 +138,16 @@ class ImageCacheService {
     try {
       final uri = Uri.parse(url);
       final request = await _httpClient.getUrl(uri);
-      
+
       // 设置必要的请求头
-      request.headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+      request.headers.set(
+        'User-Agent',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      );
       request.headers.set('Referer', '${uri.scheme}://${uri.host}/');
-      
+
       final response = await request.close();
-      
+
       if (response.statusCode == 200) {
         final bytes = await consolidateHttpClientResponseBytes(response);
         return bytes;
@@ -160,7 +163,7 @@ class ImageCacheService {
   /// 批量缓存图片
   Future<Map<String, String?>> cacheImages(List<String> urls) async {
     final results = <String, String?>{};
-    
+
     // 并行下载，但限制并发数
     const maxConcurrent = 5;
     for (var i = 0; i < urls.length; i += maxConcurrent) {
@@ -169,11 +172,11 @@ class ImageCacheService {
         final path = await cacheImage(url);
         return MapEntry(url, path);
       });
-      
+
       final entries = await Future.wait(futures);
       results.addEntries(entries);
     }
-    
+
     return results;
   }
 
@@ -253,13 +256,13 @@ class ImageCacheService {
     final now = DateTime.now();
     final maxAge = Duration(days: maxAgeDays);
     final filesToDelete = <File>[];
-    
+
     try {
       await for (final entity in _cacheDir!.list()) {
         if (entity is File) {
           final stat = await entity.stat();
           final age = now.difference(stat.modified);
-          
+
           if (age > maxAge) {
             filesToDelete.add(entity);
           }
@@ -295,7 +298,7 @@ class ImageCacheService {
           // 删除最旧的文件直到大小满足要求
           for (final file in files) {
             if (currentSize <= maxSizeBytes) break;
-            
+
             try {
               final fileSize = await file.length();
               await file.delete();

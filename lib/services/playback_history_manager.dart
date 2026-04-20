@@ -162,15 +162,17 @@ class PlaybackHistoryManager {
 
   String _encodeEpisodes(List<BangumiEpisode> episodes) {
     final list = episodes
-        .map((e) => {
-              'id': e.id,
-              'name': e.name,
-              'nameCn': e.nameCn,
-              'description': e.description,
-              'airdate': e.airdate,
-              'duration': e.duration,
-              'sort': e.sort,
-            })
+        .map(
+          (e) => {
+            'id': e.id,
+            'name': e.name,
+            'nameCn': e.nameCn,
+            'description': e.description,
+            'airdate': e.airdate,
+            'duration': e.duration,
+            'sort': e.sort,
+          },
+        )
         .toList();
     return jsonEncode(list);
   }

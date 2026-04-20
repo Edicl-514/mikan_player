@@ -55,7 +55,12 @@ class RankingCache {
   }) {
     final now = DateTime.now().millisecondsSinceEpoch;
     return RankingCache()
-      ..cacheKey = generateKey(sortType: sortType, year: year, tags: tags, page: page)
+      ..cacheKey = generateKey(
+        sortType: sortType,
+        year: year,
+        tags: tags,
+        page: page,
+      )
       ..sortType = sortType
       ..year = year
       ..tagsJson = tags?.join(',')

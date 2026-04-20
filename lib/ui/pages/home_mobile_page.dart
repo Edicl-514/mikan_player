@@ -107,7 +107,13 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       final now = DateTime.now();
       final currentYear = now.year;
       final currentMonth = now.month;
-      final quarterNum = currentMonth <= 3 ? 1 : currentMonth <= 6 ? 2 : currentMonth <= 9 ? 3 : 4;
+      final quarterNum = currentMonth <= 3
+          ? 1
+          : currentMonth <= 6
+          ? 2
+          : currentMonth <= 9
+          ? 3
+          : 4;
       final currentQuarter = '${currentYear}q$quarterNum';
 
       // 2. Get timetable（优先从缓存）
@@ -121,9 +127,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       final weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
       final todayStr = weekDays[now.weekday - 1];
 
-      var todayList = animes
-          .where((a) => a.broadcastDay == todayStr)
-          .toList();
+      var todayList = animes.where((a) => a.broadcastDay == todayStr).toList();
 
       if (mounted) {
         setState(() {
@@ -144,7 +148,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           );
           // ✅ 保存到缓存，加速后续加载
           await CacheManager.instance.cacheAnimeInfos(enriched);
-          
+
           // Update the list with enriched data
           for (final item in enriched) {
             final index = todayList.indexWhere(

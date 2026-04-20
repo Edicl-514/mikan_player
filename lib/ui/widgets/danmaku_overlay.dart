@@ -200,7 +200,7 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
 
   void _addDanmaku(Danmaku danmakuItem) {
     if (!mounted || _controller == null) return;
-    
+
     final r = (danmakuItem.color >> 16) & 0xFF;
     final g = (danmakuItem.color >> 8) & 0xFF;
     final b = danmakuItem.color & 0xFF;
@@ -243,7 +243,7 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
     // 使用 WidgetsBinding 延迟初始化，避免在 build 过程中调用 setState 或操作未就绪的控制器
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      
+
       setState(() {
         _isInitialized = true;
       });
