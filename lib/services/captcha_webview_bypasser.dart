@@ -82,6 +82,7 @@ class CaptchaConfig {
   }
 
   bool get isImageOcr => type == 'image_ocr';
+  bool get isSimpleClick => type == 'simple_click';
 }
 
 class CaptchaBypassResult {
@@ -741,12 +742,58 @@ class _CaptchaWebViewBypassWidgetState
     _isCaptchaFlowRunning = true;
 
     try {
-      if (!widget.captchaConfig.isImageOcr) {
+      if (!widget.captchaConfig.isImageOcr &&
+          !widget.captchaConfig.isSimpleClick) {
         _complete(
           CaptchaBypassResult(
             sourceName: widget.source.name,
             success: false,
             error: 'Captcha type "${widget.captchaConfig.type}" not supported',
+          ),
+        );
+        return;
+      }
+
+      if (widget.captchaConfig.isSimpleClick) {
+        while (_captchaRetryCount < _maxCaptchaRetries && !_isCompleted) {
+          _captchaRetryCount++;
+          final currentAttempt = _captchaRetryCount;
+          _log(
+            'Simple click captcha detected (attempt $currentAttempt/$_maxCaptchaRetries)',
+          );
+
+          await Future.delayed(
+            Duration(milliseconds: widget.captchaConfig.initialDelayMs),
+          );
+          if (_isCompleted) return;
+
+          await _fillInputAndSubmit(ctrl, widget.captchaConfig, '');
+
+          final submitSuccess = await _waitForSubmitResult(
+            ctrl,
+            widget.captchaConfig,
+          );
+
+          if (_isCompleted) return;
+
+          if (submitSuccess) {
+            _log('Simple click bypassed successfully');
+            final currentUrl = (await ctrl.getUrl())?.toString();
+            await _completeSuccess(ctrl, currentUrl);
+            return;
+          }
+
+          _log(
+            'Simple click failed, still present (attempt $currentAttempt/$_maxCaptchaRetries)',
+          );
+        }
+
+        _complete(
+          CaptchaBypassResult(
+            sourceName: widget.source.name,
+            success: false,
+            error:
+                'Simple click bypass failed after $_maxCaptchaRetries retries.',
           ),
         );
         return;
