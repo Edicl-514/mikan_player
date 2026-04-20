@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
@@ -17,6 +17,7 @@ import 'package:mikan_player/services/webview_video_extractor.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/services/header_injection_proxy.dart';
+import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
@@ -699,6 +700,149 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return unique.join('||');
   }
 
+  String _buildCaptchaPreflightKeyword() {
+    final fullSearchName = _buildSearchNameForSources();
+    for (final item in fullSearchName.split('||')) {
+      final trimmed = item.trim();
+      if (trimmed.isNotEmpty) {
+        return trimmed;
+      }
+    }
+    return widget.anime.title.trim();
+  }
+
+  Future<SourceRuntimeOverride> _runCaptchaPreflight({
+    required SourceState source,
+    required String searchKeyword,
+  }) async {
+    final captchaConfig = CaptchaConfig.tryParse(source.captchaConfigJson);
+    if (captchaConfig == null) {
+      return SourceRuntimeOverride(sourceName: source.name);
+    }
+
+    final completer = Completer<SourceRuntimeOverride>();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        if (!completer.isCompleted) {
+          completer.complete(
+            SourceRuntimeOverride(
+              sourceName: source.name,
+              skipSearchError: '页面已关闭，无法完成验证码预处理',
+            ),
+          );
+        }
+        return;
+      }
+
+      final overlay = Overlay.of(context);
+      OverlayEntry? entry;
+
+      entry = OverlayEntry(
+        builder: (context) => CaptchaWebViewBypassWidget(
+          key: ValueKey('captcha_bypass_${source.name}_$searchKeyword'),
+          source: source,
+          searchKeyword: searchKeyword,
+          captchaConfig: captchaConfig,
+          timeout: const Duration(seconds: 45),
+          onResult: (result) {
+            entry?.remove();
+            if (completer.isCompleted) return;
+
+            if (result.success) {
+              completer.complete(
+                SourceRuntimeOverride(
+                  sourceName: source.name,
+                  cookies: result.cookies,
+                  searchPageHtml: result.pageHtml,
+                  searchPageUrl: result.pageUrl,
+                ),
+              );
+            } else {
+              completer.complete(
+                SourceRuntimeOverride(
+                  sourceName: source.name,
+                  skipSearchError: result.error ?? 'Captcha preflight failed',
+                ),
+              );
+            }
+          },
+          onLog: (message) {
+            debugPrint('[CaptchaBypass][${source.name}] $message');
+          },
+          showWebView: _showWebView,
+        ),
+      );
+
+      overlay.insert(entry);
+    });
+
+    return completer.future;
+  }
+
+  Future<List<SourceRuntimeOverride>> _prepareCaptchaRuntimeOverrides({
+    required List<SourceState> enabledSources,
+    required String searchKeyword,
+  }) async {
+    final captchaSources = enabledSources
+        .where((source) => CaptchaConfig.tryParse(source.captchaConfigJson) != null)
+        .toList()
+      ..sort((a, b) => a.tier.compareTo(b.tier));
+
+    if (captchaSources.isEmpty) {
+      return const [];
+    }
+
+    final overrides = <SourceRuntimeOverride>[];
+
+    for (var i = 0; i < captchaSources.length; i++) {
+      final source = captchaSources[i];
+      if (!mounted) break;
+
+      setState(() {
+        _sampleStatusMessage =
+            '正在通过验证码 ${i + 1}/${captchaSources.length}: ${source.name}';
+        _sourceProgressMap[source.name] = SourceSearchProgress(
+          sourceName: source.name,
+          step: SearchStep.searching,
+          error: null,
+          playPageUrl: null,
+          videoRegex: null,
+          directVideoUrl: null,
+          cookies: null,
+          headers: null,
+          captchaConfigJson: source.captchaConfigJson,
+        );
+      });
+
+      final runtimeOverride = await _runCaptchaPreflight(
+        source: source,
+        searchKeyword: searchKeyword,
+      );
+      overrides.add(runtimeOverride);
+
+      if (!mounted) break;
+
+      setState(() {
+        _sourceProgressMap[source.name] = SourceSearchProgress(
+          sourceName: source.name,
+          step: runtimeOverride.skipSearchError == null
+              ? SearchStep.pending
+              : SearchStep.failed,
+          error: runtimeOverride.skipSearchError,
+          playPageUrl: null,
+          videoRegex: null,
+          directVideoUrl: null,
+          cookies: runtimeOverride.cookies,
+          headers: null,
+          captchaConfigJson: source.captchaConfigJson,
+        );
+      });
+    }
+
+    return overrides;
+  }
+
   Future<void> _loadSampleSource() async {
     // Ensure we have the latest setting
     try {
@@ -757,6 +901,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final enabledSources = sources.where((s) => s.enabled).toList();
       final enabledNames = enabledSources.map((s) => s.name).toList();
 
+      // 使用带进度的流式API，传入当前集号
+      final currentEpNumber = _currentEpisode.sort.toInt();
+
+      // Calculate relative episode number (1-based index in the episode list)
+      final epIndex = widget.allEpisodes.indexWhere(
+        (e) => e.id == _currentEpisode.id,
+      );
+      final relativeEpNumber = epIndex != -1 ? epIndex + 1 : currentEpNumber;
+
+      final searchName = _buildSearchNameForSources();
+      final captchaPreflightKeyword = _buildCaptchaPreflightKeyword();
+
       if (!mounted) return;
 
       setState(() {
@@ -776,24 +932,25 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             headers: null,
           );
         }
-        _sampleStatusMessage = '正在搜索 ${enabledNames.length} 个源...';
+        _sampleStatusMessage = '正在准备 ${enabledSources.length} 个源...';
       });
 
-      // 使用带进度的流式API，传入当前集号
-      final currentEpNumber = _currentEpisode.sort.toInt();
-
-      // Calculate relative episode number (1-based index in the episode list)
-      final epIndex = widget.allEpisodes.indexWhere(
-        (e) => e.id == _currentEpisode.id,
+      final runtimeOverrides = await _prepareCaptchaRuntimeOverrides(
+        enabledSources: enabledSources,
+        searchKeyword: captchaPreflightKeyword,
       );
-      final relativeEpNumber = epIndex != -1 ? epIndex + 1 : currentEpNumber;
 
-      final searchName = _buildSearchNameForSources();
+      if (!mounted) return;
 
-      await for (final progress in genericSearchWithProgress(
+      setState(() {
+        _sampleStatusMessage = '正在搜索 ${enabledSources.length} 个源...';
+      });
+
+      await for (final progress in genericSearchWithProgressRuntime(
         animeName: searchName,
         absoluteEpisode: currentEpNumber,
         relativeEpisode: relativeEpNumber,
+        runtimeOverrides: runtimeOverrides,
       )) {
         if (!mounted) return;
 
@@ -950,12 +1107,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _sampleError = '未在任何源中找到该动画';
           _isLoadingSample = false;
         } else if (_sampleSuccessfulSources.isEmpty) {
-          // 所有源都需要WebView提取，等待WebView完成
-          _sampleStatusMessage = '常规搜索完成，WebView提取进行中...';
+          _sampleStatusMessage = '搜索完成，正在提取播放链接...';
         } else {
-          // 部分源已成功，部分可能还在WebView提取中
           _sampleStatusMessage =
-              '常规搜索完成，已找到 ${_sampleSuccessfulSources.length} 个可用源';
+              '搜索完成，已找到 ${_sampleSuccessfulSources.length} 个可用源';
         }
       });
     } catch (e) {

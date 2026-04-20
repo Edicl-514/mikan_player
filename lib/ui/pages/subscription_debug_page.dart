@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/services/webview_video_extractor.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart'
-    as generic_scraper;
+as generic_scraper;
 import 'package:mikan_player/utils/feature_flags.dart';
 
 class SubscriptionDebugPage extends StatefulWidget {
@@ -191,13 +193,22 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       );
     });
 
+    final runtimeOverrides = await _prepareCaptchaRuntimeOverrides(
+      jsonPath: jsonPath,
+      animeName: animeName,
+      sourceFilter: sourceFilter,
+    );
+
+    if (!mounted) return;
+
     _searchSubscription = generic_scraper
-        .debugSearchWithLocalJson(
+        .debugSearchWithLocalJsonRuntime(
           jsonPath: jsonPath,
           animeName: animeName,
           absoluteEpisode: absoluteEpisode,
           relativeEpisode: relativeEpisode,
           sourceNameFilter: sourceFilter.isEmpty ? null : sourceFilter,
+          runtimeOverrides: runtimeOverrides,
         )
         .listen(
           (progress) {
@@ -232,6 +243,191 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             });
           },
         );
+  }
+
+  Future<generic_scraper.SourceRuntimeOverride> _runCaptchaPreflight({
+    required generic_scraper.SourceState source,
+    required String searchKeyword,
+  }) async {
+    final captchaConfig = CaptchaConfig.tryParse(source.captchaConfigJson);
+    if (captchaConfig == null) {
+      return generic_scraper.SourceRuntimeOverride(sourceName: source.name);
+    }
+
+    final completer = Completer<generic_scraper.SourceRuntimeOverride>();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        if (!completer.isCompleted) {
+          completer.complete(
+            generic_scraper.SourceRuntimeOverride(
+              sourceName: source.name,
+              skipSearchError: '页面已关闭，无法完成验证码预处理',
+            ),
+          );
+        }
+        return;
+      }
+
+      final overlay = Overlay.of(context);
+      OverlayEntry? entry;
+
+      entry = OverlayEntry(
+        builder: (context) => CaptchaWebViewBypassWidget(
+          key: ValueKey('captcha_debug_${source.name}_$searchKeyword'),
+          source: source,
+          searchKeyword: searchKeyword,
+          captchaConfig: captchaConfig,
+          timeout: const Duration(seconds: 45),
+          showWebView: _showWebView,
+          onResult: (result) {
+            entry?.remove();
+            if (completer.isCompleted) return;
+
+            if (result.success) {
+              completer.complete(
+                generic_scraper.SourceRuntimeOverride(
+                  sourceName: source.name,
+                  cookies: result.cookies,
+                  searchPageHtml: result.pageHtml,
+                  searchPageUrl: result.pageUrl,
+                ),
+              );
+            } else {
+              completer.complete(
+                generic_scraper.SourceRuntimeOverride(
+                  sourceName: source.name,
+                  skipSearchError: result.error ?? 'Captcha preflight failed',
+                ),
+              );
+            }
+          },
+          onLog: (message) {
+            _appendLog(
+              _searchLogs,
+              '[captcha][${source.name}] $message',
+              maxLines: 120,
+            );
+          },
+        ),
+      );
+
+      overlay.insert(entry);
+    });
+
+    return completer.future;
+  }
+
+  Future<List<generic_scraper.SourceRuntimeOverride>>
+  _prepareCaptchaRuntimeOverrides({
+    required String jsonPath,
+    required String animeName,
+    required String sourceFilter,
+  }) async {
+    final overrides = <generic_scraper.SourceRuntimeOverride>[];
+
+    try {
+      final jsonContent = await File(jsonPath).readAsString();
+      final root = jsonDecode(jsonContent) as Map<String, dynamic>;
+      final mediaSources = (root['exportedMediaSourceDataList']
+              as Map<String, dynamic>?)?['mediaSources']
+          as List<dynamic>?;
+
+      if (mediaSources == null) {
+        return overrides;
+      }
+
+      final captchaSources = <generic_scraper.SourceState>[];
+      for (final source in mediaSources) {
+        final args = source['arguments'] as Map<String, dynamic>?;
+        final name = args?['name'] as String? ?? '';
+        final captchaConfigRaw = args?['captchaConfig'] as Map<String, dynamic>?;
+
+        if (sourceFilter.isNotEmpty &&
+            !name.toLowerCase().contains(sourceFilter.toLowerCase())) {
+          continue;
+        }
+
+        final captchaConfig = CaptchaConfig.tryParse(
+          captchaConfigRaw != null ? jsonEncode(captchaConfigRaw) : null,
+        );
+        if (captchaConfig == null) {
+          continue;
+        }
+
+        final searchConfig =
+            args?['searchConfig'] as Map<String, dynamic>? ?? const {};
+        captchaSources.add(
+          generic_scraper.SourceState(
+            name: name,
+            description: args?['description'] as String? ?? '',
+            iconUrl: args?['iconUrl'] as String? ?? '',
+            tier: args?['tier'] as int? ?? 1,
+            defaultSubtitleLanguage:
+                searchConfig['defaultSubtitleLanguage'] as String? ?? '',
+            defaultResolution:
+                searchConfig['defaultResolution'] as String? ?? '',
+            searchUrl: searchConfig['searchUrl'] as String? ?? '',
+            searchConfigJson: jsonEncode(searchConfig),
+            captchaConfigJson: jsonEncode(captchaConfigRaw),
+            enabled: true,
+          ),
+        );
+      }
+
+      captchaSources.sort((a, b) => a.tier.compareTo(b.tier));
+
+      for (var i = 0; i < captchaSources.length; i++) {
+        final source = captchaSources[i];
+        if (!mounted) break;
+
+        setState(() {
+          _progressBySource[source.name] = generic_scraper.SourceSearchProgress(
+            sourceName: source.name,
+            step: generic_scraper.SearchStep.searching,
+            error: null,
+            playPageUrl: null,
+            videoRegex: null,
+            directVideoUrl: null,
+            cookies: null,
+            headers: null,
+            captchaConfigJson: source.captchaConfigJson,
+          );
+          _appendLog(
+            _searchLogs,
+            '${source.name} -> 正在进行验证码预处理 (${i + 1}/${captchaSources.length})',
+          );
+        });
+
+        final runtimeOverride = await _runCaptchaPreflight(
+          source: source,
+          searchKeyword: animeName,
+        );
+        overrides.add(runtimeOverride);
+
+        if (!mounted) break;
+
+        setState(() {
+          _progressBySource[source.name] = generic_scraper.SourceSearchProgress(
+            sourceName: source.name,
+            step: runtimeOverride.skipSearchError == null
+                ? generic_scraper.SearchStep.pending
+                : generic_scraper.SearchStep.failed,
+            error: runtimeOverride.skipSearchError,
+            playPageUrl: null,
+            videoRegex: null,
+            directVideoUrl: null,
+            cookies: runtimeOverride.cookies,
+            headers: null,
+            captchaConfigJson: source.captchaConfigJson,
+          );
+        });
+      }
+    } catch (e) {
+      _appendLog(_searchLogs, '解析captcha源失败: $e');
+    }
+
+    return overrides;
   }
 
   void _startExtractVideoUrl(generic_scraper.SourceSearchProgress progress) {

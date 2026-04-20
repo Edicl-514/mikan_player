@@ -6,9 +6,9 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_search_candidates`, `calculate_match_score`, `extract_channel_name`, `extract_core_name`, `extract_episode_number_from_text`, `generic_search_and_play_internal`, `get_cache_file_path`, `load_from_cache`, `load_playback_source_config`, `parse_chinese_number`, `preprocess_search_term`, `save_to_cache`, `search_single_source_with_channels`, `search_single_source_with_progress`, `search_single_source`, `select_episode_by_number`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ExportedMediaSourceDataList`, `MatchVideo`, `MediaSource`, `SEASON_RE`, `SampleRoot`, `SearchConfig`, `SelectorChannelFormatFlattened`, `SelectorChannelFormatNoChannel`, `SelectorSubjectFormatA`, `SelectorSubjectFormatIndexed`, `SourceArguments`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
+// These functions are ignored because they are not marked as `pub`: `apply_cookie_header`, `build_search_candidates`, `calculate_match_score`, `extract_channel_name`, `extract_core_name`, `extract_episode_number_from_text`, `generic_search_and_play_internal`, `get_cache_file_path`, `load_from_cache`, `load_playback_source_config`, `merge_cookie_strings`, `parse_chinese_number`, `preprocess_search_term`, `save_to_cache`, `search_single_source_with_channels`, `search_single_source_with_progress`, `search_single_source`, `select_episode_by_number`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CaptchaConfig`, `ExportedMediaSourceDataList`, `MatchVideo`, `MediaSource`, `OcrConstraints`, `SEASON_RE`, `SampleRoot`, `SearchConfig`, `SelectorChannelFormatFlattened`, `SelectorChannelFormatNoChannel`, `SelectorSubjectFormatA`, `SelectorSubjectFormatIndexed`, `SourceArguments`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
 
 /// 从订阅地址刷新播放源配置并保存到本地缓存
 Future<String> refreshPlaybackSourceConfig() =>
@@ -79,6 +79,19 @@ Stream<SourceSearchProgress> genericSearchWithProgress({
   relativeEpisode: relativeEpisode,
 );
 
+Stream<SourceSearchProgress> genericSearchWithProgressRuntime({
+  required String animeName,
+  int? absoluteEpisode,
+  int? relativeEpisode,
+  required List<SourceRuntimeOverride> runtimeOverrides,
+}) =>
+    RustLib.instance.api.crateApiGenericScraperGenericSearchWithProgressRuntime(
+      animeName: animeName,
+      absoluteEpisode: absoluteEpisode,
+      relativeEpisode: relativeEpisode,
+      runtimeOverrides: runtimeOverrides,
+    );
+
 /// 调试用途：从本地 JSON 文件加载播放源配置并执行搜索
 ///
 /// 说明：
@@ -98,6 +111,23 @@ Stream<SourceSearchProgress> debugSearchWithLocalJson({
   relativeEpisode: relativeEpisode,
   sourceNameFilter: sourceNameFilter,
 );
+
+Stream<SourceSearchProgress> debugSearchWithLocalJsonRuntime({
+  required String jsonPath,
+  required String animeName,
+  int? absoluteEpisode,
+  int? relativeEpisode,
+  String? sourceNameFilter,
+  required List<SourceRuntimeOverride> runtimeOverrides,
+}) =>
+    RustLib.instance.api.crateApiGenericScraperDebugSearchWithLocalJsonRuntime(
+      jsonPath: jsonPath,
+      animeName: animeName,
+      absoluteEpisode: absoluteEpisode,
+      relativeEpisode: relativeEpisode,
+      sourceNameFilter: sourceNameFilter,
+      runtimeOverrides: runtimeOverrides,
+    );
 
 /// 搜索并播放动画（支持集号选择）
 ///
@@ -243,6 +273,9 @@ class SearchPlayResult {
   /// Channel 索引
   final BigInt? channelIndex;
 
+  /// 验证码配置JSON（如果该源启用了captcha绕过）
+  final String? captchaConfigJson;
+
   const SearchPlayResult({
     required this.sourceName,
     required this.playPageUrl,
@@ -252,6 +285,7 @@ class SearchPlayResult {
     this.headers,
     this.channelName,
     this.channelIndex,
+    this.captchaConfigJson,
   });
 
   @override
@@ -263,7 +297,8 @@ class SearchPlayResult {
       cookies.hashCode ^
       headers.hashCode ^
       channelName.hashCode ^
-      channelIndex.hashCode;
+      channelIndex.hashCode ^
+      captchaConfigJson.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -277,7 +312,8 @@ class SearchPlayResult {
           cookies == other.cookies &&
           headers == other.headers &&
           channelName == other.channelName &&
-          channelIndex == other.channelIndex;
+          channelIndex == other.channelIndex &&
+          captchaConfigJson == other.captchaConfigJson;
 }
 
 /// 包含多channel信息的搜索结果
@@ -389,6 +425,7 @@ class SourceConfigUpdate {
   final String? iconUrl;
   final String? description;
   final String? searchConfigJson;
+  final String? captchaConfigJson;
 
   const SourceConfigUpdate({
     required this.name,
@@ -400,6 +437,7 @@ class SourceConfigUpdate {
     this.iconUrl,
     this.description,
     this.searchConfigJson,
+    this.captchaConfigJson,
   });
 
   @override
@@ -412,7 +450,8 @@ class SourceConfigUpdate {
       searchUrl.hashCode ^
       iconUrl.hashCode ^
       description.hashCode ^
-      searchConfigJson.hashCode;
+      searchConfigJson.hashCode ^
+      captchaConfigJson.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -427,7 +466,43 @@ class SourceConfigUpdate {
           searchUrl == other.searchUrl &&
           iconUrl == other.iconUrl &&
           description == other.description &&
-          searchConfigJson == other.searchConfigJson;
+          searchConfigJson == other.searchConfigJson &&
+          captchaConfigJson == other.captchaConfigJson;
+}
+
+class SourceRuntimeOverride {
+  final String sourceName;
+  final String? cookies;
+  final String? searchPageHtml;
+  final String? searchPageUrl;
+  final String? skipSearchError;
+
+  const SourceRuntimeOverride({
+    required this.sourceName,
+    this.cookies,
+    this.searchPageHtml,
+    this.searchPageUrl,
+    this.skipSearchError,
+  });
+
+  @override
+  int get hashCode =>
+      sourceName.hashCode ^
+      cookies.hashCode ^
+      searchPageHtml.hashCode ^
+      searchPageUrl.hashCode ^
+      skipSearchError.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SourceRuntimeOverride &&
+          runtimeType == other.runtimeType &&
+          sourceName == other.sourceName &&
+          cookies == other.cookies &&
+          searchPageHtml == other.searchPageHtml &&
+          searchPageUrl == other.searchPageUrl &&
+          skipSearchError == other.skipSearchError;
 }
 
 /// 带状态的搜索进度
@@ -465,6 +540,9 @@ class SourceSearchProgress {
   /// 所有可用的channels（搜索成功时填充）
   final List<ChannelInfo>? allChannels;
 
+  /// 验证码配置JSON（如果该源启用了captcha绕过）
+  final String? captchaConfigJson;
+
   const SourceSearchProgress({
     required this.sourceName,
     required this.step,
@@ -477,6 +555,7 @@ class SourceSearchProgress {
     this.channelName,
     this.channelIndex,
     this.allChannels,
+    this.captchaConfigJson,
   });
 
   @override
@@ -491,7 +570,8 @@ class SourceSearchProgress {
       headers.hashCode ^
       channelName.hashCode ^
       channelIndex.hashCode ^
-      allChannels.hashCode;
+      allChannels.hashCode ^
+      captchaConfigJson.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -508,7 +588,8 @@ class SourceSearchProgress {
           headers == other.headers &&
           channelName == other.channelName &&
           channelIndex == other.channelIndex &&
-          allChannels == other.allChannels;
+          allChannels == other.allChannels &&
+          captchaConfigJson == other.captchaConfigJson;
 }
 
 class SourceState {
@@ -520,6 +601,7 @@ class SourceState {
   final String defaultResolution;
   final String searchUrl;
   final String searchConfigJson;
+  final String? captchaConfigJson;
   final bool enabled;
 
   const SourceState({
@@ -531,6 +613,7 @@ class SourceState {
     required this.defaultResolution,
     required this.searchUrl,
     required this.searchConfigJson,
+    this.captchaConfigJson,
     required this.enabled,
   });
 
@@ -544,6 +627,7 @@ class SourceState {
       defaultResolution.hashCode ^
       searchUrl.hashCode ^
       searchConfigJson.hashCode ^
+      captchaConfigJson.hashCode ^
       enabled.hashCode;
 
   @override
@@ -559,5 +643,6 @@ class SourceState {
           defaultResolution == other.defaultResolution &&
           searchUrl == other.searchUrl &&
           searchConfigJson == other.searchConfigJson &&
+          captchaConfigJson == other.captchaConfigJson &&
           enabled == other.enabled;
 }

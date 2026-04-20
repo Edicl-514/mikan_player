@@ -21,9 +21,10 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
   late TextEditingController _resolutionController;
   late TextEditingController _searchUrlController;
   late TextEditingController _iconUrlController;
-  late TextEditingController _descController;
-  late TextEditingController _searchConfigJsonController;
-  bool _isSaving = false;
+late TextEditingController _descController;
+late TextEditingController _searchConfigJsonController;
+late TextEditingController _captchaConfigJsonController;
+bool _isSaving = false;
   bool _useAdvancedMode = false;
 
   @override
@@ -48,6 +49,9 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
       _searchConfigJsonController = TextEditingController(
         text: widget.source!.searchConfigJson,
       );
+      _captchaConfigJsonController = TextEditingController(
+        text: widget.source!.captchaConfigJson ?? '',
+      );
     } else {
       _nameController = TextEditingController();
       _tierController = TextEditingController(text: '0');
@@ -56,47 +60,48 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
       _searchUrlController = TextEditingController();
       _iconUrlController = TextEditingController();
       _descController = TextEditingController();
-      _searchConfigJsonController = TextEditingController(
-        text: const JsonEncoder.withIndent('  ').convert({
-          "searchUrl": "https://example.com/api/search?q={keyword}",
-          "defaultSubtitleLanguage": "{{defaultSubtitleLanguage}}",
-          "defaultResolution": "{{defaultResolution}}",
-          "subjectFormatId": "{{subjectFormatId}}",
-          "selectorSubjectFormatA": {
-            "selectLists": "{{selectSubjectALists}}",
-            "preferShorterName": "{{preferShorterName}}",
-          },
-          "selectorSubjectFormatIndexed": {
-            "selectNames": "{{selectSubjectIndexedNames}}",
-            "selectLinks": "{{selectSubjectIndexedLinks}}",
-            "preferShorterName": "{{preferShorterName}}",
-          },
-          "channelFormatId": "{{channelFormatId}}",
-          "selectorChannelFormatFlattened": {
-            "selectChannelNames": "{{selectChannelNames}}",
-            "matchChannelName": "{{matchChannelNameRegex}}",
-            "selectEpisodeLists": "{{selectEpisodeLists}}",
-            "selectEpisodesFromList": "{{selectEpisodesFromList}}",
-            "selectEpisodeLinksFromList": "{{selectEpisodeLinksFromList}}",
-            "matchEpisodeSortFromName": "{{matchEpisodeSortRegex}}",
-          },
-          "selectorChannelFormatNoChannel": {
-            "selectEpisodes": "{{selectEpisodes}}",
-            "selectEpisodeLinks": "{{selectEpisodeLinks}}",
-            "matchEpisodeSortFromName": "{{matchEpisodeSortRegexNoChannel}}",
-          },
-          "matchVideo": {
-            "matchVideoUrl": "{{matchVideoUrlRegex}}",
-            "enableNestedUrl": "{{enableNestedUrl}}",
-            "matchNestedUrl": "{{matchNestedUrl}}",
-            "cookies": "{{cookies}}",
-            "addHeadersToVideo": {
-              "userAgent": "{{userAgent}}",
-              "referer": "{{referer}}",
+        _searchConfigJsonController = TextEditingController(
+          text: const JsonEncoder.withIndent(' ').convert({
+            "searchUrl": "https://example.com/api/search?q={keyword}",
+            "defaultSubtitleLanguage": "{{defaultSubtitleLanguage}}",
+            "defaultResolution": "{{defaultResolution}}",
+            "subjectFormatId": "{{subjectFormatId}}",
+            "selectorSubjectFormatA": {
+              "selectLists": "{{selectSubjectALists}}",
+              "preferShorterName": "{{preferShorterName}}",
             },
-          },
-        }),
+            "selectorSubjectFormatIndexed": {
+              "selectNames": "{{selectSubjectIndexedNames}}",
+              "selectLinks": "{{selectSubjectIndexedLinks}}",
+              "preferShorterName": "{{preferShorterName}}",
+            },
+            "channelFormatId": "{{channelFormatId}}",
+            "selectorChannelFormatFlattened": {
+              "selectChannelNames": "{{selectChannelNames}}",
+              "matchChannelName": "{{matchChannelNameRegex}}",
+              "selectEpisodeLists": "{{selectEpisodeLists}}",
+              "selectEpisodesFromList": "{{selectEpisodesFromList}}",
+              "selectEpisodeLinksFromList": "{{selectEpisodeLinksFromList}}",
+              "matchEpisodeSortFromName": "{{matchEpisodeSortRegex}}",
+            },
+            "selectorChannelFormatNoChannel": {
+              "selectEpisodes": "{{selectEpisodes}}",
+              "selectEpisodeLinks": "{{selectEpisodeLinks}}",
+              "matchEpisodeSortFromName": "{{matchEpisodeSortRegexNoChannel}}",
+            },
+            "matchVideo": {
+              "matchVideoUrl": "{{matchVideoUrlRegex}}",
+              "enableNestedUrl": "{{enableNestedUrl}}",
+              "matchNestedUrl": "{{matchNestedUrl}}",
+              "cookies": "{{cookies}}",
+              "addHeadersToVideo": {
+                "userAgent": "{{userAgent}}",
+                "referer": "{{referer}}",
+              },
+            },
+      }),
       );
+      _captchaConfigJsonController = TextEditingController();
       // Default to advanced mode for new sources as it is safer/more explicit
       _useAdvancedMode = true;
     }
@@ -111,8 +116,9 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
     _searchUrlController.dispose();
     _iconUrlController.dispose();
     _descController.dispose();
-    _searchConfigJsonController.dispose();
-    super.dispose();
+  _searchConfigJsonController.dispose();
+  _captchaConfigJsonController.dispose();
+  super.dispose();
   }
 
   Future<void> _save() async {
@@ -138,6 +144,9 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
         searchConfigJson: _useAdvancedMode
             ? _searchConfigJsonController.text
             : null,
+        captchaConfigJson: _captchaConfigJsonController.text.trim().isEmpty
+            ? null
+            : _captchaConfigJsonController.text.trim(),
       );
 
       if (widget.source == null) {
@@ -298,7 +307,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
         ],
       ),
       const SizedBox(height: 8),
-      if (_useAdvancedMode)
+      if (_useAdvancedMode) ...[
         _buildTextField(
           controller: _searchConfigJsonController,
           label: 'Search Config JSON',
@@ -312,7 +321,24 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
             }
             return null;
           },
-        )
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          controller: _captchaConfigJsonController,
+          label: 'Captcha Config JSON (可选)',
+          hint: '{"enable":true,"type":"image_ocr",...}',
+          maxLines: 10,
+          validator: (val) {
+            if (val == null || val.trim().isEmpty) return null;
+            try {
+              jsonDecode(val.trim());
+            } catch (e) {
+              return '无效的 JSON 格式';
+            }
+            return null;
+          },
+        ),
+      ]
       else ...[
         if (isPc)
           Row(

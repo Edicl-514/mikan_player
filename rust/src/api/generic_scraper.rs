@@ -15,7 +15,21 @@ pub struct SourceState {
     pub default_resolution: String,
     pub search_url: String,
     pub search_config_json: String,
+    pub captcha_config_json: Option<String>,
     pub enabled: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SourceRuntimeOverride {
+    #[serde(rename = "sourceName")]
+    pub source_name: String,
+    pub cookies: Option<String>,
+    #[serde(rename = "searchPageHtml")]
+    pub search_page_html: Option<String>,
+    #[serde(rename = "searchPageUrl")]
+    pub search_page_url: Option<String>,
+    #[serde(rename = "skipSearchError")]
+    pub skip_search_error: Option<String>,
 }
 
 lazy_static::lazy_static! {
@@ -66,6 +80,59 @@ fn build_search_candidates(anime_name: &str) -> Vec<String> {
     candidates
 }
 
+fn merge_cookie_strings(
+    configured: Option<&str>,
+    runtime: Option<&str>,
+) -> Option<String> {
+    let mut ordered_names: Vec<String> = Vec::new();
+    let mut cookies = std::collections::HashMap::<String, String>::new();
+
+    for raw in [configured, runtime].into_iter().flatten() {
+        for part in raw.split(';') {
+            let trimmed = part.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            let mut segments = trimmed.splitn(2, '=');
+            let name = segments.next().unwrap_or("").trim();
+            let value = segments.next().unwrap_or("").trim();
+            if name.is_empty() {
+                continue;
+            }
+
+            let key = name.to_string();
+            if !cookies.contains_key(&key) {
+                ordered_names.push(key.clone());
+            }
+            cookies.insert(key, value.to_string());
+        }
+    }
+
+    if ordered_names.is_empty() {
+        None
+    } else {
+        Some(
+            ordered_names
+                .into_iter()
+                .filter_map(|name| cookies.get(&name).map(|value| format!("{}={}", name, value)))
+                .collect::<Vec<_>>()
+                .join("; "),
+        )
+    }
+}
+
+fn apply_cookie_header(
+    request: reqwest::RequestBuilder,
+    cookies: Option<&str>,
+) -> reqwest::RequestBuilder {
+    if let Some(cookies) = cookies.filter(|s| !s.trim().is_empty()) {
+        request.header("Cookie", cookies)
+    } else {
+        request
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SampleRoot {
     #[serde(rename = "exportedMediaSourceDataList")]
@@ -86,6 +153,35 @@ pub struct MediaSource {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct OcrConstraints {
+    #[serde(rename = "expectedLength")]
+    pub expected_length: Option<u32>,
+    #[serde(rename = "allowedChars")]
+    pub allowed_chars: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CaptchaConfig {
+    pub enable: bool,
+    #[serde(rename = "type")]
+    pub captcha_type: Option<String>,
+    #[serde(rename = "detectSelector")]
+    pub detect_selector: Option<String>,
+    #[serde(rename = "successSelector")]
+    pub success_selector: Option<String>,
+    #[serde(rename = "imageSelector")]
+    pub image_selector: Option<String>,
+    #[serde(rename = "inputSelector")]
+    pub input_selector: Option<String>,
+    #[serde(rename = "submitSelector")]
+    pub submit_selector: Option<String>,
+    #[serde(rename = "initialDelayMs")]
+    pub initial_delay_ms: Option<u64>,
+    #[serde(rename = "ocrConstraints")]
+    pub ocr_constraints: Option<OcrConstraints>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SourceArguments {
     pub name: String,
     pub description: Option<String>,
@@ -94,6 +190,8 @@ pub struct SourceArguments {
     pub tier: Option<i32>,
     #[serde(rename = "searchConfig")]
     pub search_config: SearchConfig,
+    #[serde(rename = "captchaConfig")]
+    pub captcha_config: Option<CaptchaConfig>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -771,6 +869,8 @@ pub struct SearchPlayResult {
     pub channel_name: Option<String>,
     /// Channel 索引
     pub channel_index: Option<usize>,
+    /// 验证码配置JSON（如果该源启用了captcha绕过）
+    pub captcha_config_json: Option<String>,
 }
 
 /// 搜索进度状态
@@ -817,6 +917,8 @@ pub struct SourceSearchProgress {
     pub channel_index: Option<usize>,
     /// 所有可用的channels（搜索成功时填充）
     pub all_channels: Option<Vec<ChannelInfo>>,
+    /// 验证码配置JSON（如果该源启用了captcha绕过）
+    pub captcha_config_json: Option<String>,
 }
 
 /// 获取播放源配置缓存文件路径
@@ -930,6 +1032,7 @@ pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
             .unwrap_or_default();
         let search_url = source.arguments.search_config.search_url.clone();
         let enabled = crate::api::config::is_source_enabled(&name);
+        let captcha_config_json = source.arguments.captcha_config.as_ref().map(|c| serde_json::to_string_pretty(c).unwrap_or_default());
         sources.push(SourceState {
             name,
             description,
@@ -939,6 +1042,7 @@ pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
             default_resolution,
             search_url,
             search_config_json,
+            captcha_config_json,
             enabled,
         });
     }
@@ -956,6 +1060,7 @@ pub struct SourceConfigUpdate {
     pub icon_url: Option<String>,
     pub description: Option<String>,
     pub search_config_json: Option<String>,
+    pub captcha_config_json: Option<String>,
 }
 
 /// 更新单个源的配置
@@ -1003,11 +1108,26 @@ pub async fn update_single_source_config(update: SourceConfigUpdate) -> anyhow::
                     source.arguments.search_config.search_url = url.clone();
                 }
             }
-            if let Some(i) = update.icon_url.clone() {
-                source.arguments.icon_url = Some(i);
-            }
+        if let Some(i) = update.icon_url.clone() {
+            source.arguments.icon_url = Some(i);
+        }
 
-            found = true;
+        if let Some(json) = &update.captcha_config_json {
+            match serde_json::from_str::<CaptchaConfig>(json) {
+                Ok(config) => {
+                    source.arguments.captcha_config = Some(config);
+                }
+                Err(e) => {
+                    log::error!("Failed to parse captcha_config_json: {}", e);
+                    return Err(anyhow::anyhow!(
+                        "Invalid JSON format for captcha config: {}",
+                        e
+                    ));
+                }
+            }
+        }
+
+        found = true;
             break;
         }
     }
@@ -1084,6 +1204,13 @@ pub async fn add_source_config(new_config: SourceConfigUpdate) -> anyhow::Result
         }
     };
 
+    let captcha_config = if let Some(json) = &new_config.captcha_config_json {
+        Some(serde_json::from_str::<CaptchaConfig>(json)
+            .map_err(|e| anyhow::anyhow!("Invalid CaptchaConfig JSON: {}", e))?)
+    } else {
+        None
+    };
+
     let new_source = MediaSource {
         factory_id: "web-selector".to_string(),
         arguments: SourceArguments {
@@ -1092,6 +1219,7 @@ pub async fn add_source_config(new_config: SourceConfigUpdate) -> anyhow::Result
             icon_url: new_config.icon_url,
             tier: new_config.tier,
             search_config,
+            captcha_config,
         },
     };
 
@@ -1279,10 +1407,30 @@ pub async fn generic_search_with_progress(
     relative_episode: Option<u32>,
     sink: crate::frb_generated::StreamSink<SourceSearchProgress>,
 ) -> anyhow::Result<()> {
+    generic_search_with_progress_runtime(
+        anime_name,
+        absolute_episode,
+        relative_episode,
+        Vec::new(),
+        sink,
+    )
+    .await
+}
+
+pub async fn generic_search_with_progress_runtime(
+    anime_name: String,
+    absolute_episode: Option<u32>,
+    relative_episode: Option<u32>,
+    runtime_overrides: Vec<SourceRuntimeOverride>,
+    sink: crate::frb_generated::StreamSink<SourceSearchProgress>,
+) -> anyhow::Result<()> {
     let client = crate::api::network::create_client()?;
     let content = load_playback_source_config(&client).await?;
-
     let root: SampleRoot = serde_json::from_str(&content)?;
+    let runtime_override_map: std::collections::HashMap<_, _> = runtime_overrides
+        .into_iter()
+        .map(|item| (item.source_name.clone(), item))
+        .collect();
 
     // 1. Filter enabled sources and sort by tier
     let mut sources: Vec<_> = root
@@ -1317,6 +1465,9 @@ pub async fn generic_search_with_progress(
             let client = client.clone();
             let anime_name = anime_name.clone();
             let sink = sink.clone();
+            let runtime_override = runtime_override_map
+                .get(&source.arguments.name)
+                .cloned();
             async move {
                 let source_name = source.arguments.name.clone();
 
@@ -1332,9 +1483,32 @@ pub async fn generic_search_with_progress(
                     headers: None,
                     channel_name: None,
                     channel_index: None,
-                    all_channels: None,
-                })
-                .ok();
+        all_channels: None,
+        captcha_config_json: None,
+    })
+    .ok();
+
+                if let Some(skip_error) = runtime_override
+                    .as_ref()
+                    .and_then(|item| item.skip_search_error.clone())
+                {
+                    sink.add(SourceSearchProgress {
+                        source_name,
+                        step: SearchStep::Failed,
+                        error: Some(skip_error),
+                        play_page_url: None,
+                        video_regex: None,
+                        direct_video_url: None,
+                        cookies: None,
+                        headers: None,
+                        channel_name: None,
+                        channel_index: None,
+                        all_channels: None,
+                        captcha_config_json: None,
+                    })
+                    .ok();
+                    return Ok(());
+                }
 
                 // 执行搜索并返回带进度的结果
                 search_single_source_with_progress(
@@ -1344,6 +1518,7 @@ pub async fn generic_search_with_progress(
                     absolute_episode,
                     relative_episode,
                     &sink,
+                    runtime_override.as_ref(),
                 )
                 .await
             }
@@ -1371,12 +1546,37 @@ pub async fn debug_search_with_local_json(
     source_name_filter: Option<String>,
     sink: crate::frb_generated::StreamSink<SourceSearchProgress>,
 ) -> anyhow::Result<()> {
+    debug_search_with_local_json_runtime(
+        json_path,
+        anime_name,
+        absolute_episode,
+        relative_episode,
+        source_name_filter,
+        Vec::new(),
+        sink,
+    )
+    .await
+}
+
+pub async fn debug_search_with_local_json_runtime(
+    json_path: String,
+    anime_name: String,
+    absolute_episode: Option<u32>,
+    relative_episode: Option<u32>,
+    source_name_filter: Option<String>,
+    runtime_overrides: Vec<SourceRuntimeOverride>,
+    sink: crate::frb_generated::StreamSink<SourceSearchProgress>,
+) -> anyhow::Result<()> {
     let client = crate::api::network::create_client()?;
 
     let content = fs::read_to_string(&json_path)
         .map_err(|e| anyhow::anyhow!("Failed to read local JSON file '{}': {}", json_path, e))?;
     let root: SampleRoot = serde_json::from_str(&content)
         .map_err(|e| anyhow::anyhow!("Failed to parse local JSON file '{}': {}", json_path, e))?;
+    let runtime_override_map: std::collections::HashMap<_, _> = runtime_overrides
+        .into_iter()
+        .map(|item| (item.source_name.clone(), item))
+        .collect();
 
     let normalized_filter = source_name_filter
         .as_deref()
@@ -1428,6 +1628,9 @@ pub async fn debug_search_with_local_json(
             let client = client.clone();
             let anime_name = anime_name.clone();
             let sink = sink.clone();
+            let runtime_override = runtime_override_map
+                .get(&source.arguments.name)
+                .cloned();
             async move {
                 let source_name = source.arguments.name.clone();
 
@@ -1443,8 +1646,31 @@ pub async fn debug_search_with_local_json(
                     channel_name: None,
                     channel_index: None,
                     all_channels: None,
+            captcha_config_json: None,
                 })
                 .ok();
+
+                if let Some(skip_error) = runtime_override
+                    .as_ref()
+                    .and_then(|item| item.skip_search_error.clone())
+                {
+                    sink.add(SourceSearchProgress {
+                        source_name,
+                        step: SearchStep::Failed,
+                        error: Some(skip_error),
+                        play_page_url: None,
+                        video_regex: None,
+                        direct_video_url: None,
+                        cookies: None,
+                        headers: None,
+                        channel_name: None,
+                        channel_index: None,
+                        all_channels: None,
+                        captcha_config_json: None,
+                    })
+                    .ok();
+                    return Ok(());
+                }
 
                 search_single_source_with_progress(
                     &client,
@@ -1453,6 +1679,7 @@ pub async fn debug_search_with_local_json(
                     absolute_episode,
                     relative_episode,
                     &sink,
+                    runtime_override.as_ref(),
                 )
                 .await
             }
@@ -1473,6 +1700,7 @@ async fn search_single_source_with_progress(
     absolute_episode: Option<u32>,
     relative_episode: Option<u32>,
     sink: &crate::frb_generated::StreamSink<SourceSearchProgress>,
+    runtime_override: Option<&SourceRuntimeOverride>,
 ) -> anyhow::Result<()> {
     let source_name = source.arguments.name.clone();
     let video_regex = source
@@ -1481,13 +1709,23 @@ async fn search_single_source_with_progress(
         .match_video
         .match_video_url
         .clone();
-    let cookies = source.arguments.search_config.match_video.cookies.clone();
+    let configured_cookies = source.arguments.search_config.match_video.cookies.clone();
     let headers = source
         .arguments
         .search_config
         .match_video
         .add_headers_to_video
         .clone();
+    let runtime_cookies = runtime_override.and_then(|item| item.cookies.as_deref());
+    let effective_cookies =
+        merge_cookie_strings(configured_cookies.as_deref(), runtime_cookies);
+    let initial_search_page_html = runtime_override
+        .and_then(|item| item.search_page_html.clone())
+        .filter(|item| !item.is_empty());
+    let initial_search_page_url = runtime_override
+        .and_then(|item| item.search_page_url.clone())
+        .filter(|item| !item.is_empty());
+    let captcha_config_json = source.arguments.captcha_config.as_ref().map(|c| serde_json::to_string(c).unwrap_or_default());
 
     let search_candidates = build_search_candidates(anime_name);
     let mut detail_url = String::new();
@@ -1511,15 +1749,91 @@ async fn search_single_source_with_progress(
             .search_config
             .search_url
             .replace("{keyword}", &search_term);
-
-        let resp_text = match client.get(&search_url).send().await {
-            Ok(resp) => match resp.text().await {
-                Ok(text) => text,
+        let (resp_text, response_search_url) = if idx == 0 {
+            if let Some(html) = initial_search_page_html.clone() {
+                (
+                    html,
+                    initial_search_page_url
+                        .clone()
+                        .unwrap_or_else(|| search_url.clone()),
+                )
+            } else {
+                match apply_cookie_header(client.get(&search_url), effective_cookies.as_deref())
+                    .send()
+                    .await
+                {
+                    Ok(resp) => match resp.text().await {
+                        Ok(text) => (text, search_url.clone()),
+                        Err(e) => {
+                            sink.add(SourceSearchProgress {
+                                source_name: source_name.clone(),
+                                step: SearchStep::Failed,
+                                error: Some(format!("搜索请求失败: {}", e)),
+                                play_page_url: None,
+                                video_regex: None,
+                                direct_video_url: None,
+                                cookies: None,
+                                headers: None,
+                                channel_name: None,
+                                channel_index: None,
+                                all_channels: None,
+                                captcha_config_json: None,
+                            })
+                            .ok();
+                            return Err(anyhow::anyhow!("Search request failed"));
+                        }
+                    },
+                    Err(e) => {
+                        sink.add(SourceSearchProgress {
+                            source_name: source_name.clone(),
+                            step: SearchStep::Failed,
+                            error: Some(format!("网络错误: {}", e)),
+                            play_page_url: None,
+                            video_regex: None,
+                            direct_video_url: None,
+                            cookies: None,
+                            headers: None,
+                            channel_name: None,
+                            channel_index: None,
+                            all_channels: None,
+                            captcha_config_json: None,
+                        })
+                        .ok();
+                        return Err(anyhow::anyhow!("Network error"));
+                    }
+                }
+            }
+        } else {
+            match apply_cookie_header(client.get(&search_url), effective_cookies.as_deref())
+                .send()
+                .await
+            {
+                Ok(resp) => match resp.text().await {
+                    Ok(text) => (text, search_url.clone()),
+                    Err(e) => {
+                        sink.add(SourceSearchProgress {
+                            source_name: source_name.clone(),
+                            step: SearchStep::Failed,
+                            error: Some(format!("搜索请求失败: {}", e)),
+                            play_page_url: None,
+                            video_regex: None,
+                            direct_video_url: None,
+                            cookies: None,
+                            headers: None,
+                            channel_name: None,
+                            channel_index: None,
+                            all_channels: None,
+                            captcha_config_json: None,
+                        })
+                        .ok();
+                        return Err(anyhow::anyhow!("Search request failed"));
+                    }
+                },
                 Err(e) => {
                     sink.add(SourceSearchProgress {
                         source_name: source_name.clone(),
                         step: SearchStep::Failed,
-                        error: Some(format!("搜索请求失败: {}", e)),
+                        error: Some(format!("网络错误: {}", e)),
                         play_page_url: None,
                         video_regex: None,
                         direct_video_url: None,
@@ -1528,27 +1842,11 @@ async fn search_single_source_with_progress(
                         channel_name: None,
                         channel_index: None,
                         all_channels: None,
+                        captcha_config_json: None,
                     })
                     .ok();
-                    return Err(anyhow::anyhow!("Search request failed"));
+                    return Err(anyhow::anyhow!("Network error"));
                 }
-            },
-            Err(e) => {
-                sink.add(SourceSearchProgress {
-                    source_name: source_name.clone(),
-                    step: SearchStep::Failed,
-                    error: Some(format!("网络错误: {}", e)),
-                    play_page_url: None,
-                    video_regex: None,
-                    direct_video_url: None,
-                    cookies: None,
-                    headers: None,
-                    channel_name: None,
-                    channel_index: None,
-                    all_channels: None,
-                })
-                .ok();
-                return Err(anyhow::anyhow!("Network error"));
             }
         };
 
@@ -1607,7 +1905,9 @@ async fn search_single_source_with_progress(
                                 if href.starts_with("http") {
                                     found_url = href;
                                 } else {
-                                    let base_url = if let Ok(u) = url::Url::parse(&search_url) {
+                                    let base_url = if let Ok(u) =
+                                        url::Url::parse(&response_search_url)
+                                    {
                                         format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
                                     } else {
                                         "".to_string()
@@ -1705,7 +2005,9 @@ async fn search_single_source_with_progress(
                                 if href.starts_with("http") {
                                     found_url = href;
                                 } else {
-                                    let base_url = if let Ok(u) = url::Url::parse(&search_url) {
+                                    let base_url = if let Ok(u) =
+                                        url::Url::parse(&response_search_url)
+                                    {
                                         format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
                                     } else {
                                         "".to_string()
@@ -1773,6 +2075,7 @@ async fn search_single_source_with_progress(
             channel_name: None,
             channel_index: None,
             all_channels: None,
+            captcha_config_json: None,
         })
         .ok();
         return Err(anyhow::anyhow!("No matching anime found"));
@@ -1791,10 +2094,17 @@ async fn search_single_source_with_progress(
         channel_name: None,
         channel_index: None,
         all_channels: None,
+        captcha_config_json: None,
     })
     .ok();
 
-    let detail_resp_text = match client.get(&detail_url).send().await {
+    let detail_resp_text = match apply_cookie_header(
+        client.get(&detail_url),
+        effective_cookies.as_deref(),
+    )
+    .send()
+    .await
+    {
         Ok(resp) => match resp.text().await {
             Ok(text) => text,
             Err(e) => {
@@ -1810,6 +2120,7 @@ async fn search_single_source_with_progress(
                     channel_name: None,
                     channel_index: None,
                     all_channels: None,
+            captcha_config_json: None,
                 })
                 .ok();
                 return Err(anyhow::anyhow!("Detail fetch failed"));
@@ -1828,6 +2139,7 @@ async fn search_single_source_with_progress(
                 channel_name: None,
                 channel_index: None,
                 all_channels: None,
+            captcha_config_json: None,
             })
             .ok();
             return Err(anyhow::anyhow!("Detail network error"));
@@ -1847,6 +2159,7 @@ async fn search_single_source_with_progress(
         channel_name: None,
         channel_index: None,
         all_channels: None,
+        captcha_config_json: None,
     })
     .ok();
 
@@ -2032,14 +2345,15 @@ async fn search_single_source_with_progress(
             headers: None,
             channel_name: None,
             channel_index: None,
-            all_channels: if channels.is_empty() {
-                None
-            } else {
-                Some(channels)
-            },
-        })
-        .ok();
-        return Err(anyhow::anyhow!("No episodes found"));
+        all_channels: if channels.is_empty() {
+            None
+        } else {
+            Some(channels)
+        },
+        captcha_config_json: captcha_config_json.clone(),
+    })
+    .ok();
+    return Err(anyhow::anyhow!("No episodes found"));
     }
 
     // Step 4: 尝试提取视频URL
@@ -2056,11 +2370,12 @@ async fn search_single_source_with_progress(
         play_page_url: Some(episode_url.clone()),
         video_regex: Some(video_regex.clone()),
         direct_video_url: None,
-        cookies: cookies.clone(),
+        cookies: effective_cookies.clone(),
         headers: headers.clone(),
         channel_name: selected_channel_name.clone(),
         channel_index: selected_channel_index,
         all_channels: all_channels.clone(),
+        captcha_config_json: captcha_config_json.clone(),
     })
     .ok();
 
@@ -2076,15 +2391,16 @@ async fn search_single_source_with_progress(
         play_page_url: Some(episode_url),
         video_regex: Some(video_regex),
         direct_video_url,
-        cookies,
+        cookies: effective_cookies,
         headers,
-        channel_name: selected_channel_name,
-        channel_index: selected_channel_index,
-        all_channels,
-    })
-    .ok();
+    channel_name: selected_channel_name,
+    channel_index: selected_channel_index,
+    all_channels,
+    captcha_config_json,
+})
+.ok();
 
-    Ok(())
+Ok(())
 }
 
 /// 搜索单个源
@@ -2451,8 +2767,9 @@ async fn search_single_source(
         direct_video_url,
         cookies,
         headers,
-        channel_name: None, // 单集搜索模式不返回channel信息
+        channel_name: None,
         channel_index: None,
+        captcha_config_json: None,
     })
 }
 
@@ -3408,5 +3725,6 @@ pub async fn get_episode_play_url(
         headers: result.headers,
         channel_name,
         channel_index: Some(channel_index),
+        captcha_config_json: None,
     })
 }

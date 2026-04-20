@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -857173159;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1301636067;
 
 // Section: executor
 
@@ -401,6 +401,64 @@ fn wire__crate__api__generic_scraper__debug_search_with_local_json_impl(
                             api_sink,
                         )
                         .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__generic_scraper__debug_search_with_local_json_runtime_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "debug_search_with_local_json_runtime",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_json_path = <String>::sse_decode(&mut deserializer);
+            let api_anime_name = <String>::sse_decode(&mut deserializer);
+            let api_absolute_episode = <Option<u32>>::sse_decode(&mut deserializer);
+            let api_relative_episode = <Option<u32>>::sse_decode(&mut deserializer);
+            let api_source_name_filter = <Option<String>>::sse_decode(&mut deserializer);
+            let api_runtime_overrides =
+                <Vec<crate::api::generic_scraper::SourceRuntimeOverride>>::sse_decode(
+                    &mut deserializer,
+                );
+            let api_sink = <StreamSink<
+                crate::api::generic_scraper::SourceSearchProgress,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::generic_scraper::debug_search_with_local_json_runtime(
+                                api_json_path,
+                                api_anime_name,
+                                api_absolute_episode,
+                                api_relative_episode,
+                                api_source_name_filter,
+                                api_runtime_overrides,
+                                api_sink,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1169,6 +1227,60 @@ fn wire__crate__api__generic_scraper__generic_search_with_progress_impl(
                             api_sink,
                         )
                         .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__generic_scraper__generic_search_with_progress_runtime_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "generic_search_with_progress_runtime",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_anime_name = <String>::sse_decode(&mut deserializer);
+            let api_absolute_episode = <Option<u32>>::sse_decode(&mut deserializer);
+            let api_relative_episode = <Option<u32>>::sse_decode(&mut deserializer);
+            let api_runtime_overrides =
+                <Vec<crate::api::generic_scraper::SourceRuntimeOverride>>::sse_decode(
+                    &mut deserializer,
+                );
+            let api_sink = <StreamSink<
+                crate::api::generic_scraper::SourceSearchProgress,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::generic_scraper::generic_search_with_progress_runtime(
+                                api_anime_name,
+                                api_absolute_episode,
+                                api_relative_episode,
+                                api_runtime_overrides,
+                                api_sink,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -3459,6 +3571,20 @@ impl SseDecode for Vec<crate::api::generic_scraper::SearchResultWithChannels> {
     }
 }
 
+impl SseDecode for Vec<crate::api::generic_scraper::SourceRuntimeOverride> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(
+                <crate::api::generic_scraper::SourceRuntimeOverride>::sse_decode(deserializer),
+            );
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::generic_scraper::SourceState> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3679,6 +3805,7 @@ impl SseDecode for crate::api::generic_scraper::SearchPlayResult {
             <Option<std::collections::HashMap<String, String>>>::sse_decode(deserializer);
         let mut var_channelName = <Option<String>>::sse_decode(deserializer);
         let mut var_channelIndex = <Option<usize>>::sse_decode(deserializer);
+        let mut var_captchaConfigJson = <Option<String>>::sse_decode(deserializer);
         return crate::api::generic_scraper::SearchPlayResult {
             source_name: var_sourceName,
             play_page_url: var_playPageUrl,
@@ -3688,6 +3815,7 @@ impl SseDecode for crate::api::generic_scraper::SearchPlayResult {
             headers: var_headers,
             channel_name: var_channelName,
             channel_index: var_channelIndex,
+            captcha_config_json: var_captchaConfigJson,
         };
     }
 }
@@ -3752,6 +3880,7 @@ impl SseDecode for crate::api::generic_scraper::SourceConfigUpdate {
         let mut var_iconUrl = <Option<String>>::sse_decode(deserializer);
         let mut var_description = <Option<String>>::sse_decode(deserializer);
         let mut var_searchConfigJson = <Option<String>>::sse_decode(deserializer);
+        let mut var_captchaConfigJson = <Option<String>>::sse_decode(deserializer);
         return crate::api::generic_scraper::SourceConfigUpdate {
             name: var_name,
             new_name: var_newName,
@@ -3762,6 +3891,25 @@ impl SseDecode for crate::api::generic_scraper::SourceConfigUpdate {
             icon_url: var_iconUrl,
             description: var_description,
             search_config_json: var_searchConfigJson,
+            captcha_config_json: var_captchaConfigJson,
+        };
+    }
+}
+
+impl SseDecode for crate::api::generic_scraper::SourceRuntimeOverride {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_sourceName = <String>::sse_decode(deserializer);
+        let mut var_cookies = <Option<String>>::sse_decode(deserializer);
+        let mut var_searchPageHtml = <Option<String>>::sse_decode(deserializer);
+        let mut var_searchPageUrl = <Option<String>>::sse_decode(deserializer);
+        let mut var_skipSearchError = <Option<String>>::sse_decode(deserializer);
+        return crate::api::generic_scraper::SourceRuntimeOverride {
+            source_name: var_sourceName,
+            cookies: var_cookies,
+            search_page_html: var_searchPageHtml,
+            search_page_url: var_searchPageUrl,
+            skip_search_error: var_skipSearchError,
         };
     }
 }
@@ -3782,6 +3930,7 @@ impl SseDecode for crate::api::generic_scraper::SourceSearchProgress {
         let mut var_channelIndex = <Option<usize>>::sse_decode(deserializer);
         let mut var_allChannels =
             <Option<Vec<crate::api::generic_scraper::ChannelInfo>>>::sse_decode(deserializer);
+        let mut var_captchaConfigJson = <Option<String>>::sse_decode(deserializer);
         return crate::api::generic_scraper::SourceSearchProgress {
             source_name: var_sourceName,
             step: var_step,
@@ -3794,6 +3943,7 @@ impl SseDecode for crate::api::generic_scraper::SourceSearchProgress {
             channel_name: var_channelName,
             channel_index: var_channelIndex,
             all_channels: var_allChannels,
+            captcha_config_json: var_captchaConfigJson,
         };
     }
 }
@@ -3809,6 +3959,7 @@ impl SseDecode for crate::api::generic_scraper::SourceState {
         let mut var_defaultResolution = <String>::sse_decode(deserializer);
         let mut var_searchUrl = <String>::sse_decode(deserializer);
         let mut var_searchConfigJson = <String>::sse_decode(deserializer);
+        let mut var_captchaConfigJson = <Option<String>>::sse_decode(deserializer);
         let mut var_enabled = <bool>::sse_decode(deserializer);
         return crate::api::generic_scraper::SourceState {
             name: var_name,
@@ -3819,6 +3970,7 @@ impl SseDecode for crate::api::generic_scraper::SourceState {
             default_resolution: var_defaultResolution,
             search_url: var_searchUrl,
             search_config_json: var_searchConfigJson,
+            captcha_config_json: var_captchaConfigJson,
             enabled: var_enabled,
         };
     }
@@ -3947,221 +4099,233 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        10 => wire__crate__api__crawler__fetch_archive_list_impl(port, ptr, rust_vec_len, data_len),
-        11 => {
+        10 => wire__crate__api__generic_scraper__debug_search_with_local_json_runtime_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        11 => wire__crate__api__crawler__fetch_archive_list_impl(port, ptr, rust_vec_len, data_len),
+        12 => {
             wire__crate__api__ranking__fetch_bangumi_browser_impl(port, ptr, rust_vec_len, data_len)
         }
-        12 => wire__crate__api__bangumi__fetch_bangumi_characters_impl(
+        13 => wire__crate__api__bangumi__fetch_bangumi_characters_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        13 => wire__crate__api__bangumi__fetch_bangumi_comments_impl(
+        14 => wire__crate__api__bangumi__fetch_bangumi_comments_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__bangumi__fetch_bangumi_episode_comments_impl(
+        15 => wire__crate__api__bangumi__fetch_bangumi_episode_comments_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        15 => wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
+        16 => wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        16 => {
+        17 => {
             wire__crate__api__ranking__fetch_bangumi_ranking_impl(port, ptr, rust_vec_len, data_len)
         }
-        17 => wire__crate__api__bangumi__fetch_bangumi_relations_impl(
+        18 => wire__crate__api__bangumi__fetch_bangumi_relations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        18 => wire__crate__api__dmhy__fetch_dmhy_resources_impl(port, ptr, rust_vec_len, data_len),
-        19 => {
+        19 => wire__crate__api__dmhy__fetch_dmhy_resources_impl(port, ptr, rust_vec_len, data_len),
+        20 => {
             wire__crate__api__crawler__fetch_extra_subjects_impl(port, ptr, rust_vec_len, data_len)
         }
-        20 => {
+        21 => {
             wire__crate__api__crawler__fetch_schedule_basic_impl(port, ptr, rust_vec_len, data_len)
         }
-        21 => wire__crate__api__crawler__fill_anime_details_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__generic_scraper__generic_search_and_play_impl(
+        22 => wire__crate__api__crawler__fill_anime_details_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__generic_scraper__generic_search_and_play_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__generic_scraper__generic_search_and_play_with_episode_impl(
+        24 => wire__crate__api__generic_scraper__generic_search_and_play_with_episode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__generic_scraper__generic_search_play_pages_impl(
+        25 => wire__crate__api__generic_scraper__generic_search_play_pages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
+        26 => wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__generic_scraper__generic_search_with_channels_impl(
+        27 => wire__crate__api__generic_scraper__generic_search_with_channels_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => wire__crate__api__generic_scraper__generic_search_with_channels_stream_impl(
+        28 => wire__crate__api__generic_scraper__generic_search_with_channels_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__generic_scraper__generic_search_with_progress_impl(
+        29 => wire__crate__api__generic_scraper__generic_search_with_progress_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => {
+        30 => wire__crate__api__generic_scraper__generic_search_with_progress_runtime_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        31 => {
             wire__crate__api__simple__get_all_torrents_info_impl(port, ptr, rust_vec_len, data_len)
         }
-        30 => wire__crate__api__config__get_bangumi_api_url_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__config__get_bangumi_url_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__config__get_bgmlist_url_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__config__get_cache_dir_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__captcha__get_captcha_ocr_model_info_impl(
+        32 => wire__crate__api__config__get_bangumi_api_url_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__config__get_bangumi_url_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__config__get_bgmlist_url_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__config__get_cache_dir_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__captcha__get_captcha_ocr_model_info_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        35 => wire__crate__api__config__get_download_dir_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__generic_scraper__get_enabled_source_names_impl(
+        37 => wire__crate__api__config__get_download_dir_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__generic_scraper__get_enabled_source_names_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => wire__crate__api__generic_scraper__get_episode_play_url_impl(
+        39 => wire__crate__api__generic_scraper__get_episode_play_url_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        38 => wire__crate__api__config__get_max_concurrent_searches_impl(
+        40 => wire__crate__api__config__get_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__config__get_mikan_url_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__generic_scraper__get_playback_sources_impl(
+        41 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__config__get_mikan_url_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__generic_scraper__get_playback_sources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        42 => {
+        44 => {
             wire__crate__api__simple__get_playback_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        43 => {
+        45 => {
             wire__crate__api__config__get_playback_sub_url_impl(port, ptr, rust_vec_len, data_len)
         }
-        44 => wire__crate__api__network__get_system_proxy_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__simple__get_torrent_stats_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__simple__get_tracker_info_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__config__init_config_impl(port, ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__simple__init_engine_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__captcha__initialize_captcha_ocr_impl(
+        46 => wire__crate__api__network__get_system_proxy_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__simple__get_torrent_stats_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__simple__get_tracker_info_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__config__init_config_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__simple__init_engine_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__captcha__initialize_captcha_ocr_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__crate__api__captcha__is_captcha_ocr_initialized_impl(
+        53 => wire__crate__api__captcha__is_captcha_ocr_initialized_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        52 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__simple__pause_torrent_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__simple__preload_playback_source_config_impl(
+        54 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__simple__pause_torrent_impl(port, ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__simple__preload_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
+        57 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        56 => wire__crate__api__captcha__recognize_captcha_impl(port, ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__captcha__recognize_captcha_with_constraints_impl(
+        58 => wire__crate__api__captcha__recognize_captcha_impl(port, ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__captcha__recognize_captcha_with_constraints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        58 => wire__crate__api__generic_scraper__refresh_playback_source_config_impl(
+        60 => wire__crate__api__generic_scraper__refresh_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__crate__api__simple__refresh_playback_source_config_impl(
+        61 => wire__crate__api__simple__refresh_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        60 => wire__crate__api__simple__resume_torrent_impl(port, ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__ranking__search_bangumi_subject_impl(
+        62 => wire__crate__api__simple__resume_torrent_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__ranking__search_bangumi_subject_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        62 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
-        63 => {
+        64 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
+        65 => {
             wire__crate__api__config__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        64 => {
+        66 => {
             wire__crate__api__simple__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        65 => wire__crate__api__config__set_max_concurrent_searches_impl(
+        67 => wire__crate__api__config__set_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        66 => wire__crate__api__simple__set_max_concurrent_searches_impl(
+        68 => wire__crate__api__simple__set_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        67 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
-        70 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
-        71 => wire__crate__api__generic_scraper__update_single_source_config_impl(
+        69 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__generic_scraper__update_single_source_config_impl(
             port,
             ptr,
             rust_vec_len,
@@ -4694,6 +4858,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SearchPlayRe
             self.headers.into_into_dart().into_dart(),
             self.channel_name.into_into_dart().into_dart(),
             self.channel_index.into_into_dart().into_dart(),
+            self.captcha_config_json.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4777,6 +4942,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceConfig
             self.icon_url.into_into_dart().into_dart(),
             self.description.into_into_dart().into_dart(),
             self.search_config_json.into_into_dart().into_dart(),
+            self.captcha_config_json.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4789,6 +4955,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::SourceConfig
     for crate::api::generic_scraper::SourceConfigUpdate
 {
     fn into_into_dart(self) -> crate::api::generic_scraper::SourceConfigUpdate {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceRuntimeOverride {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.source_name.into_into_dart().into_dart(),
+            self.cookies.into_into_dart().into_dart(),
+            self.search_page_html.into_into_dart().into_dart(),
+            self.search_page_url.into_into_dart().into_dart(),
+            self.skip_search_error.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::generic_scraper::SourceRuntimeOverride
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::SourceRuntimeOverride>
+    for crate::api::generic_scraper::SourceRuntimeOverride
+{
+    fn into_into_dart(self) -> crate::api::generic_scraper::SourceRuntimeOverride {
         self
     }
 }
@@ -4807,6 +4997,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceSearch
             self.channel_name.into_into_dart().into_dart(),
             self.channel_index.into_into_dart().into_dart(),
             self.all_channels.into_into_dart().into_dart(),
+            self.captcha_config_json.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4834,6 +5025,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceState 
             self.default_resolution.into_into_dart().into_dart(),
             self.search_url.into_into_dart().into_dart(),
             self.search_config_json.into_into_dart().into_dart(),
+            self.captcha_config_json.into_into_dart().into_dart(),
             self.enabled.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -5412,6 +5604,16 @@ impl SseEncode for Vec<crate::api::generic_scraper::SearchResultWithChannels> {
     }
 }
 
+impl SseEncode for Vec<crate::api::generic_scraper::SourceRuntimeOverride> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::generic_scraper::SourceRuntimeOverride>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::generic_scraper::SourceState> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5584,6 +5786,7 @@ impl SseEncode for crate::api::generic_scraper::SearchPlayResult {
         <Option<std::collections::HashMap<String, String>>>::sse_encode(self.headers, serializer);
         <Option<String>>::sse_encode(self.channel_name, serializer);
         <Option<usize>>::sse_encode(self.channel_index, serializer);
+        <Option<String>>::sse_encode(self.captcha_config_json, serializer);
     }
 }
 
@@ -5636,6 +5839,18 @@ impl SseEncode for crate::api::generic_scraper::SourceConfigUpdate {
         <Option<String>>::sse_encode(self.icon_url, serializer);
         <Option<String>>::sse_encode(self.description, serializer);
         <Option<String>>::sse_encode(self.search_config_json, serializer);
+        <Option<String>>::sse_encode(self.captcha_config_json, serializer);
+    }
+}
+
+impl SseEncode for crate::api::generic_scraper::SourceRuntimeOverride {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.source_name, serializer);
+        <Option<String>>::sse_encode(self.cookies, serializer);
+        <Option<String>>::sse_encode(self.search_page_html, serializer);
+        <Option<String>>::sse_encode(self.search_page_url, serializer);
+        <Option<String>>::sse_encode(self.skip_search_error, serializer);
     }
 }
 
@@ -5656,6 +5871,7 @@ impl SseEncode for crate::api::generic_scraper::SourceSearchProgress {
             self.all_channels,
             serializer,
         );
+        <Option<String>>::sse_encode(self.captcha_config_json, serializer);
     }
 }
 
@@ -5670,6 +5886,7 @@ impl SseEncode for crate::api::generic_scraper::SourceState {
         <String>::sse_encode(self.default_resolution, serializer);
         <String>::sse_encode(self.search_url, serializer);
         <String>::sse_encode(self.search_config_json, serializer);
+        <Option<String>>::sse_encode(self.captcha_config_json, serializer);
         <bool>::sse_encode(self.enabled, serializer);
     }
 }

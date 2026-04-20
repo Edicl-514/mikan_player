@@ -223,6 +223,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<SourceRuntimeOverride> dco_decode_list_source_runtime_override(
+    dynamic raw,
+  );
+
+  @protected
   List<SourceState> dco_decode_list_source_state(dynamic raw);
 
   @protected
@@ -283,6 +288,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SourceConfigUpdate dco_decode_source_config_update(dynamic raw);
+
+  @protected
+  SourceRuntimeOverride dco_decode_source_runtime_override(dynamic raw);
 
   @protected
   SourceSearchProgress dco_decode_source_search_progress(dynamic raw);
@@ -550,6 +558,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<SourceRuntimeOverride> sse_decode_list_source_runtime_override(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<SourceState> sse_decode_list_source_state(SseDeserializer deserializer);
 
   @protected
@@ -626,6 +639,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SourceConfigUpdate sse_decode_source_config_update(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SourceRuntimeOverride sse_decode_source_runtime_override(
     SseDeserializer deserializer,
   );
 
@@ -956,6 +974,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_source_runtime_override(
+    List<SourceRuntimeOverride> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_source_state(
     List<SourceState> self,
     SseSerializer serializer,
@@ -1051,6 +1075,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_source_config_update(
     SourceConfigUpdate self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_source_runtime_override(
+    SourceRuntimeOverride self,
     SseSerializer serializer,
   );
 
