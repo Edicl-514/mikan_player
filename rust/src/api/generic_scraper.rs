@@ -3,7 +3,9 @@ use fancy_regex::Regex;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize}; // Added Serialize
 // use serde_json::Value;
+use std::collections::hash_map::DefaultHasher;
 use std::fs;
+use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SourceState {
@@ -858,7 +860,7 @@ fn select_episode_by_number(
 // }
 
 /// Channel（线路）信息
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChannelInfo {
     /// Channel 名称（如"线路A"、"简中"、"繁中"等）
     pub name: String,
@@ -867,7 +869,7 @@ pub struct ChannelInfo {
 }
 
 /// 剧集信息
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EpisodeInfo {
     /// 剧集名称/标题
     pub name: String,
@@ -924,6 +926,30 @@ pub struct SearchPlayResult {
     pub channel_index: Option<usize>,
     /// 验证码配置JSON（如果该源启用了captcha绕过）
     pub captcha_config_json: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CachedEpisodeTable {
+    source_name: String,
+    anime_name: String,
+    detail_url: String,
+    matched_title: String,
+    channels: Vec<ChannelInfo>,
+    episodes: Vec<EpisodeInfo>,
+    video_regex: String,
+    cookies: Option<String>,
+    headers: Option<std::collections::HashMap<String, String>>,
+    default_subtitle_language: Option<String>,
+    default_resolution: Option<String>,
+    config_hash: u64,
+    cached_at_ms: u64,
+    expires_at_ms: u64,
+}
+
+impl CachedEpisodeTable {
+    fn is_expired(&self) -> bool {
+        current_timestamp_ms() > self.expires_at_ms
+    }
 }
 
 /// 搜索进度状态
@@ -984,6 +1010,340 @@ fn get_cache_file_path() -> anyhow::Result<std::path::PathBuf> {
     }
 
     Ok(base_dir.join("playback_sources_cache.json"))
+}
+
+fn current_timestamp_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+fn hash_str(value: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn source_config_hash(source: &MediaSource) -> u64 {
+    let config_json = serde_json::to_string(&source.arguments.search_config).unwrap_or_default();
+    let captcha_json = serde_json::to_string(&source.arguments.captcha_config).unwrap_or_default();
+    hash_str(&format!("{}|{}", config_json, captcha_json))
+}
+
+fn get_episode_cache_dir() -> anyhow::Result<std::path::PathBuf> {
+    let base_dir =
+        std::path::PathBuf::from(crate::api::config::get_cache_dir()).join("online_episode_cache");
+    if !base_dir.exists() {
+        fs::create_dir_all(&base_dir)?;
+    }
+    Ok(base_dir)
+}
+
+fn get_episode_cache_path(
+    source_name: &str,
+    anime_name: &str,
+    config_hash: u64,
+) -> anyhow::Result<std::path::PathBuf> {
+    let key = format!("{}|{}|{}", source_name, anime_name, config_hash);
+    Ok(get_episode_cache_dir()?.join(format!("{:016x}.json", hash_str(&key))))
+}
+
+fn load_episode_table_cache(
+    source_name: &str,
+    anime_name: &str,
+    config_hash: u64,
+) -> Option<CachedEpisodeTable> {
+    let cache_path = get_episode_cache_path(source_name, anime_name, config_hash).ok()?;
+    let content = fs::read_to_string(&cache_path).ok()?;
+    let cache: CachedEpisodeTable = serde_json::from_str(&content).ok()?;
+    if cache.source_name != source_name || cache.config_hash != config_hash || cache.is_expired() {
+        log::info!(
+            "[{}] Episode table cache stale or mismatched: {:?}",
+            source_name,
+            cache_path
+        );
+        return None;
+    }
+    log::info!(
+        "[{}] Episode table cache hit: {} episodes",
+        source_name,
+        cache.episodes.len()
+    );
+    Some(cache)
+}
+
+fn save_episode_table_cache(cache: &CachedEpisodeTable) {
+    let Ok(cache_path) =
+        get_episode_cache_path(&cache.source_name, &cache.anime_name, cache.config_hash)
+    else {
+        return;
+    };
+
+    match serde_json::to_string(cache) {
+        Ok(content) => {
+            if let Err(e) = fs::write(&cache_path, content) {
+                log::warn!(
+                    "[{}] Failed to write episode table cache {:?}: {}",
+                    cache.source_name,
+                    cache_path,
+                    e
+                );
+            } else {
+                log::info!(
+                    "[{}] Saved episode table cache: {} episodes",
+                    cache.source_name,
+                    cache.episodes.len()
+                );
+            }
+        }
+        Err(e) => log::warn!(
+            "[{}] Failed to serialize episode table cache: {}",
+            cache.source_name,
+            e
+        ),
+    }
+}
+
+fn absolutize_url(base_url: &str, href: &str) -> String {
+    if href.starts_with("http") {
+        href.to_string()
+    } else {
+        let base = if let Ok(u) = url::Url::parse(base_url) {
+            format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+        } else {
+            "".to_string()
+        };
+        format!("{}{}", base, href)
+    }
+}
+
+fn parse_episode_table_from_detail(
+    source: &MediaSource,
+    detail_url: &str,
+    detail_resp_text: &str,
+) -> (Vec<ChannelInfo>, Vec<EpisodeInfo>) {
+    let detail_doc = Html::parse_document(detail_resp_text);
+    let mut channels: Vec<ChannelInfo> = Vec::new();
+    let mut episodes: Vec<EpisodeInfo> = Vec::new();
+
+    let channel_format_id = source
+        .arguments
+        .search_config
+        .channel_format_id
+        .as_deref()
+        .unwrap_or("no-channel");
+
+    if channel_format_id == "index-grouped" {
+        if let Some(ref format) = source
+            .arguments
+            .search_config
+            .selector_channel_format_flattened
+        {
+            if let Some(ref channel_selector) = format.select_channel_names {
+                if !channel_selector.is_empty() {
+                    if let Ok(ch_sel) = Selector::parse(channel_selector) {
+                        let channel_pattern = format.match_channel_name.as_deref();
+                        for (idx, ch_el) in detail_doc.select(&ch_sel).enumerate() {
+                            let raw_text = ch_el.text().collect::<String>();
+                            let channel_name = extract_channel_name(&raw_text, channel_pattern);
+                            if !channel_name.is_empty() {
+                                channels.push(ChannelInfo {
+                                    name: channel_name,
+                                    index: idx,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let (Ok(list_sel), Ok(item_sel)) = (
+                Selector::parse(&format.select_episode_lists),
+                Selector::parse(&format.select_episodes_from_list),
+            ) {
+                let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                for (channel_idx, list_container) in detail_doc.select(&list_sel).enumerate() {
+                    if channels.is_empty() {
+                        channels.push(ChannelInfo {
+                            name: "默认线路".to_string(),
+                            index: 0,
+                        });
+                    }
+
+                    let mapped_channel_index = channels
+                        .get(channel_idx)
+                        .map(|ch| ch.index)
+                        .unwrap_or(channel_idx);
+
+                    for ep_el in list_container.select(&item_sel) {
+                        let ep_name = ep_el.text().collect::<String>().trim().to_string();
+                        let ep_href = ep_el.value().attr("href").unwrap_or("").to_string();
+                        if ep_href.is_empty() {
+                            continue;
+                        }
+
+                        episodes.push(EpisodeInfo {
+                            name: ep_name.clone(),
+                            url: absolutize_url(detail_url, &ep_href),
+                            episode_number: extract_episode_number_from_text(&ep_name, ep_pattern),
+                            channel_index: mapped_channel_index,
+                        });
+                    }
+                }
+            }
+        }
+    } else if let Some(ref format) = source
+        .arguments
+        .search_config
+        .selector_channel_format_no_channel
+    {
+        channels.push(ChannelInfo {
+            name: "默认线路".to_string(),
+            index: 0,
+        });
+
+        if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
+            let ep_pattern = format.match_episode_sort_from_name.as_deref();
+            for ep_el in detail_doc.select(&ep_sel) {
+                let ep_name = ep_el.text().collect::<String>().trim().to_string();
+                let ep_href = ep_el.value().attr("href").unwrap_or("").to_string();
+                if ep_href.is_empty() {
+                    continue;
+                }
+
+                episodes.push(EpisodeInfo {
+                    name: ep_name.clone(),
+                    url: absolutize_url(detail_url, &ep_href),
+                    episode_number: extract_episode_number_from_text(&ep_name, ep_pattern),
+                    channel_index: 0,
+                });
+            }
+        }
+    }
+
+    if channels.is_empty() && episodes.is_empty() {
+        if let Some(ref format) = source
+            .arguments
+            .search_config
+            .selector_channel_format_flattened
+        {
+            if let (Ok(list_sel), Ok(item_sel)) = (
+                Selector::parse(&format.select_episode_lists),
+                Selector::parse(&format.select_episodes_from_list),
+            ) {
+                let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                if let Some(list_container) = detail_doc.select(&list_sel).next() {
+                    channels.push(ChannelInfo {
+                        name: "默认线路".to_string(),
+                        index: 0,
+                    });
+                    for ep_el in list_container.select(&item_sel) {
+                        let ep_name = ep_el.text().collect::<String>().trim().to_string();
+                        let ep_href = ep_el.value().attr("href").unwrap_or("").to_string();
+                        if ep_href.is_empty() {
+                            continue;
+                        }
+                        episodes.push(EpisodeInfo {
+                            name: ep_name.clone(),
+                            url: absolutize_url(detail_url, &ep_href),
+                            episode_number: extract_episode_number_from_text(&ep_name, ep_pattern),
+                            channel_index: 0,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    (channels, episodes)
+}
+
+fn select_episode_from_table<'a>(
+    episodes: &'a [EpisodeInfo],
+    preferred_channel_index: Option<usize>,
+    absolute_episode: Option<u32>,
+    relative_episode: Option<u32>,
+) -> Option<&'a EpisodeInfo> {
+    if episodes.is_empty() {
+        return None;
+    }
+
+    let channel_episodes: Vec<&EpisodeInfo> = episodes
+        .iter()
+        .filter(|ep| {
+            preferred_channel_index
+                .map(|channel_index| ep.channel_index == channel_index)
+                .unwrap_or(true)
+        })
+        .collect();
+    let candidates = if channel_episodes.is_empty() {
+        episodes.iter().collect::<Vec<_>>()
+    } else {
+        channel_episodes
+    };
+
+    if let Some(abs) = absolute_episode {
+        if let Some(found) = candidates
+            .iter()
+            .copied()
+            .find(|ep| ep.episode_number == Some(abs))
+        {
+            return Some(found);
+        }
+        if let Some(found) = episodes.iter().find(|ep| ep.episode_number == Some(abs)) {
+            return Some(found);
+        }
+    }
+
+    if let Some(rel) = relative_episode {
+        if rel > 0 {
+            let idx = (rel - 1) as usize;
+            if let Some(found) = candidates.get(idx) {
+                return Some(*found);
+            }
+        }
+    }
+
+    candidates.first().copied()
+}
+
+fn build_episode_table_cache(
+    source: &MediaSource,
+    anime_name: &str,
+    detail_url: String,
+    matched_title: String,
+    channels: Vec<ChannelInfo>,
+    episodes: Vec<EpisodeInfo>,
+    cookies: Option<String>,
+    headers: Option<std::collections::HashMap<String, String>>,
+) -> CachedEpisodeTable {
+    let now = current_timestamp_ms();
+    CachedEpisodeTable {
+        source_name: source.arguments.name.clone(),
+        anime_name: anime_name.to_string(),
+        detail_url,
+        matched_title,
+        channels,
+        episodes,
+        video_regex: source
+            .arguments
+            .search_config
+            .match_video
+            .match_video_url
+            .clone(),
+        cookies,
+        headers,
+        default_subtitle_language: source
+            .arguments
+            .search_config
+            .default_subtitle_language
+            .clone(),
+        default_resolution: source.arguments.search_config.default_resolution.clone(),
+        config_hash: source_config_hash(source),
+        cached_at_ms: now,
+        expires_at_ms: now + 24 * 60 * 60 * 1000,
+    }
 }
 
 /// 从本地缓存读取播放源配置
@@ -1791,6 +2151,77 @@ async fn search_single_source_with_progress(
         .as_ref()
         .map(|c| serde_json::to_string(c).unwrap_or_default());
 
+    let config_hash = source_config_hash(source);
+    if initial_detail_page_html.is_none() {
+        if let Some(cache) = load_episode_table_cache(&source_name, anime_name, config_hash) {
+            let selected_channel_index = cache.channels.first().map(|channel| channel.index);
+            let selected_channel_name = cache.channels.first().map(|channel| channel.name.clone());
+            if let Some(episode) = select_episode_from_table(
+                &cache.episodes,
+                selected_channel_index,
+                absolute_episode,
+                relative_episode,
+            ) {
+                let all_channels = if cache.channels.is_empty() {
+                    None
+                } else {
+                    Some(cache.channels.clone())
+                };
+                let cookies = effective_cookies.clone().or(cache.cookies.clone());
+                let headers = cache.headers.clone().or(headers.clone());
+
+                sink.add(SourceSearchProgress {
+                    source_name: source_name.clone(),
+                    step: SearchStep::FetchingEpisodes,
+                    error: None,
+                    play_page_url: None,
+                    video_regex: None,
+                    direct_video_url: None,
+                    cookies: cookies.clone(),
+                    headers: headers.clone(),
+                    channel_name: selected_channel_name.clone(),
+                    channel_index: selected_channel_index,
+                    all_channels: all_channels.clone(),
+                    captcha_config_json: captcha_config_json.clone(),
+                })
+                .ok();
+
+                sink.add(SourceSearchProgress {
+                    source_name: source_name.clone(),
+                    step: SearchStep::ExtractingVideo,
+                    error: None,
+                    play_page_url: Some(episode.url.clone()),
+                    video_regex: Some(cache.video_regex.clone()),
+                    direct_video_url: None,
+                    cookies: cookies.clone(),
+                    headers: headers.clone(),
+                    channel_name: selected_channel_name.clone(),
+                    channel_index: selected_channel_index,
+                    all_channels: all_channels.clone(),
+                    captcha_config_json: captcha_config_json.clone(),
+                })
+                .ok();
+
+                sink.add(SourceSearchProgress {
+                    source_name: source_name.clone(),
+                    step: SearchStep::Success,
+                    error: None,
+                    play_page_url: Some(episode.url.clone()),
+                    video_regex: Some(cache.video_regex),
+                    direct_video_url: None,
+                    cookies,
+                    headers,
+                    channel_name: selected_channel_name,
+                    channel_index: selected_channel_index,
+                    all_channels,
+                    captcha_config_json,
+                })
+                .ok();
+                return Ok(());
+            }
+        }
+    }
+
     let search_candidates = build_search_candidates(anime_name);
     let mut detail_url = String::new();
 
@@ -2440,6 +2871,22 @@ async fn search_single_source_with_progress(
             selected_channel_index,
         )
     }; // detail_doc 在这里被 drop
+
+    let (cache_channels, cache_episodes) =
+        parse_episode_table_from_detail(source, &detail_url, &detail_resp_text);
+    if !cache_episodes.is_empty() {
+        let cache = build_episode_table_cache(
+            source,
+            anime_name,
+            detail_url.clone(),
+            String::new(),
+            cache_channels,
+            cache_episodes,
+            effective_cookies.clone(),
+            headers.clone(),
+        );
+        save_episode_table_cache(&cache);
+    }
 
     if episode_url.is_empty() {
         sink.add(SourceSearchProgress {
@@ -3601,6 +4048,20 @@ async fn search_single_source_with_channels(
         episodes.len()
     );
 
+    if !episodes.is_empty() {
+        let cache = build_episode_table_cache(
+            source,
+            anime_name,
+            detail_url.clone(),
+            matched_title.clone(),
+            channels.clone(),
+            episodes.clone(),
+            cookies.clone(),
+            headers.clone(),
+        );
+        save_episode_table_cache(&cache);
+    }
+
     Ok(SearchResultWithChannels {
         source_name,
         detail_url,
@@ -3791,6 +4252,34 @@ pub async fn get_episode_play_url(
         .iter()
         .find(|s| s.arguments.name == source_name)
         .ok_or_else(|| anyhow::anyhow!("Source not found: {}", source_name))?;
+
+    let config_hash = source_config_hash(source);
+    if let Some(cache) = load_episode_table_cache(&source_name, &anime_name, config_hash) {
+        let target_episode = select_episode_from_table(
+            &cache.episodes,
+            Some(channel_index),
+            episode_number,
+            episode_number,
+        )
+        .ok_or_else(|| anyhow::anyhow!("Episode not found in cache"))?;
+        let channel_name = cache
+            .channels
+            .iter()
+            .find(|channel| channel.index == target_episode.channel_index)
+            .map(|channel| channel.name.clone());
+
+        return Ok(SearchPlayResult {
+            source_name,
+            play_page_url: target_episode.url.clone(),
+            video_regex: cache.video_regex,
+            direct_video_url: None,
+            cookies: cache.cookies,
+            headers: cache.headers,
+            channel_name,
+            channel_index: Some(target_episode.channel_index),
+            captcha_config_json: None,
+        });
+    }
 
     // 获取完整的channel和episode信息
     let result = search_single_source_with_channels(&client, source, &anime_name).await?;
