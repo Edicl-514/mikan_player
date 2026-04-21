@@ -203,6 +203,8 @@ pub struct MediaSource {
     #[serde(rename = "factoryId")]
     pub factory_id: String,
     pub arguments: SourceArguments,
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -234,6 +236,8 @@ pub struct CaptchaConfig {
     pub initial_delay_ms: Option<u64>,
     #[serde(rename = "ocrConstraints")]
     pub ocr_constraints: Option<OcrConstraints>,
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -247,6 +251,8 @@ pub struct SourceArguments {
     pub search_config: SearchConfig,
     #[serde(rename = "captchaConfig")]
     pub captcha_config: Option<CaptchaConfig>,
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -283,6 +289,9 @@ pub struct SearchConfig {
     // Video matching
     #[serde(rename = "matchVideo")]
     pub match_video: MatchVideo,
+
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -349,6 +358,9 @@ pub struct MatchVideo {
 
     #[serde(rename = "addHeadersToVideo")]
     pub add_headers_to_video: Option<std::collections::HashMap<String, String>>,
+
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// 解析中文数字（一二三四五六七八九十等）为阿拉伯数字
@@ -1617,7 +1629,9 @@ pub async fn add_source_config(new_config: SourceConfigUpdate) -> anyhow::Result
                 match_nested_url: None,
                 cookies: None,
                 add_headers_to_video: None,
+                extra: std::collections::HashMap::new(),
             },
+            extra: std::collections::HashMap::new(),
         }
     };
 
@@ -1639,7 +1653,9 @@ pub async fn add_source_config(new_config: SourceConfigUpdate) -> anyhow::Result
             tier: new_config.tier,
             search_config,
             captcha_config,
+            extra: std::collections::HashMap::new(),
         },
+        extra: std::collections::HashMap::new(),
     };
 
     // 添加到列表
