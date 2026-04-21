@@ -72,6 +72,9 @@ app.*.map.json
 
 # Rust build artifacts
 rust/target/
+windows/runner/rust.dll
+windows/runner/rust.dll.lib
+windows/runner/rust.lib
 
 # Temporary/generated files
 check_api.py

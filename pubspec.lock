@@ -792,11 +792,10 @@ packages:
   native_toolchain_c:
     dependency: "direct overridden"
     description:
-      name: native_toolchain_c
-      sha256: "6ba77bb18063eebe9de401f5e6437e95e1438af0a87a3a39084fbd37c90df572"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.17.6"
+      path: "third_party/native_toolchain_c"
+      relative: true
+    source: path
+    version: "0.18.0"
   nested:
     dependency: transitive
     description:

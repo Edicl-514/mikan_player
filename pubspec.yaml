@@ -70,7 +70,8 @@ dev_dependencies:
   drift_dev: ^2.32.1
 
 dependency_overrides:
-  native_toolchain_c: ^0.17.6
+  native_toolchain_c:
+    path: third_party/native_toolchain_c
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -18,7 +18,7 @@ if (Test-Path $envFile) {
 }
 
 # Build Rust native libraries before building APK (use paths relative to script)
-Write-Host "Building Rust native libraries for multiple ABIs..."
+Write-Host "Building Rust native libraries for arm64-v8a..."
 $rustDir = Join-Path $scriptRoot 'rust'
 if (-not (Test-Path $rustDir)) {
     Write-Host "Rust directory not found: $rustDir"

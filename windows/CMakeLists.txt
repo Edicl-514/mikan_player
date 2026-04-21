@@ -108,18 +108,12 @@ install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
 
 # === Rust Build ===
 set(RUST_SOURCE_DIR "${CMAKE_SOURCE_DIR}/../rust")
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(RUST_BUILD_MODE "debug")
-    set(CARGO_ARGS "")
-else ()
-    set(RUST_BUILD_MODE "release")
-    set(CARGO_ARGS "--release")
-endif ()
+set(RUST_BUILD_MODE "$<IF:$<CONFIG:Debug>,debug,release>")
 
 # Use PowerShell script to build Rust with .env variables loaded
-set(BUILD_RUST_SCRIPT "${CMAKE_SOURCE_DIR}/../build_windows_rust.ps1")
+set(BUILD_RUST_SCRIPT "${CMAKE_SOURCE_DIR}/../build_windows.ps1")
 add_custom_target(rust_build ALL
-    COMMAND PowerShell -NoProfile -ExecutionPolicy Bypass -File "${BUILD_RUST_SCRIPT}" -BuildMode "${RUST_BUILD_MODE}" -RustSourceDir "${RUST_SOURCE_DIR}"
+    COMMAND PowerShell -NoProfile -ExecutionPolicy Bypass -File "${BUILD_RUST_SCRIPT}" -BuildMode "${RUST_BUILD_MODE}" -RustSourceDir "${RUST_SOURCE_DIR}" -SkipFlutterBuild
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/..
     COMMENT "Building Rust code..."
     VERBATIM
