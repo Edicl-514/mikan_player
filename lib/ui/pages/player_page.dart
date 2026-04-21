@@ -27,18 +27,27 @@ import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 class _CaptchaPreflightTask {
+  final String taskKey;
+  final String label;
   final SourceState source;
-  final String searchKeyword;
+  final String? searchKeyword;
+  final String? initialUrl;
+  final String? referer;
   final CaptchaConfig captchaConfig;
   final int loadToken;
-  final void Function(SourceRuntimeOverride runtimeOverride) onCompleted;
+  final void Function(_CaptchaPreflightTask task, CaptchaBypassResult result)
+  onResult;
 
   const _CaptchaPreflightTask({
+    required this.taskKey,
+    required this.label,
     required this.source,
-    required this.searchKeyword,
+    this.searchKeyword,
+    this.initialUrl,
+    this.referer,
     required this.captchaConfig,
     required this.loadToken,
-    required this.onCompleted,
+    required this.onResult,
   });
 }
 
@@ -105,17 +114,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       {}; // WebView状态消息 (sourceName -> message)
   final Set<String> _failedWebViewPageKeys = {}; // 提取失败的WebView Key
   final Set<String> _resolvingChannelPlayPageKeys = {}; // 正在解析的频道播放页
-    final Queue<_CaptchaPreflightTask> _pendingCaptchaTasks =
+  final Queue<_CaptchaPreflightTask> _pendingCaptchaTasks =
       Queue<_CaptchaPreflightTask>();
-    final Map<String, _CaptchaPreflightTask> _activeCaptchaTasks =
+  final Map<String, _CaptchaPreflightTask> _activeCaptchaTasks =
       <String, _CaptchaPreflightTask>{};
-    final List<StreamSubscription<SourceSearchProgress>> _searchSubscriptions =
+  final List<StreamSubscription<SourceSearchProgress>> _searchSubscriptions =
       <StreamSubscription<SourceSearchProgress>>[];
   int _maxConcurrentWebViews =
       3; // 最大并发WebView数量 (Reduced from 3 to prevent lag)
   int _webViewLaunchInterval = 200; // WebView启动间隔 (毫秒)
-    int _sampleLoadToken = 0;
-    bool _webViewPoolPumpScheduled = false;
+  int _sampleLoadToken = 0;
+  bool _webViewPoolPumpScheduled = false;
   String _sampleStatusMessage = ''; // WebView 提取状态消息
   bool _showWebView = false; // 是否显示 WebView（调试用）
 
@@ -785,24 +794,79 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _queueCaptchaPreflightTask({
+    required String taskKey,
+    required String label,
     required SourceState source,
-    required String searchKeyword,
+    String? searchKeyword,
+    String? initialUrl,
+    String? referer,
     required int loadToken,
-    required void Function(SourceRuntimeOverride runtimeOverride) onCompleted,
+    required void Function(
+      _CaptchaPreflightTask task,
+      CaptchaBypassResult result,
+    )
+    onResult,
   }) {
     final captchaConfig = CaptchaConfig.tryParse(source.captchaConfigJson);
     if (captchaConfig == null) {
       return;
     }
 
+    final alreadyPending = _pendingCaptchaTasks.any(
+      (task) => task.taskKey == taskKey,
+    );
+    if (alreadyPending || _activeCaptchaTasks.containsKey(taskKey)) {
+      return;
+    }
+
     _pendingCaptchaTasks.add(
       _CaptchaPreflightTask(
+        taskKey: taskKey,
+        label: label,
         source: source,
         searchKeyword: searchKeyword,
+        initialUrl: initialUrl,
+        referer: referer,
         captchaConfig: captchaConfig,
         loadToken: loadToken,
-        onCompleted: onCompleted,
+        onResult: onResult,
       ),
+    );
+  }
+
+  void _queueSearchCaptchaPreflightTask({
+    required SourceState source,
+    required String searchKeyword,
+    required int loadToken,
+    required void Function(SourceRuntimeOverride runtimeOverride) onCompleted,
+  }) {
+    _queueCaptchaPreflightTask(
+      taskKey: 'search:${source.name}',
+      label: source.name,
+      source: source,
+      searchKeyword: searchKeyword,
+      loadToken: loadToken,
+      onResult: (task, result) {
+        final runtimeOverride = result.success
+            ? SourceRuntimeOverride(
+                sourceName: task.source.name,
+                cookies: result.cookies,
+                searchPageHtml: result.searchPageHtml,
+                searchPageUrl: result.searchPageUrl,
+                detailPageHtml: result.detailPageHtml,
+                detailPageUrl: result.detailPageUrl,
+              )
+            : SourceRuntimeOverride(
+                sourceName: task.source.name,
+                skipSearchError: result.error ?? 'Captcha preflight failed',
+              );
+
+        _handleSearchCaptchaPreflightResult(
+          task: task,
+          runtimeOverride: runtimeOverride,
+          onCompleted: onCompleted,
+        );
+      },
     );
   }
 
@@ -835,7 +899,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         .toSet();
 
     final pending = _samplePlayPages.where((page) {
-      final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
+      final pageKey = _buildSourceChannelKey(
+        page.sourceName,
+        page.channelIndex,
+      );
       final hasPlayPageUrl = page.playPageUrl.trim().isNotEmpty;
       final alreadySuccessful = _sampleSuccessfulSources.any(
         (s) => _buildSourceChannelKey(s.sourceName, s.channelIndex) == pageKey,
@@ -876,8 +943,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     final task = _pendingCaptchaTasks.removeFirst();
-    _activeCaptchaTasks[task.source.name] = task;
-    _webViewStatus[task.source.name] = '正在跳过验证码...';
+    _activeCaptchaTasks[task.taskKey] = task;
+    _webViewStatus[task.taskKey] = '正在跳过验证码...';
     return true;
   }
 
@@ -939,32 +1006,30 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     });
   }
 
-  void _onCaptchaPreflightResult(String sourceName, CaptchaBypassResult result) {
-    final task = _activeCaptchaTasks.remove(sourceName);
-    _webViewStatus.remove(sourceName);
+  void _onCaptchaPreflightResult(String taskKey, CaptchaBypassResult result) {
+    final task = _activeCaptchaTasks.remove(taskKey);
+    _webViewStatus.remove(taskKey);
     if (task == null) {
       _scheduleWebViewPoolPump();
       return;
     }
 
-    final runtimeOverride = result.success
-        ? SourceRuntimeOverride(
-            sourceName: sourceName,
-            cookies: result.cookies,
-            searchPageHtml: result.pageHtml,
-            searchPageUrl: result.pageUrl,
-            detailPageHtml: result.detailPageHtml,
-            detailPageUrl: result.detailPageUrl,
-          )
-        : SourceRuntimeOverride(
-            sourceName: sourceName,
-            skipSearchError: result.error ?? 'Captcha preflight failed',
-          );
-
     if (!mounted || task.loadToken != _sampleLoadToken) {
       _scheduleWebViewPoolPump();
       return;
     }
+
+    task.onResult(task, result);
+    _scheduleWebViewPoolPump();
+    _maybeFinishSampleSearch();
+  }
+
+  void _handleSearchCaptchaPreflightResult({
+    required _CaptchaPreflightTask task,
+    required SourceRuntimeOverride runtimeOverride,
+    required void Function(SourceRuntimeOverride runtimeOverride) onCompleted,
+  }) {
+    final sourceName = task.source.name;
 
     if (runtimeOverride.skipSearchError != null) {
       setState(() {
@@ -996,9 +1061,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       });
     }
 
-    task.onCompleted(runtimeOverride);
-    _scheduleWebViewPoolPump();
-    _maybeFinishSampleSearch();
+    onCompleted(runtimeOverride);
   }
 
   void _handleSearchProgressUpdate({
@@ -1187,70 +1250,71 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     late final StreamSubscription<SourceSearchProgress> subscription;
-    subscription = genericSearchWithProgressRuntime(
-      animeName: searchName,
-      absoluteEpisode: currentEpNumber,
-      relativeEpisode: relativeEpNumber,
-      runtimeOverrides: runtimeOverrides,
-    ).listen(
-      (progress) {
-        if (!mounted || loadToken != _sampleLoadToken) {
-          return;
-        }
-        if (!targetSources.contains(progress.sourceName)) {
-          return;
-        }
-
-        setState(() {
-          _handleSearchProgressUpdate(
-            progress: progress,
-            searchName: searchName,
-            currentEpNumber: currentEpNumber,
-          );
-        });
-
-        _scheduleWebViewPoolPump();
-        _maybeFinishSampleSearch();
-      },
-      onError: (error, _) {
-        debugPrint('[SampleSearch][$streamTag] stream error: $error');
-        _searchSubscriptions.remove(subscription);
-        if (!mounted || loadToken != _sampleLoadToken) {
-          return;
-        }
-
-        setState(() {
-          for (final sourceName in targetSources) {
-            final current = _sourceProgressMap[sourceName];
-            final isFinished =
-                current != null && _isSearchStepFinished(current.step);
-            if (isFinished) {
-              continue;
+    subscription =
+        genericSearchWithProgressRuntime(
+          animeName: searchName,
+          absoluteEpisode: currentEpNumber,
+          relativeEpisode: relativeEpNumber,
+          runtimeOverrides: runtimeOverrides,
+        ).listen(
+          (progress) {
+            if (!mounted || loadToken != _sampleLoadToken) {
+              return;
             }
-            _sourceProgressMap[sourceName] = SourceSearchProgress(
-              sourceName: sourceName,
-              step: SearchStep.failed,
-              error: error.toString(),
-              playPageUrl: null,
-              videoRegex: null,
-              directVideoUrl: null,
-              cookies: null,
-              headers: null,
-            );
-          }
-        });
+            if (!targetSources.contains(progress.sourceName)) {
+              return;
+            }
 
-        _maybeFinishSampleSearch();
-      },
-      onDone: () {
-        _searchSubscriptions.remove(subscription);
-        if (!mounted || loadToken != _sampleLoadToken) {
-          return;
-        }
-        _maybeFinishSampleSearch();
-      },
-      cancelOnError: true,
-    );
+            setState(() {
+              _handleSearchProgressUpdate(
+                progress: progress,
+                searchName: searchName,
+                currentEpNumber: currentEpNumber,
+              );
+            });
+
+            _scheduleWebViewPoolPump();
+            _maybeFinishSampleSearch();
+          },
+          onError: (error, _) {
+            debugPrint('[SampleSearch][$streamTag] stream error: $error');
+            _searchSubscriptions.remove(subscription);
+            if (!mounted || loadToken != _sampleLoadToken) {
+              return;
+            }
+
+            setState(() {
+              for (final sourceName in targetSources) {
+                final current = _sourceProgressMap[sourceName];
+                final isFinished =
+                    current != null && _isSearchStepFinished(current.step);
+                if (isFinished) {
+                  continue;
+                }
+                _sourceProgressMap[sourceName] = SourceSearchProgress(
+                  sourceName: sourceName,
+                  step: SearchStep.failed,
+                  error: error.toString(),
+                  playPageUrl: null,
+                  videoRegex: null,
+                  directVideoUrl: null,
+                  cookies: null,
+                  headers: null,
+                );
+              }
+            });
+
+            _maybeFinishSampleSearch();
+          },
+          onDone: () {
+            _searchSubscriptions.remove(subscription);
+            if (!mounted || loadToken != _sampleLoadToken) {
+              return;
+            }
+            _maybeFinishSampleSearch();
+          },
+          cancelOnError: true,
+        );
 
     _searchSubscriptions.add(subscription);
   }
@@ -1291,7 +1355,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (_pendingCaptchaTasks.isNotEmpty || _activeCaptchaTasks.isNotEmpty) {
       return;
     }
-    if (_activeWebViews.isNotEmpty || _resolvingChannelPlayPageKeys.isNotEmpty) {
+    if (_activeWebViews.isNotEmpty ||
+        _resolvingChannelPlayPageKeys.isNotEmpty) {
       return;
     }
     if (_hasPendingWebViewExtractionTasks()) {
@@ -1393,10 +1458,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
 
       final enabledNames = enabledSources.map((s) => s.name).toList();
-      final captchaSources = enabledSources
-          .where((source) => CaptchaConfig.tryParse(source.captchaConfigJson) != null)
-          .toList()
-        ..sort((a, b) => a.tier.compareTo(b.tier));
+      final captchaSources =
+          enabledSources
+              .where(
+                (source) =>
+                    CaptchaConfig.tryParse(source.captchaConfigJson) != null,
+              )
+              .toList()
+            ..sort((a, b) => a.tier.compareTo(b.tier));
       final captchaSourceNameSet = captchaSources
           .map((source) => source.name)
           .toSet();
@@ -1476,7 +1545,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
 
       for (final source in captchaSources) {
-        _queueCaptchaPreflightTask(
+        _queueSearchCaptchaPreflightTask(
           source: source,
           searchKeyword: captchaPreflightKeyword,
           loadToken: loadToken,
@@ -3569,7 +3638,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(height: 8),
-                ..._activeCaptchaTasks.keys.map((sourceName) {
+                ..._activeCaptchaTasks.values.map((task) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 6),
                     child: Row(
@@ -3585,7 +3654,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '$sourceName - 正在跳过验证码',
+                            '${task.label} - 正在跳过验证码',
                             style: const TextStyle(
                               color: Colors.white54,
                               fontSize: 10,
@@ -4061,15 +4130,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     for (final task in _activeCaptchaTasks.values) {
       children.add(
         CaptchaWebViewBypassWidget(
-          key: ValueKey('captcha_pool_${task.source.name}_${task.loadToken}'),
+          key: ValueKey('captcha_pool_${task.taskKey}_${task.loadToken}'),
           source: task.source,
           searchKeyword: task.searchKeyword,
+          initialUrl: task.initialUrl,
+          referer: task.referer,
           captchaConfig: task.captchaConfig,
           timeout: const Duration(seconds: 45),
-          onResult: (result) =>
-              _onCaptchaPreflightResult(task.source.name, result),
+          onResult: (result) => _onCaptchaPreflightResult(task.taskKey, result),
           onLog: (message) {
-            debugPrint('[CaptchaBypass][${task.source.name}] $message');
+            debugPrint('[CaptchaBypass][${task.taskKey}] $message');
           },
           showWebView: _showWebView,
         ),
@@ -4080,9 +4150,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return const SizedBox.shrink();
     }
 
-    return Column(
-      children: children,
-    );
+    return Column(children: children);
   }
 
   Widget _buildResourceList() {

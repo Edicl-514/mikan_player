@@ -269,7 +269,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
 
   Future<generic_scraper.SourceRuntimeOverride> _runCaptchaPreflight({
     required generic_scraper.SourceState source,
-    required String searchKeyword,
+    String? searchKeyword,
+    String? initialUrl,
+    String? referer,
   }) async {
     final captchaConfig = CaptchaConfig.tryParse(source.captchaConfigJson);
     if (captchaConfig == null) {
@@ -299,6 +301,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
           key: ValueKey('captcha_debug_${source.name}_$searchKeyword'),
           source: source,
           searchKeyword: searchKeyword,
+          initialUrl: initialUrl,
+          referer: referer,
           captchaConfig: captchaConfig,
           timeout: const Duration(seconds: 45),
           showWebView: _showWebView,
@@ -317,8 +321,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                 generic_scraper.SourceRuntimeOverride(
                   sourceName: source.name,
                   cookies: result.cookies,
-                  searchPageHtml: result.pageHtml,
-                  searchPageUrl: result.pageUrl,
+                  searchPageHtml: result.searchPageHtml,
+                  searchPageUrl: result.searchPageUrl,
                   detailPageHtml: result.detailPageHtml,
                   detailPageUrl: result.detailPageUrl,
                 ),

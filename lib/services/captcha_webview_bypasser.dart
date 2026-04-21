@@ -91,8 +91,10 @@ class CaptchaBypassResult {
   final bool success;
   final String? error;
   final String? cookies;
-  final String? pageHtml;
-  final String? pageUrl;
+  final String? finalHtml;
+  final String? finalUrl;
+  final String? searchPageHtml;
+  final String? searchPageUrl;
   final String? detailPageHtml;
   final String? detailPageUrl;
 
@@ -101,11 +103,19 @@ class CaptchaBypassResult {
     required this.success,
     this.error,
     this.cookies,
-    this.pageHtml,
-    this.pageUrl,
+    this.finalHtml,
+    this.finalUrl,
+    this.searchPageHtml,
+    this.searchPageUrl,
     this.detailPageHtml,
     this.detailPageUrl,
   });
+
+  @Deprecated('Use searchPageHtml instead.')
+  String? get pageHtml => searchPageHtml;
+
+  @Deprecated('Use searchPageUrl instead.')
+  String? get pageUrl => searchPageUrl;
 }
 
 class _SearchCandidate {
@@ -234,7 +244,9 @@ enum _CaptchaPageSignal { captcha, success, timedOut, superseded, cancelled }
 
 class CaptchaWebViewBypassWidget extends StatefulWidget {
   final SourceState source;
-  final String searchKeyword;
+  final String? searchKeyword;
+  final String? initialUrl;
+  final String? referer;
   final CaptchaConfig captchaConfig;
   final Duration timeout;
   final void Function(CaptchaBypassResult result) onResult;
@@ -244,7 +256,9 @@ class CaptchaWebViewBypassWidget extends StatefulWidget {
   const CaptchaWebViewBypassWidget({
     super.key,
     required this.source,
-    required this.searchKeyword,
+    this.searchKeyword,
+    this.initialUrl,
+    this.referer,
     required this.captchaConfig,
     this.timeout = const Duration(seconds: 45),
     required this.onResult,
@@ -555,12 +569,18 @@ class _CaptchaWebViewBypassWidgetState
   static const _maxCaptchaRetries = 3;
   int _loadEventToken = 0;
   _WebViewFlowStage _flowStage = _WebViewFlowStage.search;
+  String? _initialUrl;
+  String? _initialReferer;
+  bool _isSearchEntryFlow = true;
   String? _searchPageHtml;
   String? _searchPageUrl;
 
   @override
   void initState() {
     super.initState();
+    _initialUrl = _resolveInitialUrl();
+    _initialReferer = widget.referer?.trim();
+    _isSearchEntryFlow = widget.initialUrl?.trim().isEmpty ?? true;
     _startTimeout();
   }
 
@@ -627,15 +647,30 @@ class _CaptchaWebViewBypassWidgetState
 
   @override
   Widget build(BuildContext context) {
-    final searchUrl = widget.source.searchUrl.replaceAll(
-      '{keyword}',
-      widget.searchKeyword,
+    final entryUrl = _initialUrl;
+    if (entryUrl == null || entryUrl.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_isCompleted) return;
+        _complete(
+          CaptchaBypassResult(
+            sourceName: widget.source.name,
+            success: false,
+            error:
+                'Captcha bypass requires initialUrl or a non-empty searchKeyword',
+          ),
+        );
+      });
+      return const SizedBox.shrink();
+    }
+
+    final navigationHeaders = _buildNavigationHeaders(
+      entryUrl,
+      referer: _initialReferer,
     );
-    final navigationHeaders = _buildNavigationHeaders(searchUrl);
 
     final webView = InAppWebView(
       initialUrlRequest: URLRequest(
-        url: WebUri(searchUrl),
+        url: WebUri(entryUrl),
         headers: navigationHeaders,
       ),
       webViewEnvironment: webViewEnvironment,
@@ -656,7 +691,7 @@ class _CaptchaWebViewBypassWidgetState
       ),
       onWebViewCreated: (controller) {
         _webViewController = controller;
-        _log('WebView created, loading search: $searchUrl');
+        _log('WebView created, loading entry: $entryUrl');
         _log('Navigation headers: $navigationHeaders');
       },
       onLoadStart: (_, url) {
@@ -769,8 +804,8 @@ class _CaptchaWebViewBypassWidgetState
         if (_isCompleted || loadEventToken != _loadEventToken) return;
 
         if (hasSuccess) {
-          final currentUrl = (await ctrl.getUrl())?.toString() ??
-              url?.toString();
+          final currentUrl =
+              (await ctrl.getUrl())?.toString() ?? url?.toString();
           await _completeSuccess(ctrl, currentUrl);
           return;
         }
@@ -975,24 +1010,23 @@ class _CaptchaWebViewBypassWidgetState
     String? currentUrl,
   ) async {
     try {
+      final effectiveUrl = currentUrl ?? (await ctrl.getUrl())?.toString();
       final pageHtml = await _captureCurrentHtml(ctrl);
+      final finalHtml = pageHtml?.toString();
 
       final cookies = await _getCookiesForUrl(
-        currentUrl ??
-            widget.source.searchUrl.replaceAll(
-              '{keyword}',
-              widget.searchKeyword,
-            ),
+        effectiveUrl ?? _initialUrl ?? widget.source.searchUrl,
       );
 
-      if (widget.captchaConfig.useWebViewForDetail &&
+      if (_isSearchEntryFlow &&
+          widget.captchaConfig.useWebViewForDetail &&
           _flowStage == _WebViewFlowStage.search) {
-        _searchPageHtml = pageHtml;
-        _searchPageUrl = currentUrl;
+        _searchPageHtml = finalHtml;
+        _searchPageUrl = effectiveUrl;
 
         final detailCandidate = await _selectBestSearchCandidate(
           ctrl,
-          currentUrl,
+          effectiveUrl,
         );
         if (detailCandidate != null) {
           _flowStage = _WebViewFlowStage.detail;
@@ -1005,7 +1039,7 @@ class _CaptchaWebViewBypassWidgetState
               url: WebUri(detailCandidate.url),
               headers: _buildNavigationHeaders(
                 detailCandidate.url,
-                referer: currentUrl,
+                referer: effectiveUrl,
               ),
             ),
           );
@@ -1015,19 +1049,33 @@ class _CaptchaWebViewBypassWidgetState
         _log('WebView detail mode enabled, but no detail candidate was found');
       }
 
+      final detailPageHtml = _flowStage == _WebViewFlowStage.detail
+          ? finalHtml
+          : null;
+      final detailPageUrl = _flowStage == _WebViewFlowStage.detail
+          ? effectiveUrl
+          : null;
+
+      final searchPageHtml = _isSearchEntryFlow
+          ? (_searchPageHtml ??
+                (_flowStage == _WebViewFlowStage.search ? finalHtml : null))
+          : null;
+      final searchPageUrl = _isSearchEntryFlow
+          ? (_searchPageUrl ??
+                (_flowStage == _WebViewFlowStage.search ? effectiveUrl : null))
+          : null;
+
       _complete(
         CaptchaBypassResult(
           sourceName: widget.source.name,
           success: true,
           cookies: cookies,
-          pageHtml: _searchPageHtml ?? pageHtml?.toString(),
-          pageUrl: _searchPageUrl ?? currentUrl,
-          detailPageHtml: _flowStage == _WebViewFlowStage.detail
-              ? pageHtml
-              : null,
-          detailPageUrl: _flowStage == _WebViewFlowStage.detail
-              ? currentUrl
-              : null,
+          finalHtml: finalHtml,
+          finalUrl: effectiveUrl,
+          searchPageHtml: searchPageHtml,
+          searchPageUrl: searchPageUrl,
+          detailPageHtml: detailPageHtml,
+          detailPageUrl: detailPageUrl,
         ),
       );
     } catch (e) {
@@ -1071,7 +1119,11 @@ class _CaptchaWebViewBypassWidgetState
       return null;
     }
 
-    final query = widget.searchKeyword.trim();
+    final query = widget.searchKeyword?.trim() ?? '';
+    if (query.isEmpty) {
+      final first = candidates.first;
+      return _SearchCandidate(title: first.title, url: first.url, score: 0);
+    }
     final core = _extractCoreName(query);
 
     _SearchCandidate? best;
@@ -1083,6 +1135,29 @@ class _CaptchaWebViewBypassWidgetState
     }
 
     return best;
+  }
+
+  String? _resolveInitialUrl() {
+    final customInitial = widget.initialUrl?.trim();
+    if (customInitial != null && customInitial.isNotEmpty) {
+      return customInitial;
+    }
+
+    final searchTemplate = widget.source.searchUrl.trim();
+    if (searchTemplate.isEmpty) {
+      return null;
+    }
+
+    final keyword = widget.searchKeyword?.trim();
+    if (keyword != null && keyword.isNotEmpty) {
+      return searchTemplate.replaceAll('{keyword}', keyword);
+    }
+
+    if (!searchTemplate.contains('{keyword}')) {
+      return searchTemplate;
+    }
+
+    return null;
   }
 
   static Map<String, String> _buildNavigationHeaders(
