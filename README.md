@@ -18,7 +18,7 @@
 - **跨平台**：
   - Windows
   - Android
-- **离线功能**：使用 Isar 数据库进行智能缓存。
+- **离线功能**：使用 Drift 数据库进行智能缓存。
 
 ## 数据来源
 
@@ -32,7 +32,7 @@
 
 - **Flutter**：UI、媒体播放器 (`media_kit`)、弹幕 (`canvas_danmaku`)。
 - **Rust**：应用逻辑和 Torrent 引擎（通过 `flutter_rust_bridge` 调用 `rqbit`）。
-- **Isar**：本地数据库。
+- **Drift**：本地数据库。
 
 ## 开发前提
 

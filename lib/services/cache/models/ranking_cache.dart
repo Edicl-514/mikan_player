@@ -1,14 +1,8 @@
-import 'package:isar/isar.dart';
-
-part 'ranking_cache.g.dart';
-
 /// 排行榜/索引页缓存模型
-@collection
 class RankingCache {
-  Id id = Isar.autoIncrement;
+  int id = 0;
 
   /// 缓存键（由排序类型、年份、标签、页码组合）
-  @Index(unique: true, replace: true)
   late String cacheKey;
 
   /// 排序类型

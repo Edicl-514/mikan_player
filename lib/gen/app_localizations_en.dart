@@ -319,7 +319,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get techStackRust => 'Rust: Core Logic & Scraper';
 
   @override
-  String get techStackIsar => 'Isar: Local Database';
+  String get techStackDatabase => 'Drift: Local SQLite Database';
 
   @override
   String get techStackMediaKit => 'MediaKit: Video Player';

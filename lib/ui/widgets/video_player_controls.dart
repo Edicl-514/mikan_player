@@ -1188,7 +1188,7 @@ class _MobileMultiTapDetectorState extends State<_MobileMultiTapDetector> {
 
   Future<void> _prepareBrightnessOverlay() async {
     try {
-      final current = await ScreenBrightness().current;
+      final current = await ScreenBrightness.instance.application;
       _dragStartBrightness = current;
       _showBrightnessOverlay(current);
     } catch (_) {
@@ -1198,7 +1198,7 @@ class _MobileMultiTapDetectorState extends State<_MobileMultiTapDetector> {
 
   Future<void> _setBrightness(double value) async {
     try {
-      await ScreenBrightness().setScreenBrightness(value);
+      await ScreenBrightness.instance.setApplicationScreenBrightness(value);
     } catch (_) {
       // 忽略不支持的平台/权限错误
     }

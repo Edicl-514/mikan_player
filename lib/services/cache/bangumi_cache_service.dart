@@ -1,16 +1,15 @@
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
-import 'package:isar/isar.dart';
-import 'package:mikan_player/utils/app_directories.dart';
+import 'package:mikan_player/services/cache/database/app_database.dart';
 
-import 'models/bangumi_subject_cache.dart';
 import 'models/bangumi_character_cache.dart';
 import 'models/bangumi_relation_cache.dart';
-import 'models/timetable_cache.dart';
-import 'models/ranking_cache.dart';
+import 'models/bangumi_subject_cache.dart';
 import 'models/download_record.dart';
+import 'models/ranking_cache.dart';
+import 'models/timetable_cache.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -27,17 +26,16 @@ class BangumiCacheService {
 
   BangumiCacheService._();
 
-  Isar? _isar;
+  AppDatabase? _db;
   bool _isInitialized = false;
 
-  /// 获取 Isar 实例
-  Isar get isar {
-    if (_isar == null) {
+  AppDatabase get db {
+    if (_db == null) {
       throw StateError(
         'BangumiCacheService not initialized. Call initialize() first.',
       );
     }
-    return _isar!;
+    return _db!;
   }
 
   /// 检查是否已初始化
@@ -47,50 +45,26 @@ class BangumiCacheService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    final dir = await _getCacheDirectory();
-
-    _isar = await Isar.open(
-      [
-        BangumiSubjectCacheSchema,
-        BangumiCharacterCacheSchema,
-        BangumiRelationCacheSchema,
-        TimetableCacheSchema,
-        RankingCacheSchema,
-        DownloadRecordSchema,
-      ],
-      directory: dir.path,
-      name: 'bangumi_cache',
-    );
-
+    _db = AppDatabase();
     _isInitialized = true;
-    debugPrint('BangumiCacheService initialized at: ${dir.path}');
-  }
-
-  /// 获取缓存目录（兼容 Windows 和 Android）
-  Future<Directory> _getCacheDirectory() async {
-    final appDir = await AppDirectories.getUnifiedAppDataDirectory();
-    final cacheDir = Directory('${appDir.path}/cache');
-    if (!await cacheDir.exists()) {
-      await cacheDir.create(recursive: true);
-    }
-    return cacheDir;
+    debugPrint('BangumiCacheService initialized with Drift');
   }
 
   /// 关闭数据库
   Future<void> close() async {
-    await _isar?.close();
-    _isar = null;
+    await _db?.close();
+    _db = null;
     _isInitialized = false;
   }
 
   /// 清空所有缓存
   Future<void> clearAll() async {
-    await isar.writeTxn(() async {
-      await isar.bangumiSubjectCaches.clear();
-      await isar.bangumiCharacterCaches.clear();
-      await isar.bangumiRelationCaches.clear();
-      await isar.timetableCaches.clear();
-      await isar.rankingCaches.clear();
+    await db.transaction(() async {
+      await db.delete(db.dbBangumiSubjectCaches).go();
+      await db.delete(db.dbBangumiCharacterCaches).go();
+      await db.delete(db.dbBangumiRelationCaches).go();
+      await db.delete(db.dbTimetableCaches).go();
+      await db.delete(db.dbRankingCaches).go();
       // NOTE: Do not clear downloadRecords here as they are user data
     });
   }
@@ -99,51 +73,22 @@ class BangumiCacheService {
   Future<void> clearExpired() async {
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    await isar.writeTxn(() async {
-      // 清除过期的条目缓存
-      final expiredSubjects = await isar.bangumiSubjectCaches
-          .filter()
-          .expiresAtLessThan(now)
-          .findAll();
-      await isar.bangumiSubjectCaches.deleteAll(
-        expiredSubjects.map((e) => e.id).toList(),
-      );
-
-      // 清除过期的角色缓存
-      final expiredCharacters = await isar.bangumiCharacterCaches
-          .filter()
-          .expiresAtLessThan(now)
-          .findAll();
-      await isar.bangumiCharacterCaches.deleteAll(
-        expiredCharacters.map((e) => e.id).toList(),
-      );
-
-      // 清除过期的关联缓存
-      final expiredRelations = await isar.bangumiRelationCaches
-          .filter()
-          .expiresAtLessThan(now)
-          .findAll();
-      await isar.bangumiRelationCaches.deleteAll(
-        expiredRelations.map((e) => e.id).toList(),
-      );
-
-      // 清除过期的时间表缓存
-      final expiredTimetables = await isar.timetableCaches
-          .filter()
-          .expiresAtLessThan(now)
-          .findAll();
-      await isar.timetableCaches.deleteAll(
-        expiredTimetables.map((e) => e.id).toList(),
-      );
-
-      // 清除过期的排行榜缓存
-      final expiredRankings = await isar.rankingCaches
-          .filter()
-          .expiresAtLessThan(now)
-          .findAll();
-      await isar.rankingCaches.deleteAll(
-        expiredRankings.map((e) => e.id).toList(),
-      );
+    await db.transaction(() async {
+      await (db.delete(
+        db.dbBangumiSubjectCaches,
+      )..where((tbl) => tbl.expiresAt.isSmallerThanValue(now))).go();
+      await (db.delete(
+        db.dbBangumiCharacterCaches,
+      )..where((tbl) => tbl.expiresAt.isSmallerThanValue(now))).go();
+      await (db.delete(
+        db.dbBangumiRelationCaches,
+      )..where((tbl) => tbl.expiresAt.isSmallerThanValue(now))).go();
+      await (db.delete(
+        db.dbTimetableCaches,
+      )..where((tbl) => tbl.expiresAt.isSmallerThanValue(now))).go();
+      await (db.delete(
+        db.dbRankingCaches,
+      )..where((tbl) => tbl.expiresAt.isSmallerThanValue(now))).go();
     });
   }
 
@@ -151,33 +96,37 @@ class BangumiCacheService {
 
   /// 获取条目缓存
   Future<BangumiSubjectCache?> getSubject(int bangumiId) async {
-    final cache = await isar.bangumiSubjectCaches
-        .filter()
-        .bangumiIdEqualTo(bangumiId)
-        .findFirst();
+    final row = await (db.select(
+      db.dbBangumiSubjectCaches,
+    )..where((tbl) => tbl.bangumiId.equals(bangumiId))).getSingleOrNull();
+    final cache = row == null ? null : _subjectFromRow(row);
 
     if (cache != null && !cache.isExpired) {
-      debugPrint('Isar Cache: Hit Subject $bangumiId');
+      debugPrint('Drift Cache: Hit Subject $bangumiId');
       return cache;
     }
-    debugPrint('Isar Cache: Miss Subject $bangumiId');
+    debugPrint('Drift Cache: Miss Subject $bangumiId');
     return null;
   }
 
   /// 保存条目缓存
   Future<void> saveSubject(BangumiSubjectCache cache) async {
-    await isar.writeTxn(() async {
-      await isar.bangumiSubjectCaches.put(cache);
-    });
-    debugPrint('Isar Cache: Save Subject ${cache.bangumiId}');
+    await db
+        .into(db.dbBangumiSubjectCaches)
+        .insert(_subjectToCompanion(cache), mode: InsertMode.insertOrReplace);
+    debugPrint('Drift Cache: Save Subject ${cache.bangumiId}');
   }
 
   /// 批量保存条目缓存
   Future<void> saveSubjects(List<BangumiSubjectCache> caches) async {
-    await isar.writeTxn(() async {
-      await isar.bangumiSubjectCaches.putAll(caches);
+    await db.batch((batch) {
+      batch.insertAll(
+        db.dbBangumiSubjectCaches,
+        caches.map(_subjectToCompanion).toList(),
+        mode: InsertMode.insertOrReplace,
+      );
     });
-    debugPrint('Isar Cache: Save Subjects count=${caches.length}');
+    debugPrint('Drift Cache: Save Subjects count=${caches.length}');
   }
 
   /// 从 AnimeInfo 创建并保存条目缓存
@@ -187,18 +136,10 @@ class BangumiCacheService {
     final bangumiId = int.tryParse(anime.bangumiId!);
     if (bangumiId == null) return null;
 
-    // 检查缓存是否已存在且未过期
     final existing = await getSubject(bangumiId);
     if (existing != null) {
-      // 如果已有 fullJson，不需要更新
-      if (existing.fullJson != null) {
-        return existing;
-      }
-      // 如果新数据没有 fullJson，也不需要更新
-      if (anime.fullJson == null) {
-        return existing;
-      }
-      // 继续保存以更新 fullJson
+      if (existing.fullJson != null) return existing;
+      if (anime.fullJson == null) return existing;
     }
 
     Map<String, dynamic>? fullData;
@@ -238,11 +179,8 @@ class BangumiCacheService {
     final bangumiId = int.tryParse(anime.bangumiId);
     if (bangumiId == null) return null;
 
-    // 检查缓存是否已存在且未过期
     final existing = await getSubject(bangumiId);
-    if (existing != null) {
-      return existing; // 已缓存，无需重复保存
-    }
+    if (existing != null) return existing;
 
     final cache = BangumiSubjectCache.create(
       bangumiId: bangumiId,
@@ -261,16 +199,16 @@ class BangumiCacheService {
 
   /// 获取条目的角色缓存列表
   Future<List<BangumiCharacterCache>> getCharacters(int subjectId) async {
-    final caches = await isar.bangumiCharacterCaches
-        .filter()
-        .subjectIdEqualTo(subjectId)
-        .findAll();
+    final rows = await (db.select(
+      db.dbBangumiCharacterCaches,
+    )..where((tbl) => tbl.subjectId.equals(subjectId))).get();
+    final caches = rows.map(_characterFromRow).toList();
 
     if (caches.isNotEmpty && !caches.first.isExpired) {
-      debugPrint('Isar Cache: Hit Characters $subjectId');
+      debugPrint('Drift Cache: Hit Characters $subjectId');
       return caches;
     }
-    debugPrint('Isar Cache: Miss Characters $subjectId');
+    debugPrint('Drift Cache: Miss Characters $subjectId');
     return [];
   }
 
@@ -296,19 +234,20 @@ class BangumiCacheService {
       );
     }).toList();
 
-    await isar.writeTxn(() async {
-      // 先删除旧的角色缓存
-      final oldCaches = await isar.bangumiCharacterCaches
-          .filter()
-          .subjectIdEqualTo(subjectId)
-          .findAll();
-      await isar.bangumiCharacterCaches.deleteAll(
-        oldCaches.map((e) => e.id).toList(),
-      );
-      // 保存新的
-      await isar.bangumiCharacterCaches.putAll(caches);
+    await db.transaction(() async {
+      await (db.delete(
+        db.dbBangumiCharacterCaches,
+      )..where((tbl) => tbl.subjectId.equals(subjectId))).go();
+      await db.batch((batch) {
+        batch.insertAll(
+          db.dbBangumiCharacterCaches,
+          caches.map(_characterToCompanion).toList(),
+        );
+      });
     });
-    debugPrint('Isar Cache: Save Characters $subjectId count=${caches.length}');
+    debugPrint(
+      'Drift Cache: Save Characters $subjectId count=${caches.length}',
+    );
   }
 
   /// 将缓存转换为 BangumiCharacter
@@ -348,17 +287,16 @@ class BangumiCacheService {
 
   /// 获取条目的关联条目缓存列表
   Future<List<BangumiRelationCache>> getRelations(int subjectId) async {
-    final caches = await isar.bangumiRelationCaches
-        .filter()
-        .sourceSubjectIdEqualTo(subjectId)
-        .findAll();
+    final rows = await (db.select(
+      db.dbBangumiRelationCaches,
+    )..where((tbl) => tbl.sourceSubjectId.equals(subjectId))).get();
+    final caches = rows.map(_relationFromRow).toList();
 
     if (caches.isNotEmpty && !caches.first.isExpired) {
-      debugPrint('Isar Cache: Hit Relations $subjectId');
-      // 过滤掉占位记录（relatedSubjectId == -1）
+      debugPrint('Drift Cache: Hit Relations $subjectId');
       return caches.where((c) => c.relatedSubjectId != -1).toList();
     }
-    debugPrint('Isar Cache: Miss Relations $subjectId');
+    debugPrint('Drift Cache: Miss Relations $subjectId');
     return [];
   }
 
@@ -378,32 +316,30 @@ class BangumiCacheService {
       );
     }).toList();
 
-    // 如果关联列表为空，保存一个占位记录
     if (caches.isEmpty) {
       caches.add(
         BangumiRelationCache.create(
           sourceSubjectId: subjectId,
-          relatedSubjectId: -1, // 占位标记
+          relatedSubjectId: -1,
           name: '',
           relation: 'placeholder',
         ),
       );
     }
 
-    await isar.writeTxn(() async {
-      // 先删除旧的关联缓存
-      final oldCaches = await isar.bangumiRelationCaches
-          .filter()
-          .sourceSubjectIdEqualTo(subjectId)
-          .findAll();
-      await isar.bangumiRelationCaches.deleteAll(
-        oldCaches.map((e) => e.id).toList(),
-      );
-      // 保存新的
-      await isar.bangumiRelationCaches.putAll(caches);
+    await db.transaction(() async {
+      await (db.delete(
+        db.dbBangumiRelationCaches,
+      )..where((tbl) => tbl.sourceSubjectId.equals(subjectId))).go();
+      await db.batch((batch) {
+        batch.insertAll(
+          db.dbBangumiRelationCaches,
+          caches.map(_relationToCompanion).toList(),
+        );
+      });
     });
     debugPrint(
-      'Isar Cache: Save Relations $subjectId count=${relations.length}',
+      'Drift Cache: Save Relations $subjectId count=${relations.length}',
     );
   }
 
@@ -411,55 +347,53 @@ class BangumiCacheService {
   List<BangumiRelatedSubject> relationsFromCache(
     List<BangumiRelationCache> caches,
   ) {
-    return caches
-        .where((cache) => cache.relatedSubjectId != -1) // 过滤占位记录
-        .map((cache) {
-          return BangumiRelatedSubject(
-            id: cache.relatedSubjectId,
-            name: cache.name,
-            nameCn: cache.nameCn ?? '',
-            relation: cache.relation,
-            image: cache.imageUrl ?? '',
-          );
-        })
-        .toList();
+    return caches.where((cache) => cache.relatedSubjectId != -1).map((cache) {
+      return BangumiRelatedSubject(
+        id: cache.relatedSubjectId,
+        name: cache.name,
+        nameCn: cache.nameCn ?? '',
+        relation: cache.relation,
+        image: cache.imageUrl ?? '',
+      );
+    }).toList();
   }
 
   // ==================== 时间表缓存操作 ====================
 
   /// 获取时间表缓存
   Future<TimetableCache?> getTimetable(String quarter) async {
-    final cache = await isar.timetableCaches
-        .filter()
-        .quarterEqualTo(quarter)
-        .findFirst();
+    final cache = await _getTimetableRow(quarter);
 
     if (cache != null && !cache.isExpired) {
-      debugPrint('Isar Cache: Hit Timetable $quarter');
+      debugPrint('Drift Cache: Hit Timetable $quarter');
       return cache;
     }
-    debugPrint('Isar Cache: Miss Timetable $quarter');
+    debugPrint('Drift Cache: Miss Timetable $quarter');
     return null;
   }
 
   /// 获取时间表缓存（包括已过期的）
   /// 用于离线模式或网络失败时的降级方案
   Future<TimetableCache?> getTimetableIncludingExpired(String quarter) async {
-    final cache = await isar.timetableCaches
-        .filter()
-        .quarterEqualTo(quarter)
-        .findFirst();
+    final cache = await _getTimetableRow(quarter);
 
     if (cache != null) {
       if (cache.isExpired) {
-        debugPrint('Isar Cache: Hit Timetable (expired) $quarter');
+        debugPrint('Drift Cache: Hit Timetable (expired) $quarter');
       } else {
-        debugPrint('Isar Cache: Hit Timetable $quarter');
+        debugPrint('Drift Cache: Hit Timetable $quarter');
       }
       return cache;
     }
-    debugPrint('Isar Cache: Miss Timetable $quarter');
+    debugPrint('Drift Cache: Miss Timetable $quarter');
     return null;
+  }
+
+  Future<TimetableCache?> _getTimetableRow(String quarter) async {
+    final row = await (db.select(
+      db.dbTimetableCaches,
+    )..where((tbl) => tbl.quarter.equals(quarter))).getSingleOrNull();
+    return row == null ? null : _timetableFromRow(row);
   }
 
   /// 保存时间表缓存
@@ -490,10 +424,10 @@ class BangumiCacheService {
       animesJson: animesJson,
     );
 
-    await isar.writeTxn(() async {
-      await isar.timetableCaches.put(cache);
-    });
-    debugPrint('Isar Cache: Save Timetable $quarter');
+    await db
+        .into(db.dbTimetableCaches)
+        .insert(_timetableToCompanion(cache), mode: InsertMode.insertOrReplace);
+    debugPrint('Drift Cache: Save Timetable $quarter');
   }
 
   /// 将缓存转换为 AnimeInfo 列表
@@ -540,16 +474,16 @@ class BangumiCacheService {
       page: page,
     );
 
-    final cache = await isar.rankingCaches
-        .filter()
-        .cacheKeyEqualTo(key)
-        .findFirst();
+    final row = await (db.select(
+      db.dbRankingCaches,
+    )..where((tbl) => tbl.cacheKey.equals(key))).getSingleOrNull();
+    final cache = row == null ? null : _rankingFromRow(row);
 
     if (cache != null && !cache.isExpired) {
-      debugPrint('Isar Cache: Hit Ranking $key');
+      debugPrint('Drift Cache: Hit Ranking $key');
       return cache;
     }
-    debugPrint('Isar Cache: Miss Ranking $key');
+    debugPrint('Drift Cache: Miss Ranking $key');
     return null;
   }
 
@@ -585,10 +519,10 @@ class BangumiCacheService {
       resultsJson: resultsJson,
     );
 
-    await isar.writeTxn(() async {
-      await isar.rankingCaches.put(cache);
-    });
-    debugPrint('Isar Cache: Save Ranking ${cache.cacheKey}');
+    await db
+        .into(db.dbRankingCaches)
+        .insert(_rankingToCompanion(cache), mode: InsertMode.insertOrReplace);
+    debugPrint('Drift Cache: Save Ranking ${cache.cacheKey}');
   }
 
   /// 将缓存转换为 RankingAnime 列表
@@ -619,37 +553,47 @@ class BangumiCacheService {
   /// 获取缓存统计信息
   Future<Map<String, int>> getCacheStats() async {
     return {
-      'subjects': await isar.bangumiSubjectCaches.count(),
-      'characters': await isar.bangumiCharacterCaches.count(),
-      'relations': await isar.bangumiRelationCaches.count(),
-      'timetables': await isar.timetableCaches.count(),
-      'rankings': await isar.rankingCaches.count(),
-      'downloadRecords': await isar.downloadRecords.count(),
+      'subjects': await _count(db.dbBangumiSubjectCaches),
+      'characters': await _count(db.dbBangumiCharacterCaches),
+      'relations': await _count(db.dbBangumiRelationCaches),
+      'timetables': await _count(db.dbTimetableCaches),
+      'rankings': await _count(db.dbRankingCaches),
+      'downloadRecords': await _count(db.dbDownloadRecords),
     };
+  }
+
+  Future<int> _count(TableInfo<Table, Object?> table) async {
+    final countExp = table.$columns.first.count();
+    return (db.selectOnly(table)..addColumns([countExp]))
+        .map((row) => row.read(countExp) ?? 0)
+        .getSingle();
   }
 
   // ==================== 下载记录操作 ====================
 
   /// 获取下载记录
   Future<DownloadRecord?> getDownloadRecord(String infoHash) async {
-    final record = await isar.downloadRecords
-        .filter()
-        .infoHashEqualTo(infoHash)
-        .findFirst();
+    final row = await (db.select(
+      db.dbDownloadRecords,
+    )..where((tbl) => tbl.infoHash.equals(infoHash))).getSingleOrNull();
+    final record = row == null ? null : _downloadRecordFromRow(row);
     if (record != null) {
-      debugPrint('Isar Cache: Hit DownloadRecord $infoHash');
+      debugPrint('Drift Cache: Hit DownloadRecord $infoHash');
     } else {
-      debugPrint('Isar Cache: Miss DownloadRecord $infoHash');
+      debugPrint('Drift Cache: Miss DownloadRecord $infoHash');
     }
     return record;
   }
 
   /// 保存下载记录
   Future<void> saveDownloadRecord(DownloadRecord record) async {
-    await isar.writeTxn(() async {
-      await isar.downloadRecords.put(record);
-    });
-    debugPrint('Isar Cache: Save DownloadRecord ${record.infoHash}');
+    await db
+        .into(db.dbDownloadRecords)
+        .insert(
+          _downloadRecordToCompanion(record),
+          mode: InsertMode.insertOrReplace,
+        );
+    debugPrint('Drift Cache: Save DownloadRecord ${record.infoHash}');
   }
 
   /// 查找已完成的下载
@@ -657,20 +601,23 @@ class BangumiCacheService {
     String animeName,
     int episodeNumber,
   ) async {
-    // 模糊匹配番剧名称可能会有问题，最好如果有 BangumiID 能存 BangumiID
-    // 目前先尝试精确匹配
-    final record = await isar.downloadRecords
-        .filter()
-        .animeNameEqualTo(animeName)
-        .episodeNumberEqualTo(episodeNumber)
-        .statusEqualTo(1) // Completed
-        .findFirst();
+    final row =
+        await (db.select(db.dbDownloadRecords)..where(
+              (tbl) =>
+                  tbl.animeName.equals(animeName) &
+                  tbl.episodeNumber.equals(episodeNumber) &
+                  tbl.status.equals(1),
+            ))
+            .getSingleOrNull();
+    final record = row == null ? null : _downloadRecordFromRow(row);
 
     if (record != null) {
-      debugPrint('Isar Cache: Hit CompletedDownload $animeName $episodeNumber');
+      debugPrint(
+        'Drift Cache: Hit CompletedDownload $animeName $episodeNumber',
+      );
     } else {
       debugPrint(
-        'Isar Cache: Miss CompletedDownload $animeName $episodeNumber',
+        'Drift Cache: Miss CompletedDownload $animeName $episodeNumber',
       );
     }
     return record;
@@ -678,16 +625,217 @@ class BangumiCacheService {
 
   /// 获取所有下载记录
   Future<List<DownloadRecord>> getAllDownloadRecords() async {
-    final records = await isar.downloadRecords.where().findAll();
-    debugPrint('Isar Cache: Get AllDownloadRecords count=${records.length}');
+    final rows = await db.select(db.dbDownloadRecords).get();
+    final records = rows.map(_downloadRecordFromRow).toList();
+    debugPrint('Drift Cache: Get AllDownloadRecords count=${records.length}');
     return records;
   }
 
   /// 删除下载记录
   Future<void> deleteDownloadRecord(String infoHash) async {
-    await isar.writeTxn(() async {
-      await isar.downloadRecords.filter().infoHashEqualTo(infoHash).deleteAll();
-    });
-    debugPrint('Isar Cache: Delete DownloadRecord $infoHash');
+    await (db.delete(
+      db.dbDownloadRecords,
+    )..where((tbl) => tbl.infoHash.equals(infoHash))).go();
+    debugPrint('Drift Cache: Delete DownloadRecord $infoHash');
+  }
+
+  DbBangumiSubjectCachesCompanion _subjectToCompanion(
+    BangumiSubjectCache cache,
+  ) {
+    return DbBangumiSubjectCachesCompanion.insert(
+      bangumiId: cache.bangumiId,
+      title: cache.title,
+      titleCn: Value(cache.titleCn),
+      originalTitle: Value(cache.originalTitle),
+      description: Value(cache.description),
+      score: Value(cache.score),
+      rank: Value(cache.rank),
+      imageSmall: Value(cache.imageSmall),
+      imageGrid: Value(cache.imageGrid),
+      imageLarge: Value(cache.imageLarge),
+      imageMedium: Value(cache.imageMedium),
+      imageCommon: Value(cache.imageCommon),
+      localImagePath: Value(cache.localImagePath),
+      airDate: Value(cache.airDate),
+      airWeekday: Value(cache.airWeekday),
+      tagsJson: Value(cache.tagsJson),
+      fullJson: Value(cache.fullJson),
+      type: Value(cache.type),
+      totalEpisodes: Value(cache.totalEpisodes),
+      cachedAt: cache.cachedAt,
+      expiresAt: cache.expiresAt,
+    );
+  }
+
+  BangumiSubjectCache _subjectFromRow(DbBangumiSubjectCache row) {
+    return BangumiSubjectCache()
+      ..id = row.id
+      ..bangumiId = row.bangumiId
+      ..title = row.title
+      ..titleCn = row.titleCn
+      ..originalTitle = row.originalTitle
+      ..description = row.description
+      ..score = row.score
+      ..rank = row.rank
+      ..imageSmall = row.imageSmall
+      ..imageGrid = row.imageGrid
+      ..imageLarge = row.imageLarge
+      ..imageMedium = row.imageMedium
+      ..imageCommon = row.imageCommon
+      ..localImagePath = row.localImagePath
+      ..airDate = row.airDate
+      ..airWeekday = row.airWeekday
+      ..tagsJson = row.tagsJson
+      ..fullJson = row.fullJson
+      ..type = row.type
+      ..totalEpisodes = row.totalEpisodes
+      ..cachedAt = row.cachedAt
+      ..expiresAt = row.expiresAt;
+  }
+
+  DbBangumiCharacterCachesCompanion _characterToCompanion(
+    BangumiCharacterCache cache,
+  ) {
+    return DbBangumiCharacterCachesCompanion.insert(
+      subjectId: cache.subjectId,
+      characterId: cache.characterId,
+      name: cache.name,
+      roleName: cache.roleName,
+      imageSmall: Value(cache.imageSmall),
+      imageGrid: Value(cache.imageGrid),
+      imageLarge: Value(cache.imageLarge),
+      imageMedium: Value(cache.imageMedium),
+      imageCommon: Value(cache.imageCommon),
+      localImagePath: Value(cache.localImagePath),
+      actorsJson: Value(cache.actorsJson),
+      cachedAt: cache.cachedAt,
+      expiresAt: cache.expiresAt,
+    );
+  }
+
+  BangumiCharacterCache _characterFromRow(DbBangumiCharacterCache row) {
+    return BangumiCharacterCache()
+      ..id = row.id
+      ..subjectId = row.subjectId
+      ..characterId = row.characterId
+      ..name = row.name
+      ..roleName = row.roleName
+      ..imageSmall = row.imageSmall
+      ..imageGrid = row.imageGrid
+      ..imageLarge = row.imageLarge
+      ..imageMedium = row.imageMedium
+      ..imageCommon = row.imageCommon
+      ..localImagePath = row.localImagePath
+      ..actorsJson = row.actorsJson
+      ..cachedAt = row.cachedAt
+      ..expiresAt = row.expiresAt;
+  }
+
+  DbBangumiRelationCachesCompanion _relationToCompanion(
+    BangumiRelationCache cache,
+  ) {
+    return DbBangumiRelationCachesCompanion.insert(
+      sourceSubjectId: cache.sourceSubjectId,
+      relatedSubjectId: cache.relatedSubjectId,
+      name: cache.name,
+      nameCn: Value(cache.nameCn),
+      relation: cache.relation,
+      imageUrl: Value(cache.imageUrl),
+      localImagePath: Value(cache.localImagePath),
+      cachedAt: cache.cachedAt,
+      expiresAt: cache.expiresAt,
+    );
+  }
+
+  BangumiRelationCache _relationFromRow(DbBangumiRelationCache row) {
+    return BangumiRelationCache()
+      ..id = row.id
+      ..sourceSubjectId = row.sourceSubjectId
+      ..relatedSubjectId = row.relatedSubjectId
+      ..name = row.name
+      ..nameCn = row.nameCn
+      ..relation = row.relation
+      ..imageUrl = row.imageUrl
+      ..localImagePath = row.localImagePath
+      ..cachedAt = row.cachedAt
+      ..expiresAt = row.expiresAt;
+  }
+
+  DbTimetableCachesCompanion _timetableToCompanion(TimetableCache cache) {
+    return DbTimetableCachesCompanion.insert(
+      quarter: cache.quarter,
+      animesJson: cache.animesJson,
+      cachedAt: cache.cachedAt,
+      expiresAt: cache.expiresAt,
+    );
+  }
+
+  TimetableCache _timetableFromRow(DbTimetableCache row) {
+    return TimetableCache()
+      ..id = row.id
+      ..quarter = row.quarter
+      ..animesJson = row.animesJson
+      ..cachedAt = row.cachedAt
+      ..expiresAt = row.expiresAt;
+  }
+
+  DbRankingCachesCompanion _rankingToCompanion(RankingCache cache) {
+    return DbRankingCachesCompanion.insert(
+      cacheKey: cache.cacheKey,
+      sortType: cache.sortType,
+      year: Value(cache.year),
+      tagsJson: Value(cache.tagsJson),
+      page: cache.page,
+      resultsJson: cache.resultsJson,
+      cachedAt: cache.cachedAt,
+      expiresAt: cache.expiresAt,
+    );
+  }
+
+  RankingCache _rankingFromRow(DbRankingCache row) {
+    return RankingCache()
+      ..id = row.id
+      ..cacheKey = row.cacheKey
+      ..sortType = row.sortType
+      ..year = row.year
+      ..tagsJson = row.tagsJson
+      ..page = row.page
+      ..resultsJson = row.resultsJson
+      ..cachedAt = row.cachedAt
+      ..expiresAt = row.expiresAt;
+  }
+
+  DbDownloadRecordsCompanion _downloadRecordToCompanion(DownloadRecord record) {
+    return DbDownloadRecordsCompanion.insert(
+      infoHash: record.infoHash,
+      magnet: record.magnet,
+      name: Value(record.name),
+      animeName: Value(record.animeName),
+      bangumiId: Value(record.bangumiId),
+      episodeNumber: Value(record.episodeNumber),
+      status: record.status,
+      filePath: Value(record.filePath),
+      totalSize: record.totalSize,
+      downloaded: record.downloaded,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    );
+  }
+
+  DownloadRecord _downloadRecordFromRow(DbDownloadRecord row) {
+    return DownloadRecord()
+      ..id = row.id
+      ..infoHash = row.infoHash
+      ..magnet = row.magnet
+      ..name = row.name
+      ..animeName = row.animeName
+      ..bangumiId = row.bangumiId
+      ..episodeNumber = row.episodeNumber
+      ..status = row.status
+      ..filePath = row.filePath
+      ..totalSize = row.totalSize
+      ..downloaded = row.downloaded
+      ..createdAt = row.createdAt
+      ..updatedAt = row.updatedAt;
   }
 }

@@ -1,14 +1,8 @@
-import 'package:isar/isar.dart';
-
-part 'timetable_cache.g.dart';
-
 /// 时间表/季度番剧列表缓存模型
-@collection
 class TimetableCache {
-  Id id = Isar.autoIncrement;
+  int id = 0;
 
   /// 季度标识（如 "2024q1"）
-  @Index(unique: true, replace: true)
   late String quarter;
 
   /// 完整的动画列表 JSON

@@ -1,10 +1,7 @@
 targets:
   $default:
     builders:
-      isar_generator:
+      drift_dev:
         generate_for:
           include:
-            - lib/services/cache/models/**
-            - lib/models/**
-          exclude:
-            - lib/src/rust/**
+            - lib/services/cache/database/**

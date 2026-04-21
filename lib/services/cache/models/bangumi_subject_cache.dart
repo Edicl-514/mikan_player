@@ -1,15 +1,9 @@
-import 'package:isar/isar.dart';
-
-part 'bangumi_subject_cache.g.dart';
-
 /// Bangumi 条目缓存模型
 /// 用于缓存从 Bangumi API 获取的番剧基本信息
-@collection
 class BangumiSubjectCache {
-  Id id = Isar.autoIncrement;
+  int id = 0;
 
   /// Bangumi 条目 ID
-  @Index(unique: true, replace: true)
   late int bangumiId;
 
   /// 标题

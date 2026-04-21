@@ -313,7 +313,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get techStackRust => 'Rust：核心业务逻辑与爬虫';
 
   @override
-  String get techStackIsar => 'Isar：本地数据库';
+  String get techStackDatabase => 'Drift：本地 SQLite 数据库';
 
   @override
   String get techStackMediaKit => 'MediaKit：视频播放核心';

@@ -1,14 +1,8 @@
-import 'package:isar/isar.dart';
-
-part 'bangumi_relation_cache.g.dart';
-
 /// Bangumi 关联条目缓存模型
-@collection
 class BangumiRelationCache {
-  Id id = Isar.autoIncrement;
+  int id = 0;
 
   /// 源条目 ID
-  @Index()
   late int sourceSubjectId;
 
   /// 关联条目 ID

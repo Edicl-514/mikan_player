@@ -96,7 +96,7 @@
   "aboutDisclaimer": "网络同步是单向的，所有数据均为本地存储，不会影响在线账号",
   "techStackFlutter": "Flutter：跨平台 UI 构建",
   "techStackRust": "Rust：核心业务逻辑与爬虫",
-  "techStackIsar": "Isar：本地数据库",
+  "techStackDatabase": "Drift：本地 SQLite 数据库",
   "techStackMediaKit": "MediaKit：视频播放核心",
   "techStackDanmaku": "CanvasDanmaku：弹幕渲染",
   "sourceMeta": "Bangumi / bgmlist：番剧元数据与放送表",

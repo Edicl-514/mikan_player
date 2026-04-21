@@ -8,7 +8,7 @@ build = "build.rs"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-flutter_rust_bridge = "=2.11.1"
+flutter_rust_bridge = "=2.12.0"
 librqbit = { version = "8.1.1", features = ["http-api", "tracing-subscriber-utils"] }
 
 axum = "0.8"

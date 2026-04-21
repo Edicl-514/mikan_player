@@ -674,11 +674,11 @@ abstract class AppLocalizations {
   /// **'Rust：核心业务逻辑与爬虫'**
   String get techStackRust;
 
-  /// No description provided for @techStackIsar.
+  /// No description provided for @techStackDatabase.
   ///
   /// In zh, this message translates to:
-  /// **'Isar：本地数据库'**
-  String get techStackIsar;
+  /// **'Drift：本地 SQLite 数据库'**
+  String get techStackDatabase;
 
   /// No description provided for @techStackMediaKit.
   ///

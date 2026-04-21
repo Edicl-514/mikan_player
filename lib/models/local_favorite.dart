@@ -1,12 +1,6 @@
-import 'package:isar/isar.dart';
-
-part 'local_favorite.g.dart';
-
-@collection
 class LocalFavorite {
-  Id id = Isar.autoIncrement;
+  int id = 0;
 
-  @Index(unique: true, replace: true)
   late int bangumiId;
 
   late String title;

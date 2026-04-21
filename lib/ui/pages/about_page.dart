@@ -58,7 +58,7 @@ class AboutPage extends StatelessWidget {
                 ),
                 _buildBulletPoint(
                   context,
-                  AppLocalizations.of(context).techStackIsar,
+                  AppLocalizations.of(context).techStackDatabase,
                 ),
                 _buildBulletPoint(
                   context,

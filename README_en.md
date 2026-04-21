@@ -18,7 +18,7 @@ A modern Flutter + Rust application for streaming anime, with Bangumi integratio
 - **Cross-Platform**:
   - Windows
   - Android
-- **Offline Capabilities**: Intelligent caching with Isar database.
+- **Offline Capabilities**: Intelligent caching with Drift database.
 
 ## Data Sources
 
@@ -32,7 +32,7 @@ A modern Flutter + Rust application for streaming anime, with Bangumi integratio
 
 - **Flutter**: UI, Media Player (`media_kit`), Danmaku (`canvas_danmaku`).
 - **Rust**: Application Logic and Torrent Engine (`rqbit` via `flutter_rust_bridge`).
-- **Isar**: Local database.
+- **Drift**: Local database.
 
 ## Prerequisites
 

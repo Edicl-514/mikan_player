@@ -1,15 +1,9 @@
-import 'package:isar/isar.dart';
-
-part 'download_record.g.dart';
-
 /// BT 下载记录模型
 /// 用于持久化保存下载任务信息，防止应用重启丢失进度或元数据
-@collection
 class DownloadRecord {
-  Id id = Isar.autoIncrement;
+  int id = 0;
 
   /// Info Hash
-  @Index(unique: true, replace: true)
   late String infoHash;
 
   /// Magnet Link

@@ -1,14 +1,8 @@
-import 'package:isar/isar.dart';
-
-part 'bangumi_character_cache.g.dart';
-
 /// Bangumi 角色缓存模型
-@collection
 class BangumiCharacterCache {
-  Id id = Isar.autoIncrement;
+  int id = 0;
 
   /// 关联的条目 ID
-  @Index()
   late int subjectId;
 
   /// 角色 ID

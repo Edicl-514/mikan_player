@@ -96,7 +96,7 @@
   "aboutDisclaimer": "Network synchronization is one-way, all data is stored locally and will not affect online accounts",
   "techStackFlutter": "Flutter: Cross-platform UI",
   "techStackRust": "Rust: Core Logic & Scraper",
-  "techStackIsar": "Isar: Local Database",
+  "techStackDatabase": "Drift: Local SQLite Database",
   "techStackMediaKit": "MediaKit: Video Player",
   "techStackDanmaku": "CanvasDanmaku: Danmaku Rendering",
   "sourceMeta": "Bangumi / bgmlist: Metadata & Schedule",
