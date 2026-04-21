@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,6 +26,75 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   Set<String> _disabledSources = {};
   bool _isAutoSettingBangumi = false;
   bool _isAutoSettingMikan = false;
+
+  bool? _parseBool(dynamic value) {
+    if (value is bool) {
+      return value;
+    }
+    if (value is num) {
+      return value != 0;
+    }
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+        return true;
+      }
+      if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+        return false;
+      }
+    }
+    return null;
+  }
+
+  Map<String, bool> _parseDefaultEnabledOverrides(String content) {
+    try {
+      final root = jsonDecode(content);
+      if (root is! Map) return {};
+
+      final exported = root['exportedMediaSourceDataList'];
+      if (exported is! Map) return {};
+
+      final mediaSources = exported['mediaSources'];
+      if (mediaSources is! List) return {};
+
+      final overrides = <String, bool>{};
+      for (final item in mediaSources) {
+        if (item is! Map) continue;
+        final arguments = item['arguments'];
+        if (arguments is! Map) continue;
+        if (!arguments.containsKey('defaultEnabled')) continue;
+
+        final name = arguments['name']?.toString().trim() ?? '';
+        if (name.isEmpty) continue;
+
+        final parsed = _parseBool(arguments['defaultEnabled']);
+        if (parsed == null) continue;
+        overrides[name] = parsed;
+      }
+      return overrides;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  List<generic_scraper.SourceState> _buildSortedSources() {
+    final sorted = List<generic_scraper.SourceState>.from(_sources);
+    sorted.sort((a, b) {
+      final aEnabled = !_disabledSources.contains(a.name);
+      final bEnabled = !_disabledSources.contains(b.name);
+      if (aEnabled != bEnabled) {
+        return aEnabled ? -1 : 1;
+      }
+
+      final tierCompare = a.tier.compareTo(b.tier);
+      if (tierCompare != 0) {
+        return tierCompare;
+      }
+
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return sorted;
+  }
 
   @override
   void initState() {
@@ -118,22 +188,54 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
 
     try {
       // 从订阅地址重新拉取JSON并保存到本地
-      await rust.refreshPlaybackSourceConfig();
+      final content = await generic_scraper.refreshPlaybackSourceConfig();
+      final defaultEnabledOverrides = _parseDefaultEnabledOverrides(content);
+
+      if (defaultEnabledOverrides.isNotEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        final syncedDisabled =
+            (prefs.getStringList('disabled_sources') ?? <String>[]).toSet();
+
+        for (final entry in defaultEnabledOverrides.entries) {
+          if (entry.value) {
+            syncedDisabled.remove(entry.key);
+          } else {
+            syncedDisabled.add(entry.key);
+          }
+        }
+
+        final syncedDisabledList = syncedDisabled.toList();
+        await prefs.setStringList('disabled_sources', syncedDisabledList);
+        await rust.setDisabledSources(sources: syncedDisabledList);
+      }
 
       // 刷新源列表（从本地缓存读取）
       final sources = await rust.getPlaybackSources();
+      final disabledSources = sources
+          .where((s) => !s.enabled)
+          .map((s) => s.name)
+          .toList();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('disabled_sources', disabledSources);
+
       setState(() {
         _sources = sources;
-        _disabledSources = sources
-            .where((s) => !s.enabled)
-            .map((s) => s.name)
-            .toSet();
+        _disabledSources = disabledSources.toSet();
       });
 
       if (mounted) {
+        final syncCount = defaultEnabledOverrides.length;
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('播放源已刷新')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(
+              syncCount > 0
+                  ? '播放源已刷新，并同步了 $syncCount 个默认开关'
+                  : '播放源已刷新',
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -282,6 +384,8 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final sortedSources = _buildSortedSources();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('数据源设置'),
@@ -394,11 +498,11 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                   ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _sources.length,
+                    itemCount: sortedSources.length,
                     separatorBuilder: (context, index) =>
                         const SizedBox(height: 8),
                     itemBuilder: (context, index) {
-                      final source = _sources[index];
+                      final source = sortedSources[index];
                       final isEnabled = !_disabledSources.contains(source.name);
                       return Card(
                         margin: EdgeInsets.zero,
