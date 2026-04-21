@@ -3,6 +3,8 @@ use std::os::windows::process::CommandExt;
 
 use log::warn;
 use reqwest::{Client, Proxy};
+use rustls::{ClientConfig, RootCertStore};
+#[cfg(target_os = "windows")]
 use std::process::Command;
 use std::time::Duration;
 
@@ -86,9 +88,21 @@ pub fn get_system_proxy() -> Option<String> {
 
 #[flutter_rust_bridge::frb(ignore)]
 pub fn create_client() -> reqwest::Result<Client> {
+    let roots = RootCertStore {
+        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+    };
+    let tls_config = ClientConfig::builder_with_provider(
+        rustls::crypto::aws_lc_rs::default_provider().into(),
+    )
+    .with_safe_default_protocol_versions()
+    .expect("rustls safe default protocol versions should be valid")
+    .with_root_certificates(roots)
+    .with_no_client_auth();
+
     let mut builder = Client::builder()
         .user_agent("MikanPlayer/1.0")
-        .timeout(Duration::from_secs(30));
+        .timeout(Duration::from_secs(30))
+        .tls_backend_preconfigured(tls_config);
 
     if let Some(proxy_url) = get_system_proxy() {
         match Proxy::all(&proxy_url) {

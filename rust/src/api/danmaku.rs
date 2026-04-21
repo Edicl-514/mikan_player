@@ -296,7 +296,7 @@ pub async fn danmaku_search_anime(keyword: String) -> Result<Vec<DanmakuAnime>, 
 
     let headers = build_signed_headers(&url)?;
 
-    let client = reqwest::Client::new();
+    let client = crate::api::network::create_client().map_err(|e| e.to_string())?;
     let response = client
         .get(&url)
         .headers(headers)
@@ -340,7 +340,7 @@ pub async fn danmaku_get_episodes(anime_id: i64) -> Result<Vec<DanmakuEpisode>, 
 
     let headers = build_signed_headers(&url)?;
 
-    let client = reqwest::Client::new();
+    let client = crate::api::network::create_client().map_err(|e| e.to_string())?;
     let response = client
         .get(&url)
         .headers(headers)
@@ -388,7 +388,7 @@ pub async fn danmaku_get_bangumi_episodes(
 
     let headers = build_signed_headers(&url)?;
 
-    let client = reqwest::Client::new();
+    let client = crate::api::network::create_client().map_err(|e| e.to_string())?;
     let response = client
         .get(&url)
         .headers(headers)
@@ -441,7 +441,7 @@ pub async fn danmaku_get_comments(episode_id: i64) -> Result<Vec<Danmaku>, Strin
 
     let headers = build_signed_headers(&url)?;
 
-    let client = reqwest::Client::new();
+    let client = crate::api::network::create_client().map_err(|e| e.to_string())?;
     let response = client
         .get(&url)
         .headers(headers)
@@ -504,7 +504,7 @@ pub async fn danmaku_match_anime(
         "matchMode": "hashAndFileName"
     });
 
-    let client = reqwest::Client::new();
+    let client = crate::api::network::create_client().map_err(|e| e.to_string())?;
     let response = client
         .post(url)
         .headers(headers)

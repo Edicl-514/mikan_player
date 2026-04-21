@@ -1,8 +1,39 @@
+import groovy.json.JsonSlurper
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+fun RepositoryHandler.rustlsPlatformVerifier() = maven {
+    val dependencyText = providers.exec {
+        workingDir = File(project.rootDir, "..")
+        commandLine(
+            "cargo",
+            "metadata",
+            "--format-version",
+            "1",
+            "--filter-platform",
+            "aarch64-linux-android",
+            "--manifest-path",
+            File(project.rootDir, "../rust/Cargo.toml").path,
+        )
+    }.standardOutput.asText.get()
+
+    @Suppress("UNCHECKED_CAST")
+    val packages = (JsonSlurper().parseText(dependencyText) as Map<String, Any>)["packages"] as List<Map<String, Any>>
+    val manifestPath = packages
+        .first { it["name"] == "rustls-platform-verifier-android" }["manifest_path"]
+        .toString()
+
+    url = uri(File(File(manifestPath).parentFile, "maven").path)
+    metadataSources.artifact()
+}
+
+repositories {
+    rustlsPlatformVerifier()
 }
 
 android {
@@ -41,4 +72,8 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation("rustls:rustls-platform-verifier:latest.release")
 }

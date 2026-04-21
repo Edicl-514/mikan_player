@@ -55,10 +55,10 @@ try {
     Pop-Location
 }
 
-Write-Host "Rust build completed for all ABIs."
+Write-Host "Rust build completed for arm64-v8a."
 
-# 构建单一 release APK（包含所有本地库与资源，避免语言资源被分割）
-Write-Host "Building single release APK (no ABI split)..."
-flutter build apk --release --split-per-abi
+# 构建 arm64 release APK，与上面的 Rust ABI 保持一致。
+Write-Host "Building arm64 release APK..."
+flutter build apk --release --target-platform android-arm64
 
 Write-Host "APK build completed!"
