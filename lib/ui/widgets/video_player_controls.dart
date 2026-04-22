@@ -45,6 +45,8 @@ class CustomVideoControls extends StatelessWidget {
   // 播放设置
   final bool isAutoPlayNextEnabled;
   final VoidCallback onToggleAutoPlayNext;
+  final double playbackSpeed;
+  final ValueChanged<double> onPlaybackSpeedChanged;
 
   // 加载状态
   final bool isLoading;
@@ -77,6 +79,8 @@ class CustomVideoControls extends StatelessWidget {
     this.videoTitle,
     required this.isAutoPlayNextEnabled,
     required this.onToggleAutoPlayNext,
+    required this.playbackSpeed,
+    required this.onPlaybackSpeedChanged,
   });
 
   @override
@@ -702,6 +706,14 @@ class CustomVideoControls extends StatelessWidget {
     }
   }
 
+  double _resolveCurrentPlaybackSpeed() {
+    final rate = state.widget.controller.player.state.rate;
+    if (rate.isFinite && rate > 0) {
+      return rate.clamp(0.25, 3.0).toDouble();
+    }
+    return playbackSpeed.clamp(0.25, 3.0).toDouble();
+  }
+
   /// 移动端设置菜单
   void _showMobileSettingsMenu(
     BuildContext context, {
@@ -729,6 +741,8 @@ class CustomVideoControls extends StatelessWidget {
                 currentSourceLabel: currentSourceLabel,
                 isAutoPlayNextEnabled: isAutoPlayNextEnabled,
                 onToggleAutoPlayNext: onToggleAutoPlayNext,
+                playbackSpeed: _resolveCurrentPlaybackSpeed(),
+                onPlaybackSpeedChanged: onPlaybackSpeedChanged,
                 onSourceSelected: (index) {
                   Navigator.pop(context);
                   onSourceSelected(index);
@@ -769,6 +783,8 @@ class CustomVideoControls extends StatelessWidget {
             currentSourceLabel: currentSourceLabel,
             isAutoPlayNextEnabled: isAutoPlayNextEnabled,
             onToggleAutoPlayNext: onToggleAutoPlayNext,
+            playbackSpeed: _resolveCurrentPlaybackSpeed(),
+            onPlaybackSpeedChanged: onPlaybackSpeedChanged,
             onSourceSelected: (index) {
               Navigator.pop(context);
               onSourceSelected(index);
@@ -802,6 +818,8 @@ class CustomVideoControls extends StatelessWidget {
               currentSourceLabel: currentSourceLabel,
               isAutoPlayNextEnabled: isAutoPlayNextEnabled,
               onToggleAutoPlayNext: onToggleAutoPlayNext,
+              playbackSpeed: _resolveCurrentPlaybackSpeed(),
+              onPlaybackSpeedChanged: onPlaybackSpeedChanged,
               onSourceSelected: (index) {
                 Navigator.pop(context);
                 onSourceSelected(index);
@@ -1631,6 +1649,8 @@ class _SettingsPanel extends StatefulWidget {
   final Function(int) onSourceSelected;
   final bool isAutoPlayNextEnabled;
   final VoidCallback onToggleAutoPlayNext;
+  final double playbackSpeed;
+  final ValueChanged<double> onPlaybackSpeedChanged;
   final ScrollController? scrollController;
 
   const _SettingsPanel({
@@ -1643,6 +1663,8 @@ class _SettingsPanel extends StatefulWidget {
     required this.onSourceSelected,
     required this.isAutoPlayNextEnabled,
     required this.onToggleAutoPlayNext,
+    required this.playbackSpeed,
+    required this.onPlaybackSpeedChanged,
     this.scrollController,
   });
 
@@ -1651,14 +1673,29 @@ class _SettingsPanel extends StatefulWidget {
 }
 
 class _SettingsPanelState extends State<_SettingsPanel> {
-  // 0: 主菜单, 1: 弹幕设置, 2: 字幕设置, 3: 播放源
+  // 0: 主菜单, 1: 弹幕设置, 2: 字幕设置, 3: 播放源, 4: 播放速度
   int _currentPage = 0;
   late int _currentSourceIndex;
+  late double _currentPlaybackSpeed;
+
+  static const List<double> _playbackSpeedPresets = <double>[
+    0.25,
+    0.5,
+    0.75,
+    1.0,
+    1.25,
+    1.5,
+    1.75,
+    2.0,
+    2.5,
+    3.0,
+  ];
 
   @override
   void initState() {
     super.initState();
     _currentSourceIndex = widget.sourceIndexNotifier?.value ?? 0;
+    _currentPlaybackSpeed = widget.playbackSpeed.clamp(0.25, 3.0).toDouble();
     widget.sourceIndexNotifier?.addListener(_onSourceIndexChanged);
   }
 
@@ -1669,6 +1706,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
       oldWidget.sourceIndexNotifier?.removeListener(_onSourceIndexChanged);
       widget.sourceIndexNotifier?.addListener(_onSourceIndexChanged);
       _currentSourceIndex = widget.sourceIndexNotifier?.value ?? 0;
+    }
+    if ((widget.playbackSpeed - oldWidget.playbackSpeed).abs() > 0.001) {
+      _currentPlaybackSpeed = widget.playbackSpeed.clamp(0.25, 3.0).toDouble();
     }
   }
 
@@ -1735,6 +1775,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
       case 3:
         title = '播放源';
         break;
+      case 4:
+        title = '播放速度';
+        break;
       default:
         title = '设置';
     }
@@ -1785,6 +1828,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         return _buildSubtitleSettings();
       case 3:
         return _buildSourceList();
+      case 4:
+        return _buildPlaybackSpeedSettings();
       default:
         return _buildMainMenu();
     }
@@ -1823,6 +1868,15 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           onTap: () => setState(() => _currentPage = 2),
         ),
         _buildMenuItem(
+          icon: Icons.speed,
+          title: '播放速度',
+          subtitle: _formatPlaybackSpeed(
+            _currentPlaybackSpeed,
+            includeNormalTag: true,
+          ),
+          onTap: () => setState(() => _currentPage = 4),
+        ),
+        _buildMenuItem(
           icon: Icons.video_library_outlined,
           title: '播放源',
           subtitle: widget.availableSources.isEmpty
@@ -1843,6 +1897,73 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         ),
       ],
     );
+  }
+
+  Widget _buildPlaybackSpeedSettings() {
+    final speed = _currentPlaybackSpeed.clamp(0.25, 3.0).toDouble();
+    return ListView(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      children: [
+        _buildSliderRow(
+          title: '播放速度',
+          value: speed,
+          min: 0.25,
+          max: 3.0,
+          divisions: 55,
+          displayValue: _formatPlaybackSpeed(speed, includeNormalTag: true),
+          onChanged: _updatePlaybackSpeed,
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          '常用倍速',
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Column(
+          children: _playbackSpeedPresets.map((preset) {
+            final isSelected = (speed - preset).abs() < 0.001;
+            return _buildTrackItem(
+              title: _formatPlaybackSpeed(preset),
+              subtitle: (preset - 1.0).abs() < 0.001 ? '正常速度' : '',
+              isSelected: isSelected,
+              onTap: () => _updatePlaybackSpeed(preset),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          '提示：播放速度会同时影响视频与弹幕的时间同步。',
+          style: TextStyle(color: Colors.white38, fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  void _updatePlaybackSpeed(double value) {
+    final stepped = ((value * 20).round() / 20.0).clamp(0.25, 3.0).toDouble();
+    if ((stepped - _currentPlaybackSpeed).abs() < 0.001) return;
+    setState(() {
+      _currentPlaybackSpeed = stepped;
+    });
+    widget.onPlaybackSpeedChanged(stepped);
+  }
+
+  String _formatPlaybackSpeed(double value, {bool includeNormalTag = false}) {
+    final speed = value.clamp(0.25, 3.0).toDouble();
+    final scaled = (speed * 100).round();
+    final text = scaled % 10 == 0
+        ? speed.toStringAsFixed(1)
+        : speed.toStringAsFixed(2);
+    final label = '${text}x';
+    if (includeNormalTag && (speed - 1.0).abs() < 0.001) {
+      return '$label (正常)';
+    }
+    return label;
   }
 
   Widget _buildMenuItem({

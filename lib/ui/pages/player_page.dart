@@ -132,6 +132,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   bool _hasAutoPlayed = false;
   bool _isAutoPlayNextEnabled = true;
   bool _autoSearchOnline = true;
+  double _playbackSpeed = 1.0;
 
   // 每个源的搜索进度状态
   Map<String, SourceSearchProgress> _sourceProgressMap = {};
@@ -301,9 +302,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     });
 
     debugPrint('[Player] Playing BT stream: $streamUrl');
-    _player
-        .open(Media(streamUrl), play: true)
-        .then((_) => _applyPendingStartPosition());
+    _player.open(Media(streamUrl), play: true).then((_) async {
+      await _applyPlaybackSpeed();
+      await _applyPendingStartPosition();
+    });
   }
 
   Future<void> _applyPendingStartPosition() async {
@@ -330,6 +332,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   Future<void> _loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final savedPlaybackSpeed = (prefs.getDouble('playback_speed') ?? 1.0)
+          .clamp(0.25, 3.0)
+          .toDouble();
       if (mounted) {
         setState(() {
           _isAutoPlayNextEnabled = prefs.getBool('auto_play_next') ?? true;
@@ -337,8 +342,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _maxConcurrentWebViews = prefs.getInt('max_concurrent_webviews') ?? 1;
           _webViewLaunchInterval =
               prefs.getInt('webview_launch_interval') ?? 200;
+          _playbackSpeed = savedPlaybackSpeed;
         });
       }
+      await _applyPlaybackSpeed();
     } catch (e) {
       debugPrint('Error loading settings: $e');
     }
@@ -356,6 +363,32 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     } catch (e) {
       debugPrint('Error saving settings: $e');
     }
+  }
+
+  Future<void> _savePlaybackSpeedSetting(double value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('playback_speed', value);
+    } catch (e) {
+      debugPrint('Error saving playback speed: $e');
+    }
+  }
+
+  Future<void> _applyPlaybackSpeed() async {
+    try {
+      await _player.setRate(_playbackSpeed);
+    } catch (e) {
+      debugPrint('Error applying playback speed: $e');
+    }
+  }
+
+  void _onPlaybackSpeedChanged(double value) {
+    final clampedSpeed = value.clamp(0.25, 3.0).toDouble();
+    setState(() {
+      _playbackSpeed = clampedSpeed;
+    });
+    unawaited(_applyPlaybackSpeed());
+    unawaited(_savePlaybackSpeedSetting(clampedSpeed));
   }
 
   // Load danmaku based on anime title and episode
@@ -1751,9 +1784,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
       try {
         // Auto-play for Tier 0 sources
-        _player
-            .open(Media(urlToPlay), play: true)
-            .then((_) => _applyPendingStartPosition());
+        _player.open(Media(urlToPlay), play: true).then((_) async {
+          await _applyPlaybackSpeed();
+          await _applyPendingStartPosition();
+        });
         debugPrint('[_playSource] Media loaded and auto-playing (Tier 0).');
       } catch (e, st) {
         debugPrint('[_playSource] ERROR loading media: $e\n$st');
@@ -3010,9 +3044,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // Open media and start playing
     _player.stop();
     try {
-      _player.open(Media(finalUrl), play: true).then((_) {
+      _player.open(Media(finalUrl), play: true).then((_) async {
+        await _applyPlaybackSpeed();
         setState(() => _isLoadingVideo = false);
-        _applyPendingStartPosition();
+        await _applyPendingStartPosition();
       });
       debugPrint('[_startPlayback] Media loading started.');
     } catch (e, st) {
@@ -3069,6 +3104,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 });
                 _saveAutoPlaySetting(newValue);
               },
+              playbackSpeed: _playbackSpeed,
+              onPlaybackSpeedChanged: _onPlaybackSpeedChanged,
               availableSources: _sampleSuccessfulSources,
               sourceIndexNotifier: _selectedSourceIndexNotifier,
               currentSourceLabel: _playingSourceLabel,
@@ -4353,6 +4390,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                               // 停止之前的播放，防止后台继续播放
                               await _player.stop();
                               await _player.open(Media(streamUrl));
+                              await _applyPlaybackSpeed();
                               await _applyPendingStartPosition();
 
                               setState(() {
