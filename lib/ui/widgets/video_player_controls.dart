@@ -254,7 +254,7 @@ class CustomVideoControls extends StatelessWidget {
       const SizedBox(width: 16),
     ];
 
-    final isFullscreenMode = state.isFullscreen();
+    final isFullscreenMode = isFullscreen(context);
 
     return ValueListenableBuilder<bool>(
       valueListenable: mobilePlayerLockNotifier,
