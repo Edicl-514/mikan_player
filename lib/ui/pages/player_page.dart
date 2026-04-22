@@ -145,6 +145,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   late final Player _player;
   late final VideoController _videoController;
   bool _isPlayerInitialized = false;
+  final ValueNotifier<bool> _mobilePlayerLockNotifier = ValueNotifier(false);
   bool _isLoadingVideo =
       false; // Keep for general UI loading (like initial search or player overlay)
   String? _loadingMagnet; // Track which specific magnet is being loaded
@@ -1958,6 +1959,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _subtitleService.dispose();
     _player.stop(); // 确保播放器完全停止后再释放
     _player.dispose();
+    _mobilePlayerLockNotifier.dispose();
     super.dispose();
   }
 
@@ -3075,6 +3077,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 _startPlaybackFromSelectedSource();
               },
               isLoading: _isLoadingVideo || _loadingMagnet != null,
+              mobilePlayerLockNotifier: _mobilePlayerLockNotifier,
               videoTitle:
                   '${widget.anime.title} - 第${_currentEpisode.sort.toInt()}集',
             ),
