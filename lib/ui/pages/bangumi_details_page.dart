@@ -13,6 +13,7 @@ import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'player_page.dart';
+import 'tag_browse_page.dart';
 
 class BangumiDetailsPage extends StatefulWidget {
   final AnimeInfo anime;
@@ -919,25 +920,34 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       children: tags.take(15).map<Widget>((tag) {
         final name = tag['name'];
         final count = tag['count'];
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            border: Border.all(color: borderColor),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: RichText(
-            text: TextSpan(
-              children: [
-                TextSpan(
-                  text: "$name ",
-                  style: TextStyle(fontSize: 12, color: textColor),
-                ),
-                if (count != null)
+        return GestureDetector(
+          onTap: name != null
+              ? () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => TagBrowsePage(tagName: name as String),
+                    ),
+                  )
+              : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              border: Border.all(color: borderColor),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: RichText(
+              text: TextSpan(
+                children: [
                   TextSpan(
-                    text: "$count",
-                    style: TextStyle(fontSize: 10, color: countColor),
+                    text: "$name ",
+                    style: TextStyle(fontSize: 12, color: textColor),
                   ),
-              ],
+                  if (count != null)
+                    TextSpan(
+                      text: "$count",
+                      style: TextStyle(fontSize: 10, color: countColor),
+                    ),
+                ],
+              ),
             ),
           ),
         );
@@ -1399,8 +1409,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           spacing: 8,
           runSpacing: 8,
           children: tags.map<Widget>((tag) {
-            final name = tag['name'] ?? '';
-            return Chip(
+            final name = (tag['name'] ?? '') as String;
+            return ActionChip(
               label: Text(name),
               backgroundColor: isDarkBg ? Colors.white10 : Colors.grey[200],
               labelStyle: TextStyle(
@@ -1411,6 +1421,13 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
+              onPressed: name.isNotEmpty
+                  ? () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => TagBrowsePage(tagName: name),
+                        ),
+                      )
+                  : null,
             );
           }).toList(),
         ),
