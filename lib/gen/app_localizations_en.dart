@@ -335,4 +335,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sourceDanmaku => 'DanDanPlay: Danmaku';
+
+  @override
+  String get share => 'Share';
+
+  @override
+  String get copied => 'Copied';
 }

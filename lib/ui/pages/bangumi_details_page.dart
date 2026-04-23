@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'dart:ui';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
@@ -40,6 +43,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   bool _isLoadingRelations = false;
   bool _isLoadingComments = false;
   bool _isLocalFavorite = false;
+  bool _isCopied = false;
+  Timer? _copyTimer;
 
   // Pagination State
   int _commentPage = 1;
@@ -333,6 +338,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   @override
   void dispose() {
+    _copyTimer?.cancel();
     _scrollController.dispose();
     _episodesScrollController.dispose();
     _charactersScrollController.dispose();
@@ -362,8 +368,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           headerSliverBuilder: (context, innerBoxIsScrolled) {
             return [
               SliverAppBar(
-                expandedHeight:
-                    340, // Reduced height to remove empty space and fit content better
+                expandedHeight: 380, // Increased to accommodate the new stats card
                 pinned: true,
                 elevation: 0,
                 scrolledUnderElevation: 0,
@@ -375,12 +380,30 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                 bottom: PreferredSize(
                   preferredSize: const Size.fromHeight(48),
                   child: Container(
-                    color: bgColor,
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      border: Border(
+                        bottom: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          width: 1,
+                        ),
+                      ),
+                    ),
                     child: const TabBar(
                       labelColor: Colors.white,
                       unselectedLabelColor: Colors.grey,
                       indicatorColor: Colors.deepPurpleAccent,
                       indicatorWeight: 3,
+                      indicatorSize: TabBarIndicatorSize.label,
+                      dividerColor: Colors.transparent,
+                      labelStyle: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      unselectedLabelStyle: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.normal,
+                      ),
                       tabs: [
                         Tab(text: "详情"), // Details
                         Tab(
@@ -651,6 +674,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   }
 
   Widget _buildActionButtons(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     // Placeholder actions
     return Row(
       children: [
@@ -674,15 +698,38 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.share),
-            label: const Text("Share"),
+            onPressed: () {
+              final subjectId = widget.anime.bangumiId;
+              if (subjectId != null) {
+                final url = "https://bgm.tv/subject/$subjectId";
+                Clipboard.setData(ClipboardData(text: url)).then((_) {
+                  setState(() {
+                    _isCopied = true;
+                  });
+                  _copyTimer?.cancel();
+                  _copyTimer = Timer(const Duration(seconds: 2), () {
+                    if (mounted) {
+                      setState(() {
+                        _isCopied = false;
+                      });
+                    }
+                  });
+                });
+              }
+            },
+            icon: Icon(_isCopied ? Icons.check_rounded : Icons.share),
+            label: Text(_isCopied ? l10n.copied : l10n.share),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: Colors.white.withValues(alpha: 0.1),
-              foregroundColor: Colors.white,
+              backgroundColor: _isCopied
+                  ? Colors.green.withValues(alpha: 0.2)
+                  : Colors.white.withValues(alpha: 0.1),
+              foregroundColor: _isCopied ? Colors.greenAccent : Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
+                side: _isCopied
+                    ? const BorderSide(color: Colors.greenAccent, width: 1)
+                    : BorderSide.none,
               ),
             ),
           ),
@@ -701,41 +748,91 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     final doing = collection['doing'] ?? 0;
     final dropped = collection['dropped'] ?? 0;
 
-    return Row(
-      children: [
-        Text(
-          "$wish 收藏 / $doing 在看 / $dropped 抛弃",
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.white70,
-            fontWeight: FontWeight.w500,
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+          width: 0.5,
         ),
-        const Spacer(),
-        // Simple Collection Button for Mobile Header
-        ElevatedButton.icon(
-          onPressed: _toggleFavorite,
-          icon: Icon(
-            _isLocalFavorite ? Icons.favorite : Icons.favorite_border,
-            size: 16,
-          ),
-          label: Text(_isLocalFavorite ? "已收藏" : "收藏"),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.pinkAccent,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.collections_bookmark_outlined,
+                      size: 14,
+                      color: Colors.white.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      "$wish 收藏 / $doing 在看 / $dropped 抛弃",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            elevation: 0,
-            textStyle: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-            minimumSize: Size.zero, // Compact
           ),
-        ),
-      ],
+          const SizedBox(width: 12),
+          // Simple Collection Button for Mobile Header
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _toggleFavorite,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF4081), Color(0xFFF50057)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.pinkAccent.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _isLocalFavorite ? Icons.favorite : Icons.favorite_border,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _isLocalFavorite ? "已收藏" : "收藏",
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -786,25 +883,43 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return Stack(
       children: [
         Positioned.fill(child: _buildBlurredBackground(context)),
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1200),
-            child: Scaffold(
-              backgroundColor: Colors.transparent,
-              appBar: AppBar(
-                backgroundColor: Colors.transparent,
-                surfaceTintColor: Colors.transparent,
-                elevation: 0,
-                iconTheme: const IconThemeData(color: Colors.white),
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          extendBodyBehindAppBar: true,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            iconTheme: const IconThemeData(color: Colors.white),
+            flexibleSpace: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.4),
+                        Colors.black.withValues(alpha: 0.0),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-              body: Row(
+            ),
+          ),
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1200),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Left Panel
                   SizedBox(
                     width: 350,
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.fromLTRB(24, kToolbarHeight + 24, 24, 24),
                       child: Column(
                         children: [
                           _buildPoster(context, radius: 16),
@@ -822,10 +937,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   Expanded(
                     child: SingleChildScrollView(
                       controller: _commentScrollController,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 24,
-                        horizontal: 32,
-                      ),
+                      padding: const EdgeInsets.fromLTRB(32, kToolbarHeight + 24, 32, 24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1083,6 +1195,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     final rank = rating['rank'];
     final count = rating['total'];
 
+    final collection = _data?['collection'];
+    final wish = collection?['wish'] ?? 0;
+    final doing = collection?['doing'] ?? 0;
+    final dropped = collection?['dropped'] ?? 0;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1123,8 +1240,38 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               ),
             ),
           ],
+          if (collection != null) ...[
+            const Divider(color: Colors.white24, height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildCompactStatItem("收藏", wish),
+                _buildCompactStatItem("在看", doing),
+                _buildCompactStatItem("抛弃", dropped),
+              ],
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildCompactStatItem(String label, int value) {
+    return Column(
+      children: [
+        Text(
+          "$value",
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white54, fontSize: 10),
+        ),
+      ],
     );
   }
 

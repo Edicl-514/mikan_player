@@ -709,6 +709,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'弹弹play：弹幕数据'**
   String get sourceDanmaku;
+
+  /// No description provided for @share.
+  ///
+  /// In zh, this message translates to:
+  /// **'分享'**
+  String get share;
+
+  /// No description provided for @copied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制'**
+  String get copied;
 }
 
 class _AppLocalizationsDelegate

@@ -101,5 +101,7 @@
   "techStackDanmaku": "CanvasDanmaku: Danmaku Rendering",
   "sourceMeta": "Bangumi / bgmlist: Metadata & Schedule",
   "sourceTorrent": "Mikan / DMHY: Torrents & Magnets",
-  "sourceDanmaku": "DanDanPlay: Danmaku"
+  "sourceDanmaku": "DanDanPlay: Danmaku",
+  "share": "Share",
+  "copied": "Copied"
 }

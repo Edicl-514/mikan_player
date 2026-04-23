@@ -329,4 +329,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sourceDanmaku => '弹弹play：弹幕数据';
+
+  @override
+  String get share => '分享';
+
+  @override
+  String get copied => '已复制';
 }
