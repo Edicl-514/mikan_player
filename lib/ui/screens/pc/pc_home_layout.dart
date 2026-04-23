@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:mikan_player/ui/pages/home_pc_page.dart';
 import 'package:mikan_player/ui/pages/index_page.dart';
 import 'package:mikan_player/ui/pages/my_page.dart';
-import 'package:mikan_player/ui/pages/ranking_page.dart';
-import 'package:mikan_player/ui/pages/timetable_page.dart';
 import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/services/user_manager.dart';
 
@@ -17,16 +16,10 @@ class PcHomeLayout extends StatefulWidget {
 class _PcHomeLayoutState extends State<PcHomeLayout> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = const [
-    TimeTablePage(),
-    RankingPage(),
-    IndexPage(),
-    MyPage(),
-  ];
+  final List<Widget> _pages = const [HomePcPage(), IndexPage(), MyPage()];
 
   List<String> _titles(BuildContext context) => [
-    AppLocalizations.of(context).navTimetable,
-    AppLocalizations.of(context).navRanking,
+    AppLocalizations.of(context).navHome,
     AppLocalizations.of(context).navIndex,
     AppLocalizations.of(context).navMy,
   ];
@@ -74,14 +67,9 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
             groupAlignment: -0.9,
             destinations: [
               NavigationRailDestination(
-                icon: const Icon(Icons.calendar_today_outlined),
-                selectedIcon: const Icon(Icons.calendar_today),
-                label: Text(AppLocalizations.of(context).navTimetable),
-              ),
-              NavigationRailDestination(
-                icon: const Icon(Icons.leaderboard_outlined),
-                selectedIcon: const Icon(Icons.leaderboard),
-                label: Text(AppLocalizations.of(context).navRanking),
+                icon: const Icon(Icons.home_outlined),
+                selectedIcon: const Icon(Icons.home),
+                label: Text(AppLocalizations.of(context).navHome),
               ),
               NavigationRailDestination(
                 icon: const Icon(Icons.category_outlined),
