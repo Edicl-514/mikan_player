@@ -234,7 +234,7 @@ class _RankingListState extends State<RankingList>
             MaterialPageRoute(
               builder: (context) => BangumiDetailsPage(
                 anime: animeInfo,
-                heroTagPrefix: 'ranking_cover',
+                heroTag: 'ranking_cover_${animeInfo.bangumiId ?? animeInfo.mikanId ?? animeInfo.title.hashCode}',
               ),
             ),
           );

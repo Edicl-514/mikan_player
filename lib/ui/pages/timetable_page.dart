@@ -355,7 +355,7 @@ class _TimeTablePageState extends State<TimeTablePage>
             MaterialPageRoute(
               builder: (context) => BangumiDetailsPage(
                 anime: anime,
-                heroTagPrefix: 'timetable_cover',
+                heroTag: 'timetable_cover_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
               ),
             ),
           );

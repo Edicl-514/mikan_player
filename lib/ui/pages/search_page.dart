@@ -209,7 +209,7 @@ class _SearchPageState extends State<SearchPage> {
                     MaterialPageRoute(
                       builder: (context) => BangumiDetailsPage(
                         anime: animeInfo,
-                        heroTagPrefix: 'search',
+                        heroTag: heroTag,
                       ),
                     ),
                   );

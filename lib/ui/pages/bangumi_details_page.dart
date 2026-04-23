@@ -16,12 +16,12 @@ import 'player_page.dart';
 
 class BangumiDetailsPage extends StatefulWidget {
   final AnimeInfo anime;
-  final String heroTagPrefix;
+  final String? heroTag;
 
   const BangumiDetailsPage({
     super.key,
     required this.anime,
-    this.heroTagPrefix = 'cover',
+    this.heroTag,
   });
 
   @override
@@ -45,6 +45,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   bool _isLocalFavorite = false;
   bool _isCopied = false;
   Timer? _copyTimer;
+  bool _showOriginalSummary = false;
 
   // Pagination State
   int _commentPage = 1;
@@ -292,6 +293,43 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     }
   }
 
+  // Parse summary to extract translation and original text
+  Map<String, String?> _parseSummary(String? summary) {
+    if (summary == null || summary.isEmpty) {
+      return {'translation': null, 'original': null};
+    }
+
+    // Check if summary contains the separator
+    final separatorIndex = summary.indexOf('[简介原文]');
+    if (separatorIndex == -1) {
+      // No separator, treat entire text as translation
+      return {'translation': summary, 'original': null};
+    }
+
+    // Split into translation and original
+    final translation = summary.substring(0, separatorIndex).trim();
+    final original = summary.substring(separatorIndex + '[简介原文]'.length).trim();
+
+    return {'translation': translation, 'original': original};
+  }
+
+  String? _getDisplaySummary() {
+    final summary = _data?['summary'];
+    final parsed = _parseSummary(summary);
+
+    if (_showOriginalSummary) {
+      return parsed['original'] ?? parsed['translation'];
+    } else {
+      return parsed['translation'];
+    }
+  }
+
+  bool _hasBothTranslationAndOriginal() {
+    final summary = _data?['summary'];
+    final parsed = _parseSummary(summary);
+    return parsed['translation'] != null && parsed['original'] != null;
+  }
+
   Future<void> _checkFavoriteStatus() async {
     final idStr = widget.anime.bangumiId;
     if (idStr == null) return;
@@ -490,8 +528,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   children: [
                     // Cover Image
                     Hero(
-                      tag:
-                          '${widget.heroTagPrefix}_${widget.anime.bangumiId ?? widget.anime.mikanId ?? widget.anime.title.hashCode}',
+                      tag: widget.heroTag ??
+                          '${widget.anime.bangumiId ?? widget.anime.mikanId ?? widget.anime.title.hashCode}',
                       child: Container(
                         width: 110,
                         height: 160,
@@ -599,14 +637,43 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           const SizedBox(height: 24),
 
           // Story Summary
-          Text(
-            _data?['summary'] ?? "暂无简介",
-            style: const TextStyle(
-              fontSize: 14,
-              height: 1.6,
-              color: Colors.white70,
-            ),
-            textAlign: TextAlign.justify,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: _hasBothTranslationAndOriginal()
+                    ? () {
+                        setState(() {
+                          _showOriginalSummary = !_showOriginalSummary;
+                        });
+                      }
+                    : null,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _getDisplaySummary() ?? "暂无简介",
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.6,
+                        color: Colors.white70,
+                      ),
+                      textAlign: TextAlign.justify,
+                    ),
+                    if (_hasBothTranslationAndOriginal()) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _showOriginalSummary ? "点击显示翻译" : "点击显示原文",
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white38,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
 
@@ -1115,8 +1182,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       );
     }
     return Hero(
-      tag:
-          '${widget.heroTagPrefix}_${widget.anime.bangumiId ?? widget.anime.mikanId ?? widget.anime.title.hashCode}',
+      tag: widget.heroTag ??
+          '${widget.anime.bangumiId ?? widget.anime.mikanId ?? widget.anime.title.hashCode}',
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),
@@ -1276,20 +1343,42 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   }
 
   Widget _buildSummarySection(BuildContext context, {bool isDarkBg = false}) {
-    final summary = _data?['summary'] ?? "No summary available.";
+    final summary = _getDisplaySummary() ?? "No summary available.";
     final textColor = isDarkBg
         ? Colors.white70
         : Theme.of(context).textTheme.bodyMedium?.color;
+    final hintColor = isDarkBg ? Colors.white38 : Colors.grey;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionTitle(context, "Story", isDarkBg: isDarkBg),
         const SizedBox(height: 12),
-        Text(
-          summary,
-          style: TextStyle(fontSize: 15, height: 1.6, color: textColor),
-          textAlign: TextAlign.justify,
+        GestureDetector(
+          onTap: _hasBothTranslationAndOriginal()
+              ? () {
+                  setState(() {
+                    _showOriginalSummary = !_showOriginalSummary;
+                  });
+                }
+              : null,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                summary,
+                style: TextStyle(fontSize: 15, height: 1.6, color: textColor),
+                textAlign: TextAlign.justify,
+              ),
+              if (_hasBothTranslationAndOriginal()) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _showOriginalSummary ? "点击显示翻译" : "点击显示原文",
+                  style: TextStyle(fontSize: 12, color: hintColor),
+                ),
+              ],
+            ],
+          ),
         ),
       ],
     );

@@ -316,7 +316,7 @@ class _IndexPageState extends State<IndexPage> {
                       MaterialPageRoute(
                         builder: (context) => BangumiDetailsPage(
                           anime: animeInfo,
-                          heroTagPrefix: 'index_cover',
+                          heroTag: 'index_cover_${animeInfo.bangumiId ?? animeInfo.mikanId ?? animeInfo.title.hashCode}',
                         ),
                       ),
                     );

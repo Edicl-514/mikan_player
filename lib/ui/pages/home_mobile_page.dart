@@ -561,7 +561,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                     MaterialPageRoute(
                       builder: (context) => BangumiDetailsPage(
                         anime: anime,
-                        heroTagPrefix: 'home_today',
+                        heroTag: 'home_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
                       ),
                     ),
                   ).then((_) => _startTodayTimer());
@@ -744,7 +744,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                   MaterialPageRoute(
                     builder: (context) => BangumiDetailsPage(
                       anime: info,
-                      heroTagPrefix: 'home_rank',
+                      heroTag: 'home_rank_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
                     ),
                   ),
                 );
@@ -903,7 +903,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                   MaterialPageRoute(
                     builder: (context) => BangumiDetailsPage(
                       anime: info,
-                      heroTagPrefix: 'home_fav',
+                      heroTag: 'home_fav_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
                     ),
                   ),
                 );

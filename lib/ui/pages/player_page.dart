@@ -4935,7 +4935,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       MaterialPageRoute(
         builder: (context) => BangumiDetailsPage(
           anime: animeInfo,
-          heroTagPrefix: 'player_rec_${item.bangumiId}',
+          heroTag: 'player_rec_${item.bangumiId}',
         ),
       ),
     );

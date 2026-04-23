@@ -529,7 +529,7 @@ class _HomePcPageState extends State<HomePcPage> {
                       MaterialPageRoute(
                         builder: (context) => BangumiDetailsPage(
                           anime: anime,
-                          heroTagPrefix: 'home_pc_today',
+                          heroTag: 'home_pc_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
                         ),
                       ),
                     ).then((_) => _startTodayTimer());
@@ -727,7 +727,7 @@ class _HomePcPageState extends State<HomePcPage> {
                     MaterialPageRoute(
                       builder: (context) => BangumiDetailsPage(
                         anime: info,
-                        heroTagPrefix: 'home_pc_rank',
+                        heroTag: 'home_pc_rank_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
                       ),
                     ),
                   );
@@ -909,7 +909,7 @@ class _HomePcPageState extends State<HomePcPage> {
                     MaterialPageRoute(
                       builder: (context) => BangumiDetailsPage(
                         anime: info,
-                        heroTagPrefix: 'home_pc_fav',
+                        heroTag: 'home_pc_fav_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
                       ),
                     ),
                   );
