@@ -1,4 +1,5 @@
 import groovy.json.JsonSlurper
+import java.util.Locale
 
 plugins {
     id("com.android.application")
@@ -31,6 +32,87 @@ fun RepositoryHandler.rustlsPlatformVerifier() = maven {
     url = uri(File(File(manifestPath).parentFile, "maven").path)
     metadataSources.artifact()
 }
+
+val rustDir = File(project.rootDir, "../rust")
+val rustManifest = File(rustDir, "Cargo.toml")
+val rustJniLibsDir = File(project.projectDir, "src/main/jniLibs")
+val rustAndroidAbis = listOf("arm64-v8a")
+val rustEnvFile = File(project.rootDir, "../.env")
+
+fun String.capitalized(): String =
+    replaceFirstChar { char ->
+        if (char.isLowerCase()) {
+            char.titlecase(Locale.ROOT)
+        } else {
+            char.toString()
+        }
+    }
+
+fun Project.registerRustAndroidBuildTask(
+    variantName: String,
+    cargoProfile: String,
+) = tasks.register("buildRustAndroid${variantName.capitalized()}") {
+    group = "rust"
+    description = "Build Rust Android libraries for the $variantName variant."
+
+    inputs.dir(rustDir)
+    inputs.file(rustManifest)
+    if (rustEnvFile.exists()) {
+        inputs.file(rustEnvFile)
+    }
+    outputs.dir(rustJniLibsDir)
+    outputs.upToDateWhen { false }
+
+    doLast {
+        if (!rustManifest.exists()) {
+            throw GradleException("Rust manifest not found: ${rustManifest.path}")
+        }
+
+        rustJniLibsDir.mkdirs()
+
+        val rustEnvironment = mutableMapOf<String, String>()
+        val opensslDir = File(rustDir, "openssl/usr/local")
+        if (opensslDir.exists()) {
+            rustEnvironment["OPENSSL_DIR"] = opensslDir.absolutePath
+            rustEnvironment["OPENSSL_STATIC"] = "1"
+        }
+
+        rustAndroidAbis.forEach { abi ->
+            val abiOutputDir = File(rustJniLibsDir, abi)
+            delete(abiOutputDir)
+            abiOutputDir.mkdirs()
+
+            val cargoArgs = mutableListOf(
+                "cargo",
+                "ndk",
+                "-t",
+                abi,
+                "-o",
+                rustJniLibsDir.absolutePath,
+                "build",
+            )
+            if (cargoProfile == "release") {
+                cargoArgs += "--release"
+            }
+
+            println("Building Rust Android library for $variantName ($abi, $cargoProfile)")
+            providers.exec {
+                workingDir = rustDir
+                commandLine(cargoArgs)
+                if (rustEnvironment.isNotEmpty()) {
+                    environment(rustEnvironment)
+                }
+            }.result.get().assertNormalExitValue()
+        }
+    }
+}
+
+val rustBuildTasks =
+    mapOf(
+        "debug" to registerRustAndroidBuildTask("debug", "debug"),
+        "profile" to registerRustAndroidBuildTask("profile", "release"),
+        "release" to registerRustAndroidBuildTask("release", "release"),
+    )
 
 repositories {
     rustlsPlatformVerifier()
@@ -76,4 +158,18 @@ flutter {
 
 dependencies {
     implementation("rustls:rustls-platform-verifier:latest.release")
+}
+
+afterEvaluate {
+    rustBuildTasks.forEach { (variantName, rustTask) ->
+        val capitalizedVariant = variantName.capitalized()
+        listOf(
+            "pre${capitalizedVariant}Build",
+            "merge${capitalizedVariant}JniLibFolders",
+        ).forEach { taskName ->
+            tasks.matching { it.name == taskName }.configureEach {
+                dependsOn(rustTask)
+            }
+        }
+    }
 }

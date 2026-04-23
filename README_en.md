@@ -59,9 +59,10 @@ A modern Flutter + Rust application for streaming anime, with Bangumi integratio
      flutter run -d windows
      ```
    - **Android**:
-     ```bash
-     flutter run -d android
-     ```
+      ```bash
+      flutter run -d android
+      ```
+      The Android Gradle build now compiles the Rust shared library automatically before packaging, so no separate manual Rust build step is required.
 
 ## Architecture
 

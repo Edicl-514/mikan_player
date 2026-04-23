@@ -92,6 +92,12 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
             }
 
             for item in data {
+                // 只保留"本篇" (type == 0)，排除 OP、ED、预告等
+                let ep_type = item["type"].as_i64().unwrap_or(0);
+                if ep_type != 0 {
+                    continue;
+                }
+
                 let name = item["name"].as_str().unwrap_or("").to_string();
 
                 // Skip episodes with empty name -> logic moved to Dart (filtered by date)

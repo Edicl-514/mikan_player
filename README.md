@@ -59,9 +59,10 @@
      flutter run -d windows
      ```
    - **Android**：
-     ```bash
-     flutter run -d android
-     ```
+      ```bash
+      flutter run -d android
+      ```
+      Android Gradle 构建现在会在打包前自动编译 Rust 动态库，因此不需要再手动先跑额外的 Rust 构建脚本。
 
 ## 项目架构
 
