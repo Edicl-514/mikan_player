@@ -555,6 +555,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
               final anime = _todayAnimes[index];
               return GestureDetector(
                 onTap: () {
+                  _todayTimer?.cancel();
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -563,7 +564,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                         heroTagPrefix: 'home_today',
                       ),
                     ),
-                  );
+                  ).then((_) => _startTodayTimer());
                 },
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 4.0),
@@ -588,11 +589,14 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                                 aspectRatio: 3 / 4,
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: CachedNetworkImage(
-                                    imageUrl: anime.coverUrl ?? '',
-                                    fit: BoxFit.cover,
-                                    errorWidget: Container(
-                                      color: Colors.grey[800],
+                                  child: Hero(
+                                    tag: 'home_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
+                                    child: CachedNetworkImage(
+                                      imageUrl: anime.coverUrl ?? '',
+                                      fit: BoxFit.cover,
+                                      errorWidget: Container(
+                                        color: Colors.grey[800],
+                                      ),
                                     ),
                                   ),
                                 ),

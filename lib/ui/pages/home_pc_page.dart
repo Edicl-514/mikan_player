@@ -523,6 +523,7 @@ class _HomePcPageState extends State<HomePcPage> {
                 },
                 child: GestureDetector(
                   onTap: () {
+                    _todayTimer?.cancel();
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -531,7 +532,7 @@ class _HomePcPageState extends State<HomePcPage> {
                           heroTagPrefix: 'home_pc_today',
                         ),
                       ),
-                    );
+                    ).then((_) => _startTodayTimer());
                   },
                   child: Container(
                     margin: const EdgeInsets.symmetric(horizontal: 12.0),
@@ -556,11 +557,14 @@ class _HomePcPageState extends State<HomePcPage> {
                                   aspectRatio: 3 / 4,
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
-                                    child: CachedNetworkImage(
-                                      imageUrl: anime.coverUrl ?? '',
-                                      fit: BoxFit.cover,
-                                      errorWidget: Container(
-                                        color: Colors.grey[800],
+                                    child: Hero(
+                                      tag: 'home_pc_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
+                                      child: CachedNetworkImage(
+                                        imageUrl: anime.coverUrl ?? '',
+                                        fit: BoxFit.cover,
+                                        errorWidget: Container(
+                                          color: Colors.grey[800],
+                                        ),
                                       ),
                                     ),
                                   ),

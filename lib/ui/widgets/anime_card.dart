@@ -28,6 +28,7 @@ class AnimeCard extends StatefulWidget {
 class _AnimeCardState extends State<AnimeCard>
     with SingleTickerProviderStateMixin {
   bool _isHovered = false;
+  static const _cardRadius = 12.0;
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +41,7 @@ class _AnimeCardState extends State<AnimeCard>
         curve: Curves.easeOut,
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(_cardRadius),
             boxShadow: [
               if (_isHovered)
                 BoxShadow(
@@ -59,24 +60,33 @@ class _AnimeCardState extends State<AnimeCard>
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(_cardRadius),
+            clipBehavior: Clip.antiAlias,
             child: Stack(
               fit: StackFit.expand,
               children: [
                 widget.heroTag != null
                     ? Hero(tag: widget.heroTag!, child: _buildCover())
                     : _buildCover(),
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.8),
-                        ],
-                        stops: const [0.6, 1.0],
+                Positioned(
+                  left: -1,
+                  right: -1,
+                  bottom: -2,
+                  height: 92,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.2),
+                            Colors.black.withValues(alpha: 0.62),
+                            Colors.black.withValues(alpha: 0.92),
+                          ],
+                          stops: const [0, 0.34, 0.72, 1],
+                        ),
                       ),
                     ),
                   ),
@@ -169,7 +179,7 @@ class _AnimeCardState extends State<AnimeCard>
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: widget.onTap,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(_cardRadius),
                       splashColor: Theme.of(
                         context,
                       ).colorScheme.primary.withValues(alpha: 0.2),
