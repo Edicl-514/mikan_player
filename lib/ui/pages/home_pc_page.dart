@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
@@ -21,6 +20,7 @@ import 'package:mikan_player/ui/pages/player_page.dart';
 import 'package:mikan_player/ui/pages/ranking_page.dart';
 import 'package:mikan_player/ui/pages/timetable_page.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
+import 'package:mikan_player/ui/widgets/blurred_cover_background.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 class HomePcPage extends StatefulWidget {
@@ -133,7 +133,13 @@ class _HomePcPageState extends State<HomePcPage> {
       }
 
       final missingCovers = todayList
-          .where((a) => a.coverUrl == null || a.coverUrl!.isEmpty || a.fullJson == null || a.fullJson!.isEmpty)
+          .where(
+            (a) =>
+                a.coverUrl == null ||
+                a.coverUrl!.isEmpty ||
+                a.fullJson == null ||
+                a.fullJson!.isEmpty,
+          )
           .toList();
       if (missingCovers.isNotEmpty) {
         try {
@@ -317,17 +323,14 @@ class _HomePcPageState extends State<HomePcPage> {
               children: [
                 _buildTodaySection(),
                 const SizedBox(height: 32),
-                _buildSectionHeader(
-                  AppLocalizations.of(context).recentHot,
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const RankingPage(),
-                      ),
-                    );
-                  },
-                ),
+                _buildSectionHeader(AppLocalizations.of(context).recentHot, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RankingPage(),
+                    ),
+                  );
+                }),
                 const SizedBox(height: 16),
                 _buildRankingList(),
                 const SizedBox(height: 32),
@@ -378,24 +381,28 @@ class _HomePcPageState extends State<HomePcPage> {
         for (final item in infobox) {
           if (item['key'] == '导演') {
             final val = item['value'];
-            director = (val is List) ? val.map((v) => v['v'] ?? '').join(' / ') : val.toString();
+            director = (val is List)
+                ? val.map((v) => v['v'] ?? '').join(' / ')
+                : val.toString();
           } else if (item['key'] == '原作') {
             final val = item['value'];
-            original = (val is List) ? val.map((v) => v['v'] ?? '').join(' / ') : val.toString();
+            original = (val is List)
+                ? val.map((v) => v['v'] ?? '').join(' / ')
+                : val.toString();
           }
         }
       }
-      
+
       List<String> infos = [];
       if (original != null && original.isNotEmpty) infos.add('原作: $original');
       if (director != null && director.isNotEmpty) infos.add('导演: $director');
-      
+
       String infoStr = infos.join('  |  ');
       if (summary.isNotEmpty) {
         if (infoStr.isNotEmpty) infoStr += '\n\n';
         infoStr += summary.replaceAll('\r\n', '\n').replaceAll('\n\n', '\n');
       }
-      
+
       return infoStr.trim();
     } catch (e) {
       return '';
@@ -531,22 +538,14 @@ class _HomePcPageState extends State<HomePcPage> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        ClipRRect(
+                        BlurredCoverBackground(
+                          imageUrl: anime.coverUrl ?? '',
                           borderRadius: BorderRadius.circular(24),
-                          child: CachedNetworkImage(
-                            imageUrl: anime.coverUrl ?? '',
-                            fit: BoxFit.cover,
-                            errorWidget: Container(color: Colors.grey[800]),
-                          ),
-                        ),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(24),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                            child: Container(
-                              color: Colors.black.withValues(alpha: 0.4),
-                            ),
-                          ),
+                          blurSigma: 26,
+                          scale: 1.16,
+                          overlayOpacity: 0.1,
+                          highlightOpacity: 0.14,
+                          borderOpacity: 0.14,
                         ),
                         Positioned.fill(
                           child: Row(
@@ -560,7 +559,9 @@ class _HomePcPageState extends State<HomePcPage> {
                                     child: CachedNetworkImage(
                                       imageUrl: anime.coverUrl ?? '',
                                       fit: BoxFit.cover,
-                                      errorWidget: Container(color: Colors.grey[800]),
+                                      errorWidget: Container(
+                                        color: Colors.grey[800],
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -573,7 +574,8 @@ class _HomePcPageState extends State<HomePcPage> {
                                     bottom: 32,
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(
@@ -603,7 +605,9 @@ class _HomePcPageState extends State<HomePcPage> {
                                             color: Theme.of(
                                               context,
                                             ).colorScheme.primary,
-                                            borderRadius: BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
                                           child: Text(
                                             AppLocalizations.of(
@@ -621,18 +625,22 @@ class _HomePcPageState extends State<HomePcPage> {
                                         child: Builder(
                                           builder: (context) {
                                             final extra = _getExtraInfo(anime);
-                                            if (extra.isEmpty) return const SizedBox();
+                                            if (extra.isEmpty) {
+                                              return const SizedBox();
+                                            }
                                             return Text(
                                               extra,
                                               style: TextStyle(
-                                                color: Colors.white.withOpacity(0.85),
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.85,
+                                                ),
                                                 fontSize: 14,
                                                 height: 1.5,
                                               ),
                                               maxLines: 5,
                                               overflow: TextOverflow.ellipsis,
                                             );
-                                          }
+                                          },
                                         ),
                                       ),
                                     ],
@@ -679,8 +687,7 @@ class _HomePcPageState extends State<HomePcPage> {
               ((constraints.maxWidth + spacing) / (cardWidth + spacing))
                   .floor()
                   .clamp(1, 100);
-          final maxItems =
-              (crossAxisCount * 2).clamp(0, _rankingAnimes.length);
+          final maxItems = (crossAxisCount * 2).clamp(0, _rankingAnimes.length);
           final items = _rankingAnimes.take(maxItems).toList();
 
           return GridView.count(
@@ -754,8 +761,7 @@ class _HomePcPageState extends State<HomePcPage> {
               ((constraints.maxWidth + spacing) / (cardWidth + spacing))
                   .floor()
                   .clamp(1, 100);
-          final maxItems =
-              (crossAxisCount * 2).clamp(0, _historyItems.length);
+          final maxItems = (crossAxisCount * 2).clamp(0, _historyItems.length);
           final items = _historyItems.take(maxItems).toList();
 
           return GridView.count(
@@ -849,8 +855,7 @@ class _HomePcPageState extends State<HomePcPage> {
               ((constraints.maxWidth + spacing) / (cardWidth + spacing))
                   .floor()
                   .clamp(1, 100);
-          final maxItems =
-              (crossAxisCount * 2).clamp(0, _favoriteItems.length);
+          final maxItems = (crossAxisCount * 2).clamp(0, _favoriteItems.length);
           final items = _favoriteItems.take(maxItems).toList();
 
           return GridView.count(

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
@@ -22,6 +21,7 @@ import 'package:mikan_player/ui/pages/ranking_page.dart';
 import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/ui/pages/timetable_page.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
+import 'package:mikan_player/ui/widgets/blurred_cover_background.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 class HomeMobilePage extends StatefulWidget {
@@ -140,7 +140,13 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
 
       // 4. Fill details if covers are missing
       final missingCovers = todayList
-          .where((a) => a.coverUrl == null || a.coverUrl!.isEmpty || a.fullJson == null || a.fullJson!.isEmpty)
+          .where(
+            (a) =>
+                a.coverUrl == null ||
+                a.coverUrl!.isEmpty ||
+                a.fullJson == null ||
+                a.fullJson!.isEmpty,
+          )
           .toList();
       if (missingCovers.isNotEmpty) {
         try {
@@ -422,24 +428,28 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
         for (final item in infobox) {
           if (item['key'] == '导演') {
             final val = item['value'];
-            director = (val is List) ? val.map((v) => v['v'] ?? '').join(' / ') : val.toString();
+            director = (val is List)
+                ? val.map((v) => v['v'] ?? '').join(' / ')
+                : val.toString();
           } else if (item['key'] == '原作') {
             final val = item['value'];
-            original = (val is List) ? val.map((v) => v['v'] ?? '').join(' / ') : val.toString();
+            original = (val is List)
+                ? val.map((v) => v['v'] ?? '').join(' / ')
+                : val.toString();
           }
         }
       }
-      
+
       List<String> infos = [];
       if (original != null && original.isNotEmpty) infos.add('原作: $original');
       if (director != null && director.isNotEmpty) infos.add('导演: $director');
-      
+
       String infoStr = infos.join('  |  ');
       if (summary.isNotEmpty) {
         if (infoStr.isNotEmpty) infoStr += '\n\n';
         infoStr += summary.replaceAll('\r\n', '\n').replaceAll('\n\n', '\n');
       }
-      
+
       return infoStr.trim();
     } catch (e) {
       return '';
@@ -560,22 +570,14 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      ClipRRect(
+                      BlurredCoverBackground(
+                        imageUrl: anime.coverUrl ?? '',
                         borderRadius: BorderRadius.circular(16),
-                        child: CachedNetworkImage(
-                          imageUrl: anime.coverUrl ?? '',
-                          fit: BoxFit.cover,
-                          errorWidget: Container(color: Colors.grey[800]),
-                        ),
-                      ),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: Container(
-                            color: Colors.black.withValues(alpha: 0.4),
-                          ),
-                        ),
+                        blurSigma: 22,
+                        scale: 1.14,
+                        overlayOpacity: 0.12,
+                        highlightOpacity: 0.13,
+                        borderOpacity: 0.12,
                       ),
                       Positioned.fill(
                         child: Row(
@@ -589,7 +591,9 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                                   child: CachedNetworkImage(
                                     imageUrl: anime.coverUrl ?? '',
                                     fit: BoxFit.cover,
-                                    errorWidget: Container(color: Colors.grey[800]),
+                                    errorWidget: Container(
+                                      color: Colors.grey[800],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -632,7 +636,9 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                                           color: Theme.of(
                                             context,
                                           ).colorScheme.primary,
-                                          borderRadius: BorderRadius.circular(4),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
                                         ),
                                         child: Text(
                                           AppLocalizations.of(
@@ -644,25 +650,31 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                      ),                                      const SizedBox(height: 8),
-                                      Expanded(
-                                        child: Builder(
-                                          builder: (context) {
-                                            final extra = _getExtraInfo(anime);
-                                            if (extra.isEmpty) return const SizedBox();
-                                            return Text(
-                                              extra,
-                                              style: TextStyle(
-                                                color: Colors.white.withOpacity(0.85),
-                                                fontSize: 11,
-                                                height: 1.5,
-                                              ),
-                                              maxLines: 4,
-                                              overflow: TextOverflow.ellipsis,
-                                            );
+                                      ),
+                                    const SizedBox(height: 8),
+                                    Expanded(
+                                      child: Builder(
+                                        builder: (context) {
+                                          final extra = _getExtraInfo(anime);
+                                          if (extra.isEmpty) {
+                                            return const SizedBox();
                                           }
-                                        ),
-                                      ),                                  ],
+                                          return Text(
+                                            extra,
+                                            style: TextStyle(
+                                              color: Colors.white.withValues(
+                                                alpha: 0.85,
+                                              ),
+                                              fontSize: 11,
+                                              height: 1.5,
+                                            ),
+                                            maxLines: 4,
+                                            overflow: TextOverflow.ellipsis,
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
