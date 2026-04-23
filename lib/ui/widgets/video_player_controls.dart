@@ -1249,10 +1249,17 @@ class _MobileMultiTapDetectorState extends State<_MobileMultiTapDetector> {
   IconData _overlayIcon = Icons.play_arrow;
   String _overlayLabel = '';
 
+  // 长按快进状态
+  bool _isLongPressFastForwarding = false;
+  double? _originalPlaybackSpeed;
+
   @override
   void dispose() {
     _tapTimer?.cancel();
     _overlayTimer?.cancel();
+    if (_isLongPressFastForwarding && _originalPlaybackSpeed != null) {
+      widget.player.setRate(_originalPlaybackSpeed!);
+    }
     super.dispose();
   }
 
@@ -1489,6 +1496,41 @@ class _MobileMultiTapDetectorState extends State<_MobileMultiTapDetector> {
     _lastZone = null;
   }
 
+  void _handleLongPressStart() {
+    if (!widget.isEnabled) return;
+
+    _tapTimer?.cancel();
+    _resetTapState();
+
+    _originalPlaybackSpeed = widget.player.state.rate;
+    if (_originalPlaybackSpeed == null || _originalPlaybackSpeed! <= 0) {
+      _originalPlaybackSpeed = 1.0;
+    }
+
+    _isLongPressFastForwarding = true;
+    widget.player.setRate(2.0);
+
+    _overlayTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _overlayIcon = Icons.fast_forward;
+      _overlayLabel = '长按快进 2x';
+      _overlayVisible = true;
+    });
+  }
+
+  void _handleLongPressEnd() {
+    if (!_isLongPressFastForwarding) return;
+
+    _isLongPressFastForwarding = false;
+
+    final targetRate = _originalPlaybackSpeed ?? 1.0;
+    widget.player.setRate(targetRate);
+    _originalPlaybackSpeed = null;
+
+    _scheduleOverlayHide();
+  }
+
   void _handleHorizontalDragStart(
     DragStartDetails details,
     BoxConstraints constraints,
@@ -1585,6 +1627,9 @@ class _MobileMultiTapDetectorState extends State<_MobileMultiTapDetector> {
               _handleHorizontalDragUpdate(details, constraints),
           onHorizontalDragEnd: (_) => _handleHorizontalDragEnd(),
           onHorizontalDragCancel: _handleHorizontalDragEnd,
+          onLongPressStart: (_) => _handleLongPressStart(),
+          onLongPressEnd: (_) => _handleLongPressEnd(),
+          onLongPressCancel: () => _handleLongPressEnd(),
           child: Listener(
             behavior: HitTestBehavior.translucent,
             onPointerDown: (event) => _handleTap(event, constraints),
