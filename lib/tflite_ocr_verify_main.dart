@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mikan_player/services/captcha_ocr_service.dart';
-import 'package:mikan_player/src/rust/frb_generated.dart';
+import 'package:mikan_player/src/rust/rust_init.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await RustLib.init();
+  await initRustLib();
   runApp(const CaptchaOcrVerifyApp());
 }
 

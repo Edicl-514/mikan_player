@@ -75,6 +75,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiImages dco_decode_bangumi_images(dynamic raw);
 
   @protected
+  BangumiPerson dco_decode_bangumi_person(dynamic raw);
+
+  @protected
   BangumiRelatedSubject dco_decode_bangumi_related_subject(dynamic raw);
 
   @protected
@@ -167,6 +170,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<BangumiEpisodeComment> dco_decode_list_bangumi_episode_comment(
     dynamic raw,
   );
+
+  @protected
+  List<BangumiPerson> dco_decode_list_bangumi_person(dynamic raw);
 
   @protected
   List<BangumiRelatedSubject> dco_decode_list_bangumi_related_subject(
@@ -374,6 +380,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiImages sse_decode_bangumi_images(SseDeserializer deserializer);
 
   @protected
+  BangumiPerson sse_decode_bangumi_person(SseDeserializer deserializer);
+
+  @protected
   BangumiRelatedSubject sse_decode_bangumi_related_subject(
     SseDeserializer deserializer,
   );
@@ -484,6 +493,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiEpisodeComment> sse_decode_list_bangumi_episode_comment(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<BangumiPerson> sse_decode_list_bangumi_person(
     SseDeserializer deserializer,
   );
 
@@ -749,6 +763,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_bangumi_images(BangumiImages self, SseSerializer serializer);
 
   @protected
+  void sse_encode_bangumi_person(BangumiPerson self, SseSerializer serializer);
+
+  @protected
   void sse_encode_bangumi_related_subject(
     BangumiRelatedSubject self,
     SseSerializer serializer,
@@ -880,6 +897,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_bangumi_episode_comment(
     List<BangumiEpisodeComment> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_bangumi_person(
+    List<BangumiPerson> self,
     SseSerializer serializer,
   );
 

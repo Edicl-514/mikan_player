@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui';
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
@@ -12,6 +13,7 @@ import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'player_page.dart';
 import 'tag_browse_page.dart';
 
@@ -19,11 +21,7 @@ class BangumiDetailsPage extends StatefulWidget {
   final AnimeInfo anime;
   final String? heroTag;
 
-  const BangumiDetailsPage({
-    super.key,
-    required this.anime,
-    this.heroTag,
-  });
+  const BangumiDetailsPage({super.key, required this.anime, this.heroTag});
 
   @override
   State<BangumiDetailsPage> createState() => _BangumiDetailsPageState();
@@ -38,6 +36,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   List<BangumiCharacter>? _characters;
   List<BangumiRelatedSubject>? _relations;
   List<BangumiComment>? _comments;
+
+  // Person name → id mapping (built from persons API + character actors)
+  final Map<String, int> _personIdMap = {};
 
   bool _isLoadingEpisodes = false;
   bool _isLoadingCharacters = false;
@@ -216,9 +217,19 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           )
           .then((characters) {
             if (!mounted) return;
+            // Also collect actor (CV) name→id into personIdMap
+            final actorMap = <String, int>{};
+            for (final ch in characters) {
+              for (final actor in ch.actors) {
+                if (actor.name.isNotEmpty && actor.id != 0) {
+                  actorMap.putIfAbsent(actor.name, () => actor.id);
+                }
+              }
+            }
             setState(() {
               _characters = characters;
               _isLoadingCharacters = false;
+              _mergePersonIdMap(actorMap);
             });
           })
           .catchError((e) {
@@ -252,6 +263,24 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                 _isLoadingRelations = false;
               });
             }
+          });
+
+      // Fetch Persons (staff) for name→id mapping
+      fetchBangumiPersons(subjectId: subjectId)
+          .then((persons) {
+            if (!mounted) return;
+            final map = <String, int>{};
+            for (final p in persons) {
+              if (p.name.isNotEmpty && p.id != 0) {
+                map.putIfAbsent(p.name, () => p.id);
+              }
+            }
+            setState(() {
+              _mergePersonIdMap(map);
+            });
+          })
+          .catchError((e) {
+            debugPrint('Error fetching persons: $e');
           });
 
       // Fetch Comments (不缓存，因为更新频繁)
@@ -407,7 +436,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           headerSliverBuilder: (context, innerBoxIsScrolled) {
             return [
               SliverAppBar(
-                expandedHeight: 380, // Increased to accommodate the new stats card
+                expandedHeight:
+                    380, // Increased to accommodate the new stats card
                 pinned: true,
                 elevation: 0,
                 scrolledUnderElevation: 0,
@@ -529,7 +559,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   children: [
                     // Cover Image
                     Hero(
-                      tag: widget.heroTag ??
+                      tag:
+                          widget.heroTag ??
                           '${widget.anime.bangumiId ?? widget.anime.mikanId ?? widget.anime.title.hashCode}',
                       child: Container(
                         width: 110,
@@ -861,7 +892,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               onTap: _toggleFavorite,
               borderRadius: BorderRadius.circular(20),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFFFF4081), Color(0xFFF50057)],
@@ -923,10 +957,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         return GestureDetector(
           onTap: name != null
               ? () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => TagBrowsePage(tagName: name as String),
-                    ),
-                  )
+                  MaterialPageRoute(
+                    builder: (_) => TagBrowsePage(tagName: name as String),
+                  ),
+                )
               : null,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -996,7 +1030,12 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   SizedBox(
                     width: 350,
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(24, kToolbarHeight + 24, 24, 24),
+                      padding: const EdgeInsets.fromLTRB(
+                        24,
+                        kToolbarHeight + 24,
+                        24,
+                        24,
+                      ),
                       child: Column(
                         children: [
                           _buildPoster(context, radius: 16),
@@ -1014,7 +1053,12 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   Expanded(
                     child: SingleChildScrollView(
                       controller: _commentScrollController,
-                      padding: const EdgeInsets.fromLTRB(32, kToolbarHeight + 24, 32, 24),
+                      padding: const EdgeInsets.fromLTRB(
+                        32,
+                        kToolbarHeight + 24,
+                        32,
+                        24,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1192,7 +1236,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       );
     }
     return Hero(
-      tag: widget.heroTag ??
+      tag:
+          widget.heroTag ??
           '${widget.anime.bangumiId ?? widget.anime.mikanId ?? widget.anime.title.hashCode}',
       child: Container(
         decoration: BoxDecoration(
@@ -1423,15 +1468,128 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               ),
               onPressed: name.isNotEmpty
                   ? () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => TagBrowsePage(tagName: name),
-                        ),
-                      )
+                      MaterialPageRoute(
+                        builder: (_) => TagBrowsePage(tagName: name),
+                      ),
+                    )
                   : null,
             );
           }).toList(),
         ),
       ],
+    );
+  }
+
+  void _openPersonPage(int personId) {
+    final url = 'https://bgm.tv/person/$personId';
+    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  void _openCharacterPage(int characterId) {
+    final url = 'https://bgm.tv/character/$characterId';
+    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  void _mergePersonIdMap(Map<String, int> entries) {
+    for (final entry in entries.entries) {
+      final id = entry.value;
+      final rawName = entry.key.trim();
+      if (id == 0 || rawName.isEmpty) continue;
+
+      _personIdMap.putIfAbsent(rawName, () => id);
+
+      final collapsedWhitespace = rawName.replaceAll(
+        RegExp(r'\s+', unicode: true),
+        ' ',
+      );
+      if (collapsedWhitespace != rawName) {
+        _personIdMap.putIfAbsent(collapsedWhitespace, () => id);
+      }
+    }
+  }
+
+  List<InlineSpan> _buildPersonInlineSpans(
+    String text, {
+    required TextStyle textStyle,
+    required TextStyle linkStyle,
+  }) {
+    if (text.isEmpty || _personIdMap.isEmpty) {
+      return [TextSpan(text: text, style: textStyle)];
+    }
+
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+
+    while (cursor < text.length) {
+      final match = _findNextPersonMatch(text, cursor);
+      if (match == null) {
+        spans.add(TextSpan(text: text.substring(cursor), style: textStyle));
+        break;
+      }
+
+      if (match.start > cursor) {
+        spans.add(
+          TextSpan(text: text.substring(cursor, match.start), style: textStyle),
+        );
+      }
+
+      spans.add(
+        TextSpan(
+          text: match.name,
+          style: linkStyle,
+          recognizer: TapGestureRecognizer()
+            ..onTap = () => _openPersonPage(match.personId),
+        ),
+      );
+      cursor = match.end;
+    }
+
+    return spans;
+  }
+
+  _PersonTextMatch? _findNextPersonMatch(String text, int startIndex) {
+    _PersonTextMatch? bestMatch;
+    final seenNames = <String>{};
+
+    for (final entry in _personIdMap.entries) {
+      final name = entry.key.trim();
+      if (name.length < 2 || !seenNames.add(name)) continue;
+
+      final matchIndex = text.indexOf(name, startIndex);
+      if (matchIndex == -1) continue;
+
+      final candidate = _PersonTextMatch(
+        start: matchIndex,
+        end: matchIndex + name.length,
+        name: name,
+        personId: entry.value,
+      );
+
+      if (bestMatch == null ||
+          candidate.start < bestMatch.start ||
+          (candidate.start == bestMatch.start &&
+              candidate.name.length > bestMatch.name.length)) {
+        bestMatch = candidate;
+      }
+    }
+
+    return bestMatch;
+  }
+
+  Widget _buildPersonAwareText(
+    String text, {
+    required TextStyle textStyle,
+    required TextStyle linkStyle,
+  }) {
+    return Text.rich(
+      TextSpan(
+        style: textStyle,
+        children: _buildPersonInlineSpans(
+          text,
+          textStyle: textStyle,
+          linkStyle: linkStyle,
+        ),
+      ),
     );
   }
 
@@ -1461,12 +1619,62 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           const SizedBox(height: 16),
           ...infobox.map((item) {
             final val = item['value'];
-            String valueStr = "";
+            const valueStyle = TextStyle(color: Colors.white, fontSize: 12);
+            const linkStyle = TextStyle(
+              color: Colors.cyanAccent,
+              fontSize: 12,
+              decoration: TextDecoration.underline,
+              decorationColor: Colors.cyanAccent,
+            );
+
+            // When value is a list of persons, render each as a clickable span
             if (val is List) {
-              valueStr = val.map((v) => v['v'] ?? '').join(', ');
-            } else {
-              valueStr = val.toString();
+              final names = val
+                  .map((v) => (v['v'] ?? '').toString())
+                  .where((s) => s.isNotEmpty)
+                  .toList();
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 70,
+                      child: Text(
+                        item['key'],
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 0,
+                        runSpacing: 4,
+                        children: [
+                          for (int i = 0; i < names.length; i++) ...[
+                            _buildPersonAwareText(
+                              names[i],
+                              textStyle: valueStyle,
+                              linkStyle: linkStyle,
+                            ),
+                            if (i < names.length - 1)
+                              const Text(', ', style: valueStyle),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
             }
+
+            // Plain string value
+            final valueStr = val.toString();
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12.0),
@@ -1486,9 +1694,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
+                    child: _buildPersonAwareText(
                       valueStr,
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      textStyle: valueStyle,
+                      linkStyle: linkStyle,
                     ),
                   ),
                 ],
@@ -1779,6 +1988,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                 final cvName = char.actors.isNotEmpty
                     ? char.actors.first.name
                     : '';
+                final canOpenCharacterPage = char.id != 0;
 
                 return SizedBox(
                   width: 120,
@@ -1786,47 +1996,76 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Character Image
-                      Container(
-                        width: 120,
-                        height: 140,
-                        decoration: BoxDecoration(
-                          color: cardColor,
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: canOpenCharacterPage
+                              ? () => _openCharacterPage(char.id)
+                              : null,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: isDarkBg
-                                ? Colors.white10
-                                : Colors.grey[300]!,
+                          child: Container(
+                            width: 120,
+                            height: 140,
+                            decoration: BoxDecoration(
+                              color: cardColor,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isDarkBg
+                                    ? Colors.white10
+                                    : Colors.grey[300]!,
+                              ),
+                            ),
+                            child: imageUrl.isNotEmpty
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: CachedNetworkImage(
+                                      imageUrl: imageUrl,
+                                      fit: BoxFit.cover,
+                                      alignment: Alignment.topCenter,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.person,
+                                    color: isDarkBg
+                                        ? Colors.white24
+                                        : Colors.grey[400],
+                                    size: 40,
+                                  ),
                           ),
                         ),
-                        child: imageUrl.isNotEmpty
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: CachedNetworkImage(
-                                  imageUrl: imageUrl,
-                                  fit: BoxFit.cover,
-                                  alignment: Alignment.topCenter,
-                                ),
-                              )
-                            : Icon(
-                                Icons.person,
-                                color: isDarkBg
-                                    ? Colors.white24
-                                    : Colors.grey[400],
-                                size: 40,
-                              ),
                       ),
                       const SizedBox(height: 8),
                       // Character Name
-                      Text(
-                        char.name,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: textColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      canOpenCharacterPage
+                          ? GestureDetector(
+                              onTap: () => _openCharacterPage(char.id),
+                              child: Text(
+                                char.name,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDarkBg
+                                      ? Colors.cyanAccent
+                                      : Colors.blue,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: isDarkBg
+                                      ? Colors.cyanAccent
+                                      : Colors.blue,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )
+                          : Text(
+                              char.name,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: textColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                       const SizedBox(height: 4),
                       // Role Type (主角/配角)
                       if (char.roleName.isNotEmpty)
@@ -1873,15 +2112,36 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                               ),
                             ),
                             Expanded(
-                              child: Text(
-                                cvName,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: textColor.withValues(alpha: 0.7),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                              child: _personIdMap.containsKey(cvName)
+                                  ? GestureDetector(
+                                      onTap: () => _openPersonPage(
+                                        _personIdMap[cvName]!,
+                                      ),
+                                      child: Text(
+                                        cvName,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: isDarkBg
+                                              ? Colors.cyanAccent
+                                              : Colors.blue,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: isDarkBg
+                                              ? Colors.cyanAccent
+                                              : Colors.blue,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    )
+                                  : Text(
+                                      cvName,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: textColor.withValues(alpha: 0.7),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                             ),
                           ],
                         ),
@@ -2184,4 +2444,18 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     }
     return "$eps 话";
   }
+}
+
+class _PersonTextMatch {
+  final int start;
+  final int end;
+  final String name;
+  final int personId;
+
+  const _PersonTextMatch({
+    required this.start,
+    required this.end,
+    required this.name,
+    required this.personId,
+  });
 }

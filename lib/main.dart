@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/src/rust/api/simple.dart';
-import 'package:mikan_player/src/rust/frb_generated.dart';
+import 'package:mikan_player/src/rust/rust_init.dart';
 import 'package:mikan_player/ui/screens/home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
@@ -38,7 +38,7 @@ Future<void> main() async {
   debugPrint('Cache directory: ${cacheDir.path}');
   debugPrint('Download directory: ${downloadDir.path}');
 
-  await RustLib.init();
+  await initRustLib();
   await rust.initEngine(cacheDir: cacheDir.path, downloadDir: downloadDir.path);
 
   // Initialize Bangumi Cache Database

@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Fetch episodes for a subject
 /// API: GET https://api.bgm.tv/v0/episodes?subject_id={subject_id}&limit=100&offset=0
@@ -41,6 +41,14 @@ Future<List<BangumiComment>> fetchBangumiComments({
 }) => RustLib.instance.api.crateApiBangumiFetchBangumiComments(
   subjectId: subjectId,
   page: page,
+);
+
+/// Fetch persons (staff) for a subject
+/// API: GET https://api.bgm.tv/v0/subjects/{subject_id}/persons
+Future<List<BangumiPerson>> fetchBangumiPersons({
+  required PlatformInt64 subjectId,
+}) => RustLib.instance.api.crateApiBangumiFetchBangumiPersons(
+  subjectId: subjectId,
 );
 
 /// Scrape episode comments from Bangumi
@@ -262,6 +270,45 @@ class BangumiImages {
           large == other.large &&
           medium == other.medium &&
           common == other.common;
+}
+
+class BangumiPerson {
+  final PlatformInt64 id;
+  final String name;
+  final String relation;
+  final List<String> career;
+  final int personType;
+  final BangumiImages? images;
+
+  const BangumiPerson({
+    required this.id,
+    required this.name,
+    required this.relation,
+    required this.career,
+    required this.personType,
+    this.images,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      relation.hashCode ^
+      career.hashCode ^
+      personType.hashCode ^
+      images.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiPerson &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          relation == other.relation &&
+          career == other.career &&
+          personType == other.personType &&
+          images == other.images;
 }
 
 class BangumiRelatedSubject {

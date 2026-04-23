@@ -380,6 +380,16 @@ pub async fn fetch_bangumi_comments(
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiPerson {
+    pub id: i64,
+    pub name: String,
+    pub relation: String,
+    pub career: Vec<String>,
+    pub person_type: i32,
+    pub images: Option<BangumiImages>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BangumiEpisodeComment {
     pub id: i64,
     pub user_name: String,
@@ -388,6 +398,79 @@ pub struct BangumiEpisodeComment {
     pub time: String,
     pub content_html: String,
     pub replies: Vec<BangumiEpisodeComment>,
+}
+
+/// Fetch persons (staff) for a subject
+/// API: GET https://api.bgm.tv/v0/subjects/{subject_id}/persons
+pub async fn fetch_bangumi_persons(subject_id: i64) -> anyhow::Result<Vec<BangumiPerson>> {
+    let client = crate::api::network::create_client()?;
+
+    let url = format!(
+        "{}/v0/subjects/{}/persons",
+        crate::api::config::get_bangumi_api_url(),
+        subject_id
+    );
+
+    let resp = client
+        .get(&url)
+        .header("accept", "application/json")
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        return Ok(Vec::new());
+    }
+
+    let json: serde_json::Value = resp.json().await?;
+    let mut persons = Vec::new();
+
+    if let Some(data) = json.as_array() {
+        for item in data {
+            let images_data = &item["images"];
+            let images = if !images_data.is_null() {
+                let small = images_data["small"].as_str().unwrap_or("").to_string();
+                let large = images_data["large"].as_str().unwrap_or("").to_string();
+                let medium = images_data["medium"].as_str().unwrap_or("").to_string();
+                let grid = images_data["grid"].as_str().unwrap_or("").to_string();
+                // Only create images if at least one URL is non-empty
+                if !small.is_empty() || !large.is_empty() || !medium.is_empty() {
+                    Some(BangumiImages {
+                        small,
+                        grid,
+                        large,
+                        medium,
+                        common: String::new(),
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let career = item["career"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let person = BangumiPerson {
+                id: item["id"].as_i64().unwrap_or(0),
+                name: item["name"].as_str().unwrap_or("").to_string(),
+                relation: item["relation"].as_str().unwrap_or("").to_string(),
+                career,
+                person_type: item["type"].as_i64().unwrap_or(0) as i32,
+                images,
+            };
+
+            persons.push(person);
+        }
+    }
+
+    Ok(persons)
 }
 
 /// Scrape episode comments from Bangumi
