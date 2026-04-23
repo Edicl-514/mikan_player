@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
@@ -139,7 +140,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
 
       // 4. Fill details if covers are missing
       final missingCovers = todayList
-          .where((a) => a.coverUrl == null || a.coverUrl!.isEmpty)
+          .where((a) => a.coverUrl == null || a.coverUrl!.isEmpty || a.fullJson == null || a.fullJson!.isEmpty)
           .toList();
       if (missingCovers.isNotEmpty) {
         try {
@@ -409,6 +410,42 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
     );
   }
 
+  String _getExtraInfo(crawler.AnimeInfo anime) {
+    if (anime.fullJson == null || anime.fullJson!.isEmpty) return '';
+    try {
+      final data = jsonDecode(anime.fullJson!);
+      String summary = data['summary'] ?? '';
+      String? director;
+      String? original;
+      if (data['infobox'] != null) {
+        final infobox = data['infobox'] as List;
+        for (final item in infobox) {
+          if (item['key'] == '导演') {
+            final val = item['value'];
+            director = (val is List) ? val.map((v) => v['v'] ?? '').join(' / ') : val.toString();
+          } else if (item['key'] == '原作') {
+            final val = item['value'];
+            original = (val is List) ? val.map((v) => v['v'] ?? '').join(' / ') : val.toString();
+          }
+        }
+      }
+      
+      List<String> infos = [];
+      if (original != null && original.isNotEmpty) infos.add('原作: $original');
+      if (director != null && director.isNotEmpty) infos.add('导演: $director');
+      
+      String infoStr = infos.join('  |  ');
+      if (summary.isNotEmpty) {
+        if (infoStr.isNotEmpty) infoStr += '\n\n';
+        infoStr += summary.replaceAll('\r\n', '\n').replaceAll('\n\n', '\n');
+      }
+      
+      return infoStr.trim();
+    } catch (e) {
+      return '';
+    }
+  }
+
   Widget _buildSectionHeader(String title, VoidCallback onMore) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -531,47 +568,104 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                           errorWidget: Container(color: Colors.grey[800]),
                         ),
                       ),
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.8),
-                            ],
-                            stops: const [0.6, 1.0],
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            color: Colors.black.withValues(alpha: 0.4),
                           ),
                         ),
                       ),
-                      Positioned(
-                        bottom: 16,
-                        left: 16,
-                        right: 16,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      Positioned.fill(
+                        child: Row(
                           children: [
-                            Text(
-                              anime.title,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (anime.broadcastTime != null)
-                              Text(
-                                AppLocalizations.of(
-                                  context,
-                                ).updateTime(anime.broadcastTime!),
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
+                            Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: AspectRatio(
+                                aspectRatio: 3 / 4,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: CachedNetworkImage(
+                                    imageUrl: anime.coverUrl ?? '',
+                                    fit: BoxFit.cover,
+                                    errorWidget: Container(color: Colors.grey[800]),
+                                  ),
                                 ),
                               ),
+                            ),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                  right: 16.0,
+                                  top: 16,
+                                  bottom: 16,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      anime.title,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        shadows: [
+                                          Shadow(
+                                            color: Colors.black45,
+                                            blurRadius: 4,
+                                          ),
+                                        ],
+                                      ),
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    if (anime.broadcastTime != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          AppLocalizations.of(
+                                            context,
+                                          ).updateTime(anime.broadcastTime!),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),                                      const SizedBox(height: 8),
+                                      Expanded(
+                                        child: Builder(
+                                          builder: (context) {
+                                            final extra = _getExtraInfo(anime);
+                                            if (extra.isEmpty) return const SizedBox();
+                                            return Text(
+                                              extra,
+                                              style: TextStyle(
+                                                color: Colors.white.withOpacity(0.85),
+                                                fontSize: 11,
+                                                height: 1.5,
+                                              ),
+                                              maxLines: 4,
+                                              overflow: TextOverflow.ellipsis,
+                                            );
+                                          }
+                                        ),
+                                      ),                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -707,7 +801,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                             ),
                           ),
                           Text(
-                            "EP ${item.episodeSort % 1 == 0 ? item.episodeSort.toInt() : item.episodeSort} · ${item.episodeName}",
+                            "EP ${item.episodeSort % 1 == 0 ? item.episodeSort.toInt() : item.episodeSort} | ${item.episodeName}",
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(

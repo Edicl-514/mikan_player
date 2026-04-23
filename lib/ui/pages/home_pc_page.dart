@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
@@ -132,7 +133,7 @@ class _HomePcPageState extends State<HomePcPage> {
       }
 
       final missingCovers = todayList
-          .where((a) => a.coverUrl == null || a.coverUrl!.isEmpty)
+          .where((a) => a.coverUrl == null || a.coverUrl!.isEmpty || a.fullJson == null || a.fullJson!.isEmpty)
           .toList();
       if (missingCovers.isNotEmpty) {
         try {
@@ -365,6 +366,42 @@ class _HomePcPageState extends State<HomePcPage> {
     );
   }
 
+  String _getExtraInfo(crawler.AnimeInfo anime) {
+    if (anime.fullJson == null || anime.fullJson!.isEmpty) return '';
+    try {
+      final data = jsonDecode(anime.fullJson!);
+      String summary = data['summary'] ?? '';
+      String? director;
+      String? original;
+      if (data['infobox'] != null) {
+        final infobox = data['infobox'] as List;
+        for (final item in infobox) {
+          if (item['key'] == '导演') {
+            final val = item['value'];
+            director = (val is List) ? val.map((v) => v['v'] ?? '').join(' / ') : val.toString();
+          } else if (item['key'] == '原作') {
+            final val = item['value'];
+            original = (val is List) ? val.map((v) => v['v'] ?? '').join(' / ') : val.toString();
+          }
+        }
+      }
+      
+      List<String> infos = [];
+      if (original != null && original.isNotEmpty) infos.add('原作: $original');
+      if (director != null && director.isNotEmpty) infos.add('导演: $director');
+      
+      String infoStr = infos.join('  |  ');
+      if (summary.isNotEmpty) {
+        if (infoStr.isNotEmpty) infoStr += '\n\n';
+        infoStr += summary.replaceAll('\r\n', '\n').replaceAll('\n\n', '\n');
+      }
+      
+      return infoStr.trim();
+    } catch (e) {
+      return '';
+    }
+  }
+
   Widget _buildSectionHeader(String title, VoidCallback onMore) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -502,71 +539,106 @@ class _HomePcPageState extends State<HomePcPage> {
                             errorWidget: Container(color: Colors.grey[800]),
                           ),
                         ),
-                        Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(24),
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withValues(alpha: 0.85),
-                              ],
-                              stops: const [0.4, 1.0],
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                            child: Container(
+                              color: Colors.black.withValues(alpha: 0.4),
                             ),
                           ),
                         ),
-                        Positioned(
-                          bottom: 32,
-                          left: 32,
-                          right: 32,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        Positioned.fill(
+                          child: Row(
                             children: [
-                              Text(
-                                anime.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black87,
-                                      blurRadius: 8,
+                              Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: AspectRatio(
+                                  aspectRatio: 3 / 4,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: CachedNetworkImage(
+                                      imageUrl: anime.coverUrl ?? '',
+                                      fit: BoxFit.cover,
+                                      errorWidget: Container(color: Colors.grey[800]),
                                     ),
-                                  ],
+                                  ),
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(height: 8),
-                              if (anime.broadcastTime != null)
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        AppLocalizations.of(
-                                          context,
-                                        ).updateTime(anime.broadcastTime!),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    right: 32.0,
+                                    top: 32,
+                                    bottom: 32,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        anime.title,
                                         style: const TextStyle(
                                           color: Colors.white,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
+                                          fontSize: 32,
+                                          fontWeight: FontWeight.bold,
+                                          shadows: [
+                                            Shadow(
+                                              color: Colors.black45,
+                                              blurRadius: 8,
+                                            ),
+                                          ],
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      if (anime.broadcastTime != null)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            AppLocalizations.of(
+                                              context,
+                                            ).updateTime(anime.broadcastTime!),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      const SizedBox(height: 16),
+                                      Expanded(
+                                        child: Builder(
+                                          builder: (context) {
+                                            final extra = _getExtraInfo(anime);
+                                            if (extra.isEmpty) return const SizedBox();
+                                            return Text(
+                                              extra,
+                                              style: TextStyle(
+                                                color: Colors.white.withOpacity(0.85),
+                                                fontSize: 14,
+                                                height: 1.5,
+                                              ),
+                                              maxLines: 5,
+                                              overflow: TextOverflow.ellipsis,
+                                            );
+                                          }
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
+                              ),
                             ],
                           ),
                         ),
@@ -730,7 +802,7 @@ class _HomePcPageState extends State<HomePcPage> {
                               ),
                             ),
                             Text(
-                              "EP ${item.episodeSort % 1 == 0 ? item.episodeSort.toInt() : item.episodeSort} · ${item.episodeName}",
+                              "EP ${item.episodeSort % 1 == 0 ? item.episodeSort.toInt() : item.episodeSort} | ${item.episodeName}",
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
