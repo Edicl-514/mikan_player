@@ -174,7 +174,7 @@ class _HomePcPageState extends State<HomePcPage> {
       );
       if (mounted) {
         setState(() {
-          _rankingAnimes = results.take(12).toList();
+          _rankingAnimes = results;
           _isLoadingRanking = false;
         });
       }
@@ -189,7 +189,7 @@ class _HomePcPageState extends State<HomePcPage> {
       final history = await _historyManager.getHistory();
       if (mounted) {
         setState(() {
-          _historyItems = history.take(8).toList();
+          _historyItems = history;
           _isLoadingHistory = false;
         });
       }
@@ -244,7 +244,7 @@ class _HomePcPageState extends State<HomePcPage> {
 
       if (mounted) {
         setState(() {
-          _favoriteItems = merged.take(12).toList();
+          _favoriteItems = merged;
           _isLoadingFavorites = false;
         });
       }
@@ -316,54 +316,33 @@ class _HomePcPageState extends State<HomePcPage> {
               children: [
                 _buildTodaySection(),
                 const SizedBox(height: 32),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildSectionHeader(
-                            AppLocalizations.of(context).recentHot,
-                            () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const RankingPage(),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          _buildRankingGrid(),
-                        ],
+                _buildSectionHeader(
+                  AppLocalizations.of(context).recentHot,
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RankingPage(),
                       ),
-                    ),
-                    const SizedBox(width: 32),
-                    Expanded(
-                      flex: 1,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildSectionHeader(
-                            AppLocalizations.of(context).historyTitle,
-                            () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const HistoryPage(),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          _buildHistoryGrid(),
-                        ],
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
+                const SizedBox(height: 16),
+                _buildRankingList(),
+                const SizedBox(height: 32),
+                _buildSectionHeader(
+                  AppLocalizations.of(context).historyTitle,
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const HistoryPage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildHistoryList(),
                 const SizedBox(height: 32),
                 _buildSectionHeader(
                   AppLocalizations.of(context).favoritesTitle,
@@ -377,7 +356,7 @@ class _HomePcPageState extends State<HomePcPage> {
                   },
                 ),
                 const SizedBox(height: 16),
-                _buildFavoritesGrid(),
+                _buildFavoritesList(),
               ],
             ),
           ),
@@ -603,232 +582,262 @@ class _HomePcPageState extends State<HomePcPage> {
     );
   }
 
-  Widget _buildRankingGrid() {
+  Widget _buildRankingList() {
     if (_isLoadingRanking) {
       return const SizedBox(
-        height: 200,
+        height: 496,
         child: Center(child: CircularProgressIndicator()),
       );
     }
     if (_rankingAnimes.isEmpty) {
       return SizedBox(
-        height: 200,
+        height: 496,
         child: Center(child: Text(AppLocalizations.of(context).noData)),
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        int crossAxisCount = (constraints.maxWidth / 160).floor().clamp(2, 6);
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const double cardWidth = 130;
+          const double cardHeight = 240;
+          const double spacing = 16;
+          final crossAxisCount =
+              ((constraints.maxWidth + spacing) / (cardWidth + spacing))
+                  .floor()
+                  .clamp(1, 100);
+          final maxItems =
+              (crossAxisCount * 2).clamp(0, _rankingAnimes.length);
+          final items = _rankingAnimes.take(maxItems).toList();
+
+          return GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: crossAxisCount,
-            childAspectRatio: 0.65,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-          ),
-          itemCount: _rankingAnimes.length,
-          itemBuilder: (context, index) {
-            final anime = _rankingAnimes[index];
-            final rankTag = anime.rank != null
-                ? '#${anime.rank}'
-                : '#${index + 1}';
-            return AnimeCard(
-              title: anime.title,
-              coverUrl: anime.coverUrl,
-              score: anime.score,
-              tag: rankTag,
-              heroTag: 'home_pc_rank_${anime.bangumiId}',
-              onTap: () {
-                final info = crawler.AnimeInfo(
-                  title: anime.title,
-                  bangumiId: anime.bangumiId,
-                  coverUrl: anime.coverUrl,
-                  score: anime.score,
-                  rank: anime.rank,
-                  tags: [],
-                );
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => BangumiDetailsPage(
-                      anime: info,
-                      heroTagPrefix: 'home_pc_rank',
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            childAspectRatio: cardWidth / cardHeight,
+            children: items.asMap().entries.map((entry) {
+              final index = entry.key;
+              final anime = entry.value;
+              final rankTag = anime.rank != null
+                  ? '#${anime.rank}'
+                  : '#${index + 1}';
+              return AnimeCard(
+                title: anime.title,
+                coverUrl: anime.coverUrl,
+                score: anime.score,
+                tag: rankTag,
+                heroTag: 'home_pc_rank_${anime.bangumiId}',
+                onTap: () {
+                  final info = crawler.AnimeInfo(
+                    title: anime.title,
+                    bangumiId: anime.bangumiId,
+                    coverUrl: anime.coverUrl,
+                    score: anime.score,
+                    rank: anime.rank,
+                    tags: [],
+                  );
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => BangumiDetailsPage(
+                        anime: info,
+                        heroTagPrefix: 'home_pc_rank',
+                      ),
                     ),
-                  ),
-                );
-              },
-            );
-          },
-        );
-      },
+                  );
+                },
+              );
+            }).toList(),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildHistoryGrid() {
+  Widget _buildHistoryList() {
     if (_isLoadingHistory) {
       return const SizedBox(
-        height: 200,
+        height: 376,
         child: Center(child: CircularProgressIndicator()),
       );
     }
     if (_historyItems.isEmpty) {
       return SizedBox(
-        height: 200,
+        height: 376,
         child: Center(child: Text(AppLocalizations.of(context).noHistory)),
       );
     }
 
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _historyItems.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final item = _historyItems[index];
-        return Card(
-          elevation: 0,
-          color: Theme.of(
-            context,
-          ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => _openHistoryItem(item),
-            child: SizedBox(
-              height: 100,
-              child: Row(
-                children: [
-                  AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: CachedNetworkImage(
-                      imageUrl: item.coverUrl ?? '',
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 12.0,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const double cardWidth = 180;
+          const double cardHeight = 180;
+          const double spacing = 16;
+          final crossAxisCount =
+              ((constraints.maxWidth + spacing) / (cardWidth + spacing))
+                  .floor()
+                  .clamp(1, 100);
+          final maxItems =
+              (crossAxisCount * 2).clamp(0, _historyItems.length);
+          final items = _historyItems.take(maxItems).toList();
+
+          return GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            childAspectRatio: cardWidth / cardHeight,
+            children: items.map((item) {
+              return Card(
+                elevation: 0,
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => _openHistoryItem(item),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: CachedNetworkImage(
+                          imageUrl: item.coverUrl ?? '',
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
                             ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            "EP ${item.episodeSort % 1 == 0 ? item.episodeSort.toInt() : item.episodeSort} · ${item.episodeName}",
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
+                            Text(
+                              "EP ${item.episodeSort % 1 == 0 ? item.episodeSort.toInt() : item.episodeSort} · ${item.episodeName}",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+                ),
+              );
+            }).toList(),
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildFavoritesGrid() {
+  Widget _buildFavoritesList() {
     if (_isLoadingFavorites) {
       return const SizedBox(
-        height: 200,
+        height: 496,
         child: Center(child: CircularProgressIndicator()),
       );
     }
     if (_favoriteItems.isEmpty) {
       return SizedBox(
-        height: 200,
+        height: 496,
         child: Center(child: Text(AppLocalizations.of(context).noFavorites)),
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        int crossAxisCount = (constraints.maxWidth / 160).floor().clamp(2, 8);
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const double cardWidth = 130;
+          const double cardHeight = 240;
+          const double spacing = 16;
+          final crossAxisCount =
+              ((constraints.maxWidth + spacing) / (cardWidth + spacing))
+                  .floor()
+                  .clamp(1, 100);
+          final maxItems =
+              (crossAxisCount * 2).clamp(0, _favoriteItems.length);
+          final items = _favoriteItems.take(maxItems).toList();
+
+          return GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: crossAxisCount,
-            childAspectRatio: 0.65,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-          ),
-          itemCount: _favoriteItems.length,
-          itemBuilder: (context, index) {
-            final item = _favoriteItems[index];
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            childAspectRatio: cardWidth / cardHeight,
+            children: items.map((item) {
+              String title;
+              String cover;
+              double score;
+              String id;
 
-            String title;
-            String cover;
-            double score;
-            String id;
+              if (item is LocalFavorite) {
+                title = item.title;
+                cover = item.coverUrl;
+                score = item.score;
+                id = item.bangumiId.toString();
+              } else if (item is BangumiUserCollection) {
+                title = item.subject.nameCn.isNotEmpty
+                    ? item.subject.nameCn
+                    : item.subject.name;
+                cover = item.subject.images.large;
+                score = item.subject.score;
+                id = item.subject.id.toString();
+              } else {
+                return const SizedBox();
+              }
 
-            if (item is LocalFavorite) {
-              title = item.title;
-              cover = item.coverUrl;
-              score = item.score;
-              id = item.bangumiId.toString();
-            } else if (item is BangumiUserCollection) {
-              title = item.subject.nameCn.isNotEmpty
-                  ? item.subject.nameCn
-                  : item.subject.name;
-              cover = item.subject.images.large;
-              score = item.subject.score;
-              id = item.subject.id.toString();
-            } else {
-              return const SizedBox();
-            }
-
-            return AnimeCard(
-              title: title,
-              coverUrl: cover,
-              score: score,
-              heroTag: 'home_pc_fav_$id',
-              onTap: () {
-                final info = crawler.AnimeInfo(
-                  title: title,
-                  bangumiId: id,
-                  coverUrl: cover,
-                  score: score,
-                  tags: [],
-                );
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => BangumiDetailsPage(
-                      anime: info,
-                      heroTagPrefix: 'home_pc_fav',
+              return AnimeCard(
+                title: title,
+                coverUrl: cover,
+                score: score,
+                heroTag: 'home_pc_fav_$id',
+                onTap: () {
+                  final info = crawler.AnimeInfo(
+                    title: title,
+                    bangumiId: id,
+                    coverUrl: cover,
+                    score: score,
+                    tags: [],
+                  );
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => BangumiDetailsPage(
+                        anime: info,
+                        heroTagPrefix: 'home_pc_fav',
+                      ),
                     ),
-                  ),
-                );
-              },
-            );
-          },
-        );
-      },
+                  );
+                },
+              );
+            }).toList(),
+          );
+        },
+      ),
     );
   }
 }

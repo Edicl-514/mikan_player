@@ -13,7 +13,7 @@ class FavoritesManager {
   Future<void> init() async {
     if (_isInitialized) return;
 
-    _db = AppDatabase();
+    _db = AppDatabase.instance;
     _isInitialized = true;
   }
 

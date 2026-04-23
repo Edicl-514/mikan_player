@@ -45,7 +45,7 @@ class BangumiCacheService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    _db = AppDatabase();
+    _db = AppDatabase.instance;
     _isInitialized = true;
     debugPrint('BangumiCacheService initialized with Drift');
   }
