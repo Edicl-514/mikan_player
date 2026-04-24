@@ -137,8 +137,13 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     return list;
   }
 
-  void _openBangumiPage(int subjectId, String name, String image) {
-    final heroTag = 'person_${widget.personId}_subj_$subjectId';
+  void _openBangumiPage(
+    int subjectId,
+    String name,
+    String image, {
+    String? heroTag,
+  }) {
+    final tag = heroTag ?? 'person_${widget.personId}_subj_$subjectId';
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -149,7 +154,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
             coverUrl: image,
             tags: const [],
           ),
-          heroTag: heroTag,
+          heroTag: tag,
           enableCharacterHero: false,
         ),
       ),
@@ -761,12 +766,16 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
 
   Widget _buildCharacterCard(BuildContext context, _GroupedCharacter group) {
     final imgUrl = group.images?.large ?? group.images?.medium ?? group.images?.small ?? '';
-    final heroTag = 'person_${widget.personId}_char_${group.charId}';
-    final isExpanded = _expandedCharIds.contains(group.charId);
+    final charHeroTag = 'person_${widget.personId}_char_${group.charId}';
+    final hasMultiple = group.appearances.length > 1;
+    // Auto-expand single-appearance groups; multi-appearance groups toggle manually
+    final isExpanded = !hasMultiple || _expandedCharIds.contains(group.charId);
 
-    // Representative staff role — use the most common one
-    final staffLabel = group.appearances.isNotEmpty ? group.appearances.first.staff : '';
-    final isMain = staffLabel.contains('主角');
+    // Dedupe appearances within this group by subjectId to keep hero tags unique
+    final seenSubjectIds = <int>{};
+    final uniqueAppearances = group.appearances
+        .where((a) => seenSubjectIds.add(a.subjectId.toInt()))
+        .toList();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -779,48 +788,59 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
         children: [
           // ── Character header row ──────────────────────────────────────
           InkWell(
-            onTap: () {
-              if (group.appearances.length == 1) {
-                // Single appearance: go directly to character page
-                _openCharacterPage(
-                  group.charId,
-                  group.name,
-                  imgUrl.isEmpty ? null : imgUrl,
-                );
-              } else {
-                // Multiple appearances: toggle expand
-                setState(() {
-                  if (isExpanded) {
-                    _expandedCharIds.remove(group.charId);
-                  } else {
-                    _expandedCharIds.add(group.charId);
+            onTap: hasMultiple
+                ? () {
+                    setState(() {
+                      if (_expandedCharIds.contains(group.charId)) {
+                        _expandedCharIds.remove(group.charId);
+                      } else {
+                        _expandedCharIds.add(group.charId);
+                      }
+                    });
                   }
-                });
-              }
-            },
+                : () => _openCharacterPage(
+                      group.charId,
+                      group.name,
+                      imgUrl.isEmpty ? null : imgUrl,
+                    ),
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  // Character thumbnail with Hero
-                  Hero(
-                    tag: heroTag,
-                    child: ClipRRect(
+                  // Character thumbnail — always navigates to character page (Hero)
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _openCharacterPage(
+                        group.charId,
+                        group.name,
+                        imgUrl.isEmpty ? null : imgUrl,
+                      ),
                       borderRadius: BorderRadius.circular(8),
-                      child: SizedBox(
-                        width: 56,
-                        height: 72,
-                        child: imgUrl.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: imgUrl,
-                                fit: BoxFit.cover,
-                                alignment: Alignment.topCenter,
-                              )
-                            : Container(
-                                color: Colors.grey[800],
-                                child: const Icon(Icons.person, color: Colors.white38, size: 28),
-                              ),
+                      child: Hero(
+                        tag: charHeroTag,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 56,
+                            height: 72,
+                            child: imgUrl.isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: imgUrl,
+                                    fit: BoxFit.cover,
+                                    alignment: Alignment.topCenter,
+                                  )
+                                : Container(
+                                    color: Colors.grey[800],
+                                    child: const Icon(
+                                      Icons.person,
+                                      color: Colors.white38,
+                                      size: 28,
+                                    ),
+                                  ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -829,61 +849,28 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Character name
-                        GestureDetector(
-                          onTap: () => _openCharacterPage(
-                            group.charId,
-                            group.name,
-                            imgUrl.isEmpty ? null : imgUrl,
-                          ),
-                          child: Text(
-                            group.name,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              color: Colors.cyanAccent,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        // Character name (original)
+                        Text(
+                          group.name,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            color: Colors.cyanAccent,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        // Staff role chip
-                        if (staffLabel.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isMain
-                                  ? Colors.amber.withValues(alpha: 0.2)
-                                  : Colors.blue.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: isMain
-                                    ? Colors.amber.withValues(alpha: 0.5)
-                                    : Colors.blue.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            child: Text(
-                              staffLabel,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isMain ? Colors.amber : Colors.lightBlueAccent,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        const SizedBox(height: 4),
-                        // Appearance count hint
+                        const SizedBox(height: 6),
+                        // Appearance count
                         Text(
-                          '${group.appearances.length} 部作品',
+                          '${uniqueAppearances.length} 部作品',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.white.withValues(alpha: 0.45),
+                            color: Colors.white.withValues(alpha: 0.55),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  // Expand/collapse chevron (only when >1 appearance)
-                  if (group.appearances.length > 1)
+                  if (hasMultiple)
                     AnimatedRotation(
                       turns: isExpanded ? 0.5 : 0,
                       duration: const Duration(milliseconds: 200),
@@ -896,81 +883,150 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
             ),
           ),
 
-          // ── Expanded subject list ─────────────────────────────────────
-          if (group.appearances.length > 1 && isExpanded) ...[
+          // ── Subject grid (expanded appearances) ───────────────────────
+          if (isExpanded && uniqueAppearances.isNotEmpty) ...[
             Divider(color: Colors.white10, height: 1, indent: 12, endIndent: 12),
-            ...group.appearances.map((a) {
-              final subjectTitle =
-                  a.subjectNameCn.isNotEmpty ? a.subjectNameCn : a.subjectName;
-              return InkWell(
-                onTap: () => _openBangumiPage(
-                  a.subjectId.toInt(),
-                  subjectTitle,
-                  '',
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(80, 8, 16, 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.movie_outlined, size: 14, color: Colors.white38),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          subjectTitle,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.white70,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right, size: 16, color: Colors.white24),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 4),
-          ],
-
-          // ── Single appearance: show subject inline ────────────────────
-          if (group.appearances.length == 1) ...[
-            Divider(color: Colors.white10, height: 1, indent: 12, endIndent: 12),
-            InkWell(
-              onTap: () {
-                final a = group.appearances.first;
-                final subjectTitle =
-                    a.subjectNameCn.isNotEmpty ? a.subjectNameCn : a.subjectName;
-                _openBangumiPage(a.subjectId.toInt(), subjectTitle, '');
-              },
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(12),
-                bottomRight: Radius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(80, 8, 16, 10),
-                child: Row(
-                  children: [
-                    const Icon(Icons.movie_outlined, size: 14, color: Colors.white38),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        group.appearances.first.subjectNameCn.isNotEmpty
-                            ? group.appearances.first.subjectNameCn
-                            : group.appearances.first.subjectName,
-                        style: const TextStyle(fontSize: 13, color: Colors.white70),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, size: 16, color: Colors.white24),
-                  ],
-                ),
-              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+              child: _buildCharacterSubjectGrid(uniqueAppearances, group.charId),
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildCharacterSubjectGrid(
+    List<PersonCharacter> appearances,
+    int charId,
+  ) {
+    // Map subject id -> cover image, sourced from the person's subjects list
+    // Fallback to the direct image API if not found
+    final subjectImageMap = <int, String>{
+      for (final s in _subjects) s.id.toInt(): s.image,
+    };
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 130,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 10,
+        childAspectRatio: 0.58,
+      ),
+      itemCount: appearances.length,
+      itemBuilder: (_, i) {
+        final a = appearances[i];
+        final subjectId = a.subjectId.toInt();
+        final title = a.subjectNameCn.isNotEmpty ? a.subjectNameCn : a.subjectName;
+        final coverUrl = subjectImageMap[subjectId] ??
+            'https://api.bgm.tv/v0/subjects/$subjectId/image?type=common';
+        final heroTag = 'person_${widget.personId}_char_${charId}_subj_$subjectId';
+        return _buildCharacterSubjectTile(
+          subjectId: subjectId,
+          title: title,
+          coverUrl: coverUrl,
+          staff: a.staff,
+          heroTag: heroTag,
+        );
+      },
+    );
+  }
+
+  Widget _buildCharacterSubjectTile({
+    required int subjectId,
+    required String title,
+    required String coverUrl,
+    required String staff,
+    required String heroTag,
+  }) {
+    final isMain = staff.contains('主角');
+    final badgeColor = isMain ? Colors.amber : Colors.blue;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => _openBangumiPage(
+          subjectId,
+          title,
+          coverUrl,
+          heroTag: heroTag,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Stack(
+              children: [
+                Hero(
+                  tag: heroTag,
+                  child: AspectRatio(
+                    aspectRatio: 3 / 4,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: coverUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: coverUrl,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              color: Colors.grey[800],
+                              child: const Icon(
+                                Icons.movie_outlined,
+                                color: Colors.white38,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+                if (staff.isNotEmpty)
+                  Positioned(
+                    top: 4,
+                    left: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: badgeColor.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        staff,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+                height: 1.3,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
