@@ -155,7 +155,16 @@ class _HomePcPageState extends State<HomePcPage> {
             if (index != -1) {
               todayList[index] = item;
             }
+            // Also update the full timetable list
+            final fullIndex = animes.indexWhere(
+              (a) => a.bangumiId == item.bangumiId,
+            );
+            if (fullIndex != -1) {
+              animes[fullIndex] = item;
+            }
           }
+          // Update timetable cache so next load has coverUrl
+          await CacheManager.instance.updateTimetable(currentQuarter, animes);
           if (mounted) {
             setState(() {
               _todayAnimes = List.from(todayList);
