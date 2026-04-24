@@ -421,6 +421,7 @@ class DownloadManagerPage extends StatefulWidget {
 class _DownloadManagerPageState extends State<DownloadManagerPage> {
   final DownloadManager _downloadManager = DownloadManager();
   DownloadTaskStatus? _statusFilter;
+  final Set<String> _collapsedGroups = {};
 
   @override
   void initState() {
@@ -443,9 +444,27 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
   List<DownloadTask> get _filteredTasks {
     var tasks = _downloadManager.tasks;
     if (_statusFilter != null) {
-      tasks = tasks.where((t) => t.status == _statusFilter).toList();
+      tasks = tasks.where(_matchesStatusFilter).toList();
     }
     return tasks;
+  }
+
+  bool _matchesStatusFilter(DownloadTask task) {
+    switch (_statusFilter) {
+      case null:
+        return true;
+      case DownloadTaskStatus.downloading:
+        return task.status == DownloadTaskStatus.downloading ||
+            task.status == DownloadTaskStatus.pending;
+      case DownloadTaskStatus.completed:
+        return task.status == DownloadTaskStatus.completed ||
+            task.status == DownloadTaskStatus.seeding;
+      case DownloadTaskStatus.pending:
+      case DownloadTaskStatus.seeding:
+      case DownloadTaskStatus.paused:
+      case DownloadTaskStatus.error:
+        return task.status == _statusFilter;
+    }
   }
 
   Map<String?, List<DownloadTask>> get _groupedByAnime {
@@ -620,7 +639,11 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
               label: Text(l10n.filterActive),
               selected: _statusFilter == DownloadTaskStatus.downloading,
               onSelected: (selected) {
-                setState(() => _statusFilter = selected ? DownloadTaskStatus.downloading : null);
+                setState(
+                  () => _statusFilter = selected
+                      ? DownloadTaskStatus.downloading
+                      : null,
+                );
               },
             ),
             const SizedBox(width: 8),
@@ -628,15 +651,23 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
               label: Text(l10n.filterPaused),
               selected: _statusFilter == DownloadTaskStatus.paused,
               onSelected: (selected) {
-                setState(() => _statusFilter = selected ? DownloadTaskStatus.paused : null);
+                setState(
+                  () => _statusFilter = selected
+                      ? DownloadTaskStatus.paused
+                      : null,
+                );
               },
             ),
             const SizedBox(width: 8),
             FilterChip(
               label: Text(l10n.filterCompleted),
-              selected: _statusFilter == DownloadTaskStatus.completed || _statusFilter == DownloadTaskStatus.seeding,
+              selected: _statusFilter == DownloadTaskStatus.completed,
               onSelected: (selected) {
-                setState(() => _statusFilter = selected ? DownloadTaskStatus.completed : null);
+                setState(
+                  () => _statusFilter = selected
+                      ? DownloadTaskStatus.completed
+                      : null,
+                );
               },
             ),
             const SizedBox(width: 8),
@@ -644,7 +675,11 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
               label: Text(l10n.filterError),
               selected: _statusFilter == DownloadTaskStatus.error,
               onSelected: (selected) {
-                setState(() => _statusFilter = selected ? DownloadTaskStatus.error : null);
+                setState(
+                  () => _statusFilter = selected
+                      ? DownloadTaskStatus.error
+                      : null,
+                );
               },
             ),
           ],
@@ -653,13 +688,23 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
     );
   }
 
-  Widget _buildAnimeGroup(String? animeName, List<DownloadTask> tasks, AppLocalizations l10n) {
+  Widget _buildAnimeGroup(
+    String? animeName,
+    List<DownloadTask> tasks,
+    AppLocalizations l10n,
+  ) {
     final displayName = animeName ?? l10n.others;
-    final isCompleted = tasks.every((t) =>
-        t.status == DownloadTaskStatus.completed || t.status == DownloadTaskStatus.seeding);
+    final isCompleted = tasks.every(
+      (t) =>
+          t.status == DownloadTaskStatus.completed ||
+          t.status == DownloadTaskStatus.seeding,
+    );
     final hasError = tasks.any((t) => t.status == DownloadTaskStatus.error);
-    final isActive = tasks.any((t) =>
-        t.status == DownloadTaskStatus.downloading || t.status == DownloadTaskStatus.pending);
+    final isActive = tasks.any(
+      (t) =>
+          t.status == DownloadTaskStatus.downloading ||
+          t.status == DownloadTaskStatus.pending,
+    );
 
     Color groupColor;
     IconData groupIcon;
@@ -677,25 +722,166 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
       groupIcon = Icons.pause_circle_outline;
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ExpansionTile(
-        initiallyExpanded: true,
-        leading: Icon(groupIcon, color: groupColor),
-        title: Text(
-          displayName,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+    final theme = Theme.of(context);
+    final surfaceColor = theme.colorScheme.surfaceContainerHigh;
+    final groupKey = animeName ?? '__others__';
+    final isCollapsed = _collapsedGroups.contains(groupKey);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: groupColor.withValues(alpha: 0.35),
+          width: 1.5,
         ),
-        subtitle: Text(
-          l10n.tasksCount(tasks.length),
-          style: TextStyle(color: Colors.grey[600], fontSize: 12),
-        ),
-        children: tasks.map((task) => _buildDownloadItem(task)).toList(),
+        boxShadow: [
+          BoxShadow(
+            color: groupColor.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Bag header (tappable to collapse/expand) ─────────────
+          ClipRRect(
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(14),
+              topRight: const Radius.circular(14),
+              bottomLeft: isCollapsed ? const Radius.circular(14) : Radius.zero,
+              bottomRight: isCollapsed
+                  ? const Radius.circular(14)
+                  : Radius.zero,
+            ),
+            child: InkWell(
+              onTap: () => setState(() {
+                if (isCollapsed) {
+                  _collapsedGroups.remove(groupKey);
+                } else {
+                  _collapsedGroups.add(groupKey);
+                }
+              }),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      groupColor.withValues(alpha: 0.22),
+                      groupColor.withValues(alpha: 0.08),
+                    ],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: groupColor.withValues(alpha: 0.18),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(groupIcon, color: groupColor, size: 18),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayName,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                          ),
+                          Text(
+                            l10n.tasksCount(tasks.length),
+                            style: TextStyle(
+                              color: groupColor.withValues(alpha: 0.85),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: isCollapsed ? -0.25 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(
+                        Icons.expand_more,
+                        color: groupColor.withValues(alpha: 0.7),
+                        size: 20,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // ── Divider + cards (hidden when collapsed) ──────────────
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            child: isCollapsed
+                ? const SizedBox.shrink()
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        height: 1,
+                        margin: const EdgeInsets.symmetric(horizontal: 12),
+                        color: groupColor.withValues(alpha: 0.2),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                        child: IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Container(
+                                width: 3,
+                                margin: const EdgeInsets.only(right: 10),
+                                decoration: BoxDecoration(
+                                  color: groupColor.withValues(alpha: 0.45),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              Expanded(
+                                child: Column(
+                                  children: tasks
+                                      .map(
+                                        (task) => _buildDownloadItem(
+                                          task,
+                                          groupColor,
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildDownloadItem(DownloadTask task) {
+  Widget _buildDownloadItem(DownloadTask task, [Color? accentColor]) {
     final statusColor = _getStatusColor(task.status);
     final statusIcon = _getStatusIcon(task.status);
     final canPlay =
@@ -704,27 +890,37 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
             task.status == DownloadTaskStatus.seeding ||
             task.status == DownloadTaskStatus.paused && task.progress > 5);
 
+    final theme = Theme.of(context);
+    final cardColor = theme.colorScheme.surface;
+
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 1,
+      shadowColor: statusColor.withValues(alpha: 0.15),
+      color: cardColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: statusColor.withValues(alpha: 0.18), width: 1),
+      ),
       child: InkWell(
         onTap: canPlay ? () => _playTask(task) : null,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Title row
               Row(
                 children: [
-                  Icon(statusIcon, color: statusColor, size: 20),
+                  Icon(statusIcon, color: statusColor, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       task.name,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -735,15 +931,15 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                 ],
               ),
 
-              // Anime name
-              if (task.animeName != null) ...[
-                const SizedBox(height: 4),
+              // Anime name (only shown when not grouped or has episode info)
+              if (task.animeName != null && task.episodeNumber != null) ...[
+                const SizedBox(height: 3),
                 Row(
                   children: [
                     Expanded(
                       child: Text(
-                        '${task.animeName}${task.episodeNumber != null ? ' - 第${task.episodeNumber}集' : ''}',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        '第${task.episodeNumber}集',
+                        style: TextStyle(color: Colors.grey[500], fontSize: 11),
                       ),
                     ),
                     if (canPlay)
@@ -778,9 +974,43 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                       ),
                   ],
                 ),
+              ] else if (canPlay) ...[
+                const SizedBox(height: 3),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFBB86FC).withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.play_arrow,
+                          size: 12,
+                          color: Color(0xFFBB86FC),
+                        ),
+                        SizedBox(width: 2),
+                        Text(
+                          AppLocalizations.of(context).clickToPlay,
+                          style: const TextStyle(
+                            color: Color(0xFFBB86FC),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
               // Progress bar
               ClipRRect(
@@ -789,11 +1019,11 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   value: task.progress / 100.0,
                   backgroundColor: Colors.grey[800],
                   valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-                  minHeight: 6,
+                  minHeight: 5,
                 ),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 7),
 
               // Stats row
               Row(
@@ -804,37 +1034,37 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                     style: TextStyle(
                       color: statusColor,
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      fontSize: 11,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
 
                   // Download speed (for downloading)
                   if (task.status == DownloadTaskStatus.downloading) ...[
-                    const Icon(Icons.download, size: 12, color: Colors.grey),
-                    const SizedBox(width: 4),
+                    const Icon(Icons.download, size: 11, color: Colors.grey),
+                    const SizedBox(width: 3),
                     Text(
                       task.formattedSpeed,
-                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                      style: TextStyle(color: Colors.grey[500], fontSize: 10),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                   ],
 
                   // Upload speed (for seeding)
                   if (task.status == DownloadTaskStatus.seeding) ...[
-                    const Icon(Icons.upload, size: 12, color: Colors.green),
-                    const SizedBox(width: 4),
+                    const Icon(Icons.upload, size: 11, color: Colors.green),
+                    const SizedBox(width: 3),
                     Text(
                       task.formattedUploadSpeed,
-                      style: const TextStyle(color: Colors.green, fontSize: 11),
+                      style: const TextStyle(color: Colors.green, fontSize: 10),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                   ],
 
                   // Downloaded / Total size
                   Text(
                     '${task.formattedDownloaded} / ${task.formattedSize}',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                    style: TextStyle(color: Colors.grey[500], fontSize: 10),
                   ),
 
                   const Spacer(),
@@ -843,13 +1073,13 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   if (task.peers > 0) ...[
                     const Icon(
                       Icons.people_outline,
-                      size: 12,
+                      size: 11,
                       color: Colors.grey,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 3),
                     Text(
                       AppLocalizations.of(context).peers(task.peers),
-                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                      style: TextStyle(color: Colors.grey[500], fontSize: 10),
                     ),
                   ],
                 ],
@@ -857,7 +1087,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
 
               // Error message
               if (task.errorMessage != null) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   task.errorMessage!,
                   style: const TextStyle(color: Colors.redAccent, fontSize: 11),

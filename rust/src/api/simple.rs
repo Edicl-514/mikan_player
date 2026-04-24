@@ -565,7 +565,6 @@ pub async fn stop_torrent(info_hash: String, delete_files: bool) -> bool {
 }
 
 /// Pause a torrent by info hash
-/// This is implemented by stopping the torrent without deleting files
 pub async fn pause_torrent(info_hash: String) -> bool {
     let session = match get_session().await {
         Ok(s) => s,
@@ -573,20 +572,22 @@ pub async fn pause_torrent(info_hash: String) -> bool {
     };
     let info_hash_lower = info_hash.to_lowercase();
 
-    // Find the torrent ID by info hash
-    let torrent_id = session.with_torrents(|torrents| {
-        for (id, handle) in torrents {
+    let handle = session.with_torrents(|torrents| {
+        for (_id, handle) in torrents {
             if handle.info_hash().as_string().to_lowercase() == info_hash_lower {
-                return Some(id);
+                return Some(handle.clone());
             }
         }
         None
     });
 
-    if let Some(id) = torrent_id {
-        // Pause by deleting without removing files
-        // The torrent will need to be restarted with the magnet link to resume
-        match session.delete(TorrentIdOrHash::Id(id), false).await {
+    if let Some(handle) = handle {
+        if handle.is_paused() {
+            log::info!("Torrent already paused: {}", info_hash);
+            return true;
+        }
+
+        match session.pause(&handle).await {
             Ok(_) => {
                 log::info!("Successfully paused torrent: {}", info_hash);
                 true
@@ -603,13 +604,40 @@ pub async fn pause_torrent(info_hash: String) -> bool {
 }
 
 /// Resume a paused torrent by info hash
-/// Note: This requires the torrent to be restarted using start_torrent with the magnet link
-/// This function is kept for API compatibility but returns false as resume must be done via restart
 pub async fn resume_torrent(info_hash: String) -> bool {
-    log::info!(
-        "Resume torrent called for {}, but torrent needs to be restarted with magnet link",
-        info_hash
-    );
-    // Return false to indicate that the torrent should be restarted using startTorrent
-    false
+    let session = match get_session().await {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let info_hash_lower = info_hash.to_lowercase();
+
+    let handle = session.with_torrents(|torrents| {
+        for (_id, handle) in torrents {
+            if handle.info_hash().as_string().to_lowercase() == info_hash_lower {
+                return Some(handle.clone());
+            }
+        }
+        None
+    });
+
+    if let Some(handle) = handle {
+        if !handle.is_paused() {
+            log::info!("Torrent is already running: {}", info_hash);
+            return true;
+        }
+
+        match session.unpause(&handle).await {
+            Ok(_) => {
+                log::info!("Successfully resumed torrent: {}", info_hash);
+                true
+            }
+            Err(e) => {
+                log::error!("Failed to resume torrent {}: {}", info_hash, e);
+                false
+            }
+        }
+    } else {
+        log::warn!("Torrent not found for resume: {}", info_hash);
+        false
+    }
 }

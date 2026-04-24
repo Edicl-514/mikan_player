@@ -317,6 +317,12 @@ class DownloadManager extends ChangeNotifier {
     // Check if already downloading and has valid stream URL
     if (_tasks.containsKey(tempId)) {
       final existingTask = _tasks[tempId]!;
+      if (existingTask.status == DownloadTaskStatus.paused) {
+        final resumed = await resumeTask(tempId);
+        if (resumed) {
+          return existingTask.streamUrl;
+        }
+      }
       if (existingTask.streamUrl != null &&
           existingTask.streamUrl!.isNotEmpty) {
         debugPrint(
@@ -515,31 +521,53 @@ class DownloadManager extends ChangeNotifier {
   }
 
   /// Resume a paused download task
-  /// This requires restarting the torrent using the magnet link
+  /// Uses the backend pause/unpause path when possible. If the app was
+  /// restarted and the paused torrent is no longer in the backend session,
+  /// it falls back to restarting the torrent from the saved magnet link.
   Future<bool> resumeTask(String id) async {
     if (!_tasks.containsKey(id)) return false;
 
     final task = _tasks[id]!;
 
     try {
-      // Resume requires restarting the torrent with the magnet link
-      if (task.magnet.isNotEmpty) {
-        final streamUrl = await startTorrent(magnet: task.magnet);
-        if (!streamUrl.startsWith('Error')) {
-          task.status = task.progress >= 100.0
-              ? DownloadTaskStatus.seeding
-              : DownloadTaskStatus.downloading;
-          task.streamUrl = streamUrl;
-          _pausedTaskIds.remove(id);
-          await _saveTasks();
-          notifyListeners();
-          debugPrint('[DownloadManager] Resumed task: $id');
-          return true;
-        } else {
-          debugPrint('[DownloadManager] Failed to resume task: $streamUrl');
-        }
-      } else {
+      final resumed = await resumeTorrent(infoHash: id);
+      if (resumed) {
+        task.status = task.progress >= 100.0
+            ? DownloadTaskStatus.seeding
+            : DownloadTaskStatus.downloading;
+        _pausedTaskIds.remove(id);
+        await _saveTasks();
+        notifyListeners();
+        debugPrint('[DownloadManager] Resumed task: $id');
+        return true;
+      }
+
+      if (task.magnet.isEmpty) {
         debugPrint('[DownloadManager] Cannot resume task without magnet link');
+        return false;
+      }
+
+      final streamUrl = await startTorrent(magnet: task.magnet);
+      if (!streamUrl.startsWith('Error')) {
+        final actualId = _extractInfoHashFromUrl(streamUrl) ?? id;
+        if (actualId != id) {
+          _tasks.remove(id);
+          _pausedTaskIds.remove(id);
+          _removedTaskIds.remove(id);
+          task.id = actualId;
+          _tasks[actualId] = task;
+        }
+        task.status = task.progress >= 100.0
+            ? DownloadTaskStatus.seeding
+            : DownloadTaskStatus.downloading;
+        task.streamUrl = streamUrl;
+        _pausedTaskIds.remove(task.id);
+        await _saveTasks();
+        notifyListeners();
+        debugPrint('[DownloadManager] Restarted paused task: ${task.id}');
+        return true;
+      } else {
+        debugPrint('[DownloadManager] Failed to resume task: $streamUrl');
       }
       return false;
     } catch (e) {
@@ -550,6 +578,8 @@ class DownloadManager extends ChangeNotifier {
 
   /// Remove a download task
   Future<void> removeTask(String id, {bool deleteFiles = false}) async {
+    final task = _tasks[id];
+
     // Remove from UI immediately so the task disappears right away.
     _tasks.remove(id);
     _pausedTaskIds.remove(id);
@@ -568,9 +598,40 @@ class DownloadManager extends ChangeNotifier {
         debugPrint(
           '[DownloadManager] Failed to stop torrent (may not exist): $id',
         );
+        if (deleteFiles && task?.magnet.isNotEmpty == true) {
+          await _deleteFilesForMissingTorrent(task!);
+        }
       }
     } catch (e) {
       debugPrint('[DownloadManager] Error stopping torrent: $e');
+    }
+  }
+
+  /// Best-effort cleanup for paused tasks restored from storage.
+  /// After an app restart, a paused torrent may not exist in the backend
+  /// session anymore, so rqbit needs the magnet metadata before it can remove
+  /// the files it created.
+  Future<void> _deleteFilesForMissingTorrent(DownloadTask task) async {
+    try {
+      debugPrint(
+        '[DownloadManager] Re-attaching missing torrent for file cleanup: ${task.id}',
+      );
+      final streamUrl = await startTorrent(magnet: task.magnet);
+      if (streamUrl.startsWith('Error')) {
+        debugPrint(
+          '[DownloadManager] Failed to re-attach torrent for cleanup: $streamUrl',
+        );
+        return;
+      }
+
+      final actualId = _extractInfoHashFromUrl(streamUrl) ?? task.id;
+      await stopTorrent(infoHash: actualId, deleteFiles: true);
+      _removedTaskIds.add(actualId);
+      debugPrint(
+        '[DownloadManager] Cleaned up files for missing torrent: $actualId',
+      );
+    } catch (e) {
+      debugPrint('[DownloadManager] Error cleaning up missing torrent: $e');
     }
   }
 
