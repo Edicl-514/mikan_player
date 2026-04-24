@@ -100,21 +100,30 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
 
   void _scheduleVisibilityCheck() {
     if (_hasStartedLoading || _deferredLoadTimer?.isActive == true) return;
-    _deferredLoadTimer = Timer(
-      const Duration(milliseconds: 80),
-      _maybeStartLoading,
-    );
+    _deferredLoadTimer = Timer(const Duration(milliseconds: 80), () {
+      _deferredLoadTimer = null;
+      _maybeStartLoading();
+    });
   }
 
   void _maybeStartLoading() {
     if (!mounted || _hasStartedLoading) return;
 
     if (widget.deferOffscreenLoad && !_isNearViewport()) {
+      _scheduleDeferredVisibilityCheck();
       return;
     }
 
     _hasStartedLoading = true;
     _loadImage(_loadGeneration);
+  }
+
+  void _scheduleDeferredVisibilityCheck() {
+    if (_deferredLoadTimer?.isActive == true) return;
+    _deferredLoadTimer = Timer(const Duration(milliseconds: 300), () {
+      _deferredLoadTimer = null;
+      _maybeStartLoading();
+    });
   }
 
   bool _isNearViewport() {

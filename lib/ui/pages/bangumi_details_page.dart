@@ -1315,6 +1315,60 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     );
   }
 
+  int _characterRolePriority(BangumiCharacter character) {
+    final roleName = character.roleName;
+    if (roleName.contains('主角')) return 0;
+    if (roleName.contains('配角')) return 1;
+    return 2;
+  }
+
+  String? _characterRoleLabel(BangumiCharacter character) {
+    final roleName = character.roleName;
+    if (roleName.contains('主角')) return '主角';
+    if (roleName.contains('配角')) return '配角';
+    if (roleName.isNotEmpty) return '闲角';
+    return null;
+  }
+
+  Widget _buildCharacterRoleBadge(
+    String label, {
+    required bool isDarkBg,
+  }) {
+    final isMain = label == '主角';
+    final isSupporting = label == '配角';
+    final badgeColor = isMain
+        ? Colors.amber
+        : isSupporting
+            ? Colors.blue
+            : Colors.grey;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: badgeColor.withValues(alpha: 0.9),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   Widget _buildRatingCard(BuildContext context) {
     if (_data == null || _data!['rating'] == null) {
       return const SizedBox.shrink();
@@ -1979,6 +2033,14 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       return const SizedBox.shrink();
     }
 
+    final characters = [..._characters!]
+      ..sort((a, b) {
+        final priorityCompare =
+            _characterRolePriority(a).compareTo(_characterRolePriority(b));
+        if (priorityCompare != 0) return priorityCompare;
+        return a.name.compareTo(b.name);
+      });
+
     final textColor = isDarkBg ? Colors.white : Colors.black87;
     final cardColor = isDarkBg
         ? Colors.white.withValues(alpha: 0.05)
@@ -2001,16 +2063,17 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                 bottom: 10,
               ), // Reduced space for scrollbar
               scrollDirection: Axis.horizontal,
-              itemCount: _characters!.take(10).length,
+              itemCount: characters.take(10).length,
               separatorBuilder: (c, i) => const SizedBox(width: 16),
               itemBuilder: (context, index) {
-                final char = _characters![index];
+                final char = characters[index];
                 final imageUrl =
                     char.images?.large ?? char.images?.medium ?? '';
                 final cvName = char.actors.isNotEmpty
                     ? char.actors.first.name
                     : '';
                 final canOpenCharacterPage = char.id != 0;
+                final roleLabel = _characterRoleLabel(char);
 
                 return SizedBox(
                   width: 120,
@@ -2041,34 +2104,49 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                     : Colors.grey[300]!,
                               ),
                             ),
-                            child: imageUrl.isNotEmpty
-                                ? widget.enableCharacterHero
-                                    ? Hero(
-                                        tag: 'character_${char.id.toInt()}',
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(8),
-                                          child: CachedNetworkImage(
-                                            imageUrl: imageUrl,
-                                            fit: BoxFit.cover,
-                                            alignment: Alignment.topCenter,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  imageUrl.isNotEmpty
+                                      ? widget.enableCharacterHero
+                                          ? Hero(
+                                              tag: 'character_${char.id.toInt()}',
+                                              child: CachedNetworkImage(
+                                                imageUrl: imageUrl,
+                                                fit: BoxFit.cover,
+                                                alignment: Alignment.topCenter,
+                                                deferOffscreenLoad: false,
+                                              ),
+                                            )
+                                          : CachedNetworkImage(
+                                              imageUrl: imageUrl,
+                                              fit: BoxFit.cover,
+                                              alignment: Alignment.topCenter,
+                                              deferOffscreenLoad: false,
+                                            )
+                                      : Center(
+                                          child: Icon(
+                                            Icons.person,
+                                            color: isDarkBg
+                                                ? Colors.white24
+                                                : Colors.grey[400],
+                                            size: 40,
                                           ),
                                         ),
-                                      )
-                                    : ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: CachedNetworkImage(
-                                          imageUrl: imageUrl,
-                                          fit: BoxFit.cover,
-                                          alignment: Alignment.topCenter,
-                                        ),
-                                      )
-                                : Icon(
-                                    Icons.person,
-                                    color: isDarkBg
-                                        ? Colors.white24
-                                        : Colors.grey[400],
-                                    size: 40,
-                                  ),
+                                  if (roleLabel != null)
+                                    Positioned(
+                                      left: 6,
+                                      top: 6,
+                                      child: _buildCharacterRoleBadge(
+                                        roleLabel,
+                                        isDarkBg: isDarkBg,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -2108,40 +2186,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
-                      const SizedBox(height: 4),
-                      // Role Type (主角/配角)
-                      if (char.roleName.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: char.roleName.contains('主角')
-                                ? (isDarkBg
-                                      ? Colors.amber.withValues(alpha: 0.2)
-                                      : Colors.amber[100])
-                                : (isDarkBg
-                                      ? Colors.blue.withValues(alpha: 0.2)
-                                      : Colors.blue[100]),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            char.roleName,
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: char.roleName.contains('主角')
-                                  ? (isDarkBg
-                                        ? Colors.amber[300]
-                                        : Colors.amber[900])
-                                  : (isDarkBg
-                                        ? Colors.blue[300]
-                                        : Colors.blue[900]),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 4),
                       // CV Name
                       if (cvName.isNotEmpty)
                         Row(
@@ -2269,6 +2313,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                     imageUrl: rel.image,
                                     fit: BoxFit.cover,
                                     alignment: Alignment.center,
+                                    deferOffscreenLoad: false,
                                   ),
                                 )
                               : Center(
