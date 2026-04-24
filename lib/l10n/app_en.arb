@@ -103,5 +103,12 @@
   "sourceTorrent": "Mikan / DMHY: Torrents & Magnets",
   "sourceDanmaku": "DanDanPlay: Danmaku",
   "share": "Share",
-  "copied": "Copied"
+  "copied": "Copied",
+  "filterByStatus": "Filter by Status",
+  "filterAll": "All",
+  "filterActive": "Active",
+  "filterCompleted": "Completed",
+  "filterPaused": "Paused",
+  "filterError": "Error",
+  "tasksCount": "{count} tasks"
 }

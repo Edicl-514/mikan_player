@@ -420,6 +420,7 @@ class DownloadManagerPage extends StatefulWidget {
 
 class _DownloadManagerPageState extends State<DownloadManagerPage> {
   final DownloadManager _downloadManager = DownloadManager();
+  DownloadTaskStatus? _statusFilter;
 
   @override
   void initState() {
@@ -439,18 +440,37 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
     }
   }
 
+  List<DownloadTask> get _filteredTasks {
+    var tasks = _downloadManager.tasks;
+    if (_statusFilter != null) {
+      tasks = tasks.where((t) => t.status == _statusFilter).toList();
+    }
+    return tasks;
+  }
+
+  Map<String?, List<DownloadTask>> get _groupedByAnime {
+    final grouped = <String?, List<DownloadTask>>{};
+    for (final task in _filteredTasks) {
+      final key = task.animeName;
+      grouped.putIfAbsent(key, () => []).add(task);
+    }
+    return grouped;
+  }
+
   @override
   Widget build(BuildContext context) {
     final tasks = _downloadManager.tasks;
+    final groupedTasks = _groupedByAnime;
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppLocalizations.of(context).downloadTitle),
+        title: Text(l10n.downloadTitle),
         actions: [
           if (tasks.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_sweep),
-              tooltip: AppLocalizations.of(context).clearCompleted,
+              tooltip: l10n.clearCompleted,
               onPressed: () async {
                 final completedCount = tasks
                     .where(
@@ -559,13 +579,119 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                 ],
               ),
             )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: tasks.length,
-              itemBuilder: (context, index) {
-                return _buildDownloadItem(tasks[index]);
+          : Column(
+              children: [
+                // Status filter chips
+                _buildFilterChips(l10n),
+                // Task list grouped by anime
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: groupedTasks.length,
+                    itemBuilder: (context, index) {
+                      final entry = groupedTasks.entries.elementAt(index);
+                      return _buildAnimeGroup(entry.key, entry.value, l10n);
+                    },
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildFilterChips(AppLocalizations l10n) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            FilterChip(
+              label: Text(l10n.filterAll),
+              selected: _statusFilter == null,
+              onSelected: (selected) {
+                if (selected) {
+                  setState(() => _statusFilter = null);
+                }
               },
             ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: Text(l10n.filterActive),
+              selected: _statusFilter == DownloadTaskStatus.downloading,
+              onSelected: (selected) {
+                setState(() => _statusFilter = selected ? DownloadTaskStatus.downloading : null);
+              },
+            ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: Text(l10n.filterPaused),
+              selected: _statusFilter == DownloadTaskStatus.paused,
+              onSelected: (selected) {
+                setState(() => _statusFilter = selected ? DownloadTaskStatus.paused : null);
+              },
+            ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: Text(l10n.filterCompleted),
+              selected: _statusFilter == DownloadTaskStatus.completed || _statusFilter == DownloadTaskStatus.seeding,
+              onSelected: (selected) {
+                setState(() => _statusFilter = selected ? DownloadTaskStatus.completed : null);
+              },
+            ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: Text(l10n.filterError),
+              selected: _statusFilter == DownloadTaskStatus.error,
+              onSelected: (selected) {
+                setState(() => _statusFilter = selected ? DownloadTaskStatus.error : null);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimeGroup(String? animeName, List<DownloadTask> tasks, AppLocalizations l10n) {
+    final displayName = animeName ?? l10n.others;
+    final isCompleted = tasks.every((t) =>
+        t.status == DownloadTaskStatus.completed || t.status == DownloadTaskStatus.seeding);
+    final hasError = tasks.any((t) => t.status == DownloadTaskStatus.error);
+    final isActive = tasks.any((t) =>
+        t.status == DownloadTaskStatus.downloading || t.status == DownloadTaskStatus.pending);
+
+    Color groupColor;
+    IconData groupIcon;
+    if (hasError) {
+      groupColor = Colors.red;
+      groupIcon = Icons.error_outline;
+    } else if (isActive) {
+      groupColor = Colors.blue;
+      groupIcon = Icons.downloading;
+    } else if (isCompleted) {
+      groupColor = Colors.green;
+      groupIcon = Icons.check_circle_outline;
+    } else {
+      groupColor = Colors.grey;
+      groupIcon = Icons.pause_circle_outline;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        leading: Icon(groupIcon, color: groupColor),
+        title: Text(
+          displayName,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+        subtitle: Text(
+          l10n.tasksCount(tasks.length),
+          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+        ),
+        children: tasks.map((task) => _buildDownloadItem(task)).toList(),
+      ),
     );
   }
 

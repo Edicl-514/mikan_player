@@ -335,4 +335,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get copied => '已复制';
+
+  @override
+  String get filterByStatus => '按状态筛选';
+
+  @override
+  String get filterAll => '全部';
+
+  @override
+  String get filterActive => '进行中';
+
+  @override
+  String get filterCompleted => '已完成';
+
+  @override
+  String get filterPaused => '已暂停';
+
+  @override
+  String get filterError => '出错';
+
+  @override
+  String tasksCount(Object count) {
+    return '$count 个任务';
+  }
 }

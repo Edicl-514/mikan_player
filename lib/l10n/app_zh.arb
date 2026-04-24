@@ -103,5 +103,12 @@
   "sourceTorrent": "蜜柑计划 / 动漫花园：资源与磁力链接",
   "sourceDanmaku": "弹弹play：弹幕数据",
   "share": "分享",
-  "copied": "已复制"
+  "copied": "已复制",
+  "filterByStatus": "按状态筛选",
+  "filterAll": "全部",
+  "filterActive": "进行中",
+  "filterCompleted": "已完成",
+  "filterPaused": "已暂停",
+  "filterError": "出错",
+  "tasksCount": "{count} 个任务"
 }

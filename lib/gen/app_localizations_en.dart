@@ -341,4 +341,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get copied => 'Copied';
+
+  @override
+  String get filterByStatus => 'Filter by Status';
+
+  @override
+  String get filterAll => 'All';
+
+  @override
+  String get filterActive => 'Active';
+
+  @override
+  String get filterCompleted => 'Completed';
+
+  @override
+  String get filterPaused => 'Paused';
+
+  @override
+  String get filterError => 'Error';
+
+  @override
+  String tasksCount(Object count) {
+    return '$count tasks';
+  }
 }

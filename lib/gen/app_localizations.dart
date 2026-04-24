@@ -721,6 +721,48 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已复制'**
   String get copied;
+
+  /// No description provided for @filterByStatus.
+  ///
+  /// In zh, this message translates to:
+  /// **'按状态筛选'**
+  String get filterByStatus;
+
+  /// No description provided for @filterAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部'**
+  String get filterAll;
+
+  /// No description provided for @filterActive.
+  ///
+  /// In zh, this message translates to:
+  /// **'进行中'**
+  String get filterActive;
+
+  /// No description provided for @filterCompleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已完成'**
+  String get filterCompleted;
+
+  /// No description provided for @filterPaused.
+  ///
+  /// In zh, this message translates to:
+  /// **'已暂停'**
+  String get filterPaused;
+
+  /// No description provided for @filterError.
+  ///
+  /// In zh, this message translates to:
+  /// **'出错'**
+  String get filterError;
+
+  /// No description provided for @tasksCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个任务'**
+  String tasksCount(Object count);
 }
 
 class _AppLocalizationsDelegate
