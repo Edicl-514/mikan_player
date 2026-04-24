@@ -17,6 +17,7 @@ class CachedNetworkImage extends StatefulWidget {
   final AlignmentGeometry? alignment;
   final bool deferOffscreenLoad;
   final double preloadExtent;
+  final bool networkFallbackWhileCaching;
 
   const CachedNetworkImage({
     super.key,
@@ -30,6 +31,7 @@ class CachedNetworkImage extends StatefulWidget {
     this.borderRadius,
     this.deferOffscreenLoad = true,
     this.preloadExtent = 800,
+    this.networkFallbackWhileCaching = true,
   });
 
   @override
@@ -182,8 +184,11 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
         return;
       }
 
-      // 没有缓存，后台下载并缓存，同时先显示网络图片作为备用
-      if (mounted && generation == _loadGeneration) {
+      // 没有缓存时默认先显示网络图片作为备用；重复出现的小图可以关闭该行为，
+      // 只等待 ImageCacheService 的去重下载结果，避免同一 URL 被 Image.network 重复拉取。
+      if (mounted &&
+          generation == _loadGeneration &&
+          widget.networkFallbackWhileCaching) {
         setState(() {
           _isLoading = false;
         });
@@ -195,12 +200,13 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
           setState(() {
             _localPath = path;
             _hasError = false;
+            _isLoading = false;
           });
-        } else if (mounted &&
-            generation == _loadGeneration &&
-            path == null &&
-            _localPath == null) {
-          // cacheImage failed; keep Image.network displayed (already set above)
+        } else if (mounted && generation == _loadGeneration && path == null) {
+          setState(() {
+            _isLoading = false;
+            _hasError = !widget.networkFallbackWhileCaching;
+          });
         }
       });
     } catch (e) {

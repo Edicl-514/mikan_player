@@ -4505,6 +4505,93 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
   }
 
+  Widget? _buildCommentHtmlWidget(dynamic element, TextStyle textStyle) {
+    if (element.classes.contains('text_mask')) {
+      return BangumiMaskText(html: element.innerHtml, textStyle: textStyle);
+    }
+
+    if (element.localName == 'img') {
+      return _buildBangumiSmileImage(element);
+    }
+
+    return null;
+  }
+
+  Widget? _buildBangumiSmileImage(dynamic element) {
+    final src = _normalizeBangumiImageSrc(element.attributes['src'] ?? '');
+    if (!_isBangumiSmileUrl(src)) {
+      return null;
+    }
+
+    final size = _commentSmileSize(element);
+    return InlineCustomWidget(
+      alignment: PlaceholderAlignment.middle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: CachedNetworkImage(
+          imageUrl: src,
+          width: size.width,
+          height: size.height,
+          fit: BoxFit.contain,
+          deferOffscreenLoad: false,
+          networkFallbackWhileCaching: false,
+          placeholder: SizedBox(width: size.width, height: size.height),
+          errorWidget: SizedBox(width: size.width, height: size.height),
+        ),
+      ),
+    );
+  }
+
+  String _normalizeBangumiImageSrc(String src) {
+    if (src.startsWith('//')) {
+      return 'https:$src';
+    }
+    if (src.startsWith('/img/')) {
+      return 'https://bangumi.tv$src';
+    }
+    return src;
+  }
+
+  bool _isBangumiSmileUrl(String src) {
+    final uri = Uri.tryParse(src);
+    if (uri == null) return false;
+
+    final host = uri.host.toLowerCase();
+    return uri.path.startsWith('/img/smiles/') &&
+        (host == 'bangumi.tv' ||
+            host == 'bgm.tv' ||
+            host.endsWith('.bgm.tv') ||
+            host == 'chii.in');
+  }
+
+  Size _commentSmileSize(dynamic element) {
+    final width = double.tryParse(element.attributes['width'] ?? '');
+    final height = double.tryParse(element.attributes['height'] ?? '');
+    final fallback = const Size.square(42);
+
+    if (width == null && height == null) {
+      return fallback;
+    }
+
+    final rawWidth = width ?? height ?? fallback.width;
+    final rawHeight = height ?? width ?? fallback.height;
+    final scale = rawWidth > rawHeight
+        ? fallback.width / rawWidth
+        : fallback.height / rawHeight;
+
+    if (scale >= 1) {
+      return Size(
+        rawWidth.clamp(18, 64).toDouble(),
+        rawHeight.clamp(18, 64).toDouble(),
+      );
+    }
+
+    return Size(
+      (rawWidth * scale).clamp(18, 64).toDouble(),
+      (rawHeight * scale).clamp(18, 64).toDouble(),
+    );
+  }
+
   Widget _buildCommentItem(BangumiEpisodeComment comment) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
@@ -4578,13 +4665,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     return null;
                   },
                   customWidgetBuilder: (element) {
-                    if (element.classes.contains('text_mask')) {
-                      return BangumiMaskText(
-                        html: element.innerHtml,
-                        textStyle: const TextStyle(fontSize: 14, height: 1.5),
-                      );
-                    }
-                    return null;
+                    return _buildCommentHtmlWidget(
+                      element,
+                      const TextStyle(fontSize: 14, height: 1.5),
+                    );
                   },
                 ),
 
@@ -4670,18 +4754,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                         return null;
                                       },
                                       customWidgetBuilder: (element) {
-                                        if (element.classes.contains(
-                                          'text_mask',
-                                        )) {
-                                          return BangumiMaskText(
-                                            html: element.innerHtml,
-                                            textStyle: const TextStyle(
-                                              fontSize: 13,
-                                              height: 1.4,
-                                            ),
-                                          );
-                                        }
-                                        return null;
+                                        return _buildCommentHtmlWidget(
+                                          element,
+                                          const TextStyle(
+                                            fontSize: 13,
+                                            height: 1.4,
+                                          ),
+                                        );
                                       },
                                     ),
                                   ],
@@ -4695,29 +4774,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   ),
                 ],
 
-                const SizedBox(height: 8),
-                // Like / Reply Buttons (Mock)
-                Row(
-                  children: [
-                    Icon(
-                      Icons.thumb_up_alt_outlined,
-                      size: 14,
-                      color: Colors.grey[600],
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      "Like",
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                    ),
-                    const SizedBox(width: 16),
-                    Icon(Icons.reply, size: 14, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      "Reply",
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
