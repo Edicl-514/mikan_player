@@ -59,11 +59,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   }
 
   Future<void> _fetchData() async {
-    await Future.wait([
-      _fetchDetails(),
-      _fetchSubjects(),
-      _fetchCharacters(),
-    ]);
+    await Future.wait([_fetchDetails(), _fetchSubjects(), _fetchCharacters()]);
   }
 
   Future<void> _fetchDetails() async {
@@ -212,15 +208,9 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
             children: [
               const Icon(Icons.error_outline, color: Colors.red, size: 48),
               const SizedBox(height: 16),
-              Text(
-                _error!,
-                style: const TextStyle(color: Colors.white70),
-              ),
+              Text(_error!, style: const TextStyle(color: Colors.white70)),
               const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _fetchData,
-                child: const Text('重试'),
-              ),
+              ElevatedButton(onPressed: _fetchData, child: const Text('重试')),
             ],
           ),
         ),
@@ -309,18 +299,11 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
           ),
         ),
         if (_isSeiyu)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: _buildCharactersSection(context),
-            ),
-          ),
-        SliverToBoxAdapter(
-          child: Padding(
+          ..._buildCharactersSlivers(
+            context,
             padding: const EdgeInsets.all(16),
-            child: _buildSubjectsSection(context),
           ),
-        ),
+        ..._buildSubjectsSlivers(context, padding: const EdgeInsets.all(16)),
         const SliverToBoxAdapter(child: SizedBox(height: 32)),
       ],
     );
@@ -340,7 +323,12 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                 SizedBox(
                   width: 380,
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(32, kToolbarHeight + 32, 32, 32),
+                    padding: const EdgeInsets.fromLTRB(
+                      32,
+                      kToolbarHeight + 32,
+                      32,
+                      32,
+                    ),
                     child: Column(
                       children: [
                         _buildPoster(context, radius: 16),
@@ -354,21 +342,27 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                 ),
                 // Right panel
                 Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(32, kToolbarHeight + 32, 32, 32),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildTitleSection(context),
-                        const SizedBox(height: 32),
-                        _buildSummarySection(context),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      32,
+                      kToolbarHeight + 32,
+                      32,
+                      32,
+                    ),
+                    child: CustomScrollView(
+                      slivers: [
+                        SliverToBoxAdapter(child: _buildTitleSection(context)),
+                        const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                        SliverToBoxAdapter(
+                          child: _buildSummarySection(context),
+                        ),
                         if (_isSeiyu) ...[
-                          const SizedBox(height: 32),
-                          _buildCharactersSection(context),
+                          const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                          ..._buildCharactersSlivers(context),
                         ],
-                        const SizedBox(height: 32),
-                        _buildSubjectsSection(context),
-                        const SizedBox(height: 50),
+                        const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                        ..._buildSubjectsSlivers(context),
+                        const SliverToBoxAdapter(child: SizedBox(height: 50)),
                       ],
                     ),
                   ),
@@ -491,7 +485,11 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                 )
               : Container(
                   color: Colors.grey[800],
-                  child: const Icon(Icons.person, size: 80, color: Colors.white54),
+                  child: const Icon(
+                    Icons.person,
+                    size: 80,
+                    color: Colors.white54,
+                  ),
                 ),
         ),
       ),
@@ -512,7 +510,12 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
         : _avatarContainer(imgUrl, width, height, radius);
   }
 
-  Widget _avatarContainer(String? imgUrl, double width, double height, double radius) {
+  Widget _avatarContainer(
+    String? imgUrl,
+    double width,
+    double height,
+    double radius,
+  ) {
     return Container(
       width: width,
       height: height,
@@ -536,7 +539,11 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
               )
             : Container(
                 color: Colors.grey[800],
-                child: const Icon(Icons.person, size: 64, color: Colors.white54),
+                child: const Icon(
+                  Icons.person,
+                  size: 64,
+                  color: Colors.white54,
+                ),
               ),
       ),
     );
@@ -555,9 +562,17 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildStatColumn(Icons.comment_outlined, '${_details?.stat.comments ?? 0}', '评论'),
+          _buildStatColumn(
+            Icons.comment_outlined,
+            '${_details?.stat.comments ?? 0}',
+            '评论',
+          ),
           Container(width: 1, height: 40, color: Colors.white10),
-          _buildStatColumn(Icons.favorite_outline, '${_details?.stat.collects ?? 0}', '收藏'),
+          _buildStatColumn(
+            Icons.favorite_outline,
+            '${_details?.stat.collects ?? 0}',
+            '收藏',
+          ),
         ],
       ),
     );
@@ -570,12 +585,19 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
         const SizedBox(height: 8),
         Text(
           value,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.white.withValues(alpha: 0.6),
+          ),
         ),
       ],
     );
@@ -647,7 +669,9 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     }
     final summary = _details?.summary ?? '';
     if (summary.isEmpty) return const SizedBox.shrink();
-    final processed = summary.replaceAll('\r\n', '<br>').replaceAll('\n', '<br>');
+    final processed = summary
+        .replaceAll('\r\n', '<br>')
+        .replaceAll('\n', '<br>');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -739,33 +763,73 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     );
   }
 
-  // ── Characters section (seiyu only) ──────────────────────────────────────
-
-  Widget _buildCharactersSection(BuildContext context) {
+  List<Widget> _buildCharactersSlivers(
+    BuildContext context, {
+    EdgeInsets padding = EdgeInsets.zero,
+  }) {
     if (_isLoadingCharacters) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionTitle(context, '配音角色'),
-          const SizedBox(height: 12),
-          const Center(child: CircularProgressIndicator(color: Colors.amber)),
-        ],
-      );
+      return [
+        SliverPadding(
+          padding: padding,
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _sectionTitle(context, '配音角色'),
+                const SizedBox(height: 12),
+                const Center(
+                  child: CircularProgressIndicator(color: Colors.amber),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ];
     }
-    if (_groupedCharacters.isEmpty) return const SizedBox.shrink();
+    if (_groupedCharacters.isEmpty) return const [];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle(context, '配音角色'),
-        const SizedBox(height: 12),
-        ..._groupedCharacters.map((group) => _buildCharacterCard(context, group)),
-      ],
-    );
+    return [
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          padding.left,
+          padding.top,
+          padding.right,
+          0,
+        ),
+        sliver: SliverToBoxAdapter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _sectionTitle(context, '配音角色'),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          padding.left,
+          0,
+          padding.right,
+          padding.bottom,
+        ),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) =>
+                _buildCharacterCard(context, _groupedCharacters[index]),
+            childCount: _groupedCharacters.length,
+          ),
+        ),
+      ),
+    ];
   }
 
   Widget _buildCharacterCard(BuildContext context, _GroupedCharacter group) {
-    final imgUrl = group.images?.large ?? group.images?.medium ?? group.images?.small ?? '';
+    final imgUrl =
+        group.images?.large ??
+        group.images?.medium ??
+        group.images?.small ??
+        '';
     final charHeroTag = 'person_${widget.personId}_char_${group.charId}';
     final hasMultiple = group.appearances.length > 1;
     // Auto-expand single-appearance groups; multi-appearance groups toggle manually
@@ -799,10 +863,10 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                     });
                   }
                 : () => _openCharacterPage(
-                      group.charId,
-                      group.name,
-                      imgUrl.isEmpty ? null : imgUrl,
-                    ),
+                    group.charId,
+                    group.name,
+                    imgUrl.isEmpty ? null : imgUrl,
+                  ),
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -874,10 +938,17 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                     AnimatedRotation(
                       turns: isExpanded ? 0.5 : 0,
                       duration: const Duration(milliseconds: 200),
-                      child: const Icon(Icons.keyboard_arrow_down, color: Colors.white38),
+                      child: const Icon(
+                        Icons.keyboard_arrow_down,
+                        color: Colors.white38,
+                      ),
                     )
                   else
-                    const Icon(Icons.chevron_right, color: Colors.white24, size: 20),
+                    const Icon(
+                      Icons.chevron_right,
+                      color: Colors.white24,
+                      size: 20,
+                    ),
                 ],
               ),
             ),
@@ -885,10 +956,18 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
 
           // ── Subject grid (expanded appearances) ───────────────────────
           if (isExpanded && uniqueAppearances.isNotEmpty) ...[
-            Divider(color: Colors.white10, height: 1, indent: 12, endIndent: 12),
+            Divider(
+              color: Colors.white10,
+              height: 1,
+              indent: 12,
+              endIndent: 12,
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
-              child: _buildCharacterSubjectGrid(uniqueAppearances, group.charId),
+              child: _buildCharacterSubjectGrid(
+                uniqueAppearances,
+                group.charId,
+              ),
             ),
           ],
         ],
@@ -920,10 +999,14 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
       itemBuilder: (_, i) {
         final a = appearances[i];
         final subjectId = a.subjectId.toInt();
-        final title = a.subjectNameCn.isNotEmpty ? a.subjectNameCn : a.subjectName;
-        final coverUrl = subjectImageMap[subjectId] ??
+        final title = a.subjectNameCn.isNotEmpty
+            ? a.subjectNameCn
+            : a.subjectName;
+        final coverUrl =
+            subjectImageMap[subjectId] ??
             'https://api.bgm.tv/v0/subjects/$subjectId/image?type=common';
-        final heroTag = 'person_${widget.personId}_char_${charId}_subj_$subjectId';
+        final heroTag =
+            'person_${widget.personId}_char_${charId}_subj_$subjectId';
         return _buildCharacterSubjectTile(
           subjectId: subjectId,
           title: title,
@@ -949,12 +1032,8 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: () => _openBangumiPage(
-          subjectId,
-          title,
-          coverUrl,
-          heroTag: heroTag,
-        ),
+        onTap: () =>
+            _openBangumiPage(subjectId, title, coverUrl, heroTag: heroTag),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1033,155 +1112,206 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
 
   // ── Subjects section ──────────────────────────────────────────────────────
 
-  Widget _buildSubjectsSection(BuildContext context) {
+  List<PersonSubject> _uniqueSubjects() {
+    final seen = <int>{};
+    return _subjects.where((s) => seen.add(s.id.toInt())).toList();
+  }
+
+  List<Widget> _buildSubjectsSlivers(
+    BuildContext context, {
+    EdgeInsets padding = EdgeInsets.zero,
+  }) {
     final sectionLabel = _isSeiyu ? '出演作品' : '相关作品';
 
     if (_isLoadingSubjects) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionTitle(context, sectionLabel),
-          const SizedBox(height: 12),
-          const Center(child: CircularProgressIndicator(color: Colors.amber)),
-        ],
-      );
-    }
-    if (_subjects.isEmpty) return const SizedBox.shrink();
-
-    // Deduplicate by subject id to prevent multiple Hero tags with the same value
-    final seen = <int>{};
-    final uniqueSubjects = _subjects.where((s) => seen.add(s.id.toInt())).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle(context, sectionLabel),
-        const SizedBox(height: 12),
-        ...uniqueSubjects.map((subject) {
-          final title = subject.nameCn.isNotEmpty ? subject.nameCn : subject.name;
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white10),
+      return [
+        SliverPadding(
+          padding: padding,
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _sectionTitle(context, sectionLabel),
+                const SizedBox(height: 12),
+                const Center(
+                  child: CircularProgressIndicator(color: Colors.amber),
+                ),
+              ],
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => _openBangumiPage(subject.id.toInt(), title, subject.image),
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
+          ),
+        ),
+      ];
+    }
+    if (_subjects.isEmpty) return const [];
+
+    final uniqueSubjects = _uniqueSubjects();
+
+    return [
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          padding.left,
+          padding.top,
+          padding.right,
+          0,
+        ),
+        sliver: SliverToBoxAdapter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _sectionTitle(context, sectionLabel),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          padding.left,
+          0,
+          padding.right,
+          padding.bottom,
+        ),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) =>
+                _buildSubjectCard(context, uniqueSubjects[index]),
+            childCount: uniqueSubjects.length,
+          ),
+        ),
+      ),
+    ];
+  }
+
+  Widget _buildSubjectCard(BuildContext context, PersonSubject subject) {
+    final title = subject.nameCn.isNotEmpty ? subject.nameCn : subject.name;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () =>
+              _openBangumiPage(subject.id.toInt(), title, subject.image),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Hero(
+                  tag: 'person_${widget.personId}_subj_${subject.id}',
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 70,
+                      height: 95,
+                      child: subject.image.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: subject.image,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              color: Colors.grey[700],
+                              child: const Icon(
+                                Icons.movie,
+                                color: Colors.white54,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Hero(
-                        tag: 'person_${widget.personId}_subj_${subject.id}',
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: SizedBox(
-                            width: 70,
-                            height: 95,
-                            child: subject.image.isNotEmpty
-                                ? CachedNetworkImage(
-                                    imageUrl: subject.image,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Container(
-                                    color: Colors.grey[700],
-                                    child: const Icon(Icons.movie, color: Colors.white54),
-                                  ),
+                      if (subject.staff.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.teal.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: Colors.teal.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Text(
+                            subject.staff,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.tealAccent,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Staff role badge
-                            if (subject.staff.isNotEmpty)
-                              Container(
-                                margin: const EdgeInsets.only(bottom: 6),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: Colors.teal.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                      color: Colors.teal.withValues(alpha: 0.4)),
-                                ),
-                                child: Text(
-                                  subject.staff,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.tealAccent,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            // Episode info badge (if non-empty)
-                            if (subject.eps.isNotEmpty)
-                              Container(
-                                margin: const EdgeInsets.only(bottom: 6),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: Colors.purple.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                      color: Colors.purple.withValues(alpha: 0.4)),
-                                ),
-                                child: Text(
-                                  subject.eps,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.purpleAccent,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                      if (subject.eps.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: Colors.purple.withValues(alpha: 0.4),
                             ),
-                            if (subject.name != title && subject.name.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Text(
-                                  subject.name,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.white.withValues(alpha: 0.5),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                          ],
+                          ),
+                          child: Text(
+                            subject.eps,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.purpleAccent,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: Colors.white30,
-                        size: 20,
-                      ),
+                      if (subject.name != title && subject.name.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            subject.name,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.5),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                     ],
                   ),
                 ),
-              ),
+                const Icon(
+                  Icons.chevron_right,
+                  color: Colors.white30,
+                  size: 20,
+                ),
+              ],
             ),
-          );
-        }),
-      ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1211,7 +1341,11 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     );
   }
 
-  Widget _shimmer({required double width, required double height, required double radius}) {
+  Widget _shimmer({
+    required double width,
+    required double height,
+    required double radius,
+  }) {
     return Container(
       width: width,
       height: height,
@@ -1234,7 +1368,10 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
         children: [
           Icon(icon, size: 14, color: Colors.white70),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: Colors.white70),
+          ),
         ],
       ),
     );

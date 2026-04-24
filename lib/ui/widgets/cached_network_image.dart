@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,8 @@ class CachedNetworkImage extends StatefulWidget {
   final Widget? errorWidget;
   final BorderRadius? borderRadius;
   final AlignmentGeometry? alignment;
+  final bool deferOffscreenLoad;
+  final double preloadExtent;
 
   const CachedNetworkImage({
     super.key,
@@ -25,6 +28,8 @@ class CachedNetworkImage extends StatefulWidget {
     this.placeholder,
     this.errorWidget,
     this.borderRadius,
+    this.deferOffscreenLoad = true,
+    this.preloadExtent = 800,
   });
 
   @override
@@ -35,6 +40,10 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
   String? _localPath;
   bool _isLoading = true;
   bool _hasError = false;
+  bool _hasStartedLoading = false;
+  Timer? _deferredLoadTimer;
+  ScrollPosition? _scrollPosition;
+  int _loadGeneration = 0;
 
   Map<String, String> _buildHeaders(String imageUrl) {
     try {
@@ -52,18 +61,85 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
   @override
   void initState() {
     super.initState();
-    _loadImage();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeStartLoading());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nextPosition = Scrollable.maybeOf(context)?.position;
+    if (_scrollPosition == nextPosition) return;
+
+    _scrollPosition?.removeListener(_scheduleVisibilityCheck);
+    _scrollPosition = nextPosition;
+    _scrollPosition?.addListener(_scheduleVisibilityCheck);
   }
 
   @override
   void didUpdateWidget(CachedNetworkImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.imageUrl != widget.imageUrl) {
-      _loadImage();
+      _deferredLoadTimer?.cancel();
+      _loadGeneration++;
+      _hasStartedLoading = false;
+      setState(() {
+        _isLoading = true;
+        _hasError = false;
+        _localPath = null;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeStartLoading());
     }
   }
 
-  Future<void> _loadImage() async {
+  @override
+  void dispose() {
+    _deferredLoadTimer?.cancel();
+    _scrollPosition?.removeListener(_scheduleVisibilityCheck);
+    super.dispose();
+  }
+
+  void _scheduleVisibilityCheck() {
+    if (_hasStartedLoading || _deferredLoadTimer?.isActive == true) return;
+    _deferredLoadTimer = Timer(
+      const Duration(milliseconds: 80),
+      _maybeStartLoading,
+    );
+  }
+
+  void _maybeStartLoading() {
+    if (!mounted || _hasStartedLoading) return;
+
+    if (widget.deferOffscreenLoad && !_isNearViewport()) {
+      return;
+    }
+
+    _hasStartedLoading = true;
+    _loadImage(_loadGeneration);
+  }
+
+  bool _isNearViewport() {
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) {
+      return true;
+    }
+
+    final viewportSize = MediaQuery.maybeSizeOf(context);
+    if (viewportSize == null) {
+      return true;
+    }
+
+    final topLeft = renderObject.localToGlobal(Offset.zero);
+    final rect = topLeft & renderObject.size;
+    final viewport = Rect.fromLTWH(
+      -widget.preloadExtent,
+      -widget.preloadExtent,
+      viewportSize.width + widget.preloadExtent * 2,
+      viewportSize.height + widget.preloadExtent * 2,
+    );
+    return rect.overlaps(viewport);
+  }
+
+  Future<void> _loadImage(int generation) async {
     if (widget.imageUrl.isEmpty) {
       setState(() {
         _hasError = true;
@@ -84,10 +160,12 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
         await cache.initialize();
       }
 
+      if (!mounted || generation != _loadGeneration) return;
+
       // 先检查是否已缓存
       final cachedPath = await cache.getCachedPath(widget.imageUrl);
 
-      if (cachedPath != null && mounted) {
+      if (cachedPath != null && mounted && generation == _loadGeneration) {
         setState(() {
           _localPath = cachedPath;
           _isLoading = false;
@@ -96,7 +174,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
       }
 
       // 没有缓存，后台下载并缓存，同时先显示网络图片作为备用
-      if (mounted) {
+      if (mounted && generation == _loadGeneration) {
         setState(() {
           _isLoading = false;
         });
@@ -104,12 +182,15 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
 
       // 后台缓存图片，完成后切换到本地文件（更可靠）
       cache.cacheImage(widget.imageUrl).then((path) {
-        if (mounted && path != null) {
+        if (mounted && generation == _loadGeneration && path != null) {
           setState(() {
             _localPath = path;
             _hasError = false;
           });
-        } else if (mounted && path == null && _localPath == null) {
+        } else if (mounted &&
+            generation == _loadGeneration &&
+            path == null &&
+            _localPath == null) {
           // cacheImage failed; keep Image.network displayed (already set above)
         }
       });

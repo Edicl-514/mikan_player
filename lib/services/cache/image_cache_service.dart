@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -20,6 +22,10 @@ class ImageCacheService {
   Directory? _cacheDir;
   bool _isInitialized = false;
   final HttpClient _httpClient = HttpClient();
+  final Map<String, Future<String?>> _inFlightDownloads = {};
+  final Queue<Completer<void>> _downloadQueue = Queue<Completer<void>>();
+  int _activeDownloads = 0;
+  static const int _maxConcurrentDownloads = 4;
 
   /// 检查是否已初始化
   bool get isInitialized => _isInitialized;
@@ -116,7 +122,26 @@ class ImageCacheService {
       return existingPath;
     }
 
+    final inFlight = _inFlightDownloads[url];
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final future = _cacheImageWithLimit(url);
+    _inFlightDownloads[url] = future;
+    future.whenComplete(() => _inFlightDownloads.remove(url));
+    return future;
+  }
+
+  Future<String?> _cacheImageWithLimit(String url) async {
+    await _acquireDownloadSlot();
     try {
+      final existingPath = await getCachedPath(url);
+      if (existingPath != null) {
+        debugPrint('[ImageCache] Loaded from cache: $url');
+        return existingPath;
+      }
+
       final localPath = getLocalPath(url);
       final bytes = await _downloadImage(url);
 
@@ -128,9 +153,31 @@ class ImageCacheService {
       }
     } catch (e) {
       debugPrint('Error caching image: $e');
+    } finally {
+      _releaseDownloadSlot();
     }
 
     return null;
+  }
+
+  Future<void> _acquireDownloadSlot() {
+    if (_activeDownloads < _maxConcurrentDownloads) {
+      _activeDownloads++;
+      return Future.value();
+    }
+
+    final completer = Completer<void>();
+    _downloadQueue.add(completer);
+    return completer.future;
+  }
+
+  void _releaseDownloadSlot() {
+    if (_downloadQueue.isNotEmpty) {
+      _downloadQueue.removeFirst().complete();
+      return;
+    }
+
+    _activeDownloads--;
   }
 
   /// 下载图片
