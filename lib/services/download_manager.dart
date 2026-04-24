@@ -338,6 +338,7 @@ class DownloadManager extends ChangeNotifier {
     );
 
     _tasks[tempId] = task;
+    await _saveTasks();
     notifyListeners();
     _startStatsPolling();
 
@@ -357,6 +358,7 @@ class DownloadManager extends ChangeNotifier {
       if (streamUrl.startsWith('Error')) {
         task.status = DownloadTaskStatus.error;
         task.errorMessage = streamUrl;
+        await _saveTasks();
         notifyListeners();
         return null;
       }
@@ -380,10 +382,16 @@ class DownloadManager extends ChangeNotifier {
       }
 
       notifyListeners();
+      await _saveTasks();
       return streamUrl;
     } catch (e) {
+      final currentTask = _tasks[tempId];
+      if (!identical(currentTask, task) || _removedTaskIds.contains(tempId)) {
+        return null;
+      }
       task.status = DownloadTaskStatus.error;
       task.errorMessage = e.toString();
+      await _saveTasks();
       notifyListeners();
       return null;
     }

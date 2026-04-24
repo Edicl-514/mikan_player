@@ -181,6 +181,12 @@ async fn ensure_initialized() -> anyhow::Result<Arc<tokio::sync::Mutex<AppState>
     Ok(app_state)
 }
 
+async fn get_session() -> anyhow::Result<Arc<Session>> {
+    let state = ensure_initialized().await?;
+    let state_guard = state.lock().await;
+    Ok(state_guard.session.clone())
+}
+
 pub async fn start_torrent(magnet: String) -> String {
     // Demo fallback for quick testing
     if magnet.contains("demo") || magnet.is_empty() {
@@ -188,12 +194,10 @@ pub async fn start_torrent(magnet: String) -> String {
             .to_string();
     }
 
-    let state = match ensure_initialized().await {
+    let session = match get_session().await {
         Ok(s) => s,
         Err(e) => return format!("Error initializing engine: {}", e),
     };
-
-    let state_guard = state.lock().await;
 
     // Add Torrent
     let mut magnet = magnet;
@@ -282,13 +286,17 @@ pub async fn start_torrent(magnet: String) -> String {
     let torrent = AddTorrent::from_url(magnet.clone());
 
     // We get a handle and ID from the response
-    let response = match state_guard
-        .session
-        .add_torrent(torrent, Some(add_opts))
-        .await
+    let response = match tokio::time::timeout(
+        tokio::time::Duration::from_secs(90),
+        session.add_torrent(torrent, Some(add_opts)),
+    )
+    .await
     {
-        Ok(res) => res,
-        Err(e) => return format!("Error adding torrent: {}", e),
+        Ok(Ok(res)) => res,
+        Ok(Err(e)) => return format!("Error adding torrent: {}", e),
+        Err(_) => {
+            return "Error adding torrent: timed out waiting for torrent metadata".to_string();
+        }
     };
 
     let (_id, handle) = match response {
@@ -296,9 +304,6 @@ pub async fn start_torrent(magnet: String) -> String {
         AddTorrentResponse::AlreadyManaged(id, h) => (id, h),
         AddTorrentResponse::ListOnly(_) => return "Error: Torrent is list-only mode".to_string(),
     };
-
-    // Release the lock before waiting for metadata to avoid blocking other API calls (like stop_torrent)
-    drop(state_guard);
 
     // Wait for metadata to ensure file list is populated
     if let Err(e) = handle.wait_until_initialized().await {
@@ -400,16 +405,14 @@ pub struct TrackerInfo {
 
 /// Get tracker information for a specific torrent
 pub async fn get_tracker_info(info_hash: String) -> Vec<TrackerInfo> {
-    let state = match ensure_initialized().await {
+    let session = match get_session().await {
         Ok(s) => s,
         Err(_) => return vec![],
     };
-
-    let state_guard = state.lock().await;
     let info_hash_lower = info_hash.to_lowercase();
 
     // Find the torrent by info hash and get tracker info
-    state_guard.session.with_torrents(|torrents| {
+    session.with_torrents(|torrents| {
         for (_id, handle) in torrents {
             if handle.info_hash().as_string().to_lowercase() == info_hash_lower {
                 // Note: librqbit may not expose detailed tracker info in the public API
@@ -427,15 +430,13 @@ pub async fn get_tracker_info(info_hash: String) -> Vec<TrackerInfo> {
 
 /// Get detailed stats for all active torrents
 pub async fn get_torrent_stats() -> Vec<TorrentStats> {
-    let state = match ensure_initialized().await {
+    let session = match get_session().await {
         Ok(s) => s,
         Err(_) => return vec![],
     };
 
-    let state_guard = state.lock().await;
-
     // Use the session's torrent iteration method - collect data inside closure
-    let results: Vec<TorrentStats> = state_guard.session.with_torrents(|torrents| {
+    let results: Vec<TorrentStats> = session.with_torrents(|torrents| {
         let mut collected = Vec::new();
         for (id, handle) in torrents {
             let stats = handle.stats();
@@ -526,16 +527,14 @@ pub async fn get_all_torrents_info() -> String {
 
 /// Stop and remove a torrent by info hash
 pub async fn stop_torrent(info_hash: String, delete_files: bool) -> bool {
-    let state = match ensure_initialized().await {
+    let session = match get_session().await {
         Ok(s) => s,
         Err(_) => return false,
     };
-
-    let state_guard = state.lock().await;
     let info_hash_lower = info_hash.to_lowercase();
 
     // Find the torrent ID by info hash
-    let torrent_id = state_guard.session.with_torrents(|torrents| {
+    let torrent_id = session.with_torrents(|torrents| {
         for (id, handle) in torrents {
             if handle.info_hash().as_string().to_lowercase() == info_hash_lower {
                 return Some(id);
@@ -545,11 +544,7 @@ pub async fn stop_torrent(info_hash: String, delete_files: bool) -> bool {
     });
 
     if let Some(id) = torrent_id {
-        match state_guard
-            .session
-            .delete(TorrentIdOrHash::Id(id), delete_files)
-            .await
-        {
+        match session.delete(TorrentIdOrHash::Id(id), delete_files).await {
             Ok(_) => {
                 log::info!(
                     "Successfully stopped torrent: {} (delete_files: {})",
@@ -572,16 +567,14 @@ pub async fn stop_torrent(info_hash: String, delete_files: bool) -> bool {
 /// Pause a torrent by info hash
 /// This is implemented by stopping the torrent without deleting files
 pub async fn pause_torrent(info_hash: String) -> bool {
-    let state = match ensure_initialized().await {
+    let session = match get_session().await {
         Ok(s) => s,
         Err(_) => return false,
     };
-
-    let state_guard = state.lock().await;
     let info_hash_lower = info_hash.to_lowercase();
 
     // Find the torrent ID by info hash
-    let torrent_id = state_guard.session.with_torrents(|torrents| {
+    let torrent_id = session.with_torrents(|torrents| {
         for (id, handle) in torrents {
             if handle.info_hash().as_string().to_lowercase() == info_hash_lower {
                 return Some(id);
@@ -593,11 +586,7 @@ pub async fn pause_torrent(info_hash: String) -> bool {
     if let Some(id) = torrent_id {
         // Pause by deleting without removing files
         // The torrent will need to be restarted with the magnet link to resume
-        match state_guard
-            .session
-            .delete(TorrentIdOrHash::Id(id), false)
-            .await
-        {
+        match session.delete(TorrentIdOrHash::Id(id), false).await {
             Ok(_) => {
                 log::info!("Successfully paused torrent: {}", info_hash);
                 true
