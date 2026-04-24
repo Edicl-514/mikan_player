@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Fetch episodes for a subject
 /// API: GET https://api.bgm.tv/v0/episodes?subject_id={subject_id}&limit=100&offset=0
@@ -65,6 +65,26 @@ Future<CharacterDetails> fetchCharacterDetails({
   required PlatformInt64 characterId,
 }) => RustLib.instance.api.crateApiBangumiFetchCharacterDetails(
   characterId: characterId,
+);
+
+/// Fetch person details
+/// API: GET https://api.bgm.tv/v0/persons/{person_id}
+Future<PersonDetails> fetchPersonDetails({required PlatformInt64 personId}) =>
+    RustLib.instance.api.crateApiBangumiFetchPersonDetails(personId: personId);
+
+/// Fetch subjects for a person (only anime, type=2)
+/// API: GET https://api.bgm.tv/v0/persons/{person_id}/subjects
+Future<List<PersonSubject>> fetchPersonSubjects({
+  required PlatformInt64 personId,
+}) =>
+    RustLib.instance.api.crateApiBangumiFetchPersonSubjects(personId: personId);
+
+/// Fetch characters voiced/played by a person (only anime subjects, subject_type=2)
+/// API: GET https://api.bgm.tv/v0/persons/{person_id}/characters
+Future<List<PersonCharacter>> fetchPersonCharacters({
+  required PlatformInt64 personId,
+}) => RustLib.instance.api.crateApiBangumiFetchPersonCharacters(
+  personId: personId,
 );
 
 /// Fetch character subjects and persons, merging them
@@ -525,4 +545,140 @@ class InfoboxItem {
           runtimeType == other.runtimeType &&
           key == other.key &&
           value == other.value;
+}
+
+/// Character info from /v0/persons/{person_id}/characters (only subject_type=2)
+class PersonCharacter {
+  final PlatformInt64 id;
+  final String name;
+  final BangumiImages? images;
+  final PlatformInt64 subjectId;
+  final String subjectName;
+  final String subjectNameCn;
+  final String staff;
+
+  const PersonCharacter({
+    required this.id,
+    required this.name,
+    this.images,
+    required this.subjectId,
+    required this.subjectName,
+    required this.subjectNameCn,
+    required this.staff,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      images.hashCode ^
+      subjectId.hashCode ^
+      subjectName.hashCode ^
+      subjectNameCn.hashCode ^
+      staff.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PersonCharacter &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          images == other.images &&
+          subjectId == other.subjectId &&
+          subjectName == other.subjectName &&
+          subjectNameCn == other.subjectNameCn &&
+          staff == other.staff;
+}
+
+/// Person details from /v0/persons/{person_id}
+class PersonDetails {
+  final PlatformInt64 id;
+  final String name;
+  final String summary;
+  final String img;
+  final List<String> career;
+  final int personType;
+  final CharacterStat stat;
+  final List<InfoboxItem> infobox;
+  final bool locked;
+
+  const PersonDetails({
+    required this.id,
+    required this.name,
+    required this.summary,
+    required this.img,
+    required this.career,
+    required this.personType,
+    required this.stat,
+    required this.infobox,
+    required this.locked,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      summary.hashCode ^
+      img.hashCode ^
+      career.hashCode ^
+      personType.hashCode ^
+      stat.hashCode ^
+      infobox.hashCode ^
+      locked.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PersonDetails &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          summary == other.summary &&
+          img == other.img &&
+          career == other.career &&
+          personType == other.personType &&
+          stat == other.stat &&
+          infobox == other.infobox &&
+          locked == other.locked;
+}
+
+/// Subject info from /v0/persons/{person_id}/subjects (only type=2 anime)
+class PersonSubject {
+  final PlatformInt64 id;
+  final String name;
+  final String nameCn;
+  final String image;
+  final String staff;
+  final String eps;
+
+  const PersonSubject({
+    required this.id,
+    required this.name,
+    required this.nameCn,
+    required this.image,
+    required this.staff,
+    required this.eps,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      nameCn.hashCode ^
+      image.hashCode ^
+      staff.hashCode ^
+      eps.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PersonSubject &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          nameCn == other.nameCn &&
+          image == other.image &&
+          staff == other.staff &&
+          eps == other.eps;
 }

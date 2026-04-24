@@ -4,14 +4,15 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'bangumi_details_page.dart';
+import 'person_detail_page.dart';
 
 class CharacterDetailPage extends StatefulWidget {
   final int characterId;
   final String? characterName;
   final String? heroImageUrl;
   final bool enableHeroAnimation;
+  final String? heroTag;
 
   const CharacterDetailPage({
     super.key,
@@ -19,6 +20,7 @@ class CharacterDetailPage extends StatefulWidget {
     this.characterName,
     this.heroImageUrl,
     this.enableHeroAnimation = true,
+    this.heroTag,
   });
 
   @override
@@ -108,8 +110,15 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
   }
 
   void _openPersonPage(int personId) {
-    final url = 'https://bgm.tv/person/$personId';
-    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PersonDetailPage(
+          personId: personId,
+          enableHeroAnimation: false,
+        ),
+      ),
+    );
   }
 
   String? _getDisplayBirthday() {
@@ -346,7 +355,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
               // Character Image
               widget.enableHeroAnimation
                   ? Hero(
-                      tag: 'character_${widget.characterId}',
+                      tag: widget.heroTag ?? 'character_${widget.characterId}',
                       child: Container(
                         width: 160,
                         height: 220,
@@ -512,7 +521,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
 
     return widget.enableHeroAnimation
         ? Hero(
-            tag: 'character_${widget.characterId}',
+            tag: widget.heroTag ?? 'character_${widget.characterId}',
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(radius),

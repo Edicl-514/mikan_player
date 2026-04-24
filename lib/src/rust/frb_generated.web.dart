@@ -237,6 +237,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<PersonCharacter> dco_decode_list_person_character(dynamic raw);
+
+  @protected
+  List<PersonSubject> dco_decode_list_person_subject(dynamic raw);
+
+  @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
 
   @protected
@@ -304,6 +310,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ChannelInfo>? dco_decode_opt_list_channel_info(dynamic raw);
+
+  @protected
+  PersonCharacter dco_decode_person_character(dynamic raw);
+
+  @protected
+  PersonDetails dco_decode_person_details(dynamic raw);
+
+  @protected
+  PersonSubject dco_decode_person_subject(dynamic raw);
 
   @protected
   RankingAnime dco_decode_ranking_anime(dynamic raw);
@@ -604,6 +619,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<PersonCharacter> sse_decode_list_person_character(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<PersonSubject> sse_decode_list_person_subject(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
 
   @protected
@@ -689,6 +714,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ChannelInfo>? sse_decode_opt_list_channel_info(
     SseDeserializer deserializer,
   );
+
+  @protected
+  PersonCharacter sse_decode_person_character(SseDeserializer deserializer);
+
+  @protected
+  PersonDetails sse_decode_person_details(SseDeserializer deserializer);
+
+  @protected
+  PersonSubject sse_decode_person_subject(SseDeserializer deserializer);
 
   @protected
   RankingAnime sse_decode_ranking_anime(SseDeserializer deserializer);
@@ -1064,6 +1098,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_person_character(
+    List<PersonCharacter> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_person_subject(
+    List<PersonSubject> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
@@ -1170,6 +1216,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     List<ChannelInfo>? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_person_character(
+    PersonCharacter self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_person_details(PersonDetails self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_person_subject(PersonSubject self, SseSerializer serializer);
 
   @protected
   void sse_encode_ranking_anime(RankingAnime self, SseSerializer serializer);

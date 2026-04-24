@@ -95,20 +95,22 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
         return;
       }
 
-      // 没有缓存，后台下载并缓存
-      // 同时先显示网络图片
+      // 没有缓存，后台下载并缓存，同时先显示网络图片作为备用
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
       }
 
-      // 后台缓存图片
+      // 后台缓存图片，完成后切换到本地文件（更可靠）
       cache.cacheImage(widget.imageUrl).then((path) {
         if (mounted && path != null) {
           setState(() {
             _localPath = path;
+            _hasError = false;
           });
+        } else if (mounted && path == null && _localPath == null) {
+          // cacheImage failed; keep Image.network displayed (already set above)
         }
       });
     } catch (e) {

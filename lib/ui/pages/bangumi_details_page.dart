@@ -13,10 +13,10 @@ import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'player_page.dart';
 import 'tag_browse_page.dart';
 import 'character_detail_page.dart';
+import 'person_detail_page.dart';
 
 class BangumiDetailsPage extends StatefulWidget {
   final AnimeInfo anime;
@@ -1488,8 +1488,15 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   }
 
   void _openPersonPage(int personId) {
-    final url = 'https://bgm.tv/person/$personId';
-    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PersonDetailPage(
+          personId: personId,
+          enableHeroAnimation: false,
+        ),
+      ),
+    );
   }
 
   void _openCharacterPage(int characterId, {String? characterName, String? heroImageUrl}) {
