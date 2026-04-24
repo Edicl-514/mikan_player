@@ -345,6 +345,15 @@ class DownloadManager extends ChangeNotifier {
       // Call Rust backend to start torrent
       final streamUrl = await startTorrent(magnet: magnet);
 
+      final currentTask = _tasks[tempId];
+      if (!identical(currentTask, task) || _removedTaskIds.contains(tempId)) {
+        final actualId = _extractInfoHashFromUrl(streamUrl);
+        if (_removedTaskIds.contains(tempId) && actualId != null) {
+          _removedTaskIds.add(actualId);
+        }
+        return null;
+      }
+
       if (streamUrl.startsWith('Error')) {
         task.status = DownloadTaskStatus.error;
         task.errorMessage = streamUrl;
@@ -533,6 +542,13 @@ class DownloadManager extends ChangeNotifier {
 
   /// Remove a download task
   Future<void> removeTask(String id, {bool deleteFiles = false}) async {
+    // Remove from UI immediately so the task disappears right away.
+    _tasks.remove(id);
+    _pausedTaskIds.remove(id);
+    _removedTaskIds.add(id); // Mark as removed to prevent re-adding
+    await _saveTasks();
+    notifyListeners();
+
     // Try to stop the torrent in the backend
     try {
       final stopped = await stopTorrent(infoHash: id, deleteFiles: deleteFiles);
@@ -548,13 +564,6 @@ class DownloadManager extends ChangeNotifier {
     } catch (e) {
       debugPrint('[DownloadManager] Error stopping torrent: $e');
     }
-
-    // Remove from UI regardless of backend result
-    _tasks.remove(id);
-    _pausedTaskIds.remove(id);
-    _removedTaskIds.add(id); // Mark as removed to prevent re-adding
-    await _saveTasks();
-    notifyListeners();
   }
 
   /// Clear completed tasks
