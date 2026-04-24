@@ -16,12 +16,19 @@ import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'player_page.dart';
 import 'tag_browse_page.dart';
+import 'character_detail_page.dart';
 
 class BangumiDetailsPage extends StatefulWidget {
   final AnimeInfo anime;
   final String? heroTag;
+  final bool enableCharacterHero;
 
-  const BangumiDetailsPage({super.key, required this.anime, this.heroTag});
+  const BangumiDetailsPage({
+    super.key,
+    required this.anime,
+    this.heroTag,
+    this.enableCharacterHero = true,
+  });
 
   @override
   State<BangumiDetailsPage> createState() => _BangumiDetailsPageState();
@@ -1485,9 +1492,17 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
-  void _openCharacterPage(int characterId) {
-    final url = 'https://bgm.tv/character/$characterId';
-    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  void _openCharacterPage(int characterId, {String? characterName, String? heroImageUrl}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CharacterDetailPage(
+          characterId: characterId,
+          characterName: characterName,
+          heroImageUrl: heroImageUrl,
+        ),
+      ),
+    );
   }
 
   void _mergePersonIdMap(Map<String, int> entries) {
@@ -2000,7 +2015,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: canOpenCharacterPage
-                              ? () => _openCharacterPage(char.id)
+                              ? () => _openCharacterPage(
+                                  char.id.toInt(),
+                                  characterName: char.name,
+                                  heroImageUrl: imageUrl,
+                                )
                               : null,
                           borderRadius: BorderRadius.circular(8),
                           child: Container(
@@ -2016,14 +2035,26 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                               ),
                             ),
                             child: imageUrl.isNotEmpty
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: CachedNetworkImage(
-                                      imageUrl: imageUrl,
-                                      fit: BoxFit.cover,
-                                      alignment: Alignment.topCenter,
-                                    ),
-                                  )
+                                ? widget.enableCharacterHero
+                                    ? Hero(
+                                        tag: 'character_${char.id.toInt()}',
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: CachedNetworkImage(
+                                            imageUrl: imageUrl,
+                                            fit: BoxFit.cover,
+                                            alignment: Alignment.topCenter,
+                                          ),
+                                        ),
+                                      )
+                                    : ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: CachedNetworkImage(
+                                          imageUrl: imageUrl,
+                                          fit: BoxFit.cover,
+                                          alignment: Alignment.topCenter,
+                                        ),
+                                      )
                                 : Icon(
                                     Icons.person,
                                     color: isDarkBg
@@ -2038,7 +2069,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                       // Character Name
                       canOpenCharacterPage
                           ? GestureDetector(
-                              onTap: () => _openCharacterPage(char.id),
+                              onTap: () => _openCharacterPage(
+                                  char.id.toInt(),
+                                  characterName: char.name,
+                                  heroImageUrl: imageUrl,
+                                ),
                               child: Text(
                                 char.name,
                                 style: TextStyle(

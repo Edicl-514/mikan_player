@@ -1,9 +1,9 @@
 #[cfg(target_os = "android")]
+use jni::JNIEnv;
+#[cfg(target_os = "android")]
 use jni::objects::{JClass, JObject};
 #[cfg(target_os = "android")]
 use jni::sys::jboolean;
-#[cfg(target_os = "android")]
-use jni::JNIEnv;
 
 pub mod api;
 mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be accurate, and you can change it according to your needs. */

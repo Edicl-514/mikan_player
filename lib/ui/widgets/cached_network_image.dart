@@ -36,6 +36,19 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
   bool _isLoading = true;
   bool _hasError = false;
 
+  Map<String, String> _buildHeaders(String imageUrl) {
+    try {
+      final uri = Uri.parse(imageUrl);
+      return {
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': '${uri.scheme}://${uri.host}/',
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +80,9 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
 
     try {
       final cache = ImageCacheService.instance;
+      if (!cache.isInitialized) {
+        await cache.initialize();
+      }
 
       // 先检查是否已缓存
       final cachedPath = await cache.getCachedPath(widget.imageUrl);
@@ -133,6 +149,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
         height: widget.height,
         fit: widget.fit ?? BoxFit.cover,
         alignment: widget.alignment ?? Alignment.center,
+        headers: _buildHeaders(widget.imageUrl),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return widget.placeholder ?? _buildPlaceholder();

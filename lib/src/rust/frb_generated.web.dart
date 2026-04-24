@@ -121,6 +121,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChannelInfo dco_decode_channel_info(dynamic raw);
 
   @protected
+  CharacterDetails dco_decode_character_details(dynamic raw);
+
+  @protected
+  CharacterStat dco_decode_character_stat(dynamic raw);
+
+  @protected
+  CharacterSubject dco_decode_character_subject(dynamic raw);
+
+  @protected
+  CharacterSubjectPerson dco_decode_character_subject_person(dynamic raw);
+
+  @protected
   Danmaku dco_decode_danmaku(dynamic raw);
 
   @protected
@@ -146,6 +158,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  InfoboxItem dco_decode_infobox_item(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
@@ -188,6 +203,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ChannelInfo> dco_decode_list_channel_info(dynamic raw);
 
   @protected
+  List<CharacterSubject> dco_decode_list_character_subject(dynamic raw);
+
+  @protected
+  List<CharacterSubjectPerson> dco_decode_list_character_subject_person(
+    dynamic raw,
+  );
+
+  @protected
   List<Danmaku> dco_decode_list_danmaku(dynamic raw);
 
   @protected
@@ -204,6 +227,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<EpisodeInfo> dco_decode_list_episode_info(dynamic raw);
+
+  @protected
+  List<InfoboxItem> dco_decode_list_infobox_item(dynamic raw);
 
   @protected
   List<MikanEpisodeResource> dco_decode_list_mikan_episode_resource(
@@ -436,6 +462,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChannelInfo sse_decode_channel_info(SseDeserializer deserializer);
 
   @protected
+  CharacterDetails sse_decode_character_details(SseDeserializer deserializer);
+
+  @protected
+  CharacterStat sse_decode_character_stat(SseDeserializer deserializer);
+
+  @protected
+  CharacterSubject sse_decode_character_subject(SseDeserializer deserializer);
+
+  @protected
+  CharacterSubjectPerson sse_decode_character_subject_person(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Danmaku sse_decode_danmaku(SseDeserializer deserializer);
 
   @protected
@@ -461,6 +501,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  InfoboxItem sse_decode_infobox_item(SseDeserializer deserializer);
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
@@ -517,6 +560,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ChannelInfo> sse_decode_list_channel_info(SseDeserializer deserializer);
 
   @protected
+  List<CharacterSubject> sse_decode_list_character_subject(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<CharacterSubjectPerson> sse_decode_list_character_subject_person(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<Danmaku> sse_decode_list_danmaku(SseDeserializer deserializer);
 
   @protected
@@ -541,6 +594,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<EpisodeInfo> sse_decode_list_episode_info(SseDeserializer deserializer);
+
+  @protected
+  List<InfoboxItem> sse_decode_list_infobox_item(SseDeserializer deserializer);
 
   @protected
   List<MikanEpisodeResource> sse_decode_list_mikan_episode_resource(
@@ -828,6 +884,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_channel_info(ChannelInfo self, SseSerializer serializer);
 
   @protected
+  void sse_encode_character_details(
+    CharacterDetails self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_character_stat(CharacterStat self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_character_subject(
+    CharacterSubject self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_character_subject_person(
+    CharacterSubjectPerson self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_danmaku(Danmaku self, SseSerializer serializer);
 
   @protected
@@ -856,6 +933,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_infobox_item(InfoboxItem self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
@@ -927,6 +1007,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_character_subject(
+    List<CharacterSubject> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_character_subject_person(
+    List<CharacterSubjectPerson> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_danmaku(List<Danmaku> self, SseSerializer serializer);
 
   @protected
@@ -956,6 +1048,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_episode_info(
     List<EpisodeInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_infobox_item(
+    List<InfoboxItem> self,
     SseSerializer serializer,
   );
 

@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Fetch episodes for a subject
 /// API: GET https://api.bgm.tv/v0/episodes?subject_id={subject_id}&limit=100&offset=0
@@ -57,6 +57,25 @@ Future<List<BangumiEpisodeComment>> fetchBangumiEpisodeComments({
   required PlatformInt64 episodeId,
 }) => RustLib.instance.api.crateApiBangumiFetchBangumiEpisodeComments(
   episodeId: episodeId,
+);
+
+/// Fetch character details
+/// API: GET https://api.bgm.tv/v0/characters/{character_id}
+Future<CharacterDetails> fetchCharacterDetails({
+  required PlatformInt64 characterId,
+}) => RustLib.instance.api.crateApiBangumiFetchCharacterDetails(
+  characterId: characterId,
+);
+
+/// Fetch character subjects and persons, merging them
+/// APIs:
+/// - GET https://api.bgm.tv/v0/characters/{character_id}/subjects
+/// - GET https://api.bgm.tv/v0/characters/{character_id}/persons
+/// Returns only anime subjects (type=2) with associated voice actors
+Future<List<CharacterSubject>> fetchCharacterSubjects({
+  required PlatformInt64 characterId,
+}) => RustLib.instance.api.crateApiBangumiFetchCharacterSubjects(
+  characterId: characterId,
 );
 
 class BangumiActor {
@@ -344,4 +363,166 @@ class BangumiRelatedSubject {
           nameCn == other.nameCn &&
           relation == other.relation &&
           image == other.image;
+}
+
+/// Character details info from /v0/characters/{character_id}
+class CharacterDetails {
+  final PlatformInt64 id;
+  final String name;
+  final String summary;
+  final BangumiImages? images;
+  final String? gender;
+  final int? birthYear;
+  final int? birthMon;
+  final int? birthDay;
+  final String? bloodType;
+  final CharacterStat stat;
+  final List<InfoboxItem> infobox;
+
+  const CharacterDetails({
+    required this.id,
+    required this.name,
+    required this.summary,
+    this.images,
+    this.gender,
+    this.birthYear,
+    this.birthMon,
+    this.birthDay,
+    this.bloodType,
+    required this.stat,
+    required this.infobox,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      summary.hashCode ^
+      images.hashCode ^
+      gender.hashCode ^
+      birthYear.hashCode ^
+      birthMon.hashCode ^
+      birthDay.hashCode ^
+      bloodType.hashCode ^
+      stat.hashCode ^
+      infobox.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CharacterDetails &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          summary == other.summary &&
+          images == other.images &&
+          gender == other.gender &&
+          birthYear == other.birthYear &&
+          birthMon == other.birthMon &&
+          birthDay == other.birthDay &&
+          bloodType == other.bloodType &&
+          stat == other.stat &&
+          infobox == other.infobox;
+}
+
+class CharacterStat {
+  final int comments;
+  final int collects;
+
+  const CharacterStat({required this.comments, required this.collects});
+
+  @override
+  int get hashCode => comments.hashCode ^ collects.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CharacterStat &&
+          runtimeType == other.runtimeType &&
+          comments == other.comments &&
+          collects == other.collects;
+}
+
+/// Character subject info from /v0/characters/{character_id}/subjects
+/// Only includes anime (type=2)
+class CharacterSubject {
+  final PlatformInt64 id;
+  final String name;
+  final String nameCn;
+  final String image;
+  final String staff;
+  final List<CharacterSubjectPerson> persons;
+
+  const CharacterSubject({
+    required this.id,
+    required this.name,
+    required this.nameCn,
+    required this.image,
+    required this.staff,
+    required this.persons,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      nameCn.hashCode ^
+      image.hashCode ^
+      staff.hashCode ^
+      persons.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CharacterSubject &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          nameCn == other.nameCn &&
+          image == other.image &&
+          staff == other.staff &&
+          persons == other.persons;
+}
+
+/// Voice actor info associated with a specific subject
+class CharacterSubjectPerson {
+  final PlatformInt64 id;
+  final String name;
+  final BangumiImages? images;
+
+  const CharacterSubjectPerson({
+    required this.id,
+    required this.name,
+    this.images,
+  });
+
+  @override
+  int get hashCode => id.hashCode ^ name.hashCode ^ images.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CharacterSubjectPerson &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          images == other.images;
+}
+
+class InfoboxItem {
+  final String key;
+  final String value;
+
+  const InfoboxItem({required this.key, required this.value});
+
+  @override
+  int get hashCode => key.hashCode ^ value.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is InfoboxItem &&
+          runtimeType == other.runtimeType &&
+          key == other.key &&
+          value == other.value;
 }
