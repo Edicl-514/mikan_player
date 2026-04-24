@@ -62,7 +62,7 @@ class DownloadTask {
       downloaded: BigInt.parse(json['downloaded'] as String? ?? '0'),
       totalSize: BigInt.parse(json['totalSize'] as String? ?? '0'),
       peers: 0,
-      streamUrl: json['streamUrl'] as String?,
+      streamUrl: null, // Never restore streamUrl from disk; it expires on restart
       errorMessage: null,
     );
   }
@@ -80,7 +80,7 @@ class DownloadTask {
       'progress': progress,
       'downloaded': downloaded.toString(),
       'totalSize': totalSize.toString(),
-      'streamUrl': streamUrl,
+      // streamUrl intentionally omitted — it is session-only
     };
   }
 
@@ -160,6 +160,7 @@ class DownloadManager extends ChangeNotifier {
   final Set<String> _pausedTaskIds = {}; // Track paused tasks
   Timer? _statsTimer;
   bool _isInitialized = false;
+  DateTime? _lastStatsPersistenceAt;
 
   List<DownloadTask> get tasks => _tasks.values.toList();
 
@@ -183,13 +184,20 @@ class DownloadManager extends ChangeNotifier {
   /// Count of seeding tasks
   int get seedingCount => seedingTasks.length;
 
+  bool get _hasPollingTasks => _tasks.values.any(
+    (task) =>
+        task.status == DownloadTaskStatus.pending ||
+        task.status == DownloadTaskStatus.downloading ||
+        task.status == DownloadTaskStatus.seeding,
+  );
+
   /// Initialize the download manager, load saved tasks
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     await _loadTasks();
     _isInitialized = true;
-    _startStatsPolling();
+    _ensureStatsPolling();
   }
 
   /// Load tasks from SharedPreferences
@@ -199,8 +207,15 @@ class DownloadManager extends ChangeNotifier {
       final jsonStr = prefs.getString(_btTasksStorageKey);
       if (jsonStr != null && jsonStr.isNotEmpty) {
         final List<dynamic> jsonList = jsonDecode(jsonStr);
+        var removedInvalidTasks = false;
         for (final json in jsonList) {
           final task = DownloadTask.fromJson(json as Map<String, dynamic>);
+
+          if (task.magnet.isEmpty) {
+            removedInvalidTasks = true;
+            continue;
+          }
+
           _tasks[task.id] = task;
 
           // Track paused tasks
@@ -217,6 +232,9 @@ class DownloadManager extends ChangeNotifier {
             // Resume in background without blocking
             _resumeTorrentInBackground(task);
           }
+        }
+        if (removedInvalidTasks) {
+          await _saveTasks();
         }
         debugPrint(
           '[DownloadManager] Loaded ${_tasks.length} tasks from storage',
@@ -240,6 +258,9 @@ class DownloadManager extends ChangeNotifier {
             task.status != DownloadTaskStatus.completed) {
           task.status = DownloadTaskStatus.downloading;
         }
+        await _saveTasks();
+        notifyListeners();
+        _ensureStatsPolling();
         debugPrint('[DownloadManager] Auto-resumed torrent: ${task.name}');
       } else {
         debugPrint(
@@ -346,7 +367,7 @@ class DownloadManager extends ChangeNotifier {
     _tasks[tempId] = task;
     await _saveTasks();
     notifyListeners();
-    _startStatsPolling();
+    _ensureStatsPolling();
 
     try {
       // Call Rust backend to start torrent
@@ -405,8 +426,14 @@ class DownloadManager extends ChangeNotifier {
 
   /// Update stats from Rust backend
   Future<void> _updateStats() async {
+    if (!_hasPollingTasks) {
+      _ensureStatsPolling();
+      return;
+    }
+
     try {
       final stats = await getTorrentStats();
+      var hasChanges = false;
 
       for (final stat in stats) {
         final hashLower = stat.infoHash.toLowerCase();
@@ -424,46 +451,56 @@ class DownloadManager extends ChangeNotifier {
             continue;
           }
 
+          final nextStatus = stat.progress >= 100.0
+              ? DownloadTaskStatus.seeding
+              : stat.state.contains('Paused')
+                  ? DownloadTaskStatus.paused
+                  : stat.state.contains('Live')
+                      ? DownloadTaskStatus.downloading
+                      : task.status;
+
+          final taskChanged = task.progress != stat.progress ||
+              task.downloadSpeed != stat.downloadSpeed ||
+              task.uploadSpeed != stat.uploadSpeed ||
+              task.downloaded != stat.downloaded ||
+              task.totalSize != stat.totalSize ||
+              task.peers != stat.peers ||
+              task.status != nextStatus;
+
+          if (!taskChanged) {
+            continue;
+          }
+
           task.progress = stat.progress;
           task.downloadSpeed = stat.downloadSpeed;
           task.uploadSpeed = stat.uploadSpeed;
           task.downloaded = stat.downloaded;
           task.totalSize = stat.totalSize;
           task.peers = stat.peers;
-
-          // Update status based on progress and state
-          if (stat.progress >= 100.0) {
-            task.status = DownloadTaskStatus.seeding;
-          } else if (stat.state.contains('Paused')) {
-            task.status = DownloadTaskStatus.paused;
-          } else if (stat.state.contains('Live')) {
-            task.status = DownloadTaskStatus.downloading;
-          }
+          task.status = nextStatus;
+          hasChanges = true;
         } else {
-          // Add task that was started externally or from a previous session
-          final newTask = DownloadTask(
-            id: hashLower,
-            name: stat.name,
-            magnet: '', // Unknown
-            startTime: DateTime.now(),
-            status: stat.progress >= 100.0
-                ? DownloadTaskStatus.seeding
-                : DownloadTaskStatus.downloading,
-            progress: stat.progress,
-            downloadSpeed: stat.downloadSpeed,
-            uploadSpeed: stat.uploadSpeed,
-            downloaded: stat.downloaded,
-            totalSize: stat.totalSize,
-            peers: stat.peers,
-            streamUrl: 'http://127.0.0.1:3000/torrents/$hashLower/stream/0',
+          // Skip auto-creating tasks from external stats without a known magnet.
+          // A task with magnet: '' cannot be resumed and pollutes the list.
+          debugPrint(
+            '[DownloadManager] Skipping external torrent $hashLower — no magnet available',
           );
-          _tasks[hashLower] = newTask;
         }
       }
 
-      // Save tasks periodically
-      await _saveTasks();
-      notifyListeners();
+      _ensureStatsPolling();
+
+      if (hasChanges) {
+        notifyListeners();
+
+        final now = DateTime.now();
+        if (_lastStatsPersistenceAt == null ||
+            now.difference(_lastStatsPersistenceAt!) >=
+                const Duration(seconds: 10)) {
+          _lastStatsPersistenceAt = now;
+          await _saveTasks();
+        }
+      }
     } catch (e) {
       debugPrint('Error updating torrent stats: $e');
     }
@@ -476,16 +513,34 @@ class DownloadManager extends ChangeNotifier {
     });
   }
 
+  /// Starts polling if pollable tasks exist and timer is not running.
+  void _ensureStatsPolling() {
+    if (!_hasPollingTasks) {
+      stopStatsPolling();
+    } else if (_statsTimer == null || !_statsTimer!.isActive) {
+      _startStatsPolling();
+    }
+  }
+
   void stopStatsPolling() {
     _statsTimer?.cancel();
     _statsTimer = null;
   }
 
-  /// Extract info hash from magnet link
+  /// Extract info hash from magnet link.
   String? _extractInfoHash(String magnet) {
-    final regex = RegExp(r'btih:([a-fA-F0-9]{40})');
-    final match = regex.firstMatch(magnet);
-    return match?.group(1)?.toLowerCase();
+    final btmh = RegExp(r'btmh:1220([a-fA-F0-9]{64})');
+    final hex64 = RegExp(r'btih:([a-fA-F0-9]{64})');
+    final base32 = RegExp(r'btih:([A-Za-z2-7]{32})');
+    final hex40 = RegExp(r'btih:([a-fA-F0-9]{40})(?![a-fA-F0-9])');
+
+    for (final regex in [btmh, hex64, base32, hex40]) {
+      final match = regex.firstMatch(magnet);
+      if (match != null) {
+        return match.group(1)!.toLowerCase();
+      }
+    }
+    return null;
   }
 
   /// Extract info hash from stream URL
@@ -511,6 +566,7 @@ class DownloadManager extends ChangeNotifier {
         _pausedTaskIds.add(id);
         await _saveTasks();
         notifyListeners();
+        _ensureStatsPolling();
         debugPrint('[DownloadManager] Paused task: $id');
       }
       return success;
@@ -538,6 +594,7 @@ class DownloadManager extends ChangeNotifier {
         _pausedTaskIds.remove(id);
         await _saveTasks();
         notifyListeners();
+        _ensureStatsPolling();
         debugPrint('[DownloadManager] Resumed task: $id');
         return true;
       }
@@ -564,6 +621,7 @@ class DownloadManager extends ChangeNotifier {
         _pausedTaskIds.remove(task.id);
         await _saveTasks();
         notifyListeners();
+        _ensureStatsPolling();
         debugPrint('[DownloadManager] Restarted paused task: ${task.id}');
         return true;
       } else {
@@ -586,6 +644,7 @@ class DownloadManager extends ChangeNotifier {
     _removedTaskIds.add(id); // Mark as removed to prevent re-adding
     await _saveTasks();
     notifyListeners();
+    _ensureStatsPolling();
 
     // Try to stop the torrent in the backend
     try {
@@ -659,6 +718,7 @@ class DownloadManager extends ChangeNotifier {
     }
     await _saveTasks();
     notifyListeners();
+    _ensureStatsPolling();
   }
 
   @override
