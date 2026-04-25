@@ -113,8 +113,15 @@ async fn ensure_initialized() -> anyhow::Result<Arc<tokio::sync::Mutex<AppState>
 
     // Buffer some disk writes in memory to reduce small-write overhead on Windows.
     // This can noticeably improve throughput on some machines (AV/indexing/slow disks).
-    // Value is in megabytes.
-    options.defer_writes_up_to = Some(64);
+    // Value is in megabytes. Use a smaller buffer on mobile where memory is tight.
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        options.defer_writes_up_to = Some(16);
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        options.defer_writes_up_to = Some(64);
+    }
 
     // Enable DHT for better peer discovery (especially for magnets)
     // This is crucial for discovering peers from magnet links
@@ -131,10 +138,11 @@ async fn ensure_initialized() -> anyhow::Result<Arc<tokio::sync::Mutex<AppState>
         options.disable_dht_persistence = false;
     }
 
-    // Optimize peer connections for faster downloads
+    // Optimize peer connections for faster downloads.
+    // A shorter connect timeout frees up connection slots more quickly when peers
+    // are unreachable; 10 s is plenty for any peer that's going to answer at all.
     options.peer_opts = Some(librqbit::PeerConnectionOptions {
-        // Increase timeouts to allow slower peers to connect
-        connect_timeout: Some(std::time::Duration::from_secs(20)),
+        connect_timeout: Some(std::time::Duration::from_secs(10)),
         read_write_timeout: Some(std::time::Duration::from_secs(60)),
         ..Default::default()
     });
@@ -188,10 +196,8 @@ async fn get_session() -> anyhow::Result<Arc<Session>> {
 }
 
 pub async fn start_torrent(magnet: String) -> String {
-    // Demo fallback for quick testing
-    if magnet.contains("demo") || magnet.is_empty() {
-        return "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-            .to_string();
+    if magnet.trim().is_empty() {
+        return "Error: empty magnet link".to_string();
     }
 
     let session = match get_session().await {
@@ -217,34 +223,19 @@ pub async fn start_torrent(magnet: String) -> String {
         original_tracker_count
     );
 
-    // Inject high-quality trackers.
-    // These are especially helpful for anime resources and general torrents.
+    // Inject a small, high-quality tracker set. We intentionally keep the list
+    // short: every extra tracker has to be announced to on startup, which
+    // significantly delays the first peer connection when many are slow or dead.
+    // Users get the rest through DHT + PEX + the magnet's own trackers.
     let trackers = [
-        // Anime-specific trackers (critical for anime content)
-        "&tr=http://share.camoe.cn:8080/announce",
-        "&tr=http://t.acg.rip:6699/announce",
-        "&tr=http://tracker.kamigami.org:2710/announce",
-        "&tr=https://tr.bangumi.moe:9696/announce",
-        "&tr=http://tr.bangumi.moe:6969/announce",
-        "&tr=http://open.acgtracker.com:1096/announce",
-        // Popular stable public trackers (Best of 2025)
+        // Popular stable public trackers
         "&tr=udp://tracker.opentrackr.org:1337/announce",
-        "&tr=udp://open.tracker.cl:1337/announce",
-        "&tr=udp://9.rarbg.me:2970/announce",
-        "&tr=udp://p4p.arenabg.com:1337/announce",
-        "&tr=udp://tracker.torrent.eu.org:451/announce",
-        "&tr=udp://tracker.doko.moe:6969/announce",
-        "&tr=https://trackers.mlz.io:443/announce",
-        "&tr=udp://tracker.moeking.me:6969/announce",
-        "&tr=udp://open.stealth.si:80/announce",
-        "&tr=udp://exodus.desync.com:6969/announce",
         "&tr=udp://open.demonii.com:1337/announce",
-        "&tr=udp://explodie.org:6969/announce",
+        "&tr=udp://exodus.desync.com:6969/announce",
         "&tr=udp://tracker.openbittorrent.com:6969/announce",
-        "&tr=http://tracker.openbittorrent.com:80/announce",
         "&tr=udp://opentracker.i2p.rocks:6969/announce",
-        "&tr=https://opentracker.i2p.rocks:443/announce",
-        "&tr=wss://tracker.openwebtorrent.com",
+        // Anime-friendly (kept minimal; many bangumi-specific trackers are unreliable)
+        "&tr=udp://tracker.doko.moe:6969/announce",
     ];
 
     let mut added_tracker_count = 0;
@@ -345,13 +336,10 @@ pub async fn start_torrent(magnet: String) -> String {
         return "Error: No files found in torrent".to_string();
     }
 
-    // Note: In librqbit 8.x, sequential download and file selection are handled differently
-    // The HTTP streaming endpoint will handle sequential piece requests automatically
-    // We rely on the stream endpoint to prioritize downloading pieces in order
-
-    // Pause briefly to allow peer connections to establish
-    // This gives the torrent client time to connect to more peers before streaming starts
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    // Note: In librqbit 8.x, sequential download and file selection are handled
+    // differently. The HTTP streaming endpoint prioritizes the requested range's
+    // pieces automatically, so we don't need an artificial delay here before
+    // returning the stream URL.
 
     log::info!(
         "Streaming file index {} from torrent {} (size: {} bytes)",
@@ -483,10 +471,31 @@ pub async fn get_torrent_stats() -> Vec<TorrentStats> {
                 0.0
             };
 
+            // Normalize the state into a small, stable set of lowercase tokens so
+            // the Dart side doesn't have to depend on `Debug` formatting of
+            // librqbit's internal enum (variant names and payloads can change).
+            let raw_state = format!("{:?}", stats.state);
+            let is_paused = handle.is_paused();
+            let normalized_state: String = if is_paused {
+                "paused".to_string()
+            } else if raw_state.starts_with("Live") {
+                "live".to_string()
+            } else if raw_state.starts_with("Initializing") {
+                "initializing".to_string()
+            } else if raw_state.starts_with("Error") {
+                "error".to_string()
+            } else if raw_state.starts_with("Paused") {
+                "paused".to_string()
+            } else {
+                // Unknown/future states — pass through lowercased so it's at
+                // least debuggable from the UI.
+                raw_state.to_lowercase()
+            };
+
             collected.push(TorrentStats {
                 info_hash,
                 name,
-                state: format!("{:?}", stats.state),
+                state: normalized_state,
                 progress,
                 download_speed: download_speed as f64 * 1024.0 * 1024.0, // Convert from MB/s to bytes/s
                 upload_speed: upload_speed as f64 * 1024.0 * 1024.0,

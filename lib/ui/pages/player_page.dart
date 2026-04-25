@@ -2923,6 +2923,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // Reload comments
     _loadComments();
 
+    // If this episode already has a BT download ready, play it immediately.
+    // This mirrors initState's behavior — without it, switching to an already
+    // downloaded episode would silently fall through to Mikan/DMHY/sample
+    // search even though a local stream is available.
+    _checkAndPlayExistingBtDownload();
+
     // Reload video sources
     if (_mikanAnime != null) {
       _reloadMikanResourcesForEpisode();

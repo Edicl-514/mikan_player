@@ -8,6 +8,13 @@ import 'package:mikan_player/src/rust/api/simple.dart';
 /// This key is NOT cleared by the cache clearing function
 const String _btTasksStorageKey = 'bt_download_tasks_v1';
 
+/// Base URL of the local rqbit streaming HTTP server (defined in Rust init).
+const String _streamBaseUrl = 'http://127.0.0.1:3000';
+
+/// Build the HTTP stream URL for a torrent + file index pair.
+String _buildStreamUrl(String infoHash, int fileIdx) =>
+    '$_streamBaseUrl/torrents/$infoHash/stream/$fileIdx';
+
 /// Represents a download task
 class DownloadTask {
   String id; // info_hash
@@ -25,6 +32,7 @@ class DownloadTask {
   BigInt totalSize;
   int peers;
   String? streamUrl;
+  int? largestFileIdx; // Persisted so streamUrl can be synthesized after restart.
   String? errorMessage;
 
   DownloadTask({
@@ -42,14 +50,24 @@ class DownloadTask {
     BigInt? totalSize,
     this.peers = 0,
     this.streamUrl,
+    this.largestFileIdx,
     this.errorMessage,
   }) : downloaded = downloaded ?? BigInt.zero,
        totalSize = totalSize ?? BigInt.zero;
 
   /// Create from JSON (for persistence)
   factory DownloadTask.fromJson(Map<String, dynamic> json) {
+    final id = json['id'] as String;
+    final largestFileIdx = (json['largestFileIdx'] as num?)?.toInt();
+    // Reconstruct the stream URL immediately when we know the file index.
+    // The rqbit HTTP server is started synchronously during initEngine, and
+    // once the torrent is re-added by [_resumeTorrentInBackground], this URL
+    // is valid. For paused tasks it won't be hit until the user resumes.
+    final streamUrl = largestFileIdx != null
+        ? _buildStreamUrl(id, largestFileIdx)
+        : null;
     return DownloadTask(
-      id: json['id'] as String,
+      id: id,
       name: json['name'] as String,
       magnet: json['magnet'] as String,
       animeName: json['animeName'] as String?,
@@ -62,7 +80,8 @@ class DownloadTask {
       downloaded: BigInt.parse(json['downloaded'] as String? ?? '0'),
       totalSize: BigInt.parse(json['totalSize'] as String? ?? '0'),
       peers: 0,
-      streamUrl: null, // Never restore streamUrl from disk; it expires on restart
+      streamUrl: streamUrl,
+      largestFileIdx: largestFileIdx,
       errorMessage: null,
     );
   }
@@ -80,7 +99,8 @@ class DownloadTask {
       'progress': progress,
       'downloaded': downloaded.toString(),
       'totalSize': totalSize.toString(),
-      // streamUrl intentionally omitted — it is session-only
+      'largestFileIdx': largestFileIdx,
+      // streamUrl intentionally omitted — reconstructed from id + largestFileIdx
     };
   }
 
@@ -208,6 +228,7 @@ class DownloadManager extends ChangeNotifier {
       if (jsonStr != null && jsonStr.isNotEmpty) {
         final List<dynamic> jsonList = jsonDecode(jsonStr);
         var removedInvalidTasks = false;
+        final toResume = <DownloadTask>[];
         for (final json in jsonList) {
           final task = DownloadTask.fromJson(json as Map<String, dynamic>);
 
@@ -229,8 +250,7 @@ class DownloadManager extends ChangeNotifier {
               (task.status == DownloadTaskStatus.downloading ||
                   task.status == DownloadTaskStatus.seeding ||
                   task.status == DownloadTaskStatus.completed)) {
-            // Resume in background without blocking
-            _resumeTorrentInBackground(task);
+            toResume.add(task);
           }
         }
         if (removedInvalidTasks) {
@@ -239,6 +259,14 @@ class DownloadManager extends ChangeNotifier {
         debugPrint(
           '[DownloadManager] Loaded ${_tasks.length} tasks from storage',
         );
+
+        // Cold-start resume: run at most 3 backend `startTorrent` calls in
+        // parallel to avoid hammering librqbit and overwhelming trackers when
+        // the user has many persisted tasks. Fire-and-forget so [initialize]
+        // can complete and the UI can render immediately.
+        if (toResume.isNotEmpty) {
+          unawaited(_runResumeQueue(toResume, 3));
+        }
       }
     } catch (e) {
       debugPrint('[DownloadManager] Error loading tasks: $e');
@@ -253,6 +281,8 @@ class DownloadManager extends ChangeNotifier {
       final streamUrl = await startTorrent(magnet: task.magnet);
       if (!streamUrl.startsWith('Error')) {
         task.streamUrl = streamUrl;
+        task.largestFileIdx =
+            _extractFileIdxFromUrl(streamUrl) ?? task.largestFileIdx;
         // Update status but don't change if it was completed/seeding
         if (task.status != DownloadTaskStatus.seeding &&
             task.status != DownloadTaskStatus.completed) {
@@ -270,6 +300,27 @@ class DownloadManager extends ChangeNotifier {
     } catch (e) {
       debugPrint('[DownloadManager] Error auto-resuming torrent: $e');
     }
+  }
+
+  /// Drive cold-start resume with a bounded worker pool so we don't fire
+  /// dozens of [startTorrent] calls in parallel.
+  Future<void> _runResumeQueue(
+    List<DownloadTask> tasks,
+    int maxConcurrent,
+  ) async {
+    var index = 0;
+    Future<void> worker() async {
+      while (true) {
+        final i = index++;
+        if (i >= tasks.length) return;
+        await _resumeTorrentInBackground(tasks[i]);
+      }
+    }
+
+    final workers = <Future<void>>[
+      for (var w = 0; w < maxConcurrent; w++) worker(),
+    ];
+    await Future.wait(workers);
   }
 
   /// Save tasks to SharedPreferences
@@ -392,6 +443,7 @@ class DownloadManager extends ChangeNotifier {
 
       // Update task with actual info
       final actualId = _extractInfoHashFromUrl(streamUrl) ?? tempId;
+      final fileIdx = _extractFileIdxFromUrl(streamUrl);
       if (actualId != tempId) {
         _tasks.remove(tempId);
         _removedTaskIds.remove(
@@ -401,10 +453,12 @@ class DownloadManager extends ChangeNotifier {
         // Remove actual ID from removed set in case it was previously deleted
         _removedTaskIds.remove(actualId);
         task.streamUrl = streamUrl;
+        task.largestFileIdx = fileIdx ?? task.largestFileIdx;
         task.status = DownloadTaskStatus.downloading;
         _tasks[actualId] = task;
       } else {
         task.streamUrl = streamUrl;
+        task.largestFileIdx = fileIdx ?? task.largestFileIdx;
         task.status = DownloadTaskStatus.downloading;
       }
 
@@ -437,55 +491,68 @@ class DownloadManager extends ChangeNotifier {
 
       for (final stat in stats) {
         final hashLower = stat.infoHash.toLowerCase();
+        if (_removedTaskIds.contains(hashLower)) continue;
 
-        // Skip if this task was manually removed
-        if (_removedTaskIds.contains(hashLower)) {
-          continue;
-        }
-
-        if (_tasks.containsKey(hashLower)) {
-          final task = _tasks[hashLower]!;
-
-          // Skip status update if task is paused (user explicitly paused it)
-          if (_pausedTaskIds.contains(hashLower)) {
-            continue;
-          }
-
-          final nextStatus = stat.progress >= 100.0
-              ? DownloadTaskStatus.seeding
-              : stat.state.contains('Paused')
-                  ? DownloadTaskStatus.paused
-                  : stat.state.contains('Live')
-                      ? DownloadTaskStatus.downloading
-                      : task.status;
-
-          final taskChanged = task.progress != stat.progress ||
-              task.downloadSpeed != stat.downloadSpeed ||
-              task.uploadSpeed != stat.uploadSpeed ||
-              task.downloaded != stat.downloaded ||
-              task.totalSize != stat.totalSize ||
-              task.peers != stat.peers ||
-              task.status != nextStatus;
-
-          if (!taskChanged) {
-            continue;
-          }
-
-          task.progress = stat.progress;
-          task.downloadSpeed = stat.downloadSpeed;
-          task.uploadSpeed = stat.uploadSpeed;
-          task.downloaded = stat.downloaded;
-          task.totalSize = stat.totalSize;
-          task.peers = stat.peers;
-          task.status = nextStatus;
-          hasChanges = true;
-        } else {
-          // Skip auto-creating tasks from external stats without a known magnet.
-          // A task with magnet: '' cannot be resumed and pollutes the list.
+        if (!_tasks.containsKey(hashLower)) {
           debugPrint(
             '[DownloadManager] Skipping external torrent $hashLower — no magnet available',
           );
+          continue;
         }
+
+        final task = _tasks[hashLower]!;
+
+        // Paused tasks: still let peers/totalSize/downloaded reflect reality,
+        // but never flip the status or speed fields from the poll.
+        if (_pausedTaskIds.contains(hashLower)) {
+          final changed = task.downloaded != stat.downloaded ||
+              task.totalSize != stat.totalSize ||
+              task.peers != stat.peers;
+          if (changed) {
+            task.downloaded = stat.downloaded;
+            task.totalSize = stat.totalSize;
+            task.peers = stat.peers;
+            hasChanges = true;
+          }
+          continue;
+        }
+
+        // Rust now returns a lowercase, stable state token.
+        final state = stat.state;
+        final nextStatus = stat.progress >= 100.0
+            ? DownloadTaskStatus.seeding
+            : state == 'paused'
+                ? DownloadTaskStatus.paused
+                : state == 'live'
+                    ? DownloadTaskStatus.downloading
+                    : state == 'error'
+                        ? DownloadTaskStatus.error
+                        : task.status;
+
+        // Use epsilon comparisons; otherwise FP noise makes every poll look
+        // like a change and fires notifyListeners() → a full UI rebuild every
+        // 2 s, even for torrents whose speed is steady.
+        const progressEps = 0.05; // 0.05 %
+        const speedEps = 1024.0; // 1 KB/s
+        final taskChanged =
+            (task.progress - stat.progress).abs() > progressEps ||
+                (task.downloadSpeed - stat.downloadSpeed).abs() > speedEps ||
+                (task.uploadSpeed - stat.uploadSpeed).abs() > speedEps ||
+                task.downloaded != stat.downloaded ||
+                task.totalSize != stat.totalSize ||
+                task.peers != stat.peers ||
+                task.status != nextStatus;
+
+        if (!taskChanged) continue;
+
+        task.progress = stat.progress;
+        task.downloadSpeed = stat.downloadSpeed;
+        task.uploadSpeed = stat.uploadSpeed;
+        task.downloaded = stat.downloaded;
+        task.totalSize = stat.totalSize;
+        task.peers = stat.peers;
+        task.status = nextStatus;
+        hasChanges = true;
       }
 
       _ensureStatsPolling();
@@ -550,6 +617,14 @@ class DownloadManager extends ChangeNotifier {
     return match?.group(1)?.toLowerCase();
   }
 
+  /// Extract file index from stream URL (e.g. `.../stream/0` → 0)
+  int? _extractFileIdxFromUrl(String url) {
+    final regex = RegExp(r'/stream/(\d+)(?:[/?#]|$)');
+    final match = regex.firstMatch(url);
+    final raw = match?.group(1);
+    return raw == null ? null : int.tryParse(raw);
+  }
+
   /// Pause a download task
   /// This stops the torrent without deleting files
   Future<bool> pauseTask(String id) async {
@@ -607,17 +682,19 @@ class DownloadManager extends ChangeNotifier {
       final streamUrl = await startTorrent(magnet: task.magnet);
       if (!streamUrl.startsWith('Error')) {
         final actualId = _extractInfoHashFromUrl(streamUrl) ?? id;
+        final fileIdx = _extractFileIdxFromUrl(streamUrl);
         if (actualId != id) {
           _tasks.remove(id);
           _pausedTaskIds.remove(id);
-          _removedTaskIds.remove(id);
           task.id = actualId;
           _tasks[actualId] = task;
         }
+        _removedTaskIds.remove(task.id);
         task.status = task.progress >= 100.0
             ? DownloadTaskStatus.seeding
             : DownloadTaskStatus.downloading;
         task.streamUrl = streamUrl;
+        task.largestFileIdx = fileIdx ?? task.largestFileIdx;
         _pausedTaskIds.remove(task.id);
         await _saveTasks();
         notifyListeners();
@@ -658,7 +735,7 @@ class DownloadManager extends ChangeNotifier {
           '[DownloadManager] Failed to stop torrent (may not exist): $id',
         );
         if (deleteFiles && task?.magnet.isNotEmpty == true) {
-          await _deleteFilesForMissingTorrent(task!);
+          _noteOrphanedFiles(task!);
         }
       }
     } catch (e) {
@@ -666,32 +743,17 @@ class DownloadManager extends ChangeNotifier {
     }
   }
 
-  /// Best-effort cleanup for paused tasks restored from storage.
-  /// After an app restart, a paused torrent may not exist in the backend
-  /// session anymore, so rqbit needs the magnet metadata before it can remove
-  /// the files it created.
-  Future<void> _deleteFilesForMissingTorrent(DownloadTask task) async {
-    try {
-      debugPrint(
-        '[DownloadManager] Re-attaching missing torrent for file cleanup: ${task.id}',
-      );
-      final streamUrl = await startTorrent(magnet: task.magnet);
-      if (streamUrl.startsWith('Error')) {
-        debugPrint(
-          '[DownloadManager] Failed to re-attach torrent for cleanup: $streamUrl',
-        );
-        return;
-      }
-
-      final actualId = _extractInfoHashFromUrl(streamUrl) ?? task.id;
-      await stopTorrent(infoHash: actualId, deleteFiles: true);
-      _removedTaskIds.add(actualId);
-      debugPrint(
-        '[DownloadManager] Cleaned up files for missing torrent: $actualId',
-      );
-    } catch (e) {
-      debugPrint('[DownloadManager] Error cleaning up missing torrent: $e');
-    }
+  /// Best-effort cleanup for tasks whose backend handle has already
+  /// disappeared. We intentionally do NOT re-add the torrent just to delete
+  /// it — doing so would reconnect to trackers, burn bandwidth and leave a
+  /// phantom task in the backend after the user already asked us to get rid
+  /// of it. Any leftover files on disk can be cleaned up manually; the next
+  /// user-initiated download will `overwrite` them anyway.
+  void _noteOrphanedFiles(DownloadTask task) {
+    debugPrint(
+      '[DownloadManager] Torrent ${task.id} not in backend session; '
+      'skipping re-attach. Files (if any) remain in download directory.',
+    );
   }
 
   /// Clear completed tasks
