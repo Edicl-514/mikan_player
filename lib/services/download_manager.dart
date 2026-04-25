@@ -181,6 +181,9 @@ class DownloadManager extends ChangeNotifier {
   Timer? _statsTimer;
   bool _isInitialized = false;
   DateTime? _lastStatsPersistenceAt;
+  bool _isUpdatingStats = false;
+  bool _isRecoveringActiveTasks = false;
+  DateTime? _lastForegroundRecoveryAt;
 
   List<DownloadTask> get tasks => _tasks.values.toList();
 
@@ -203,6 +206,18 @@ class DownloadManager extends ChangeNotifier {
 
   /// Count of seeding tasks
   int get seedingCount => seedingTasks.length;
+
+  List<DownloadTask> get _expectedActiveTasks => _tasks.values
+      .where(
+        (task) =>
+            !_removedTaskIds.contains(task.id) &&
+            !_pausedTaskIds.contains(task.id) &&
+            task.magnet.isNotEmpty &&
+            (task.status == DownloadTaskStatus.pending ||
+                task.status == DownloadTaskStatus.downloading ||
+                task.status == DownloadTaskStatus.seeding),
+      )
+      .toList();
 
   bool get _hasPollingTasks => _tasks.values.any(
     (task) =>
@@ -480,10 +495,16 @@ class DownloadManager extends ChangeNotifier {
 
   /// Update stats from Rust backend
   Future<void> _updateStats() async {
+    if (_isUpdatingStats) {
+      return;
+    }
+
     if (!_hasPollingTasks) {
       _ensureStatsPolling();
       return;
     }
+
+    _isUpdatingStats = true;
 
     try {
       final stats = await getTorrentStats();
@@ -570,6 +591,59 @@ class DownloadManager extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error updating torrent stats: $e');
+    } finally {
+      _isUpdatingStats = false;
+    }
+  }
+
+  Future<void> handleAppResumed() async {
+    _ensureStatsPolling();
+
+    final now = DateTime.now();
+    if (_isRecoveringActiveTasks) {
+      return;
+    }
+    if (_lastForegroundRecoveryAt != null &&
+        now.difference(_lastForegroundRecoveryAt!) <
+            const Duration(seconds: 3)) {
+      unawaited(_updateStats());
+      return;
+    }
+
+    _isRecoveringActiveTasks = true;
+    _lastForegroundRecoveryAt = now;
+
+    try {
+      final stats = await getTorrentStats();
+      final statsByHash = <String, TorrentStats>{
+        for (final stat in stats) stat.infoHash.toLowerCase(): stat,
+      };
+      final missingTasks = <DownloadTask>[];
+      final pausedTaskIds = <String>[];
+
+      for (final task in _expectedActiveTasks) {
+        final stat = statsByHash[task.id.toLowerCase()];
+        if (stat == null || stat.state == 'error') {
+          missingTasks.add(task);
+          continue;
+        }
+        if (stat.state == 'paused') {
+          pausedTaskIds.add(task.id);
+        }
+      }
+
+      for (final id in pausedTaskIds) {
+        await resumeTask(id);
+      }
+
+      if (missingTasks.isNotEmpty) {
+        await _runResumeQueue(missingTasks, 2);
+      }
+    } catch (e) {
+      debugPrint('[DownloadManager] Error recovering tasks on resume: $e');
+    } finally {
+      _isRecoveringActiveTasks = false;
+      await _updateStats();
     }
   }
 

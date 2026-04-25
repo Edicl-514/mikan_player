@@ -6,19 +6,24 @@ use librqbit::{
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::Once;
 use tokio::sync::Mutex;
 
 pub fn init_engine(cache_dir: String, download_dir: String) {
     // Initialize config with paths
     crate::api::config::init_config(cache_dir, download_dir);
 
-    // Disable heavy logs from rqbit and related crates
-    env_logger::Builder::from_env(
-        env_logger::Env::default()
-            .default_filter_or("info,librqbit=off,librqbit_dht=off,tracing=off"),
-    )
-    .init();
-    flutter_rust_bridge::setup_default_user_utils();
+    static INIT_ENGINE_ONCE: Once = Once::new();
+    INIT_ENGINE_ONCE.call_once(|| {
+        // Disable heavy logs from rqbit and related crates
+        let _ = env_logger::Builder::from_env(
+            env_logger::Env::default()
+                .default_filter_or("info,librqbit=off,librqbit_dht=off,tracing=off"),
+        )
+        .try_init();
+        flutter_rust_bridge::setup_default_user_utils();
+    });
+
     log::info!("Mikan Player Rust engine initialized");
 
     if let Some(proxy) = crate::api::network::get_system_proxy() {
