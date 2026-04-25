@@ -100,7 +100,10 @@ pub fn create_client() -> reqwest::Result<Client> {
 
     let mut builder = Client::builder()
         .user_agent("MikanPlayer/1.0")
-        .timeout(Duration::from_secs(30))
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(20))
+        .tcp_keepalive(Some(Duration::from_secs(60)))
+        .pool_idle_timeout(Duration::from_secs(30))
         .tls_backend_preconfigured(tls_config);
 
     if let Some(proxy_url) = get_system_proxy() {

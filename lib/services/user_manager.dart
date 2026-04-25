@@ -35,7 +35,8 @@ class UserManager extends ChangeNotifier {
 
   Future<void> login(String username) async {
     try {
-      final client = HttpClient();
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 10);
       final request = await client.getUrl(
         Uri.parse('https://api.bgm.tv/v0/users/$username'),
       );
@@ -43,9 +44,9 @@ class UserManager extends ChangeNotifier {
       // Add User-Agent as good practice for APIs
       request.headers.add('User-Agent', 'MikanPlayer/1.0.0 (flutter)');
 
-      final response = await request.close();
+      final response = await request.close().timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
+        final responseBody = await response.transform(utf8.decoder).join().timeout(const Duration(seconds: 10));
         final json = jsonDecode(responseBody);
         _user = User.fromJson(json);
         await _saveUser();

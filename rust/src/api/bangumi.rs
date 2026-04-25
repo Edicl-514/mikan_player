@@ -64,8 +64,15 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
     let mut all_episodes = Vec::new();
     let mut offset = 0;
     let limit = 100;
+    let max_pages = 20;
+    let mut page_count = 0;
 
     loop {
+        page_count += 1;
+        if page_count > max_pages {
+            log::warn!("fetch_bangumi_episodes: reached max page limit ({}) for subject_id={}", max_pages, subject_id);
+            break;
+        }
         let url = format!(
             "{}/v0/episodes?subject_id={}&limit={}&offset={}",
             crate::api::config::get_bangumi_api_url(),

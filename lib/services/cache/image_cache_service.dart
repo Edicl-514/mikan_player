@@ -21,7 +21,8 @@ class ImageCacheService {
 
   Directory? _cacheDir;
   bool _isInitialized = false;
-  final HttpClient _httpClient = HttpClient();
+  final HttpClient _httpClient = HttpClient()
+    ..connectionTimeout = const Duration(seconds: 10);
   final Map<String, Future<String?>> _inFlightDownloads = {};
   final Queue<Completer<void>> _downloadQueue = Queue<Completer<void>>();
   int _activeDownloads = 0;
@@ -193,7 +194,7 @@ class ImageCacheService {
       );
       request.headers.set('Referer', '${uri.scheme}://${uri.host}/');
 
-      final response = await request.close();
+      final response = await request.close().timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final bytes = await consolidateHttpClientResponseBytes(response);

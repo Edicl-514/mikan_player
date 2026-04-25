@@ -70,7 +70,8 @@ class _FavoritesPageState extends State<FavoritesPage>
 
     try {
       final username = _userManager.user!.username;
-      final client = HttpClient();
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 10);
       final request = await client.getUrl(
         Uri.parse(
           'https://api.bgm.tv/v0/users/$username/collections?subject_type=2&limit=30&offset=0',
@@ -79,7 +80,7 @@ class _FavoritesPageState extends State<FavoritesPage>
       request.headers.add('accept', 'application/json');
       request.headers.add('User-Agent', 'MikanPlayer/1.0.0 (flutter)');
 
-      final response = await request.close();
+      final response = await request.close().timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final responseBody = await response.transform(utf8.decoder).join();
         final json = jsonDecode(responseBody);

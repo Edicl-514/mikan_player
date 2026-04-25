@@ -107,7 +107,7 @@ pub async fn fetch_dmhy_resources(
 
             if let Some(ep) = episode {
                 if ep == target_episode {
-                    let size_bytes = enclosure.length.parse::<u64>().unwrap_or(0);
+                    let size_bytes = enclosure.length.parse::<u64>().unwrap_or(0) * 1024;
                     let size_str = format_size(size_bytes);
 
                     resources.push(DmhyResource {

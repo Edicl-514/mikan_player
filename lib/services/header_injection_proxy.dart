@@ -87,12 +87,13 @@ class HeaderInjectionProxy {
       debugPrint('[HeaderProxy] Custom headers: $customHeaders');
 
       // Create HTTP client
-      final client = HttpClient();
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 10);
 
       try {
         // Forward the request to the original URL
         final uri = Uri.parse(originalUrl);
-        final clientRequest = await client.getUrl(uri);
+        final clientRequest = await client.getUrl(uri).timeout(const Duration(seconds: 12));
 
         // Add custom headers
         customHeaders.forEach((key, value) {
@@ -109,7 +110,7 @@ class HeaderInjectionProxy {
         });
 
         // Send request and get response
-        final clientResponse = await clientRequest.close();
+        final clientResponse = await clientRequest.close().timeout(const Duration(seconds: 30));
 
         // Forward response status and headers
         request.response.statusCode = clientResponse.statusCode;
