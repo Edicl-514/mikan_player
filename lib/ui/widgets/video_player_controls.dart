@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
@@ -23,9 +24,9 @@ class CustomVideoControls extends StatelessWidget {
 
   // 弹幕相关
   final DanmakuService danmakuService;
-  final double currentVideoTime;
-  final bool isVideoPaused;
-  final bool showDanmakuSettings;
+  final ValueListenable<double> currentVideoTimeListenable;
+  final ValueListenable<bool> isVideoPausedListenable;
+  final ValueListenable<bool> showDanmakuSettingsListenable;
   final VoidCallback onToggleDanmakuSettings;
 
   // 字幕相关
@@ -62,9 +63,9 @@ class CustomVideoControls extends StatelessWidget {
     required this.state,
     required this.isMobile,
     required this.danmakuService,
-    required this.currentVideoTime,
-    required this.isVideoPaused,
-    required this.showDanmakuSettings,
+    required this.currentVideoTimeListenable,
+    required this.isVideoPausedListenable,
+    required this.showDanmakuSettingsListenable,
     required this.onToggleDanmakuSettings,
     required this.subtitleService,
     required this.allEpisodes,
@@ -446,27 +447,18 @@ class CustomVideoControls extends StatelessWidget {
                   // 1. 弹幕渲染层 (在视频之后，控件之前)
                   Positioned.fill(
                     child: IgnorePointer(
-                      child: StreamBuilder<bool>(
-                        stream: state.widget.controller.player.stream.playing,
-                        builder: (context, playingSnapshot) {
-                          final isPlaying =
-                              playingSnapshot.data ??
-                              state.widget.controller.player.state.playing;
-                          return StreamBuilder<Duration>(
-                            stream:
-                                state.widget.controller.player.stream.position,
-                            builder: (context, posSnapshot) {
-                              final position =
-                                  posSnapshot.data ??
-                                  state.widget.controller.player.state.position;
-                              final currentSeconds =
-                                  position.inMilliseconds / 1000.0;
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: currentVideoTimeListenable,
+                        builder: (context, currentVideoTime, _) {
+                          return ValueListenableBuilder<bool>(
+                            valueListenable: isVideoPausedListenable,
+                            builder: (context, isVideoPaused, _) {
                               return DanmakuOverlay(
-                                currentTime: currentSeconds,
+                                currentTime: currentVideoTime,
                                 danmakuList: danmakuService.danmakuList,
                                 settings: danmakuService.settings,
-                                isPaused: !isPlaying,
-                                isPlaying: true,
+                                isPaused: isVideoPaused,
+                                isPlaying: !isVideoPaused,
                               );
                             },
                           );
@@ -524,29 +516,37 @@ class CustomVideoControls extends StatelessWidget {
                   ],
 
                   // 4. 右侧设置面板 (类似 Bilibili 风格)
-                  if (showDanmakuSettings) ...[
-                    // 背景点击关闭
-                    Positioned.fill(
-                      child: GestureDetector(
-                        onTap: onToggleDanmakuSettings,
-                        behavior: HitTestBehavior.opaque,
-                        child: Container(color: Colors.transparent),
-                      ),
-                    ),
-                    // 侧边栏
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: GestureDetector(
-                        onTap: () {}, // 阻止点击穿透关闭面板
-                        child: VideoSidePanel(
-                          danmakuService: danmakuService,
-                          onClose: onToggleDanmakuSettings,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ValueListenableBuilder<bool>(
+                    valueListenable: showDanmakuSettingsListenable,
+                    builder: (context, showDanmakuSettings, _) {
+                      if (!showDanmakuSettings) return const SizedBox.shrink();
+                      return Stack(
+                        children: [
+                          // 背景点击关闭
+                          Positioned.fill(
+                            child: GestureDetector(
+                              onTap: onToggleDanmakuSettings,
+                              behavior: HitTestBehavior.opaque,
+                              child: Container(color: Colors.transparent),
+                            ),
+                          ),
+                          // 侧边栏
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            bottom: 0,
+                            child: GestureDetector(
+                              onTap: () {}, // 阻止点击穿透关闭面板
+                              child: VideoSidePanel(
+                                danmakuService: danmakuService,
+                                onClose: onToggleDanmakuSettings,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ],
               ),
             ),

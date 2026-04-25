@@ -15,6 +15,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  final SettingsService _settingsService = SettingsService();
   Map<String, dynamic>? _cacheStats;
   bool _isLoadingStats = false;
   bool _isClearingCache = false;
@@ -162,7 +163,6 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildLanguageTile(BuildContext context) {
-    final settings = SettingsService();
     return Card(
       elevation: 0,
       color: Theme.of(
@@ -181,10 +181,10 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         subtitle: Text(AppLocalizations.of(context).languageSubtitle),
         trailing: DropdownButton<Locale?>(
-          value: settings.locale,
+          value: _settingsService.locale,
           underline: const SizedBox(),
           onChanged: (Locale? newLocale) {
-            settings.setLocale(newLocale);
+            _settingsService.setLocale(newLocale);
           },
           items: [
             DropdownMenuItem(

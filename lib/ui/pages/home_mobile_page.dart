@@ -377,22 +377,23 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       ),
       body: RefreshIndicator(
         onRefresh: _loadAllData,
-        child: SingleChildScrollView(
+        child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTodaySection(),
-              const SizedBox(height: 24),
-              _buildSectionHeader(AppLocalizations.of(context).recentHot, () {
+          slivers: [
+            SliverToBoxAdapter(child: _buildTodaySection()),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
+            SliverToBoxAdapter(
+              child: _buildSectionHeader(AppLocalizations.of(context).recentHot, () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const RankingPage()),
                 );
               }),
-              _buildRankingList(),
-              const SizedBox(height: 24),
-              _buildSectionHeader(
+            ),
+            SliverToBoxAdapter(child: _buildRankingList()),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
+            SliverToBoxAdapter(
+              child: _buildSectionHeader(
                 AppLocalizations.of(context).historyTitle,
                 () {
                   Navigator.push(
@@ -403,9 +404,11 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                   );
                 },
               ),
-              _buildHistoryList(),
-              const SizedBox(height: 24),
-              _buildSectionHeader(
+            ),
+            SliverToBoxAdapter(child: _buildHistoryList()),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
+            SliverToBoxAdapter(
+              child: _buildSectionHeader(
                 AppLocalizations.of(context).favoritesTitle,
                 () {
                   Navigator.push(
@@ -416,10 +419,10 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                   );
                 },
               ),
-              _buildFavoritesList(),
-              const SizedBox(height: 32),
-            ],
-          ),
+            ),
+            SliverToBoxAdapter(child: _buildFavoritesList()),
+            const SliverToBoxAdapter(child: SizedBox(height: 32)),
+          ],
         ),
       ),
     );

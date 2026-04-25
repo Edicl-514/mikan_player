@@ -76,12 +76,15 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _checkFavoriteStatus();
     _fetchBangumiData();
 
-    _commentScrollController.addListener(() {
-      if (_commentScrollController.position.pixels >=
-          _commentScrollController.position.maxScrollExtent - 200) {
-        _loadMoreComments();
-      }
-    });
+    _commentScrollController.addListener(_handleCommentScroll);
+  }
+
+  void _handleCommentScroll() {
+    if (!_commentScrollController.hasClients) return;
+    if (_commentScrollController.position.pixels >=
+        _commentScrollController.position.maxScrollExtent - 200) {
+      _loadMoreComments();
+    }
   }
 
   Future<void> _loadMoreComments() async {
@@ -127,188 +130,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   Future<void> _fetchBangumiData() async {
     final subjectIdStr = widget.anime.bangumiId;
-    if (subjectIdStr != null) {
-      final subjectId = int.parse(subjectIdStr);
-      final cache = CacheManager.instance;
-
-      // 先尝试从缓存获取完整数据
-      if (_data == null) {
-        final cachedAnime = await cache.getSubject(subjectId);
-        if (cachedAnime != null && cachedAnime.fullJson != null) {
-          // 从缓存加载成功
-          debugPrint('Subject loaded from cache: $subjectId');
-          if (mounted) {
-            setState(() {
-              try {
-                _data = jsonDecode(cachedAnime.fullJson!);
-              } catch (e) {
-                debugPrint("Error parsing cached fullJson: $e");
-              }
-            });
-          }
-        } else {
-          // 缓存未命中，从网络获取
-          fillAnimeDetails(animes: [widget.anime])
-              .then((details) {
-                if (mounted && details.isNotEmpty) {
-                  final detail = details.first;
-                  if (detail.fullJson != null) {
-                    setState(() {
-                      try {
-                        _data = jsonDecode(detail.fullJson!);
-                      } catch (e) {
-                        debugPrint("Error parsing fetched fullJson: $e");
-                      }
-                    });
-                    // 缓存条目信息
-                    cache.cacheAnimeInfo(detail);
-                  }
-                }
-              })
-              .catchError((e) {
-                debugPrint("Error fetching anime details: $e");
-              });
-        }
-      }
-      // 注意：如果 _data != null，说明 widget.anime 已有 fullJson
-      // 这些数据通常来自时间表或其他已缓存的来源，无需重复保存
-
-      setState(() {
-        _isLoadingEpisodes = true;
-        _isLoadingCharacters = true;
-        _isLoadingRelations = true;
-        _isLoadingComments = true;
-        // Reset pagination
-        _commentPage = 1;
-        _hasMoreComments = true;
-      });
-
-      // Fetch Episodes (不缓存，因为更新频繁)
-      fetchBangumiEpisodes(subjectId: subjectId)
-          .then((allEpisodes) {
-            if (!mounted) return;
-            setState(() {
-              final now = DateTime.now();
-              final today = DateTime(now.year, now.month, now.day);
-              _episodes = allEpisodes.where((ep) {
-                if (ep.airdate.isEmpty) return true;
-                try {
-                  // Bangumi airdate is typically YYYY-MM-DD
-                  final date = DateTime.parse(ep.airdate);
-                  final epDate = DateTime(date.year, date.month, date.day);
-                  // Show if epDate <= today
-                  return !epDate.isAfter(today);
-                } catch (e) {
-                  return true; // Keep if format is unknown
-                }
-              }).toList();
-              _isLoadingEpisodes = false;
-            });
-          })
-          .catchError((e) {
-            debugPrint('Error fetching episodes: $e');
-            if (mounted) {
-              setState(() {
-                _episodes = [];
-                _isLoadingEpisodes = false;
-              });
-            }
-          });
-
-      // Fetch Characters (使用缓存)
-      cache
-          .getCharacters(
-            subjectId: subjectId,
-            fetchFromNetwork: () =>
-                fetchBangumiCharacters(subjectId: subjectId),
-          )
-          .then((characters) {
-            if (!mounted) return;
-            // Also collect actor (CV) name→id into personIdMap
-            final actorMap = <String, int>{};
-            for (final ch in characters) {
-              for (final actor in ch.actors) {
-                if (actor.name.isNotEmpty && actor.id != 0) {
-                  actorMap.putIfAbsent(actor.name, () => actor.id);
-                }
-              }
-            }
-            setState(() {
-              _characters = characters;
-              _isLoadingCharacters = false;
-              _mergePersonIdMap(actorMap);
-            });
-          })
-          .catchError((e) {
-            debugPrint('Error fetching characters: $e');
-            if (mounted) {
-              setState(() {
-                _characters = [];
-                _isLoadingCharacters = false;
-              });
-            }
-          });
-
-      // Fetch Relations (使用缓存)
-      cache
-          .getRelations(
-            subjectId: subjectId,
-            fetchFromNetwork: () => fetchBangumiRelations(subjectId: subjectId),
-          )
-          .then((relations) {
-            if (!mounted) return;
-            setState(() {
-              _relations = relations;
-              _isLoadingRelations = false;
-            });
-          })
-          .catchError((e) {
-            debugPrint('Error fetching relations: $e');
-            if (mounted) {
-              setState(() {
-                _relations = [];
-                _isLoadingRelations = false;
-              });
-            }
-          });
-
-      // Fetch Persons (staff) for name→id mapping
-      fetchBangumiPersons(subjectId: subjectId)
-          .then((persons) {
-            if (!mounted) return;
-            final map = <String, int>{};
-            for (final p in persons) {
-              if (p.name.isNotEmpty && p.id != 0) {
-                map.putIfAbsent(p.name, () => p.id);
-              }
-            }
-            setState(() {
-              _mergePersonIdMap(map);
-            });
-          })
-          .catchError((e) {
-            debugPrint('Error fetching persons: $e');
-          });
-
-      // Fetch Comments (不缓存，因为更新频繁)
-      fetchBangumiComments(subjectId: subjectId, page: 1)
-          .then((comments) {
-            if (!mounted) return;
-            setState(() {
-              _comments = comments;
-              _isLoadingComments = false;
-            });
-          })
-          .catchError((e) {
-            debugPrint('Error fetching comments: $e');
-            if (mounted) {
-              setState(() {
-                _comments = [];
-                _isLoadingComments = false;
-              });
-            }
-          });
-    } else {
+    if (subjectIdStr == null) {
       if (mounted) {
         setState(() {
           _isLoadingEpisodes = false;
@@ -317,7 +139,151 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           _isLoadingComments = false;
         });
       }
+      return;
     }
+
+    final subjectId = int.parse(subjectIdStr);
+    final cache = CacheManager.instance;
+
+    if (_data == null) {
+      try {
+        final cachedAnime = await cache.getSubject(subjectId);
+        if (cachedAnime != null && cachedAnime.fullJson != null) {
+          debugPrint('Subject loaded from cache: $subjectId');
+          _data = jsonDecode(cachedAnime.fullJson!);
+        } else {
+          final details = await fillAnimeDetails(animes: [widget.anime]);
+          if (details.isNotEmpty) {
+            final detail = details.first;
+            if (detail.fullJson != null) {
+              _data = jsonDecode(detail.fullJson!);
+              unawaited(cache.cacheAnimeInfo(detail));
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Error loading anime details: $e');
+      }
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingEpisodes = true;
+      _isLoadingCharacters = true;
+      _isLoadingRelations = true;
+      _isLoadingComments = true;
+      _commentPage = 1;
+      _hasMoreComments = true;
+      _isLoadingMoreComments = false;
+      _episodes = null;
+      _characters = null;
+      _relations = null;
+      _comments = null;
+      _personIdMap.clear();
+    });
+
+    List<BangumiEpisode> episodes = [];
+    List<BangumiCharacter> characters = [];
+    List<BangumiRelatedSubject> relations = [];
+    List<BangumiComment> comments = [];
+    final personMap = <String, int>{};
+
+    Future<void> loadEpisodes() async {
+      try {
+        final allEpisodes = await fetchBangumiEpisodes(subjectId: subjectId);
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        episodes = allEpisodes.where((ep) {
+          if (ep.airdate.isEmpty) return true;
+          try {
+            final date = DateTime.parse(ep.airdate);
+            final epDate = DateTime(date.year, date.month, date.day);
+            return !epDate.isAfter(today);
+          } catch (e) {
+            return true;
+          }
+        }).toList();
+      } catch (e) {
+        debugPrint('Error fetching episodes: $e');
+        episodes = [];
+      }
+    }
+
+    Future<void> loadCharacters() async {
+      try {
+        characters = await cache.getCharacters(
+          subjectId: subjectId,
+          fetchFromNetwork: () => fetchBangumiCharacters(subjectId: subjectId),
+        );
+        for (final ch in characters) {
+          for (final actor in ch.actors) {
+            if (actor.name.isNotEmpty && actor.id != 0) {
+              personMap.putIfAbsent(actor.name, () => actor.id);
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching characters: $e');
+        characters = [];
+      }
+    }
+
+    Future<void> loadRelations() async {
+      try {
+        relations = await cache.getRelations(
+          subjectId: subjectId,
+          fetchFromNetwork: () => fetchBangumiRelations(subjectId: subjectId),
+        );
+      } catch (e) {
+        debugPrint('Error fetching relations: $e');
+        relations = [];
+      }
+    }
+
+    Future<void> loadPersons() async {
+      try {
+        final persons = await fetchBangumiPersons(subjectId: subjectId);
+        for (final p in persons) {
+          if (p.name.isNotEmpty && p.id != 0) {
+            personMap.putIfAbsent(p.name, () => p.id);
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching persons: $e');
+      }
+    }
+
+    Future<void> loadComments() async {
+      try {
+        comments = await fetchBangumiComments(subjectId: subjectId, page: 1);
+      } catch (e) {
+        debugPrint('Error fetching comments: $e');
+        comments = [];
+      }
+    }
+
+    await Future.wait([
+      loadEpisodes(),
+      loadCharacters(),
+      loadRelations(),
+      loadPersons(),
+      loadComments(),
+    ]);
+
+    if (!mounted) return;
+
+    setState(() {
+      _episodes = episodes;
+      _characters = characters;
+      _relations = relations;
+      _comments = comments;
+      _mergePersonIdMap(personMap);
+      _isLoadingEpisodes = false;
+      _isLoadingCharacters = false;
+      _isLoadingRelations = false;
+      _isLoadingComments = false;
+    });
   }
 
   void _parseData() {
@@ -418,6 +384,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _episodesScrollController.dispose();
     _charactersScrollController.dispose();
     _relationsScrollController.dispose();
+    _commentScrollController.removeListener(_handleCommentScroll);
+    _commentScrollController.dispose();
     super.dispose();
   }
 
@@ -495,19 +463,70 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           body: TabBarView(
             children: [
               _buildMobileDetailsTab(context),
-              NotificationListener<ScrollNotification>(
-                onNotification: (ScrollNotification scrollInfo) {
-                  if (scrollInfo.metrics.pixels >=
-                      scrollInfo.metrics.maxScrollExtent - 200) {
-                    _loadMoreComments();
-                  }
-                  return false;
-                },
-                child: SingleChildScrollView(
+              if (_comments == null || _comments!.isEmpty)
+                ListView(
+                  controller: _commentScrollController,
                   padding: const EdgeInsets.all(16),
-                  child: _buildCommentsSection(context, isDarkBg: true),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildSectionTitle(context, "评论", isDarkBg: true),
+                    ),
+                    const SizedBox(height: 96),
+                    Center(
+                      child: Text(
+                        '暂无评论',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                ListView.builder(
+                  controller: _commentScrollController,
+                  padding: const EdgeInsets.all(16),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  itemCount:
+                      (_comments == null ? 0 : _comments!.length) + 1 +
+                      (_isLoadingMoreComments ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildSectionTitle(
+                          context,
+                          "评论",
+                          isDarkBg: true,
+                        ),
+                      );
+                    }
+
+                    final commentIndex = index - 1;
+                    if (_comments == null || commentIndex >= _comments!.length) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      );
+                    }
+
+                    final comment = _comments![commentIndex];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: _buildCommentCard(
+                        context,
+                        comment,
+                        isDarkBg: true,
+                      ),
+                    );
+                  },
                 ),
-              ),
             ],
           ),
         ),
@@ -661,6 +680,130 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildCommentCard(
+    BuildContext context,
+    BangumiComment comment, {
+    required bool isDarkBg,
+  }) {
+    final textColor = isDarkBg ? Colors.white : Colors.black87;
+    final cardColor = isDarkBg
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.grey[100];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDarkBg ? Colors.white10 : Colors.grey[300]!,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isDarkBg ? Colors.white10 : Colors.grey[200],
+            ),
+            alignment: Alignment.center,
+            child: ClipOval(
+              child: comment.avatar.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: comment.avatar,
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                      errorWidget: Icon(
+                        Icons.person,
+                        size: 20,
+                        color: isDarkBg ? Colors.white30 : Colors.grey[400],
+                      ),
+                    )
+                  : Icon(
+                      Icons.person,
+                      size: 20,
+                      color: isDarkBg ? Colors.white30 : Colors.grey[400],
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        comment.userName,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (comment.rate != null)
+                      Row(
+                        children: List.generate(5, (index) {
+                          return Icon(
+                            index < (comment.rate! / 2).round()
+                                ? Icons.star
+                                : Icons.star_border,
+                            size: 12,
+                            color: Colors.amber,
+                          );
+                        }),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  comment.time,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: textColor.withValues(alpha: 0.5),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                HtmlWidget(
+                  comment.contentHtml.isNotEmpty
+                      ? comment.contentHtml
+                      : comment.content,
+                  textStyle: TextStyle(
+                    fontSize: 13,
+                    color: textColor.withValues(alpha: 0.8),
+                    height: 1.4,
+                  ),
+                  customWidgetBuilder: (element) {
+                    if (element.classes.contains('text_mask')) {
+                      return BangumiMaskText(
+                        html: element.innerHtml,
+                        textStyle: TextStyle(
+                          fontSize: 13,
+                          color: textColor.withValues(alpha: 0.8),
+                          height: 1.4,
+                        ),
+                      );
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2374,135 +2517,14 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       return const SizedBox.shrink();
     }
 
-    final textColor = isDarkBg ? Colors.white : Colors.black87;
-    final cardColor = isDarkBg
-        ? Colors.white.withValues(alpha: 0.05)
-        : Colors.grey[100];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionTitle(context, "评论", isDarkBg: isDarkBg),
         const SizedBox(height: 12),
-        ..._comments!.map((comment) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isDarkBg ? Colors.white10 : Colors.grey[300]!,
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Avatar
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isDarkBg ? Colors.white10 : Colors.grey[200],
-                  ),
-                  alignment: Alignment.center,
-                  child: ClipOval(
-                    child: comment.avatar.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: comment.avatar,
-                            width: 36,
-                            height: 36,
-                            fit: BoxFit.cover,
-                            errorWidget: Icon(
-                              Icons.person,
-                              size: 20,
-                              color: isDarkBg
-                                  ? Colors.white30
-                                  : Colors.grey[400],
-                            ),
-                          )
-                        : Icon(
-                            Icons.person,
-                            size: 20,
-                            color: isDarkBg ? Colors.white30 : Colors.grey[400],
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Content
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              comment.userName,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: textColor,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          if (comment.rate != null)
-                            Row(
-                              children: List.generate(5, (index) {
-                                return Icon(
-                                  index < (comment.rate! / 2).round()
-                                      ? Icons.star
-                                      : Icons.star_border,
-                                  size: 12,
-                                  color: Colors.amber,
-                                );
-                              }),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        comment.time,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: textColor.withValues(alpha: 0.5),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      HtmlWidget(
-                        comment.contentHtml.isNotEmpty
-                            ? comment.contentHtml
-                            : comment.content,
-                        textStyle: TextStyle(
-                          fontSize: 13,
-                          color: textColor.withValues(alpha: 0.8),
-                          height: 1.4,
-                        ),
-                        customWidgetBuilder: (element) {
-                          if (element.classes.contains('text_mask')) {
-                            return BangumiMaskText(
-                              html: element.innerHtml,
-                              textStyle: TextStyle(
-                                fontSize: 13,
-                                color: textColor.withValues(alpha: 0.8),
-                                height: 1.4,
-                              ),
-                            );
-                          }
-                          return null;
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
+        ..._comments!.map(
+          (comment) => _buildCommentCard(context, comment, isDarkBg: isDarkBg),
+        ),
         if (_isLoadingMoreComments)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 16),

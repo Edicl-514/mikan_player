@@ -125,7 +125,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   int _webViewLaunchInterval = 200; // WebView启动间隔 (毫秒)
   int _sampleLoadToken = 0;
   bool _webViewPoolPumpScheduled = false;
-  String _sampleStatusMessage = ''; // WebView 提取状态消息
   bool _showWebView = false; // 是否显示 WebView（调试用）
 
   // Auto Play Logic
@@ -157,9 +156,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   // Danmaku
   final DanmakuService _danmakuService = DanmakuService();
-  double _currentVideoTime = 0;
-  bool _isVideoPaused = false;
-  bool _showDanmakuSettings = false;
+  final ValueNotifier<double> _currentVideoTimeNotifier = ValueNotifier(0);
+  final ValueNotifier<bool> _isVideoPausedNotifier = ValueNotifier(false);
+  final ValueNotifier<bool> _showDanmakuSettingsNotifier =
+      ValueNotifier(false);
   StreamSubscription? _positionSubscription;
   StreamSubscription? _playingSubscription;
   StreamSubscription? _completedSubscription;
@@ -175,6 +175,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   // Header Injection Proxy
   final HeaderInjectionProxy _headerProxy = HeaderInjectionProxy();
+  final ValueNotifier<String> _sampleStatusMessageNotifier =
+      ValueNotifier('');
 
   @override
   void initState() {
@@ -204,9 +206,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // Subscribe to player position for danmaku sync
     _positionSubscription = _player.stream.position.listen((position) {
       if (mounted) {
-        setState(() {
-          _currentVideoTime = position.inMilliseconds / 1000.0;
-        });
+        _currentVideoTimeNotifier.value = position.inMilliseconds / 1000.0;
 
         try {
           final posMs = position.inMilliseconds;
@@ -228,13 +228,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // Subscribe to playing state for danmaku pause
     _playingSubscription = _player.stream.playing.listen((playing) {
       if (mounted) {
-        setState(() {
-          _isVideoPaused = !playing;
-        });
+        _isVideoPausedNotifier.value = !playing;
         // Save position when paused
         if (!playing) {
           try {
-            final posMs = (_currentVideoTime * 1000).toInt();
+            final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
             _historyManager.addOrUpdate(
               anime: widget.anime,
               currentEpisode: _currentEpisode,
@@ -1025,15 +1023,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
 
       if (startedAny && mounted) {
-        setState(() {
-          final completedCount = _sourceProgressMap.values
-              .where((p) => _isSearchStepFinished(p.step))
-              .length;
-          _sampleStatusMessage =
-              '搜索进度: $completedCount/${_enabledSourceNames.length}，'
-              '验证码进行中 ${_activeCaptchaTasks.length}，'
-              '提取并发 ${_activeWebViews.length}/$_maxConcurrentWebViews';
-        });
+        final completedCount = _sourceProgressMap.values
+            .where((p) => _isSearchStepFinished(p.step))
+            .length;
+        _sampleStatusMessageNotifier.value =
+            '搜索进度: $completedCount/${_enabledSourceNames.length}，'
+            '验证码进行中 ${_activeCaptchaTasks.length}，'
+            '提取并发 ${_activeWebViews.length}/$_maxConcurrentWebViews';
       }
 
       _maybeFinishSampleSearch();
@@ -1262,7 +1258,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         .length;
     final activeCaptcha = _activeCaptchaTasks.length;
     final pendingCaptcha = _pendingCaptchaTasks.length;
-    _sampleStatusMessage =
+    _sampleStatusMessageNotifier.value =
         '搜索进度: $completedCount/${_enabledSourceNames.length}，'
         '验证码 $activeCaptcha 运行/$pendingCaptcha 排队';
 
@@ -1407,7 +1403,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       } else if (_sampleSuccessfulSources.isEmpty) {
         _sampleError = '所有源都无法提取视频链接';
       } else {
-        _sampleStatusMessage =
+        _sampleStatusMessageNotifier.value =
             '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
       }
     });
@@ -1459,7 +1455,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _webViewStatus.clear();
       _failedWebViewPageKeys.clear();
       _resolvingChannelPlayPageKeys.clear();
-      _sampleStatusMessage = '正在获取播放源列表...';
+      _sampleStatusMessageNotifier.value = '正在获取播放源列表...';
       _sourceProgressMap = {};
       _enabledSourceNames = [];
       _sourceTiers = {};
@@ -1471,7 +1467,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (mounted) {
         setState(() {
           _isLoadingSample = false;
-          _sampleStatusMessage = '在线搜索已关闭';
+          _sampleStatusMessageNotifier.value = '在线搜索已关闭';
         });
       }
       return;
@@ -1538,7 +1534,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             headers: null,
           );
         }
-        _sampleStatusMessage = captchaSources.isEmpty
+        _sampleStatusMessageNotifier.value = captchaSources.isEmpty
             ? '正在搜索 ${enabledSources.length} 个源...'
             : '非验证码源先行搜索，验证码源并发预处理中...';
       });
@@ -1897,7 +1893,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final total = _samplePlayPages.length;
       final completed = _sampleSuccessfulSources.length;
       final active = _activeWebViews.length;
-      _sampleStatusMessage = '提取中: $completed/$total 完成，$active 并发运行';
+      _sampleStatusMessageNotifier.value =
+          '提取中: $completed/$total 完成，$active 并发运行';
 
       // 启动下一个待提取的源（如果有）
       _startNextWebViewExtraction();
@@ -1967,7 +1964,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     try {
-      final posMs = (_currentVideoTime * 1000).toInt();
+      final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
       _historyManager.addOrUpdate(
         anime: widget.anime,
         currentEpisode: _currentEpisode,
@@ -1994,6 +1991,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _player.stop(); // 确保播放器完全停止后再释放
     _player.dispose();
     _mobilePlayerLockNotifier.dispose();
+    _currentVideoTimeNotifier.dispose();
+    _isVideoPausedNotifier.dispose();
+    _showDanmakuSettingsNotifier.dispose();
+    _sampleStatusMessageNotifier.dispose();
     super.dispose();
   }
 
@@ -2901,7 +2902,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _webViewStatus.clear();
       _failedWebViewPageKeys.clear();
       _resolvingChannelPlayPageKeys.clear();
-      _sampleStatusMessage = '';
+      _sampleStatusMessageNotifier.value = '';
       _sourceProgressMap = {};
       _enabledSourceNames = [];
       _sourceTiers = {};
@@ -2941,7 +2942,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   void _savePlaybackHistory() {
     try {
-      final posMs = (_currentVideoTime * 1000).toInt();
+      final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
       _historyManager.addOrUpdate(
         anime: widget.anime,
         currentEpisode: _currentEpisode,
@@ -3094,11 +3095,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               isMobile: isMobile,
               danmakuService: _danmakuService,
               subtitleService: _subtitleService,
-              currentVideoTime: _currentVideoTime,
-              isVideoPaused: _isVideoPaused,
-              showDanmakuSettings: _showDanmakuSettings,
+              currentVideoTimeListenable: _currentVideoTimeNotifier,
+              isVideoPausedListenable: _isVideoPausedNotifier,
+              showDanmakuSettingsListenable: _showDanmakuSettingsNotifier,
               onToggleDanmakuSettings: () =>
-                  setState(() => _showDanmakuSettings = !_showDanmakuSettings),
+                  _showDanmakuSettingsNotifier.value =
+                      !_showDanmakuSettingsNotifier.value,
               allEpisodes: widget.allEpisodes,
               currentEpisode: _currentEpisode,
               onEpisodeSelected: _onEpisodeSelected,
@@ -3579,19 +3581,24 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 const SizedBox(width: 10),
               ],
               Expanded(
-                child: Text(
-                  _isLoadingSample
-                      ? _sampleStatusMessage
-                      : (_sampleError != null
-                            ? '搜索失败'
-                            : '搜索完成 (${_sampleSuccessfulSources.length}/${_enabledSourceNames.length} 个可用)'),
-                  style: TextStyle(
-                    color: _sampleError != null
-                        ? Colors.redAccent
-                        : Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: ValueListenableBuilder<String>(
+                  valueListenable: _sampleStatusMessageNotifier,
+                  builder: (context, statusMessage, _) {
+                    return Text(
+                      _isLoadingSample
+                          ? statusMessage
+                          : (_sampleError != null
+                                ? '搜索失败'
+                                : '搜索完成 (${_sampleSuccessfulSources.length}/${_enabledSourceNames.length} 个可用)'),
+                      style: TextStyle(
+                        color: _sampleError != null
+                            ? Colors.redAccent
+                            : Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    );
+                  },
                 ),
               ),
               // 重试按钮

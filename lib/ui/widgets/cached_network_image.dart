@@ -69,12 +69,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final nextPosition = Scrollable.maybeOf(context)?.position;
-    if (_scrollPosition == nextPosition) return;
-
-    _scrollPosition?.removeListener(_scheduleVisibilityCheck);
-    _scrollPosition = nextPosition;
-    _scrollPosition?.addListener(_scheduleVisibilityCheck);
+    _updateScrollPosition(Scrollable.maybeOf(context)?.position);
   }
 
   @override
@@ -96,8 +91,16 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
   @override
   void dispose() {
     _deferredLoadTimer?.cancel();
-    _scrollPosition?.removeListener(_scheduleVisibilityCheck);
+    _updateScrollPosition(null);
     super.dispose();
+  }
+
+  void _updateScrollPosition(ScrollPosition? nextPosition) {
+    if (_scrollPosition == nextPosition) return;
+
+    _scrollPosition?.removeListener(_scheduleVisibilityCheck);
+    _scrollPosition = nextPosition;
+    _scrollPosition?.addListener(_scheduleVisibilityCheck);
   }
 
   void _scheduleVisibilityCheck() {
