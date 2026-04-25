@@ -36,6 +36,7 @@ class _BackendStartResult {
   final String infoHash;
   final String streamUrl;
   final int? fileIdx;
+  final int? fileSize;
   final int? torrentId;
   final int? streamId;
 
@@ -43,6 +44,7 @@ class _BackendStartResult {
     required this.infoHash,
     required this.streamUrl,
     this.fileIdx,
+    this.fileSize,
     this.torrentId,
     this.streamId,
   });
@@ -237,6 +239,7 @@ class DownloadManager extends ChangeNotifier {
   final Map<int, String> _ltInfoHashesByTorrentId = {};
   final Map<String, int> _ltStreamIdsByHash = {};
   final Map<String, int> _ltFileIdxByHash = {};
+  final Map<String, int> _ltFileSizeByHash = {};
 
   List<DownloadTask> get tasks => _tasks.values.toList();
   BtBackendKind get backendKind => _backendKind;
@@ -366,6 +369,9 @@ class DownloadManager extends ChangeNotifier {
       );
       task.streamUrl = result.streamUrl;
       task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
+      if (result.fileSize != null && result.fileSize! > 0) {
+        task.totalSize = BigInt.from(result.fileSize!);
+      }
       if (task.status != DownloadTaskStatus.seeding &&
           task.status != DownloadTaskStatus.completed) {
         task.status = DownloadTaskStatus.downloading;
@@ -468,11 +474,15 @@ class DownloadManager extends ChangeNotifier {
     );
     _ltStreamIdsByHash[infoHash] = stream.id;
     _ltFileIdxByHash[infoHash] = file.index;
+    _ltFileSizeByHash[infoHash] = stream.fileSize > 0
+        ? stream.fileSize
+        : file.size;
 
     return _BackendStartResult(
       infoHash: infoHash,
       streamUrl: stream.url,
       fileIdx: file.index,
+      fileSize: stream.fileSize > 0 ? stream.fileSize : file.size,
       torrentId: torrentId,
       streamId: stream.id,
     );
@@ -531,7 +541,17 @@ class DownloadManager extends ChangeNotifier {
             final infoHash = _ltInfoHashesByTorrentId[torrent.id];
             if (infoHash == null) return null;
 
-            final progress = (torrent.progress * 100.0).clamp(0.0, 100.0);
+            final task = _tasks[infoHash];
+            final persistedTotal = task?.totalSize.toInt() ?? 0;
+            final totalSize =
+                _ltFileSizeByHash[infoHash] ??
+                (persistedTotal > 0 ? persistedTotal : torrent.totalWanted);
+            final downloaded = totalSize > 0
+                ? torrent.totalDone.clamp(0, totalSize)
+                : torrent.totalDone;
+            final progress = totalSize > 0
+                ? (downloaded / totalSize * 100.0).clamp(0.0, 100.0)
+                : (torrent.progress * 100.0).clamp(0.0, 100.0);
             return TorrentStats(
               infoHash: infoHash,
               name: torrent.name.isEmpty
@@ -541,8 +561,8 @@ class DownloadManager extends ChangeNotifier {
               progress: progress,
               downloadSpeed: torrent.downloadRate.toDouble(),
               uploadSpeed: torrent.uploadRate.toDouble(),
-              downloaded: BigInt.from(torrent.totalDone),
-              totalSize: BigInt.from(torrent.totalWanted),
+              downloaded: BigInt.from(downloaded),
+              totalSize: BigInt.from(totalSize),
               peers: torrent.numPeers,
               seeders: torrent.numSeeds,
             );
@@ -617,6 +637,7 @@ class DownloadManager extends ChangeNotifier {
     if (torrentId == null) return false;
     _ltInfoHashesByTorrentId.remove(torrentId);
     _ltFileIdxByHash.remove(hashLower);
+    _ltFileSizeByHash.remove(hashLower);
     engine.removeTorrent(torrentId, deleteFiles: deleteFiles);
     return true;
   }
@@ -743,6 +764,9 @@ class DownloadManager extends ChangeNotifier {
         task.streamUrl = streamUrl;
         task.largestFileIdx = fileIdx ?? task.largestFileIdx;
         task.status = DownloadTaskStatus.downloading;
+      }
+      if (result.fileSize != null && result.fileSize! > 0) {
+        task.totalSize = BigInt.from(result.fileSize!);
       }
 
       notifyListeners();
@@ -1047,6 +1071,9 @@ class DownloadManager extends ChangeNotifier {
           : DownloadTaskStatus.downloading;
       task.streamUrl = result.streamUrl;
       task.largestFileIdx = fileIdx ?? task.largestFileIdx;
+      if (result.fileSize != null && result.fileSize! > 0) {
+        task.totalSize = BigInt.from(result.fileSize!);
+      }
       _pausedTaskIds.remove(task.id);
       await _saveTasks();
       notifyListeners();
