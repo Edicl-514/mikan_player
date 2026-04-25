@@ -1,12 +1,52 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:libtorrent_flutter/libtorrent_flutter.dart' as ltf;
+import 'package:mikan_player/utils/app_directories.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart';
 
 /// Key for storing BT download tasks in SharedPreferences
 /// This key is NOT cleared by the cache clearing function
 const String _btTasksStorageKey = 'bt_download_tasks_v1';
+const String _btBackendStorageKey = 'bt_backend_v1';
+
+enum BtBackendKind { rqbit, libtorrent }
+
+extension BtBackendKindX on BtBackendKind {
+  String get storageValue => switch (this) {
+    BtBackendKind.rqbit => 'rqbit',
+    BtBackendKind.libtorrent => 'libtorrent',
+  };
+
+  String get label => switch (this) {
+    BtBackendKind.rqbit => 'rqbit',
+    BtBackendKind.libtorrent => 'libtorrent',
+  };
+
+  static BtBackendKind fromStorage(String? value) {
+    return switch (value) {
+      'libtorrent' => BtBackendKind.libtorrent,
+      _ => BtBackendKind.rqbit,
+    };
+  }
+}
+
+class _BackendStartResult {
+  final String infoHash;
+  final String streamUrl;
+  final int? fileIdx;
+  final int? torrentId;
+  final int? streamId;
+
+  const _BackendStartResult({
+    required this.infoHash,
+    required this.streamUrl,
+    this.fileIdx,
+    this.torrentId,
+    this.streamId,
+  });
+}
 
 /// Base URL of the local rqbit streaming HTTP server (defined in Rust init).
 const String _streamBaseUrl = 'http://127.0.0.1:3000';
@@ -32,7 +72,9 @@ class DownloadTask {
   BigInt totalSize;
   int peers;
   String? streamUrl;
-  int? largestFileIdx; // Persisted so streamUrl can be synthesized after restart.
+  int?
+  largestFileIdx; // Persisted so streamUrl can be synthesized after restart.
+  BtBackendKind backend;
   String? errorMessage;
 
   DownloadTask({
@@ -51,6 +93,7 @@ class DownloadTask {
     this.peers = 0,
     this.streamUrl,
     this.largestFileIdx,
+    this.backend = BtBackendKind.rqbit,
     this.errorMessage,
   }) : downloaded = downloaded ?? BigInt.zero,
        totalSize = totalSize ?? BigInt.zero;
@@ -59,11 +102,12 @@ class DownloadTask {
   factory DownloadTask.fromJson(Map<String, dynamic> json) {
     final id = json['id'] as String;
     final largestFileIdx = (json['largestFileIdx'] as num?)?.toInt();
+    final backend = BtBackendKindX.fromStorage(json['backend'] as String?);
     // Reconstruct the stream URL immediately when we know the file index.
     // The rqbit HTTP server is started synchronously during initEngine, and
     // once the torrent is re-added by [_resumeTorrentInBackground], this URL
     // is valid. For paused tasks it won't be hit until the user resumes.
-    final streamUrl = largestFileIdx != null
+    final streamUrl = backend == BtBackendKind.rqbit && largestFileIdx != null
         ? _buildStreamUrl(id, largestFileIdx)
         : null;
     return DownloadTask(
@@ -82,6 +126,7 @@ class DownloadTask {
       peers: 0,
       streamUrl: streamUrl,
       largestFileIdx: largestFileIdx,
+      backend: backend,
       errorMessage: null,
     );
   }
@@ -100,6 +145,7 @@ class DownloadTask {
       'downloaded': downloaded.toString(),
       'totalSize': totalSize.toString(),
       'largestFileIdx': largestFileIdx,
+      'backend': backend.storageValue,
       // streamUrl intentionally omitted — reconstructed from id + largestFileIdx
     };
   }
@@ -184,8 +230,16 @@ class DownloadManager extends ChangeNotifier {
   bool _isUpdatingStats = false;
   bool _isRecoveringActiveTasks = false;
   DateTime? _lastForegroundRecoveryAt;
+  BtBackendKind _backendKind = BtBackendKind.rqbit;
+  bool _libtorrentInitialized = false;
+  String? _downloadDir;
+  final Map<String, int> _ltTorrentIdsByHash = {};
+  final Map<int, String> _ltInfoHashesByTorrentId = {};
+  final Map<String, int> _ltStreamIdsByHash = {};
+  final Map<String, int> _ltFileIdxByHash = {};
 
   List<DownloadTask> get tasks => _tasks.values.toList();
+  BtBackendKind get backendKind => _backendKind;
 
   /// Active tasks: downloading only (not seeding)
   List<DownloadTask> get activeTasks => _tasks.values
@@ -230,9 +284,21 @@ class DownloadManager extends ChangeNotifier {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
+    final prefs = await SharedPreferences.getInstance();
+    _backendKind = BtBackendKindX.fromStorage(
+      prefs.getString(_btBackendStorageKey),
+    );
     await _loadTasks();
     _isInitialized = true;
     _ensureStatsPolling();
+  }
+
+  Future<void> setBackendKind(BtBackendKind backend) async {
+    if (_backendKind == backend) return;
+    _backendKind = backend;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_btBackendStorageKey, backend.storageValue);
+    notifyListeners();
   }
 
   /// Load tasks from SharedPreferences
@@ -293,25 +359,21 @@ class DownloadManager extends ChangeNotifier {
   Future<void> _resumeTorrentInBackground(DownloadTask task) async {
     try {
       debugPrint('[DownloadManager] Auto-resuming torrent: ${task.name}');
-      final streamUrl = await startTorrent(magnet: task.magnet);
-      if (!streamUrl.startsWith('Error')) {
-        task.streamUrl = streamUrl;
-        task.largestFileIdx =
-            _extractFileIdxFromUrl(streamUrl) ?? task.largestFileIdx;
-        // Update status but don't change if it was completed/seeding
-        if (task.status != DownloadTaskStatus.seeding &&
-            task.status != DownloadTaskStatus.completed) {
-          task.status = DownloadTaskStatus.downloading;
-        }
-        await _saveTasks();
-        notifyListeners();
-        _ensureStatsPolling();
-        debugPrint('[DownloadManager] Auto-resumed torrent: ${task.name}');
-      } else {
-        debugPrint(
-          '[DownloadManager] Failed to auto-resume torrent: $streamUrl',
-        );
+      final result = await _startTorrentWithBackend(
+        task.magnet,
+        fallbackInfoHash: task.id,
+        backend: task.backend,
+      );
+      task.streamUrl = result.streamUrl;
+      task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
+      if (task.status != DownloadTaskStatus.seeding &&
+          task.status != DownloadTaskStatus.completed) {
+        task.status = DownloadTaskStatus.downloading;
       }
+      await _saveTasks();
+      notifyListeners();
+      _ensureStatsPolling();
+      debugPrint('[DownloadManager] Auto-resumed torrent: ${task.name}');
     } catch (e) {
       debugPrint('[DownloadManager] Error auto-resuming torrent: $e');
     }
@@ -347,6 +409,216 @@ class DownloadManager extends ChangeNotifier {
     } catch (e) {
       debugPrint('[DownloadManager] Error saving tasks: $e');
     }
+  }
+
+  Future<void> _ensureLibtorrentInitialized() async {
+    if (_libtorrentInitialized) return;
+
+    final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
+    _downloadDir = '${appSupportDir.path}/downloads';
+    await ltf.LibtorrentFlutter.init(
+      defaultSavePath: _downloadDir,
+      fetchTrackers: true,
+      pollInterval: const Duration(milliseconds: 600),
+    );
+    _libtorrentInitialized = true;
+    debugPrint(
+      '[DownloadManager] libtorrent initialized: '
+      '${ltf.LibtorrentFlutter.instance.libraryVersion}',
+    );
+  }
+
+  Future<_BackendStartResult> _startTorrentWithBackend(
+    String magnet, {
+    required String fallbackInfoHash,
+    required BtBackendKind backend,
+  }) async {
+    if (backend == BtBackendKind.rqbit) {
+      final streamUrl = await startTorrent(magnet: magnet);
+      if (streamUrl.startsWith('Error')) {
+        throw Exception(streamUrl);
+      }
+      return _BackendStartResult(
+        infoHash: _extractInfoHashFromUrl(streamUrl) ?? fallbackInfoHash,
+        streamUrl: streamUrl,
+        fileIdx: _extractFileIdxFromUrl(streamUrl),
+      );
+    }
+
+    await _ensureLibtorrentInitialized();
+    final engine = ltf.LibtorrentFlutter.instance;
+    final infoHash = fallbackInfoHash.toLowerCase();
+    var torrentId = _ltTorrentIdsByHash[infoHash];
+    if (torrentId == null || !engine.torrents.containsKey(torrentId)) {
+      torrentId = engine.addMagnet(magnet, _downloadDir);
+      _ltTorrentIdsByHash[infoHash] = torrentId;
+      _ltInfoHashesByTorrentId[torrentId] = infoHash;
+    }
+
+    await _waitForLibtorrentMetadata(torrentId);
+    final file = _selectLibtorrentFile(torrentId);
+    if (file == null) {
+      throw Exception('Error: No streamable files found in torrent');
+    }
+
+    final stream = engine.startStream(
+      torrentId,
+      fileIndex: file.index,
+      maxCacheBytes: 512 * 1024 * 1024,
+    );
+    _ltStreamIdsByHash[infoHash] = stream.id;
+    _ltFileIdxByHash[infoHash] = file.index;
+
+    return _BackendStartResult(
+      infoHash: infoHash,
+      streamUrl: stream.url,
+      fileIdx: file.index,
+      torrentId: torrentId,
+      streamId: stream.id,
+    );
+  }
+
+  Future<void> _waitForLibtorrentMetadata(int torrentId) async {
+    final engine = ltf.LibtorrentFlutter.instance;
+    final deadline = DateTime.now().add(const Duration(seconds: 90));
+    while (DateTime.now().isBefore(deadline)) {
+      final torrent = engine.torrents[torrentId];
+      if (torrent?.hasMetadata == true) return;
+      if (torrent?.state == ltf.TorrentState.error) {
+        throw Exception('Error getting torrent metadata: ${torrent?.errorMsg}');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+    throw Exception(
+      'Error adding torrent: timed out waiting for torrent metadata',
+    );
+  }
+
+  ltf.FileInfo? _selectLibtorrentFile(int torrentId) {
+    final files = ltf.LibtorrentFlutter.instance.getFiles(torrentId);
+    final streamable = files.where((f) => f.isStreamable).toList();
+    final candidates = streamable.isNotEmpty ? streamable : files;
+    ltf.FileInfo? largest;
+    for (final file in candidates) {
+      if (largest == null || file.size > largest.size) {
+        largest = file;
+      }
+    }
+    return largest;
+  }
+
+  Future<List<TorrentStats>> _getTorrentStatsWithBackend() async {
+    final results = <TorrentStats>[];
+    final hasRqbitTasks = _tasks.values.any(
+      (task) => task.backend == BtBackendKind.rqbit,
+    );
+    final hasLibtorrentTasks = _tasks.values.any(
+      (task) => task.backend == BtBackendKind.libtorrent,
+    );
+
+    if (hasRqbitTasks) {
+      results.addAll(await getTorrentStats());
+    }
+
+    if (!hasLibtorrentTasks || !_libtorrentInitialized) {
+      return results;
+    }
+
+    final engine = ltf.LibtorrentFlutter.instance;
+    results.addAll(
+      engine.torrents.values
+          .map((torrent) {
+            final infoHash = _ltInfoHashesByTorrentId[torrent.id];
+            if (infoHash == null) return null;
+
+            final progress = (torrent.progress * 100.0).clamp(0.0, 100.0);
+            return TorrentStats(
+              infoHash: infoHash,
+              name: torrent.name.isEmpty
+                  ? 'Torrent ${torrent.id}'
+                  : torrent.name,
+              state: _normalizeLibtorrentState(torrent),
+              progress: progress,
+              downloadSpeed: torrent.downloadRate.toDouble(),
+              uploadSpeed: torrent.uploadRate.toDouble(),
+              downloaded: BigInt.from(torrent.totalDone),
+              totalSize: BigInt.from(torrent.totalWanted),
+              peers: torrent.numPeers,
+              seeders: torrent.numSeeds,
+            );
+          })
+          .whereType<TorrentStats>()
+          .toList(),
+    );
+    return results;
+  }
+
+  String _normalizeLibtorrentState(ltf.TorrentInfo torrent) {
+    if (torrent.isPaused) return 'paused';
+    if (torrent.state == ltf.TorrentState.error) return 'error';
+    if (torrent.state == ltf.TorrentState.seeding ||
+        torrent.state == ltf.TorrentState.finished) {
+      return 'live';
+    }
+    if (torrent.state == ltf.TorrentState.downloading ||
+        torrent.state == ltf.TorrentState.downloadingMetadata ||
+        torrent.state == ltf.TorrentState.allocating ||
+        torrent.state == ltf.TorrentState.checkingFiles ||
+        torrent.state == ltf.TorrentState.checkingResume) {
+      return 'live';
+    }
+    return 'initializing';
+  }
+
+  Future<bool> _pauseTorrentWithBackend(
+    String infoHash, {
+    required BtBackendKind backend,
+  }) async {
+    if (backend == BtBackendKind.rqbit) {
+      return pauseTorrent(infoHash: infoHash);
+    }
+    if (!_libtorrentInitialized) return false;
+    final torrentId = _ltTorrentIdsByHash[infoHash.toLowerCase()];
+    if (torrentId == null) return false;
+    ltf.LibtorrentFlutter.instance.pauseTorrent(torrentId);
+    return true;
+  }
+
+  Future<bool> _resumeTorrentWithBackend(
+    String infoHash, {
+    required BtBackendKind backend,
+  }) async {
+    if (backend == BtBackendKind.rqbit) {
+      return resumeTorrent(infoHash: infoHash);
+    }
+    if (!_libtorrentInitialized) return false;
+    final torrentId = _ltTorrentIdsByHash[infoHash.toLowerCase()];
+    if (torrentId == null) return false;
+    ltf.LibtorrentFlutter.instance.resumeTorrent(torrentId);
+    return true;
+  }
+
+  Future<bool> _stopTorrentWithBackend(
+    String infoHash, {
+    required BtBackendKind backend,
+    required bool deleteFiles,
+  }) async {
+    if (backend == BtBackendKind.rqbit) {
+      return stopTorrent(infoHash: infoHash, deleteFiles: deleteFiles);
+    }
+    if (!_libtorrentInitialized) return false;
+    final hashLower = infoHash.toLowerCase();
+    final engine = ltf.LibtorrentFlutter.instance;
+    final streamId = _ltStreamIdsByHash.remove(hashLower);
+    if (streamId != null) {
+      engine.stopStream(streamId);
+    }
+    final torrentId = _ltTorrentIdsByHash.remove(hashLower);
+    if (torrentId == null) return false;
+    _ltInfoHashesByTorrentId.remove(torrentId);
+    _ltFileIdxByHash.remove(hashLower);
+    engine.removeTorrent(torrentId, deleteFiles: deleteFiles);
+    return true;
   }
 
   /// Find a task by anime name and episode number
@@ -428,6 +700,7 @@ class DownloadManager extends ChangeNotifier {
       episodeNumber: episodeNumber,
       startTime: DateTime.now(),
       status: DownloadTaskStatus.pending,
+      backend: _backendKind,
     );
 
     _tasks[tempId] = task;
@@ -436,29 +709,24 @@ class DownloadManager extends ChangeNotifier {
     _ensureStatsPolling();
 
     try {
-      // Call Rust backend to start torrent
-      final streamUrl = await startTorrent(magnet: magnet);
+      final result = await _startTorrentWithBackend(
+        magnet,
+        fallbackInfoHash: tempId,
+        backend: task.backend,
+      );
+      final streamUrl = result.streamUrl;
 
       final currentTask = _tasks[tempId];
       if (!identical(currentTask, task) || _removedTaskIds.contains(tempId)) {
-        final actualId = _extractInfoHashFromUrl(streamUrl);
-        if (_removedTaskIds.contains(tempId) && actualId != null) {
-          _removedTaskIds.add(actualId);
+        if (_removedTaskIds.contains(tempId)) {
+          _removedTaskIds.add(result.infoHash);
         }
         return null;
       }
 
-      if (streamUrl.startsWith('Error')) {
-        task.status = DownloadTaskStatus.error;
-        task.errorMessage = streamUrl;
-        await _saveTasks();
-        notifyListeners();
-        return null;
-      }
-
       // Update task with actual info
-      final actualId = _extractInfoHashFromUrl(streamUrl) ?? tempId;
-      final fileIdx = _extractFileIdxFromUrl(streamUrl);
+      final actualId = result.infoHash;
+      final fileIdx = result.fileIdx;
       if (actualId != tempId) {
         _tasks.remove(tempId);
         _removedTaskIds.remove(
@@ -507,7 +775,7 @@ class DownloadManager extends ChangeNotifier {
     _isUpdatingStats = true;
 
     try {
-      final stats = await getTorrentStats();
+      final stats = await _getTorrentStatsWithBackend();
       var hasChanges = false;
 
       for (final stat in stats) {
@@ -526,7 +794,8 @@ class DownloadManager extends ChangeNotifier {
         // Paused tasks: still let peers/totalSize/downloaded reflect reality,
         // but never flip the status or speed fields from the poll.
         if (_pausedTaskIds.contains(hashLower)) {
-          final changed = task.downloaded != stat.downloaded ||
+          final changed =
+              task.downloaded != stat.downloaded ||
               task.totalSize != stat.totalSize ||
               task.peers != stat.peers;
           if (changed) {
@@ -543,12 +812,12 @@ class DownloadManager extends ChangeNotifier {
         final nextStatus = stat.progress >= 100.0
             ? DownloadTaskStatus.seeding
             : state == 'paused'
-                ? DownloadTaskStatus.paused
-                : state == 'live'
-                    ? DownloadTaskStatus.downloading
-                    : state == 'error'
-                        ? DownloadTaskStatus.error
-                        : task.status;
+            ? DownloadTaskStatus.paused
+            : state == 'live'
+            ? DownloadTaskStatus.downloading
+            : state == 'error'
+            ? DownloadTaskStatus.error
+            : task.status;
 
         // Use epsilon comparisons; otherwise FP noise makes every poll look
         // like a change and fires notifyListeners() → a full UI rebuild every
@@ -557,12 +826,12 @@ class DownloadManager extends ChangeNotifier {
         const speedEps = 1024.0; // 1 KB/s
         final taskChanged =
             (task.progress - stat.progress).abs() > progressEps ||
-                (task.downloadSpeed - stat.downloadSpeed).abs() > speedEps ||
-                (task.uploadSpeed - stat.uploadSpeed).abs() > speedEps ||
-                task.downloaded != stat.downloaded ||
-                task.totalSize != stat.totalSize ||
-                task.peers != stat.peers ||
-                task.status != nextStatus;
+            (task.downloadSpeed - stat.downloadSpeed).abs() > speedEps ||
+            (task.uploadSpeed - stat.uploadSpeed).abs() > speedEps ||
+            task.downloaded != stat.downloaded ||
+            task.totalSize != stat.totalSize ||
+            task.peers != stat.peers ||
+            task.status != nextStatus;
 
         if (!taskChanged) continue;
 
@@ -614,7 +883,7 @@ class DownloadManager extends ChangeNotifier {
     _lastForegroundRecoveryAt = now;
 
     try {
-      final stats = await getTorrentStats();
+      final stats = await _getTorrentStatsWithBackend();
       final statsByHash = <String, TorrentStats>{
         for (final stat in stats) stat.infoHash.toLowerCase(): stat,
       };
@@ -707,7 +976,10 @@ class DownloadManager extends ChangeNotifier {
     try {
       // Pause by calling the Rust pause_torrent function
       // which internally stops the torrent without deleting files
-      final success = await pauseTorrent(infoHash: id);
+      final success = await _pauseTorrentWithBackend(
+        id,
+        backend: _tasks[id]!.backend,
+      );
       if (success) {
         _tasks[id]!.status = DownloadTaskStatus.paused;
         _tasks[id]!.downloadSpeed = 0;
@@ -735,7 +1007,10 @@ class DownloadManager extends ChangeNotifier {
     final task = _tasks[id]!;
 
     try {
-      final resumed = await resumeTorrent(infoHash: id);
+      final resumed = await _resumeTorrentWithBackend(
+        id,
+        backend: task.backend,
+      );
       if (resumed) {
         task.status = task.progress >= 100.0
             ? DownloadTaskStatus.seeding
@@ -753,32 +1028,31 @@ class DownloadManager extends ChangeNotifier {
         return false;
       }
 
-      final streamUrl = await startTorrent(magnet: task.magnet);
-      if (!streamUrl.startsWith('Error')) {
-        final actualId = _extractInfoHashFromUrl(streamUrl) ?? id;
-        final fileIdx = _extractFileIdxFromUrl(streamUrl);
-        if (actualId != id) {
-          _tasks.remove(id);
-          _pausedTaskIds.remove(id);
-          task.id = actualId;
-          _tasks[actualId] = task;
-        }
-        _removedTaskIds.remove(task.id);
-        task.status = task.progress >= 100.0
-            ? DownloadTaskStatus.seeding
-            : DownloadTaskStatus.downloading;
-        task.streamUrl = streamUrl;
-        task.largestFileIdx = fileIdx ?? task.largestFileIdx;
-        _pausedTaskIds.remove(task.id);
-        await _saveTasks();
-        notifyListeners();
-        _ensureStatsPolling();
-        debugPrint('[DownloadManager] Restarted paused task: ${task.id}');
-        return true;
-      } else {
-        debugPrint('[DownloadManager] Failed to resume task: $streamUrl');
+      final result = await _startTorrentWithBackend(
+        task.magnet,
+        fallbackInfoHash: id,
+        backend: task.backend,
+      );
+      final actualId = result.infoHash;
+      final fileIdx = result.fileIdx;
+      if (actualId != id) {
+        _tasks.remove(id);
+        _pausedTaskIds.remove(id);
+        task.id = actualId;
+        _tasks[actualId] = task;
       }
-      return false;
+      _removedTaskIds.remove(task.id);
+      task.status = task.progress >= 100.0
+          ? DownloadTaskStatus.seeding
+          : DownloadTaskStatus.downloading;
+      task.streamUrl = result.streamUrl;
+      task.largestFileIdx = fileIdx ?? task.largestFileIdx;
+      _pausedTaskIds.remove(task.id);
+      await _saveTasks();
+      notifyListeners();
+      _ensureStatsPolling();
+      debugPrint('[DownloadManager] Restarted paused task: ${task.id}');
+      return true;
     } catch (e) {
       debugPrint('[DownloadManager] Error resuming task: $e');
       return false;
@@ -799,7 +1073,11 @@ class DownloadManager extends ChangeNotifier {
 
     // Try to stop the torrent in the backend
     try {
-      final stopped = await stopTorrent(infoHash: id, deleteFiles: deleteFiles);
+      final stopped = await _stopTorrentWithBackend(
+        id,
+        backend: task?.backend ?? _backendKind,
+        deleteFiles: deleteFiles,
+      );
       if (stopped) {
         debugPrint(
           '[DownloadManager] Successfully stopped torrent: $id (deleteFiles: $deleteFiles)',
@@ -844,7 +1122,12 @@ class DownloadManager extends ChangeNotifier {
     // Stop each torrent in the backend
     for (final id in completedIds) {
       try {
-        await stopTorrent(infoHash: id, deleteFiles: deleteFiles);
+        final task = _tasks[id];
+        await _stopTorrentWithBackend(
+          id,
+          backend: task?.backend ?? _backendKind,
+          deleteFiles: deleteFiles,
+        );
       } catch (e) {
         debugPrint('[DownloadManager] Error stopping torrent $id: $e');
       }
