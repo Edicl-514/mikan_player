@@ -250,6 +250,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // Subscribe to player completion for auto-play next
     _completedSubscription = _player.stream.completed.listen((completed) {
       if (completed && _isAutoPlayNextEnabled && mounted) {
+        // Guard against spurious completion (e.g. BT stream hiccups).
+        final duration = _player.state.duration;
+        final position = _player.state.position;
+        if (duration > const Duration(seconds: 10) &&
+            position < duration * 0.9) {
+          debugPrint(
+            '[Player] Ignored premature completion at '
+            '${position.inSeconds}s / ${duration.inSeconds}s',
+          );
+          return;
+        }
         debugPrint('[Player] Video completed, auto-playing next episode...');
         _onSkipNext();
       }
