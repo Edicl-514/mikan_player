@@ -289,11 +289,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _currentEpisode.sort.toInt(),
     );
 
-    if (task != null && task.streamUrl != null) {
+    if (task != null) {
+      final streamUrl =
+          task.streamUrl ??
+          await _downloadManager.getOrCreateStreamUrl(task.id);
+      if (!mounted || streamUrl == null) return;
       debugPrint(
         '[Player] Found existing BT download for this episode: ${task.name}',
       );
-      _playBtStreamUrl(task.streamUrl!);
+      _playBtStreamUrl(streamUrl);
     }
   }
 
@@ -312,7 +316,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final btHash = _extractBtHashFromStreamUrl(streamUrl);
     if (btHash != null) {
       DownloadManager().setActiveStream(btHash);
-      debugPrint('[Player] Notified DownloadManager: stream active for $btHash');
+      debugPrint(
+        '[Player] Notified DownloadManager: stream active for $btHash',
+      );
     }
 
     debugPrint('[Player] Playing BT stream: $streamUrl');
@@ -324,11 +330,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   /// 从BT流URL中提取info hash
   String? _extractBtHashFromStreamUrl(String streamUrl) {
-    // libtorrent: http://127.0.0.1:PORT/streams/HASH/file/INDEX
+    // libtorrent: http://127.0.0.1:PORT/stream/HASH/INDEX
     // rqbit: http://127.0.0.1:3000/torrents/HASH/stream/INDEX
-    final ltRegex = RegExp(r'/streams/([a-fA-F0-9]+)/');
+    final ltRegex = RegExp(r'/streams?/([a-fA-F0-9]+)/');
     final rqbitRegex = RegExp(r'/torrents/([a-fA-F0-9]+)/');
-    
+
     for (final regex in [ltRegex, rqbitRegex]) {
       final match = regex.firstMatch(streamUrl);
       if (match != null) {
@@ -1463,14 +1469,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _currentEpisode.sort.toInt(),
     );
 
-    if (btTask != null &&
-        btTask.streamUrl != null &&
-        _currentStreamUrl == null) {
-      debugPrint(
-        '[Sample] Found existing BT download, using it as primary source',
-      );
-      _playBtStreamUrl(btTask.streamUrl!);
-      // Continue loading other sources in background for alternatives
+    if (btTask != null && _currentStreamUrl == null) {
+      final streamUrl =
+          btTask.streamUrl ??
+          await _downloadManager.getOrCreateStreamUrl(btTask.id);
+      if (!mounted || loadToken != _sampleLoadToken) return;
+      if (streamUrl != null) {
+        debugPrint(
+          '[Sample] Found existing BT download, using it as primary source',
+        );
+        _playBtStreamUrl(streamUrl);
+        // Continue loading other sources in background for alternatives
+      }
     }
 
     setState(() {
@@ -2021,8 +2031,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (_currentStreamUrl != null) {
       final btHash = _extractBtHashFromStreamUrl(_currentStreamUrl!);
       if (btHash != null) {
-        DownloadManager().setActiveStream(null);
-        debugPrint('[Player] Notified DownloadManager: stream inactive for $btHash');
+        DownloadManager().setActiveStream(btHash, active: false);
+        debugPrint(
+          '[Player] Notified DownloadManager: stream inactive for $btHash',
+        );
       }
     }
 
@@ -4443,6 +4455,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
                               debugPrint("[Player] Got stream URL: $streamUrl");
                               _currentStreamUrl = streamUrl;
+                              final btHash = _extractBtHashFromStreamUrl(
+                                streamUrl,
+                              );
+                              if (btHash != null) {
+                                _downloadManager.setActiveStream(btHash);
+                                debugPrint(
+                                  '[Player] Notified DownloadManager: stream active for $btHash',
+                                );
+                              }
 
                               // 停止之前的播放，防止后台继续播放
                               await _player.stop();

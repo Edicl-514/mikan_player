@@ -241,6 +241,7 @@ class DownloadManager extends ChangeNotifier {
   final Map<String, int> _ltStreamIdsByHash = {};
   final Map<String, int> _ltFileIdxByHash = {};
   final Map<String, int> _ltFileSizeByHash = {};
+  final Set<String> _ltPriorityRecoveryHashes = {};
   final Set<String> _activeStreamHashes = {}; // Track active playback streams
   Timer? _streamKeepAliveTimer; // Keep libtorrent streams alive during playback
 
@@ -528,6 +529,7 @@ class DownloadManager extends ChangeNotifier {
       );
     }
 
+    _stopLibtorrentStreamForHash(infoHash);
     final stream = engine.startStream(
       torrentId,
       fileIndex: file.index,
@@ -898,11 +900,24 @@ class DownloadManager extends ChangeNotifier {
     final task = _tasks[id];
     if (task == null) return null;
     if (task.streamUrl != null && task.streamUrl!.isNotEmpty) {
-      if (task.status == DownloadTaskStatus.paused) {
-        final resumed = await resumeTask(id);
-        if (!resumed) return null;
+      if (task.backend == BtBackendKind.libtorrent) {
+        final streamId = _ltStreamIdsByHash[task.id.toLowerCase()];
+        if (streamId == null) {
+          task.streamUrl = null;
+        } else if (task.status == DownloadTaskStatus.paused) {
+          final resumed = await resumeTask(id);
+          if (!resumed) return null;
+          return task.streamUrl;
+        } else {
+          return task.streamUrl;
+        }
+      } else {
+        if (task.status == DownloadTaskStatus.paused) {
+          final resumed = await resumeTask(id);
+          if (!resumed) return null;
+        }
+        return task.streamUrl;
       }
-      return task.streamUrl;
     }
     if (task.magnet.isEmpty) return null;
 
@@ -995,8 +1010,15 @@ class DownloadManager extends ChangeNotifier {
 
         // Rust now returns a lowercase, stable state token.
         final state = stat.state;
+        final shouldRecoverAutoPausedLibtorrent =
+            task.backend == BtBackendKind.libtorrent && state == 'paused';
+        if (shouldRecoverAutoPausedLibtorrent) {
+          unawaited(_restoreLibtorrentBackgroundDownload(hashLower));
+        }
         final nextStatus = stat.progress >= 100.0
             ? DownloadTaskStatus.seeding
+            : shouldRecoverAutoPausedLibtorrent
+            ? DownloadTaskStatus.downloading
             : state == 'paused'
             ? DownloadTaskStatus.paused
             : state == 'live'
@@ -1198,10 +1220,13 @@ class DownloadManager extends ChangeNotifier {
         backend: task.backend,
       );
       if (resumed) {
+        _pausedTaskIds.remove(id);
         task.status = task.progress >= 100.0
             ? DownloadTaskStatus.seeding
             : DownloadTaskStatus.downloading;
-        _pausedTaskIds.remove(id);
+        if (task.backend == BtBackendKind.libtorrent) {
+          unawaited(_restoreLibtorrentBackgroundDownload(task.id));
+        }
         await _saveTasks();
         notifyListeners();
         _ensureStatsPolling();
@@ -1300,25 +1325,179 @@ class DownloadManager extends ChangeNotifier {
     );
   }
 
-  /// Notify that a BT stream is now active (being played)
-  /// This prevents libtorrent from removing the stream while playback is active
-  void setActiveStream(String? infoHash) {
+  String _resolveStreamHash(String infoHash) {
+    final hashLower = infoHash.toLowerCase();
+    if (_tasks.containsKey(hashLower) ||
+        _ltStreamIdsByHash.containsKey(hashLower)) {
+      return hashLower;
+    }
+
+    for (final entry in _tasks.entries) {
+      final streamUrl = entry.value.streamUrl?.toLowerCase();
+      if (streamUrl == null) continue;
+      if (streamUrl.contains('/stream/$hashLower/') ||
+          streamUrl.contains('/streams/$hashLower/') ||
+          streamUrl.contains('/torrents/$hashLower/')) {
+        return entry.key;
+      }
+    }
+    return hashLower;
+  }
+
+  void _stopLibtorrentStreamForHash(String infoHash) {
+    final hashLower = _resolveStreamHash(infoHash);
+    final streamId = _ltStreamIdsByHash.remove(hashLower);
+    if (streamId == null) return;
+
+    final task = _tasks[hashLower];
+    if (task?.backend == BtBackendKind.libtorrent) {
+      task?.streamUrl = null;
+    }
+
+    if (!_libtorrentInitialized) return;
+    try {
+      ltf.LibtorrentFlutter.instance.stopStream(streamId);
+      debugPrint(
+        '[DownloadManager] Stopped libtorrent stream $streamId for $hashLower',
+      );
+    } catch (e) {
+      debugPrint(
+        '[DownloadManager] Error stopping libtorrent stream $streamId: $e',
+      );
+    }
+  }
+
+  Future<void> _restoreLibtorrentBackgroundDownload(
+    String infoHash, {
+    Duration delay = Duration.zero,
+  }) async {
+    final hashLower = _resolveStreamHash(infoHash);
+    if (_ltPriorityRecoveryHashes.contains(hashLower)) return;
+    _ltPriorityRecoveryHashes.add(hashLower);
+
+    try {
+      if (delay > Duration.zero) {
+        await Future<void>.delayed(delay);
+      }
+
+      if (!_libtorrentInitialized ||
+          _removedTaskIds.contains(hashLower) ||
+          _pausedTaskIds.contains(hashLower)) {
+        return;
+      }
+
+      final task = _tasks[hashLower];
+      if (task == null || task.backend != BtBackendKind.libtorrent) {
+        return;
+      }
+
+      if (!_activeStreamHashes.contains(hashLower)) {
+        _stopLibtorrentStreamForHash(hashLower);
+      }
+
+      final engine = ltf.LibtorrentFlutter.instance;
+      var torrentId = _ltTorrentIdsByHash[hashLower];
+      if (torrentId == null || !engine.torrents.containsKey(torrentId)) {
+        if (task.magnet.isEmpty) return;
+        final result = await _startTorrentWithBackend(
+          task.magnet,
+          fallbackInfoHash: task.id,
+          backend: task.backend,
+          startStream: false,
+        );
+        torrentId = result.torrentId;
+        task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
+        if (result.fileSize != null && result.fileSize! > 0) {
+          task.totalSize = BigInt.from(result.fileSize!);
+        }
+      } else {
+        var fileIdx = _ltFileIdxByHash[hashLower] ?? task.largestFileIdx;
+        if (fileIdx == null) {
+          await _waitForLibtorrentMetadata(torrentId);
+          final file = _selectLibtorrentFile(torrentId);
+          if (file == null) return;
+          fileIdx = file.index;
+          _ltFileIdxByHash[hashLower] = file.index;
+          _ltFileSizeByHash[hashLower] = file.size;
+          task.largestFileIdx = file.index;
+          if (file.size > 0) {
+            task.totalSize = BigInt.from(file.size);
+          }
+        }
+
+        await _prioritizeLibtorrentDownloadFile(torrentId, fileIdx);
+        engine.resumeTorrent(torrentId);
+      }
+
+      if (task.status != DownloadTaskStatus.seeding &&
+          task.status != DownloadTaskStatus.completed) {
+        task.status = DownloadTaskStatus.downloading;
+      }
+      _ensureStatsPolling();
+      await _saveTasks();
+      notifyListeners();
+      debugPrint(
+        '[DownloadManager] Restored libtorrent background download: $hashLower',
+      );
+    } catch (e) {
+      debugPrint(
+        '[DownloadManager] Error restoring libtorrent background download: $e',
+      );
+    } finally {
+      _ltPriorityRecoveryHashes.remove(hashLower);
+    }
+  }
+
+  /// Notify that a BT stream is now active (being played) or inactive.
+  ///
+  /// When a libtorrent HTTP reader goes away, the native streaming backend may
+  /// leave piece priorities focused around the old playback window. Reset the
+  /// selected file priority so the download keeps progressing in the background.
+  void setActiveStream(String? infoHash, {bool active = true}) {
     if (infoHash == null) {
+      final hashes = _activeStreamHashes.toList(growable: false);
       _activeStreamHashes.clear();
       _streamKeepAliveTimer?.cancel();
       _streamKeepAliveTimer = null;
+      for (final hash in hashes) {
+        _stopLibtorrentStreamForHash(hash);
+        unawaited(
+          _restoreLibtorrentBackgroundDownload(
+            hash,
+            delay: const Duration(milliseconds: 300),
+          ),
+        );
+      }
       debugPrint('[DownloadManager] Deactivated all BT streams');
       return;
     }
 
-    final hashLower = infoHash.toLowerCase();
+    final hashLower = _resolveStreamHash(infoHash);
+    if (!active) {
+      _activeStreamHashes.remove(hashLower);
+      if (_activeStreamHashes.isEmpty) {
+        _streamKeepAliveTimer?.cancel();
+        _streamKeepAliveTimer = null;
+      }
+      _stopLibtorrentStreamForHash(hashLower);
+      unawaited(
+        _restoreLibtorrentBackgroundDownload(
+          hashLower,
+          delay: const Duration(milliseconds: 300),
+        ),
+      );
+      debugPrint('[DownloadManager] Deactivated BT stream for: $hashLower');
+      return;
+    }
+
     _activeStreamHashes.add(hashLower);
-    debugPrint(
-      '[DownloadManager] Activated BT stream for: $hashLower',
-    );
+    debugPrint('[DownloadManager] Activated BT stream for: $hashLower');
 
     // Start keep-alive timer if not already running (for libtorrent only)
-    if (_backendKind == BtBackendKind.libtorrent &&
+    final isLibtorrentStream =
+        _tasks[hashLower]?.backend == BtBackendKind.libtorrent ||
+        _ltStreamIdsByHash.containsKey(hashLower);
+    if (isLibtorrentStream &&
         (_streamKeepAliveTimer == null || !_streamKeepAliveTimer!.isActive)) {
       _startStreamKeepAliveTimer();
     }
@@ -1328,8 +1507,7 @@ class DownloadManager extends ChangeNotifier {
   /// This prevents the polling thread from marking them as inactive and removing them
   void _startStreamKeepAliveTimer() {
     _streamKeepAliveTimer?.cancel();
-    _streamKeepAliveTimer =
-        Timer.periodic(const Duration(seconds: 3), (_) {
+    _streamKeepAliveTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (_activeStreamHashes.isEmpty || !_libtorrentInitialized) {
         _streamKeepAliveTimer?.cancel();
         _streamKeepAliveTimer = null;
@@ -1347,9 +1525,7 @@ class DownloadManager extends ChangeNotifier {
               '[DownloadManager] Keep-alive ping for stream $streamId',
             );
           } catch (e) {
-            debugPrint(
-              '[DownloadManager] Error pinging stream $streamId: $e',
-            );
+            debugPrint('[DownloadManager] Error pinging stream $streamId: $e');
           }
         }
       }

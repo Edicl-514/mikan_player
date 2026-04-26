@@ -131,3 +131,32 @@ install(FILES "${RUST_SOURCE_DIR}/target/${RUST_BUILD_MODE}/rust.dll"
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 
+# === Native libtorrent Build ===
+set(MIKAN_LIBTORRENT_BUILD_MODE "Release")
+set(MIKAN_LIBTORRENT_SCRIPT "${CMAKE_SOURCE_DIR}/../build_libtorrent_windows.ps1")
+set(MIKAN_LIBTORRENT_OUTPUT_DIR
+    "${CMAKE_SOURCE_DIR}/../build/native/mikan_libtorrent/x64-windows/${MIKAN_LIBTORRENT_BUILD_MODE}")
+set(MIKAN_LIBTORRENT_RUNTIME_FILES
+    "${MIKAN_LIBTORRENT_OUTPUT_DIR}/mikan_libtorrent.dll"
+    "${MIKAN_LIBTORRENT_OUTPUT_DIR}/libssl-3-x64.dll"
+    "${MIKAN_LIBTORRENT_OUTPUT_DIR}/libcrypto-3-x64.dll")
+
+add_custom_target(mikan_libtorrent_build ALL
+    COMMAND PowerShell -NoProfile -ExecutionPolicy Bypass -File "${MIKAN_LIBTORRENT_SCRIPT}" -Configuration "${MIKAN_LIBTORRENT_BUILD_MODE}"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/..
+    COMMENT "Building native libtorrent wrapper..."
+    VERBATIM
+)
+
+add_custom_command(TARGET mikan_libtorrent_build POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "$<TARGET_FILE_DIR:${BINARY_NAME}>"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${MIKAN_LIBTORRENT_RUNTIME_FILES}
+        "$<TARGET_FILE_DIR:${BINARY_NAME}>"
+)
+
+install(FILES ${MIKAN_LIBTORRENT_RUNTIME_FILES}
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+
