@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:libtorrent_flutter/libtorrent_flutter.dart' as ltf;
+import 'package:mikan_player/native/mikan_libtorrent_native.dart';
 import 'package:mikan_player/utils/app_directories.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart';
@@ -235,6 +235,7 @@ class DownloadManager extends ChangeNotifier {
   BtBackendKind _backendKind = BtBackendKind.rqbit;
   bool _libtorrentInitialized = false;
   Future<void>? _libtorrentInitialization;
+  MikanLibtorrentSession? _nativeSession;
   String? _downloadDir;
   final Map<String, int> _ltTorrentIdsByHash = {};
   final Map<int, String> _ltInfoHashesByTorrentId = {};
@@ -451,34 +452,20 @@ class DownloadManager extends ChangeNotifier {
   Future<void> _initializeLibtorrent() async {
     final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
     _downloadDir = '${appSupportDir.path}/downloads';
-    await ltf.LibtorrentFlutter.init(
-      defaultSavePath: _downloadDir,
-      fetchTrackers: true,
-      pollInterval: const Duration(milliseconds: 200),
+    _nativeSession = MikanLibtorrentNative.instance.createSession(
+      listenInterfaces: '0.0.0.0:6881',
     );
-    final engine = ltf.LibtorrentFlutter.instance;
-    final config = engine.getDefaultConfig();
-    engine.configureSession(
-      config.copyWith(
-        cacheSize: 128 * 1024 * 1024,
-        preloadCache: 70,
-        connectionsLimit: 50,
-        torrentDisconnectTimeout: 90,
-        forceEncrypt: false,
-        disableTcp: false,
-        disableUtp: false,
-        disableUpload: false,
-        disableDht: false,
-        disableUpnp: false,
-        downloadRateLimit: 0,
-        uploadRateLimit: 0,
-        responsiveMode: true,
-      ),
+    _nativeSession!.configureSession(
+      connectionsLimit: 50,
+      enableDht: true,
+      enableLsd: true,
+      enableUpnp: true,
+      enableNatPmp: true,
     );
     _libtorrentInitialized = true;
     debugPrint(
       '[DownloadManager] libtorrent initialized: '
-      '${engine.libraryVersion}',
+      '${MikanLibtorrentNative.instance.version}',
     );
   }
 
@@ -501,11 +488,11 @@ class DownloadManager extends ChangeNotifier {
     }
 
     await _ensureLibtorrentInitialized();
-    final engine = ltf.LibtorrentFlutter.instance;
+    final session = _nativeSession!;
     final infoHash = fallbackInfoHash.toLowerCase();
     var torrentId = _ltTorrentIdsByHash[infoHash];
-    if (torrentId == null || !engine.torrents.containsKey(torrentId)) {
-      torrentId = engine.addMagnet(magnet, _downloadDir);
+    if (torrentId == null || !_isNativeTorrentValid(torrentId)) {
+      torrentId = session.addMagnet(magnet, savePath: _downloadDir);
       _ltTorrentIdsByHash[infoHash] = torrentId;
       _ltInfoHashesByTorrentId[torrentId] = infoHash;
     }
@@ -517,6 +504,8 @@ class DownloadManager extends ChangeNotifier {
     }
 
     await _prioritizeLibtorrentDownloadFile(torrentId, file.index);
+    // Explicitly resume: without auto_managed the torrent won't start on its own.
+    session.resumeTorrent(torrentId);
 
     if (!startStream) {
       _ltFileIdxByHash[infoHash] = file.index;
@@ -529,8 +518,9 @@ class DownloadManager extends ChangeNotifier {
       );
     }
 
+    // TODO: implement native streaming (mikan_lt_start_stream)
     _stopLibtorrentStreamForHash(infoHash);
-    final stream = engine.startStream(
+    final stream = session.startStream(
       torrentId,
       fileIndex: file.index,
       maxCacheBytes: 512 * 1024 * 1024,
@@ -538,28 +528,27 @@ class DownloadManager extends ChangeNotifier {
     _warmUpLibtorrentStream(stream);
     _ltStreamIdsByHash[infoHash] = stream.id;
     _ltFileIdxByHash[infoHash] = file.index;
-    _ltFileSizeByHash[infoHash] = stream.fileSize > 0
-        ? stream.fileSize
-        : file.size;
+    _ltFileSizeByHash[infoHash] = file.size;
 
     return _BackendStartResult(
       infoHash: infoHash,
       streamUrl: stream.url,
       fileIdx: file.index,
-      fileSize: stream.fileSize > 0 ? stream.fileSize : file.size,
+      fileSize: file.size,
       torrentId: torrentId,
       streamId: stream.id,
     );
   }
 
   Future<void> _waitForLibtorrentMetadata(int torrentId) async {
-    final engine = ltf.LibtorrentFlutter.instance;
+    final session = _nativeSession!;
     final deadline = DateTime.now().add(const Duration(seconds: 90));
     while (DateTime.now().isBefore(deadline)) {
-      final torrent = engine.torrents[torrentId];
-      if (torrent?.hasMetadata == true) return;
-      if (torrent?.state == ltf.TorrentState.error) {
-        throw Exception('Error getting torrent metadata: ${torrent?.errorMsg}');
+      final stats = session.getTorrentStats();
+      final torrent = stats.where((s) => s.torrentId == torrentId).firstOrNull;
+      if (torrent != null && torrent.hasMetadata) return;
+      if (torrent != null && torrent.errorMessage.isNotEmpty) {
+        throw Exception('Error getting torrent metadata: ${torrent.errorMessage}');
       }
       await Future<void>.delayed(const Duration(milliseconds: 300));
     }
@@ -568,26 +557,26 @@ class DownloadManager extends ChangeNotifier {
     );
   }
 
-  void _warmUpLibtorrentStream(ltf.StreamInfo stream) {
-    final engine = ltf.LibtorrentFlutter.instance;
+  void _warmUpLibtorrentStream(MikanLtStreamInfo stream) {
+    final session = _nativeSession!;
     try {
-      engine.setCacheSettings(
+      session.setStreamCache(
         stream.id,
         capacity: 256 * 1024 * 1024,
         readAheadPct: 95,
         connectionsLimit: 50,
       );
-      engine.preloadStream(stream.id, preloadBytes: 32 * 1024 * 1024);
+      session.preloadStream(stream.id, preloadBytes: 32 * 1024 * 1024);
     } catch (e) {
       debugPrint('[DownloadManager] Error warming up libtorrent stream: $e');
     }
   }
 
-  ltf.FileInfo? _selectLibtorrentFile(int torrentId) {
-    final files = ltf.LibtorrentFlutter.instance.getFiles(torrentId);
+  MikanLtFileInfo? _selectLibtorrentFile(int torrentId) {
+    final files = _nativeSession!.getFiles(torrentId);
     final streamable = files.where((f) => f.isStreamable).toList();
     final candidates = streamable.isNotEmpty ? streamable : files;
-    ltf.FileInfo? largest;
+    MikanLtFileInfo? largest;
     for (final file in candidates) {
       if (largest == null || file.size > largest.size) {
         largest = file;
@@ -596,11 +585,39 @@ class DownloadManager extends ChangeNotifier {
     return largest;
   }
 
+  bool _isNativeTorrentValid(int torrentId) {
+    if (_nativeSession == null) return false;
+    try {
+      final stats = _nativeSession!.getTorrentStats();
+      return stats.any((s) => s.torrentId == torrentId);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Find a native torrent ID by info hash when the in-memory mapping is lost
+  /// (e.g. after app restart before resume completes).
+  int? _findNativeTorrentIdByHash(String infoHash) {
+    if (_nativeSession == null) return null;
+    try {
+      final stats = _nativeSession!.getTorrentStats();
+      for (final s in stats) {
+        if (s.infoHash.toLowerCase() == infoHash.toLowerCase()) {
+          // Rebuild the mapping so future lookups are fast
+          _ltTorrentIdsByHash[infoHash] = s.torrentId;
+          _ltInfoHashesByTorrentId[s.torrentId] = infoHash;
+          return s.torrentId;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _prioritizeLibtorrentDownloadFile(
     int torrentId,
     int fileIndex,
   ) async {
-    final files = ltf.LibtorrentFlutter.instance.getFiles(torrentId);
+    final files = _nativeSession!.getFiles(torrentId);
     if (files.isEmpty) return;
 
     final maxIndex = files.fold<int>(
@@ -611,7 +628,7 @@ class DownloadManager extends ChangeNotifier {
 
     final priorities = List<int>.filled(maxIndex + 1, 0);
     priorities[fileIndex] = 7;
-    ltf.LibtorrentFlutter.instance.setFilePriorities(torrentId, priorities);
+    _nativeSession!.setFilePriorities(torrentId, priorities);
     // Native setFilePriorities uses libtorrent's async prioritize_files().
     // Let that settle before startStream installs its piece deadlines.
     await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -634,60 +651,59 @@ class DownloadManager extends ChangeNotifier {
       return results;
     }
 
-    final engine = ltf.LibtorrentFlutter.instance;
-    results.addAll(
-      engine.torrents.values
-          .map((torrent) {
-            final infoHash = _ltInfoHashesByTorrentId[torrent.id];
-            if (infoHash == null) return null;
+    final session = _nativeSession!;
+    final nativeStats = session.getTorrentStats();
+    for (final stats in nativeStats) {
+      final infoHash = _ltInfoHashesByTorrentId[stats.torrentId];
+      if (infoHash == null) continue;
 
-            final task = _tasks[infoHash];
-            final persistedTotal = task?.totalSize.toInt() ?? 0;
-            final totalSize =
-                _ltFileSizeByHash[infoHash] ??
-                (persistedTotal > 0 ? persistedTotal : torrent.totalWanted);
-            final downloaded = totalSize > 0
-                ? torrent.totalDone.clamp(0, totalSize)
-                : torrent.totalDone;
-            final progress = totalSize > 0
-                ? (downloaded / totalSize * 100.0).clamp(0.0, 100.0)
-                : (torrent.progress * 100.0).clamp(0.0, 100.0);
-            return TorrentStats(
-              infoHash: infoHash,
-              name: torrent.name.isEmpty
-                  ? 'Torrent ${torrent.id}'
-                  : torrent.name,
-              state: _normalizeLibtorrentState(torrent),
-              progress: progress,
-              downloadSpeed: torrent.downloadRate.toDouble(),
-              uploadSpeed: torrent.uploadRate.toDouble(),
-              downloaded: BigInt.from(downloaded),
-              totalSize: BigInt.from(totalSize),
-              peers: torrent.numPeers,
-              seeders: torrent.numSeeds,
-            );
-          })
-          .whereType<TorrentStats>()
-          .toList(),
-    );
+      final task = _tasks[infoHash];
+      final persistedTotal = task?.totalSize.toInt() ?? 0;
+      final totalSize =
+          _ltFileSizeByHash[infoHash] ??
+          (persistedTotal > 0 ? persistedTotal : stats.totalWanted);
+      final downloaded = totalSize > 0
+          ? stats.totalDone.clamp(0, totalSize)
+          : stats.totalDone;
+      final progress = totalSize > 0
+          ? (downloaded / totalSize * 100.0).clamp(0.0, 100.0)
+          : stats.progress;
+      results.add(TorrentStats(
+        infoHash: infoHash,
+        name: stats.name.isEmpty
+            ? 'Torrent ${stats.torrentId}'
+            : stats.name,
+        state: _normalizeNativeLibtorrentState(stats),
+        progress: progress,
+        downloadSpeed: stats.downloadRate.toDouble(),
+        uploadSpeed: stats.uploadRate.toDouble(),
+        downloaded: BigInt.from(downloaded),
+        totalSize: BigInt.from(totalSize),
+        peers: stats.numPeers,
+        seeders: stats.numSeeds,
+      ));
+    }
     return results;
   }
 
-  String _normalizeLibtorrentState(ltf.TorrentInfo torrent) {
-    if (torrent.isPaused) return 'paused';
-    if (torrent.state == ltf.TorrentState.error) return 'error';
-    if (torrent.state == ltf.TorrentState.seeding ||
-        torrent.state == ltf.TorrentState.finished) {
-      return 'live';
+  String _normalizeNativeLibtorrentState(MikanLtTorrentStats stats) {
+    if (stats.isPaused) return 'paused';
+    if (stats.errorMessage.isNotEmpty) return 'error';
+    // libtorrent state_t: 0=queued_for_checking, 1=checking_files,
+    // 2=downloading_metadata, 3=downloading, 4=finished, 5=seeding,
+    // 6=allocating, 7=checking_resume_data
+    switch (stats.state) {
+      case 5: // seeding
+      case 4: // finished
+      case 3: // downloading
+      case 2: // downloading_metadata
+      case 6: // allocating
+      case 1: // checking_files
+      case 7: // checking_resume_data
+        return 'live';
+      default:
+        return 'initializing';
     }
-    if (torrent.state == ltf.TorrentState.downloading ||
-        torrent.state == ltf.TorrentState.downloadingMetadata ||
-        torrent.state == ltf.TorrentState.allocating ||
-        torrent.state == ltf.TorrentState.checkingFiles ||
-        torrent.state == ltf.TorrentState.checkingResume) {
-      return 'live';
-    }
-    return 'initializing';
   }
 
   Future<bool> _pauseTorrentWithBackend(
@@ -698,9 +714,11 @@ class DownloadManager extends ChangeNotifier {
       return pauseTorrent(infoHash: infoHash);
     }
     if (!_libtorrentInitialized) return false;
-    final torrentId = _ltTorrentIdsByHash[infoHash.toLowerCase()];
+    final hashLower = infoHash.toLowerCase();
+    var torrentId = _ltTorrentIdsByHash[hashLower] ??
+        _findNativeTorrentIdByHash(hashLower);
     if (torrentId == null) return false;
-    ltf.LibtorrentFlutter.instance.pauseTorrent(torrentId);
+    _nativeSession!.pauseTorrent(torrentId);
     return true;
   }
 
@@ -712,9 +730,11 @@ class DownloadManager extends ChangeNotifier {
       return resumeTorrent(infoHash: infoHash);
     }
     if (!_libtorrentInitialized) return false;
-    final torrentId = _ltTorrentIdsByHash[infoHash.toLowerCase()];
+    final hashLower = infoHash.toLowerCase();
+    var torrentId = _ltTorrentIdsByHash[hashLower] ??
+        _findNativeTorrentIdByHash(hashLower);
     if (torrentId == null) return false;
-    ltf.LibtorrentFlutter.instance.resumeTorrent(torrentId);
+    _nativeSession!.resumeTorrent(torrentId);
     return true;
   }
 
@@ -728,17 +748,25 @@ class DownloadManager extends ChangeNotifier {
     }
     if (!_libtorrentInitialized) return false;
     final hashLower = infoHash.toLowerCase();
-    final engine = ltf.LibtorrentFlutter.instance;
+    final session = _nativeSession!;
     final streamId = _ltStreamIdsByHash.remove(hashLower);
     if (streamId != null) {
-      engine.stopStream(streamId);
+      try {
+        session.stopStream(streamId);
+      } catch (e) {
+        debugPrint('[DownloadManager] Error stopping stream: $e');
+      }
     }
-    final torrentId = _ltTorrentIdsByHash.remove(hashLower);
-    if (torrentId == null) return false;
+    var torrentId = _ltTorrentIdsByHash.remove(hashLower);
+    if (torrentId == null) {
+      torrentId = _findNativeTorrentIdByHash(hashLower);
+      if (torrentId == null) return false;
+      _ltTorrentIdsByHash.remove(hashLower);
+    }
     _ltInfoHashesByTorrentId.remove(torrentId);
     _ltFileIdxByHash.remove(hashLower);
     _ltFileSizeByHash.remove(hashLower);
-    engine.removeTorrent(torrentId, deleteFiles: deleteFiles);
+    session.removeTorrent(torrentId, deleteFiles: deleteFiles);
     return true;
   }
 
@@ -1356,7 +1384,7 @@ class DownloadManager extends ChangeNotifier {
 
     if (!_libtorrentInitialized) return;
     try {
-      ltf.LibtorrentFlutter.instance.stopStream(streamId);
+      _nativeSession!.stopStream(streamId);
       debugPrint(
         '[DownloadManager] Stopped libtorrent stream $streamId for $hashLower',
       );
@@ -1395,9 +1423,10 @@ class DownloadManager extends ChangeNotifier {
         _stopLibtorrentStreamForHash(hashLower);
       }
 
-      final engine = ltf.LibtorrentFlutter.instance;
-      var torrentId = _ltTorrentIdsByHash[hashLower];
-      if (torrentId == null || !engine.torrents.containsKey(torrentId)) {
+      final session = _nativeSession!;
+      var torrentId = _ltTorrentIdsByHash[hashLower] ??
+          _findNativeTorrentIdByHash(hashLower);
+      if (torrentId == null || !_isNativeTorrentValid(torrentId)) {
         if (task.magnet.isEmpty) return;
         final result = await _startTorrentWithBackend(
           task.magnet,
@@ -1426,7 +1455,7 @@ class DownloadManager extends ChangeNotifier {
         }
 
         await _prioritizeLibtorrentDownloadFile(torrentId, fileIdx);
-        engine.resumeTorrent(torrentId);
+        session.resumeTorrent(torrentId);
       }
 
       if (task.status != DownloadTaskStatus.seeding &&
@@ -1514,19 +1543,13 @@ class DownloadManager extends ChangeNotifier {
         return;
       }
 
-      final engine = ltf.LibtorrentFlutter.instance;
       for (final hash in _activeStreamHashes) {
         final streamId = _ltStreamIdsByHash[hash];
         if (streamId != null) {
-          // Access the stream to keep it active in the polling cycle
-          try {
-            final _ = engine.streams[streamId];
-            debugPrint(
-              '[DownloadManager] Keep-alive ping for stream $streamId',
-            );
-          } catch (e) {
-            debugPrint('[DownloadManager] Error pinging stream $streamId: $e');
-          }
+          // TODO: replace with native stream keep-alive when streaming is implemented
+          debugPrint(
+            '[DownloadManager] Keep-alive ping for stream $streamId',
+          );
         }
       }
     });
