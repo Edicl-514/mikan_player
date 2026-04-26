@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -105,6 +107,10 @@ class SubtitleSettings {
 /// 字幕服务 - 管理字幕轨道和设置
 class SubtitleService extends ChangeNotifier {
   Player? _player;
+  StreamSubscription? _tracksSubscription;
+  StreamSubscription? _trackSubscription;
+  StreamSubscription? _subtitleSubscription;
+  bool _disposed = false;
 
   /// 当前设置
   SubtitleSettings _settings = const SubtitleSettings();
@@ -143,7 +149,7 @@ class SubtitleService extends ChangeNotifier {
     _player = player;
 
     // 监听可用轨道变化
-    player.stream.tracks.listen((tracks) {
+    _tracksSubscription = player.stream.tracks.listen((tracks) {
       _availableTracks = tracks.subtitle;
       debugPrint('[Subtitle] 发现 ${actualSubtitleTracks.length} 个字幕轨道');
       for (final track in actualSubtitleTracks) {
@@ -151,32 +157,43 @@ class SubtitleService extends ChangeNotifier {
           '[Subtitle]   - ${track.id}: ${track.title ?? "无标题"} (${track.language ?? "未知语言"})',
         );
       }
+      if (_disposed) return;
       notifyListeners();
     });
 
     // 监听当前轨道变化
-    player.stream.track.listen((track) {
+    _trackSubscription = player.stream.track.listen((track) {
       _currentTrack = track.subtitle;
       debugPrint(
         '[Subtitle] 当前字幕轨道: ${_currentTrack?.id} - ${_currentTrack?.title}',
       );
+      if (_disposed) return;
       notifyListeners();
     });
 
     // 监听字幕文本变化
-    player.stream.subtitle.listen((subtitle) {
+    _subtitleSubscription = player.stream.subtitle.listen((subtitle) {
       _currentSubtitleText = subtitle;
+      if (_disposed) return;
       notifyListeners();
     });
   }
 
   /// 解绑播放器
   void unbindPlayer() {
+    _tracksSubscription?.cancel();
+    _tracksSubscription = null;
+    _trackSubscription?.cancel();
+    _trackSubscription = null;
+    _subtitleSubscription?.cancel();
+    _subtitleSubscription = null;
     _player = null;
     _availableTracks = [];
     _currentTrack = null;
     _currentSubtitleText = ['', ''];
-    notifyListeners();
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   /// 切换字幕开关
@@ -365,6 +382,7 @@ class SubtitleService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     unbindPlayer();
     super.dispose();
   }

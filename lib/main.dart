@@ -152,7 +152,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return ListenableBuilder(
       listenable: SettingsService(),
       builder: (context, _) {
-        return MaterialApp(
+        return ExcludeSemantics(
+        child: MaterialApp(
           locale: SettingsService().locale,
           onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
           localizationsDelegates: const [
@@ -171,6 +172,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             useMaterial3: true,
           ),
           home: const HomeScreen(),
+        ),
         );
       },
     );

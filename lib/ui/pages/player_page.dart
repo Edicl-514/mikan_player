@@ -308,11 +308,34 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _videoError = null;
     });
 
+    // 通知下载管理器BT流现在活跃（防止libtorrent流被移除）
+    final btHash = _extractBtHashFromStreamUrl(streamUrl);
+    if (btHash != null) {
+      DownloadManager().setActiveStream(btHash);
+      debugPrint('[Player] Notified DownloadManager: stream active for $btHash');
+    }
+
     debugPrint('[Player] Playing BT stream: $streamUrl');
     _player.open(Media(streamUrl), play: true).then((_) async {
       await _applyPlaybackSpeed();
       await _applyPendingStartPosition();
     });
+  }
+
+  /// 从BT流URL中提取info hash
+  String? _extractBtHashFromStreamUrl(String streamUrl) {
+    // libtorrent: http://127.0.0.1:PORT/streams/HASH/file/INDEX
+    // rqbit: http://127.0.0.1:3000/torrents/HASH/stream/INDEX
+    final ltRegex = RegExp(r'/streams/([a-fA-F0-9]+)/');
+    final rqbitRegex = RegExp(r'/torrents/([a-fA-F0-9]+)/');
+    
+    for (final regex in [ltRegex, rqbitRegex]) {
+      final match = regex.firstMatch(streamUrl);
+      if (match != null) {
+        return match.group(1);
+      }
+    }
+    return null;
   }
 
   Future<void> _applyPendingStartPosition() async {
@@ -1993,6 +2016,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _searchSubscriptions.clear();
     _activeCaptchaTasks.clear();
     _pendingCaptchaTasks.clear();
+
+    // 通知下载管理器BT流不再活跃
+    if (_currentStreamUrl != null) {
+      final btHash = _extractBtHashFromStreamUrl(_currentStreamUrl!);
+      if (btHash != null) {
+        DownloadManager().setActiveStream(null);
+        debugPrint('[Player] Notified DownloadManager: stream inactive for $btHash');
+      }
+    }
+
     _mobileTabController.dispose();
     _pcEpisodeScrollController.dispose();
     _mobileEpisodeScrollController.dispose();

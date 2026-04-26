@@ -241,6 +241,8 @@ class DownloadManager extends ChangeNotifier {
   final Map<String, int> _ltStreamIdsByHash = {};
   final Map<String, int> _ltFileIdxByHash = {};
   final Map<String, int> _ltFileSizeByHash = {};
+  final Set<String> _activeStreamHashes = {}; // Track active playback streams
+  Timer? _streamKeepAliveTimer; // Keep libtorrent streams alive during playback
 
   List<DownloadTask> get tasks => _tasks.values.toList();
   BtBackendKind get backendKind => _backendKind;
@@ -1296,6 +1298,62 @@ class DownloadManager extends ChangeNotifier {
       '[DownloadManager] Torrent ${task.id} not in backend session; '
       'skipping re-attach. Files (if any) remain in download directory.',
     );
+  }
+
+  /// Notify that a BT stream is now active (being played)
+  /// This prevents libtorrent from removing the stream while playback is active
+  void setActiveStream(String? infoHash) {
+    if (infoHash == null) {
+      _activeStreamHashes.clear();
+      _streamKeepAliveTimer?.cancel();
+      _streamKeepAliveTimer = null;
+      debugPrint('[DownloadManager] Deactivated all BT streams');
+      return;
+    }
+
+    final hashLower = infoHash.toLowerCase();
+    _activeStreamHashes.add(hashLower);
+    debugPrint(
+      '[DownloadManager] Activated BT stream for: $hashLower',
+    );
+
+    // Start keep-alive timer if not already running (for libtorrent only)
+    if (_backendKind == BtBackendKind.libtorrent &&
+        (_streamKeepAliveTimer == null || !_streamKeepAliveTimer!.isActive)) {
+      _startStreamKeepAliveTimer();
+    }
+  }
+
+  /// Keep libtorrent streams alive by periodically querying their status
+  /// This prevents the polling thread from marking them as inactive and removing them
+  void _startStreamKeepAliveTimer() {
+    _streamKeepAliveTimer?.cancel();
+    _streamKeepAliveTimer =
+        Timer.periodic(const Duration(seconds: 3), (_) {
+      if (_activeStreamHashes.isEmpty || !_libtorrentInitialized) {
+        _streamKeepAliveTimer?.cancel();
+        _streamKeepAliveTimer = null;
+        return;
+      }
+
+      final engine = ltf.LibtorrentFlutter.instance;
+      for (final hash in _activeStreamHashes) {
+        final streamId = _ltStreamIdsByHash[hash];
+        if (streamId != null) {
+          // Access the stream to keep it active in the polling cycle
+          try {
+            final _ = engine.streams[streamId];
+            debugPrint(
+              '[DownloadManager] Keep-alive ping for stream $streamId',
+            );
+          } catch (e) {
+            debugPrint(
+              '[DownloadManager] Error pinging stream $streamId: $e',
+            );
+          }
+        }
+      }
+    });
   }
 
   /// Clear completed tasks
