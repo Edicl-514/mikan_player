@@ -796,9 +796,7 @@ class DownloadManager extends ChangeNotifier {
       final existingTask = _tasks[tempId]!;
       if (existingTask.status == DownloadTaskStatus.paused) {
         final resumed = await resumeTask(tempId);
-        if (resumed && !forPlayback) {
-          return existingTask.streamUrl;
-        }
+        if (!resumed) return null;
       }
       if (existingTask.streamUrl != null &&
           existingTask.streamUrl!.isNotEmpty) {
@@ -898,6 +896,10 @@ class DownloadManager extends ChangeNotifier {
     final task = _tasks[id];
     if (task == null) return null;
     if (task.streamUrl != null && task.streamUrl!.isNotEmpty) {
+      if (task.status == DownloadTaskStatus.paused) {
+        final resumed = await resumeTask(id);
+        if (!resumed) return null;
+      }
       return task.streamUrl;
     }
     if (task.magnet.isEmpty) return null;
