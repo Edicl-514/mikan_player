@@ -467,6 +467,8 @@ class DownloadManager extends ChangeNotifier {
       throw Exception('Error: No streamable files found in torrent');
     }
 
+    await _prioritizeLibtorrentDownloadFile(torrentId, file.index);
+
     final stream = engine.startStream(
       torrentId,
       fileIndex: file.index,
@@ -515,6 +517,27 @@ class DownloadManager extends ChangeNotifier {
       }
     }
     return largest;
+  }
+
+  Future<void> _prioritizeLibtorrentDownloadFile(
+    int torrentId,
+    int fileIndex,
+  ) async {
+    final files = ltf.LibtorrentFlutter.instance.getFiles(torrentId);
+    if (files.isEmpty) return;
+
+    final maxIndex = files.fold<int>(
+      -1,
+      (current, file) => file.index > current ? file.index : current,
+    );
+    if (fileIndex < 0 || fileIndex > maxIndex) return;
+
+    final priorities = List<int>.filled(maxIndex + 1, 0);
+    priorities[fileIndex] = 7;
+    ltf.LibtorrentFlutter.instance.setFilePriorities(torrentId, priorities);
+    // Native setFilePriorities uses libtorrent's async prioritize_files().
+    // Let that settle before startStream installs its piece deadlines.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
   }
 
   Future<List<TorrentStats>> _getTorrentStatsWithBackend() async {
