@@ -158,8 +158,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   final DanmakuService _danmakuService = DanmakuService();
   final ValueNotifier<double> _currentVideoTimeNotifier = ValueNotifier(0);
   final ValueNotifier<bool> _isVideoPausedNotifier = ValueNotifier(false);
-  final ValueNotifier<bool> _showDanmakuSettingsNotifier =
-      ValueNotifier(false);
+  final ValueNotifier<bool> _showDanmakuSettingsNotifier = ValueNotifier(false);
   StreamSubscription? _positionSubscription;
   StreamSubscription? _playingSubscription;
   StreamSubscription? _completedSubscription;
@@ -175,8 +174,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   // Header Injection Proxy
   final HeaderInjectionProxy _headerProxy = HeaderInjectionProxy();
-  final ValueNotifier<String> _sampleStatusMessageNotifier =
-      ValueNotifier('');
+  final ValueNotifier<String> _sampleStatusMessageNotifier = ValueNotifier('');
 
   @override
   void initState() {
@@ -4399,6 +4397,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                     name: title,
                                     animeName: widget.anime.title,
                                     episodeNumber: episode,
+                                    forPlayback: true,
                                   );
 
                               if (streamUrl == null) {
@@ -4501,12 +4500,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // Check for RAW first to avoid false positive matches
     String? subLang;
     final hasRaw = RegExp(r'生肉|RAW(?!\s*[A-Z])|\bNO.?SUB').hasMatch(t);
-    
+
     // Check for language combinations first (higher priority)
-    final hasSimplifiedTraditionalJpn = RegExp(r'简繁日|简繁.*日|简.*繁.*日').hasMatch(t);
+    final hasSimplifiedTraditionalJpn = RegExp(
+      r'简繁日|简繁.*日|简.*繁.*日',
+    ).hasMatch(t);
     final hasSimplifiedJpn = RegExp(r'简日(?!本)|简.*日(?!本)').hasMatch(t);
     final hasTraditionalJpn = RegExp(r'繁日(?!本)|繁.*日(?!本)').hasMatch(t);
-    
+
     // Check for individual languages (without dual markers)
     final hasChs = RegExp(r'简体|简中|CHS(?!T)|GB|S_CHS').hasMatch(t);
     final hasCht = RegExp(r'繁体|繁中|CHT|BIG5|T_CHT').hasMatch(t);
@@ -4539,9 +4540,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final hasHardSub = RegExp(
       r'内嵌|内挂|硬字幕|HARDSUB|HARD.?SUB|ASS.?SUB|字幕内嵌|内字|内置字幕',
     ).hasMatch(t);
-    final hasSoftSub = RegExp(
-      r'内封|软字幕|SOFTSUB|SOFT.?SUB|字幕内封',
-    ).hasMatch(t);
+    final hasSoftSub = RegExp(r'内封|软字幕|SOFTSUB|SOFT.?SUB|字幕内封').hasMatch(t);
     // Some groups use 内封字幕 specifically
     final hasSoftSub2 = RegExp(r'内封字幕|内封.*字幕|字幕.*内封').hasMatch(t);
 
@@ -4595,7 +4594,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final resolution = tags['resolution'];
     if (resolution != null) {
       widgets.add(
-        _buildBtTag(resolution, const Color(0xFF1A3A5C), const Color(0xFF5BC4FF)),
+        _buildBtTag(
+          resolution,
+          const Color(0xFF1A3A5C),
+          const Color(0xFF5BC4FF),
+        ),
       );
     }
 
@@ -4640,11 +4643,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final subType = tags['subType'];
     if (subType != null) {
       widgets.add(
-        _buildBtTag(
-          subType,
-          const Color(0xFF2A1A2A),
-          const Color(0xFFFFAB91),
-        ),
+        _buildBtTag(subType, const Color(0xFF2A1A2A), const Color(0xFFFFAB91)),
       );
     }
 
@@ -4652,11 +4651,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Wrap(
-        spacing: 4,
-        runSpacing: 4,
-        children: widgets,
-      ),
+      child: Wrap(spacing: 4, runSpacing: 4, children: widgets),
     );
   }
 
@@ -4978,7 +4973,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     ),
                   ),
                 ],
-
               ],
             ),
           ),

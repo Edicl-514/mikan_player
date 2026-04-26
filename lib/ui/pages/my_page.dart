@@ -885,10 +885,9 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
     final statusColor = _getStatusColor(task.status);
     final statusIcon = _getStatusIcon(task.status);
     final canPlay =
-        task.streamUrl != null &&
-        (task.status == DownloadTaskStatus.downloading ||
-            task.status == DownloadTaskStatus.seeding ||
-            task.status == DownloadTaskStatus.paused && task.progress > 5);
+        task.status == DownloadTaskStatus.downloading ||
+        task.status == DownloadTaskStatus.seeding ||
+        task.status == DownloadTaskStatus.paused && task.progress > 5;
 
     final theme = Theme.of(context);
     final cardColor = theme.colorScheme.surface;
@@ -1145,7 +1144,15 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
   }
 
   Future<void> _playTask(DownloadTask task) async {
-    if (task.streamUrl == null) return;
+    final streamUrl = await _downloadManager.getOrCreateStreamUrl(task.id);
+    if (streamUrl == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('无法获取播放地址')));
+      }
+      return;
+    }
 
     // Try to find anime info from playback history
     final historyManager = PlaybackHistoryManager();
@@ -1232,7 +1239,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
           anime: anime!,
           currentEpisode: currentEpisode!,
           allEpisodes: allEpisodes,
-          btStreamUrl: task.streamUrl, // Pass the stream URL directly
+          btStreamUrl: streamUrl,
         ),
       ),
     );

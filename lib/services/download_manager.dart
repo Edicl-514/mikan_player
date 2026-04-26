@@ -34,7 +34,7 @@ extension BtBackendKindX on BtBackendKind {
 
 class _BackendStartResult {
   final String infoHash;
-  final String streamUrl;
+  final String? streamUrl;
   final int? fileIdx;
   final int? fileSize;
   final int? torrentId;
@@ -42,7 +42,7 @@ class _BackendStartResult {
 
   const _BackendStartResult({
     required this.infoHash,
-    required this.streamUrl,
+    this.streamUrl,
     this.fileIdx,
     this.fileSize,
     this.torrentId,
@@ -234,6 +234,7 @@ class DownloadManager extends ChangeNotifier {
   DateTime? _lastForegroundRecoveryAt;
   BtBackendKind _backendKind = BtBackendKind.rqbit;
   bool _libtorrentInitialized = false;
+  Future<void>? _libtorrentInitialization;
   String? _downloadDir;
   final Map<String, int> _ltTorrentIdsByHash = {};
   final Map<int, String> _ltInfoHashesByTorrentId = {};
@@ -291,6 +292,9 @@ class DownloadManager extends ChangeNotifier {
     _backendKind = BtBackendKindX.fromStorage(
       prefs.getString(_btBackendStorageKey),
     );
+    if (_backendKind == BtBackendKind.libtorrent) {
+      unawaited(_ensureLibtorrentInitialized());
+    }
     await _loadTasks();
     _isInitialized = true;
     _ensureStatsPolling();
@@ -301,6 +305,9 @@ class DownloadManager extends ChangeNotifier {
     _backendKind = backend;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_btBackendStorageKey, backend.storageValue);
+    if (backend == BtBackendKind.libtorrent) {
+      unawaited(_ensureLibtorrentInitialized());
+    }
     notifyListeners();
   }
 
@@ -366,8 +373,11 @@ class DownloadManager extends ChangeNotifier {
         task.magnet,
         fallbackInfoHash: task.id,
         backend: task.backend,
+        startStream: false,
       );
-      task.streamUrl = result.streamUrl;
+      if (result.streamUrl != null) {
+        task.streamUrl = result.streamUrl;
+      }
       task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
       if (result.fileSize != null && result.fileSize! > 0) {
         task.totalSize = BigInt.from(result.fileSize!);
@@ -419,18 +429,53 @@ class DownloadManager extends ChangeNotifier {
 
   Future<void> _ensureLibtorrentInitialized() async {
     if (_libtorrentInitialized) return;
+    final pending = _libtorrentInitialization;
+    if (pending != null) {
+      await pending;
+      return;
+    }
 
+    final initialization = _initializeLibtorrent();
+    _libtorrentInitialization = initialization;
+    try {
+      await initialization;
+    } catch (_) {
+      _libtorrentInitialization = null;
+      rethrow;
+    }
+  }
+
+  Future<void> _initializeLibtorrent() async {
     final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
     _downloadDir = '${appSupportDir.path}/downloads';
     await ltf.LibtorrentFlutter.init(
       defaultSavePath: _downloadDir,
       fetchTrackers: true,
-      pollInterval: const Duration(milliseconds: 600),
+      pollInterval: const Duration(milliseconds: 200),
+    );
+    final engine = ltf.LibtorrentFlutter.instance;
+    final config = engine.getDefaultConfig();
+    engine.configureSession(
+      config.copyWith(
+        cacheSize: 128 * 1024 * 1024,
+        preloadCache: 70,
+        connectionsLimit: 50,
+        torrentDisconnectTimeout: 90,
+        forceEncrypt: false,
+        disableTcp: false,
+        disableUtp: false,
+        disableUpload: false,
+        disableDht: false,
+        disableUpnp: false,
+        downloadRateLimit: 0,
+        uploadRateLimit: 0,
+        responsiveMode: true,
+      ),
     );
     _libtorrentInitialized = true;
     debugPrint(
       '[DownloadManager] libtorrent initialized: '
-      '${ltf.LibtorrentFlutter.instance.libraryVersion}',
+      '${engine.libraryVersion}',
     );
   }
 
@@ -438,6 +483,7 @@ class DownloadManager extends ChangeNotifier {
     String magnet, {
     required String fallbackInfoHash,
     required BtBackendKind backend,
+    bool startStream = true,
   }) async {
     if (backend == BtBackendKind.rqbit) {
       final streamUrl = await startTorrent(magnet: magnet);
@@ -469,11 +515,23 @@ class DownloadManager extends ChangeNotifier {
 
     await _prioritizeLibtorrentDownloadFile(torrentId, file.index);
 
+    if (!startStream) {
+      _ltFileIdxByHash[infoHash] = file.index;
+      _ltFileSizeByHash[infoHash] = file.size;
+      return _BackendStartResult(
+        infoHash: infoHash,
+        fileIdx: file.index,
+        fileSize: file.size,
+        torrentId: torrentId,
+      );
+    }
+
     final stream = engine.startStream(
       torrentId,
       fileIndex: file.index,
       maxCacheBytes: 512 * 1024 * 1024,
     );
+    _warmUpLibtorrentStream(stream);
     _ltStreamIdsByHash[infoHash] = stream.id;
     _ltFileIdxByHash[infoHash] = file.index;
     _ltFileSizeByHash[infoHash] = stream.fileSize > 0
@@ -504,6 +562,21 @@ class DownloadManager extends ChangeNotifier {
     throw Exception(
       'Error adding torrent: timed out waiting for torrent metadata',
     );
+  }
+
+  void _warmUpLibtorrentStream(ltf.StreamInfo stream) {
+    final engine = ltf.LibtorrentFlutter.instance;
+    try {
+      engine.setCacheSettings(
+        stream.id,
+        capacity: 256 * 1024 * 1024,
+        readAheadPct: 95,
+        connectionsLimit: 50,
+      );
+      engine.preloadStream(stream.id, preloadBytes: 32 * 1024 * 1024);
+    } catch (e) {
+      debugPrint('[DownloadManager] Error warming up libtorrent stream: $e');
+    }
   }
 
   ltf.FileInfo? _selectLibtorrentFile(int torrentId) {
@@ -708,6 +781,7 @@ class DownloadManager extends ChangeNotifier {
     required String name,
     String? animeName,
     int? episodeNumber,
+    bool forPlayback = false,
   }) async {
     // Generate a temporary ID from magnet hash
     final tempId =
@@ -722,7 +796,7 @@ class DownloadManager extends ChangeNotifier {
       final existingTask = _tasks[tempId]!;
       if (existingTask.status == DownloadTaskStatus.paused) {
         final resumed = await resumeTask(tempId);
-        if (resumed) {
+        if (resumed && !forPlayback) {
           return existingTask.streamUrl;
         }
       }
@@ -733,6 +807,11 @@ class DownloadManager extends ChangeNotifier {
         );
         return existingTask.streamUrl;
       }
+      if (!forPlayback) {
+        return null;
+      }
+
+      return getOrCreateStreamUrl(tempId);
     }
 
     // Create new task
@@ -757,6 +836,7 @@ class DownloadManager extends ChangeNotifier {
         magnet,
         fallbackInfoHash: tempId,
         backend: task.backend,
+        startStream: forPlayback,
       );
       final streamUrl = result.streamUrl;
 
@@ -804,6 +884,61 @@ class DownloadManager extends ChangeNotifier {
       task.errorMessage = e.toString();
       await _saveTasks();
       notifyListeners();
+      return null;
+    }
+  }
+
+  /// Create a streaming URL for an existing task only when playback needs it.
+  ///
+  /// For the libtorrent backend this avoids starting the HTTP streaming engine
+  /// during plain downloads. The stream engine deliberately reprioritizes
+  /// pieces around the playback window, which is good for watching but bad for
+  /// full-file background downloading.
+  Future<String?> getOrCreateStreamUrl(String id) async {
+    final task = _tasks[id];
+    if (task == null) return null;
+    if (task.streamUrl != null && task.streamUrl!.isNotEmpty) {
+      return task.streamUrl;
+    }
+    if (task.magnet.isEmpty) return null;
+
+    try {
+      if (task.status == DownloadTaskStatus.paused) {
+        final resumed = await resumeTask(id);
+        if (!resumed) return null;
+      }
+
+      final result = await _startTorrentWithBackend(
+        task.magnet,
+        fallbackInfoHash: task.id,
+        backend: task.backend,
+        startStream: true,
+      );
+      final actualId = result.infoHash;
+      if (actualId != task.id) {
+        _tasks.remove(task.id);
+        _pausedTaskIds.remove(task.id);
+        task.id = actualId;
+        _tasks[actualId] = task;
+      }
+
+      if (result.streamUrl != null) {
+        task.streamUrl = result.streamUrl;
+      }
+      task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
+      if (result.fileSize != null && result.fileSize! > 0) {
+        task.totalSize = BigInt.from(result.fileSize!);
+      }
+      if (task.status != DownloadTaskStatus.seeding &&
+          task.status != DownloadTaskStatus.completed) {
+        task.status = DownloadTaskStatus.downloading;
+      }
+      await _saveTasks();
+      notifyListeners();
+      _ensureStatsPolling();
+      return task.streamUrl;
+    } catch (e) {
+      debugPrint('[DownloadManager] Error creating stream URL: $e');
       return null;
     }
   }
@@ -965,7 +1100,7 @@ class DownloadManager extends ChangeNotifier {
 
   void _startStatsPolling() {
     _statsTimer?.cancel();
-    _statsTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+    _statsTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       _updateStats();
     });
   }
@@ -1079,6 +1214,7 @@ class DownloadManager extends ChangeNotifier {
         task.magnet,
         fallbackInfoHash: id,
         backend: task.backend,
+        startStream: false,
       );
       final actualId = result.infoHash;
       final fileIdx = result.fileIdx;
@@ -1092,7 +1228,9 @@ class DownloadManager extends ChangeNotifier {
       task.status = task.progress >= 100.0
           ? DownloadTaskStatus.seeding
           : DownloadTaskStatus.downloading;
-      task.streamUrl = result.streamUrl;
+      if (result.streamUrl != null) {
+        task.streamUrl = result.streamUrl;
+      }
       task.largestFileIdx = fileIdx ?? task.largestFileIdx;
       if (result.fileSize != null && result.fileSize! > 0) {
         task.totalSize = BigInt.from(result.fileSize!);
