@@ -186,6 +186,8 @@ struct StreamContext {
   // Track which pieces we have set deadlines for, so we can clear them on stop.
   std::mutex deadlines_mutex;
   std::vector<int> deadline_pieces;
+  int deadline_first_piece = -1;
+  int deadline_last_piece = -1;
 };
 
 // Compute the absolute torrent offset for a given file + file-relative offset.
@@ -223,20 +225,50 @@ void set_playback_deadlines(
     int64_t torrent_offset,
     int64_t read_ahead,
     StreamContext* ctx) {
+  auto st = handle.status();
+  if (st.is_seeding || st.is_finished) {
+    return;
+  }
+
+  constexpr int64_t kMinReadAheadBytes = 2 * 1024 * 1024;
+  constexpr int64_t kMaxReadAheadBytes = 16 * 1024 * 1024;
+  read_ahead = std::clamp(read_ahead, kMinReadAheadBytes, kMaxReadAheadBytes);
+
   int first_piece, last_piece;
   if (!piece_range_for_offset(ti, torrent_offset, read_ahead, first_piece, last_piece)) {
     return;
   }
 
+  std::vector<int> old_pieces;
+  {
+    std::scoped_lock lock(ctx->deadlines_mutex);
+    if (ctx->deadline_first_piece >= 0 &&
+        first_piece >= ctx->deadline_first_piece &&
+        first_piece <= ctx->deadline_last_piece) {
+      const int remaining_pieces = ctx->deadline_last_piece - first_piece + 1;
+      const int covered_pieces = ctx->deadline_last_piece - ctx->deadline_first_piece + 1;
+      if (remaining_pieces > covered_pieces / 2) {
+        return;
+      }
+    }
+    old_pieces = ctx->deadline_pieces;
+  }
+
+  for (int p : old_pieces) {
+    handle.reset_piece_deadline(p);
+  }
+
   std::vector<int> pieces;
   for (int p = first_piece; p <= last_piece; ++p) {
-    handle.set_piece_deadline(p, (p - first_piece) * 500, lt::torrent_handle::alert_when_available);
+    handle.set_piece_deadline(p, (p - first_piece) * 100, lt::torrent_handle::alert_when_available);
     pieces.push_back(p);
   }
 
   // Record deadline pieces so stop_stream can clear them.
   {
     std::scoped_lock lock(ctx->deadlines_mutex);
+    ctx->deadline_first_piece = first_piece;
+    ctx->deadline_last_piece = last_piece;
     ctx->deadline_pieces = std::move(pieces);
   }
 }
@@ -249,6 +281,8 @@ void clear_playback_deadlines(
   {
     std::scoped_lock lock(ctx->deadlines_mutex);
     pieces = std::move(ctx->deadline_pieces);
+    ctx->deadline_first_piece = -1;
+    ctx->deadline_last_piece = -1;
   }
   for (int p : pieces) {
     handle.reset_piece_deadline(p);

@@ -244,7 +244,6 @@ class DownloadManager extends ChangeNotifier {
   final Map<String, int> _ltFileSizeByHash = {};
   final Set<String> _ltPriorityRecoveryHashes = {};
   final Set<String> _activeStreamHashes = {}; // Track active playback streams
-  Timer? _streamKeepAliveTimer; // Keep libtorrent streams alive during playback
 
   List<DownloadTask> get tasks => _tasks.values.toList();
   BtBackendKind get backendKind => _backendKind;
@@ -522,7 +521,7 @@ class DownloadManager extends ChangeNotifier {
     final stream = session.startStream(
       torrentId,
       fileIndex: file.index,
-      maxCacheBytes: 512 * 1024 * 1024,
+      maxCacheBytes: 16 * 1024 * 1024,
     );
     _warmUpLibtorrentStream(stream);
     _ltStreamIdsByHash[infoHash] = stream.id;
@@ -547,7 +546,9 @@ class DownloadManager extends ChangeNotifier {
       final torrent = stats.where((s) => s.torrentId == torrentId).firstOrNull;
       if (torrent != null && torrent.hasMetadata) return;
       if (torrent != null && torrent.errorMessage.isNotEmpty) {
-        throw Exception('Error getting torrent metadata: ${torrent.errorMessage}');
+        throw Exception(
+          'Error getting torrent metadata: ${torrent.errorMessage}',
+        );
       }
       await Future<void>.delayed(const Duration(milliseconds: 300));
     }
@@ -561,11 +562,11 @@ class DownloadManager extends ChangeNotifier {
     try {
       session.setStreamCache(
         stream.id,
-        capacity: 256 * 1024 * 1024,
-        readAheadPct: 95,
+        capacity: 16 * 1024 * 1024,
+        readAheadPct: 0,
         connectionsLimit: 50,
       );
-      session.preloadStream(stream.id, preloadBytes: 32 * 1024 * 1024);
+      session.preloadStream(stream.id, preloadBytes: 4 * 1024 * 1024);
     } catch (e) {
       debugPrint('[DownloadManager] Error warming up libtorrent stream: $e');
     }
@@ -667,20 +668,20 @@ class DownloadManager extends ChangeNotifier {
       final progress = totalSize > 0
           ? (downloaded / totalSize * 100.0).clamp(0.0, 100.0)
           : stats.progress;
-      results.add(TorrentStats(
-        infoHash: infoHash,
-        name: stats.name.isEmpty
-            ? 'Torrent ${stats.torrentId}'
-            : stats.name,
-        state: _normalizeNativeLibtorrentState(stats),
-        progress: progress,
-        downloadSpeed: stats.downloadRate.toDouble(),
-        uploadSpeed: stats.uploadRate.toDouble(),
-        downloaded: BigInt.from(downloaded),
-        totalSize: BigInt.from(totalSize),
-        peers: stats.numPeers,
-        seeders: stats.numSeeds,
-      ));
+      results.add(
+        TorrentStats(
+          infoHash: infoHash,
+          name: stats.name.isEmpty ? 'Torrent ${stats.torrentId}' : stats.name,
+          state: _normalizeNativeLibtorrentState(stats),
+          progress: progress,
+          downloadSpeed: stats.downloadRate.toDouble(),
+          uploadSpeed: stats.uploadRate.toDouble(),
+          downloaded: BigInt.from(downloaded),
+          totalSize: BigInt.from(totalSize),
+          peers: stats.numPeers,
+          seeders: stats.numSeeds,
+        ),
+      );
     }
     return results;
   }
@@ -714,8 +715,8 @@ class DownloadManager extends ChangeNotifier {
     }
     if (!_libtorrentInitialized) return false;
     final hashLower = infoHash.toLowerCase();
-    var torrentId = _ltTorrentIdsByHash[hashLower] ??
-        _findNativeTorrentIdByHash(hashLower);
+    var torrentId =
+        _ltTorrentIdsByHash[hashLower] ?? _findNativeTorrentIdByHash(hashLower);
     if (torrentId == null) return false;
     _nativeSession!.pauseTorrent(torrentId);
     return true;
@@ -730,8 +731,8 @@ class DownloadManager extends ChangeNotifier {
     }
     if (!_libtorrentInitialized) return false;
     final hashLower = infoHash.toLowerCase();
-    var torrentId = _ltTorrentIdsByHash[hashLower] ??
-        _findNativeTorrentIdByHash(hashLower);
+    var torrentId =
+        _ltTorrentIdsByHash[hashLower] ?? _findNativeTorrentIdByHash(hashLower);
     if (torrentId == null) return false;
     _nativeSession!.resumeTorrent(torrentId);
     return true;
@@ -1423,7 +1424,8 @@ class DownloadManager extends ChangeNotifier {
       }
 
       final session = _nativeSession!;
-      var torrentId = _ltTorrentIdsByHash[hashLower] ??
+      var torrentId =
+          _ltTorrentIdsByHash[hashLower] ??
           _findNativeTorrentIdByHash(hashLower);
       if (torrentId == null || !_isNativeTorrentValid(torrentId)) {
         if (task.magnet.isEmpty) return;
@@ -1485,8 +1487,6 @@ class DownloadManager extends ChangeNotifier {
     if (infoHash == null) {
       final hashes = _activeStreamHashes.toList(growable: false);
       _activeStreamHashes.clear();
-      _streamKeepAliveTimer?.cancel();
-      _streamKeepAliveTimer = null;
       for (final hash in hashes) {
         _stopLibtorrentStreamForHash(hash);
         unawaited(
@@ -1503,10 +1503,6 @@ class DownloadManager extends ChangeNotifier {
     final hashLower = _resolveStreamHash(infoHash);
     if (!active) {
       _activeStreamHashes.remove(hashLower);
-      if (_activeStreamHashes.isEmpty) {
-        _streamKeepAliveTimer?.cancel();
-        _streamKeepAliveTimer = null;
-      }
       _stopLibtorrentStreamForHash(hashLower);
       unawaited(
         _restoreLibtorrentBackgroundDownload(
@@ -1521,41 +1517,8 @@ class DownloadManager extends ChangeNotifier {
     _activeStreamHashes.add(hashLower);
     debugPrint('[DownloadManager] Activated BT stream for: $hashLower');
 
-    // Start keep-alive timer if not already running (for libtorrent only)
-    final isLibtorrentStream =
-        _tasks[hashLower]?.backend == BtBackendKind.libtorrent ||
-        _ltStreamIdsByHash.containsKey(hashLower);
-    if (isLibtorrentStream &&
-        (_streamKeepAliveTimer == null || !_streamKeepAliveTimer!.isActive)) {
-      _startStreamKeepAliveTimer();
-    }
-  }
-
-  /// Keep libtorrent streams alive by periodically querying their status
-  /// This prevents the polling thread from marking them as inactive and removing them
-  void _startStreamKeepAliveTimer() {
-    _streamKeepAliveTimer?.cancel();
-    _streamKeepAliveTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (_activeStreamHashes.isEmpty || !_libtorrentInitialized) {
-        _streamKeepAliveTimer?.cancel();
-        _streamKeepAliveTimer = null;
-        return;
-      }
-
-      for (final hash in _activeStreamHashes) {
-        final streamId = _ltStreamIdsByHash[hash];
-        if (streamId != null) {
-          try {
-            _nativeSession!.preloadStream(
-              streamId,
-              preloadBytes: 4 * 1024 * 1024,
-            );
-          } catch (_) {
-            // Stream may have been stopped; ignore.
-          }
-        }
-      }
-    });
+    // Native libtorrent streams are kept alive by the HTTP server itself. Avoid
+    // periodic synchronous FFI calls on the UI isolate while video is playing.
   }
 
   /// Clear completed tasks
