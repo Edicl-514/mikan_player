@@ -15,54 +15,106 @@ typedef _SessionDestroyNative = Void Function(Pointer<Void>);
 typedef _SessionDestroyDart = void Function(Pointer<Void>);
 
 typedef _AddMagnetNative =
-    Int32 Function(Pointer<Void>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, Int32);
+    Int32 Function(
+      Pointer<Void>,
+      Pointer<Utf8>,
+      Pointer<Utf8>,
+      Pointer<Utf8>,
+      Int32,
+    );
 typedef _AddMagnetDart =
-    int Function(Pointer<Void>, Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>, int);
+    int Function(
+      Pointer<Void>,
+      Pointer<Utf8>,
+      Pointer<Utf8>,
+      Pointer<Utf8>,
+      int,
+    );
+
+typedef _AddMagnetExNative =
+    Int32 Function(
+      Pointer<Void>,
+      Pointer<Utf8>,
+      Pointer<Utf8>,
+      Pointer<Utf8>,
+      Int32,
+      Pointer<Utf8>,
+      Int32,
+    );
+typedef _AddMagnetExDart =
+    int Function(
+      Pointer<Void>,
+      Pointer<Utf8>,
+      Pointer<Utf8>,
+      Pointer<Utf8>,
+      int,
+      Pointer<Utf8>,
+      int,
+    );
+
+typedef _SaveResumeDataNative =
+    Int32 Function(Pointer<Void>, Int32, Pointer<Utf8>, Pointer<Utf8>, Int32);
+typedef _SaveResumeDataDart =
+    int Function(Pointer<Void>, int, Pointer<Utf8>, Pointer<Utf8>, int);
 
 typedef _WaitMetadataNative =
     Int32 Function(Pointer<Void>, Int32, Int32, Pointer<Utf8>, Int32);
 typedef _WaitMetadataDart =
     int Function(Pointer<Void>, int, int, Pointer<Utf8>, int);
 
-typedef _GetFilesCountNative = Int32 Function(Pointer<Void>, Int32, Pointer<Utf8>, Int32);
-typedef _GetFilesCountDart = int Function(Pointer<Void>, int, Pointer<Utf8>, int);
+typedef _GetFilesCountNative =
+    Int32 Function(Pointer<Void>, Int32, Pointer<Utf8>, Int32);
+typedef _GetFilesCountDart =
+    int Function(Pointer<Void>, int, Pointer<Utf8>, int);
 
-typedef _GetFileInfoNative = Int32 Function(
-  Pointer<Void>,
-  Int32,
-  Int32,
-  Pointer<Utf8>,
-  Int32,
-  Pointer<Int64>,
-  Pointer<Int32>,
-  Pointer<Utf8>,
-  Int32,
-);
-typedef _GetFileInfoDart = int Function(
-  Pointer<Void>,
-  int,
-  int,
-  Pointer<Utf8>,
-  int,
-  Pointer<Int64>,
-  Pointer<Int32>,
-  Pointer<Utf8>,
-  int,
-);
+typedef _GetFileInfoNative =
+    Int32 Function(
+      Pointer<Void>,
+      Int32,
+      Int32,
+      Pointer<Utf8>,
+      Int32,
+      Pointer<Int64>,
+      Pointer<Int32>,
+      Pointer<Utf8>,
+      Int32,
+    );
+typedef _GetFileInfoDart =
+    int Function(
+      Pointer<Void>,
+      int,
+      int,
+      Pointer<Utf8>,
+      int,
+      Pointer<Int64>,
+      Pointer<Int32>,
+      Pointer<Utf8>,
+      int,
+    );
 
 typedef _SetFilePrioritiesNative =
-    Int32 Function(Pointer<Void>, Int32, Pointer<Int32>, Int32, Pointer<Utf8>, Int32);
+    Int32 Function(
+      Pointer<Void>,
+      Int32,
+      Pointer<Int32>,
+      Int32,
+      Pointer<Utf8>,
+      Int32,
+    );
 typedef _SetFilePrioritiesDart =
     int Function(Pointer<Void>, int, Pointer<Int32>, int, Pointer<Utf8>, int);
 
-typedef _PauseResumeNative = Int32 Function(Pointer<Void>, Int32, Pointer<Utf8>, Int32);
+typedef _PauseResumeNative =
+    Int32 Function(Pointer<Void>, Int32, Pointer<Utf8>, Int32);
 typedef _PauseResumeDart = int Function(Pointer<Void>, int, Pointer<Utf8>, int);
 
 typedef _RemoveTorrentNative =
     Int32 Function(Pointer<Void>, Int32, Int32, Pointer<Utf8>, Int32);
-typedef _RemoveTorrentDart = int Function(Pointer<Void>, int, int, Pointer<Utf8>, int);
+typedef _RemoveTorrentDart =
+    int Function(Pointer<Void>, int, int, Pointer<Utf8>, int);
 
-typedef _GetStatsCountNative = Int32 Function(Pointer<Void>, Pointer<Utf8>, Int32);
+typedef _GetStatsCountNative =
+    Int32 Function(Pointer<Void>, Pointer<Utf8>, Int32);
 typedef _GetStatsCountDart = int Function(Pointer<Void>, Pointer<Utf8>, int);
 
 final class _TorrentStatsNative extends Struct {
@@ -100,106 +152,108 @@ final class _TorrentStatsNative extends Struct {
   external int numSeeds;
 }
 
-typedef _GetStatsItemNative = Int32 Function(
-  Pointer<Void>,
-  Int32,
-  Pointer<_TorrentStatsNative>,
-  Pointer<Utf8>,
-  Int32,
-  Pointer<Utf8>,
-  Int32,
-  Pointer<Utf8>,
-  Int32,
-  Pointer<Utf8>,
-  Int32,
-);
-typedef _GetStatsItemDart = int Function(
-  Pointer<Void>,
-  int,
-  Pointer<_TorrentStatsNative>,
-  Pointer<Utf8>,
-  int,
-  Pointer<Utf8>,
-  int,
-  Pointer<Utf8>,
-  int,
-  Pointer<Utf8>,
-  int,
-);
+typedef _GetStatsItemNative =
+    Int32 Function(
+      Pointer<Void>,
+      Int32,
+      Pointer<_TorrentStatsNative>,
+      Pointer<Utf8>,
+      Int32,
+      Pointer<Utf8>,
+      Int32,
+      Pointer<Utf8>,
+      Int32,
+      Pointer<Utf8>,
+      Int32,
+    );
+typedef _GetStatsItemDart =
+    int Function(
+      Pointer<Void>,
+      int,
+      Pointer<_TorrentStatsNative>,
+      Pointer<Utf8>,
+      int,
+      Pointer<Utf8>,
+      int,
+      Pointer<Utf8>,
+      int,
+      Pointer<Utf8>,
+      int,
+    );
 
-typedef _ConfigureSessionNative = Int32 Function(
-  Pointer<Void>,
-  Int32,
-  Int32,
-  Int32,
-  Int32,
-  Int32,
-  Int32,
-  Int32,
-  Int32,
-  Pointer<Utf8>,
-  Int32,
-);
-typedef _ConfigureSessionDart = int Function(
-  Pointer<Void>,
-  int,
-  int,
-  int,
-  int,
-  int,
-  int,
-  int,
-  int,
-  Pointer<Utf8>,
-  int,
-);
+typedef _ConfigureSessionNative =
+    Int32 Function(
+      Pointer<Void>,
+      Int32,
+      Int32,
+      Int32,
+      Int32,
+      Int32,
+      Int32,
+      Int32,
+      Int32,
+      Pointer<Utf8>,
+      Int32,
+    );
+typedef _ConfigureSessionDart =
+    int Function(
+      Pointer<Void>,
+      int,
+      int,
+      int,
+      int,
+      int,
+      int,
+      int,
+      int,
+      Pointer<Utf8>,
+      int,
+    );
 
-typedef _StartStreamNative = Int32 Function(
-  Pointer<Void>,
-  Int32,
-  Int32,
-  Int32,
-  Pointer<Utf8>,
-  Int32,
-  Pointer<Utf8>,
-  Int32,
-);
-typedef _StartStreamDart = int Function(
-  Pointer<Void>,
-  int,
-  int,
-  int,
-  Pointer<Utf8>,
-  int,
-  Pointer<Utf8>,
-  int,
-);
+typedef _StartStreamNative =
+    Int32 Function(
+      Pointer<Void>,
+      Int32,
+      Int32,
+      Int32,
+      Pointer<Utf8>,
+      Int32,
+      Pointer<Utf8>,
+      Int32,
+    );
+typedef _StartStreamDart =
+    int Function(
+      Pointer<Void>,
+      int,
+      int,
+      int,
+      Pointer<Utf8>,
+      int,
+      Pointer<Utf8>,
+      int,
+    );
 
-typedef _StopStreamNative = Int32 Function(Pointer<Void>, Int32, Pointer<Utf8>, Int32);
+typedef _StopStreamNative =
+    Int32 Function(Pointer<Void>, Int32, Pointer<Utf8>, Int32);
 typedef _StopStreamDart = int Function(Pointer<Void>, int, Pointer<Utf8>, int);
 
-typedef _SetStreamCacheNative = Int32 Function(
-  Pointer<Void>,
-  Int32,
-  Int32,
-  Int32,
-  Int32,
-  Pointer<Utf8>,
-  Int32,
-);
-typedef _SetStreamCacheDart = int Function(
-  Pointer<Void>,
-  int,
-  int,
-  int,
-  int,
-  Pointer<Utf8>,
-  int,
-);
+typedef _SetStreamCacheNative =
+    Int32 Function(
+      Pointer<Void>,
+      Int32,
+      Int32,
+      Int32,
+      Int32,
+      Pointer<Utf8>,
+      Int32,
+    );
+typedef _SetStreamCacheDart =
+    int Function(Pointer<Void>, int, int, int, int, Pointer<Utf8>, int);
 
 typedef _PreloadStreamNative =
     Int32 Function(Pointer<Void>, Int32, Int64, Pointer<Utf8>, Int32);
-typedef _PreloadStreamDart = int Function(Pointer<Void>, int, int, Pointer<Utf8>, int);
+typedef _PreloadStreamDart =
+    int Function(Pointer<Void>, int, int, Pointer<Utf8>, int);
 
 const int _kErrorBufferLen = 4096;
 const int _kTextBufferLen = 4096;
@@ -234,6 +288,16 @@ final class MikanLibtorrentNative {
 
   late final _AddMagnetDart _addMagnet = _library
       .lookupFunction<_AddMagnetNative, _AddMagnetDart>('mikan_lt_add_magnet');
+
+  late final _AddMagnetExDart _addMagnetEx = _library
+      .lookupFunction<_AddMagnetExNative, _AddMagnetExDart>(
+        'mikan_lt_add_magnet_ex',
+      );
+
+  late final _SaveResumeDataDart _saveResumeData = _library
+      .lookupFunction<_SaveResumeDataNative, _SaveResumeDataDart>(
+        'mikan_lt_save_resume_data',
+      );
 
   late final _WaitMetadataDart _waitMetadata = _library
       .lookupFunction<_WaitMetadataNative, _WaitMetadataDart>(
@@ -291,7 +355,9 @@ final class MikanLibtorrentNative {
       );
 
   late final _StopStreamDart _stopStream = _library
-      .lookupFunction<_StopStreamNative, _StopStreamDart>('mikan_lt_stop_stream');
+      .lookupFunction<_StopStreamNative, _StopStreamDart>(
+        'mikan_lt_stop_stream',
+      );
 
   late final _SetStreamCacheDart _setStreamCache = _library
       .lookupFunction<_SetStreamCacheNative, _SetStreamCacheDart>(
@@ -406,7 +472,62 @@ final class MikanLibtorrentSession implements Finalizable {
     }
   }
 
-  void waitMetadata(int torrentId, {Duration timeout = const Duration(seconds: 90)}) {
+  int addMagnetEx(
+    String magnet, {
+    String? savePath,
+    String? resumePath,
+    bool seedMode = false,
+  }) {
+    final magnetPtr = magnet.toNativeUtf8();
+    final savePathPtr = (savePath ?? '').toNativeUtf8();
+    final resumePathPtr = (resumePath ?? '').toNativeUtf8();
+    final errorPtr = calloc<Uint8>(_kErrorBufferLen);
+    try {
+      final torrentId = _owner._addMagnetEx(
+        handle,
+        magnetPtr,
+        savePathPtr,
+        resumePathPtr,
+        seedMode ? 1 : 0,
+        errorPtr.cast(),
+        _kErrorBufferLen,
+      );
+      if (torrentId < 0) {
+        throw MikanLibtorrentException(_readError(errorPtr));
+      }
+      return torrentId;
+    } finally {
+      calloc.free(magnetPtr);
+      calloc.free(savePathPtr);
+      calloc.free(resumePathPtr);
+      calloc.free(errorPtr);
+    }
+  }
+
+  void saveResumeData(int torrentId, {required String resumePath}) {
+    final resumePathPtr = resumePath.toNativeUtf8();
+    final errorPtr = calloc<Uint8>(_kErrorBufferLen);
+    try {
+      final ok = _owner._saveResumeData(
+        handle,
+        torrentId,
+        resumePathPtr,
+        errorPtr.cast(),
+        _kErrorBufferLen,
+      );
+      if (ok == 0) {
+        throw MikanLibtorrentException(_readError(errorPtr));
+      }
+    } finally {
+      calloc.free(resumePathPtr);
+      calloc.free(errorPtr);
+    }
+  }
+
+  void waitMetadata(
+    int torrentId, {
+    Duration timeout = const Duration(seconds: 90),
+  }) {
     final errorPtr = calloc<Uint8>(_kErrorBufferLen);
     try {
       final ok = _owner._waitMetadata(
@@ -427,7 +548,12 @@ final class MikanLibtorrentSession implements Finalizable {
   List<MikanLtFileInfo> getFiles(int torrentId) {
     final errorPtr = calloc<Uint8>(_kErrorBufferLen);
     try {
-      final count = _owner._getFilesCount(handle, torrentId, errorPtr.cast(), _kErrorBufferLen);
+      final count = _owner._getFilesCount(
+        handle,
+        torrentId,
+        errorPtr.cast(),
+        _kErrorBufferLen,
+      );
       if (count < 0) {
         throw MikanLibtorrentException(_readError(errorPtr));
       }
@@ -524,7 +650,11 @@ final class MikanLibtorrentSession implements Finalizable {
   List<MikanLtTorrentStats> getTorrentStats() {
     final errorPtr = calloc<Uint8>(_kErrorBufferLen);
     try {
-      final count = _owner._getTorrentStatsCount(handle, errorPtr.cast(), _kErrorBufferLen);
+      final count = _owner._getTorrentStatsCount(
+        handle,
+        errorPtr.cast(),
+        _kErrorBufferLen,
+      );
       if (count < 0) {
         throw MikanLibtorrentException(_readError(errorPtr));
       }
@@ -638,7 +768,10 @@ final class MikanLibtorrentSession implements Finalizable {
       if (streamId < 0) {
         throw MikanLibtorrentException(_readError(errorPtr));
       }
-      return MikanLtStreamInfo(id: streamId, url: urlPtr.cast<Utf8>().toDartString());
+      return MikanLtStreamInfo(
+        id: streamId,
+        url: urlPtr.cast<Utf8>().toDartString(),
+      );
     } finally {
       calloc.free(errorPtr);
       calloc.free(urlPtr);
@@ -648,7 +781,12 @@ final class MikanLibtorrentSession implements Finalizable {
   void stopStream(int streamId) {
     final errorPtr = calloc<Uint8>(_kErrorBufferLen);
     try {
-      final ok = _owner._stopStream(handle, streamId, errorPtr.cast(), _kErrorBufferLen);
+      final ok = _owner._stopStream(
+        handle,
+        streamId,
+        errorPtr.cast(),
+        _kErrorBufferLen,
+      );
       if (ok == 0) {
         throw MikanLibtorrentException(_readError(errorPtr));
       }

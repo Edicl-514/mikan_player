@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:mikan_player/native/mikan_libtorrent_native.dart';
 import 'package:mikan_player/utils/app_directories.dart';
@@ -37,6 +38,7 @@ class _BackendStartResult {
   final String? streamUrl;
   final int? fileIdx;
   final int? fileSize;
+  final String? filePath;
   final int? torrentId;
   final int? streamId;
 
@@ -45,6 +47,7 @@ class _BackendStartResult {
     this.streamUrl,
     this.fileIdx,
     this.fileSize,
+    this.filePath,
     this.torrentId,
     this.streamId,
   });
@@ -76,6 +79,7 @@ class DownloadTask {
   String? streamUrl;
   int?
   largestFileIdx; // Persisted so streamUrl can be synthesized after restart.
+  String? largestFilePath;
   BtBackendKind backend;
   String? errorMessage;
 
@@ -95,6 +99,7 @@ class DownloadTask {
     this.peers = 0,
     this.streamUrl,
     this.largestFileIdx,
+    this.largestFilePath,
     this.backend = BtBackendKind.rqbit,
     this.errorMessage,
   }) : downloaded = downloaded ?? BigInt.zero,
@@ -128,6 +133,7 @@ class DownloadTask {
       peers: 0,
       streamUrl: streamUrl,
       largestFileIdx: largestFileIdx,
+      largestFilePath: json['largestFilePath'] as String?,
       backend: backend,
       errorMessage: null,
     );
@@ -147,6 +153,7 @@ class DownloadTask {
       'downloaded': downloaded.toString(),
       'totalSize': totalSize.toString(),
       'largestFileIdx': largestFileIdx,
+      'largestFilePath': largestFilePath,
       'backend': backend.storageValue,
       // streamUrl intentionally omitted — reconstructed from id + largestFileIdx
     };
@@ -232,6 +239,8 @@ class DownloadManager extends ChangeNotifier {
   bool _isUpdatingStats = false;
   bool _isRecoveringActiveTasks = false;
   DateTime? _lastForegroundRecoveryAt;
+  DateTime? _lastLibtorrentResumeSaveAt;
+  bool _isSavingLibtorrentResumeData = false;
   BtBackendKind _backendKind = BtBackendKind.rqbit;
   bool _libtorrentInitialized = false;
   Future<void>? _libtorrentInitialization;
@@ -244,6 +253,84 @@ class DownloadManager extends ChangeNotifier {
   final Map<String, int> _ltFileSizeByHash = {};
   final Set<String> _ltPriorityRecoveryHashes = {};
   final Set<String> _activeStreamHashes = {}; // Track active playback streams
+  final Set<String> _ltCompletionResumeSavedHashes = {};
+  static const Duration _ltResumeSaveInterval = Duration(minutes: 1);
+
+  String _ltResumePath(String infoHash) {
+    return '$_downloadDir/${infoHash.toLowerCase()}.resume';
+  }
+
+  bool _saveLibtorrentResumeDataForHash(String infoHash, String reason) {
+    if (!_libtorrentInitialized || _nativeSession == null) return false;
+
+    final hashLower = infoHash.toLowerCase();
+    final task = _tasks[hashLower] ?? _tasks[infoHash];
+    if (task == null || task.backend != BtBackendKind.libtorrent) {
+      return false;
+    }
+
+    final torrentId =
+        _ltTorrentIdsByHash[hashLower] ?? _findNativeTorrentIdByHash(hashLower);
+    if (torrentId == null) return false;
+
+    try {
+      _nativeSession!.saveResumeData(
+        torrentId,
+        resumePath: _ltResumePath(hashLower),
+      );
+      debugPrint(
+        '[DownloadManager] Saved libtorrent resume data ($reason): $hashLower',
+      );
+      return true;
+    } catch (e) {
+      debugPrint(
+        '[DownloadManager] Error saving libtorrent resume data ($reason): $e',
+      );
+      return false;
+    }
+  }
+
+  void _saveActiveLibtorrentResumeData(String reason) {
+    if (_isSavingLibtorrentResumeData) return;
+    if (!_libtorrentInitialized || _nativeSession == null) return;
+
+    final hashes = _tasks.entries
+        .where(
+          (entry) =>
+              entry.value.backend == BtBackendKind.libtorrent &&
+              !_removedTaskIds.contains(entry.key) &&
+              entry.value.magnet.isNotEmpty &&
+              entry.value.status != DownloadTaskStatus.paused &&
+              entry.value.status != DownloadTaskStatus.error,
+        )
+        .map((entry) => entry.key.toLowerCase())
+        .toList(growable: false);
+    if (hashes.isEmpty) return;
+
+    _isSavingLibtorrentResumeData = true;
+    try {
+      for (final hash in hashes) {
+        _saveLibtorrentResumeDataForHash(hash, reason);
+      }
+    } finally {
+      _isSavingLibtorrentResumeData = false;
+    }
+  }
+
+  void _maybeSavePeriodicLibtorrentResumeData() {
+    final now = DateTime.now();
+    if (_lastLibtorrentResumeSaveAt != null &&
+        now.difference(_lastLibtorrentResumeSaveAt!) < _ltResumeSaveInterval) {
+      return;
+    }
+    _lastLibtorrentResumeSaveAt = now;
+    _saveActiveLibtorrentResumeData('periodic');
+  }
+
+  void saveLibtorrentResumeDataForShutdown() {
+    _saveActiveLibtorrentResumeData('shutdown');
+    unawaited(_saveTasks());
+  }
 
   List<DownloadTask> get tasks => _tasks.values.toList();
   BtBackendKind get backendKind => _backendKind;
@@ -382,6 +469,7 @@ class DownloadManager extends ChangeNotifier {
         task.streamUrl = result.streamUrl;
       }
       task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
+      task.largestFilePath = result.filePath ?? task.largestFilePath;
       if (result.fileSize != null && result.fileSize! > 0) {
         task.totalSize = BigInt.from(result.fileSize!);
       }
@@ -491,7 +579,18 @@ class DownloadManager extends ChangeNotifier {
     final infoHash = fallbackInfoHash.toLowerCase();
     var torrentId = _ltTorrentIdsByHash[infoHash];
     if (torrentId == null || !_isNativeTorrentValid(torrentId)) {
-      torrentId = session.addMagnet(magnet, savePath: _downloadDir);
+      final resumePath = _ltResumePath(infoHash);
+      final task = _tasks[infoHash];
+      final seed =
+          task != null &&
+          task.progress >= 100.0 &&
+          task.status != DownloadTaskStatus.paused;
+      torrentId = session.addMagnetEx(
+        magnet,
+        savePath: _downloadDir,
+        resumePath: resumePath,
+        seedMode: seed,
+      );
       _ltTorrentIdsByHash[infoHash] = torrentId;
       _ltInfoHashesByTorrentId[torrentId] = infoHash;
     }
@@ -513,6 +612,7 @@ class DownloadManager extends ChangeNotifier {
         infoHash: infoHash,
         fileIdx: file.index,
         fileSize: file.size,
+        filePath: file.path,
         torrentId: torrentId,
       );
     }
@@ -533,6 +633,7 @@ class DownloadManager extends ChangeNotifier {
       streamUrl: stream.url,
       fileIdx: file.index,
       fileSize: file.size,
+      filePath: file.path,
       torrentId: torrentId,
       streamId: stream.id,
     );
@@ -766,8 +867,205 @@ class DownloadManager extends ChangeNotifier {
     _ltInfoHashesByTorrentId.remove(torrentId);
     _ltFileIdxByHash.remove(hashLower);
     _ltFileSizeByHash.remove(hashLower);
+    _ltCompletionResumeSavedHashes.remove(hashLower);
+    final resumePath = _ltResumePath(hashLower);
+    if (deleteFiles) {
+      try {
+        final file = File(resumePath);
+        if (file.existsSync()) file.deleteSync();
+      } catch (_) {}
+    } else {
+      // Save resume data before removing the torrent so we can fast-resume later.
+      try {
+        session.saveResumeData(torrentId, resumePath: resumePath);
+      } catch (e) {
+        debugPrint(
+          '[DownloadManager] Error saving resume data before stop: $e',
+        );
+      }
+    }
     session.removeTorrent(torrentId, deleteFiles: deleteFiles);
     return true;
+  }
+
+  bool _isPathUnderDownloadDir(String path) {
+    final downloadDir = _downloadDir;
+    if (downloadDir == null || downloadDir.isEmpty) return false;
+
+    var base = Directory(downloadDir).absolute.path;
+    var target = File(path).absolute.path;
+    if (Platform.isWindows) {
+      base = base.toLowerCase();
+      target = target.toLowerCase();
+    }
+
+    final separator = Platform.pathSeparator;
+    final baseWithSeparator = base.endsWith(separator)
+        ? base
+        : '$base$separator';
+    return target == base || target.startsWith(baseWithSeparator);
+  }
+
+  bool _isAbsolutePath(String path) {
+    if (path.startsWith('/') || path.startsWith(r'\')) return true;
+    return RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(path);
+  }
+
+  String? _resolveDownloadChildPath(String relativePath) {
+    final downloadDir = _downloadDir;
+    if (downloadDir == null || downloadDir.isEmpty) return null;
+    if (relativePath.isEmpty || _isAbsolutePath(relativePath)) {
+      return null;
+    }
+
+    final parts = relativePath
+        .split(RegExp(r'[\\/]'))
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty) return null;
+    if (parts.any(
+      (part) => part == '.' || part == '..' || part.contains(':'),
+    )) {
+      return null;
+    }
+
+    var path = Directory(downloadDir).absolute.path;
+    for (final part in parts) {
+      path = '$path${Platform.pathSeparator}$part';
+    }
+    return _isPathUnderDownloadDir(path) ? path : null;
+  }
+
+  bool _isLikelyVideoPath(String path) {
+    final dot = path.lastIndexOf('.');
+    if (dot < 0) return false;
+    final ext = path.substring(dot + 1).toLowerCase();
+    const videoExts = {
+      'mkv',
+      'mp4',
+      'avi',
+      'mov',
+      'wmv',
+      'flv',
+      'm4v',
+      'ts',
+      'webm',
+      'mpg',
+      'mpeg',
+      'm2ts',
+      '3gp',
+      'vob',
+    };
+    return videoExts.contains(ext);
+  }
+
+  String _basename(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    final slash = normalized.lastIndexOf('/');
+    return slash < 0 ? normalized : normalized.substring(slash + 1);
+  }
+
+  String _matchKey(String value) {
+    return value.toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9\u3040-\u30ff\u3400-\u9fff]+'),
+      '',
+    );
+  }
+
+  File? _findUniqueDownloadedFileCandidate(DownloadTask task) {
+    final downloadDir = _downloadDir;
+    if (downloadDir == null || downloadDir.isEmpty) return null;
+    final totalSize = task.totalSize.toInt();
+    if (totalSize <= 0) return null;
+
+    final root = Directory(downloadDir);
+    if (!root.existsSync()) return null;
+
+    final candidates = <File>[];
+    try {
+      for (final entity in root.listSync(recursive: true, followLinks: false)) {
+        if (entity is! File) continue;
+        if (!_isPathUnderDownloadDir(entity.path)) continue;
+        if (entity.path.toLowerCase().endsWith('.resume')) continue;
+        if (!_isLikelyVideoPath(entity.path)) continue;
+        if (entity.lengthSync() == totalSize) {
+          candidates.add(entity);
+        }
+      }
+    } catch (e) {
+      debugPrint('[DownloadManager] Error scanning downloaded files: $e');
+      return null;
+    }
+
+    if (candidates.length == 1) return candidates.single;
+
+    final taskKey = _matchKey(task.name);
+    if (taskKey.isEmpty) return null;
+    final named = candidates
+        .where((file) => _matchKey(_basename(file.path)).contains(taskKey))
+        .toList(growable: false);
+    return named.length == 1 ? named.single : null;
+  }
+
+  void _deleteEmptyParentsUnderDownloadDir(File file) {
+    final downloadDir = _downloadDir;
+    if (downloadDir == null || downloadDir.isEmpty) return;
+
+    var dir = file.parent;
+    final root = Directory(downloadDir).absolute.path;
+    while (_isPathUnderDownloadDir(dir.path) &&
+        dir.absolute.path != Directory(root).absolute.path) {
+      try {
+        if (!dir.existsSync() || dir.listSync().isNotEmpty) return;
+        final parent = dir.parent;
+        dir.deleteSync();
+        dir = parent;
+      } catch (_) {
+        return;
+      }
+    }
+  }
+
+  Future<void> _deleteLibtorrentFilesForTask(DownloadTask task) async {
+    if (task.backend != BtBackendKind.libtorrent) return;
+    if (_downloadDir == null || _downloadDir!.isEmpty) return;
+
+    try {
+      final resumeFile = File(_ltResumePath(task.id));
+      if (resumeFile.existsSync()) {
+        resumeFile.deleteSync();
+      }
+    } catch (_) {}
+
+    File? target;
+    final relativePath = task.largestFilePath;
+    if (relativePath != null) {
+      final path = _resolveDownloadChildPath(relativePath);
+      if (path != null) {
+        final file = File(path);
+        if (file.existsSync()) {
+          target = file;
+        }
+      }
+    }
+
+    target ??= _findUniqueDownloadedFileCandidate(task);
+    if (target == null) {
+      debugPrint(
+        '[DownloadManager] No safe fallback file path for ${task.id}; '
+        'native delete may already have handled it.',
+      );
+      return;
+    }
+
+    try {
+      final deletedPath = target.path;
+      target.deleteSync();
+      _deleteEmptyParentsUnderDownloadDir(target);
+      debugPrint('[DownloadManager] Deleted libtorrent file: $deletedPath');
+    } catch (e) {
+      debugPrint('[DownloadManager] Error deleting libtorrent file: $e');
+    }
   }
 
   /// Find a task by anime name and episode number
@@ -891,11 +1189,13 @@ class DownloadManager extends ChangeNotifier {
         _removedTaskIds.remove(actualId);
         task.streamUrl = streamUrl;
         task.largestFileIdx = fileIdx ?? task.largestFileIdx;
+        task.largestFilePath = result.filePath ?? task.largestFilePath;
         task.status = DownloadTaskStatus.downloading;
         _tasks[actualId] = task;
       } else {
         task.streamUrl = streamUrl;
         task.largestFileIdx = fileIdx ?? task.largestFileIdx;
+        task.largestFilePath = result.filePath ?? task.largestFilePath;
         task.status = DownloadTaskStatus.downloading;
       }
       if (result.fileSize != null && result.fileSize! > 0) {
@@ -973,6 +1273,7 @@ class DownloadManager extends ChangeNotifier {
         task.streamUrl = result.streamUrl;
       }
       task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
+      task.largestFilePath = result.filePath ?? task.largestFilePath;
       if (result.fileSize != null && result.fileSize! > 0) {
         task.totalSize = BigInt.from(result.fileSize!);
       }
@@ -1006,6 +1307,8 @@ class DownloadManager extends ChangeNotifier {
     try {
       final stats = await _getTorrentStatsWithBackend();
       var hasChanges = false;
+      var persistImmediately = false;
+      final completedLibtorrentHashes = <String>[];
 
       for (final stat in stats) {
         final hashLower = stat.infoHash.toLowerCase();
@@ -1054,6 +1357,10 @@ class DownloadManager extends ChangeNotifier {
             : state == 'error'
             ? DownloadTaskStatus.error
             : task.status;
+        final completedNow =
+            task.backend == BtBackendKind.libtorrent &&
+            nextStatus == DownloadTaskStatus.seeding &&
+            task.status != DownloadTaskStatus.seeding;
 
         // Use epsilon comparisons; otherwise FP noise makes every poll look
         // like a change and fires notifyListeners() → a full UI rebuild every
@@ -1078,6 +1385,11 @@ class DownloadManager extends ChangeNotifier {
         task.totalSize = stat.totalSize;
         task.peers = stat.peers;
         task.status = nextStatus;
+        if (completedNow &&
+            !_ltCompletionResumeSavedHashes.contains(hashLower)) {
+          completedLibtorrentHashes.add(hashLower);
+          persistImmediately = true;
+        }
         hasChanges = true;
       }
 
@@ -1087,13 +1399,22 @@ class DownloadManager extends ChangeNotifier {
         notifyListeners();
 
         final now = DateTime.now();
-        if (_lastStatsPersistenceAt == null ||
+        if (persistImmediately ||
+            _lastStatsPersistenceAt == null ||
             now.difference(_lastStatsPersistenceAt!) >=
                 const Duration(seconds: 10)) {
           _lastStatsPersistenceAt = now;
           await _saveTasks();
         }
       }
+
+      for (final hash in completedLibtorrentHashes) {
+        if (_saveLibtorrentResumeDataForHash(hash, 'completed')) {
+          _ltCompletionResumeSavedHashes.add(hash);
+        }
+      }
+
+      _maybeSavePeriodicLibtorrentResumeData();
     } catch (e) {
       debugPrint('Error updating torrent stats: $e');
     } finally {
@@ -1221,6 +1542,25 @@ class DownloadManager extends ChangeNotifier {
         _tasks[id]!.downloadSpeed = 0;
         _tasks[id]!.uploadSpeed = 0;
         _pausedTaskIds.add(id);
+        // Save resume data so the next restart can fast-resume.
+        if (_tasks[id]!.backend == BtBackendKind.libtorrent) {
+          final hashLower = id.toLowerCase();
+          final torrentId =
+              _ltTorrentIdsByHash[hashLower] ??
+              _findNativeTorrentIdByHash(hashLower);
+          if (torrentId != null) {
+            try {
+              _nativeSession!.saveResumeData(
+                torrentId,
+                resumePath: _ltResumePath(hashLower),
+              );
+            } catch (e) {
+              debugPrint(
+                '[DownloadManager] Error saving resume data on pause: $e',
+              );
+            }
+          }
+        }
         await _saveTasks();
         notifyListeners();
         _ensureStatsPolling();
@@ -1289,6 +1629,7 @@ class DownloadManager extends ChangeNotifier {
         task.streamUrl = result.streamUrl;
       }
       task.largestFileIdx = fileIdx ?? task.largestFileIdx;
+      task.largestFilePath = result.filePath ?? task.largestFilePath;
       if (result.fileSize != null && result.fileSize! > 0) {
         task.totalSize = BigInt.from(result.fileSize!);
       }
@@ -1337,6 +1678,10 @@ class DownloadManager extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('[DownloadManager] Error stopping torrent: $e');
+    }
+
+    if (deleteFiles && task != null) {
+      await _deleteLibtorrentFilesForTask(task);
     }
   }
 
@@ -1437,19 +1782,21 @@ class DownloadManager extends ChangeNotifier {
         );
         torrentId = result.torrentId;
         task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
+        task.largestFilePath = result.filePath ?? task.largestFilePath;
         if (result.fileSize != null && result.fileSize! > 0) {
           task.totalSize = BigInt.from(result.fileSize!);
         }
       } else {
+        await _waitForLibtorrentMetadata(torrentId);
         var fileIdx = _ltFileIdxByHash[hashLower] ?? task.largestFileIdx;
         if (fileIdx == null) {
-          await _waitForLibtorrentMetadata(torrentId);
           final file = _selectLibtorrentFile(torrentId);
           if (file == null) return;
           fileIdx = file.index;
           _ltFileIdxByHash[hashLower] = file.index;
           _ltFileSizeByHash[hashLower] = file.size;
           task.largestFileIdx = file.index;
+          task.largestFilePath = file.path;
           if (file.size > 0) {
             task.totalSize = BigInt.from(file.size);
           }
@@ -1534,8 +1881,8 @@ class DownloadManager extends ChangeNotifier {
 
     // Stop each torrent in the backend
     for (final id in completedIds) {
+      final task = _tasks[id];
       try {
-        final task = _tasks[id];
         await _stopTorrentWithBackend(
           id,
           backend: task?.backend ?? _backendKind,
@@ -1543,6 +1890,9 @@ class DownloadManager extends ChangeNotifier {
         );
       } catch (e) {
         debugPrint('[DownloadManager] Error stopping torrent $id: $e');
+      }
+      if (deleteFiles && task != null) {
+        await _deleteLibtorrentFilesForTask(task);
       }
       _tasks.remove(id);
       _pausedTaskIds.remove(id);

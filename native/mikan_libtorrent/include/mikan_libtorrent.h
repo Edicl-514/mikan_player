@@ -49,6 +49,22 @@ MIKAN_LT_API int mikan_lt_add_magnet(
     char* error,
     int error_len);
 
+MIKAN_LT_API int mikan_lt_add_magnet_ex(
+    mikan_lt_session_t session,
+    const char* magnet_uri,
+    const char* save_path,
+    const char* resume_path,
+    int seed_mode,
+    char* error,
+    int error_len);
+
+MIKAN_LT_API int mikan_lt_save_resume_data(
+    mikan_lt_session_t session,
+    int torrent_id,
+    const char* resume_path,
+    char* error,
+    int error_len);
+
 MIKAN_LT_API int mikan_lt_wait_metadata(
     mikan_lt_session_t session,
     int torrent_id,

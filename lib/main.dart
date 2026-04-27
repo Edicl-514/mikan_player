@@ -134,17 +134,20 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    DownloadManager().saveLibtorrentResumeDataForShutdown();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) {
-      return;
+    if (state == AppLifecycleState.resumed) {
+      DownloadManager().handleAppResumed();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      DownloadManager().saveLibtorrentResumeDataForShutdown();
     }
-
-    DownloadManager().handleAppResumed();
   }
 
   @override
@@ -153,26 +156,26 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       listenable: SettingsService(),
       builder: (context, _) {
         return ExcludeSemantics(
-        child: MaterialApp(
-          locale: SettingsService().locale,
-          onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: AppLocalizations.supportedLocales,
-          theme: ThemeData(
-            fontFamily: 'MiSans',
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.teal,
-              brightness: Brightness.dark,
+          child: MaterialApp(
+            locale: SettingsService().locale,
+            onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: AppLocalizations.supportedLocales,
+            theme: ThemeData(
+              fontFamily: 'MiSans',
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.teal,
+                brightness: Brightness.dark,
+              ),
+              useMaterial3: true,
             ),
-            useMaterial3: true,
+            home: const HomeScreen(),
           ),
-          home: const HomeScreen(),
-        ),
         );
       },
     );

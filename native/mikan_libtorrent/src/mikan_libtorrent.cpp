@@ -22,6 +22,7 @@
 #include <libtorrent/hex.hpp>
 #include <libtorrent/magnet_uri.hpp>
 #include <libtorrent/peer_request.hpp>
+#include <libtorrent/read_resume_data.hpp>
 #include <libtorrent/session.hpp>
 #include <libtorrent/settings_pack.hpp>
 #include <libtorrent/torrent_flags.hpp>
@@ -29,6 +30,7 @@
 #include <libtorrent/torrent_info.hpp>
 #include <libtorrent/torrent_status.hpp>
 #include <libtorrent/version.hpp>
+#include <libtorrent/write_resume_data.hpp>
 
 namespace {
 
@@ -134,6 +136,60 @@ std::vector<std::pair<int, lt::torrent_handle>> collect_valid_torrents(MikanSess
     return lhs.first < rhs.first;
   });
   return items;
+}
+
+void make_params_manually_active(lt::add_torrent_params& params) {
+  params.flags &= ~lt::torrent_flags::paused;
+  params.flags &= ~lt::torrent_flags::auto_managed;
+  params.flags &= ~lt::torrent_flags::stop_when_ready;
+}
+
+template <typename T>
+void append_unique(std::vector<T>& target, const std::vector<T>& source) {
+  for (const auto& item : source) {
+    if (std::find(target.begin(), target.end(), item) == target.end()) {
+      target.push_back(item);
+    }
+  }
+}
+
+void append_unique_trackers(
+    lt::add_torrent_params& target,
+    const lt::add_torrent_params& source) {
+  for (std::size_t i = 0; i < source.trackers.size(); ++i) {
+    const auto& tracker = source.trackers[i];
+    if (std::find(target.trackers.begin(), target.trackers.end(), tracker) != target.trackers.end()) {
+      continue;
+    }
+    target.trackers.push_back(tracker);
+    const int tier = i < source.tracker_tiers.size() ? source.tracker_tiers[i] : 0;
+    target.tracker_tiers.push_back(tier);
+  }
+}
+
+void merge_magnet_sources(
+    lt::add_torrent_params& target,
+    const lt::add_torrent_params& magnet) {
+  if (!target.info_hashes.has_v1() && magnet.info_hashes.has_v1()) {
+    target.info_hashes.v1 = magnet.info_hashes.v1;
+  }
+  if (!target.info_hashes.has_v2() && magnet.info_hashes.has_v2()) {
+    target.info_hashes.v2 = magnet.info_hashes.v2;
+  }
+  if (target.name.empty()) {
+    target.name = magnet.name;
+  }
+  append_unique_trackers(target, magnet);
+  append_unique(target.dht_nodes, magnet.dht_nodes);
+  append_unique(target.http_seeds, magnet.http_seeds);
+  append_unique(target.url_seeds, magnet.url_seeds);
+  append_unique(target.peers, magnet.peers);
+
+  // A stale or partial resume file may carry these flags. For magnet recovery
+  // they are especially harmful, because metadata download depends on DHT/PEX.
+  target.flags &= ~lt::torrent_flags::disable_dht;
+  target.flags &= ~lt::torrent_flags::disable_lsd;
+  target.flags &= ~lt::torrent_flags::disable_pex;
 }
 
 lt::settings_pack make_settings(
@@ -396,6 +452,7 @@ int mikan_lt_add_magnet(
     // Do NOT set auto_managed — it causes the torrent to be queued by
     // libtorrent's internal scheduler instead of starting immediately.
     // We manage start/stop explicitly via pause/resume calls.
+    make_params_manually_active(params);
 
     std::scoped_lock lock(s->mutex);
     auto handle = s->session.add_torrent(std::move(params), ec);
@@ -416,6 +473,151 @@ int mikan_lt_add_magnet(
     write_error(error, error_len, "unknown error");
   }
   return -1;
+}
+
+int mikan_lt_add_magnet_ex(
+    mikan_lt_session_t session,
+    const char* magnet_uri,
+    const char* save_path,
+    const char* resume_path,
+    int seed_mode,
+    char* error,
+    int error_len) {
+  try {
+    auto* s = as_session(session, error, error_len);
+    if (s == nullptr) {
+      return -1;
+    }
+
+    lt::add_torrent_params params;
+    lt::add_torrent_params magnet_params;
+    bool has_magnet = false;
+    if (magnet_uri != nullptr && magnet_uri[0] != '\0') {
+      lt::error_code ec;
+      magnet_params = lt::parse_magnet_uri(magnet_uri, ec);
+      if (!ec) {
+        has_magnet = true;
+      } else if (resume_path == nullptr || resume_path[0] == '\0') {
+        write_error(error, error_len, ec.message());
+        return -1;
+      }
+    }
+
+    // Try to load resume data first — if available it includes metadata + piece
+    // bitfield, skipping both the DHT metadata download and full hash checking.
+    bool has_resume = false;
+    if (resume_path != nullptr && resume_path[0] != '\0') {
+      std::ifstream file(resume_path, std::ios::binary | std::ios::ate);
+      if (file.is_open()) {
+        auto file_size = file.tellg();
+        file.seekg(0);
+        std::vector<char> buf(static_cast<size_t>(file_size));
+        file.read(buf.data(), file_size);
+        if (file.good() && file_size > 0) {
+          lt::error_code ec;
+          params = lt::read_resume_data(buf, ec);
+          if (!ec) {
+            has_resume = true;
+          }
+        }
+      }
+    }
+
+    if (!has_resume) {
+      // No resume data — parse magnet as usual.
+      if (!has_magnet) {
+        write_error(error, error_len, "magnet uri is empty");
+        return -1;
+      }
+      params = std::move(magnet_params);
+    } else if (has_magnet) {
+      merge_magnet_sources(params, magnet_params);
+    }
+
+    if (save_path != nullptr && save_path[0] != '\0') {
+      params.save_path = save_path;
+    }
+
+    if (seed_mode != 0) {
+      params.flags |= lt::torrent_flags::seed_mode;
+    }
+    make_params_manually_active(params);
+
+    lt::error_code ec;
+    std::scoped_lock lock(s->mutex);
+    auto handle = s->session.add_torrent(std::move(params), ec);
+    if (ec || !handle.is_valid()) {
+      write_error(error, error_len, ec ? ec.message() : "failed to add magnet");
+      return -1;
+    }
+    const int torrent_id = s->next_torrent_id++;
+    s->torrents[torrent_id] = handle;
+    if (save_path != nullptr && save_path[0] != '\0') {
+      s->save_paths[torrent_id] = save_path;
+    }
+    clear_error(error, error_len);
+    return torrent_id;
+  } catch (const std::exception& e) {
+    write_error(error, error_len, e.what());
+  } catch (...) {
+    write_error(error, error_len, "unknown error");
+  }
+  return -1;
+}
+
+int mikan_lt_save_resume_data(
+    mikan_lt_session_t session,
+    int torrent_id,
+    const char* resume_path,
+    char* error,
+    int error_len) {
+  try {
+    auto* s = as_session(session, error, error_len);
+    if (s == nullptr) {
+      return 0;
+    }
+    if (resume_path == nullptr || resume_path[0] == '\0') {
+      write_error(error, error_len, "resume_path is empty");
+      return 0;
+    }
+
+    lt::torrent_handle handle;
+    {
+      std::scoped_lock lock(s->mutex);
+      handle = find_torrent_handle(s, torrent_id, error, error_len);
+    }
+    if (!handle.is_valid()) {
+      return 0;
+    }
+
+    auto params = handle.get_resume_data(lt::torrent_handle::save_info_dict);
+    if (params.ti == nullptr
+        && !params.info_hashes.has_v1()
+        && !params.info_hashes.has_v2()) {
+      write_error(error, error_len, "resume data is empty");
+      return 0;
+    }
+
+    auto buf = lt::write_resume_data_buf(params);
+    const std::filesystem::path path(resume_path);
+    if (path.has_parent_path()) {
+      std::filesystem::create_directories(path.parent_path());
+    }
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file.is_open()) {
+      write_error(error, error_len, "failed to open resume file");
+      return 0;
+    }
+    file.write(buf.data(), static_cast<std::streamsize>(buf.size()));
+    file.close();
+    clear_error(error, error_len);
+    return 1;
+  } catch (const std::exception& e) {
+    write_error(error, error_len, e.what());
+  } catch (...) {
+    write_error(error, error_len, "unknown error");
+  }
+  return 0;
 }
 
 int mikan_lt_wait_metadata(
