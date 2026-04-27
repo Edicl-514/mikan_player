@@ -43,6 +43,14 @@ target_link_libraries(mikan_libtorrent
     torrent-rasterbar
 )
 
+# cpp-httplib system dependencies
+if(WIN32)
+  target_link_libraries(mikan_libtorrent PRIVATE ws2_32 crypt32)
+else()
+  find_package(Threads REQUIRED)
+  target_link_libraries(mikan_libtorrent PRIVATE Threads::Threads)
+endif()
+
 target_compile_definitions(mikan_libtorrent PRIVATE MIKAN_LIBTORRENT_BUILDING)
 if(WIN32)
   target_compile_definitions(mikan_libtorrent PRIVATE

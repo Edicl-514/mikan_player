@@ -518,7 +518,6 @@ class DownloadManager extends ChangeNotifier {
       );
     }
 
-    // TODO: implement native streaming (mikan_lt_start_stream)
     _stopLibtorrentStreamForHash(infoHash);
     final stream = session.startStream(
       torrentId,
@@ -1546,10 +1545,14 @@ class DownloadManager extends ChangeNotifier {
       for (final hash in _activeStreamHashes) {
         final streamId = _ltStreamIdsByHash[hash];
         if (streamId != null) {
-          // TODO: replace with native stream keep-alive when streaming is implemented
-          debugPrint(
-            '[DownloadManager] Keep-alive ping for stream $streamId',
-          );
+          try {
+            _nativeSession!.preloadStream(
+              streamId,
+              preloadBytes: 4 * 1024 * 1024,
+            );
+          } catch (_) {
+            // Stream may have been stopped; ignore.
+          }
         }
       }
     });

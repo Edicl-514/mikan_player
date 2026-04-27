@@ -1,9 +1,13 @@
 #include "mikan_libtorrent.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <mutex>
 #include <memory>
 #include <string>
@@ -12,9 +16,12 @@
 #include <utility>
 #include <vector>
 
+#include "httplib.h"
+
 #include <libtorrent/download_priority.hpp>
 #include <libtorrent/hex.hpp>
 #include <libtorrent/magnet_uri.hpp>
+#include <libtorrent/peer_request.hpp>
 #include <libtorrent/session.hpp>
 #include <libtorrent/settings_pack.hpp>
 #include <libtorrent/torrent_flags.hpp>
@@ -27,6 +34,8 @@ namespace {
 
 namespace lt = libtorrent;
 
+struct StreamContext;
+
 struct MikanSession {
   explicit MikanSession(lt::settings_pack settings) : session(std::move(settings)) {}
 
@@ -34,6 +43,14 @@ struct MikanSession {
   lt::session session;
   int next_torrent_id = 1;
   std::unordered_map<int, lt::torrent_handle> torrents;
+  std::unordered_map<int, std::string> save_paths;  // torrent_id -> save_path
+
+  // Streaming state (lazily initialized)
+  std::unique_ptr<httplib::Server> http_server;
+  std::thread http_thread;
+  int http_port = 0;
+  int next_stream_id = 1;
+  std::unordered_map<int, std::shared_ptr<StreamContext>> streams;  // stream_id -> context
 };
 
 void write_error(char* error, int error_len, const std::string& message) {
@@ -153,6 +170,125 @@ lt::settings_pack make_settings(
   return settings;
 }
 
+// ---------------------------------------------------------------------------
+// Streaming support
+// ---------------------------------------------------------------------------
+
+struct StreamContext {
+  int stream_id;
+  int torrent_id;
+  int file_index;
+  int64_t file_size;
+  std::string file_path;       // absolute path on disk
+  std::atomic<int64_t> read_ahead_bytes{0};  // how far ahead to set piece deadlines
+  std::atomic<bool> active{true};
+
+  // Track which pieces we have set deadlines for, so we can clear them on stop.
+  std::mutex deadlines_mutex;
+  std::vector<int> deadline_pieces;
+};
+
+// Compute the absolute torrent offset for a given file + file-relative offset.
+int64_t file_offset_in_torrent(
+    const std::shared_ptr<const lt::torrent_info>& ti,
+    int file_index,
+    int64_t offset) {
+  const auto& fs = ti->files();
+  return fs.file_offset(lt::file_index_t{file_index}) + offset;
+}
+
+// Compute the piece range [first_piece, last_piece] that covers
+// [file_offset, file_offset + length) within the torrent.
+bool piece_range_for_offset(
+    const std::shared_ptr<const lt::torrent_info>& ti,
+    int64_t torrent_offset,
+    int64_t length,
+    int& out_first,
+    int& out_last) {
+  if (!ti || length <= 0) return false;
+  const int piece_size = ti->piece_length();
+  const int num_pieces = ti->num_pieces();
+  out_first = static_cast<int>(torrent_offset / piece_size);
+  out_last = static_cast<int>((torrent_offset + length - 1) / piece_size);
+  if (out_first < 0) out_first = 0;
+  if (out_last >= num_pieces) out_last = num_pieces - 1;
+  return out_first <= out_last;
+}
+
+// Set piece deadlines for the playback window starting at `torrent_offset`.
+// Pieces closer to the current position get tighter deadlines.
+void set_playback_deadlines(
+    lt::torrent_handle& handle,
+    const std::shared_ptr<const lt::torrent_info>& ti,
+    int64_t torrent_offset,
+    int64_t read_ahead,
+    StreamContext* ctx) {
+  int first_piece, last_piece;
+  if (!piece_range_for_offset(ti, torrent_offset, read_ahead, first_piece, last_piece)) {
+    return;
+  }
+
+  std::vector<int> pieces;
+  for (int p = first_piece; p <= last_piece; ++p) {
+    handle.set_piece_deadline(p, (p - first_piece) * 500, lt::torrent_handle::alert_when_available);
+    pieces.push_back(p);
+  }
+
+  // Record deadline pieces so stop_stream can clear them.
+  {
+    std::scoped_lock lock(ctx->deadlines_mutex);
+    ctx->deadline_pieces = std::move(pieces);
+  }
+}
+
+// Clear all piece deadlines that were set for a stream.
+void clear_playback_deadlines(
+    lt::torrent_handle& handle,
+    StreamContext* ctx) {
+  std::vector<int> pieces;
+  {
+    std::scoped_lock lock(ctx->deadlines_mutex);
+    pieces = std::move(ctx->deadline_pieces);
+  }
+  for (int p : pieces) {
+    handle.reset_piece_deadline(p);
+  }
+}
+
+// Check if all pieces in [first_piece, last_piece] are downloaded and hash-verified.
+bool are_pieces_ready(
+    lt::torrent_handle& handle,
+    int first_piece,
+    int last_piece) {
+  if (first_piece > last_piece) return true;
+  auto st = handle.status(lt::torrent_handle::query_pieces);
+  if (st.is_seeding || st.is_finished) return true;
+  const auto& pieces = st.pieces;
+  if (pieces.empty()) return false;
+  for (int p = first_piece; p <= last_piece; ++p) {
+    if (p >= static_cast<int>(pieces.size())) return false;
+    if (!pieces[p]) return false;
+  }
+  return true;
+}
+
+// Read a chunk of data from the file on disk.
+// Returns the number of bytes actually read, or -1 on error.
+int read_file_chunk(
+    const std::string& file_path,
+    int64_t offset,
+    int64_t length,
+    char* buffer) {
+  if (length <= 0) return 0;
+  std::ifstream f(file_path, std::ios::binary);
+  if (!f.is_open()) return -1;
+  f.seekg(offset, std::ios::beg);
+  if (!f) return -1;
+  f.read(buffer, static_cast<std::streamsize>(length));
+  const auto count = f.gcount();
+  return static_cast<int>(count);
+}
+
 }  // namespace
 
 extern "C" {
@@ -184,7 +320,18 @@ mikan_lt_session_t mikan_lt_session_create(
 }
 
 void mikan_lt_session_destroy(mikan_lt_session_t session) {
-  delete static_cast<MikanSession*>(session);
+  auto* s = static_cast<MikanSession*>(session);
+  if (s == nullptr) return;
+
+  // Stop HTTP server if running.
+  if (s->http_server) {
+    s->http_server->stop();
+  }
+  if (s->http_thread.joinable()) {
+    s->http_thread.join();
+  }
+
+  delete s;
 }
 
 int mikan_lt_add_magnet(
@@ -224,6 +371,9 @@ int mikan_lt_add_magnet(
     }
     const int torrent_id = s->next_torrent_id++;
     s->torrents[torrent_id] = handle;
+    if (save_path != nullptr && save_path[0] != '\0') {
+      s->save_paths[torrent_id] = save_path;
+    }
     clear_error(error, error_len);
     return torrent_id;
   } catch (const std::exception& e) {
@@ -499,6 +649,7 @@ int mikan_lt_remove_torrent(
         s->session.remove_torrent(handle);
       }
       s->torrents.erase(torrent_id);
+      s->save_paths.erase(torrent_id);
     }
     clear_error(error, error_len);
     return 1;
@@ -659,47 +810,405 @@ int mikan_lt_configure_session(
 }
 
 int mikan_lt_start_stream(
-    mikan_lt_session_t,
-    int,
-    int,
-    int,
+    mikan_lt_session_t session,
+    int torrent_id,
+    int file_index,
+    int max_cache_bytes,
     char* out_url,
     int out_url_len,
     char* error,
     int error_len) {
+  try {
+    auto* s = as_session(session, error, error_len);
+    if (s == nullptr) {
+      write_output(out_url, out_url_len, "");
+      return -1;
+    }
+
+    // Resolve torrent handle and metadata.
+    lt::torrent_handle handle;
+    std::shared_ptr<const lt::torrent_info> ti;
+    std::string save_path;
+    {
+      std::scoped_lock lock(s->mutex);
+      handle = find_torrent_handle(s, torrent_id, error, error_len);
+      if (!handle.is_valid()) {
+        write_output(out_url, out_url_len, "");
+        return -1;
+      }
+      ti = handle.torrent_file();
+      if (!ti) {
+        write_error(error, error_len, "torrent metadata not available");
+        write_output(out_url, out_url_len, "");
+        return -1;
+      }
+      auto sp_it = s->save_paths.find(torrent_id);
+      if (sp_it != s->save_paths.end()) {
+        save_path = sp_it->second;
+      } else {
+        // Fallback: query from torrent status.
+        auto st = handle.status(lt::torrent_handle::query_save_path);
+        save_path = st.save_path;
+      }
+    }
+
+    // Validate file index and compute absolute file path.
+    const auto& fs = ti->files();
+    if (file_index < 0 || file_index >= fs.num_files()) {
+      write_error(error, error_len, "file index out of range");
+      write_output(out_url, out_url_len, "");
+      return -1;
+    }
+    const auto fidx = lt::file_index_t{file_index};
+    const int64_t file_size = fs.file_size(fidx);
+    const std::string relative_path = fs.file_path(fidx);
+    std::filesystem::path abs_path = std::filesystem::path(save_path) / relative_path;
+    const std::string abs_path_str = abs_path.string();
+
+    // Lazily start the HTTP server on first stream.
+    if (!s->http_server) {
+      auto srv = std::make_unique<httplib::Server>();
+      srv->set_payload_max_length(0);  // No POST body needed.
+
+      // Bind to 127.0.0.1:0 → OS picks a random port.
+      s->http_port = srv->bind_to_any_port("127.0.0.1");
+      if (s->http_port <= 0) {
+        write_error(error, error_len, "failed to bind HTTP server");
+        write_output(out_url, out_url_len, "");
+        return -1;
+      }
+
+      // Start server in a background thread.
+      s->http_server = std::move(srv);
+      s->http_thread = std::thread([&s_ref = *s]() {
+        s_ref.http_server->listen_after_bind();
+      });
+
+      // Wait briefly for the server to start.
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    // Allocate a new stream context.
+    int stream_id;
+    auto ctx = std::make_shared<StreamContext>();
+    ctx->torrent_id = torrent_id;
+    ctx->file_index = file_index;
+    ctx->file_size = file_size;
+    ctx->file_path = abs_path_str;
+    ctx->read_ahead_bytes.store(
+        max_cache_bytes > 0
+            ? static_cast<int64_t>(max_cache_bytes)
+            : 4 * 1024 * 1024);  // default 4MB read-ahead
+    ctx->active.store(true);
+
+    {
+      std::scoped_lock lock(s->mutex);
+      stream_id = s->next_stream_id++;
+      ctx->stream_id = stream_id;
+      s->streams[stream_id] = ctx;
+    }
+
+    // Set initial deadlines for the beginning of the file.
+    {
+      int64_t torrent_off = file_offset_in_torrent(ti, file_index, 0);
+      set_playback_deadlines(handle, ti, torrent_off, ctx->read_ahead_bytes.load(), ctx.get());
+    }
+
+    // Register the HTTP route: GET /stream/<stream_id>
+    std::string route = "/stream/" + std::to_string(stream_id);
+
+    s->http_server->Get(route, [s, stream_id](const httplib::Request& req, httplib::Response& res) {
+      std::shared_ptr<StreamContext> ctx;
+      {
+        std::scoped_lock lock(s->mutex);
+        auto it = s->streams.find(stream_id);
+        if (it != s->streams.end()) {
+          ctx = it->second;
+        }
+      }
+
+      if (!ctx || !ctx->active.load()) {
+        res.status = 404;
+        res.set_content("stream not found", "text/plain");
+        return;
+      }
+
+      const int64_t file_size = ctx->file_size;
+      int64_t playback_offset = 0;
+      if (!req.ranges.empty()) {
+        const auto first_range = req.ranges.front();
+        if (first_range.first >= 0) {
+          playback_offset = first_range.first;
+        } else if (first_range.second > 0) {
+          playback_offset = std::max<int64_t>(0, file_size - first_range.second);
+        }
+      }
+
+      // Update piece deadlines for the new playback position.
+      {
+        lt::torrent_handle handle;
+        std::shared_ptr<const lt::torrent_info> ti;
+        {
+          std::scoped_lock lock(s->mutex);
+          handle = find_torrent_handle(s, ctx->torrent_id, nullptr, 0);
+          if (handle.is_valid()) {
+            ti = handle.torrent_file();
+          }
+        }
+        if (handle.is_valid() && ti) {
+          int64_t torrent_off = file_offset_in_torrent(ti, ctx->file_index, playback_offset);
+          set_playback_deadlines(handle, ti, torrent_off, ctx->read_ahead_bytes.load(), ctx.get());
+        }
+      }
+
+      // Determine chunk size (256KB to 1MB). httplib applies HTTP Range
+      // requests to the content provider automatically, so provider offsets are
+      // always file-relative offsets.
+      const int64_t chunk_size = 256 * 1024;
+
+      // Set up response headers.
+      res.set_header("Accept-Ranges", "bytes");
+
+      // Use ContentProvider to stream data in chunks.
+      res.set_content_provider(
+          static_cast<size_t>(file_size),
+          "application/octet-stream",
+          [s, ctx, chunk_size](size_t offset, size_t length, httplib::DataSink& sink) {
+            if (!ctx->active.load()) {
+              return false;
+            }
+
+            const int64_t file_offset = static_cast<int64_t>(offset);
+            const int64_t remaining = ctx->file_size - file_offset;
+            const int64_t to_read = std::min({static_cast<int64_t>(length), remaining, chunk_size});
+            if (to_read <= 0) {
+              return false;
+            }
+
+            // Get torrent handle and info for piece readiness check.
+            lt::torrent_handle handle;
+            std::shared_ptr<const lt::torrent_info> ti;
+            {
+              std::scoped_lock lock(s->mutex);
+              handle = find_torrent_handle(s, ctx->torrent_id, nullptr, 0);
+              if (handle.is_valid()) {
+                ti = handle.torrent_file();
+              }
+            }
+
+            if (!handle.is_valid() || !ti) {
+              return false;
+            }
+
+            // Compute which pieces this chunk covers.
+            const int64_t torrent_off = file_offset_in_torrent(ti, ctx->file_index, file_offset);
+            int first_piece, last_piece;
+            if (piece_range_for_offset(ti, torrent_off, to_read, first_piece, last_piece)) {
+              set_playback_deadlines(
+                  handle,
+                  ti,
+                  torrent_off,
+                  ctx->read_ahead_bytes.load(),
+                  ctx.get());
+              // Wait for pieces to be ready (poll with timeout).
+              const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(120);
+              while (!are_pieces_ready(handle, first_piece, last_piece)) {
+                if (!ctx->active.load()) {
+                  return false;
+                }
+                if (std::chrono::steady_clock::now() > deadline) {
+                  return false;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+              }
+            }
+
+            // Read from disk.
+            std::vector<char> buffer(static_cast<size_t>(to_read));
+            const int bytes_read = read_file_chunk(ctx->file_path, file_offset, to_read, buffer.data());
+            if (bytes_read <= 0) {
+              return false;
+            }
+
+            return sink.write(buffer.data(), static_cast<size_t>(bytes_read));
+          },
+          [](bool /*success*/) {
+            // Completion callback — nothing to do.
+          });
+    });
+
+    // Build the stream URL.
+    const std::string url = "http://127.0.0.1:" + std::to_string(s->http_port) + route;
+    write_output(out_url, out_url_len, url);
+    clear_error(error, error_len);
+    return stream_id;
+  } catch (const std::exception& e) {
+    write_error(error, error_len, e.what());
+  } catch (...) {
+    write_error(error, error_len, "unknown error");
+  }
   write_output(out_url, out_url_len, "");
-  write_error(error, error_len, "streaming api is not implemented yet");
   return -1;
 }
 
 int mikan_lt_stop_stream(
-    mikan_lt_session_t,
-    int,
+    mikan_lt_session_t session,
+    int stream_id,
     char* error,
     int error_len) {
-  write_error(error, error_len, "streaming api is not implemented yet");
+  try {
+    auto* s = as_session(session, error, error_len);
+    if (s == nullptr) {
+      return 0;
+    }
+
+    std::shared_ptr<StreamContext> ctx;
+    {
+      std::scoped_lock lock(s->mutex);
+      auto it = s->streams.find(stream_id);
+      if (it == s->streams.end()) {
+        write_error(error, error_len, "stream id not found");
+        return 0;
+      }
+      ctx = it->second;
+    }
+
+    // Mark stream as inactive — in-flight HTTP responses will notice.
+    ctx->active.store(false);
+
+    // Clear piece deadlines, but do NOT pause or change the torrent.
+    lt::torrent_handle handle;
+    {
+      std::scoped_lock lock(s->mutex);
+      handle = find_torrent_handle(s, ctx->torrent_id, nullptr, 0);
+    }
+    if (handle.is_valid()) {
+      clear_playback_deadlines(handle, ctx.get());
+    }
+
+    // Remove the stream context.
+    {
+      std::scoped_lock lock(s->mutex);
+      s->streams.erase(stream_id);
+    }
+
+    clear_error(error, error_len);
+    return 1;
+  } catch (const std::exception& e) {
+    write_error(error, error_len, e.what());
+  } catch (...) {
+    write_error(error, error_len, "unknown error");
+  }
   return 0;
 }
 
 int mikan_lt_set_stream_cache(
-    mikan_lt_session_t,
-    int,
-    int,
-    int,
-    int,
+    mikan_lt_session_t session,
+    int stream_id,
+    int capacity,
+    int read_ahead_pct,
+    int connections_limit,
     char* error,
     int error_len) {
-  write_error(error, error_len, "streaming api is not implemented yet");
+  try {
+    auto* s = as_session(session, error, error_len);
+    if (s == nullptr) {
+      return 0;
+    }
+
+    std::shared_ptr<StreamContext> ctx;
+    {
+      std::scoped_lock lock(s->mutex);
+      auto it = s->streams.find(stream_id);
+      if (it == s->streams.end()) {
+        write_error(error, error_len, "stream id not found");
+        return 0;
+      }
+      ctx = it->second;
+    }
+
+    // Update read-ahead window.
+    if (capacity > 0) {
+      ctx->read_ahead_bytes.store(static_cast<int64_t>(capacity));
+    } else if (read_ahead_pct > 0) {
+      ctx->read_ahead_bytes.store(ctx->file_size * read_ahead_pct / 100);
+    }
+
+    // Optionally update connections limit on the session.
+    if (connections_limit > 0) {
+      lt::settings_pack settings;
+      settings.set_int(lt::settings_pack::connections_limit, connections_limit);
+      std::scoped_lock lock(s->mutex);
+      s->session.apply_settings(settings);
+    }
+
+    clear_error(error, error_len);
+    return 1;
+  } catch (const std::exception& e) {
+    write_error(error, error_len, e.what());
+  } catch (...) {
+    write_error(error, error_len, "unknown error");
+  }
   return 0;
 }
 
 int mikan_lt_preload_stream(
-    mikan_lt_session_t,
-    int,
-    long long,
+    mikan_lt_session_t session,
+    int stream_id,
+    long long preload_bytes,
     char* error,
     int error_len) {
-  write_error(error, error_len, "streaming api is not implemented yet");
+  try {
+    auto* s = as_session(session, error, error_len);
+    if (s == nullptr) {
+      return 0;
+    }
+
+    std::shared_ptr<StreamContext> ctx;
+    {
+      std::scoped_lock lock(s->mutex);
+      auto it = s->streams.find(stream_id);
+      if (it == s->streams.end()) {
+        write_error(error, error_len, "stream id not found");
+        return 0;
+      }
+      ctx = it->second;
+    }
+
+    if (!ctx->active.load()) {
+      write_error(error, error_len, "stream is not active");
+      return 0;
+    }
+
+    // Set deadlines for the first `preload_bytes` of the file.
+    lt::torrent_handle handle;
+    std::shared_ptr<const lt::torrent_info> ti;
+    {
+      std::scoped_lock lock(s->mutex);
+      handle = find_torrent_handle(s, ctx->torrent_id, nullptr, 0);
+      if (handle.is_valid()) {
+        ti = handle.torrent_file();
+      }
+    }
+
+    if (!handle.is_valid() || !ti) {
+      write_error(error, error_len, "torrent not available");
+      return 0;
+    }
+
+    const int64_t ahead = preload_bytes > 0
+        ? static_cast<int64_t>(preload_bytes)
+        : ctx->read_ahead_bytes.load();
+    const int64_t torrent_off = file_offset_in_torrent(ti, ctx->file_index, 0);
+    set_playback_deadlines(handle, ti, torrent_off, ahead, ctx.get());
+
+    clear_error(error, error_len);
+    return 1;
+  } catch (const std::exception& e) {
+    write_error(error, error_len, e.what());
+  } catch (...) {
+    write_error(error, error_len, "unknown error");
+  }
   return 0;
 }
 
