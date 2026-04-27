@@ -211,7 +211,9 @@ class DownloadTask {
   /// Check if this task is actively downloading or seeding
   bool get isActive =>
       status == DownloadTaskStatus.downloading ||
-      status == DownloadTaskStatus.seeding;
+      status == DownloadTaskStatus.seeding ||
+      status == DownloadTaskStatus.metadata ||
+      status == DownloadTaskStatus.checking;
 }
 
 enum DownloadTaskStatus {
@@ -221,6 +223,8 @@ enum DownloadTaskStatus {
   paused,
   completed,
   error,
+  metadata, // Fetching torrent metadata (DHT/peers)
+  checking, // Verifying existing files (checking_files / checking_resume_data)
 }
 
 /// Global download manager singleton
@@ -335,12 +339,14 @@ class DownloadManager extends ChangeNotifier {
   List<DownloadTask> get tasks => _tasks.values.toList();
   BtBackendKind get backendKind => _backendKind;
 
-  /// Active tasks: downloading only (not seeding)
+  /// Active tasks: downloading, metadata-fetching, checking (not seeding)
   List<DownloadTask> get activeTasks => _tasks.values
       .where(
         (t) =>
             t.status == DownloadTaskStatus.downloading ||
-            t.status == DownloadTaskStatus.pending,
+            t.status == DownloadTaskStatus.pending ||
+            t.status == DownloadTaskStatus.metadata ||
+            t.status == DownloadTaskStatus.checking,
       )
       .toList();
 
@@ -363,7 +369,9 @@ class DownloadManager extends ChangeNotifier {
             task.magnet.isNotEmpty &&
             (task.status == DownloadTaskStatus.pending ||
                 task.status == DownloadTaskStatus.downloading ||
-                task.status == DownloadTaskStatus.seeding),
+                task.status == DownloadTaskStatus.seeding ||
+                task.status == DownloadTaskStatus.metadata ||
+                task.status == DownloadTaskStatus.checking),
       )
       .toList();
 
@@ -371,7 +379,9 @@ class DownloadManager extends ChangeNotifier {
     (task) =>
         task.status == DownloadTaskStatus.pending ||
         task.status == DownloadTaskStatus.downloading ||
-        task.status == DownloadTaskStatus.seeding,
+        task.status == DownloadTaskStatus.seeding ||
+        task.status == DownloadTaskStatus.metadata ||
+        task.status == DownloadTaskStatus.checking,
   );
 
   /// Initialize the download manager, load saved tasks
@@ -418,6 +428,12 @@ class DownloadManager extends ChangeNotifier {
             continue;
           }
 
+          // Keep rqbit startup semantics aligned with libtorrent-style metadata stage.
+          if (task.backend == BtBackendKind.rqbit &&
+              task.status == DownloadTaskStatus.pending) {
+            task.status = DownloadTaskStatus.metadata;
+          }
+
           _tasks[task.id] = task;
 
           // Track paused tasks
@@ -428,9 +444,12 @@ class DownloadManager extends ChangeNotifier {
           // Auto-resume torrents that were downloading or seeding
           // This ensures they continue after app restart
           if (task.magnet.isNotEmpty &&
-              (task.status == DownloadTaskStatus.downloading ||
+              (task.status == DownloadTaskStatus.pending ||
+                task.status == DownloadTaskStatus.downloading ||
                   task.status == DownloadTaskStatus.seeding ||
-                  task.status == DownloadTaskStatus.completed)) {
+                  task.status == DownloadTaskStatus.completed ||
+                  task.status == DownloadTaskStatus.metadata ||
+                  task.status == DownloadTaskStatus.checking)) {
             toResume.add(task);
           }
         }
@@ -794,13 +813,16 @@ class DownloadManager extends ChangeNotifier {
     // 2=downloading_metadata, 3=downloading, 4=finished, 5=seeding,
     // 6=allocating, 7=checking_resume_data
     switch (stats.state) {
-      case 5: // seeding
-      case 4: // finished
-      case 3: // downloading
       case 2: // downloading_metadata
-      case 6: // allocating
+        return 'metadata';
+      case 0: // queued_for_checking
       case 1: // checking_files
       case 7: // checking_resume_data
+        return 'checking';
+      case 3: // downloading
+      case 4: // finished
+      case 5: // seeding
+      case 6: // allocating
         return 'live';
       default:
         return 'initializing';
@@ -1143,6 +1165,9 @@ class DownloadManager extends ChangeNotifier {
     }
 
     // Create new task
+    final initialStatus = _backendKind == BtBackendKind.rqbit
+        ? DownloadTaskStatus.metadata
+        : DownloadTaskStatus.pending;
     final task = DownloadTask(
       id: tempId,
       name: name,
@@ -1150,7 +1175,7 @@ class DownloadManager extends ChangeNotifier {
       animeName: animeName,
       episodeNumber: episodeNumber,
       startTime: DateTime.now(),
-      status: DownloadTaskStatus.pending,
+      status: initialStatus,
       backend: _backendKind,
     );
 
@@ -1310,6 +1335,14 @@ class DownloadManager extends ChangeNotifier {
       var persistImmediately = false;
       final completedLibtorrentHashes = <String>[];
 
+      for (final task in _tasks.values) {
+        if (task.backend == BtBackendKind.rqbit &&
+            task.status == DownloadTaskStatus.pending) {
+          task.status = DownloadTaskStatus.metadata;
+          hasChanges = true;
+        }
+      }
+
       for (final stat in stats) {
         final hashLower = stat.infoHash.toLowerCase();
         if (_removedTaskIds.contains(hashLower)) continue;
@@ -1343,6 +1376,9 @@ class DownloadManager extends ChangeNotifier {
         final state = stat.state;
         final shouldRecoverAutoPausedLibtorrent =
             task.backend == BtBackendKind.libtorrent && state == 'paused';
+        final initializingStatus = task.backend == BtBackendKind.rqbit
+            ? DownloadTaskStatus.metadata
+            : DownloadTaskStatus.pending;
         if (shouldRecoverAutoPausedLibtorrent) {
           unawaited(_restoreLibtorrentBackgroundDownload(hashLower));
         }
@@ -1352,6 +1388,12 @@ class DownloadManager extends ChangeNotifier {
             ? DownloadTaskStatus.downloading
             : state == 'paused'
             ? DownloadTaskStatus.paused
+            : state == 'metadata'
+            ? DownloadTaskStatus.metadata
+            : state == 'checking'
+            ? DownloadTaskStatus.checking
+            : state == 'initializing'
+            ? initializingStatus
             : state == 'live'
             ? DownloadTaskStatus.downloading
             : state == 'error'

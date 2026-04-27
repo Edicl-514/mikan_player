@@ -455,11 +455,15 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
         return true;
       case DownloadTaskStatus.downloading:
         return task.status == DownloadTaskStatus.downloading ||
-            task.status == DownloadTaskStatus.pending;
+            task.status == DownloadTaskStatus.pending ||
+            task.status == DownloadTaskStatus.metadata ||
+            task.status == DownloadTaskStatus.checking;
       case DownloadTaskStatus.completed:
         return task.status == DownloadTaskStatus.completed ||
             task.status == DownloadTaskStatus.seeding;
       case DownloadTaskStatus.pending:
+      case DownloadTaskStatus.metadata:
+      case DownloadTaskStatus.checking:
       case DownloadTaskStatus.seeding:
       case DownloadTaskStatus.paused:
       case DownloadTaskStatus.error:
@@ -694,33 +698,9 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
     AppLocalizations l10n,
   ) {
     final displayName = animeName ?? l10n.others;
-    final isCompleted = tasks.every(
-      (t) =>
-          t.status == DownloadTaskStatus.completed ||
-          t.status == DownloadTaskStatus.seeding,
-    );
-    final hasError = tasks.any((t) => t.status == DownloadTaskStatus.error);
-    final isActive = tasks.any(
-      (t) =>
-          t.status == DownloadTaskStatus.downloading ||
-          t.status == DownloadTaskStatus.pending,
-    );
-
-    Color groupColor;
-    IconData groupIcon;
-    if (hasError) {
-      groupColor = Colors.red;
-      groupIcon = Icons.error_outline;
-    } else if (isActive) {
-      groupColor = Colors.blue;
-      groupIcon = Icons.downloading;
-    } else if (isCompleted) {
-      groupColor = Colors.green;
-      groupIcon = Icons.check_circle_outline;
-    } else {
-      groupColor = Colors.grey;
-      groupIcon = Icons.pause_circle_outline;
-    }
+    final groupStatus = _resolveGroupStatus(tasks);
+    final groupColor = _getStatusColor(groupStatus);
+    final groupIcon = _getStatusIcon(groupStatus);
 
     final theme = Theme.of(context);
     final surfaceColor = theme.colorScheme.surfaceContainerHigh;
@@ -881,6 +861,54 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
     );
   }
 
+  DownloadTaskStatus _resolveGroupStatus(List<DownloadTask> tasks) {
+    if (tasks.isEmpty) return DownloadTaskStatus.pending;
+
+    DownloadTaskStatus best = _normalizeGroupStatus(tasks.first.status);
+    int bestPriority = _groupStatusPriority(best);
+
+    for (int index = 1; index < tasks.length; index++) {
+      final candidate = _normalizeGroupStatus(tasks[index].status);
+      final candidatePriority = _groupStatusPriority(candidate);
+      if (candidatePriority > bestPriority) {
+        best = candidate;
+        bestPriority = candidatePriority;
+      }
+    }
+
+    return best;
+  }
+
+  DownloadTaskStatus _normalizeGroupStatus(DownloadTaskStatus status) {
+    if (status == DownloadTaskStatus.seeding) {
+      return DownloadTaskStatus.completed;
+    }
+    if (status == DownloadTaskStatus.pending) {
+      return DownloadTaskStatus.downloading;
+    }
+    return status;
+  }
+
+  int _groupStatusPriority(DownloadTaskStatus status) {
+    switch (status) {
+      case DownloadTaskStatus.error:
+        return 6;
+      case DownloadTaskStatus.paused:
+        return 5;
+      case DownloadTaskStatus.metadata:
+        return 4;
+      case DownloadTaskStatus.checking:
+        return 3;
+      case DownloadTaskStatus.downloading:
+        return 2;
+      case DownloadTaskStatus.completed:
+        return 1;
+      case DownloadTaskStatus.pending:
+      case DownloadTaskStatus.seeding:
+        return 0;
+    }
+  }
+
   Widget _buildDownloadItem(DownloadTask task, [Color? accentColor]) {
     final statusColor = _getStatusColor(task.status);
     final statusIcon = _getStatusIcon(task.status);
@@ -925,6 +953,31 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  // Status label tag
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 96),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        _getStatusLabel(task.status),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
                   // Action buttons
                   _buildTaskActions(task),
                 ],
@@ -1038,8 +1091,10 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   ),
                   const SizedBox(width: 10),
 
-                  // Download speed (for downloading)
-                  if (task.status == DownloadTaskStatus.downloading) ...[
+                  // Download speed (for downloading / metadata / checking)
+                  if (task.status == DownloadTaskStatus.downloading ||
+                      task.status == DownloadTaskStatus.metadata ||
+                      task.status == DownloadTaskStatus.checking) ...[
                     const Icon(Icons.download, size: 11, color: Colors.grey),
                     const SizedBox(width: 3),
                     Text(
@@ -1106,7 +1161,9 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Pause/Resume button
-        if (task.status == DownloadTaskStatus.downloading)
+        if (task.status == DownloadTaskStatus.downloading ||
+            task.status == DownloadTaskStatus.metadata ||
+            task.status == DownloadTaskStatus.checking)
           IconButton(
             icon: const Icon(Icons.pause, size: 20, color: Colors.orange),
             tooltip: AppLocalizations.of(context).pause,
@@ -1258,8 +1315,10 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
             children: [
               Text(
                 task.status == DownloadTaskStatus.downloading ||
-                        task.status == DownloadTaskStatus.seeding
-                    ? '此任务正在状态中，确定要停止并删除吗？' // This needs better wording but I'll stick to it for now
+                        task.status == DownloadTaskStatus.seeding ||
+                        task.status == DownloadTaskStatus.metadata ||
+                        task.status == DownloadTaskStatus.checking
+                    ? '此任务正在运行中，确定要停止并删除吗？'
                     : AppLocalizations.of(
                         context,
                       ).logoutConfirm, // Using loginConfirm as a generic "are you sure"
@@ -1303,10 +1362,14 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
     switch (status) {
       case DownloadTaskStatus.pending:
         return Colors.orange;
+      case DownloadTaskStatus.metadata:
+        return Colors.deepPurple;
+      case DownloadTaskStatus.checking:
+        return Colors.teal;
       case DownloadTaskStatus.downloading:
         return Colors.blue;
       case DownloadTaskStatus.seeding:
-        return Colors.green;
+        return const Color(0xFF26A69A); // teal-ish green
       case DownloadTaskStatus.paused:
         return Colors.grey;
       case DownloadTaskStatus.completed:
@@ -1316,10 +1379,36 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
     }
   }
 
+  String _getStatusLabel(DownloadTaskStatus status) {
+    final l10n = AppLocalizations.of(context);
+    switch (status) {
+      case DownloadTaskStatus.pending:
+        return l10n.statusPending;
+      case DownloadTaskStatus.metadata:
+        return l10n.statusMetadata;
+      case DownloadTaskStatus.checking:
+        return l10n.statusChecking;
+      case DownloadTaskStatus.downloading:
+        return l10n.downloading;
+      case DownloadTaskStatus.seeding:
+        return l10n.seeding;
+      case DownloadTaskStatus.paused:
+        return l10n.paused;
+      case DownloadTaskStatus.completed:
+        return l10n.statusCompleted;
+      case DownloadTaskStatus.error:
+        return l10n.filterError;
+    }
+  }
+
   IconData _getStatusIcon(DownloadTaskStatus status) {
     switch (status) {
       case DownloadTaskStatus.pending:
         return Icons.hourglass_empty;
+      case DownloadTaskStatus.metadata:
+        return Icons.cloud_download;
+      case DownloadTaskStatus.checking:
+        return Icons.verified_user;
       case DownloadTaskStatus.downloading:
         return Icons.downloading;
       case DownloadTaskStatus.seeding:

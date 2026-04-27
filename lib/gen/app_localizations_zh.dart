@@ -145,6 +145,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get paused => '暂停';
 
   @override
+  String get statusPending => '等待中';
+
+  @override
+  String get statusMetadata => '获取元数据';
+
+  @override
+  String get statusChecking => '校验中';
+
+  @override
+  String get statusCompleted => '已完成';
+
+  @override
   String get resume => '恢复';
 
   @override
@@ -344,6 +356,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get filterActive => '进行中';
+
+  @override
+  String get filterChecking => '校验中';
 
   @override
   String get filterCompleted => '已完成';

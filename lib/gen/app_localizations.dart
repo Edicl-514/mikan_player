@@ -350,6 +350,30 @@ abstract class AppLocalizations {
   /// **'暂停'**
   String get paused;
 
+  /// No description provided for @statusPending.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待中'**
+  String get statusPending;
+
+  /// No description provided for @statusMetadata.
+  ///
+  /// In zh, this message translates to:
+  /// **'获取元数据'**
+  String get statusMetadata;
+
+  /// No description provided for @statusChecking.
+  ///
+  /// In zh, this message translates to:
+  /// **'校验中'**
+  String get statusChecking;
+
+  /// No description provided for @statusCompleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已完成'**
+  String get statusCompleted;
+
   /// No description provided for @resume.
   ///
   /// In zh, this message translates to:
@@ -739,6 +763,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'进行中'**
   String get filterActive;
+
+  /// No description provided for @filterChecking.
+  ///
+  /// In zh, this message translates to:
+  /// **'校验中'**
+  String get filterChecking;
 
   /// No description provided for @filterCompleted.
   ///

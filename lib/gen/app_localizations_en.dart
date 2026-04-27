@@ -146,6 +146,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get paused => 'Paused';
 
   @override
+  String get statusPending => 'Pending';
+
+  @override
+  String get statusMetadata => 'Fetching metadata';
+
+  @override
+  String get statusChecking => 'Verifying';
+
+  @override
+  String get statusCompleted => 'Completed';
+
+  @override
   String get resume => 'Resume';
 
   @override
@@ -350,6 +362,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filterActive => 'Active';
+
+  @override
+  String get filterChecking => 'Verifying';
 
   @override
   String get filterCompleted => 'Completed';
