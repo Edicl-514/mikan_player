@@ -131,6 +131,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   bool _hasAutoPlayed = false;
   bool _isAutoPlayNextEnabled = true;
   bool _autoSearchOnline = true;
+  bool _disableAutoSourceSearchForCurrentEpisode = false;
+  bool _autoPlaySearchedSource = false;
   double _playbackSpeed = 1.0;
 
   // 每个源的搜索进度状态
@@ -267,23 +269,45 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _loadComments();
     _loadRecommendations();
 
+    _loadDanmaku();
+    unawaited(_initializePlaybackAndSourceLoading());
+  }
+
+  Future<void> _initializePlaybackAndSourceLoading() async {
+    var hasDownloadedPlayback = false;
+
     // Check if we have a direct BT stream URL to play
     if (widget.btStreamUrl != null) {
       _playBtStreamUrl(widget.btStreamUrl!);
+      hasDownloadedPlayback = true;
     } else {
       // Check for existing BT download for this episode
-      _checkAndPlayExistingBtDownload();
+      hasDownloadedPlayback = await _checkAndPlayExistingBtDownload();
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _disableAutoSourceSearchForCurrentEpisode = hasDownloadedPlayback;
+      if (hasDownloadedPlayback) {
+        _sampleStatusMessageNotifier.value = '已播放本地资源，可手动搜索在线源';
+      }
+    });
+
+    await _loadSettings(autoLoadSample: !hasDownloadedPlayback);
+
+    if (!mounted || hasDownloadedPlayback) {
+      return;
     }
 
     _loadMikanSource();
     _loadDmhySource();
-    // _loadSampleSource(); // Moved to _loadSettings to ensure settings are loaded first
-    _loadDanmaku();
-    _loadSettings();
   }
 
   /// Check if there's an existing BT download for this episode and play it
-  Future<void> _checkAndPlayExistingBtDownload() async {
+  Future<bool> _checkAndPlayExistingBtDownload() async {
     final task = _downloadManager.getAvailableTaskForEpisode(
       widget.anime.title,
       _currentEpisode.sort.toInt(),
@@ -293,12 +317,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final streamUrl =
           task.streamUrl ??
           await _downloadManager.getOrCreateStreamUrl(task.id);
-      if (!mounted || streamUrl == null) return;
+      if (!mounted || streamUrl == null) {
+        return false;
+      }
       debugPrint(
         '[Player] Found existing BT download for this episode: ${task.name}',
       );
       _playBtStreamUrl(streamUrl);
+      return true;
     }
+
+    return false;
   }
 
   /// Play a BT stream URL directly
@@ -365,7 +394,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _loadSettings() async {
+  Future<void> _loadSettings({bool autoLoadSample = true}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedPlaybackSpeed = (prefs.getDouble('playback_speed') ?? 1.0)
@@ -387,7 +416,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     // Load sample source after settings to respect _autoSearchOnline
-    if (mounted) {
+    if (mounted && autoLoadSample) {
       _loadSampleSource();
     }
   }
@@ -1300,8 +1329,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         '搜索进度: $completedCount/${_enabledSourceNames.length}，'
         '验证码 $activeCaptcha 运行/$pendingCaptcha 排队';
 
-    // 尝试自动播放（基于Tier逻辑）
-    _attemptAutoPlay();
+    // 手动触发搜索后不自动播放，等待用户主动点击“播放”
+    if (_autoPlaySearchedSource) {
+      _attemptAutoPlay();
+    }
   }
 
   void _launchSearchStream({
@@ -1447,7 +1478,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     });
   }
 
-  Future<void> _loadSampleSource() async {
+  Future<void> _loadSampleSource({bool manual = false}) async {
+    if (!manual && _disableAutoSourceSearchForCurrentEpisode) {
+      if (mounted) {
+        setState(() {
+          _isLoadingSample = false;
+          _sampleError = null;
+          _sampleStatusMessageNotifier.value = '已播放本地资源，点击刷新可手动搜索在线源';
+        });
+      }
+      return;
+    }
+
     final loadToken = ++_sampleLoadToken;
     await _cancelSearchSubscriptions();
 
@@ -1904,8 +1946,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             debugPrint(
               '[_onWebViewResult] _sampleVideoUrl currently=$_sampleVideoUrl',
             );
-            // 尝试自动播放（遵循Tier规则）
-            _attemptAutoPlay();
+            // 手动触发搜索后不自动播放，等待用户主动点击“播放”
+            if (_autoPlaySearchedSource) {
+              _attemptAutoPlay();
+            }
           } else {
             debugPrint(
               '[_onWebViewResult] No matching page found for pageKey=$pageKey',
@@ -1957,18 +2001,40 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
     if (oldWidget.anime.bangumiId != widget.anime.bangumiId) {
       _loadRecommendations();
-      _loadMikanSource(); // Anime changed, reload search
-      _loadDmhySource();
+      if (!_disableAutoSourceSearchForCurrentEpisode) {
+        _loadMikanSource(); // Anime changed, reload search
+        _loadDmhySource();
+      }
     } else if (oldWidget.currentEpisode.sort != _currentEpisode.sort) {
       // Episode changed, reload resources using existing mikan anime info if available
-      if (_mikanAnime != null) {
-        _reloadMikanResourcesForEpisode();
-      } else {
-        _loadMikanSource();
-      }
-      _loadDmhySource();
-      _loadSampleSource();
+      unawaited(_handleWidgetEpisodeChanged());
     }
+  }
+
+  Future<void> _handleWidgetEpisodeChanged() async {
+    final hasDownloadedPlayback = await _checkAndPlayExistingBtDownload();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _disableAutoSourceSearchForCurrentEpisode = hasDownloadedPlayback;
+      if (hasDownloadedPlayback) {
+        _sampleStatusMessageNotifier.value = '已播放本地资源，可手动搜索在线源';
+      }
+    });
+
+    if (hasDownloadedPlayback) {
+      return;
+    }
+
+    if (_mikanAnime != null) {
+      _reloadMikanResourcesForEpisode();
+    } else {
+      _loadMikanSource();
+    }
+    _loadDmhySource();
+    _loadSampleSource();
   }
 
   Future<void> _reloadMikanResourcesForEpisode() async {
@@ -2910,7 +2976,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-  void _onEpisodeSelected(BangumiEpisode ep) {
+  Future<void> _onEpisodeSelected(BangumiEpisode ep) async {
     if (ep.id == _currentEpisode.id) return;
 
     // Stop current player
@@ -2982,7 +3048,21 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // This mirrors initState's behavior — without it, switching to an already
     // downloaded episode would silently fall through to Mikan/DMHY/sample
     // search even though a local stream is available.
-    _checkAndPlayExistingBtDownload();
+    final hasDownloadedPlayback = await _checkAndPlayExistingBtDownload();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _disableAutoSourceSearchForCurrentEpisode = hasDownloadedPlayback;
+      if (hasDownloadedPlayback) {
+        _sampleStatusMessageNotifier.value = '已播放本地资源，可手动搜索在线源';
+      }
+    });
+
+    if (hasDownloadedPlayback) {
+      return;
+    }
 
     // Reload video sources
     if (_mikanAnime != null) {
@@ -3638,12 +3718,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 child: ValueListenableBuilder<String>(
                   valueListenable: _sampleStatusMessageNotifier,
                   builder: (context, statusMessage, _) {
+                    final summaryText = _enabledSourceNames.isEmpty
+                        ? (_disableAutoSourceSearchForCurrentEpisode
+                              ? '已播放本地资源，在线源搜索待手动触发'
+                              : '尚未开始搜索在线源')
+                        : '搜索完成 (${_sampleSuccessfulSources.length}/${_enabledSourceNames.length} 个可用)';
+
+                    final displayText = _isLoadingSample
+                        ? statusMessage
+                        : (_sampleError != null ? '搜索失败' : summaryText);
+
                     return Text(
-                      _isLoadingSample
-                          ? statusMessage
-                          : (_sampleError != null
-                                ? '搜索失败'
-                                : '搜索完成 (${_sampleSuccessfulSources.length}/${_enabledSourceNames.length} 个可用)'),
+                      displayText,
                       style: TextStyle(
                         color: _sampleError != null
                             ? Colors.redAccent
@@ -3655,19 +3741,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   },
                 ),
               ),
-              // 重试按钮
-              if (!_isLoadingSample)
-                IconButton(
-                  icon: const Icon(Icons.refresh, size: 18),
-                  onPressed: _loadSampleSource,
-                  color: Colors.white54,
-                  tooltip: '重新搜索',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
-                  ),
-                ),
             ],
           ),
         ),
@@ -4031,15 +4104,24 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               children: [
                 const Icon(Icons.search_off, color: Colors.white24, size: 32),
                 const SizedBox(height: 8),
-                const Text(
-                  "未找到资源",
-                  style: TextStyle(color: Colors.white24, fontSize: 12),
+                Text(
+                  _disableAutoSourceSearchForCurrentEpisode
+                      ? '已使用本地资源播放'
+                      : '尚未开始搜索在线源',
+                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _disableAutoSourceSearchForCurrentEpisode
+                      ? '如需在线源，请点击下方按钮手动搜索'
+                      : '点击下方按钮开始搜索',
+                  style: const TextStyle(color: Colors.white24, fontSize: 11),
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
-                  onPressed: _loadSampleSource,
+                  onPressed: () => _loadSampleSource(manual: true),
                   icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text("重试", style: TextStyle(fontSize: 12)),
+                  label: const Text("搜索在线源", style: TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white12,
                     foregroundColor: Colors.white70,
@@ -4264,6 +4346,48 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (!_isSourceControlExpanded) {
       return const SizedBox.shrink();
     }
+
+    final btCount = _mikanResources.length + _dmhyResources.length;
+    final btHasError = _mikanError != null || _dmhyError != null;
+
+    final btStatusBar = Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            if (_isLoadingMikan || _isLoadingDmhy) ...[
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFFBB86FC),
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: Text(
+                (_isLoadingMikan || _isLoadingDmhy)
+                    ? '正在搜索BT源...'
+                    : (btCount > 0
+                          ? '已找到 $btCount 个BT源'
+                          : (btHasError ? 'BT搜索失败' : '尚未开始搜索BT源')),
+                style: TextStyle(
+                  color: btHasError && btCount == 0
+                      ? Colors.redAccent
+                      : Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
     List<dynamic> resources = [];
     if (_activeSource == 'bt') {
       resources = [..._mikanResources, ..._dmhyResources];
@@ -4275,15 +4399,53 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if ((_activeSource == 'bt' && (_isLoadingMikan || _isLoadingDmhy))) {
         return const SizedBox.shrink(); // Loader is in tab
       }
-      return Container(
-        padding: const EdgeInsets.all(24),
-        alignment: Alignment.center,
-        child: const Text("暂无资源", style: TextStyle(color: Colors.white24)),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          btStatusBar,
+          Container(
+            padding: const EdgeInsets.all(24),
+            alignment: Alignment.center,
+            child: Column(
+              children: [
+                const Icon(Icons.search_off, color: Colors.white24, size: 32),
+                const SizedBox(height: 8),
+                const Text(
+                  '尚未开始搜索BT源',
+                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  '点击下方按钮开始搜索',
+                  style: TextStyle(color: Colors.white24, fontSize: 11),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _disableAutoSourceSearchForCurrentEpisode = false;
+                    });
+                    _loadMikanSource();
+                    _loadDmhySource();
+                  },
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('搜索BT源', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white12,
+                    foregroundColor: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       );
     }
 
     return Column(
-      children: resources.map((res) {
+      children: [
+        btStatusBar,
+        ...resources.map((res) {
         String title = "";
         String magnet = "";
         String size = "";
@@ -4529,7 +4691,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             ],
           ),
         );
-      }).toList(),
+      }),
+      ],
     );
   }
 
