@@ -376,7 +376,7 @@ final class MikanLibtorrentNative {
   String get version => _version().toDartString();
 
   MikanLibtorrentSession createSession({
-    String listenInterfaces = '0.0.0.0:6881',
+    String listenInterfaces = '0.0.0.0:49152',
     int downloadLimitBytesPerSecond = 0,
     int uploadLimitBytesPerSecond = 0,
   }) {

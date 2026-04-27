@@ -60,6 +60,32 @@ const String _streamBaseUrl = 'http://127.0.0.1:3000';
 String _buildStreamUrl(String infoHash, int fileIdx) =>
     '$_streamBaseUrl/torrents/$infoHash/stream/$fileIdx';
 
+/// High-quality public trackers to inject into magnet links.
+/// Kept intentionally short: every extra tracker has to be announced to on
+/// startup, which delays the first peer connection when many are slow or dead.
+/// Users get the rest through DHT + PEX + the magnet's own trackers.
+const List<String> _injectedTrackers = [
+  'udp://tracker.opentrackr.org:1337/announce',
+  'udp://open.demonii.com:1337/announce',
+  'udp://exodus.desync.com:6969/announce',
+  'udp://tracker.openbittorrent.com:6969/announce',
+  'udp://opentracker.i2p.rocks:6969/announce',
+  // Anime-friendly (kept minimal; many bangumi-specific trackers are unreliable)
+  'udp://tracker.doko.moe:6969/announce',
+];
+
+/// Inject [_injectedTrackers] into a magnet URI, skipping duplicates.
+String _injectTrackers(String magnet) {
+  var result = magnet;
+  for (final tracker in _injectedTrackers) {
+    final trParam = '&tr=$tracker';
+    if (!result.contains(trParam)) {
+      result = '$result$trParam';
+    }
+  }
+  return result;
+}
+
 /// Represents a download task
 class DownloadTask {
   String id; // info_hash
@@ -558,11 +584,13 @@ class DownloadManager extends ChangeNotifier {
   Future<void> _initializeLibtorrent() async {
     final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
     _downloadDir = '${appSupportDir.path}/downloads';
+    // Use a high listen port — the legacy 6881-6889 range is widely
+    // throttled or blocked by ISPs; 49152 is in the IANA dynamic range.
     _nativeSession = MikanLibtorrentNative.instance.createSession(
-      listenInterfaces: '0.0.0.0:6881',
+      listenInterfaces: '0.0.0.0:49152',
     );
     _nativeSession!.configureSession(
-      connectionsLimit: 50,
+      connectionsLimit: 200,
       enableDht: true,
       enableLsd: true,
       enableUpnp: true,
@@ -604,8 +632,11 @@ class DownloadManager extends ChangeNotifier {
           task != null &&
           task.progress >= 100.0 &&
           task.status != DownloadTaskStatus.paused;
+      // Inject a small, high-quality tracker set (same as rqbit backend).
+      // This improves peer discovery, especially for magnets with few trackers.
+      final enrichedMagnet = _injectTrackers(magnet);
       torrentId = session.addMagnetEx(
-        magnet,
+        enrichedMagnet,
         savePath: _downloadDir,
         resumePath: resumePath,
         seedMode: seed,
@@ -684,7 +715,7 @@ class DownloadManager extends ChangeNotifier {
         stream.id,
         capacity: 16 * 1024 * 1024,
         readAheadPct: 0,
-        connectionsLimit: 50,
+        connectionsLimit: 200,
       );
       session.preloadStream(stream.id, preloadBytes: 4 * 1024 * 1024);
     } catch (e) {

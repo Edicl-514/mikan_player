@@ -198,10 +198,12 @@ lt::settings_pack make_settings(
     int upload_limit_bytes_per_sec) {
   lt::settings_pack settings;
 
+  // Use a high port by default.  The legacy 6881-6889 range is widely
+  // throttled or blocked by ISPs; port 49152 is in the IANA dynamic range.
   const char* interfaces =
       (listen_interfaces != nullptr && listen_interfaces[0] != '\0')
           ? listen_interfaces
-          : "0.0.0.0:6881";
+          : "0.0.0.0:49152";
 
   settings.set_str(lt::settings_pack::listen_interfaces, interfaces);
   settings.set_bool(lt::settings_pack::enable_dht, true);
@@ -211,6 +213,29 @@ lt::settings_pack make_settings(
   settings.set_bool(lt::settings_pack::announce_to_all_trackers, true);
   settings.set_bool(lt::settings_pack::announce_to_all_tiers, true);
   settings.set_int(lt::settings_pack::alert_queue_size, 10000);
+
+  // uTP transport — uses UDP so it's less susceptible to ISP TCP-based
+  // traffic shaping, and its LEDBAT congestion control backs off when
+  // the network is congested (better for streaming alongside other traffic).
+  settings.set_bool(lt::settings_pack::enable_incoming_utp, true);
+  settings.set_bool(lt::settings_pack::enable_outgoing_utp, true);
+
+  // Opportunistic protocol encryption keeps compatibility with plain peers
+  // while still negotiating encrypted connections when peers support them.
+  settings.set_int(lt::settings_pack::in_enc_policy, lt::settings_pack::pe_enabled);
+  settings.set_int(lt::settings_pack::out_enc_policy, lt::settings_pack::pe_enabled);
+  settings.set_int(lt::settings_pack::allowed_enc_level, lt::settings_pack::pe_both);
+
+  // Connection and active torrent limits — the libtorrent defaults are
+  // very conservative (3 active downloads, 200 connections).  For a
+  // personal streaming client we want more headroom.
+  settings.set_int(lt::settings_pack::connections_limit, 200);
+#if TORRENT_ABI_VERSION == 1
+  settings.set_int(lt::settings_pack::half_open_limit, 100);
+#endif
+  settings.set_int(lt::settings_pack::active_downloads, 10);
+  settings.set_int(lt::settings_pack::active_seeds, 10);
+  settings.set_int(lt::settings_pack::active_limit, 20);
 
   if (download_limit_bytes_per_sec > 0) {
     settings.set_int(
