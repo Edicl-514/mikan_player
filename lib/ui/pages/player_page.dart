@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -132,7 +133,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   bool _isAutoPlayNextEnabled = true;
   bool _autoSearchOnline = true;
   bool _disableAutoSourceSearchForCurrentEpisode = false;
-  bool _autoPlaySearchedSource = false;
+  final bool _autoPlaySearchedSource = false;
   double _playbackSpeed = 1.0;
 
   // 每个源的搜索进度状态
@@ -155,6 +156,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   String? _videoError;
   String _playingSourceLabel = '未播放';
   final DownloadManager _downloadManager = DownloadManager();
+
+  // Current online source for downloading
+  SearchPlayResult? _currentOnlineSource;
 
   // Danmaku
   final DanmakuService _danmakuService = DanmakuService();
@@ -306,25 +310,55 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _loadDmhySource();
   }
 
-  /// Check if there's an existing BT download for this episode and play it
+  /// Check existing downloads for this episode and auto-play with BT priority.
   Future<bool> _checkAndPlayExistingBtDownload() async {
-    final task = _downloadManager.getAvailableTaskForEpisode(
+    // Check BT first
+    final btTask = _downloadManager.getAvailableBtTaskForEpisode(
       widget.anime.title,
       _currentEpisode.sort.toInt(),
     );
 
-    if (task != null) {
+    if (btTask != null) {
       final streamUrl =
-          task.streamUrl ??
-          await _downloadManager.getOrCreateStreamUrl(task.id);
+          btTask.streamUrl ??
+          await _downloadManager.getOrCreateStreamUrl(btTask.id);
       if (!mounted || streamUrl == null) {
         return false;
       }
       debugPrint(
-        '[Player] Found existing BT download for this episode: ${task.name}',
+        '[Player] Found existing BT download for this episode: ${btTask.name}',
       );
       _playBtStreamUrl(streamUrl);
       return true;
+    }
+
+    // Check completed HTTP download
+    final httpTask = _downloadManager.getCompletedHttpTaskForEpisode(
+      widget.anime.title,
+      _currentEpisode.sort.toInt(),
+    );
+    if (httpTask != null && httpTask.localFilePath != null) {
+      final filePath = httpTask.localFilePath!;
+      final file = File(filePath);
+      if (await file.exists()) {
+        if (!mounted) return false;
+        debugPrint(
+          '[Player] Found existing HTTP download for this episode: ${httpTask.name}',
+        );
+        setState(() {
+          _currentStreamUrl = filePath;
+          _sampleVideoUrl = filePath;
+          _hasAutoPlayed = true;
+          _playingSourceLabel = '在线源下载';
+          _isLoadingVideo = false;
+          _videoError = null;
+        });
+        _player.open(Media(filePath), play: true).then((_) async {
+          await _applyPlaybackSpeed();
+          await _applyPendingStartPosition();
+        });
+        return true;
+      }
     }
 
     return false;
@@ -371,6 +405,54 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
     }
     return null;
+  }
+
+  /// Download the currently playing online source
+  Future<void> _onDownloadCurrentSource() async {
+    final source = _currentOnlineSource;
+    if (source == null || source.directVideoUrl == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('没有可下载的在线源')));
+      }
+      return;
+    }
+
+    // Merge headers and cookies
+    final headers = <String, String>{
+      if (source.headers != null) ...source.headers!,
+    };
+
+    final episodeName = _currentEpisode.nameCn.isNotEmpty
+        ? _currentEpisode.nameCn
+        : _currentEpisode.name;
+    final downloadName =
+        '${widget.anime.title} - ${episodeName.isNotEmpty ? episodeName : '第${_currentEpisode.sort.toInt()}集'} (${source.sourceName})';
+
+    try {
+      await _downloadManager.startHttpDownload(
+        url: source.directVideoUrl!,
+        name: downloadName,
+        headers: headers.isNotEmpty ? headers : null,
+        cookies: source.cookies,
+        animeName: widget.anime.title,
+        episodeNumber: _currentEpisode.sort.toInt(),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+      return;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已添加到下载任务')));
+    }
   }
 
   Future<void> _applyPendingStartPosition() async {
@@ -1506,7 +1588,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     // First check if there's already a BT download for this episode
-    final btTask = _downloadManager.getAvailableTaskForEpisode(
+    final btTask = _downloadManager.getAvailableBtTaskForEpisode(
       widget.anime.title,
       _currentEpisode.sort.toInt(),
     );
@@ -1826,6 +1908,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     setState(() {
       _hasAutoPlayed = true;
       _sampleVideoUrl = source.directVideoUrl;
+      _currentOnlineSource = source;
       // Ensure index is correct in the display list
       _selectedSourceIndex = _sampleSuccessfulSources.indexOf(source);
       if (_selectedSourceIndex == -1) {
@@ -3160,6 +3243,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _videoError = null;
     });
 
+    setState(() {
+      _currentOnlineSource = source;
+    });
+
     final urlToPlay = source.directVideoUrl!;
     final needsReferer = _needsRefererHeader(urlToPlay);
 
@@ -3259,6 +3346,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               mobilePlayerLockNotifier: _mobilePlayerLockNotifier,
               videoTitle:
                   '${widget.anime.title} - 第${_currentEpisode.sort.toInt()}集',
+              onDownloadCurrentSource:
+                  _currentOnlineSource != null &&
+                      _currentOnlineSource!.directVideoUrl != null
+                  ? _onDownloadCurrentSource
+                  : null,
             ),
           );
         },
@@ -4446,252 +4538,260 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       children: [
         btStatusBar,
         ...resources.map((res) {
-        String title = "";
-        String magnet = "";
-        String size = "";
-        String time = "";
-        int? episode;
+          String title = "";
+          String magnet = "";
+          String size = "";
+          String time = "";
+          int? episode;
 
-        if (res is MikanEpisodeResource) {
-          title = res.title;
-          magnet = res.magnet;
-          size = res.size;
-          time = res.updateTime;
-          episode = res.episode;
-        } else if (res is DmhyResource) {
-          title = res.title;
-          magnet = res.magnet;
-          size = res.size;
-          time = res.publishDate;
-          episode = res.episode;
-        }
+          if (res is MikanEpisodeResource) {
+            title = res.title;
+            magnet = res.magnet;
+            size = res.size;
+            time = res.updateTime;
+            episode = res.episode;
+          } else if (res is DmhyResource) {
+            title = res.title;
+            magnet = res.magnet;
+            size = res.size;
+            time = res.publishDate;
+            episode = res.episode;
+          }
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E2C),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              _buildBtTagsRow(title),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.blueAccent.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      size,
-                      style: const TextStyle(
-                        color: Colors.blueAccent,
-                        fontSize: 10,
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E2C),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      time,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 10),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: magnet));
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(const SnackBar(content: Text("磁力链接已复制")));
-                    },
-                    child: Container(
+                  ],
+                ),
+                const SizedBox(height: 6),
+                _buildBtTagsRow(title),
+                Row(
+                  children: [
+                    Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                        horizontal: 4,
+                        vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white10,
+                        color: Colors.blueAccent.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.copy, size: 12, color: Colors.white),
-                          SizedBox(width: 4),
-                          Text(
-                            "复制",
-                            style: TextStyle(color: Colors.white, fontSize: 11),
-                          ),
-                        ],
+                      child: Text(
+                        size,
+                        style: const TextStyle(
+                          color: Colors.blueAccent,
+                          fontSize: 10,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: () async {
-                      // Trigger download/play based on type
-                      // Check if _downloadMagnet needs specific type
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("开始下载，可在「我的」页面查看进度")),
-                      );
-                      await _downloadManager.startDownload(
-                        magnet: magnet,
-                        name: title,
-                        animeName: widget.anime.title,
-                        episodeNumber: episode,
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white10,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.download, size: 12, color: Colors.white),
-                          SizedBox(width: 4),
-                          Text(
-                            "下载",
-                            style: TextStyle(color: Colors.white, fontSize: 11),
-                          ),
-                        ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        time,
+                        style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: (_isLoadingVideo || _loadingMagnet != null)
-                        ? null
-                        : () async {
-                            // Adapt _playMagnet to handle generic data
-                            setState(() {
-                              _loadingMagnet = magnet;
-                              _videoError = null;
-                            });
+                    InkWell(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: magnet));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("磁力链接已复制")),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white10,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.copy, size: 12, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text(
+                              "复制",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () async {
+                        // Trigger download/play based on type
+                        // Check if _downloadMagnet needs specific type
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("开始下载，可在「我的」页面查看进度")),
+                        );
+                        await _downloadManager.startDownload(
+                          magnet: magnet,
+                          name: title,
+                          animeName: widget.anime.title,
+                          episodeNumber: episode,
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white10,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.download, size: 12, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text(
+                              "下载",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: (_isLoadingVideo || _loadingMagnet != null)
+                          ? null
+                          : () async {
+                              // Adapt _playMagnet to handle generic data
+                              setState(() {
+                                _loadingMagnet = magnet;
+                                _videoError = null;
+                              });
 
-                            try {
-                              final streamUrl = await _downloadManager
-                                  .startDownload(
-                                    magnet: magnet,
-                                    name: title,
-                                    animeName: widget.anime.title,
-                                    episodeNumber: episode,
-                                    forPlayback: true,
+                              try {
+                                final streamUrl = await _downloadManager
+                                    .startDownload(
+                                      magnet: magnet,
+                                      name: title,
+                                      animeName: widget.anime.title,
+                                      episodeNumber: episode,
+                                      forPlayback: true,
+                                    );
+
+                                if (streamUrl == null) {
+                                  setState(() {
+                                    _videoError = "无法获取播放地址";
+                                    _loadingMagnet = null;
+                                  });
+                                  return;
+                                }
+
+                                debugPrint(
+                                  "[Player] Got stream URL: $streamUrl",
+                                );
+                                _currentStreamUrl = streamUrl;
+                                final btHash = _extractBtHashFromStreamUrl(
+                                  streamUrl,
+                                );
+                                if (btHash != null) {
+                                  _downloadManager.setActiveStream(btHash);
+                                  debugPrint(
+                                    '[Player] Notified DownloadManager: stream active for $btHash',
                                   );
+                                }
 
-                              if (streamUrl == null) {
+                                // 停止之前的播放，防止后台继续播放
+                                await _player.stop();
+                                await _player.open(Media(streamUrl));
+                                await _applyPlaybackSpeed();
+                                await _applyPendingStartPosition();
+
                                 setState(() {
-                                  _videoError = "无法获取播放地址";
+                                  _loadingMagnet = null;
+                                  _playingSourceLabel = "BT";
+                                });
+                              } catch (e) {
+                                debugPrint("[Player] Error playing magnet: $e");
+                                setState(() {
+                                  _videoError = e.toString();
                                   _loadingMagnet = null;
                                 });
-                                return;
                               }
-
-                              debugPrint("[Player] Got stream URL: $streamUrl");
-                              _currentStreamUrl = streamUrl;
-                              final btHash = _extractBtHashFromStreamUrl(
-                                streamUrl,
-                              );
-                              if (btHash != null) {
-                                _downloadManager.setActiveStream(btHash);
-                                debugPrint(
-                                  '[Player] Notified DownloadManager: stream active for $btHash',
-                                );
-                              }
-
-                              // 停止之前的播放，防止后台继续播放
-                              await _player.stop();
-                              await _player.open(Media(streamUrl));
-                              await _applyPlaybackSpeed();
-                              await _applyPendingStartPosition();
-
-                              setState(() {
-                                _loadingMagnet = null;
-                                _playingSourceLabel = "BT";
-                              });
-                            } catch (e) {
-                              debugPrint("[Player] Error playing magnet: $e");
-                              setState(() {
-                                _videoError = e.toString();
-                                _loadingMagnet = null;
-                              });
-                            }
-                          },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: (_isLoadingVideo || _loadingMagnet != null)
-                            ? const Color(0xFFBB86FC).withValues(alpha: 0.5)
-                            : const Color(0xFFBB86FC),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        children: [
-                          if (_loadingMagnet == magnet)
-                            const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.black54,
+                            },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: (_isLoadingVideo || _loadingMagnet != null)
+                              ? const Color(0xFFBB86FC).withValues(alpha: 0.5)
+                              : const Color(0xFFBB86FC),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          children: [
+                            if (_loadingMagnet == magnet)
+                              const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.black54,
+                                ),
+                              )
+                            else
+                              const Icon(
+                                Icons.play_arrow,
+                                size: 12,
+                                color: Colors.black,
                               ),
-                            )
-                          else
-                            const Icon(
-                              Icons.play_arrow,
-                              size: 12,
-                              color: Colors.black,
+                            const SizedBox(width: 4),
+                            Text(
+                              _loadingMagnet == magnet ? "加载中" : "播放",
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _loadingMagnet == magnet ? "加载中" : "播放",
-                            style: const TextStyle(
-                              color: Colors.black,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      }),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
       ],
     );
   }

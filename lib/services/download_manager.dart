@@ -12,6 +12,8 @@ import 'package:mikan_player/src/rust/api/simple.dart';
 const String _btTasksStorageKey = 'bt_download_tasks_v1';
 const String _btBackendStorageKey = 'bt_backend_v1';
 
+enum DownloadTaskType { bt, http }
+
 enum BtBackendKind { rqbit, libtorrent }
 
 extension BtBackendKindX on BtBackendKind {
@@ -88,13 +90,14 @@ String _injectTrackers(String magnet) {
 
 /// Represents a download task
 class DownloadTask {
-  String id; // info_hash
+  String id;
   final String name;
   final String magnet;
   final String? animeName;
   final int? episodeNumber;
   final DateTime startTime;
 
+  DownloadTaskType taskType;
   DownloadTaskStatus status;
   double progress;
   double downloadSpeed; // bytes per second
@@ -109,13 +112,20 @@ class DownloadTask {
   BtBackendKind backend;
   String? errorMessage;
 
+  // HTTP-specific fields
+  String? videoUrl;
+  Map<String, String>? headers;
+  String? cookies;
+  String? localFilePath;
+
   DownloadTask({
     required this.id,
     required this.name,
-    required this.magnet,
+    this.magnet = '',
     this.animeName,
     this.episodeNumber,
     required this.startTime,
+    this.taskType = DownloadTaskType.bt,
     this.status = DownloadTaskStatus.pending,
     this.progress = 0.0,
     this.downloadSpeed = 0.0,
@@ -128,6 +138,10 @@ class DownloadTask {
     this.largestFilePath,
     this.backend = BtBackendKind.rqbit,
     this.errorMessage,
+    this.videoUrl,
+    this.headers,
+    this.cookies,
+    this.localFilePath,
   }) : downloaded = downloaded ?? BigInt.zero,
        totalSize = totalSize ?? BigInt.zero;
 
@@ -136,20 +150,38 @@ class DownloadTask {
     final id = json['id'] as String;
     final largestFileIdx = (json['largestFileIdx'] as num?)?.toInt();
     final backend = BtBackendKindX.fromStorage(json['backend'] as String?);
+    // Backward compatibility: old data without taskType defaults to bt
+    final taskTypeStr = json['taskType'] as String?;
+    final taskType = switch (taskTypeStr) {
+      'http' => DownloadTaskType.http,
+      _ => DownloadTaskType.bt,
+    };
     // Reconstruct the stream URL immediately when we know the file index.
     // The rqbit HTTP server is started synchronously during initEngine, and
     // once the torrent is re-added by [_resumeTorrentInBackground], this URL
     // is valid. For paused tasks it won't be hit until the user resumes.
-    final streamUrl = backend == BtBackendKind.rqbit && largestFileIdx != null
+    final streamUrl =
+        taskType == DownloadTaskType.bt &&
+            backend == BtBackendKind.rqbit &&
+            largestFileIdx != null
         ? _buildStreamUrl(id, largestFileIdx)
         : null;
+
+    // Parse headers map
+    Map<String, String>? headers;
+    final headersJson = json['headers'] as Map<String, dynamic>?;
+    if (headersJson != null) {
+      headers = headersJson.map((k, v) => MapEntry(k, v.toString()));
+    }
+
     return DownloadTask(
       id: id,
       name: json['name'] as String,
-      magnet: json['magnet'] as String,
+      magnet: json['magnet'] as String? ?? '',
       animeName: json['animeName'] as String?,
       episodeNumber: json['episodeNumber'] as int?,
       startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
+      taskType: taskType,
       status: DownloadTaskStatus.values[json['status'] as int],
       progress: (json['progress'] as num).toDouble(),
       downloadSpeed: 0.0, // Reset speed on load
@@ -162,6 +194,10 @@ class DownloadTask {
       largestFilePath: json['largestFilePath'] as String?,
       backend: backend,
       errorMessage: null,
+      videoUrl: json['videoUrl'] as String?,
+      headers: headers,
+      cookies: json['cookies'] as String?,
+      localFilePath: json['localFilePath'] as String?,
     );
   }
 
@@ -174,6 +210,7 @@ class DownloadTask {
       'animeName': animeName,
       'episodeNumber': episodeNumber,
       'startTime': startTime.millisecondsSinceEpoch,
+      'taskType': taskType.name,
       'status': status.index,
       'progress': progress,
       'downloaded': downloaded.toString(),
@@ -182,6 +219,10 @@ class DownloadTask {
       'largestFilePath': largestFilePath,
       'backend': backend.storageValue,
       // streamUrl intentionally omitted — reconstructed from id + largestFileIdx
+      'videoUrl': videoUrl,
+      'headers': headers,
+      'cookies': cookies,
+      'localFilePath': localFilePath,
     };
   }
 
@@ -235,11 +276,37 @@ class DownloadTask {
   bool get isCompleted => progress >= 100.0;
 
   /// Check if this task is actively downloading or seeding
-  bool get isActive =>
+  bool get isPlayable =>
       status == DownloadTaskStatus.downloading ||
       status == DownloadTaskStatus.seeding ||
+      status == DownloadTaskStatus.completed ||
+      status == DownloadTaskStatus.paused ||
       status == DownloadTaskStatus.metadata ||
       status == DownloadTaskStatus.checking;
+}
+
+/// Internal helper to track an active HTTP download so it can be cancelled.
+class _HttpDownloadJob {
+  final HttpClientRequest request;
+  final File outputFile;
+  final IOSink sink;
+  bool cancelled = false;
+
+  _HttpDownloadJob({
+    required this.request,
+    required this.outputFile,
+    required this.sink,
+  });
+
+  void cancel() {
+    cancelled = true;
+    try {
+      request.abort();
+    } catch (_) {}
+    try {
+      sink.close();
+    } catch (_) {}
+  }
 }
 
 enum DownloadTaskStatus {
@@ -285,6 +352,17 @@ class DownloadManager extends ChangeNotifier {
   final Set<String> _activeStreamHashes = {}; // Track active playback streams
   final Set<String> _ltCompletionResumeSavedHashes = {};
   static const Duration _ltResumeSaveInterval = Duration(minutes: 1);
+
+  // HTTP download tracking
+  final Map<String, _HttpDownloadJob> _httpDownloadJobs = {};
+
+  /// Ensure download directory is initialized (for HTTP downloads)
+  Future<void> _ensureDownloadDir() async {
+    if (_downloadDir == null) {
+      final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
+      _downloadDir = '${appSupportDir.path}/downloads';
+    }
+  }
 
   String _ltResumePath(String infoHash) {
     return '$_downloadDir/${infoHash.toLowerCase()}.resume';
@@ -392,6 +470,7 @@ class DownloadManager extends ChangeNotifier {
         (task) =>
             !_removedTaskIds.contains(task.id) &&
             !_pausedTaskIds.contains(task.id) &&
+            task.taskType == DownloadTaskType.bt &&
             task.magnet.isNotEmpty &&
             (task.status == DownloadTaskStatus.pending ||
                 task.status == DownloadTaskStatus.downloading ||
@@ -403,11 +482,12 @@ class DownloadManager extends ChangeNotifier {
 
   bool get _hasPollingTasks => _tasks.values.any(
     (task) =>
-        task.status == DownloadTaskStatus.pending ||
-        task.status == DownloadTaskStatus.downloading ||
-        task.status == DownloadTaskStatus.seeding ||
-        task.status == DownloadTaskStatus.metadata ||
-        task.status == DownloadTaskStatus.checking,
+        task.taskType == DownloadTaskType.bt &&
+        (task.status == DownloadTaskStatus.pending ||
+            task.status == DownloadTaskStatus.downloading ||
+            task.status == DownloadTaskStatus.seeding ||
+            task.status == DownloadTaskStatus.metadata ||
+            task.status == DownloadTaskStatus.checking),
   );
 
   /// Initialize the download manager, load saved tasks
@@ -449,13 +529,37 @@ class DownloadManager extends ChangeNotifier {
         for (final json in jsonList) {
           final task = DownloadTask.fromJson(json as Map<String, dynamic>);
 
-          if (task.magnet.isEmpty) {
+          // Only skip BT tasks with empty magnet; HTTP tasks have no magnet
+          if (task.taskType == DownloadTaskType.bt && task.magnet.isEmpty) {
             removedInvalidTasks = true;
             continue;
           }
 
+          // Verify HTTP task local file still exists if completed
+          if (task.taskType == DownloadTaskType.http) {
+            if (task.status == DownloadTaskStatus.completed &&
+                task.localFilePath != null) {
+              final file = File(task.localFilePath!);
+              if (!file.existsSync()) {
+                task.status = DownloadTaskStatus.error;
+                task.errorMessage = '本地文件已删除';
+                removedInvalidTasks = true;
+              }
+            } else if (task.status == DownloadTaskStatus.pending ||
+                task.status == DownloadTaskStatus.downloading ||
+                task.status == DownloadTaskStatus.metadata ||
+                task.status == DownloadTaskStatus.checking) {
+              task.status = DownloadTaskStatus.paused;
+              task.downloadSpeed = 0;
+              task.uploadSpeed = 0;
+              _pausedTaskIds.add(task.id);
+              removedInvalidTasks = true;
+            }
+          }
+
           // Keep rqbit startup semantics aligned with libtorrent-style metadata stage.
-          if (task.backend == BtBackendKind.rqbit &&
+          if (task.taskType == DownloadTaskType.bt &&
+              task.backend == BtBackendKind.rqbit &&
               task.status == DownloadTaskStatus.pending) {
             task.status = DownloadTaskStatus.metadata;
           }
@@ -467,11 +571,13 @@ class DownloadManager extends ChangeNotifier {
             _pausedTaskIds.add(task.id);
           }
 
-          // Auto-resume torrents that were downloading or seeding
+          // Auto-resume BT torrents that were downloading or seeding
           // This ensures they continue after app restart
-          if (task.magnet.isNotEmpty &&
+          // HTTP tasks are NOT auto-resumed; user must manually resume them
+          if (task.taskType == DownloadTaskType.bt &&
+              task.magnet.isNotEmpty &&
               (task.status == DownloadTaskStatus.pending ||
-                task.status == DownloadTaskStatus.downloading ||
+                  task.status == DownloadTaskStatus.downloading ||
                   task.status == DownloadTaskStatus.seeding ||
                   task.status == DownloadTaskStatus.completed ||
                   task.status == DownloadTaskStatus.metadata ||
@@ -788,10 +894,14 @@ class DownloadManager extends ChangeNotifier {
   Future<List<TorrentStats>> _getTorrentStatsWithBackend() async {
     final results = <TorrentStats>[];
     final hasRqbitTasks = _tasks.values.any(
-      (task) => task.backend == BtBackendKind.rqbit,
+      (task) =>
+          task.taskType == DownloadTaskType.bt &&
+          task.backend == BtBackendKind.rqbit,
     );
     final hasLibtorrentTasks = _tasks.values.any(
-      (task) => task.backend == BtBackendKind.libtorrent,
+      (task) =>
+          task.taskType == DownloadTaskType.bt &&
+          task.backend == BtBackendKind.libtorrent,
     );
 
     if (hasRqbitTasks) {
@@ -1158,6 +1268,49 @@ class DownloadManager extends ChangeNotifier {
     return null;
   }
 
+  /// Check if there's an available BT task for the anime episode.
+  /// BT is prioritized over HTTP for auto-play flows.
+  DownloadTask? getAvailableBtTaskForEpisode(
+    String? animeName,
+    int? episodeNumber,
+  ) {
+    if (animeName == null) return null;
+
+    for (final task in _tasks.values) {
+      if (task.taskType != DownloadTaskType.bt) continue;
+      if (task.animeName != animeName || task.episodeNumber != episodeNumber) {
+        continue;
+      }
+      if (task.status == DownloadTaskStatus.downloading ||
+          task.status == DownloadTaskStatus.seeding ||
+          task.status == DownloadTaskStatus.completed ||
+          (task.status == DownloadTaskStatus.paused && task.progress > 0)) {
+        return task;
+      }
+    }
+    return null;
+  }
+
+  /// Check if there's a completed HTTP download for this episode
+  DownloadTask? getCompletedHttpTaskForEpisode(
+    String? animeName,
+    int? episodeNumber,
+  ) {
+    if (animeName == null) return null;
+    for (final task in _tasks.values) {
+      if (task.taskType != DownloadTaskType.http) continue;
+      if (task.animeName != animeName || task.episodeNumber != episodeNumber) {
+        continue;
+      }
+      if (task.status == DownloadTaskStatus.completed &&
+          task.localFilePath != null) {
+        final file = File(task.localFilePath!);
+        if (file.existsSync()) return task;
+      }
+    }
+    return null;
+  }
+
   /// Start a new download/streaming task
   Future<String?> startDownload({
     required String magnet,
@@ -1280,9 +1433,22 @@ class DownloadManager extends ChangeNotifier {
   /// during plain downloads. The stream engine deliberately reprioritizes
   /// pieces around the playback window, which is good for watching but bad for
   /// full-file background downloading.
+  ///
+  /// For HTTP tasks, returns the local file path directly.
   Future<String?> getOrCreateStreamUrl(String id) async {
     final task = _tasks[id];
     if (task == null) return null;
+
+    // HTTP completed tasks: play from local file
+    if (task.taskType == DownloadTaskType.http) {
+      if (task.status == DownloadTaskStatus.completed &&
+          task.localFilePath != null) {
+        final file = File(task.localFilePath!);
+        if (file.existsSync()) return task.localFilePath;
+      }
+      return null;
+    }
+
     if (task.streamUrl != null && task.streamUrl!.isNotEmpty) {
       if (task.backend == BtBackendKind.libtorrent) {
         final streamId = _ltStreamIdsByHash[task.id.toLowerCase()];
@@ -1344,6 +1510,271 @@ class DownloadManager extends ChangeNotifier {
     } catch (e) {
       debugPrint('[DownloadManager] Error creating stream URL: $e');
       return null;
+    }
+  }
+
+  /// Start a new HTTP download task for an online video source.
+  /// Returns the task ID on success, null on failure.
+  Future<String?> startHttpDownload({
+    required String url,
+    required String name,
+    Map<String, String>? headers,
+    String? cookies,
+    String? animeName,
+    int? episodeNumber,
+  }) async {
+    final uri = Uri.tryParse(url);
+    final normalizedPath = uri?.path.toLowerCase() ?? url.toLowerCase();
+    if (normalizedPath.endsWith('.m3u8')) {
+      //TODO: Support HLS(m3u8) online sources in the future. This requires implementing an HLS downloader that can handle playlists, segment downloading, and merging segments into a single file. For now, we throw an error to indicate that this is not supported.
+      throw UnsupportedError('暂不支持下载 HLS(m3u8) 在线源');
+    }
+
+    final existingTask = _tasks.values
+        .where((task) => task.taskType == DownloadTaskType.http)
+        .where((task) => task.videoUrl == url)
+        .firstOrNull;
+    if (existingTask != null) {
+      existingTask.headers = headers;
+      existingTask.cookies = cookies;
+
+      if (existingTask.status == DownloadTaskStatus.completed &&
+          existingTask.localFilePath != null) {
+        final file = File(existingTask.localFilePath!);
+        if (file.existsSync()) {
+          await _saveTasks();
+          notifyListeners();
+          return existingTask.id;
+        }
+        existingTask.status = DownloadTaskStatus.error;
+        existingTask.errorMessage = '本地文件已删除';
+      }
+
+      if (existingTask.status == DownloadTaskStatus.downloading) {
+        await _saveTasks();
+        notifyListeners();
+        return existingTask.id;
+      }
+
+      existingTask.errorMessage = null;
+      _pausedTaskIds.remove(existingTask.id);
+      existingTask.status = DownloadTaskStatus.downloading;
+      existingTask.progress = 0.0;
+      existingTask.downloaded = BigInt.zero;
+      existingTask.totalSize = BigInt.zero;
+      existingTask.downloadSpeed = 0;
+      existingTask.uploadSpeed = 0;
+      if (existingTask.localFilePath != null) {
+        try {
+          final file = File(existingTask.localFilePath!);
+          if (file.existsSync()) {
+            file.deleteSync();
+          }
+        } catch (_) {}
+      }
+      await _saveTasks();
+      notifyListeners();
+      unawaited(_downloadHttpFile(existingTask));
+      return existingTask.id;
+    }
+
+    final id = 'http_${_stableHash(url)}';
+
+    if (_tasks.containsKey(id)) {
+      return id; // Already exists
+    }
+
+    await _ensureDownloadDir();
+    final httpDir = Directory('$_downloadDir/http');
+    if (!await httpDir.exists()) {
+      await httpDir.create(recursive: true);
+    }
+
+    // Sanitize name for filename
+    final safeName = _sanitizeFileName(name);
+    final ext = _guessVideoExtension(url);
+    final localFilePath =
+        '${httpDir.path}${Platform.pathSeparator}${safeName}_$id$ext';
+
+    final task = DownloadTask(
+      id: id,
+      name: name,
+      magnet: '',
+      animeName: animeName,
+      episodeNumber: episodeNumber,
+      startTime: DateTime.now(),
+      taskType: DownloadTaskType.http,
+      status: DownloadTaskStatus.downloading,
+      videoUrl: url,
+      headers: headers,
+      cookies: cookies,
+      localFilePath: localFilePath,
+    );
+
+    _tasks[id] = task;
+    await _saveTasks();
+    notifyListeners();
+
+    // Start download in background
+    unawaited(_downloadHttpFile(task));
+    return id;
+  }
+
+  String _stableHash(String value) {
+    var hash = 0x811c9dc5;
+    for (final unit in value.codeUnits) {
+      hash ^= unit;
+      hash = (hash * 0x01000193) & 0xffffffff;
+    }
+    return hash.toRadixString(16).padLeft(8, '0');
+  }
+
+  String _sanitizeFileName(String name) {
+    final sanitized = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    final nonEmpty = sanitized.isEmpty ? 'download' : sanitized;
+    return nonEmpty.length <= 80 ? nonEmpty : nonEmpty.substring(0, 80);
+  }
+
+  String _guessVideoExtension(String url) {
+    final lower = url.toLowerCase();
+    if (lower.contains('.mp4')) return '.mp4';
+    if (lower.contains('.mkv')) return '.mkv';
+    if (lower.contains('.m3u8')) return '.ts';
+    if (lower.contains('.ts')) return '.ts';
+    if (lower.contains('.flv')) return '.flv';
+    if (lower.contains('.avi')) return '.avi';
+    if (lower.contains('.mov')) return '.mov';
+    if (lower.contains('.wmv')) return '.wmv';
+    return '.mp4';
+  }
+
+  Future<void> _downloadHttpFile(DownloadTask task) async {
+    final url = task.videoUrl;
+    if (url == null) return;
+
+    final client = HttpClient();
+    final outputFile = File(task.localFilePath!);
+    IOSink? sink;
+    HttpClientRequest? request;
+    bool wasCancelled = false;
+
+    try {
+      final uri = Uri.parse(url);
+      request = await client.getUrl(uri);
+
+      // Apply headers
+      if (task.headers != null) {
+        for (final entry in task.headers!.entries) {
+          request.headers.set(entry.key, entry.value);
+        }
+      }
+      // Apply cookies as Cookie header if provided
+      if (task.cookies != null && task.cookies!.isNotEmpty) {
+        request.headers.set(HttpHeaders.cookieHeader, task.cookies!);
+      }
+
+      final response = await request.close();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+
+      sink = outputFile.openWrite();
+      _httpDownloadJobs[task.id] = _HttpDownloadJob(
+        request: request,
+        outputFile: outputFile,
+        sink: sink,
+      );
+
+      final contentLength = response.contentLength;
+      if (contentLength > 0) {
+        task.totalSize = BigInt.from(contentLength);
+      }
+
+      int received = 0;
+      int lastReceived = 0;
+      DateTime lastUpdate = DateTime.now();
+
+      await for (final chunk in response) {
+        if (_httpDownloadJobs[task.id]?.cancelled ?? false) {
+          wasCancelled = true;
+          break;
+        }
+        sink.add(chunk);
+        received += chunk.length;
+        task.downloaded = BigInt.from(received);
+
+        final now = DateTime.now();
+        if (now.difference(lastUpdate).inMilliseconds >= 500) {
+          final elapsed = now.difference(lastUpdate).inMilliseconds / 1000.0;
+          if (elapsed > 0) {
+            final bytesSince = received - lastReceived;
+            task.downloadSpeed = bytesSince / elapsed;
+          }
+          if (contentLength > 0) {
+            task.progress = (received / contentLength * 100.0).clamp(
+              0.0,
+              100.0,
+            );
+          } else {
+            task.progress = 0.0; // Unknown progress
+          }
+          lastUpdate = now;
+          lastReceived = received;
+          notifyListeners();
+        }
+      }
+
+      await sink.close();
+      sink = null;
+
+      // Check if cancelled
+      if ((_httpDownloadJobs[task.id]?.cancelled ?? false) || wasCancelled) {
+        // Partial file remains; mark as paused
+        task.status = DownloadTaskStatus.paused;
+        task.downloadSpeed = 0;
+        task.uploadSpeed = 0;
+        _pausedTaskIds.add(task.id);
+        debugPrint(
+          '[DownloadManager] HTTP download paused (partial): ${task.name}',
+        );
+      } else {
+        // Completed
+        task.status = DownloadTaskStatus.completed;
+        task.progress = 100.0;
+        task.downloadSpeed = 0;
+        if (contentLength <= 0) {
+          // Update total size from actual file size
+          try {
+            final fileLen = outputFile.lengthSync();
+            task.totalSize = BigInt.from(fileLen);
+          } catch (_) {}
+        }
+        debugPrint('[DownloadManager] HTTP download completed: ${task.name}');
+      }
+    } catch (e) {
+      debugPrint('[DownloadManager] HTTP download error: $e');
+      if (!_tasks.containsKey(task.id)) {
+        return;
+      }
+      if (_httpDownloadJobs[task.id]?.cancelled ?? false) {
+        task.status = DownloadTaskStatus.paused;
+        task.downloadSpeed = 0;
+        task.uploadSpeed = 0;
+        _pausedTaskIds.add(task.id);
+        return;
+      }
+      task.status = DownloadTaskStatus.error;
+      task.errorMessage = e.toString();
+      try {
+        sink?.close();
+      } catch (_) {}
+    } finally {
+      _httpDownloadJobs.remove(task.id);
+      client.close();
+      if (_tasks.containsKey(task.id)) {
+        await _saveTasks();
+        notifyListeners();
+      }
     }
   }
 
@@ -1603,20 +2034,35 @@ class DownloadManager extends ChangeNotifier {
   Future<bool> pauseTask(String id) async {
     if (!_tasks.containsKey(id)) return false;
 
+    final task = _tasks[id]!;
+
+    // HTTP tasks: cancel the active download job
+    if (task.taskType == DownloadTaskType.http) {
+      final job = _httpDownloadJobs[id];
+      if (job != null) {
+        job.cancel();
+      }
+      task.status = DownloadTaskStatus.paused;
+      task.downloadSpeed = 0;
+      task.uploadSpeed = 0;
+      _pausedTaskIds.add(id);
+      await _saveTasks();
+      notifyListeners();
+      debugPrint('[DownloadManager] Paused HTTP download: $id');
+      return true;
+    }
+
     try {
       // Pause by calling the Rust pause_torrent function
       // which internally stops the torrent without deleting files
-      final success = await _pauseTorrentWithBackend(
-        id,
-        backend: _tasks[id]!.backend,
-      );
+      final success = await _pauseTorrentWithBackend(id, backend: task.backend);
       if (success) {
-        _tasks[id]!.status = DownloadTaskStatus.paused;
-        _tasks[id]!.downloadSpeed = 0;
-        _tasks[id]!.uploadSpeed = 0;
+        task.status = DownloadTaskStatus.paused;
+        task.downloadSpeed = 0;
+        task.uploadSpeed = 0;
         _pausedTaskIds.add(id);
         // Save resume data so the next restart can fast-resume.
-        if (_tasks[id]!.backend == BtBackendKind.libtorrent) {
+        if (task.backend == BtBackendKind.libtorrent) {
           final hashLower = id.toLowerCase();
           final torrentId =
               _ltTorrentIdsByHash[hashLower] ??
@@ -1654,6 +2100,35 @@ class DownloadManager extends ChangeNotifier {
     if (!_tasks.containsKey(id)) return false;
 
     final task = _tasks[id]!;
+
+    // HTTP tasks: delete partial file and restart download from scratch
+    if (task.taskType == DownloadTaskType.http) {
+      if ((task.videoUrl ?? '').toLowerCase().contains('.m3u8')) {
+        task.status = DownloadTaskStatus.error;
+        task.errorMessage = '暂不支持下载 HLS(m3u8) 在线源';
+        await _saveTasks();
+        notifyListeners();
+        return false;
+      }
+      _pausedTaskIds.remove(id);
+      task.status = DownloadTaskStatus.downloading;
+      task.progress = 0.0;
+      task.downloaded = BigInt.zero;
+      task.downloadSpeed = 0;
+      task.errorMessage = null;
+      // Delete partial file if it exists
+      if (task.localFilePath != null) {
+        try {
+          final file = File(task.localFilePath!);
+          if (file.existsSync()) file.deleteSync();
+        } catch (_) {}
+      }
+      await _saveTasks();
+      notifyListeners();
+      unawaited(_downloadHttpFile(task));
+      debugPrint('[DownloadManager] Resumed HTTP download: $id');
+      return true;
+    }
 
     try {
       final resumed = await _resumeTorrentWithBackend(
@@ -1729,6 +2204,22 @@ class DownloadManager extends ChangeNotifier {
     await _saveTasks();
     notifyListeners();
     _ensureStatsPolling();
+
+    // HTTP tasks: cancel download and optionally delete file
+    if (task != null && task.taskType == DownloadTaskType.http) {
+      final job = _httpDownloadJobs.remove(id);
+      if (job != null) job.cancel();
+      if (deleteFiles && task.localFilePath != null) {
+        try {
+          final file = File(task.localFilePath!);
+          if (file.existsSync()) file.deleteSync();
+        } catch (e) {
+          debugPrint('[DownloadManager] Error deleting HTTP file: $e');
+        }
+      }
+      debugPrint('[DownloadManager] Removed HTTP task: $id');
+      return;
+    }
 
     // Try to stop the torrent in the backend
     try {
@@ -1955,6 +2446,20 @@ class DownloadManager extends ChangeNotifier {
     // Stop each torrent in the backend
     for (final id in completedIds) {
       final task = _tasks[id];
+      if (task?.taskType == DownloadTaskType.http) {
+        if (deleteFiles && task?.localFilePath != null) {
+          try {
+            final file = File(task!.localFilePath!);
+            if (file.existsSync()) file.deleteSync();
+          } catch (e) {
+            debugPrint('[DownloadManager] Error deleting HTTP file: $e');
+          }
+        }
+        _tasks.remove(id);
+        _pausedTaskIds.remove(id);
+        _removedTaskIds.add(id);
+        continue;
+      }
       try {
         await _stopTorrentWithBackend(
           id,

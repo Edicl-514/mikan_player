@@ -912,10 +912,13 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
   Widget _buildDownloadItem(DownloadTask task, [Color? accentColor]) {
     final statusColor = _getStatusColor(task.status);
     final statusIcon = _getStatusIcon(task.status);
-    final canPlay =
-        task.status == DownloadTaskStatus.downloading ||
-        task.status == DownloadTaskStatus.seeding ||
-        task.status == DownloadTaskStatus.paused && task.progress > 5;
+    final isHttp = task.taskType == DownloadTaskType.http;
+    final canPlay = isHttp
+        ? task.status == DownloadTaskStatus.completed
+        : task.status == DownloadTaskStatus.downloading ||
+              task.status == DownloadTaskStatus.seeding ||
+              task.status == DownloadTaskStatus.completed ||
+              task.status == DownloadTaskStatus.paused && task.progress > 5;
 
     final theme = Theme.of(context);
     final cardColor = theme.colorScheme.surface;
@@ -1104,8 +1107,9 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                     const SizedBox(width: 10),
                   ],
 
-                  // Upload speed (for seeding)
-                  if (task.status == DownloadTaskStatus.seeding) ...[
+                  // Upload speed (for seeding, BT only)
+                  if (task.status == DownloadTaskStatus.seeding &&
+                      task.taskType != DownloadTaskType.http) ...[
                     const Icon(Icons.upload, size: 11, color: Colors.green),
                     const SizedBox(width: 3),
                     Text(
@@ -1123,8 +1127,9 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
 
                   const Spacer(),
 
-                  // Peers count
-                  if (task.peers > 0) ...[
+                  // Peers count (BT only)
+                  if (task.peers > 0 &&
+                      task.taskType != DownloadTaskType.http) ...[
                     const Icon(
                       Icons.people_outline,
                       size: 11,
@@ -1188,6 +1193,14 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                 ).showSnackBar(const SnackBar(content: Text('恢复失败')));
               }
             },
+          )
+        else if (task.taskType == DownloadTaskType.http &&
+            task.status == DownloadTaskStatus.completed)
+          // Play button for completed HTTP tasks
+          IconButton(
+            icon: const Icon(Icons.play_arrow, size: 20, color: Colors.green),
+            tooltip: '播放',
+            onPressed: () => _playTask(task),
           ),
 
         // Delete button
