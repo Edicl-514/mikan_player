@@ -877,6 +877,74 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get danmakuSettingsDisplayTab => '显示设置';
+
+  @override
+  String get danmakuSettingsSourceTab => '弹幕源';
+
+  @override
+  String get danmakuSettingsVisibilitySection => '显示类型';
+
+  @override
+  String get danmakuSettingsStyleSection => '样式设置';
+
+  @override
+  String get danmakuSettingsEnable => '显示弹幕';
+
+  @override
+  String get danmakuSettingsScrolling => '滚动弹幕';
+
+  @override
+  String get danmakuSettingsTop => '顶部弹幕';
+
+  @override
+  String get danmakuSettingsBottom => '底部弹幕';
+
+  @override
+  String get danmakuSettingsOpacity => '不透明度';
+
+  @override
+  String get danmakuSettingsSpeed => '弹幕速度';
+
+  @override
+  String danmakuSettingsSpeedValue(Object seconds) {
+    return '$seconds秒';
+  }
+
+  @override
+  String get danmakuSettingsDisplayArea => '显示区域';
+
+  @override
+  String get danmakuSettingsFontWeight => '字体字重';
+
+  @override
+  String get danmakuSettingsFontWeightUltraLight => '极细';
+
+  @override
+  String get danmakuSettingsFontWeightExtraLight => '特细';
+
+  @override
+  String get danmakuSettingsFontWeightLight => '细';
+
+  @override
+  String get danmakuSettingsFontWeightSemiLight => '较细';
+
+  @override
+  String get danmakuSettingsFontWeightRegular => '正常';
+
+  @override
+  String get danmakuSettingsFontWeightSemiBold => '较粗';
+
+  @override
+  String get danmakuSettingsFontWeightBold => '粗';
+
+  @override
+  String get danmakuSettingsFontWeightExtraBold => '特粗';
+
+  @override
+  String get danmakuSettingsFontWeightBlack => '极粗';
+
+  @override
   String get subtitlePreviewText => '字幕预览效果';
 
   @override

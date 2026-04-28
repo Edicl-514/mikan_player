@@ -1724,6 +1724,138 @@ abstract class AppLocalizations {
   /// **'弹幕数量: {count} 条'**
   String danmakuCount(Object count);
 
+  /// No description provided for @danmakuSettingsDisplayTab.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示设置'**
+  String get danmakuSettingsDisplayTab;
+
+  /// No description provided for @danmakuSettingsSourceTab.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹幕源'**
+  String get danmakuSettingsSourceTab;
+
+  /// No description provided for @danmakuSettingsVisibilitySection.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示类型'**
+  String get danmakuSettingsVisibilitySection;
+
+  /// No description provided for @danmakuSettingsStyleSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'样式设置'**
+  String get danmakuSettingsStyleSection;
+
+  /// No description provided for @danmakuSettingsEnable.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示弹幕'**
+  String get danmakuSettingsEnable;
+
+  /// No description provided for @danmakuSettingsScrolling.
+  ///
+  /// In zh, this message translates to:
+  /// **'滚动弹幕'**
+  String get danmakuSettingsScrolling;
+
+  /// No description provided for @danmakuSettingsTop.
+  ///
+  /// In zh, this message translates to:
+  /// **'顶部弹幕'**
+  String get danmakuSettingsTop;
+
+  /// No description provided for @danmakuSettingsBottom.
+  ///
+  /// In zh, this message translates to:
+  /// **'底部弹幕'**
+  String get danmakuSettingsBottom;
+
+  /// No description provided for @danmakuSettingsOpacity.
+  ///
+  /// In zh, this message translates to:
+  /// **'不透明度'**
+  String get danmakuSettingsOpacity;
+
+  /// No description provided for @danmakuSettingsSpeed.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹幕速度'**
+  String get danmakuSettingsSpeed;
+
+  /// No description provided for @danmakuSettingsSpeedValue.
+  ///
+  /// In zh, this message translates to:
+  /// **'{seconds}秒'**
+  String danmakuSettingsSpeedValue(Object seconds);
+
+  /// No description provided for @danmakuSettingsDisplayArea.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示区域'**
+  String get danmakuSettingsDisplayArea;
+
+  /// No description provided for @danmakuSettingsFontWeight.
+  ///
+  /// In zh, this message translates to:
+  /// **'字体字重'**
+  String get danmakuSettingsFontWeight;
+
+  /// No description provided for @danmakuSettingsFontWeightUltraLight.
+  ///
+  /// In zh, this message translates to:
+  /// **'极细'**
+  String get danmakuSettingsFontWeightUltraLight;
+
+  /// No description provided for @danmakuSettingsFontWeightExtraLight.
+  ///
+  /// In zh, this message translates to:
+  /// **'特细'**
+  String get danmakuSettingsFontWeightExtraLight;
+
+  /// No description provided for @danmakuSettingsFontWeightLight.
+  ///
+  /// In zh, this message translates to:
+  /// **'细'**
+  String get danmakuSettingsFontWeightLight;
+
+  /// No description provided for @danmakuSettingsFontWeightSemiLight.
+  ///
+  /// In zh, this message translates to:
+  /// **'较细'**
+  String get danmakuSettingsFontWeightSemiLight;
+
+  /// No description provided for @danmakuSettingsFontWeightRegular.
+  ///
+  /// In zh, this message translates to:
+  /// **'正常'**
+  String get danmakuSettingsFontWeightRegular;
+
+  /// No description provided for @danmakuSettingsFontWeightSemiBold.
+  ///
+  /// In zh, this message translates to:
+  /// **'较粗'**
+  String get danmakuSettingsFontWeightSemiBold;
+
+  /// No description provided for @danmakuSettingsFontWeightBold.
+  ///
+  /// In zh, this message translates to:
+  /// **'粗'**
+  String get danmakuSettingsFontWeightBold;
+
+  /// No description provided for @danmakuSettingsFontWeightExtraBold.
+  ///
+  /// In zh, this message translates to:
+  /// **'特粗'**
+  String get danmakuSettingsFontWeightExtraBold;
+
+  /// No description provided for @danmakuSettingsFontWeightBlack.
+  ///
+  /// In zh, this message translates to:
+  /// **'极粗'**
+  String get danmakuSettingsFontWeightBlack;
+
   /// No description provided for @subtitlePreviewText.
   ///
   /// In zh, this message translates to:

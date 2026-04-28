@@ -39,6 +39,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         // Tab 栏
@@ -57,9 +58,9 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
-            tabs: const [
-              Tab(text: '显示设置'),
-              Tab(text: '弹幕源'),
+            tabs: [
+              Tab(text: l10n.danmakuSettingsDisplayTab),
+              Tab(text: l10n.danmakuSettingsSourceTab),
             ],
           ),
         ),
@@ -78,13 +79,14 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
     return ListenableBuilder(
       listenable: widget.danmakuService,
       builder: (context, _) {
+        final l10n = AppLocalizations.of(context);
         final settings = widget.danmakuService.settings;
         return ListView(
           controller: widget.scrollController,
           padding: const EdgeInsets.symmetric(vertical: 8),
           children: [
             _buildSwitchTile(
-              '显示弹幕',
+              l10n.danmakuSettingsEnable,
               settings.enabled,
               (value) => widget.danmakuService.updateSettings(
                 settings.copyWith(enabled: value),
@@ -92,23 +94,23 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
             ),
             const Divider(color: Colors.white10, height: 1),
 
-            _buildSectionHeader('显示类型'),
+            _buildSectionHeader(l10n.danmakuSettingsVisibilitySection),
             _buildSwitchTile(
-              '滚动弹幕',
+              l10n.danmakuSettingsScrolling,
               settings.showScrolling,
               (value) => widget.danmakuService.updateSettings(
                 settings.copyWith(showScrolling: value),
               ),
             ),
             _buildSwitchTile(
-              '顶部弹幕',
+              l10n.danmakuSettingsTop,
               settings.showTop,
               (value) => widget.danmakuService.updateSettings(
                 settings.copyWith(showTop: value),
               ),
             ),
             _buildSwitchTile(
-              '底部弹幕',
+              l10n.danmakuSettingsBottom,
               settings.showBottom,
               (value) => widget.danmakuService.updateSettings(
                 settings.copyWith(showBottom: value),
@@ -116,9 +118,9 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
             ),
             const Divider(color: Colors.white10, height: 1),
 
-            _buildSectionHeader('样式设置'),
+            _buildSectionHeader(l10n.danmakuSettingsStyleSection),
             _buildSliderTile(
-              '不透明度',
+              l10n.danmakuSettingsOpacity,
               '${(settings.opacity * 100).toInt()}%',
               settings.opacity,
               0.1,
@@ -128,7 +130,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               ),
             ),
             _buildSliderTile(
-              '字体大小',
+              l10n.fontSize,
               '${settings.fontSize.toInt()}px',
               settings.fontSize,
               14,
@@ -138,8 +140,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               ),
             ),
             _buildSliderTile(
-              '弹幕速度',
-              '${settings.speed.toInt()}秒',
+              l10n.danmakuSettingsSpeed,
+              l10n.danmakuSettingsSpeedValue(settings.speed.toInt()),
               settings.speed,
               4,
               16,
@@ -148,7 +150,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               ),
             ),
             _buildSliderTile(
-              '显示区域',
+              l10n.danmakuSettingsDisplayArea,
               '${(settings.displayArea * 100).toInt()}%',
               settings.displayArea,
               0.25,
@@ -158,8 +160,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               ),
             ),
             _buildSliderTile(
-              '字体字重',
-              _getFontWeightLabel(settings.fontWeight),
+              l10n.danmakuSettingsFontWeight,
+              _getFontWeightLabel(l10n, settings.fontWeight),
               settings.fontWeight.toDouble(),
               0,
               8,
@@ -168,7 +170,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               ),
             ),
             _buildSliderTile(
-              '描边宽度',
+              l10n.outlineWidth,
               settings.strokeWidth.toStringAsFixed(1),
               settings.strokeWidth,
               0.0,
@@ -183,9 +185,29 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
     );
   }
 
-  String _getFontWeightLabel(int weight) {
-    const labels = ['极细', '特细', '细', '较细', '正常', '较粗', '粗', '特粗', '极粗'];
-    return labels[weight.clamp(0, 8)];
+  String _getFontWeightLabel(AppLocalizations l10n, int weight) {
+    switch (weight.clamp(0, 8)) {
+      case 0:
+        return l10n.danmakuSettingsFontWeightUltraLight;
+      case 1:
+        return l10n.danmakuSettingsFontWeightExtraLight;
+      case 2:
+        return l10n.danmakuSettingsFontWeightLight;
+      case 3:
+        return l10n.danmakuSettingsFontWeightSemiLight;
+      case 4:
+        return l10n.danmakuSettingsFontWeightRegular;
+      case 5:
+        return l10n.danmakuSettingsFontWeightSemiBold;
+      case 6:
+        return l10n.danmakuSettingsFontWeightBold;
+      case 7:
+        return l10n.danmakuSettingsFontWeightExtraBold;
+      case 8:
+        return l10n.danmakuSettingsFontWeightBlack;
+      default:
+        return l10n.danmakuSettingsFontWeightRegular;
+    }
   }
 
   Widget _buildDanmakuSource() {
@@ -261,8 +283,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                   children: [
                     // 显示当前已加载的弹幕信息
                     if (widget.danmakuService.danmakuCount > 0) ...[
-                      const Text(
-                        '已加载弹幕',
+                      Text(
+                        l10n.loadedDanmaku,
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
@@ -270,12 +292,12 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      _buildLoadedDanmakuInfoCard(),
+                      _buildLoadedDanmakuInfoCard(context),
                       const SizedBox(height: 24),
                     ],
                     if (widget.danmakuService.selectedAnime != null) ...[
-                      const Text(
-                        '当前匹配',
+                      Text(
+                        l10n.currentMatch,
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
@@ -289,8 +311,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                       const SizedBox(height: 24),
                     ],
                     if (widget.danmakuService.searchResults.isNotEmpty) ...[
-                      const Text(
-                        '搜索结果',
+                      Text(
+                        l10n.searchResult,
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
@@ -306,8 +328,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                     if (widget.danmakuService.episodes.isNotEmpty) ...[
                       Row(
                         children: [
-                          const Text(
-                            '剧集列表',
+                          Text(
+                            l10n.episodeList,
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: 12,
@@ -316,7 +338,9 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                           ),
                           const Spacer(),
                           Text(
-                            '共 ${widget.danmakuService.episodes.length} 集',
+                            l10n.subtitleTrackCount(
+                              widget.danmakuService.episodes.length,
+                            ),
                             style: const TextStyle(
                               color: Colors.white38,
                               fontSize: 11,
@@ -374,9 +398,10 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
     );
   }
 
-  Widget _buildLoadedDanmakuInfoCard() {
+  Widget _buildLoadedDanmakuInfoCard(BuildContext context) {
     final service = widget.danmakuService;
     final count = service.danmakuCount;
+    final l10n = AppLocalizations.of(context);
 
     String infoText = '';
     if (service.selectedAnime != null) {
@@ -405,7 +430,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               ),
               const SizedBox(width: 6),
               Text(
-                '弹幕数量: $count 条',
+                l10n.danmakuCount(count),
                 style: const TextStyle(
                   color: Color(0xFF4CAF50),
                   fontSize: 13,
@@ -619,6 +644,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       width: 320,
       height: double.infinity,
@@ -647,9 +673,9 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
-                    tabs: const [
-                      Tab(text: '显示设置'),
-                      Tab(text: '弹幕源'),
+                    tabs: [
+                      Tab(text: l10n.danmakuSettingsDisplayTab),
+                      Tab(text: l10n.danmakuSettingsSourceTab),
                     ],
                   ),
                 ),
@@ -673,12 +699,13 @@ class _VideoSidePanelState extends State<VideoSidePanel>
     return ListenableBuilder(
       listenable: widget.danmakuService,
       builder: (context, _) {
+        final l10n = AppLocalizations.of(context);
         final settings = widget.danmakuService.settings;
         return ListView(
           padding: const EdgeInsets.symmetric(vertical: 8),
           children: [
             _buildSwitchTile(
-              '显示弹幕',
+              l10n.danmakuSettingsEnable,
               settings.enabled,
               (value) => widget.danmakuService.updateSettings(
                 settings.copyWith(enabled: value),
@@ -686,23 +713,23 @@ class _VideoSidePanelState extends State<VideoSidePanel>
             ),
             const Divider(color: Colors.white10, height: 1),
 
-            _buildSectionHeader('显示类型'),
+            _buildSectionHeader(l10n.danmakuSettingsVisibilitySection),
             _buildSwitchTile(
-              '滚动弹幕',
+              l10n.danmakuSettingsScrolling,
               settings.showScrolling,
               (value) => widget.danmakuService.updateSettings(
                 settings.copyWith(showScrolling: value),
               ),
             ),
             _buildSwitchTile(
-              '顶部弹幕',
+              l10n.danmakuSettingsTop,
               settings.showTop,
               (value) => widget.danmakuService.updateSettings(
                 settings.copyWith(showTop: value),
               ),
             ),
             _buildSwitchTile(
-              '底部弹幕',
+              l10n.danmakuSettingsBottom,
               settings.showBottom,
               (value) => widget.danmakuService.updateSettings(
                 settings.copyWith(showBottom: value),
@@ -710,9 +737,9 @@ class _VideoSidePanelState extends State<VideoSidePanel>
             ),
             const Divider(color: Colors.white10, height: 1),
 
-            _buildSectionHeader('样式设置'),
+            _buildSectionHeader(l10n.danmakuSettingsStyleSection),
             _buildSliderTile(
-              '不透明度',
+              l10n.danmakuSettingsOpacity,
               '${(settings.opacity * 100).toInt()}%',
               settings.opacity,
               0.1,
@@ -722,7 +749,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
               ),
             ),
             _buildSliderTile(
-              '字体大小',
+              l10n.fontSize,
               '${settings.fontSize.toInt()}px',
               settings.fontSize,
               14,
@@ -732,8 +759,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
               ),
             ),
             _buildSliderTile(
-              '弹幕速度',
-              '${settings.speed.toInt()}秒',
+              l10n.danmakuSettingsSpeed,
+              l10n.danmakuSettingsSpeedValue(settings.speed.toInt()),
               settings.speed,
               4,
               16,
@@ -742,7 +769,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
               ),
             ),
             _buildSliderTile(
-              '显示区域',
+              l10n.danmakuSettingsDisplayArea,
               '${(settings.displayArea * 100).toInt()}%',
               settings.displayArea,
               0.25,
@@ -752,8 +779,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
               ),
             ),
             _buildSliderTile(
-              '字体字重',
-              _getFontWeightLabel(settings.fontWeight),
+              l10n.danmakuSettingsFontWeight,
+              _getFontWeightLabel(l10n, settings.fontWeight),
               settings.fontWeight.toDouble(),
               0,
               8,
@@ -762,7 +789,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
               ),
             ),
             _buildSliderTile(
-              '描边宽度',
+              l10n.outlineWidth,
               settings.strokeWidth.toStringAsFixed(1),
               settings.strokeWidth,
               0.0,
@@ -777,9 +804,29 @@ class _VideoSidePanelState extends State<VideoSidePanel>
     );
   }
 
-  String _getFontWeightLabel(int weight) {
-    const labels = ['极细', '特细', '细', '较细', '正常', '较粗', '粗', '特粗', '极粗'];
-    return labels[weight.clamp(0, 8)];
+  String _getFontWeightLabel(AppLocalizations l10n, int weight) {
+    switch (weight.clamp(0, 8)) {
+      case 0:
+        return l10n.danmakuSettingsFontWeightUltraLight;
+      case 1:
+        return l10n.danmakuSettingsFontWeightExtraLight;
+      case 2:
+        return l10n.danmakuSettingsFontWeightLight;
+      case 3:
+        return l10n.danmakuSettingsFontWeightSemiLight;
+      case 4:
+        return l10n.danmakuSettingsFontWeightRegular;
+      case 5:
+        return l10n.danmakuSettingsFontWeightSemiBold;
+      case 6:
+        return l10n.danmakuSettingsFontWeightBold;
+      case 7:
+        return l10n.danmakuSettingsFontWeightExtraBold;
+      case 8:
+        return l10n.danmakuSettingsFontWeightBlack;
+      default:
+        return l10n.danmakuSettingsFontWeightRegular;
+    }
   }
 
   Widget _buildDanmakuSource() {
@@ -854,8 +901,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                   children: [
                     // 显示当前已加载的弹幕信息
                     if (widget.danmakuService.danmakuCount > 0) ...[
-                      const Text(
-                        '已加载弹幕',
+                      Text(
+                        l10n.loadedDanmaku,
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
@@ -863,12 +910,12 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      _buildLoadedDanmakuInfoCard(),
+                      _buildLoadedDanmakuInfoCard(context),
                       const SizedBox(height: 24),
                     ],
                     if (widget.danmakuService.selectedAnime != null) ...[
-                      const Text(
-                        '当前匹配',
+                      Text(
+                        l10n.currentMatch,
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
@@ -914,8 +961,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                       const SizedBox(height: 24),
                     ],
                     if (widget.danmakuService.searchResults.isNotEmpty) ...[
-                      const Text(
-                        '搜索结果',
+                      Text(
+                        l10n.searchResult,
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
@@ -931,8 +978,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                     if (widget.danmakuService.episodes.isNotEmpty) ...[
                       Row(
                         children: [
-                          const Text(
-                            '剧集列表',
+                          Text(
+                            l10n.episodeList,
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: 12,
@@ -941,7 +988,9 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                           ),
                           const Spacer(),
                           Text(
-                            '共 ${widget.danmakuService.episodes.length} 集',
+                            l10n.subtitleTrackCount(
+                              widget.danmakuService.episodes.length,
+                            ),
                             style: const TextStyle(
                               color: Colors.white38,
                               fontSize: 11,
@@ -1093,9 +1142,10 @@ class _VideoSidePanelState extends State<VideoSidePanel>
     );
   }
 
-  Widget _buildLoadedDanmakuInfoCard() {
+  Widget _buildLoadedDanmakuInfoCard(BuildContext context) {
     final service = widget.danmakuService;
     final count = service.danmakuCount;
+    final l10n = AppLocalizations.of(context);
 
     String infoText = '';
     if (service.selectedAnime != null) {
@@ -1124,7 +1174,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
               ),
               const SizedBox(width: 6),
               Text(
-                '弹幕数量: $count 条',
+                l10n.danmakuCount(count),
                 style: const TextStyle(
                   color: Color(0xFF4CAF50),
                   fontSize: 13,

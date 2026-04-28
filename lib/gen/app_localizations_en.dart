@@ -897,6 +897,74 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get danmakuSettingsDisplayTab => 'Display settings';
+
+  @override
+  String get danmakuSettingsSourceTab => 'Danmaku source';
+
+  @override
+  String get danmakuSettingsVisibilitySection => 'Display type';
+
+  @override
+  String get danmakuSettingsStyleSection => 'Style settings';
+
+  @override
+  String get danmakuSettingsEnable => 'Show danmaku';
+
+  @override
+  String get danmakuSettingsScrolling => 'Scrolling danmaku';
+
+  @override
+  String get danmakuSettingsTop => 'Top danmaku';
+
+  @override
+  String get danmakuSettingsBottom => 'Bottom danmaku';
+
+  @override
+  String get danmakuSettingsOpacity => 'Opacity';
+
+  @override
+  String get danmakuSettingsSpeed => 'Danmaku speed';
+
+  @override
+  String danmakuSettingsSpeedValue(Object seconds) {
+    return '${seconds}s';
+  }
+
+  @override
+  String get danmakuSettingsDisplayArea => 'Display area';
+
+  @override
+  String get danmakuSettingsFontWeight => 'Font weight';
+
+  @override
+  String get danmakuSettingsFontWeightUltraLight => 'Ultra light';
+
+  @override
+  String get danmakuSettingsFontWeightExtraLight => 'Extra light';
+
+  @override
+  String get danmakuSettingsFontWeightLight => 'Light';
+
+  @override
+  String get danmakuSettingsFontWeightSemiLight => 'Semi light';
+
+  @override
+  String get danmakuSettingsFontWeightRegular => 'Regular';
+
+  @override
+  String get danmakuSettingsFontWeightSemiBold => 'Semi bold';
+
+  @override
+  String get danmakuSettingsFontWeightBold => 'Bold';
+
+  @override
+  String get danmakuSettingsFontWeightExtraBold => 'Extra bold';
+
+  @override
+  String get danmakuSettingsFontWeightBlack => 'Black';
+
+  @override
   String get subtitlePreviewText => 'Subtitle preview';
 
   @override
