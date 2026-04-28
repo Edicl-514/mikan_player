@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/data_source_settings_page.dart';
+import 'package:mikan_player/ui/pages/download_settings_page.dart';
 import 'package:mikan_player/ui/pages/search_settings_page.dart';
 import 'package:mikan_player/ui/pages/subscription_debug_page.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
-import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/services/settings_service.dart';
 import 'package:mikan_player/utils/feature_flags.dart';
 
@@ -17,7 +17,6 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final SettingsService _settingsService = SettingsService();
-  final DownloadManager _downloadManager = DownloadManager();
   Map<String, dynamic>? _cacheStats;
   bool _isLoadingStats = false;
   bool _isClearingCache = false;
@@ -157,8 +156,21 @@ class _SettingsPageState extends State<SettingsPage> {
                 );
               },
             ),
+          _buildSettingTile(
+            context,
+            Icons.download,
+            AppLocalizations.of(context).downloadSettingsTitle,
+            AppLocalizations.of(context).downloadSettingsEntrySubtitle,
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const DownloadSettingsPage(),
+                ),
+              );
+            },
+          ),
           _buildLanguageTile(context),
-          _buildBtBackendTile(context),
           _buildCacheTile(context),
         ],
       ),
@@ -201,44 +213,6 @@ class _SettingsPageState extends State<SettingsPage> {
             DropdownMenuItem(
               value: const Locale('en'),
               child: Text(AppLocalizations.of(context).english),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBtBackendTile(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Theme.of(
-        context,
-      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: Icon(
-          Icons.hub_outlined,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-        title: const Text(
-          'BT 后端',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: const Text('新建和自动恢复的 BT 任务会使用所选后端'),
-        trailing: DropdownButton<BtBackendKind>(
-          value: _downloadManager.backendKind,
-          underline: const SizedBox(),
-          onChanged: (backend) async {
-            if (backend == null) return;
-            await _downloadManager.setBackendKind(backend);
-            if (mounted) setState(() {});
-          },
-          items: const [
-            DropdownMenuItem(value: BtBackendKind.rqbit, child: Text('rqbit')),
-            DropdownMenuItem(
-              value: BtBackendKind.libtorrent,
-              child: Text('libtorrent'),
             ),
           ],
         ),

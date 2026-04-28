@@ -368,6 +368,12 @@ abstract class AppLocalizations {
   /// **'校验中'**
   String get statusChecking;
 
+  /// No description provided for @statusQueued.
+  ///
+  /// In zh, this message translates to:
+  /// **'排队中'**
+  String get statusQueued;
+
   /// No description provided for @statusCompleted.
   ///
   /// In zh, this message translates to:
@@ -427,6 +433,90 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'设置并发布数量及相关参数'**
   String get searchSubtitle;
+
+  /// No description provided for @downloadSettingsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载设置'**
+  String get downloadSettingsTitle;
+
+  /// No description provided for @downloadSettingsSaveButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存设置'**
+  String get downloadSettingsSaveButton;
+
+  /// No description provided for @downloadSettingsSaved.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载设置已保存'**
+  String get downloadSettingsSaved;
+
+  /// No description provided for @downloadSettingsInvalidNumber.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入有效的限速数值'**
+  String get downloadSettingsInvalidNumber;
+
+  /// No description provided for @downloadEngineTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'BT 引擎'**
+  String get downloadEngineTitle;
+
+  /// No description provided for @downloadEngineSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建和自动恢复的 BT 任务会使用所选后端'**
+  String get downloadEngineSubtitle;
+
+  /// No description provided for @downloadParallelTasks.
+  ///
+  /// In zh, this message translates to:
+  /// **'并行下载任务数'**
+  String get downloadParallelTasks;
+
+  /// No description provided for @downloadParallelHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'1-10，默认3'**
+  String get downloadParallelHint;
+
+  /// No description provided for @downloadSpeedLimitsHeader.
+  ///
+  /// In zh, this message translates to:
+  /// **'速度限制 (0 = 不限速)'**
+  String get downloadSpeedLimitsHeader;
+
+  /// No description provided for @downloadDownloadLimit.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载限速 (MB/s)'**
+  String get downloadDownloadLimit;
+
+  /// No description provided for @downloadDownloadLimitHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'0 表示不限速'**
+  String get downloadDownloadLimitHint;
+
+  /// No description provided for @downloadUploadLimit.
+  ///
+  /// In zh, this message translates to:
+  /// **'上传限速 (MB/s)'**
+  String get downloadUploadLimit;
+
+  /// No description provided for @downloadUploadLimitHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'0 表示不限速，仅对 BT 生效'**
+  String get downloadUploadLimitHint;
+
+  /// No description provided for @downloadSettingsEntrySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'并行任务数、限速、BT引擎'**
+  String get downloadSettingsEntrySubtitle;
 
   /// No description provided for @cacheManagement.
   ///

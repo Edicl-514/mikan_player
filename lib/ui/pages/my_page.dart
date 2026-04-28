@@ -457,13 +457,15 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
         return task.status == DownloadTaskStatus.downloading ||
             task.status == DownloadTaskStatus.pending ||
             task.status == DownloadTaskStatus.metadata ||
-            task.status == DownloadTaskStatus.checking;
+            task.status == DownloadTaskStatus.checking ||
+            task.status == DownloadTaskStatus.queued;
       case DownloadTaskStatus.completed:
         return task.status == DownloadTaskStatus.completed ||
             task.status == DownloadTaskStatus.seeding;
       case DownloadTaskStatus.pending:
       case DownloadTaskStatus.metadata:
       case DownloadTaskStatus.checking:
+      case DownloadTaskStatus.queued:
       case DownloadTaskStatus.seeding:
       case DownloadTaskStatus.paused:
       case DownloadTaskStatus.error:
@@ -883,7 +885,8 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
     if (status == DownloadTaskStatus.seeding) {
       return DownloadTaskStatus.completed;
     }
-    if (status == DownloadTaskStatus.pending) {
+    if (status == DownloadTaskStatus.pending ||
+        status == DownloadTaskStatus.queued) {
       return DownloadTaskStatus.downloading;
     }
     return status;
@@ -898,6 +901,8 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
       case DownloadTaskStatus.metadata:
         return 4;
       case DownloadTaskStatus.checking:
+        return 3;
+      case DownloadTaskStatus.queued:
         return 3;
       case DownloadTaskStatus.downloading:
         return 2;
@@ -1168,7 +1173,8 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
         // Pause/Resume button
         if (task.status == DownloadTaskStatus.downloading ||
             task.status == DownloadTaskStatus.metadata ||
-            task.status == DownloadTaskStatus.checking)
+            task.status == DownloadTaskStatus.checking ||
+            task.status == DownloadTaskStatus.queued)
           IconButton(
             icon: const Icon(Icons.pause, size: 20, color: Colors.orange),
             tooltip: AppLocalizations.of(context).pause,
@@ -1330,7 +1336,8 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                 task.status == DownloadTaskStatus.downloading ||
                         task.status == DownloadTaskStatus.seeding ||
                         task.status == DownloadTaskStatus.metadata ||
-                        task.status == DownloadTaskStatus.checking
+                        task.status == DownloadTaskStatus.checking ||
+                        task.status == DownloadTaskStatus.queued
                     ? '此任务正在运行中，确定要停止并删除吗？'
                     : AppLocalizations.of(
                         context,
@@ -1379,6 +1386,8 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
         return Colors.deepPurple;
       case DownloadTaskStatus.checking:
         return Colors.teal;
+      case DownloadTaskStatus.queued:
+        return Colors.amber;
       case DownloadTaskStatus.downloading:
         return Colors.blue;
       case DownloadTaskStatus.seeding:
@@ -1401,6 +1410,8 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
         return l10n.statusMetadata;
       case DownloadTaskStatus.checking:
         return l10n.statusChecking;
+      case DownloadTaskStatus.queued:
+        return l10n.statusQueued;
       case DownloadTaskStatus.downloading:
         return l10n.downloading;
       case DownloadTaskStatus.seeding:
@@ -1422,6 +1433,8 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
         return Icons.cloud_download;
       case DownloadTaskStatus.checking:
         return Icons.verified_user;
+      case DownloadTaskStatus.queued:
+        return Icons.schedule;
       case DownloadTaskStatus.downloading:
         return Icons.downloading;
       case DownloadTaskStatus.seeding:

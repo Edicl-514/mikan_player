@@ -154,6 +154,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get statusChecking => '校验中';
 
   @override
+  String get statusQueued => '排队中';
+
+  @override
   String get statusCompleted => '已完成';
 
   @override
@@ -184,6 +187,48 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchSubtitle => '设置并发布数量及相关参数';
+
+  @override
+  String get downloadSettingsTitle => '下载设置';
+
+  @override
+  String get downloadSettingsSaveButton => '保存设置';
+
+  @override
+  String get downloadSettingsSaved => '下载设置已保存';
+
+  @override
+  String get downloadSettingsInvalidNumber => '请输入有效的限速数值';
+
+  @override
+  String get downloadEngineTitle => 'BT 引擎';
+
+  @override
+  String get downloadEngineSubtitle => '新建和自动恢复的 BT 任务会使用所选后端';
+
+  @override
+  String get downloadParallelTasks => '并行下载任务数';
+
+  @override
+  String get downloadParallelHint => '1-10，默认3';
+
+  @override
+  String get downloadSpeedLimitsHeader => '速度限制 (0 = 不限速)';
+
+  @override
+  String get downloadDownloadLimit => '下载限速 (MB/s)';
+
+  @override
+  String get downloadDownloadLimitHint => '0 表示不限速';
+
+  @override
+  String get downloadUploadLimit => '上传限速 (MB/s)';
+
+  @override
+  String get downloadUploadLimitHint => '0 表示不限速，仅对 BT 生效';
+
+  @override
+  String get downloadSettingsEntrySubtitle => '并行任务数、限速、BT引擎';
 
   @override
   String get cacheManagement => '缓存管理';

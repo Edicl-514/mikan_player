@@ -155,6 +155,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get statusChecking => 'Verifying';
 
   @override
+  String get statusQueued => 'Queued';
+
+  @override
   String get statusCompleted => 'Completed';
 
   @override
@@ -185,6 +188,51 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchSubtitle => 'WebView concurrency and search parameters';
+
+  @override
+  String get downloadSettingsTitle => 'Download Settings';
+
+  @override
+  String get downloadSettingsSaveButton => 'Save settings';
+
+  @override
+  String get downloadSettingsSaved => 'Download settings saved';
+
+  @override
+  String get downloadSettingsInvalidNumber =>
+      'Please enter a valid speed limit';
+
+  @override
+  String get downloadEngineTitle => 'BT Engine';
+
+  @override
+  String get downloadEngineSubtitle =>
+      'New and auto-resumed BT tasks will use the selected backend';
+
+  @override
+  String get downloadParallelTasks => 'Parallel download tasks';
+
+  @override
+  String get downloadParallelHint => '1-10, default 3';
+
+  @override
+  String get downloadSpeedLimitsHeader => 'Speed Limits (0 = unlimited)';
+
+  @override
+  String get downloadDownloadLimit => 'Download limit (MB/s)';
+
+  @override
+  String get downloadDownloadLimitHint => '0 means unlimited';
+
+  @override
+  String get downloadUploadLimit => 'Upload limit (MB/s)';
+
+  @override
+  String get downloadUploadLimitHint => '0 means unlimited, BT only';
+
+  @override
+  String get downloadSettingsEntrySubtitle =>
+      'Parallel tasks, limits, and BT engine';
 
   @override
   String get cacheManagement => 'Cache Management';
