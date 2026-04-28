@@ -7,6 +7,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(MIKAN_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../..")
 set(MIKAN_LIBTORRENT_SOURCE_DIR "${MIKAN_REPO_ROOT}/third_party/libtorrent")
+set(MIKAN_OPENSSL_ROOT "" CACHE PATH "Prebuilt OpenSSL root to use instead of toolchain packages")
+
+if(MIKAN_OPENSSL_ROOT)
+  set(OPENSSL_USE_STATIC_LIBS ON CACHE BOOL "Use static OpenSSL libraries" FORCE)
+  set(OPENSSL_ROOT_DIR "${MIKAN_OPENSSL_ROOT}" CACHE PATH "OpenSSL root directory" FORCE)
+  set(OPENSSL_INCLUDE_DIR "${MIKAN_OPENSSL_ROOT}/include" CACHE PATH "OpenSSL include directory" FORCE)
+  set(OPENSSL_SSL_LIBRARY "${MIKAN_OPENSSL_ROOT}/lib/libssl.a" CACHE FILEPATH "OpenSSL SSL library" FORCE)
+  set(OPENSSL_CRYPTO_LIBRARY "${MIKAN_OPENSSL_ROOT}/lib/libcrypto.a" CACHE FILEPATH "OpenSSL crypto library" FORCE)
+endif()
 
 if(NOT EXISTS "${MIKAN_LIBTORRENT_SOURCE_DIR}/CMakeLists.txt")
   message(FATAL_ERROR "third_party/libtorrent was not found")

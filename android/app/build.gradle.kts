@@ -38,6 +38,9 @@ val rustManifest = File(rustDir, "Cargo.toml")
 val rustJniLibsDir = File(project.projectDir, "src/main/jniLibs")
 val rustAndroidAbis = listOf("arm64-v8a")
 val rustEnvFile = File(project.rootDir, "../.env")
+val mikanLibtorrentDir = File(project.rootDir, "../native/mikan_libtorrent")
+val mikanLibtorrentScript = File(project.rootDir, "../build_libtorrent_android.ps1")
+val mikanLibtorrentJniLib = File(rustJniLibsDir, "arm64-v8a/libmikan_libtorrent.so")
 
 fun String.capitalized(): String =
     replaceFirstChar { char ->
@@ -79,7 +82,7 @@ fun Project.registerRustAndroidBuildTask(
 
         rustAndroidAbis.forEach { abi ->
             val abiOutputDir = File(rustJniLibsDir, abi)
-            delete(abiOutputDir)
+            delete(File(abiOutputDir, "librust.so"))
             abiOutputDir.mkdirs()
 
             val cargoArgs = mutableListOf(
@@ -113,6 +116,42 @@ val rustBuildTasks =
         "profile" to registerRustAndroidBuildTask("profile", "release"),
         "release" to registerRustAndroidBuildTask("release", "release"),
     )
+
+val mikanLibtorrentBuildTask = tasks.register("buildMikanLibtorrentAndroid") {
+    group = "native"
+    description = "Build the Android libtorrent native library for arm64-v8a."
+
+    inputs.dir(mikanLibtorrentDir)
+    inputs.dir(File(project.rootDir, "../third_party/libtorrent"))
+    inputs.file(File(project.rootDir, "../vcpkg.json"))
+    inputs.file(mikanLibtorrentScript)
+    outputs.file(mikanLibtorrentJniLib)
+    outputs.upToDateWhen { false }
+
+    doLast {
+        if (!mikanLibtorrentScript.exists()) {
+            throw GradleException("Android libtorrent build script not found: ${mikanLibtorrentScript.path}")
+        }
+
+        providers.exec {
+            workingDir = File(project.rootDir, "..")
+            commandLine(
+                "PowerShell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                mikanLibtorrentScript.absolutePath,
+                "-Configuration",
+                "Release",
+                "-Abi",
+                "arm64-v8a",
+                "-OutputJniLibsDir",
+                rustJniLibsDir.absolutePath,
+            )
+        }.result.get().assertNormalExitValue()
+    }
+}
 
 repositories {
     rustlsPlatformVerifier()
@@ -169,6 +208,7 @@ afterEvaluate {
         ).forEach { taskName ->
             tasks.matching { it.name == taskName }.configureEach {
                 dependsOn(rustTask)
+                dependsOn(mikanLibtorrentBuildTask)
             }
         }
     }
