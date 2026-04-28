@@ -133,7 +133,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   bool _isAutoPlayNextEnabled = true;
   bool _autoSearchOnline = true;
   bool _disableAutoSourceSearchForCurrentEpisode = false;
-  final bool _autoPlaySearchedSource = false;
+  bool _autoPlaySearchedSource = true;
   double _playbackSpeed = 1.0;
 
   // 每个源的搜索进度状态
@@ -1610,6 +1610,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     setState(() {
       _isLoadingSample = true;
       _sampleError = null;
+      _autoPlaySearchedSource = !manual;
       _sampleVideoUrl = _sampleVideoUrl; // Keep existing if BT is playing
       _samplePlayPages = [];
       _sampleSuccessfulSources = [];
