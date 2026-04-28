@@ -1523,13 +1523,6 @@ class DownloadManager extends ChangeNotifier {
     String? animeName,
     int? episodeNumber,
   }) async {
-    final uri = Uri.tryParse(url);
-    final normalizedPath = uri?.path.toLowerCase() ?? url.toLowerCase();
-    if (normalizedPath.endsWith('.m3u8')) {
-      //TODO: Support HLS(m3u8) online sources in the future. This requires implementing an HLS downloader that can handle playlists, segment downloading, and merging segments into a single file. For now, we throw an error to indicate that this is not supported.
-      throw UnsupportedError('暂不支持下载 HLS(m3u8) 在线源');
-    }
-
     final existingTask = _tasks.values
         .where((task) => task.taskType == DownloadTaskType.http)
         .where((task) => task.videoUrl == url)
@@ -1648,9 +1641,261 @@ class DownloadManager extends ChangeNotifier {
     return '.mp4';
   }
 
+  bool _isM3u8Url(String url) {
+    final uri = Uri.tryParse(url);
+    final normalizedPath = uri?.path.toLowerCase() ?? url.toLowerCase();
+    return normalizedPath.contains('.m3u8');
+  }
+
+  void _applyHttpHeaders(
+    HttpClientRequest request,
+    Map<String, String>? headers,
+    String? cookies,
+  ) {
+    if (headers != null) {
+      for (final entry in headers.entries) {
+        request.headers.set(entry.key, entry.value);
+      }
+    }
+    if (cookies != null && cookies.isNotEmpty) {
+      request.headers.set(HttpHeaders.cookieHeader, cookies);
+    }
+  }
+
+  Future<String> _fetchHttpText(
+    HttpClient client,
+    Uri uri, {
+    Map<String, String>? headers,
+    String? cookies,
+  }) async {
+    final request = await client.getUrl(uri);
+    _applyHttpHeaders(request, headers, cookies);
+    final response = await request.close();
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('HTTP ${response.statusCode}');
+    }
+    return response.transform(utf8.decoder).join();
+  }
+
+  Future<List<Uri>> _resolveHlsSegments(
+    HttpClient client,
+    Uri playlistUri, {
+    Map<String, String>? headers,
+    String? cookies,
+    int depth = 0,
+  }) async {
+    if (depth > 4) {
+      throw Exception('m3u8层级过深，无法解析');
+    }
+
+    final content = await _fetchHttpText(
+      client,
+      playlistUri,
+      headers: headers,
+      cookies: cookies,
+    );
+    final lines = const LineSplitter()
+        .convert(content)
+        .map((line) => line.trim())
+        .toList(growable: false);
+
+    final variantCandidates = <({Uri uri, int bandwidth})>[];
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      if (!line.startsWith('#EXT-X-STREAM-INF')) continue;
+      final bandwidthMatch = RegExp(
+        r'BANDWIDTH=(\d+)',
+        caseSensitive: false,
+      ).firstMatch(line);
+      final bandwidth = int.tryParse(bandwidthMatch?.group(1) ?? '') ?? 0;
+
+      for (var j = i + 1; j < lines.length; j++) {
+        final candidate = lines[j];
+        if (candidate.isEmpty || candidate.startsWith('#')) {
+          continue;
+        }
+        variantCandidates.add((
+          uri: playlistUri.resolve(candidate),
+          bandwidth: bandwidth,
+        ));
+        break;
+      }
+    }
+
+    if (variantCandidates.isNotEmpty) {
+      variantCandidates.sort((a, b) => b.bandwidth.compareTo(a.bandwidth));
+      return _resolveHlsSegments(
+        client,
+        variantCandidates.first.uri,
+        headers: headers,
+        cookies: cookies,
+        depth: depth + 1,
+      );
+    }
+
+    final hasEncryptedKey = lines.any((line) {
+      if (!line.startsWith('#EXT-X-KEY')) return false;
+      return !line.toUpperCase().contains('METHOD=NONE');
+    });
+    if (hasEncryptedKey) {
+      throw UnsupportedError('暂不支持下载加密HLS流');
+    }
+
+    final segments = <Uri>[];
+    for (final line in lines) {
+      if (line.isEmpty || line.startsWith('#')) continue;
+      segments.add(playlistUri.resolve(line));
+    }
+
+    if (segments.isEmpty) {
+      throw Exception('未找到可下载的HLS分片');
+    }
+    return segments;
+  }
+
+  Future<void> _downloadM3u8File(DownloadTask task) async {
+    final url = task.videoUrl;
+    if (url == null) return;
+
+    final client = HttpClient();
+    final outputFile = File(task.localFilePath!);
+    IOSink? sink;
+    bool wasCancelled = false;
+
+    try {
+      final playlistUri = Uri.parse(url);
+      final segments = await _resolveHlsSegments(
+        client,
+        playlistUri,
+        headers: task.headers,
+        cookies: task.cookies,
+      );
+
+      sink = outputFile.openWrite();
+      task.totalSize = BigInt.zero;
+
+      var received = 0;
+      var lastReceived = 0;
+      var finishedSegments = 0;
+      var lastUpdate = DateTime.now();
+
+      for (final segmentUri in segments) {
+        if (_httpDownloadJobs[task.id]?.cancelled ?? false) {
+          wasCancelled = true;
+          break;
+        }
+
+        final request = await client.getUrl(segmentUri);
+        _applyHttpHeaders(request, task.headers, task.cookies);
+        final response = await request.close();
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          throw Exception('HTTP ${response.statusCode}');
+        }
+
+        _httpDownloadJobs[task.id] = _HttpDownloadJob(
+          request: request,
+          outputFile: outputFile,
+          sink: sink,
+        );
+
+        final contentLength = response.contentLength;
+        if (contentLength > 0) {
+          task.totalSize += BigInt.from(contentLength);
+        }
+
+        await for (final chunk in response) {
+          if (_httpDownloadJobs[task.id]?.cancelled ?? false) {
+            wasCancelled = true;
+            break;
+          }
+          sink.add(chunk);
+          received += chunk.length;
+          task.downloaded = BigInt.from(received);
+
+          final now = DateTime.now();
+          if (now.difference(lastUpdate).inMilliseconds >= 500) {
+            final elapsed = now.difference(lastUpdate).inMilliseconds / 1000.0;
+            if (elapsed > 0) {
+              final bytesSince = received - lastReceived;
+              task.downloadSpeed = bytesSince / elapsed;
+            }
+            task.progress = (finishedSegments / segments.length * 100.0).clamp(
+              0.0,
+              100.0,
+            );
+            lastUpdate = now;
+            lastReceived = received;
+            notifyListeners();
+          }
+        }
+
+        if (wasCancelled) {
+          break;
+        }
+
+        finishedSegments += 1;
+        task.progress = (finishedSegments / segments.length * 100.0).clamp(
+          0.0,
+          100.0,
+        );
+        notifyListeners();
+      }
+
+      await sink.close();
+      sink = null;
+
+      if ((_httpDownloadJobs[task.id]?.cancelled ?? false) || wasCancelled) {
+        task.status = DownloadTaskStatus.paused;
+        task.downloadSpeed = 0;
+        task.uploadSpeed = 0;
+        _pausedTaskIds.add(task.id);
+        debugPrint('[DownloadManager] HLS download paused (partial): ${task.name}');
+      } else {
+        task.status = DownloadTaskStatus.completed;
+        task.progress = 100.0;
+        task.downloadSpeed = 0;
+        try {
+          final fileLen = outputFile.lengthSync();
+          task.totalSize = BigInt.from(fileLen);
+          task.downloaded = BigInt.from(fileLen);
+        } catch (_) {}
+        debugPrint('[DownloadManager] HLS download completed: ${task.name}');
+      }
+    } catch (e) {
+      debugPrint('[DownloadManager] HLS download error: $e');
+      if (!_tasks.containsKey(task.id)) {
+        return;
+      }
+      if (_httpDownloadJobs[task.id]?.cancelled ?? false) {
+        task.status = DownloadTaskStatus.paused;
+        task.downloadSpeed = 0;
+        task.uploadSpeed = 0;
+        _pausedTaskIds.add(task.id);
+        return;
+      }
+      task.status = DownloadTaskStatus.error;
+      task.errorMessage = e.toString();
+      try {
+        sink?.close();
+      } catch (_) {}
+    } finally {
+      _httpDownloadJobs.remove(task.id);
+      client.close();
+      if (_tasks.containsKey(task.id)) {
+        await _saveTasks();
+        notifyListeners();
+      }
+    }
+  }
+
   Future<void> _downloadHttpFile(DownloadTask task) async {
     final url = task.videoUrl;
     if (url == null) return;
+
+    if (_isM3u8Url(url)) {
+      await _downloadM3u8File(task);
+      return;
+    }
 
     final client = HttpClient();
     final outputFile = File(task.localFilePath!);
@@ -1662,16 +1907,7 @@ class DownloadManager extends ChangeNotifier {
       final uri = Uri.parse(url);
       request = await client.getUrl(uri);
 
-      // Apply headers
-      if (task.headers != null) {
-        for (final entry in task.headers!.entries) {
-          request.headers.set(entry.key, entry.value);
-        }
-      }
-      // Apply cookies as Cookie header if provided
-      if (task.cookies != null && task.cookies!.isNotEmpty) {
-        request.headers.set(HttpHeaders.cookieHeader, task.cookies!);
-      }
+      _applyHttpHeaders(request, task.headers, task.cookies);
 
       final response = await request.close();
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -2103,13 +2339,6 @@ class DownloadManager extends ChangeNotifier {
 
     // HTTP tasks: delete partial file and restart download from scratch
     if (task.taskType == DownloadTaskType.http) {
-      if ((task.videoUrl ?? '').toLowerCase().contains('.m3u8')) {
-        task.status = DownloadTaskStatus.error;
-        task.errorMessage = '暂不支持下载 HLS(m3u8) 在线源';
-        await _saveTasks();
-        notifyListeners();
-        return false;
-      }
       _pausedTaskIds.remove(id);
       task.status = DownloadTaskStatus.downloading;
       task.progress = 0.0;
