@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -62,7 +63,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
       debugPrint('Error fetching character details: $e');
       if (mounted) {
         setState(() {
-          _error = 'Failed to load character details';
+          _error = AppLocalizations.of(context).characterDetailsLoadFailed;
           _isLoadingDetails = false;
         });
       }
@@ -140,6 +141,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 800;
+    final l10n = AppLocalizations.of(context);
 
     if (_error != null && _characterDetails == null) {
       return Scaffold(
@@ -162,7 +164,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _fetchData,
-                child: const Text('Retry'),
+                child: Text(l10n.pageRetry),
               ),
             ],
           ),

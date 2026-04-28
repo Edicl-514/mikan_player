@@ -289,7 +289,9 @@ class _HomePcPageState extends State<HomePcPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('无法加载剧集列表')));
+        ).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context).cannotLoadEpisodes)),
+        );
       }
       return;
     }

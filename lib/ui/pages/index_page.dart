@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
@@ -220,9 +221,10 @@ class _IndexPageState extends State<IndexPage> {
     } catch (e) {
       debugPrint('Error fetching animes: $e');
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to load: $e')));
+        ).showSnackBar(SnackBar(content: Text(l10n.loadFailed(e.toString()))));
       }
     } finally {
       if (mounted && fetchId == _currentFetchId) {
@@ -336,16 +338,17 @@ class _IndexPageState extends State<IndexPage> {
     );
 
     if (isMobile) {
+      final l10n = AppLocalizations.of(context);
       return Scaffold(
         appBar: AppBar(
-          title: const Text(
-            '索引',
-            style: TextStyle(fontWeight: FontWeight.bold),
+          title: Text(
+            AppLocalizations.of(context).navIndex,
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           actions: [
             IconButton(
               icon: const Icon(Icons.search),
-              tooltip: '搜索番剧',
+              tooltip: l10n.searchHint,
               onPressed: () {
                 Navigator.push(
                   context,

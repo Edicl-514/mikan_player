@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart' as ranking;
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
@@ -10,15 +11,16 @@ class RankingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('排行榜'),
-          bottom: const TabBar(
+          title: Text(l10n.rankingTitle),
+          bottom: TabBar(
             tabs: [
-              Tab(text: '近期热门'),
-              Tab(text: '排行榜'),
+              Tab(text: l10n.rankingTrending),
+              Tab(text: l10n.rankingRanking),
             ],
           ),
         ),
@@ -150,6 +152,7 @@ class _RankingListState extends State<RankingList>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final l10n = AppLocalizations.of(context);
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -162,16 +165,16 @@ class _RankingListState extends State<RankingList>
           children: [
             const Icon(Icons.error_outline, size: 48, color: Colors.red),
             const SizedBox(height: 16),
-            Text('加载失败: $_errorMessage'),
+            Text(l10n.loadFailed(_errorMessage ?? l10n.unknownError)),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: _loadData, child: const Text('重试')),
+            ElevatedButton(onPressed: _loadData, child: Text(l10n.pageRetry)),
           ],
         ),
       );
     }
 
     if (_items.isEmpty) {
-      return const Center(child: Text('没有数据'));
+      return Center(child: Text(l10n.noData));
     }
 
     return ListView.builder(

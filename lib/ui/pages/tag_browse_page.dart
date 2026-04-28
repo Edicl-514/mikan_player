@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/widgets/anime_card.dart';
@@ -75,9 +76,10 @@ class _TagBrowsePageState extends State<TagBrowsePage> {
         setState(() {
           _isLoading = false;
         });
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('加载失败: $e')));
+        ).showSnackBar(SnackBar(content: Text(l10n.loadFailed(e.toString()))));
       }
     }
   }
@@ -134,12 +136,13 @@ class _TagBrowsePageState extends State<TagBrowsePage> {
   }
 
   Widget _buildBody() {
+    final l10n = AppLocalizations.of(context);
     if (_isLoading && _results.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
     if (!_isLoading && _results.isEmpty) {
-      return Center(child: Text('没有找到「${widget.tagName}」相关的动画'));
+      return Center(child: Text(l10n.noRelatedAnime(widget.tagName)));
     }
 
     return CustomScrollView(

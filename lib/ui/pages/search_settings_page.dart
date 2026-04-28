@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mikan_player/src/rust/api/simple.dart' as simple;
@@ -62,17 +63,19 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
     await simple.setMaxConcurrentSearches(limit: searchConcurrency);
 
     if (mounted) {
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('设置已保存')));
+      ).showSnackBar(SnackBar(content: Text(l10n.settingsSaved)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('搜索设置'),
+        title: Text(l10n.searchSettingsTitle),
         actions: [
           IconButton(icon: const Icon(Icons.save), onPressed: _saveSettings),
         ],
@@ -84,8 +87,8 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
               children: [
                 _buildTextField(
                   controller: _searchConcurrencyController,
-                  label: '最大并行搜索源数量',
-                  hint: '默认为3，0为不限制（Generic Scraper）',
+                  label: l10n.maxParallelSearchSources,
+                  hint: l10n.maxParallelSearchSourcesHint,
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 16),
@@ -103,22 +106,22 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
                 ),
                 _buildTextField(
                   controller: _concurrencyController,
-                  label: '最大WebView并发数量',
-                  hint: '建议值: 1-3',
+                  label: l10n.maxWebviewConcurrent,
+                  hint: l10n.maxWebviewConcurrentHint,
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 16),
                 _buildTextField(
                   controller: _intervalController,
-                  label: 'WebView启动间隔 (毫秒)',
-                  hint: '建议值: 200-1000',
+                  label: l10n.webviewLaunchInterval,
+                  hint: l10n.webviewLaunchIntervalHint,
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 16),
                 const Divider(),
                 SwitchListTile(
-                  title: const Text('自动搜索在线源'),
-                  subtitle: const Text('关闭后，播放页将只自动搜索BT源'),
+                  title: Text(l10n.autoSearchOnlineTitle),
+                  subtitle: Text(l10n.autoSearchOnlineSubtitle),
                   value: _autoSearchOnline,
                   onChanged: (bool value) {
                     setState(() {

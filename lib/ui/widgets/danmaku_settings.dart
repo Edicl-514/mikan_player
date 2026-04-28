@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/src/rust/api/danmaku.dart';
 
@@ -191,6 +192,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
     return ListenableBuilder(
       listenable: widget.danmakuService,
       builder: (context, _) {
+        final l10n = AppLocalizations.of(context);
         return Column(
           children: [
             Padding(
@@ -199,7 +201,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                 controller: _searchController,
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 decoration: InputDecoration(
-                  hintText: '搜索番剧名称...',
+                  hintText: l10n.searchHintText,
                   hintStyle: const TextStyle(color: Colors.white38),
                   filled: true,
                   fillColor: Colors.white.withValues(alpha: 0.1),
@@ -784,6 +786,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
     return ListenableBuilder(
       listenable: widget.danmakuService,
       builder: (context, _) {
+        final l10n = AppLocalizations.of(context);
         return Column(
           children: [
             Padding(
@@ -792,7 +795,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                 controller: _searchController,
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 decoration: InputDecoration(
-                  hintText: '搜索番剧名称...',
+                  hintText: l10n.searchHintText,
                   hintStyle: const TextStyle(color: Colors.white38),
                   filled: true,
                   fillColor: Colors.white.withValues(alpha: 0.1),

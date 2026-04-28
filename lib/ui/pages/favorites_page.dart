@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/models/bangumi_user_collection.dart';
 import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
@@ -101,8 +102,9 @@ class _FavoritesPageState extends State<FavoritesPage>
     } catch (e) {
       debugPrint('Error fetching collections: $e');
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         setState(() {
-          _bangumiError = '获取收藏失败: $e';
+          _bangumiError = l10n.fetchCollectionsFailed(e.toString());
           _isLoadingBangumi = false;
         });
       }
@@ -111,9 +113,10 @@ class _FavoritesPageState extends State<FavoritesPage>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('我的收藏'),
+        title: Text(l10n.favoritesTitle),
         actions: [
           IconButton(
             onPressed: () {
@@ -123,14 +126,14 @@ class _FavoritesPageState extends State<FavoritesPage>
               }
             },
             icon: const Icon(Icons.refresh),
-            tooltip: '刷新所有收藏',
+            tooltip: l10n.refreshAllFavorites,
           ),
         ],
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: '本地收藏'),
-            Tab(text: 'Bangumi 同步'),
+          tabs: [
+            Tab(text: l10n.favoritesTabLocal),
+            Tab(text: l10n.favoritesTabBangumi),
           ],
         ),
       ),
@@ -142,12 +145,13 @@ class _FavoritesPageState extends State<FavoritesPage>
   }
 
   Widget _buildLocalFavorites() {
+    final l10n = AppLocalizations.of(context);
     if (_isLoadingLocal) {
       return const Center(child: CircularProgressIndicator());
     }
 
     if (_localFavorites.isEmpty) {
-      return const Center(child: Text('暂无本地收藏'));
+      return Center(child: Text(l10n.noLocalFavorites));
     }
 
     return RefreshIndicator(
@@ -186,6 +190,7 @@ class _FavoritesPageState extends State<FavoritesPage>
   }
 
   Widget _buildBangumiFavorites() {
+    final l10n = AppLocalizations.of(context);
     if (!_userManager.isLoggedIn) {
       return Center(
         child: Column(
@@ -193,13 +198,13 @@ class _FavoritesPageState extends State<FavoritesPage>
           children: [
             const Icon(Icons.account_circle, size: 64, color: Colors.grey),
             const SizedBox(height: 16),
-            const Text('请先登录 Bangumi 账号'),
+            Text(l10n.loginBangumiFirst),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () {
                 Navigator.pop(context); // Go back to profile to login
               },
-              child: const Text('去登录'),
+              child: Text(l10n.goToLogin),
             ),
           ],
         ),
@@ -221,7 +226,7 @@ class _FavoritesPageState extends State<FavoritesPage>
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _fetchBangumiCollections,
-              child: const Text('重试'),
+              child: Text(l10n.pageRetry),
             ),
           ],
         ),
@@ -229,7 +234,7 @@ class _FavoritesPageState extends State<FavoritesPage>
     }
 
     if (_bangumiCollections.isEmpty) {
-      return const Center(child: Text('暂无 Bangumi 收藏数据'));
+      return Center(child: Text(l10n.noBangumiFavorites));
     }
 
     return RefreshIndicator(

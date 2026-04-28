@@ -148,7 +148,7 @@ class _MyPageState extends State<MyPage> {
           context,
           Icons.settings,
           AppLocalizations.of(context).navSettings,
-          'App configuration',
+          AppLocalizations.of(context).settingsSubtitle,
           () {
             Navigator.push(
               context,
@@ -314,20 +314,21 @@ class _MyPageState extends State<MyPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
+          final l10n = AppLocalizations.of(context);
           return AlertDialog(
-            title: const Text('登录 Bangumi'),
+            title: Text(l10n.loginDialogTitle),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('请输入 Bangumi 用户名或 ID 获取公开信息'),
+                Text(l10n.loginDialogMessage),
                 const SizedBox(height: 16),
                 TextField(
                   controller: controller,
                   decoration: InputDecoration(
-                    labelText: '用户名 / ID',
+                    labelText: l10n.loginUsernameLabel,
                     border: const OutlineInputBorder(),
-                    hintText: '注意：是用户名不是昵称',
+                    hintText: l10n.loginUsernameHint,
                     errorText: error,
                   ),
                   enabled: !loading,
@@ -342,7 +343,7 @@ class _MyPageState extends State<MyPage> {
             actions: [
               TextButton(
                 onPressed: loading ? null : () => Navigator.pop(context),
-                child: const Text('取消'),
+                child: Text(l10n.cancel),
               ),
               FilledButton(
                 onPressed: loading
@@ -362,7 +363,7 @@ class _MyPageState extends State<MyPage> {
                           if (context.mounted) {
                             setState(() {
                               loading = false;
-                              error = '登录失败，请检查用户名或网络';
+                              error = l10n.loginError;
                             });
                           }
                         }
@@ -376,7 +377,7 @@ class _MyPageState extends State<MyPage> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text('确定'),
+                    : Text(l10n.confirm),
               ),
             ],
           );
@@ -386,19 +387,20 @@ class _MyPageState extends State<MyPage> {
   }
 
   Future<void> _showLogoutDialog() async {
+    final l10n = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('退出登录'),
-        content: const Text('确定要清除当前用户信息的缓存吗？'),
+        title: Text(l10n.logoutTitle),
+        content: Text(l10n.logoutConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('退出'),
+            child: Text(l10n.logout),
           ),
         ],
       ),
@@ -1183,7 +1185,11 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
               if (mounted && !success) {
                 ScaffoldMessenger.of(
                   context,
-                ).showSnackBar(const SnackBar(content: Text('暂停失败')));
+                ).showSnackBar(
+                  SnackBar(
+                    content: Text(AppLocalizations.of(context).pauseFailed),
+                  ),
+                );
               }
             },
           )
@@ -1196,7 +1202,11 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
               if (mounted && !success) {
                 ScaffoldMessenger.of(
                   context,
-                ).showSnackBar(const SnackBar(content: Text('恢复失败')));
+                ).showSnackBar(
+                  SnackBar(
+                    content: Text(AppLocalizations.of(context).resumeFailed),
+                  ),
+                );
               }
             },
           )
@@ -1205,7 +1215,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
           // Play button for completed HTTP tasks
           IconButton(
             icon: const Icon(Icons.play_arrow, size: 20, color: Colors.green),
-            tooltip: '播放',
+            tooltip: AppLocalizations.of(context).playButton,
             onPressed: () => _playTask(task),
           ),
 
@@ -1225,7 +1235,9 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('无法获取播放地址')));
+        ).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context).cannotGetPlaybackUrl)),
+        );
       }
       return;
     }

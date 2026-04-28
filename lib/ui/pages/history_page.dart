@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/player_page.dart';
@@ -64,7 +65,7 @@ class _HistoryPageState extends State<HistoryPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('无法加载剧集列表')));
+        ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).cannotLoadEpisodes)));
       }
       return;
     }
@@ -117,8 +118,9 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('播放历史')),
+      appBar: AppBar(title: Text(l10n.historyTitle)),
       body: FutureBuilder<List<PlaybackHistoryItem>>(
         future: _historyFuture,
         builder: (context, snapshot) {

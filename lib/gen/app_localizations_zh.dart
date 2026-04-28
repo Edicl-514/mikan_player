@@ -418,4 +418,549 @@ class AppLocalizationsZh extends AppLocalizations {
   String tasksCount(Object count) {
     return '$count 个任务';
   }
+
+  @override
+  String get settingsSubtitle => '应用配置';
+
+  @override
+  String get searchHintText => '搜索番剧...';
+
+  @override
+  String get searchNoResults => '未找到结果';
+
+  @override
+  String get searchEnterKeyword => '输入关键词进行搜索';
+
+  @override
+  String searchFailed(Object error) {
+    return '搜索失败: $error';
+  }
+
+  @override
+  String get loginDialogTitle => '登录 Bangumi';
+
+  @override
+  String get loginDialogMessage => '请输入 Bangumi 用户名或 ID 获取公开信息';
+
+  @override
+  String get loginUsernameLabel => '用户名 / ID';
+
+  @override
+  String get loginUsernameHint => '注意：是用户名不是昵称';
+
+  @override
+  String get loginError => '登录失败，请检查用户名或网络';
+
+  @override
+  String get cannotLoadEpisodes => '无法加载剧集列表';
+
+  @override
+  String get pleaseEnterAnimeName => '请先填写动漫名称';
+
+  @override
+  String get absoluteEpisodeMustBeInteger => '绝对集数必须是整数';
+
+  @override
+  String get relativeEpisodeMustBeInteger => '相对集数必须是整数';
+
+  @override
+  String get episodeMustBeGreaterThanZero => '集数必须大于 0';
+
+  @override
+  String get save => '保存';
+
+  @override
+  String get restoreDefault => '恢复默认';
+
+  @override
+  String get autoSelectFastestSource => '自动选择最快源';
+
+  @override
+  String get refreshPlaybackSource => '刷新播放源';
+
+  @override
+  String get playbackSourceSubscriptionUrl => '播放源订阅地址';
+
+  @override
+  String get bgmBaseUrl => 'Bgmlist Base URL';
+
+  @override
+  String get bangumiBaseUrl => 'Bangumi Base URL';
+
+  @override
+  String get mikanBaseUrl => 'Mikan Base URL';
+
+  @override
+  String get subscriptionSwitchTitle => '订阅源开关 (全网搜)';
+
+  @override
+  String get customSourceDescription => '自定义网络搜视源';
+
+  @override
+  String get settingsSaved => '设置已保存';
+
+  @override
+  String get playbackSourceRefreshed => '播放源已刷新';
+
+  @override
+  String playbackSourceRefreshedSynced(Object count) {
+    return '播放源已刷新，并同步了 $count 个默认开关';
+  }
+
+  @override
+  String fastestSourceSwitched(Object latency, Object url) {
+    return '已切换至最快源: $url (${latency}ms)';
+  }
+
+  @override
+  String refreshFailed(Object error) {
+    return '刷新失败: $error';
+  }
+
+  @override
+  String fetchCollectionsFailed(Object error) {
+    return '获取收藏失败: $error';
+  }
+
+  @override
+  String get noLocalFavorites => '暂无本地收藏';
+
+  @override
+  String get loginBangumiFirst => '请先登录 Bangumi 账号';
+
+  @override
+  String get goToLogin => '去登录';
+
+  @override
+  String get noBangumiFavorites => '暂无 Bangumi 收藏数据';
+
+  @override
+  String get refreshAllFavorites => '刷新所有收藏';
+
+  @override
+  String get rankingTitle => '排行榜';
+
+  @override
+  String get rankingTrending => '近期热门';
+
+  @override
+  String get rankingRanking => '排行榜';
+
+  @override
+  String loadFailed(Object error) {
+    return '加载失败: $error';
+  }
+
+  @override
+  String noRelatedAnime(Object tag) {
+    return '没有找到「$tag」相关的动画';
+  }
+
+  @override
+  String get pageRetry => '重试';
+
+  @override
+  String get dataSourceConfigTitle => '数据源配置';
+
+  @override
+  String get searchConfigTitle => 'searchConfig';
+
+  @override
+  String get captchaConfigTitle => 'captchaConfig';
+
+  @override
+  String get dataSourceConfigSave => '保存';
+
+  @override
+  String get searchSettingsTitle => '搜索设置';
+
+  @override
+  String get maxParallelSearchSources => '最大并行搜索源数量';
+
+  @override
+  String get maxParallelSearchSourcesHint => '默认为3，0为不限制（Generic Scraper）';
+
+  @override
+  String get webviewScraperSettingsTitle =>
+      'WebView Scraper设置 (仅针对Dynamic Webview源)';
+
+  @override
+  String get maxWebviewConcurrent => '最大WebView并发数量';
+
+  @override
+  String get maxWebviewConcurrentHint => '建议值: 1-3';
+
+  @override
+  String get webviewLaunchInterval => 'WebView启动间隔 (毫秒)';
+
+  @override
+  String get webviewLaunchIntervalHint => '建议值: 200-1000';
+
+  @override
+  String get autoSearchOnlineTitle => '自动搜索在线源';
+
+  @override
+  String get autoSearchOnlineSubtitle => '关闭后，播放页将只自动搜索BT源';
+
+  @override
+  String get localJsonPathLabel => '本地 JSON 路径（留空使用缓存）';
+
+  @override
+  String get animeNameLabel => '动漫名称';
+
+  @override
+  String get animeNameHint => '例如：机动战士高达GQuuuuuuX';
+
+  @override
+  String get absoluteEpisodeLabel => '绝对集数';
+
+  @override
+  String get relativeEpisodeLabel => '相对集数';
+
+  @override
+  String get optionalEmptyHint => '可留空';
+
+  @override
+  String get sourceFilterLabel => '源名过滤（可选）';
+
+  @override
+  String get sourceFilterHint => '大小写不敏感，包含匹配';
+
+  @override
+  String get showWebViewDebugSwitch => '显示 WebView 调试开关';
+
+  @override
+  String get showWebViewDebugSubtitle => '仅影响调试提取画面显示，不影响搜索逻辑';
+
+  @override
+  String get clear => '清空';
+
+  @override
+  String get sourceCount => '源数量';
+
+  @override
+  String get success => '成功';
+
+  @override
+  String get failure => '失败';
+
+  @override
+  String get inProgress => '进行中';
+
+  @override
+  String get noDebugSearchResult => '暂无结果。输入参数后点击“开始调试搜索”。';
+
+  @override
+  String debugStatus(Object status) {
+    return '状态: $status';
+  }
+
+  @override
+  String channelLine(Object line) {
+    return '线路: $line';
+  }
+
+  @override
+  String playPage(Object url) {
+    return '播放页: $url';
+  }
+
+  @override
+  String get extractUrl => '提取URL';
+
+  @override
+  String get extractDebugTitle => '可播放 URL 提取调试';
+
+  @override
+  String extractFailed(Object error) {
+    return '提取失败: $error';
+  }
+
+  @override
+  String extractSuccess(Object url) {
+    return '提取成功: $url';
+  }
+
+  @override
+  String get logsEmpty => '暂无日志';
+
+  @override
+  String get subscriptionDebugTitle => '订阅源调试';
+
+  @override
+  String get subscriptionDebugJsonTitle => '订阅源 JSON 调试';
+
+  @override
+  String get subscriptionDebugDisabled =>
+      '当前构建未启用订阅调试。\n请使用 --dart-define=ENABLE_SUBSCRIPTION_DEBUG=true 启动。';
+
+  @override
+  String get subscriptionDebugInfo =>
+      '此页面仅用于调试：优先读取本地 JSON，留空时读取程序缓存中的 JSON，不会修改缓存文件、不会覆盖订阅设置、不会影响正式播放流程。';
+
+  @override
+  String searchError(Object error) {
+    return '搜索错误: $error';
+  }
+
+  @override
+  String get searchLogs => '搜索日志';
+
+  @override
+  String get extractLogs => '提取日志';
+
+  @override
+  String get stepPending => '等待中';
+
+  @override
+  String get stepSearching => '搜索中';
+
+  @override
+  String get stepFetchingDetail => '获取详情页';
+
+  @override
+  String get stepFetchingEpisodes => '获取剧集';
+
+  @override
+  String get stepExtractingVideo => '提取播放页';
+
+  @override
+  String get stepSuccess => '成功';
+
+  @override
+  String get stepFailed => '失败';
+
+  @override
+  String get characterDetailsLoadFailed => 'Failed to load character details';
+
+  @override
+  String get personDetailsLoadFailed => 'Failed to load person details';
+
+  @override
+  String get retryButton => 'Retry';
+
+  @override
+  String get favoritesTabLocal => '本地收藏';
+
+  @override
+  String get favoritesTabBangumi => 'Bangumi 同步';
+
+  @override
+  String notFoundAnimeTag(Object tag) {
+    return '没有找到「$tag」相关的动画';
+  }
+
+  @override
+  String get addToLocalFavorites => '已添加到本地收藏';
+
+  @override
+  String get removeFromFavorites => '已取消收藏';
+
+  @override
+  String get playSourceTitle => '播放源';
+
+  @override
+  String get episodeListTitle => '选集';
+
+  @override
+  String get relatedRecommendationsTitle => '相关推荐';
+
+  @override
+  String get commentsTitle => '评论区';
+
+  @override
+  String get allComments => '全部评论';
+
+  @override
+  String get noComments => '暂无评论';
+
+  @override
+  String get noRelatedRecommendationsText => '暂无相关推荐';
+
+  @override
+  String commentsLoadFailed(Object error) {
+    return '加载失败: $error';
+  }
+
+  @override
+  String get initializingPlayback => '正在初始化播放...';
+
+  @override
+  String get playbackFailed => '播放失败';
+
+  @override
+  String get chooseSourceToWatch => '选择播放源开始观看';
+
+  @override
+  String get chooseSourceBelow => '在下方「播放源」中选择资源';
+
+  @override
+  String get defaultSort => '默认排序';
+
+  @override
+  String get sortByTime => '按时间排序';
+
+  @override
+  String get searchOnlineSource => '搜索在线源';
+
+  @override
+  String get searchBtSource => '搜索BT源';
+
+  @override
+  String get btSearching => '正在搜索BT源...';
+
+  @override
+  String btFound(Object count) {
+    return '已找到 $count 个BT源';
+  }
+
+  @override
+  String get btSearchFailed => 'BT搜索失败';
+
+  @override
+  String get btNotStarted => '尚未开始搜索BT源';
+
+  @override
+  String get btLoaded => '已使用本地资源播放';
+
+  @override
+  String get btManualSearchHint => '如需在线源，请点击下方按钮手动搜索';
+
+  @override
+  String get btSearchHint => '点击下方按钮开始搜索';
+
+  @override
+  String get waitingForPlayPage => '等待匹配播放页...';
+
+  @override
+  String get loadingText => '加载中';
+
+  @override
+  String get playText => '播放';
+
+  @override
+  String get copyMagnetSuccess => '磁力链接已复制';
+
+  @override
+  String get downloadStartedHint => '开始下载，可在「我的」页面查看进度';
+
+  @override
+  String get noDownloadableOnlineSource => '没有可下载的在线源';
+
+  @override
+  String get cannotGetPlaybackUrl => '无法获取播放地址';
+
+  @override
+  String get downloadTaskAdded => '已添加到下载任务';
+
+  @override
+  String get pauseFailed => '暂停失败';
+
+  @override
+  String get resumeFailed => '恢复失败';
+
+  @override
+  String get loadedDanmaku => '已加载弹幕';
+
+  @override
+  String get currentMatch => '当前匹配';
+
+  @override
+  String get searchResult => '搜索结果';
+
+  @override
+  String get episodeList => '剧集列表';
+
+  @override
+  String danmakuCount(Object count) {
+    return '弹幕数量: $count 条';
+  }
+
+  @override
+  String get subtitlePreviewText => '字幕预览效果';
+
+  @override
+  String get noAvailablePlaybackSource => '暂无可用播放源';
+
+  @override
+  String get showSubtitles => '显示字幕';
+
+  @override
+  String get subtitleTracks => '字幕轨道';
+
+  @override
+  String get noEmbeddedSubtitles => '当前视频没有内嵌字幕';
+
+  @override
+  String get disableSubtitles => '关闭字幕';
+
+  @override
+  String get subtitleStyle => '字幕样式';
+
+  @override
+  String get fontSize => '字体大小';
+
+  @override
+  String get backgroundOpacity => '背景透明度';
+
+  @override
+  String get bottomPadding => '底部边距';
+
+  @override
+  String get outlineWidth => '描边宽度';
+
+  @override
+  String get fontColor => '字体颜色';
+
+  @override
+  String get subtitlePreview => '字幕预览效果';
+
+  @override
+  String get noAvailableSource => '暂无可用播放源';
+
+  @override
+  String get back => '返回';
+
+  @override
+  String get unlock => '解锁';
+
+  @override
+  String get lock => '锁定';
+
+  @override
+  String get danmaku => '弹幕';
+
+  @override
+  String get selectEpisode => '选集';
+
+  @override
+  String get skipBack85 => '空降-85s';
+
+  @override
+  String get skipForward85 => '空降+85s';
+
+  @override
+  String get autoPlayNext => '自动连播';
+
+  @override
+  String get playbackSpeed => '播放速度';
+
+  @override
+  String get normalSpeed => '正常速度';
+
+  @override
+  String get playbackSpeedTip => '提示：播放速度会同时影响视频与弹幕的时间同步。';
+
+  @override
+  String subtitleTrackCount(Object count) {
+    return '共 $count 集';
+  }
+
+  @override
+  String playWithSource(Object source) {
+    return '播放 - $source';
+  }
+
+  @override
+  String get selectedSourceUnknown => '未知';
 }

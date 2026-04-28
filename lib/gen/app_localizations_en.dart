@@ -427,4 +427,561 @@ class AppLocalizationsEn extends AppLocalizations {
   String tasksCount(Object count) {
     return '$count tasks';
   }
+
+  @override
+  String get settingsSubtitle => 'App configuration';
+
+  @override
+  String get searchHintText => 'Search anime...';
+
+  @override
+  String get searchNoResults => 'No results found';
+
+  @override
+  String get searchEnterKeyword => 'Enter a keyword to search';
+
+  @override
+  String searchFailed(Object error) {
+    return 'Search failed: $error';
+  }
+
+  @override
+  String get loginDialogTitle => 'Login Bangumi';
+
+  @override
+  String get loginDialogMessage =>
+      'Enter Bangumi username or ID to fetch public info';
+
+  @override
+  String get loginUsernameLabel => 'Username / ID';
+
+  @override
+  String get loginUsernameHint => 'Note: username, not nickname';
+
+  @override
+  String get loginError => 'Login failed, please check username or network';
+
+  @override
+  String get cannotLoadEpisodes => 'Unable to load episode list';
+
+  @override
+  String get pleaseEnterAnimeName => 'Please enter anime name first';
+
+  @override
+  String get absoluteEpisodeMustBeInteger =>
+      'Absolute episode must be an integer';
+
+  @override
+  String get relativeEpisodeMustBeInteger =>
+      'Relative episode must be an integer';
+
+  @override
+  String get episodeMustBeGreaterThanZero => 'Episode must be greater than 0';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get restoreDefault => 'Restore defaults';
+
+  @override
+  String get autoSelectFastestSource => 'Auto-select fastest source';
+
+  @override
+  String get refreshPlaybackSource => 'Refresh playback sources';
+
+  @override
+  String get playbackSourceSubscriptionUrl =>
+      'Playback source subscription URL';
+
+  @override
+  String get bgmBaseUrl => 'Bgmlist Base URL';
+
+  @override
+  String get bangumiBaseUrl => 'Bangumi Base URL';
+
+  @override
+  String get mikanBaseUrl => 'Mikan Base URL';
+
+  @override
+  String get subscriptionSwitchTitle => 'Subscription toggles (global search)';
+
+  @override
+  String get customSourceDescription => 'Custom web search source';
+
+  @override
+  String get settingsSaved => 'Settings saved';
+
+  @override
+  String get playbackSourceRefreshed => 'Playback sources refreshed';
+
+  @override
+  String playbackSourceRefreshedSynced(Object count) {
+    return 'Playback sources refreshed, synced $count default switches';
+  }
+
+  @override
+  String fastestSourceSwitched(Object latency, Object url) {
+    return 'Switched to the fastest source: $url (${latency}ms)';
+  }
+
+  @override
+  String refreshFailed(Object error) {
+    return 'Refresh failed: $error';
+  }
+
+  @override
+  String fetchCollectionsFailed(Object error) {
+    return 'Failed to fetch collections: $error';
+  }
+
+  @override
+  String get noLocalFavorites => 'No local favorites';
+
+  @override
+  String get loginBangumiFirst => 'Please log in to a Bangumi account first';
+
+  @override
+  String get goToLogin => 'Go to login';
+
+  @override
+  String get noBangumiFavorites => 'No Bangumi collection data';
+
+  @override
+  String get refreshAllFavorites => 'Refresh all favorites';
+
+  @override
+  String get rankingTitle => 'Ranking';
+
+  @override
+  String get rankingTrending => 'Recent Hot';
+
+  @override
+  String get rankingRanking => 'Ranking';
+
+  @override
+  String loadFailed(Object error) {
+    return 'Load failed: $error';
+  }
+
+  @override
+  String noRelatedAnime(Object tag) {
+    return 'No anime related to \"$tag\" was found';
+  }
+
+  @override
+  String get pageRetry => 'Retry';
+
+  @override
+  String get dataSourceConfigTitle => 'Data source config';
+
+  @override
+  String get searchConfigTitle => 'searchConfig';
+
+  @override
+  String get captchaConfigTitle => 'captchaConfig';
+
+  @override
+  String get dataSourceConfigSave => 'Save';
+
+  @override
+  String get searchSettingsTitle => 'Search settings';
+
+  @override
+  String get maxParallelSearchSources => 'Max parallel search sources';
+
+  @override
+  String get maxParallelSearchSourcesHint =>
+      'Default 3, 0 means unlimited (Generic Scraper)';
+
+  @override
+  String get webviewScraperSettingsTitle =>
+      'WebView Scraper settings (Dynamic WebView sources only)';
+
+  @override
+  String get maxWebviewConcurrent => 'Max concurrent WebViews';
+
+  @override
+  String get maxWebviewConcurrentHint => 'Recommended: 1-3';
+
+  @override
+  String get webviewLaunchInterval => 'WebView launch interval (ms)';
+
+  @override
+  String get webviewLaunchIntervalHint => 'Recommended: 200-1000';
+
+  @override
+  String get autoSearchOnlineTitle => 'Auto search online sources';
+
+  @override
+  String get autoSearchOnlineSubtitle =>
+      'When disabled, the player page will only auto-search BT sources';
+
+  @override
+  String get localJsonPathLabel => 'Local JSON path (leave empty to use cache)';
+
+  @override
+  String get animeNameLabel => 'Anime name';
+
+  @override
+  String get animeNameHint => 'For example: Mobile Suit Gundam GQuuuuuuX';
+
+  @override
+  String get absoluteEpisodeLabel => 'Absolute episode';
+
+  @override
+  String get relativeEpisodeLabel => 'Relative episode';
+
+  @override
+  String get optionalEmptyHint => 'Can be left empty';
+
+  @override
+  String get sourceFilterLabel => 'Source name filter (optional)';
+
+  @override
+  String get sourceFilterHint => 'Case-insensitive, contains match';
+
+  @override
+  String get showWebViewDebugSwitch => 'Show WebView debug switch';
+
+  @override
+  String get showWebViewDebugSubtitle =>
+      'Only affects the debug extraction view, not the search logic';
+
+  @override
+  String get clear => 'Clear';
+
+  @override
+  String get sourceCount => 'Source count';
+
+  @override
+  String get success => 'Success';
+
+  @override
+  String get failure => 'Failure';
+
+  @override
+  String get inProgress => 'In progress';
+
+  @override
+  String get noDebugSearchResult =>
+      'No results yet. Fill in the parameters and tap \"Start debug search\".';
+
+  @override
+  String debugStatus(Object status) {
+    return 'Status: $status';
+  }
+
+  @override
+  String channelLine(Object line) {
+    return 'Channel: $line';
+  }
+
+  @override
+  String playPage(Object url) {
+    return 'Play page: $url';
+  }
+
+  @override
+  String get extractUrl => 'Extract URL';
+
+  @override
+  String get extractDebugTitle => 'Playable URL extraction debug';
+
+  @override
+  String extractFailed(Object error) {
+    return 'Extraction failed: $error';
+  }
+
+  @override
+  String extractSuccess(Object url) {
+    return 'Extraction succeeded: $url';
+  }
+
+  @override
+  String get logsEmpty => 'No logs yet';
+
+  @override
+  String get subscriptionDebugTitle => 'Subscription debug';
+
+  @override
+  String get subscriptionDebugJsonTitle => 'Subscription JSON debug';
+
+  @override
+  String get subscriptionDebugDisabled =>
+      'This build does not have subscription debug enabled.\nStart the app with --dart-define=ENABLE_SUBSCRIPTION_DEBUG=true.';
+
+  @override
+  String get subscriptionDebugInfo =>
+      'This page is for debugging only: it prefers local JSON, falls back to the cached JSON when left empty, and will not modify cache files, override subscription settings, or affect the normal playback flow.';
+
+  @override
+  String searchError(Object error) {
+    return 'Search error: $error';
+  }
+
+  @override
+  String get searchLogs => 'Search logs';
+
+  @override
+  String get extractLogs => 'Extraction logs';
+
+  @override
+  String get stepPending => 'Pending';
+
+  @override
+  String get stepSearching => 'Searching';
+
+  @override
+  String get stepFetchingDetail => 'Fetching detail page';
+
+  @override
+  String get stepFetchingEpisodes => 'Fetching episodes';
+
+  @override
+  String get stepExtractingVideo => 'Extracting play page';
+
+  @override
+  String get stepSuccess => 'Success';
+
+  @override
+  String get stepFailed => 'Failed';
+
+  @override
+  String get characterDetailsLoadFailed => 'Failed to load character details';
+
+  @override
+  String get personDetailsLoadFailed => 'Failed to load person details';
+
+  @override
+  String get retryButton => 'Retry';
+
+  @override
+  String get favoritesTabLocal => 'Local favorites';
+
+  @override
+  String get favoritesTabBangumi => 'Bangumi sync';
+
+  @override
+  String notFoundAnimeTag(Object tag) {
+    return 'No anime related to \"$tag\" was found';
+  }
+
+  @override
+  String get addToLocalFavorites => 'Added to local favorites';
+
+  @override
+  String get removeFromFavorites => 'Removed from favorites';
+
+  @override
+  String get playSourceTitle => 'Play sources';
+
+  @override
+  String get episodeListTitle => 'Episodes';
+
+  @override
+  String get relatedRecommendationsTitle => 'Related recommendations';
+
+  @override
+  String get commentsTitle => 'Comments';
+
+  @override
+  String get allComments => 'All comments';
+
+  @override
+  String get noComments => 'No comments';
+
+  @override
+  String get noRelatedRecommendationsText => 'No related recommendations';
+
+  @override
+  String commentsLoadFailed(Object error) {
+    return 'Load failed: $error';
+  }
+
+  @override
+  String get initializingPlayback => 'Initializing playback...';
+
+  @override
+  String get playbackFailed => 'Playback failed';
+
+  @override
+  String get chooseSourceToWatch => 'Choose a source to start watching';
+
+  @override
+  String get chooseSourceBelow =>
+      'Select a resource in the \"Play sources\" section below';
+
+  @override
+  String get defaultSort => 'Default sort';
+
+  @override
+  String get sortByTime => 'Sort by time';
+
+  @override
+  String get searchOnlineSource => 'Search online sources';
+
+  @override
+  String get searchBtSource => 'Search BT sources';
+
+  @override
+  String get btSearching => 'Searching BT sources...';
+
+  @override
+  String btFound(Object count) {
+    return 'Found $count BT sources';
+  }
+
+  @override
+  String get btSearchFailed => 'BT search failed';
+
+  @override
+  String get btNotStarted => 'BT search has not started yet';
+
+  @override
+  String get btLoaded => 'Playing local resource';
+
+  @override
+  String get btManualSearchHint =>
+      'For online sources, tap the button below to search manually';
+
+  @override
+  String get btSearchHint => 'Tap the button below to start searching';
+
+  @override
+  String get waitingForPlayPage => 'Waiting for a matching play page...';
+
+  @override
+  String get loadingText => 'Loading';
+
+  @override
+  String get playText => 'Play';
+
+  @override
+  String get copyMagnetSuccess => 'Magnet link copied';
+
+  @override
+  String get downloadStartedHint =>
+      'Download started, you can check progress on the \"My\" page';
+
+  @override
+  String get noDownloadableOnlineSource => 'No downloadable online source';
+
+  @override
+  String get cannotGetPlaybackUrl => 'Unable to get playback URL';
+
+  @override
+  String get downloadTaskAdded => 'Added to download tasks';
+
+  @override
+  String get pauseFailed => 'Pause failed';
+
+  @override
+  String get resumeFailed => 'Resume failed';
+
+  @override
+  String get loadedDanmaku => 'Danmaku loaded';
+
+  @override
+  String get currentMatch => 'Current match';
+
+  @override
+  String get searchResult => 'Search results';
+
+  @override
+  String get episodeList => 'Episode list';
+
+  @override
+  String danmakuCount(Object count) {
+    return '$count danmaku entries';
+  }
+
+  @override
+  String get subtitlePreviewText => 'Subtitle preview';
+
+  @override
+  String get noAvailablePlaybackSource => 'No available playback source';
+
+  @override
+  String get showSubtitles => 'Show subtitles';
+
+  @override
+  String get subtitleTracks => 'Subtitle tracks';
+
+  @override
+  String get noEmbeddedSubtitles => 'This video has no embedded subtitles';
+
+  @override
+  String get disableSubtitles => 'Disable subtitles';
+
+  @override
+  String get subtitleStyle => 'Subtitle style';
+
+  @override
+  String get fontSize => 'Font size';
+
+  @override
+  String get backgroundOpacity => 'Background opacity';
+
+  @override
+  String get bottomPadding => 'Bottom padding';
+
+  @override
+  String get outlineWidth => 'Outline width';
+
+  @override
+  String get fontColor => 'Font color';
+
+  @override
+  String get subtitlePreview => 'Subtitle preview';
+
+  @override
+  String get noAvailableSource => 'No available source';
+
+  @override
+  String get back => 'Back';
+
+  @override
+  String get unlock => 'Unlock';
+
+  @override
+  String get lock => 'Lock';
+
+  @override
+  String get danmaku => 'Danmaku';
+
+  @override
+  String get selectEpisode => 'Episodes';
+
+  @override
+  String get skipBack85 => 'Skip -85s';
+
+  @override
+  String get skipForward85 => 'Skip +85s';
+
+  @override
+  String get autoPlayNext => 'Auto play next';
+
+  @override
+  String get playbackSpeed => 'Playback speed';
+
+  @override
+  String get normalSpeed => 'Normal';
+
+  @override
+  String get playbackSpeedTip =>
+      'Tip: playback speed affects both video and danmaku synchronization.';
+
+  @override
+  String subtitleTrackCount(Object count) {
+    return '$count episodes';
+  }
+
+  @override
+  String playWithSource(Object source) {
+    return 'Play - $source';
+  }
+
+  @override
+  String get selectedSourceUnknown => 'Unknown';
 }

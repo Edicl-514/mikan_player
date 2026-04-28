@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/widgets/anime_card.dart';
@@ -73,7 +74,7 @@ class _SearchPageState extends State<SearchPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Search failed: $e')));
+        ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).searchFailed(e.toString()))));
         setState(() {
           _isLoading = false;
         });
@@ -124,8 +125,8 @@ class _SearchPageState extends State<SearchPage> {
       appBar: AppBar(
         title: TextField(
           controller: _searchController,
-          decoration: const InputDecoration(
-            hintText: 'Search anime...',
+          decoration: InputDecoration(
+            hintText: AppLocalizations.of(context).searchHintText,
             border: InputBorder.none,
             hintStyle: TextStyle(color: Colors.white70),
           ),
@@ -151,11 +152,11 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     if (!_isLoading && _results.isEmpty && _currentKeyword.isNotEmpty) {
-      return const Center(child: Text('No results found'));
+      return Center(child: Text(AppLocalizations.of(context).searchNoResults));
     }
 
     if (_currentKeyword.isEmpty) {
-      return const Center(child: Text('Enter a keyword to search'));
+      return Center(child: Text(AppLocalizations.of(context).searchEnterKeyword));
     }
 
     return CustomScrollView(

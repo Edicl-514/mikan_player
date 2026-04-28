@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/src/rust/api/generic_scraper.dart'
@@ -174,9 +175,10 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     );
 
     if (mounted) {
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('设置已保存')));
+      ).showSnackBar(SnackBar(content: Text(l10n.settingsSaved)));
       Navigator.pop(context);
     }
   }
@@ -224,6 +226,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       });
 
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         final syncCount = defaultEnabledOverrides.length;
         ScaffoldMessenger.of(
           context,
@@ -231,17 +234,18 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
           SnackBar(
             content: Text(
               syncCount > 0
-                  ? '播放源已刷新，并同步了 $syncCount 个默认开关'
-                  : '播放源已刷新',
+                  ? l10n.playbackSourceRefreshedSynced(syncCount)
+                  : l10n.playbackSourceRefreshed,
             ),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('刷新失败: $e')));
+        ).showSnackBar(SnackBar(content: Text(l10n.refreshFailed(e.toString()))));
       }
       debugPrint('Failed to refresh playback sources: $e');
     } finally {
@@ -313,8 +317,13 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
           _bangumiController.text = bestUrl;
           _isAutoSettingBangumi = false;
         });
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已切换至最快源: $bestUrl (${minLatency}ms)')),
+          SnackBar(
+            content: Text(
+              l10n.fastestSourceSwitched(bestUrl, minLatency.toString()),
+            ),
+          ),
         );
       } else {
         // 如果是后台运行，且用户没有修改过，更新UI（可选，但用户体验更好）
@@ -368,8 +377,13 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
           _mikanController.text = bestUrl;
           _isAutoSettingMikan = false;
         });
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已切换至最快源: $bestUrl (${minLatency}ms)')),
+          SnackBar(
+            content: Text(
+              l10n.fastestSourceSwitched(bestUrl, minLatency.toString()),
+            ),
+          ),
         );
       } else {
         // 如果是后台运行，且用户没有修改过，更新UI
@@ -384,20 +398,21 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final sortedSources = _buildSortedSources();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('数据源设置'),
+        title: Text(l10n.dataSourceSettings),
         actions: [
           IconButton(
             icon: const Icon(Icons.restore),
-            tooltip: '恢复默认',
+            tooltip: l10n.restoreDefault,
             onPressed: _resetDefaults,
           ),
           IconButton(
             icon: const Icon(Icons.save),
-            tooltip: '保存',
+            tooltip: l10n.save,
             onPressed: _saveSettings,
           ),
         ],
@@ -409,13 +424,13 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
               children: [
                 _buildTextField(
                   controller: _bgmController,
-                  label: 'Bgmlist Base URL',
+                  label: l10n.bgmBaseUrl,
                   hint: 'https://bgmlist.com',
                 ),
                 const SizedBox(height: 16),
                 _buildTextField(
                   controller: _bangumiController,
-                  label: 'Bangumi Base URL',
+                  label: l10n.bangumiBaseUrl,
                   hint: 'https://bangumi.tv',
                   suffixIcon: IconButton(
                     icon: _isAutoSettingBangumi
@@ -425,7 +440,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.auto_fix_high),
-                    tooltip: '自动选择最快源',
+                    tooltip: l10n.autoSelectFastestSource,
                     onPressed: _isAutoSettingBangumi
                         ? null
                         : _autoSelectBangumiUrl,
@@ -434,7 +449,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                 const SizedBox(height: 16),
                 _buildTextField(
                   controller: _mikanController,
-                  label: 'Mikan Base URL',
+                  label: l10n.mikanBaseUrl,
                   hint: 'https://mikanani.kas.pub',
                   suffixIcon: IconButton(
                     icon: _isAutoSettingMikan
@@ -444,7 +459,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.auto_fix_high),
-                    tooltip: '自动选择最快源',
+                    tooltip: l10n.autoSelectFastestSource,
                     onPressed: _isAutoSettingMikan ? null : _autoSelectMikanUrl,
                   ),
                 ),
@@ -454,7 +469,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                     Expanded(
                       child: _buildTextField(
                         controller: _playbackSubController,
-                        label: '播放源订阅地址',
+                        label: l10n.playbackSourceSubscriptionUrl,
                         hint:
                             'https://gitee.com/edicl/online-subscription/raw/master/online.json',
                       ),
@@ -478,17 +493,17 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                         onPressed: _isRefreshing
                             ? null
                             : _refreshPlaybackSources,
-                        tooltip: '刷新播放源',
+                        tooltip: l10n.refreshPlaybackSource,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 24),
                 if (_sources.isNotEmpty) ...[
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(left: 4, bottom: 8),
                     child: Text(
-                      '订阅源开关 (全网搜)',
+                      l10n.subscriptionSwitchTitle,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -568,7 +583,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                                 Text(
                                   source.description.isNotEmpty
                                       ? source.description
-                                      : '自定义网络搜视源',
+                                      : l10n.customSourceDescription,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -628,7 +643,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                 ElevatedButton.icon(
                   onPressed: _saveSettings,
                   icon: const Icon(Icons.save),
-                  label: const Text('保存设置'),
+                  label: Text(l10n.save),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),

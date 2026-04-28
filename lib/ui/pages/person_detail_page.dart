@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -75,7 +76,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
       debugPrint('Error fetching person details: $e');
       if (mounted) {
         setState(() {
-          _error = 'Failed to load person details';
+          _error = AppLocalizations.of(context).personDetailsLoadFailed;
           _isLoadingDetails = false;
         });
       }
@@ -193,6 +194,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 800;
+    final l10n = AppLocalizations.of(context);
 
     if (_error != null && _details == null) {
       return Scaffold(
@@ -210,7 +212,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
               const SizedBox(height: 16),
               Text(_error!, style: const TextStyle(color: Colors.white70)),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: _fetchData, child: const Text('重试')),
+              ElevatedButton(onPressed: _fetchData, child: Text(l10n.pageRetry)),
             ],
           ),
         ),

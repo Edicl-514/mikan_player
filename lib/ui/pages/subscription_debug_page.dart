@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/services/webview_video_extractor.dart';
 import 'package:mikan_player/src/rust/api/config.dart' as rust_config;
@@ -72,21 +73,22 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
   }
 
   String _stepLabel(generic_scraper.SearchStep step) {
+    final l10n = AppLocalizations.of(context);
     switch (step) {
       case generic_scraper.SearchStep.pending:
-        return '等待中';
+        return l10n.stepPending;
       case generic_scraper.SearchStep.searching:
-        return '搜索中';
+        return l10n.stepSearching;
       case generic_scraper.SearchStep.fetchingDetail:
-        return '获取详情页';
+        return l10n.stepFetchingDetail;
       case generic_scraper.SearchStep.fetchingEpisodes:
-        return '获取剧集';
+        return l10n.stepFetchingEpisodes;
       case generic_scraper.SearchStep.extractingVideo:
-        return '提取播放页';
+        return l10n.stepExtractingVideo;
       case generic_scraper.SearchStep.success:
-        return '成功';
+        return l10n.stepSuccess;
       case generic_scraper.SearchStep.failed:
-        return '失败';
+        return l10n.stepFailed;
     }
   }
 
@@ -129,7 +131,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
     if (animeName.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('请先填写动漫名称')));
+      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).pleaseEnterAnimeName)));
       return;
     }
 
@@ -140,7 +142,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
         absoluteEpisode == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('绝对集数必须是整数')));
+      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).absoluteEpisodeMustBeInteger)));
       return;
     }
 
@@ -151,14 +153,14 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
         relativeEpisode == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('相对集数必须是整数')));
+      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).relativeEpisodeMustBeInteger)));
       return;
     }
 
     if ((absoluteEpisode ?? 1) <= 0 || (relativeEpisode ?? 1) <= 0) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('集数必须大于 0')));
+      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).episodeMustBeGreaterThanZero)));
       return;
     }
 
@@ -173,7 +175,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('获取缓存目录失败: $e')));
+      ).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).loadFailed(e.toString()))),
+      );
       return;
     }
 
@@ -512,6 +516,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
   }
 
   Widget _buildInputForm(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
@@ -522,8 +527,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
           children: [
             TextField(
               controller: _jsonPathController,
-              decoration: const InputDecoration(
-                labelText: '本地 JSON 路径（留空使用缓存）',
+              decoration: InputDecoration(
+                labelText: l10n.localJsonPathLabel,
                 hintText: r'D:\temp\online.json，或留空',
                 border: OutlineInputBorder(),
               ),
@@ -531,9 +536,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             const SizedBox(height: 12),
             TextField(
               controller: _animeNameController,
-              decoration: const InputDecoration(
-                labelText: '动漫名称',
-                hintText: '例如：机动战士高达GQuuuuuuX',
+              decoration: InputDecoration(
+                labelText: l10n.animeNameLabel,
+                hintText: l10n.animeNameHint,
                 border: OutlineInputBorder(),
               ),
             ),
@@ -544,9 +549,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                   child: TextField(
                     controller: _absoluteEpisodeController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: '绝对集数',
-                      hintText: '可留空',
+                    decoration: InputDecoration(
+                      labelText: l10n.absoluteEpisodeLabel,
+                      hintText: l10n.optionalEmptyHint,
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -556,9 +561,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                   child: TextField(
                     controller: _relativeEpisodeController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: '相对集数',
-                      hintText: '可留空',
+                    decoration: InputDecoration(
+                      labelText: l10n.relativeEpisodeLabel,
+                      hintText: l10n.optionalEmptyHint,
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -568,9 +573,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             const SizedBox(height: 12),
             TextField(
               controller: _sourceFilterController,
-              decoration: const InputDecoration(
-                labelText: '源名过滤（可选）',
-                hintText: '大小写不敏感，包含匹配',
+              decoration: InputDecoration(
+                labelText: l10n.sourceFilterLabel,
+                hintText: l10n.sourceFilterHint,
                 border: OutlineInputBorder(),
               ),
             ),
@@ -578,8 +583,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             SwitchListTile(
               value: _showWebView,
               contentPadding: EdgeInsets.zero,
-              title: const Text('显示 WebView 调试开关'),
-              subtitle: const Text('仅影响调试提取画面显示，不影响搜索逻辑'),
+              title: Text(l10n.showWebViewDebugSwitch),
+              subtitle: Text(l10n.showWebViewDebugSubtitle),
               onChanged: (value) {
                 setState(() {
                   _showWebView = value;
@@ -593,14 +598,14 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                   child: FilledButton.icon(
                     onPressed: _isSearching ? null : _startDebugSearch,
                     icon: const Icon(Icons.play_arrow),
-                    label: Text(_isSearching ? '搜索中...' : '开始调试搜索'),
+                    label: Text(_isSearching ? l10n.stepSearching : '开始调试搜索'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 OutlinedButton.icon(
                   onPressed: _clearResult,
                   icon: const Icon(Icons.cleaning_services_outlined),
-                  label: const Text('清空'),
+                  label: Text(l10n.clear),
                 ),
               ],
             ),
@@ -611,6 +616,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
   }
 
   Widget _buildSummary(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final progresses = _progressBySource.values.toList();
     final successCount = progresses
         .where((p) => p.step == generic_scraper.SearchStep.success)
@@ -630,17 +636,17 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       spacing: 8,
       runSpacing: 8,
       children: [
-        _buildSummaryChip(context, '源数量', '${progresses.length}'),
-        _buildSummaryChip(context, '成功', '$successCount', color: Colors.green),
+        _buildSummaryChip(context, l10n.sourceCount, '${progresses.length}'),
+        _buildSummaryChip(context, l10n.success, '$successCount', color: Colors.green),
         _buildSummaryChip(
           context,
-          '失败',
+          l10n.failure,
           '$failedCount',
           color: Colors.redAccent,
         ),
         _buildSummaryChip(
           context,
-          '进行中',
+          l10n.inProgress,
           '$runningCount',
           color: Theme.of(context).colorScheme.primary,
         ),
@@ -674,13 +680,14 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       );
 
     if (results.isEmpty) {
+      final l10n = AppLocalizations.of(context);
       return Card(
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: const Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('暂无结果。输入参数后点击“开始调试搜索”。'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(l10n.noDebugSearchResult),
         ),
       );
     }
@@ -713,16 +720,16 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               children: [
                 const SizedBox(height: 4),
                 Text(
-                  '状态: ${_stepLabel(result.step)}',
+                  AppLocalizations.of(context).debugStatus(_stepLabel(result.step)),
                   style: TextStyle(color: stepColor),
                 ),
                 if (result.channelName != null &&
                     result.channelName!.isNotEmpty)
-                  Text('线路: ${result.channelName}'),
+                  Text(AppLocalizations.of(context).channelLine(result.channelName!)),
                 if (result.playPageUrl != null &&
                     result.playPageUrl!.isNotEmpty)
                   Text(
-                    '播放页: ${result.playPageUrl}',
+                    AppLocalizations.of(context).playPage(result.playPageUrl!),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -740,7 +747,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                     onPressed: _extractingSourceName == null
                         ? () => _startExtractVideoUrl(result)
                         : null,
-                    child: const Text('提取URL'),
+                    child: Text(AppLocalizations.of(context).extractUrl),
                   )
                 : null,
           );
@@ -763,14 +770,14 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '可播放 URL 提取调试',
+            Text(
+              AppLocalizations.of(context).extractDebugTitle,
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
             Text('来源: ${_extractTarget!.sourceName}'),
             Text(
-              '播放页: ${_extractTarget!.playPageUrl}',
+              AppLocalizations.of(context).playPage(_extractTarget!.playPageUrl),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -781,7 +788,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  '提取失败: $_extractError',
+                  AppLocalizations.of(context).extractFailed(_extractError ?? ''),
                   style: const TextStyle(color: Colors.redAccent),
                 ),
               ),
@@ -789,7 +796,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: SelectableText(
-                  '提取成功: $_extractedVideoUrl',
+                  AppLocalizations.of(context).extractSuccess(_extractedVideoUrl ?? ''),
                   style: const TextStyle(color: Colors.green),
                 ),
               ),
@@ -823,7 +830,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                   setState(() {
                     _extractingSourceName = null;
                     _extractHeaders = result.headers;
-                    if (result.success) {
+                  if (result.success) {
                       _extractedVideoUrl = result.videoUrl;
                       _extractError = null;
                       _appendLog(
@@ -869,7 +876,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               borderRadius: BorderRadius.circular(8),
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
             ),
-            child: SelectableText(logs.isEmpty ? '暂无日志' : logs.join('\n')),
+            child: SelectableText(
+              logs.isEmpty ? AppLocalizations.of(context).logsEmpty : logs.join('\n'),
+            ),
           ),
         ],
       ),
@@ -879,8 +888,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
   @override
   Widget build(BuildContext context) {
     if (!enableSubscriptionDebug) {
+      final l10n = AppLocalizations.of(context);
       return Scaffold(
-        appBar: AppBar(title: const Text('订阅源调试')),
+        appBar: AppBar(title: Text(l10n.subscriptionDebugTitle)),
         body: const Center(
           child: Padding(
             padding: EdgeInsets.all(24),
@@ -892,8 +902,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       );
     }
 
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('订阅源 JSON 调试')),
+      appBar: AppBar(title: Text(l10n.subscriptionDebugJsonTitle)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -926,7 +937,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
           if (_searchError != null) ...[
             const SizedBox(height: 12),
             Text(
-              '搜索错误: $_searchError',
+              AppLocalizations.of(context).searchError(_searchError ?? ''),
               style: const TextStyle(color: Colors.redAccent),
             ),
           ],
@@ -935,9 +946,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
           const SizedBox(height: 12),
           _buildExtractorPanel(),
           const SizedBox(height: 12),
-          _buildLogsPanel(context, '搜索日志', _searchLogs),
+          _buildLogsPanel(context, l10n.searchLogs, _searchLogs),
           const SizedBox(height: 12),
-          _buildLogsPanel(context, '提取日志', _extractLogs),
+          _buildLogsPanel(context, l10n.extractLogs, _extractLogs),
         ],
       ),
     );

@@ -359,7 +359,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('已取消收藏')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).removeFromFavorites),
+          ),
+        );
       }
     } else {
       await manager.addFavorite(
@@ -371,7 +375,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('已添加到本地收藏')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).addToLocalFavorites),
+          ),
+        );
       }
     }
     _checkFavoriteStatus();

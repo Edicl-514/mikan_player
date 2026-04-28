@@ -883,6 +883,1014 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'{count} 个任务'**
   String tasksCount(Object count);
+
+  /// No description provided for @settingsSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用配置'**
+  String get settingsSubtitle;
+
+  /// No description provided for @searchHintText.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索番剧...'**
+  String get searchHintText;
+
+  /// No description provided for @searchNoResults.
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到结果'**
+  String get searchNoResults;
+
+  /// No description provided for @searchEnterKeyword.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入关键词进行搜索'**
+  String get searchEnterKeyword;
+
+  /// No description provided for @searchFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索失败: {error}'**
+  String searchFailed(Object error);
+
+  /// No description provided for @loginDialogTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录 Bangumi'**
+  String get loginDialogTitle;
+
+  /// No description provided for @loginDialogMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入 Bangumi 用户名或 ID 获取公开信息'**
+  String get loginDialogMessage;
+
+  /// No description provided for @loginUsernameLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户名 / ID'**
+  String get loginUsernameLabel;
+
+  /// No description provided for @loginUsernameHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'注意：是用户名不是昵称'**
+  String get loginUsernameHint;
+
+  /// No description provided for @loginError.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录失败，请检查用户名或网络'**
+  String get loginError;
+
+  /// No description provided for @cannotLoadEpisodes.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法加载剧集列表'**
+  String get cannotLoadEpisodes;
+
+  /// No description provided for @pleaseEnterAnimeName.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先填写动漫名称'**
+  String get pleaseEnterAnimeName;
+
+  /// No description provided for @absoluteEpisodeMustBeInteger.
+  ///
+  /// In zh, this message translates to:
+  /// **'绝对集数必须是整数'**
+  String get absoluteEpisodeMustBeInteger;
+
+  /// No description provided for @relativeEpisodeMustBeInteger.
+  ///
+  /// In zh, this message translates to:
+  /// **'相对集数必须是整数'**
+  String get relativeEpisodeMustBeInteger;
+
+  /// No description provided for @episodeMustBeGreaterThanZero.
+  ///
+  /// In zh, this message translates to:
+  /// **'集数必须大于 0'**
+  String get episodeMustBeGreaterThanZero;
+
+  /// No description provided for @save.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存'**
+  String get save;
+
+  /// No description provided for @restoreDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复默认'**
+  String get restoreDefault;
+
+  /// No description provided for @autoSelectFastestSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动选择最快源'**
+  String get autoSelectFastestSource;
+
+  /// No description provided for @refreshPlaybackSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新播放源'**
+  String get refreshPlaybackSource;
+
+  /// No description provided for @playbackSourceSubscriptionUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放源订阅地址'**
+  String get playbackSourceSubscriptionUrl;
+
+  /// No description provided for @bgmBaseUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'Bgmlist Base URL'**
+  String get bgmBaseUrl;
+
+  /// No description provided for @bangumiBaseUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'Bangumi Base URL'**
+  String get bangumiBaseUrl;
+
+  /// No description provided for @mikanBaseUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'Mikan Base URL'**
+  String get mikanBaseUrl;
+
+  /// No description provided for @subscriptionSwitchTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'订阅源开关 (全网搜)'**
+  String get subscriptionSwitchTitle;
+
+  /// No description provided for @customSourceDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义网络搜视源'**
+  String get customSourceDescription;
+
+  /// No description provided for @settingsSaved.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置已保存'**
+  String get settingsSaved;
+
+  /// No description provided for @playbackSourceRefreshed.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放源已刷新'**
+  String get playbackSourceRefreshed;
+
+  /// No description provided for @playbackSourceRefreshedSynced.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放源已刷新，并同步了 {count} 个默认开关'**
+  String playbackSourceRefreshedSynced(Object count);
+
+  /// No description provided for @fastestSourceSwitched.
+  ///
+  /// In zh, this message translates to:
+  /// **'已切换至最快源: {url} ({latency}ms)'**
+  String fastestSourceSwitched(Object latency, Object url);
+
+  /// No description provided for @refreshFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新失败: {error}'**
+  String refreshFailed(Object error);
+
+  /// No description provided for @fetchCollectionsFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'获取收藏失败: {error}'**
+  String fetchCollectionsFailed(Object error);
+
+  /// No description provided for @noLocalFavorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无本地收藏'**
+  String get noLocalFavorites;
+
+  /// No description provided for @loginBangumiFirst.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先登录 Bangumi 账号'**
+  String get loginBangumiFirst;
+
+  /// No description provided for @goToLogin.
+  ///
+  /// In zh, this message translates to:
+  /// **'去登录'**
+  String get goToLogin;
+
+  /// No description provided for @noBangumiFavorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无 Bangumi 收藏数据'**
+  String get noBangumiFavorites;
+
+  /// No description provided for @refreshAllFavorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新所有收藏'**
+  String get refreshAllFavorites;
+
+  /// No description provided for @rankingTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'排行榜'**
+  String get rankingTitle;
+
+  /// No description provided for @rankingTrending.
+  ///
+  /// In zh, this message translates to:
+  /// **'近期热门'**
+  String get rankingTrending;
+
+  /// No description provided for @rankingRanking.
+  ///
+  /// In zh, this message translates to:
+  /// **'排行榜'**
+  String get rankingRanking;
+
+  /// No description provided for @loadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载失败: {error}'**
+  String loadFailed(Object error);
+
+  /// No description provided for @noRelatedAnime.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有找到「{tag}」相关的动画'**
+  String noRelatedAnime(Object tag);
+
+  /// No description provided for @pageRetry.
+  ///
+  /// In zh, this message translates to:
+  /// **'重试'**
+  String get pageRetry;
+
+  /// No description provided for @dataSourceConfigTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据源配置'**
+  String get dataSourceConfigTitle;
+
+  /// No description provided for @searchConfigTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'searchConfig'**
+  String get searchConfigTitle;
+
+  /// No description provided for @captchaConfigTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'captchaConfig'**
+  String get captchaConfigTitle;
+
+  /// No description provided for @dataSourceConfigSave.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存'**
+  String get dataSourceConfigSave;
+
+  /// No description provided for @searchSettingsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索设置'**
+  String get searchSettingsTitle;
+
+  /// No description provided for @maxParallelSearchSources.
+  ///
+  /// In zh, this message translates to:
+  /// **'最大并行搜索源数量'**
+  String get maxParallelSearchSources;
+
+  /// No description provided for @maxParallelSearchSourcesHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认为3，0为不限制（Generic Scraper）'**
+  String get maxParallelSearchSourcesHint;
+
+  /// No description provided for @webviewScraperSettingsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'WebView Scraper设置 (仅针对Dynamic Webview源)'**
+  String get webviewScraperSettingsTitle;
+
+  /// No description provided for @maxWebviewConcurrent.
+  ///
+  /// In zh, this message translates to:
+  /// **'最大WebView并发数量'**
+  String get maxWebviewConcurrent;
+
+  /// No description provided for @maxWebviewConcurrentHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'建议值: 1-3'**
+  String get maxWebviewConcurrentHint;
+
+  /// No description provided for @webviewLaunchInterval.
+  ///
+  /// In zh, this message translates to:
+  /// **'WebView启动间隔 (毫秒)'**
+  String get webviewLaunchInterval;
+
+  /// No description provided for @webviewLaunchIntervalHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'建议值: 200-1000'**
+  String get webviewLaunchIntervalHint;
+
+  /// No description provided for @autoSearchOnlineTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动搜索在线源'**
+  String get autoSearchOnlineTitle;
+
+  /// No description provided for @autoSearchOnlineSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭后，播放页将只自动搜索BT源'**
+  String get autoSearchOnlineSubtitle;
+
+  /// No description provided for @localJsonPathLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地 JSON 路径（留空使用缓存）'**
+  String get localJsonPathLabel;
+
+  /// No description provided for @animeNameLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'动漫名称'**
+  String get animeNameLabel;
+
+  /// No description provided for @animeNameHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'例如：机动战士高达GQuuuuuuX'**
+  String get animeNameHint;
+
+  /// No description provided for @absoluteEpisodeLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'绝对集数'**
+  String get absoluteEpisodeLabel;
+
+  /// No description provided for @relativeEpisodeLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'相对集数'**
+  String get relativeEpisodeLabel;
+
+  /// No description provided for @optionalEmptyHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'可留空'**
+  String get optionalEmptyHint;
+
+  /// No description provided for @sourceFilterLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'源名过滤（可选）'**
+  String get sourceFilterLabel;
+
+  /// No description provided for @sourceFilterHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'大小写不敏感，包含匹配'**
+  String get sourceFilterHint;
+
+  /// No description provided for @showWebViewDebugSwitch.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示 WebView 调试开关'**
+  String get showWebViewDebugSwitch;
+
+  /// No description provided for @showWebViewDebugSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅影响调试提取画面显示，不影响搜索逻辑'**
+  String get showWebViewDebugSubtitle;
+
+  /// No description provided for @clear.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空'**
+  String get clear;
+
+  /// No description provided for @sourceCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'源数量'**
+  String get sourceCount;
+
+  /// No description provided for @success.
+  ///
+  /// In zh, this message translates to:
+  /// **'成功'**
+  String get success;
+
+  /// No description provided for @failure.
+  ///
+  /// In zh, this message translates to:
+  /// **'失败'**
+  String get failure;
+
+  /// No description provided for @inProgress.
+  ///
+  /// In zh, this message translates to:
+  /// **'进行中'**
+  String get inProgress;
+
+  /// No description provided for @noDebugSearchResult.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无结果。输入参数后点击“开始调试搜索”。'**
+  String get noDebugSearchResult;
+
+  /// No description provided for @debugStatus.
+  ///
+  /// In zh, this message translates to:
+  /// **'状态: {status}'**
+  String debugStatus(Object status);
+
+  /// No description provided for @channelLine.
+  ///
+  /// In zh, this message translates to:
+  /// **'线路: {line}'**
+  String channelLine(Object line);
+
+  /// No description provided for @playPage.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放页: {url}'**
+  String playPage(Object url);
+
+  /// No description provided for @extractUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取URL'**
+  String get extractUrl;
+
+  /// No description provided for @extractDebugTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'可播放 URL 提取调试'**
+  String get extractDebugTitle;
+
+  /// No description provided for @extractFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取失败: {error}'**
+  String extractFailed(Object error);
+
+  /// No description provided for @extractSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取成功: {url}'**
+  String extractSuccess(Object url);
+
+  /// No description provided for @logsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无日志'**
+  String get logsEmpty;
+
+  /// No description provided for @subscriptionDebugTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'订阅源调试'**
+  String get subscriptionDebugTitle;
+
+  /// No description provided for @subscriptionDebugJsonTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'订阅源 JSON 调试'**
+  String get subscriptionDebugJsonTitle;
+
+  /// No description provided for @subscriptionDebugDisabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前构建未启用订阅调试。\n请使用 --dart-define=ENABLE_SUBSCRIPTION_DEBUG=true 启动。'**
+  String get subscriptionDebugDisabled;
+
+  /// No description provided for @subscriptionDebugInfo.
+  ///
+  /// In zh, this message translates to:
+  /// **'此页面仅用于调试：优先读取本地 JSON，留空时读取程序缓存中的 JSON，不会修改缓存文件、不会覆盖订阅设置、不会影响正式播放流程。'**
+  String get subscriptionDebugInfo;
+
+  /// No description provided for @searchError.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索错误: {error}'**
+  String searchError(Object error);
+
+  /// No description provided for @searchLogs.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索日志'**
+  String get searchLogs;
+
+  /// No description provided for @extractLogs.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取日志'**
+  String get extractLogs;
+
+  /// No description provided for @stepPending.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待中'**
+  String get stepPending;
+
+  /// No description provided for @stepSearching.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索中'**
+  String get stepSearching;
+
+  /// No description provided for @stepFetchingDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'获取详情页'**
+  String get stepFetchingDetail;
+
+  /// No description provided for @stepFetchingEpisodes.
+  ///
+  /// In zh, this message translates to:
+  /// **'获取剧集'**
+  String get stepFetchingEpisodes;
+
+  /// No description provided for @stepExtractingVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取播放页'**
+  String get stepExtractingVideo;
+
+  /// No description provided for @stepSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'成功'**
+  String get stepSuccess;
+
+  /// No description provided for @stepFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'失败'**
+  String get stepFailed;
+
+  /// No description provided for @characterDetailsLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'Failed to load character details'**
+  String get characterDetailsLoadFailed;
+
+  /// No description provided for @personDetailsLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'Failed to load person details'**
+  String get personDetailsLoadFailed;
+
+  /// No description provided for @retryButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'Retry'**
+  String get retryButton;
+
+  /// No description provided for @favoritesTabLocal.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地收藏'**
+  String get favoritesTabLocal;
+
+  /// No description provided for @favoritesTabBangumi.
+  ///
+  /// In zh, this message translates to:
+  /// **'Bangumi 同步'**
+  String get favoritesTabBangumi;
+
+  /// No description provided for @notFoundAnimeTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有找到「{tag}」相关的动画'**
+  String notFoundAnimeTag(Object tag);
+
+  /// No description provided for @addToLocalFavorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加到本地收藏'**
+  String get addToLocalFavorites;
+
+  /// No description provided for @removeFromFavorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消收藏'**
+  String get removeFromFavorites;
+
+  /// No description provided for @playSourceTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放源'**
+  String get playSourceTitle;
+
+  /// No description provided for @episodeListTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选集'**
+  String get episodeListTitle;
+
+  /// No description provided for @relatedRecommendationsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'相关推荐'**
+  String get relatedRecommendationsTitle;
+
+  /// No description provided for @commentsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论区'**
+  String get commentsTitle;
+
+  /// No description provided for @allComments.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部评论'**
+  String get allComments;
+
+  /// No description provided for @noComments.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无评论'**
+  String get noComments;
+
+  /// No description provided for @noRelatedRecommendationsText.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无相关推荐'**
+  String get noRelatedRecommendationsText;
+
+  /// No description provided for @commentsLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载失败: {error}'**
+  String commentsLoadFailed(Object error);
+
+  /// No description provided for @initializingPlayback.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在初始化播放...'**
+  String get initializingPlayback;
+
+  /// No description provided for @playbackFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放失败'**
+  String get playbackFailed;
+
+  /// No description provided for @chooseSourceToWatch.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择播放源开始观看'**
+  String get chooseSourceToWatch;
+
+  /// No description provided for @chooseSourceBelow.
+  ///
+  /// In zh, this message translates to:
+  /// **'在下方「播放源」中选择资源'**
+  String get chooseSourceBelow;
+
+  /// No description provided for @defaultSort.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认排序'**
+  String get defaultSort;
+
+  /// No description provided for @sortByTime.
+  ///
+  /// In zh, this message translates to:
+  /// **'按时间排序'**
+  String get sortByTime;
+
+  /// No description provided for @searchOnlineSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索在线源'**
+  String get searchOnlineSource;
+
+  /// No description provided for @searchBtSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索BT源'**
+  String get searchBtSource;
+
+  /// No description provided for @btSearching.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在搜索BT源...'**
+  String get btSearching;
+
+  /// No description provided for @btFound.
+  ///
+  /// In zh, this message translates to:
+  /// **'已找到 {count} 个BT源'**
+  String btFound(Object count);
+
+  /// No description provided for @btSearchFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'BT搜索失败'**
+  String get btSearchFailed;
+
+  /// No description provided for @btNotStarted.
+  ///
+  /// In zh, this message translates to:
+  /// **'尚未开始搜索BT源'**
+  String get btNotStarted;
+
+  /// No description provided for @btLoaded.
+  ///
+  /// In zh, this message translates to:
+  /// **'已使用本地资源播放'**
+  String get btLoaded;
+
+  /// No description provided for @btManualSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'如需在线源，请点击下方按钮手动搜索'**
+  String get btManualSearchHint;
+
+  /// No description provided for @btSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击下方按钮开始搜索'**
+  String get btSearchHint;
+
+  /// No description provided for @waitingForPlayPage.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待匹配播放页...'**
+  String get waitingForPlayPage;
+
+  /// No description provided for @loadingText.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载中'**
+  String get loadingText;
+
+  /// No description provided for @playText.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放'**
+  String get playText;
+
+  /// No description provided for @copyMagnetSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'磁力链接已复制'**
+  String get copyMagnetSuccess;
+
+  /// No description provided for @downloadStartedHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始下载，可在「我的」页面查看进度'**
+  String get downloadStartedHint;
+
+  /// No description provided for @noDownloadableOnlineSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有可下载的在线源'**
+  String get noDownloadableOnlineSource;
+
+  /// No description provided for @cannotGetPlaybackUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法获取播放地址'**
+  String get cannotGetPlaybackUrl;
+
+  /// No description provided for @downloadTaskAdded.
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加到下载任务'**
+  String get downloadTaskAdded;
+
+  /// No description provided for @pauseFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂停失败'**
+  String get pauseFailed;
+
+  /// No description provided for @resumeFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复失败'**
+  String get resumeFailed;
+
+  /// No description provided for @loadedDanmaku.
+  ///
+  /// In zh, this message translates to:
+  /// **'已加载弹幕'**
+  String get loadedDanmaku;
+
+  /// No description provided for @currentMatch.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前匹配'**
+  String get currentMatch;
+
+  /// No description provided for @searchResult.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索结果'**
+  String get searchResult;
+
+  /// No description provided for @episodeList.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧集列表'**
+  String get episodeList;
+
+  /// No description provided for @danmakuCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹幕数量: {count} 条'**
+  String danmakuCount(Object count);
+
+  /// No description provided for @subtitlePreviewText.
+  ///
+  /// In zh, this message translates to:
+  /// **'字幕预览效果'**
+  String get subtitlePreviewText;
+
+  /// No description provided for @noAvailablePlaybackSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可用播放源'**
+  String get noAvailablePlaybackSource;
+
+  /// No description provided for @showSubtitles.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示字幕'**
+  String get showSubtitles;
+
+  /// No description provided for @subtitleTracks.
+  ///
+  /// In zh, this message translates to:
+  /// **'字幕轨道'**
+  String get subtitleTracks;
+
+  /// No description provided for @noEmbeddedSubtitles.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前视频没有内嵌字幕'**
+  String get noEmbeddedSubtitles;
+
+  /// No description provided for @disableSubtitles.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭字幕'**
+  String get disableSubtitles;
+
+  /// No description provided for @subtitleStyle.
+  ///
+  /// In zh, this message translates to:
+  /// **'字幕样式'**
+  String get subtitleStyle;
+
+  /// No description provided for @fontSize.
+  ///
+  /// In zh, this message translates to:
+  /// **'字体大小'**
+  String get fontSize;
+
+  /// No description provided for @backgroundOpacity.
+  ///
+  /// In zh, this message translates to:
+  /// **'背景透明度'**
+  String get backgroundOpacity;
+
+  /// No description provided for @bottomPadding.
+  ///
+  /// In zh, this message translates to:
+  /// **'底部边距'**
+  String get bottomPadding;
+
+  /// No description provided for @outlineWidth.
+  ///
+  /// In zh, this message translates to:
+  /// **'描边宽度'**
+  String get outlineWidth;
+
+  /// No description provided for @fontColor.
+  ///
+  /// In zh, this message translates to:
+  /// **'字体颜色'**
+  String get fontColor;
+
+  /// No description provided for @subtitlePreview.
+  ///
+  /// In zh, this message translates to:
+  /// **'字幕预览效果'**
+  String get subtitlePreview;
+
+  /// No description provided for @noAvailableSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可用播放源'**
+  String get noAvailableSource;
+
+  /// No description provided for @back.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回'**
+  String get back;
+
+  /// No description provided for @unlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'解锁'**
+  String get unlock;
+
+  /// No description provided for @lock.
+  ///
+  /// In zh, this message translates to:
+  /// **'锁定'**
+  String get lock;
+
+  /// No description provided for @danmaku.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹幕'**
+  String get danmaku;
+
+  /// No description provided for @selectEpisode.
+  ///
+  /// In zh, this message translates to:
+  /// **'选集'**
+  String get selectEpisode;
+
+  /// No description provided for @skipBack85.
+  ///
+  /// In zh, this message translates to:
+  /// **'空降-85s'**
+  String get skipBack85;
+
+  /// No description provided for @skipForward85.
+  ///
+  /// In zh, this message translates to:
+  /// **'空降+85s'**
+  String get skipForward85;
+
+  /// No description provided for @autoPlayNext.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动连播'**
+  String get autoPlayNext;
+
+  /// No description provided for @playbackSpeed.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放速度'**
+  String get playbackSpeed;
+
+  /// No description provided for @normalSpeed.
+  ///
+  /// In zh, this message translates to:
+  /// **'正常速度'**
+  String get normalSpeed;
+
+  /// No description provided for @playbackSpeedTip.
+  ///
+  /// In zh, this message translates to:
+  /// **'提示：播放速度会同时影响视频与弹幕的时间同步。'**
+  String get playbackSpeedTip;
+
+  /// No description provided for @subtitleTrackCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 集'**
+  String subtitleTrackCount(Object count);
+
+  /// No description provided for @playWithSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放 - {source}'**
+  String playWithSource(Object source);
+
+  /// No description provided for @selectedSourceUnknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'未知'**
+  String get selectedSourceUnknown;
 }
 
 class _AppLocalizationsDelegate
