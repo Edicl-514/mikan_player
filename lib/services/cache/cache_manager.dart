@@ -112,7 +112,26 @@ class CacheManager {
     // 从网络获取
     debugPrint('Fetching ranking from network: $sortType page $page');
     try {
-      final results = await fetchFromNetwork();
+      final results = await _fetchWithEmptyRetry(
+        fetchFromNetwork: fetchFromNetwork,
+        retryOnEmpty: page == 1,
+        label: 'Ranking $sortType page $page',
+      );
+
+      if (results.isEmpty) {
+        debugPrint(
+          'Ranking network returned empty; keeping cache untouched: $sortType page $page',
+        );
+        final expiredCache = await _dbCache.getRankingIncludingExpired(
+          sortType: sortType,
+          page: page,
+        );
+        if (expiredCache != null) {
+          debugPrint('Using expired ranking cache: $sortType page $page');
+          return _dbCache.rankingFromCache(expiredCache);
+        }
+        return results;
+      }
 
       // 保存到缓存
       await _dbCache.saveRanking(
@@ -127,6 +146,14 @@ class CacheManager {
       return results;
     } catch (e) {
       debugPrint('Network failed for ranking: $e');
+      final expiredCache = await _dbCache.getRankingIncludingExpired(
+        sortType: sortType,
+        page: page,
+      );
+      if (expiredCache != null) {
+        debugPrint('Using expired ranking cache: $sortType page $page');
+        return _dbCache.rankingFromCache(expiredCache);
+      }
       rethrow;
     }
   }
@@ -154,7 +181,28 @@ class CacheManager {
     // 从网络获取
     debugPrint('Fetching browser from network: $sortType $year page $page');
     try {
-      final results = await fetchFromNetwork();
+      final results = await _fetchWithEmptyRetry(
+        fetchFromNetwork: fetchFromNetwork,
+        retryOnEmpty: page == 1,
+        label: 'Browser $sortType $year page $page',
+      );
+
+      if (results.isEmpty) {
+        debugPrint(
+          'Browser network returned empty; keeping cache untouched: $sortType $year page $page',
+        );
+        final expiredCache = await _dbCache.getRankingIncludingExpired(
+          sortType: sortType,
+          year: year,
+          tags: tags,
+          page: page,
+        );
+        if (expiredCache != null) {
+          debugPrint('Using expired browser cache: $sortType $year page $page');
+          return _dbCache.rankingFromCache(expiredCache);
+        }
+        return results;
+      }
 
       // 保存到缓存
       await _dbCache.saveRanking(
@@ -171,8 +219,31 @@ class CacheManager {
       return results;
     } catch (e) {
       debugPrint('Network failed for browser: $e');
+      final expiredCache = await _dbCache.getRankingIncludingExpired(
+        sortType: sortType,
+        year: year,
+        tags: tags,
+        page: page,
+      );
+      if (expiredCache != null) {
+        debugPrint('Using expired browser cache: $sortType $year page $page');
+        return _dbCache.rankingFromCache(expiredCache);
+      }
       rethrow;
     }
+  }
+
+  Future<List<RankingAnime>> _fetchWithEmptyRetry({
+    required Future<List<RankingAnime>> Function() fetchFromNetwork,
+    required bool retryOnEmpty,
+    required String label,
+  }) async {
+    final results = await fetchFromNetwork();
+    if (!retryOnEmpty || results.isNotEmpty) return results;
+
+    debugPrint('$label returned empty; retrying once');
+    await Future<void>.delayed(const Duration(milliseconds: 800));
+    return fetchFromNetwork();
   }
 
   // ==================== 角色相关 ====================

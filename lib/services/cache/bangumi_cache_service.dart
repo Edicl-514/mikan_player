@@ -467,6 +467,39 @@ class BangumiCacheService {
     List<String>? tags,
     required int page,
   }) async {
+    return _getRankingCache(
+      sortType: sortType,
+      year: year,
+      tags: tags,
+      page: page,
+      includeExpired: false,
+    );
+  }
+
+  /// 获取排行榜缓存（包括已过期的）
+  /// 用于网络失败或空响应时的降级方案
+  Future<RankingCache?> getRankingIncludingExpired({
+    required String sortType,
+    String? year,
+    List<String>? tags,
+    required int page,
+  }) async {
+    return _getRankingCache(
+      sortType: sortType,
+      year: year,
+      tags: tags,
+      page: page,
+      includeExpired: true,
+    );
+  }
+
+  Future<RankingCache?> _getRankingCache({
+    required String sortType,
+    String? year,
+    List<String>? tags,
+    required int page,
+    required bool includeExpired,
+  }) async {
     final key = RankingCache.generateKey(
       sortType: sortType,
       year: year,
@@ -479,12 +512,43 @@ class BangumiCacheService {
     )..where((tbl) => tbl.cacheKey.equals(key))).getSingleOrNull();
     final cache = row == null ? null : _rankingFromRow(row);
 
-    if (cache != null && !cache.isExpired) {
-      debugPrint('Drift Cache: Hit Ranking $key');
+    if (cache == null) {
+      debugPrint('Drift Cache: Miss Ranking $key');
+      return null;
+    }
+
+    if (!_rankingCacheHasResults(cache)) {
+      debugPrint('Drift Cache: Drop empty Ranking $key');
+      await deleteRanking(
+        sortType: sortType,
+        year: year,
+        tags: tags,
+        page: page,
+      );
+      return null;
+    }
+
+    if (includeExpired || !cache.isExpired) {
+      if (cache.isExpired) {
+        debugPrint('Drift Cache: Hit Ranking (expired) $key');
+      } else {
+        debugPrint('Drift Cache: Hit Ranking $key');
+      }
       return cache;
     }
+
     debugPrint('Drift Cache: Miss Ranking $key');
     return null;
+  }
+
+  bool _rankingCacheHasResults(RankingCache cache) {
+    try {
+      final list = jsonDecode(cache.resultsJson);
+      return list is List && list.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error parsing ranking cache metadata: $e');
+      return false;
+    }
   }
 
   /// 保存排行榜缓存
@@ -495,6 +559,13 @@ class BangumiCacheService {
     required int page,
     required List<RankingAnime> results,
   }) async {
+    if (results.isEmpty) {
+      debugPrint(
+        'Drift Cache: Skip empty Ranking ${RankingCache.generateKey(sortType: sortType, year: year, tags: tags, page: page)}',
+      );
+      return;
+    }
+
     final resultsJson = jsonEncode(
       results
           .map(
@@ -523,6 +594,25 @@ class BangumiCacheService {
         .into(db.dbRankingCaches)
         .insert(_rankingToCompanion(cache), mode: InsertMode.insertOrReplace);
     debugPrint('Drift Cache: Save Ranking ${cache.cacheKey}');
+  }
+
+  /// 删除单个排行榜/索引缓存
+  Future<void> deleteRanking({
+    required String sortType,
+    String? year,
+    List<String>? tags,
+    required int page,
+  }) async {
+    final key = RankingCache.generateKey(
+      sortType: sortType,
+      year: year,
+      tags: tags,
+      page: page,
+    );
+    await (db.delete(
+      db.dbRankingCaches,
+    )..where((tbl) => tbl.cacheKey.equals(key))).go();
+    debugPrint('Drift Cache: Delete Ranking $key');
   }
 
   /// 将缓存转换为 RankingAnime 列表

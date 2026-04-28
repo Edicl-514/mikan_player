@@ -53,7 +53,7 @@ pub async fn fetch_bangumi_browser(
         .append_pair("sort", &sort_type)
         .append_pair("page", &page.to_string());
 
-    let resp = client.get(url).send().await?;
+    let resp = client.get(url).send().await?.error_for_status()?;
     let html = resp.text().await?;
     let document = Html::parse_document(&html);
 
@@ -72,7 +72,7 @@ pub async fn search_bangumi_subject(
         page
     );
 
-    let resp = client.get(&url).send().await?;
+    let resp = client.get(&url).send().await?.error_for_status()?;
     let html = resp.text().await?;
     let document = Html::parse_document(&html);
 
