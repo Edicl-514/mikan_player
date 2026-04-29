@@ -615,6 +615,9 @@ class DownloadManager extends ChangeNotifier {
       status == DownloadTaskStatus.checking ||
       status == DownloadTaskStatus.queued;
 
+  bool _shouldDeleteFiles(bool deleteFiles) =>
+      deleteFiles || (!kIsWeb && Platform.isAndroid);
+
   bool get _hasAvailableDownloadSlot =>
       _activeDownloadSlotCount < _maxConcurrentDownloads;
 
@@ -2749,6 +2752,7 @@ class DownloadManager extends ChangeNotifier {
   /// Remove a download task
   Future<void> removeTask(String id, {bool deleteFiles = false}) async {
     final task = _tasks[id];
+    final effectiveDeleteFiles = _shouldDeleteFiles(deleteFiles);
 
     // Remove from UI immediately so the task disappears right away.
     _tasks.remove(id);
@@ -2763,7 +2767,7 @@ class DownloadManager extends ChangeNotifier {
     if (task != null && task.taskType == DownloadTaskType.http) {
       final job = _httpDownloadJobs.remove(id);
       if (job != null) job.cancel();
-      if (deleteFiles && task.localFilePath != null) {
+      if (effectiveDeleteFiles && task.localFilePath != null) {
         try {
           final file = File(task.localFilePath!);
           if (file.existsSync()) file.deleteSync();
@@ -2780,17 +2784,17 @@ class DownloadManager extends ChangeNotifier {
       final stopped = await _stopTorrentWithBackend(
         id,
         backend: task?.backend ?? _backendKind,
-        deleteFiles: deleteFiles,
+        deleteFiles: effectiveDeleteFiles,
       );
       if (stopped) {
         debugPrint(
-          '[DownloadManager] Successfully stopped torrent: $id (deleteFiles: $deleteFiles)',
+          '[DownloadManager] Successfully stopped torrent: $id (deleteFiles: $effectiveDeleteFiles)',
         );
       } else {
         debugPrint(
           '[DownloadManager] Failed to stop torrent (may not exist): $id',
         );
-        if (deleteFiles && task?.magnet.isNotEmpty == true) {
+        if (effectiveDeleteFiles && task?.magnet.isNotEmpty == true) {
           _noteOrphanedFiles(task!);
         }
       }
@@ -2798,7 +2802,7 @@ class DownloadManager extends ChangeNotifier {
       debugPrint('[DownloadManager] Error stopping torrent: $e');
     }
 
-    if (deleteFiles && task != null) {
+    if (effectiveDeleteFiles && task != null) {
       await _deleteLibtorrentFilesForTask(task);
     }
   }
@@ -2988,6 +2992,7 @@ class DownloadManager extends ChangeNotifier {
 
   /// Clear completed tasks
   Future<void> clearCompleted({bool deleteFiles = false}) async {
+    final effectiveDeleteFiles = _shouldDeleteFiles(deleteFiles);
     final completedIds = _tasks.entries
         .where(
           (e) =>
@@ -3001,7 +3006,7 @@ class DownloadManager extends ChangeNotifier {
     for (final id in completedIds) {
       final task = _tasks[id];
       if (task?.taskType == DownloadTaskType.http) {
-        if (deleteFiles && task?.localFilePath != null) {
+        if (effectiveDeleteFiles && task?.localFilePath != null) {
           try {
             final file = File(task!.localFilePath!);
             if (file.existsSync()) file.deleteSync();
@@ -3019,12 +3024,12 @@ class DownloadManager extends ChangeNotifier {
         await _stopTorrentWithBackend(
           id,
           backend: task?.backend ?? _backendKind,
-          deleteFiles: deleteFiles,
+          deleteFiles: effectiveDeleteFiles,
         );
       } catch (e) {
         debugPrint('[DownloadManager] Error stopping torrent $id: $e');
       }
-      if (deleteFiles && task != null) {
+      if (effectiveDeleteFiles && task != null) {
         await _deleteLibtorrentFilesForTask(task);
       }
       _tasks.remove(id);

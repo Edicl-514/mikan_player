@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/download_manager.dart';
@@ -425,6 +426,9 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
   DownloadTaskStatus? _statusFilter;
   final Set<String> _collapsedGroups = {};
 
+  bool get _forceDeleteFilesOnAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
   @override
   void initState() {
     super.initState();
@@ -518,7 +522,8 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   return;
                 }
 
-                bool deleteFiles = false;
+                final forceDeleteFiles = _forceDeleteFilesOnAndroid;
+                bool deleteFiles = forceDeleteFiles;
                 final confirmed = await showDialog<bool>(
                   context: context,
                   builder: (context) => StatefulBuilder(
@@ -534,19 +539,27 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                               context,
                             ).clearConfirmMessage(completedCount),
                           ),
-                          const SizedBox(height: 12),
-                          CheckboxListTile(
-                            title: Text(
+                          if (forceDeleteFiles) ...[
+                            const SizedBox(height: 12),
+                            Text(
                               AppLocalizations.of(context).deleteFiles,
                               style: const TextStyle(fontSize: 14),
                             ),
-                            value: deleteFiles,
-                            onChanged: (val) => setDialogState(
-                              () => deleteFiles = val ?? false,
+                          ] else ...[
+                            const SizedBox(height: 12),
+                            CheckboxListTile(
+                              title: Text(
+                                AppLocalizations.of(context).deleteFiles,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              value: deleteFiles,
+                              onChanged: (val) => setDialogState(
+                                () => deleteFiles = val ?? false,
+                              ),
+                              contentPadding: EdgeInsets.zero,
+                              controlAffinity: ListTileControlAffinity.leading,
                             ),
-                            contentPadding: EdgeInsets.zero,
-                            controlAffinity: ListTileControlAffinity.leading,
-                          ),
+                          ],
                         ],
                       ),
                       actions: [
@@ -707,7 +720,8 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
     final groupIcon = _getStatusIcon(groupStatus);
 
     final theme = Theme.of(context);
-    final surfaceColor = theme.colorScheme.surfaceContainerHigh;
+    final surfaceColor = theme.colorScheme.surface;
+
     final groupKey = animeName ?? '__others__';
     final isCollapsed = _collapsedGroups.contains(groupKey);
 
@@ -1334,7 +1348,8 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
   }
 
   Future<void> _showDeleteDialog(DownloadTask task) async {
-    bool deleteFiles = false;
+    final forceDeleteFiles = _forceDeleteFilesOnAndroid;
+    bool deleteFiles = forceDeleteFiles;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -1355,18 +1370,26 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                         context,
                       ).logoutConfirm, // Using loginConfirm as a generic "are you sure"
               ),
-              const SizedBox(height: 12),
-              CheckboxListTile(
-                title: Text(
+              if (forceDeleteFiles) ...[
+                const SizedBox(height: 12),
+                Text(
                   AppLocalizations.of(context).deleteFiles,
                   style: const TextStyle(fontSize: 14),
                 ),
-                value: deleteFiles,
-                onChanged: (val) =>
-                    setDialogState(() => deleteFiles = val ?? false),
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-              ),
+              ] else ...[
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  title: Text(
+                    AppLocalizations.of(context).deleteFiles,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  value: deleteFiles,
+                  onChanged: (val) =>
+                      setDialogState(() => deleteFiles = val ?? false),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ],
             ],
           ),
           actions: [
