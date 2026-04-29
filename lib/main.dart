@@ -22,6 +22,20 @@ import 'package:mikan_player/gen/app_localizations.dart';
 /// 全局 WebView 环境（Windows 平台需要）
 WebViewEnvironment? webViewEnvironment;
 
+String? get _platformFontFamily {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    return 'Segoe UI';
+  }
+  return null;
+}
+
+List<String>? get _platformFontFamilyFallback {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    return const ['Microsoft YaHei UI', 'Microsoft YaHei', 'SimHei', 'SimSun'];
+  }
+  return null;
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -167,7 +181,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             ],
             supportedLocales: AppLocalizations.supportedLocales,
             theme: ThemeData(
-              fontFamily: 'MiSans',
+              fontFamily: _platformFontFamily,
+              fontFamilyFallback: _platformFontFamilyFallback,
               colorScheme: ColorScheme.fromSeed(
                 seedColor: Colors.teal,
                 brightness: Brightness.dark,

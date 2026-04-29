@@ -2640,7 +2640,6 @@ class _SystemTimeDisplayState extends State<_SystemTimeDisplay> {
           color: Colors.white,
           fontSize: 14,
           fontWeight: FontWeight.w500,
-          fontFamily: 'MiSans',
         ),
       ),
     );

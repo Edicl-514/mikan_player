@@ -5,6 +5,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if(NOT MSVC)
+  add_compile_options(
+    $<$<OR:$<CONFIG:Release>,$<CONFIG:MinSizeRel>>:-ffunction-sections>
+    $<$<OR:$<CONFIG:Release>,$<CONFIG:MinSizeRel>>:-fdata-sections>
+  )
+  add_link_options($<$<OR:$<CONFIG:Release>,$<CONFIG:MinSizeRel>>:-Wl,--gc-sections>)
+endif()
+
 set(MIKAN_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../..")
 set(MIKAN_LIBTORRENT_SOURCE_DIR "${MIKAN_REPO_ROOT}/third_party/libtorrent")
 set(MIKAN_OPENSSL_ROOT "" CACHE PATH "Prebuilt OpenSSL root to use instead of toolchain packages")

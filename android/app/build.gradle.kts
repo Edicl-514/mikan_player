@@ -143,7 +143,7 @@ val mikanLibtorrentBuildTask = tasks.register("buildMikanLibtorrentAndroid") {
                 "-File",
                 mikanLibtorrentScript.absolutePath,
                 "-Configuration",
-                "Release",
+                "MinSizeRel",
                 "-Abi",
                 "arm64-v8a",
                 "-OutputJniLibsDir",
@@ -180,6 +180,20 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
+    }
+
+    packaging {
+        jniLibs {
+            excludes += listOf(
+                "lib/armeabi-v7a/**",
+                "lib/x86/**",
+                "lib/x86_64/**",
+            )
+        }
     }
 
     buildTypes {

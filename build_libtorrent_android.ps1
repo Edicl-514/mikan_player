@@ -1,6 +1,6 @@
 param(
     [ValidateSet("Debug", "Release", "RelWithDebInfo", "MinSizeRel")]
-    [string]$Configuration = "Release",
+    [string]$Configuration = "MinSizeRel",
     [ValidateSet("arm64-v8a")]
     [string]$Abi = "arm64-v8a",
     [string]$Triplet = "arm64-android",
@@ -113,6 +113,17 @@ function Get-NinjaPath {
     return ""
 }
 
+function Get-AndroidLlvmStripPath {
+    param([string]$NdkRoot)
+
+    $strip = Join-Path $NdkRoot "toolchains\llvm\prebuilt\windows-x86_64\bin\llvm-strip.exe"
+    if (Test-Path $strip) {
+        return $strip
+    }
+
+    return ""
+}
+
 if ($Abi -ne "arm64-v8a") {
     throw "Only arm64-v8a is wired up right now."
 }
@@ -142,6 +153,7 @@ $androidToolchain = Join-Path $ndkRoot "build\cmake\android.toolchain.cmake"
 $env:ANDROID_NDK_HOME = $ndkRoot
 $env:ANDROID_NDK_ROOT = $ndkRoot
 $ninjaPath = Get-NinjaPath
+$stripPath = Get-AndroidLlvmStripPath -NdkRoot $ndkRoot
 
 Write-Host "Using Android NDK: $ndkRoot"
 Write-Host "Using vcpkg: $resolvedVcpkgRoot"
@@ -199,6 +211,14 @@ Write-Host "Built: $so"
 if ($OutputJniLibsDir) {
     $abiOutputDir = Join-Path $OutputJniLibsDir $Abi
     New-Item -ItemType Directory -Force -Path $abiOutputDir | Out-Null
-    Copy-Item -Path $so -Destination (Join-Path $abiOutputDir "libmikan_libtorrent.so") -Force
+    $outputSo = Join-Path $abiOutputDir "libmikan_libtorrent.so"
+    Copy-Item -Path $so -Destination $outputSo -Force
+    if ($Configuration -ne "Debug" -and $stripPath) {
+        & $stripPath --strip-all $outputSo
+        if ($LASTEXITCODE -ne 0) {
+            throw "llvm-strip failed with exit code $LASTEXITCODE"
+        }
+        Write-Host "Stripped: $outputSo"
+    }
     Write-Host "Copied libmikan_libtorrent.so -> $abiOutputDir"
 }

@@ -7,6 +7,15 @@ build = "build.rs"
 [lib]
 crate-type = ["cdylib", "staticlib"]
 
+[profile.release]
+codegen-units = 1
+debug = false
+incremental = false
+lto = "thin"
+opt-level = "z"
+panic = "abort"
+strip = "symbols"
+
 [dependencies]
 flutter_rust_bridge = "=2.12.0"
 librqbit = { version = "8.1.1", features = ["http-api", "tracing-subscriber-utils"] }
