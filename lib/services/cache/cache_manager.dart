@@ -330,7 +330,9 @@ class CacheManager {
         debugPrint(
           'Episodes network returned empty; keeping cache untouched: $subjectId',
         );
-        final expiredCache = await _dbCache.getEpisodesIncludingExpired(subjectId);
+        final expiredCache = await _dbCache.getEpisodesIncludingExpired(
+          subjectId,
+        );
         if (expiredCache.isNotEmpty) {
           debugPrint('Using expired episodes cache: $subjectId');
           return expiredCache;
@@ -342,7 +344,9 @@ class CacheManager {
       return episodes;
     } catch (e) {
       debugPrint('Network failed for episodes: $e');
-      final expiredCache = await _dbCache.getEpisodesIncludingExpired(subjectId);
+      final expiredCache = await _dbCache.getEpisodesIncludingExpired(
+        subjectId,
+      );
       if (expiredCache.isNotEmpty) {
         debugPrint('Using expired episodes cache: $subjectId');
         return expiredCache;

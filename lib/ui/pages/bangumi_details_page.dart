@@ -145,29 +145,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     final subjectId = int.parse(subjectIdStr);
     final cache = CacheManager.instance;
 
-    if (_data == null) {
-      try {
-        final cachedAnime = await cache.getSubject(subjectId);
-        if (cachedAnime != null && cachedAnime.fullJson != null) {
-          debugPrint('Subject loaded from cache: $subjectId');
-          _data = jsonDecode(cachedAnime.fullJson!);
-        } else {
-          final details = await fillAnimeDetails(animes: [widget.anime]);
-          if (details.isNotEmpty) {
-            final detail = details.first;
-            if (detail.fullJson != null) {
-              _data = jsonDecode(detail.fullJson!);
-              unawaited(cache.cacheAnimeInfo(detail));
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('Error loading anime details: $e');
-      }
-    }
-
-    if (!mounted) return;
-
     setState(() {
       _isLoadingEpisodes = true;
       _isLoadingCharacters = true;
@@ -182,6 +159,39 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       _comments = null;
       _personIdMap.clear();
     });
+
+    Future<void> loadDetails() async {
+      if (_data != null) return;
+
+      try {
+        final cachedAnime = await cache.getSubject(subjectId);
+        if (cachedAnime != null && cachedAnime.fullJson != null) {
+          debugPrint('Subject loaded from cache: $subjectId');
+          final data = jsonDecode(cachedAnime.fullJson!);
+          if (mounted) {
+            setState(() {
+              _data = data;
+            });
+          }
+        } else {
+          final details = await fillAnimeDetails(animes: [widget.anime]);
+          if (details.isNotEmpty) {
+            final detail = details.first;
+            if (detail.fullJson != null) {
+              final data = jsonDecode(detail.fullJson!);
+              if (mounted) {
+                setState(() {
+                  _data = data;
+                });
+              }
+              unawaited(cache.cacheAnimeInfo(detail));
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Error loading anime details: $e');
+      }
+    }
 
     List<BangumiEpisode> episodes = [];
     List<BangumiCharacter> characters = [];
@@ -210,6 +220,13 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       } catch (e) {
         debugPrint('Error fetching episodes: $e');
         episodes = [];
+      } finally {
+        if (mounted) {
+          setState(() {
+            _episodes = episodes;
+            _isLoadingEpisodes = false;
+          });
+        }
       }
     }
 
@@ -229,6 +246,14 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       } catch (e) {
         debugPrint('Error fetching characters: $e');
         characters = [];
+      } finally {
+        if (mounted) {
+          setState(() {
+            _characters = characters;
+            _mergePersonIdMap(personMap);
+            _isLoadingCharacters = false;
+          });
+        }
       }
     }
 
@@ -241,6 +266,13 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       } catch (e) {
         debugPrint('Error fetching relations: $e');
         relations = [];
+      } finally {
+        if (mounted) {
+          setState(() {
+            _relations = relations;
+            _isLoadingRelations = false;
+          });
+        }
       }
     }
 
@@ -254,6 +286,12 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         }
       } catch (e) {
         debugPrint('Error fetching persons: $e');
+      } finally {
+        if (mounted) {
+          setState(() {
+            _mergePersonIdMap(personMap);
+          });
+        }
       }
     }
 
@@ -263,30 +301,24 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       } catch (e) {
         debugPrint('Error fetching comments: $e');
         comments = [];
+      } finally {
+        if (mounted) {
+          setState(() {
+            _comments = comments;
+            _isLoadingComments = false;
+          });
+        }
       }
     }
 
     await Future.wait([
+      loadDetails(),
       loadEpisodes(),
       loadCharacters(),
       loadRelations(),
       loadPersons(),
       loadComments(),
     ]);
-
-    if (!mounted) return;
-
-    setState(() {
-      _episodes = episodes;
-      _characters = characters;
-      _relations = relations;
-      _comments = comments;
-      _mergePersonIdMap(personMap);
-      _isLoadingEpisodes = false;
-      _isLoadingCharacters = false;
-      _isLoadingRelations = false;
-      _isLoadingComments = false;
-    });
   }
 
   void _parseData() {
@@ -360,9 +392,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     if (_isLocalFavorite) {
       await manager.removeFavorite(id);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(AppLocalizations.of(context).removeFromFavorites),
           ),
@@ -376,9 +406,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         score: widget.anime.score ?? 0.0,
       );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(AppLocalizations.of(context).addToLocalFavorites),
           ),
@@ -488,7 +516,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                     Center(
                       child: Text(
                         '暂无评论',
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
+                        ),
                       ),
                     ),
                   ],
@@ -499,7 +529,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   padding: const EdgeInsets.all(16),
                   physics: const AlwaysScrollableScrollPhysics(),
                   itemCount:
-                      (_comments == null ? 0 : _comments!.length) + 1 +
+                      (_comments == null ? 0 : _comments!.length) +
+                      1 +
                       (_isLoadingMoreComments ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (index == 0) {
@@ -514,7 +545,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                     }
 
                     final commentIndex = index - 1;
-                    if (_comments == null || commentIndex >= _comments!.length) {
+                    if (_comments == null ||
+                        commentIndex >= _comments!.length) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 16),
                         child: Center(
@@ -1484,26 +1516,21 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return null;
   }
 
-  Widget _buildCharacterRoleBadge(
-    String label, {
-    required bool isDarkBg,
-  }) {
+  Widget _buildCharacterRoleBadge(String label, {required bool isDarkBg}) {
     final isMain = label == '主角';
     final isSupporting = label == '配角';
     final badgeColor = isMain
         ? Colors.amber
         : isSupporting
-            ? Colors.blue
-            : Colors.grey;
+        ? Colors.blue
+        : Colors.grey;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: badgeColor.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: badgeColor.withValues(alpha: 0.9),
-        ),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.9)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.3),
@@ -1699,15 +1726,17 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => PersonDetailPage(
-          personId: personId,
-          enableHeroAnimation: false,
-        ),
+        builder: (context) =>
+            PersonDetailPage(personId: personId, enableHeroAnimation: false),
       ),
     );
   }
 
-  void _openCharacterPage(int characterId, {String? characterName, String? heroImageUrl}) {
+  void _openCharacterPage(
+    int characterId, {
+    String? characterName,
+    String? heroImageUrl,
+  }) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -2189,8 +2218,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
     final characters = [..._characters!]
       ..sort((a, b) {
-        final priorityCompare =
-            _characterRolePriority(a).compareTo(_characterRolePriority(b));
+        final priorityCompare = _characterRolePriority(
+          a,
+        ).compareTo(_characterRolePriority(b));
         if (priorityCompare != 0) return priorityCompare;
         return a.name.compareTo(b.name);
       });
@@ -2265,21 +2295,23 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                 children: [
                                   imageUrl.isNotEmpty
                                       ? widget.enableCharacterHero
-                                          ? Hero(
-                                              tag: 'character_${char.id.toInt()}',
-                                              child: CachedNetworkImage(
+                                            ? Hero(
+                                                tag:
+                                                    'character_${char.id.toInt()}',
+                                                child: CachedNetworkImage(
+                                                  imageUrl: imageUrl,
+                                                  fit: BoxFit.cover,
+                                                  alignment:
+                                                      Alignment.topCenter,
+                                                  deferOffscreenLoad: false,
+                                                ),
+                                              )
+                                            : CachedNetworkImage(
                                                 imageUrl: imageUrl,
                                                 fit: BoxFit.cover,
                                                 alignment: Alignment.topCenter,
                                                 deferOffscreenLoad: false,
-                                              ),
-                                            )
-                                          : CachedNetworkImage(
-                                              imageUrl: imageUrl,
-                                              fit: BoxFit.cover,
-                                              alignment: Alignment.topCenter,
-                                              deferOffscreenLoad: false,
-                                            )
+                                              )
                                       : Center(
                                           child: Icon(
                                             Icons.person,
@@ -2309,10 +2341,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                       canOpenCharacterPage
                           ? GestureDetector(
                               onTap: () => _openCharacterPage(
-                                  char.id.toInt(),
-                                  characterName: char.name,
-                                  heroImageUrl: imageUrl,
-                                ),
+                                char.id.toInt(),
+                                characterName: char.name,
+                                heroImageUrl: imageUrl,
+                              ),
                               child: Text(
                                 char.name,
                                 style: TextStyle(

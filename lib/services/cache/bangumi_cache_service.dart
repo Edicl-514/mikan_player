@@ -377,7 +377,9 @@ class BangumiCacheService {
     return [];
   }
 
-  Future<List<BangumiEpisode>> getEpisodesIncludingExpired(int subjectId) async {
+  Future<List<BangumiEpisode>> getEpisodesIncludingExpired(
+    int subjectId,
+  ) async {
     final cache = await _getEpisodeRow(subjectId);
 
     if (cache != null) {
@@ -432,7 +434,9 @@ class BangumiCacheService {
     await db
         .into(db.dbBangumiEpisodeCaches)
         .insert(_episodeToCompanion(cache), mode: InsertMode.insertOrReplace);
-    debugPrint('Drift Cache: Save Episodes $subjectId count=${episodes.length}');
+    debugPrint(
+      'Drift Cache: Save Episodes $subjectId count=${episodes.length}',
+    );
   }
 
   /// 将缓存转换为 BangumiEpisode 列表
