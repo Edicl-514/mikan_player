@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:mikan_player/services/cache/database/app_database.dart';
 
 import 'models/bangumi_character_cache.dart';
+import 'models/bangumi_episode_cache.dart';
 import 'models/bangumi_relation_cache.dart';
 import 'models/bangumi_subject_cache.dart';
 import 'models/download_record.dart';
@@ -65,6 +66,7 @@ class BangumiCacheService {
       await db.delete(db.dbBangumiRelationCaches).go();
       await db.delete(db.dbTimetableCaches).go();
       await db.delete(db.dbRankingCaches).go();
+      await db.delete(db.dbBangumiEpisodeCaches).go();
       // NOTE: Do not clear downloadRecords here as they are user data
     });
   }
@@ -88,6 +90,9 @@ class BangumiCacheService {
       )..where((tbl) => tbl.expiresAt.isSmallerThanValue(now))).go();
       await (db.delete(
         db.dbRankingCaches,
+      )..where((tbl) => tbl.expiresAt.isSmallerThanValue(now))).go();
+      await (db.delete(
+        db.dbBangumiEpisodeCaches,
       )..where((tbl) => tbl.expiresAt.isSmallerThanValue(now))).go();
     });
   }
@@ -356,6 +361,101 @@ class BangumiCacheService {
         image: cache.imageUrl ?? '',
       );
     }).toList();
+  }
+
+  // ==================== 剧集缓存操作 ====================
+
+  /// 获取条目的剧集缓存列表
+  Future<List<BangumiEpisode>> getEpisodes(int subjectId) async {
+    final cache = await _getEpisodeRow(subjectId);
+
+    if (cache != null && !cache.isExpired) {
+      debugPrint('Drift Cache: Hit Episodes $subjectId');
+      return episodesFromCache(cache);
+    }
+    debugPrint('Drift Cache: Miss Episodes $subjectId');
+    return [];
+  }
+
+  Future<List<BangumiEpisode>> getEpisodesIncludingExpired(int subjectId) async {
+    final cache = await _getEpisodeRow(subjectId);
+
+    if (cache != null) {
+      if (cache.isExpired) {
+        debugPrint('Drift Cache: Hit Episodes (expired) $subjectId');
+      } else {
+        debugPrint('Drift Cache: Hit Episodes $subjectId');
+      }
+      return episodesFromCache(cache);
+    }
+    debugPrint('Drift Cache: Miss Episodes $subjectId');
+    return [];
+  }
+
+  Future<BangumiEpisodeCache?> _getEpisodeRow(int subjectId) async {
+    final row = await (db.select(
+      db.dbBangumiEpisodeCaches,
+    )..where((tbl) => tbl.subjectId.equals(subjectId))).getSingleOrNull();
+    return row == null ? null : _episodeFromRow(row);
+  }
+
+  /// 保存条目的剧集缓存，过期时间为下一个本地零点
+  Future<void> saveEpisodes(
+    int subjectId,
+    List<BangumiEpisode> episodes,
+  ) async {
+    if (episodes.isEmpty) {
+      debugPrint('Drift Cache: Skip empty Episodes $subjectId');
+      return;
+    }
+
+    final episodesJson = jsonEncode(
+      episodes
+          .map(
+            (ep) => {
+              'id': ep.id,
+              'name': ep.name,
+              'nameCn': ep.nameCn,
+              'description': ep.description,
+              'airdate': ep.airdate,
+              'duration': ep.duration,
+              'sort': ep.sort,
+            },
+          )
+          .toList(),
+    );
+    final cache = BangumiEpisodeCache.create(
+      subjectId: subjectId,
+      episodesJson: episodesJson,
+    );
+
+    await db
+        .into(db.dbBangumiEpisodeCaches)
+        .insert(_episodeToCompanion(cache), mode: InsertMode.insertOrReplace);
+    debugPrint('Drift Cache: Save Episodes $subjectId count=${episodes.length}');
+  }
+
+  /// 将缓存转换为 BangumiEpisode 列表
+  List<BangumiEpisode> episodesFromCache(BangumiEpisodeCache cache) {
+    try {
+      final list = jsonDecode(cache.episodesJson) as List;
+      return list
+          .map(
+            (item) => BangumiEpisode(
+              id: item['id'] ?? 0,
+              name: item['name'] ?? '',
+              nameCn: item['nameCn'] ?? '',
+              description: item['description'] ?? '',
+              airdate: item['airdate'] ?? '',
+              duration: item['duration'] ?? '',
+              sort: (item['sort'] ?? 0).toDouble(),
+            ),
+          )
+          .toList();
+    } catch (e) {
+      debugPrint('Error parsing episode cache: $e');
+      return [];
+    }
   }
 
   // ==================== 时间表缓存操作 ====================
@@ -648,6 +748,7 @@ class BangumiCacheService {
       'relations': await _count(db.dbBangumiRelationCaches),
       'timetables': await _count(db.dbTimetableCaches),
       'rankings': await _count(db.dbRankingCaches),
+      'episodes': await _count(db.dbBangumiEpisodeCaches),
       'downloadRecords': await _count(db.dbDownloadRecords),
     };
   }
@@ -891,6 +992,26 @@ class BangumiCacheService {
       ..tagsJson = row.tagsJson
       ..page = row.page
       ..resultsJson = row.resultsJson
+      ..cachedAt = row.cachedAt
+      ..expiresAt = row.expiresAt;
+  }
+
+  DbBangumiEpisodeCachesCompanion _episodeToCompanion(
+    BangumiEpisodeCache cache,
+  ) {
+    return DbBangumiEpisodeCachesCompanion.insert(
+      subjectId: cache.subjectId,
+      episodesJson: cache.episodesJson,
+      cachedAt: cache.cachedAt,
+      expiresAt: cache.expiresAt,
+    );
+  }
+
+  BangumiEpisodeCache _episodeFromRow(DbBangumiEpisodeCache row) {
+    return BangumiEpisodeCache()
+      ..id = row.id
+      ..subjectId = row.subjectId
+      ..episodesJson = row.episodesJson
       ..cachedAt = row.cachedAt
       ..expiresAt = row.expiresAt;
   }

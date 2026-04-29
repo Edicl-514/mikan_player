@@ -4027,6 +4027,369 @@ class DbRankingCachesCompanion extends UpdateCompanion<DbRankingCache> {
   }
 }
 
+class $DbBangumiEpisodeCachesTable extends DbBangumiEpisodeCaches
+    with TableInfo<$DbBangumiEpisodeCachesTable, DbBangumiEpisodeCache> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DbBangumiEpisodeCachesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _subjectIdMeta = const VerificationMeta(
+    'subjectId',
+  );
+  @override
+  late final GeneratedColumn<int> subjectId = GeneratedColumn<int>(
+    'subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _episodesJsonMeta = const VerificationMeta(
+    'episodesJson',
+  );
+  @override
+  late final GeneratedColumn<String> episodesJson = GeneratedColumn<String>(
+    'episodes_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cachedAtMeta = const VerificationMeta(
+    'cachedAt',
+  );
+  @override
+  late final GeneratedColumn<int> cachedAt = GeneratedColumn<int>(
+    'cached_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<int> expiresAt = GeneratedColumn<int>(
+    'expires_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    subjectId,
+    episodesJson,
+    cachedAt,
+    expiresAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'db_bangumi_episode_caches';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DbBangumiEpisodeCache> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('subject_id')) {
+      context.handle(
+        _subjectIdMeta,
+        subjectId.isAcceptableOrUnknown(data['subject_id']!, _subjectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_subjectIdMeta);
+    }
+    if (data.containsKey('episodes_json')) {
+      context.handle(
+        _episodesJsonMeta,
+        episodesJson.isAcceptableOrUnknown(
+          data['episodes_json']!,
+          _episodesJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_episodesJsonMeta);
+    }
+    if (data.containsKey('cached_at')) {
+      context.handle(
+        _cachedAtMeta,
+        cachedAt.isAcceptableOrUnknown(data['cached_at']!, _cachedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cachedAtMeta);
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_expiresAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DbBangumiEpisodeCache map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DbBangumiEpisodeCache(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      subjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}subject_id'],
+      )!,
+      episodesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}episodes_json'],
+      )!,
+      cachedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cached_at'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}expires_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DbBangumiEpisodeCachesTable createAlias(String alias) {
+    return $DbBangumiEpisodeCachesTable(attachedDatabase, alias);
+  }
+}
+
+class DbBangumiEpisodeCache extends DataClass
+    implements Insertable<DbBangumiEpisodeCache> {
+  final int id;
+  final int subjectId;
+  final String episodesJson;
+  final int cachedAt;
+  final int expiresAt;
+  const DbBangumiEpisodeCache({
+    required this.id,
+    required this.subjectId,
+    required this.episodesJson,
+    required this.cachedAt,
+    required this.expiresAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['subject_id'] = Variable<int>(subjectId);
+    map['episodes_json'] = Variable<String>(episodesJson);
+    map['cached_at'] = Variable<int>(cachedAt);
+    map['expires_at'] = Variable<int>(expiresAt);
+    return map;
+  }
+
+  DbBangumiEpisodeCachesCompanion toCompanion(bool nullToAbsent) {
+    return DbBangumiEpisodeCachesCompanion(
+      id: Value(id),
+      subjectId: Value(subjectId),
+      episodesJson: Value(episodesJson),
+      cachedAt: Value(cachedAt),
+      expiresAt: Value(expiresAt),
+    );
+  }
+
+  factory DbBangumiEpisodeCache.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DbBangumiEpisodeCache(
+      id: serializer.fromJson<int>(json['id']),
+      subjectId: serializer.fromJson<int>(json['subjectId']),
+      episodesJson: serializer.fromJson<String>(json['episodesJson']),
+      cachedAt: serializer.fromJson<int>(json['cachedAt']),
+      expiresAt: serializer.fromJson<int>(json['expiresAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'subjectId': serializer.toJson<int>(subjectId),
+      'episodesJson': serializer.toJson<String>(episodesJson),
+      'cachedAt': serializer.toJson<int>(cachedAt),
+      'expiresAt': serializer.toJson<int>(expiresAt),
+    };
+  }
+
+  DbBangumiEpisodeCache copyWith({
+    int? id,
+    int? subjectId,
+    String? episodesJson,
+    int? cachedAt,
+    int? expiresAt,
+  }) => DbBangumiEpisodeCache(
+    id: id ?? this.id,
+    subjectId: subjectId ?? this.subjectId,
+    episodesJson: episodesJson ?? this.episodesJson,
+    cachedAt: cachedAt ?? this.cachedAt,
+    expiresAt: expiresAt ?? this.expiresAt,
+  );
+  DbBangumiEpisodeCache copyWithCompanion(
+    DbBangumiEpisodeCachesCompanion data,
+  ) {
+    return DbBangumiEpisodeCache(
+      id: data.id.present ? data.id.value : this.id,
+      subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
+      episodesJson: data.episodesJson.present
+          ? data.episodesJson.value
+          : this.episodesJson,
+      cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DbBangumiEpisodeCache(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('episodesJson: $episodesJson, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('expiresAt: $expiresAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, subjectId, episodesJson, cachedAt, expiresAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DbBangumiEpisodeCache &&
+          other.id == this.id &&
+          other.subjectId == this.subjectId &&
+          other.episodesJson == this.episodesJson &&
+          other.cachedAt == this.cachedAt &&
+          other.expiresAt == this.expiresAt);
+}
+
+class DbBangumiEpisodeCachesCompanion
+    extends UpdateCompanion<DbBangumiEpisodeCache> {
+  final Value<int> id;
+  final Value<int> subjectId;
+  final Value<String> episodesJson;
+  final Value<int> cachedAt;
+  final Value<int> expiresAt;
+  const DbBangumiEpisodeCachesCompanion({
+    this.id = const Value.absent(),
+    this.subjectId = const Value.absent(),
+    this.episodesJson = const Value.absent(),
+    this.cachedAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+  });
+  DbBangumiEpisodeCachesCompanion.insert({
+    this.id = const Value.absent(),
+    required int subjectId,
+    required String episodesJson,
+    required int cachedAt,
+    required int expiresAt,
+  }) : subjectId = Value(subjectId),
+       episodesJson = Value(episodesJson),
+       cachedAt = Value(cachedAt),
+       expiresAt = Value(expiresAt);
+  static Insertable<DbBangumiEpisodeCache> custom({
+    Expression<int>? id,
+    Expression<int>? subjectId,
+    Expression<String>? episodesJson,
+    Expression<int>? cachedAt,
+    Expression<int>? expiresAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (subjectId != null) 'subject_id': subjectId,
+      if (episodesJson != null) 'episodes_json': episodesJson,
+      if (cachedAt != null) 'cached_at': cachedAt,
+      if (expiresAt != null) 'expires_at': expiresAt,
+    });
+  }
+
+  DbBangumiEpisodeCachesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? subjectId,
+    Value<String>? episodesJson,
+    Value<int>? cachedAt,
+    Value<int>? expiresAt,
+  }) {
+    return DbBangumiEpisodeCachesCompanion(
+      id: id ?? this.id,
+      subjectId: subjectId ?? this.subjectId,
+      episodesJson: episodesJson ?? this.episodesJson,
+      cachedAt: cachedAt ?? this.cachedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (subjectId.present) {
+      map['subject_id'] = Variable<int>(subjectId.value);
+    }
+    if (episodesJson.present) {
+      map['episodes_json'] = Variable<String>(episodesJson.value);
+    }
+    if (cachedAt.present) {
+      map['cached_at'] = Variable<int>(cachedAt.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<int>(expiresAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DbBangumiEpisodeCachesCompanion(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('episodesJson: $episodesJson, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('expiresAt: $expiresAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $DbDownloadRecordsTable extends DbDownloadRecords
     with TableInfo<$DbDownloadRecordsTable, DbDownloadRecord> {
   @override
@@ -4794,6 +5157,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DbRankingCachesTable dbRankingCaches = $DbRankingCachesTable(
     this,
   );
+  late final $DbBangumiEpisodeCachesTable dbBangumiEpisodeCaches =
+      $DbBangumiEpisodeCachesTable(this);
   late final $DbDownloadRecordsTable dbDownloadRecords =
       $DbDownloadRecordsTable(this);
   @override
@@ -4807,6 +5172,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     dbBangumiRelationCaches,
     dbTimetableCaches,
     dbRankingCaches,
+    dbBangumiEpisodeCaches,
     dbDownloadRecords,
   ];
 }
@@ -6802,6 +7168,221 @@ typedef $$DbRankingCachesTableProcessedTableManager =
       DbRankingCache,
       PrefetchHooks Function()
     >;
+typedef $$DbBangumiEpisodeCachesTableCreateCompanionBuilder =
+    DbBangumiEpisodeCachesCompanion Function({
+      Value<int> id,
+      required int subjectId,
+      required String episodesJson,
+      required int cachedAt,
+      required int expiresAt,
+    });
+typedef $$DbBangumiEpisodeCachesTableUpdateCompanionBuilder =
+    DbBangumiEpisodeCachesCompanion Function({
+      Value<int> id,
+      Value<int> subjectId,
+      Value<String> episodesJson,
+      Value<int> cachedAt,
+      Value<int> expiresAt,
+    });
+
+class $$DbBangumiEpisodeCachesTableFilterComposer
+    extends Composer<_$AppDatabase, $DbBangumiEpisodeCachesTable> {
+  $$DbBangumiEpisodeCachesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get subjectId => $composableBuilder(
+    column: $table.subjectId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get episodesJson => $composableBuilder(
+    column: $table.episodesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DbBangumiEpisodeCachesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DbBangumiEpisodeCachesTable> {
+  $$DbBangumiEpisodeCachesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get subjectId => $composableBuilder(
+    column: $table.subjectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get episodesJson => $composableBuilder(
+    column: $table.episodesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DbBangumiEpisodeCachesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DbBangumiEpisodeCachesTable> {
+  $$DbBangumiEpisodeCachesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get subjectId =>
+      $composableBuilder(column: $table.subjectId, builder: (column) => column);
+
+  GeneratedColumn<String> get episodesJson => $composableBuilder(
+    column: $table.episodesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get cachedAt =>
+      $composableBuilder(column: $table.cachedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+}
+
+class $$DbBangumiEpisodeCachesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DbBangumiEpisodeCachesTable,
+          DbBangumiEpisodeCache,
+          $$DbBangumiEpisodeCachesTableFilterComposer,
+          $$DbBangumiEpisodeCachesTableOrderingComposer,
+          $$DbBangumiEpisodeCachesTableAnnotationComposer,
+          $$DbBangumiEpisodeCachesTableCreateCompanionBuilder,
+          $$DbBangumiEpisodeCachesTableUpdateCompanionBuilder,
+          (
+            DbBangumiEpisodeCache,
+            BaseReferences<
+              _$AppDatabase,
+              $DbBangumiEpisodeCachesTable,
+              DbBangumiEpisodeCache
+            >,
+          ),
+          DbBangumiEpisodeCache,
+          PrefetchHooks Function()
+        > {
+  $$DbBangumiEpisodeCachesTableTableManager(
+    _$AppDatabase db,
+    $DbBangumiEpisodeCachesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DbBangumiEpisodeCachesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$DbBangumiEpisodeCachesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DbBangumiEpisodeCachesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> subjectId = const Value.absent(),
+                Value<String> episodesJson = const Value.absent(),
+                Value<int> cachedAt = const Value.absent(),
+                Value<int> expiresAt = const Value.absent(),
+              }) => DbBangumiEpisodeCachesCompanion(
+                id: id,
+                subjectId: subjectId,
+                episodesJson: episodesJson,
+                cachedAt: cachedAt,
+                expiresAt: expiresAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int subjectId,
+                required String episodesJson,
+                required int cachedAt,
+                required int expiresAt,
+              }) => DbBangumiEpisodeCachesCompanion.insert(
+                id: id,
+                subjectId: subjectId,
+                episodesJson: episodesJson,
+                cachedAt: cachedAt,
+                expiresAt: expiresAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DbBangumiEpisodeCachesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DbBangumiEpisodeCachesTable,
+      DbBangumiEpisodeCache,
+      $$DbBangumiEpisodeCachesTableFilterComposer,
+      $$DbBangumiEpisodeCachesTableOrderingComposer,
+      $$DbBangumiEpisodeCachesTableAnnotationComposer,
+      $$DbBangumiEpisodeCachesTableCreateCompanionBuilder,
+      $$DbBangumiEpisodeCachesTableUpdateCompanionBuilder,
+      (
+        DbBangumiEpisodeCache,
+        BaseReferences<
+          _$AppDatabase,
+          $DbBangumiEpisodeCachesTable,
+          DbBangumiEpisodeCache
+        >,
+      ),
+      DbBangumiEpisodeCache,
+      PrefetchHooks Function()
+    >;
 typedef $$DbDownloadRecordsTableCreateCompanionBuilder =
     DbDownloadRecordsCompanion Function({
       Value<int> id,
@@ -7190,6 +7771,11 @@ class $AppDatabaseManager {
       $$DbTimetableCachesTableTableManager(_db, _db.dbTimetableCaches);
   $$DbRankingCachesTableTableManager get dbRankingCaches =>
       $$DbRankingCachesTableTableManager(_db, _db.dbRankingCaches);
+  $$DbBangumiEpisodeCachesTableTableManager get dbBangumiEpisodeCaches =>
+      $$DbBangumiEpisodeCachesTableTableManager(
+        _db,
+        _db.dbBangumiEpisodeCaches,
+      );
   $$DbDownloadRecordsTableTableManager get dbDownloadRecords =>
       $$DbDownloadRecordsTableTableManager(_db, _db.dbDownloadRecords);
 }

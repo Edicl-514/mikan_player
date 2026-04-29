@@ -310,6 +310,47 @@ class CacheManager {
     }
   }
 
+  // ==================== 剧集相关 ====================
+
+  /// 获取剧集数据（优先从缓存，缓存每日零点过期）
+  Future<List<BangumiEpisode>> getEpisodes({
+    required int subjectId,
+    required Future<List<BangumiEpisode>> Function() fetchFromNetwork,
+  }) async {
+    final cache = await _dbCache.getEpisodes(subjectId);
+    if (cache.isNotEmpty) {
+      debugPrint('Episodes loaded from cache: $subjectId');
+      return cache;
+    }
+
+    debugPrint('Fetching episodes from network: $subjectId');
+    try {
+      final episodes = await fetchFromNetwork();
+      if (episodes.isEmpty) {
+        debugPrint(
+          'Episodes network returned empty; keeping cache untouched: $subjectId',
+        );
+        final expiredCache = await _dbCache.getEpisodesIncludingExpired(subjectId);
+        if (expiredCache.isNotEmpty) {
+          debugPrint('Using expired episodes cache: $subjectId');
+          return expiredCache;
+        }
+        return episodes;
+      }
+
+      await _dbCache.saveEpisodes(subjectId, episodes);
+      return episodes;
+    } catch (e) {
+      debugPrint('Network failed for episodes: $e');
+      final expiredCache = await _dbCache.getEpisodesIncludingExpired(subjectId);
+      if (expiredCache.isNotEmpty) {
+        debugPrint('Using expired episodes cache: $subjectId');
+        return expiredCache;
+      }
+      rethrow;
+    }
+  }
+
   // ==================== 条目详情相关 ====================
 
   /// 获取条目详情（优先从缓存）

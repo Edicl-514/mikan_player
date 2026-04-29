@@ -191,7 +191,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
     Future<void> loadEpisodes() async {
       try {
-        final allEpisodes = await fetchBangumiEpisodes(subjectId: subjectId);
+        final allEpisodes = await cache.getEpisodes(
+          subjectId: subjectId,
+          fetchFromNetwork: () => fetchBangumiEpisodes(subjectId: subjectId),
+        );
         final now = DateTime.now();
         final today = DateTime(now.year, now.month, now.day);
         episodes = allEpisodes.where((ep) {
