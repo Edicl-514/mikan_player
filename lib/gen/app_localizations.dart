@@ -512,10 +512,34 @@ abstract class AppLocalizations {
   /// **'0 表示不限速，仅对 BT 生效'**
   String get downloadUploadLimitHint;
 
+  /// No description provided for @allowBackgroundDownload.
+  ///
+  /// In zh, this message translates to:
+  /// **'允许后台下载'**
+  String get allowBackgroundDownload;
+
+  /// No description provided for @allowBackgroundDownloadSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'切到后台时保持下载任务运行'**
+  String get allowBackgroundDownloadSubtitle;
+
+  /// No description provided for @keepSeedingMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'保种模式'**
+  String get keepSeedingMode;
+
+  /// No description provided for @keepSeedingModeSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载完成转为做种后继续保持后台运行'**
+  String get keepSeedingModeSubtitle;
+
   /// No description provided for @downloadSettingsEntrySubtitle.
   ///
   /// In zh, this message translates to:
-  /// **'并行任务数、限速、BT引擎'**
+  /// **'并行任务数、限速、BT引擎、后台下载'**
   String get downloadSettingsEntrySubtitle;
 
   /// No description provided for @cacheManagement.

@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:mikan_player/native/mikan_libtorrent_native.dart';
 import 'package:mikan_player/utils/app_directories.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,6 +16,8 @@ const String _btBackendStorageKey = 'bt_backend_v1';
 const String _maxConcurrentKey = 'download_max_concurrent';
 const String _downloadLimitKey = 'download_limit_mbps';
 const String _uploadLimitKey = 'upload_limit_mbps';
+const String _allowBackgroundDownloadKey = 'allow_background_download';
+const String _keepSeedingInBackgroundKey = 'keep_seeding_in_background';
 
 enum DownloadTaskType { bt, http }
 
@@ -331,6 +334,9 @@ enum DownloadTaskStatus {
 /// Global download manager singleton
 class DownloadManager extends ChangeNotifier {
   static final DownloadManager _instance = DownloadManager._internal();
+  static const MethodChannel _androidDownloadServiceChannel = MethodChannel(
+    'mikan_player/download_service',
+  );
   factory DownloadManager() => _instance;
   DownloadManager._internal();
 
@@ -343,6 +349,7 @@ class DownloadManager extends ChangeNotifier {
   DateTime? _lastStatsPersistenceAt;
   bool _isUpdatingStats = false;
   bool _isRecoveringActiveTasks = false;
+  bool _androidDownloadServiceRunning = false;
   DateTime? _lastForegroundRecoveryAt;
   DateTime? _lastLibtorrentResumeSaveAt;
   bool _isSavingLibtorrentResumeData = false;
@@ -365,6 +372,8 @@ class DownloadManager extends ChangeNotifier {
   int _maxConcurrentDownloads = 3;
   double _downloadLimitMbps = 0; // 0 = unlimited
   double _uploadLimitMbps = 0; // 0 = unlimited
+  bool _allowBackgroundDownload = true;
+  bool _keepSeedingInBackground = false;
 
   // Parallel download control
   final Queue<Completer<void>> _downloadSlotQueue = Queue();
@@ -523,6 +532,8 @@ class DownloadManager extends ChangeNotifier {
   int get maxConcurrentDownloads => _maxConcurrentDownloads;
   double get downloadLimitMbps => _downloadLimitMbps;
   double get uploadLimitMbps => _uploadLimitMbps;
+  bool get allowBackgroundDownload => _allowBackgroundDownload;
+  bool get keepSeedingInBackground => _keepSeedingInBackground;
 
   /// Active tasks: downloading, metadata-fetching, checking (not seeding)
   List<DownloadTask> get activeTasks =>
@@ -558,6 +569,45 @@ class DownloadManager extends ChangeNotifier {
             task.status == DownloadTaskStatus.seeding),
   );
 
+  bool get _shouldKeepAndroidDownloadServiceRunning =>
+      !kIsWeb &&
+      Platform.isAndroid &&
+      _allowBackgroundDownload &&
+      _tasks.values.any(
+        (task) =>
+            !_removedTaskIds.contains(task.id) &&
+            (_isActiveStatus(task.status) ||
+                (_keepSeedingInBackground &&
+                    task.status == DownloadTaskStatus.seeding)),
+      );
+
+  void _syncAndroidDownloadService() {
+    if (kIsWeb || !Platform.isAndroid) return;
+    final shouldRun = _shouldKeepAndroidDownloadServiceRunning;
+    if (shouldRun == _androidDownloadServiceRunning) return;
+
+    _androidDownloadServiceRunning = shouldRun;
+    unawaited(_setAndroidDownloadServiceRunning(shouldRun));
+  }
+
+  Future<void> _setAndroidDownloadServiceRunning(bool running) async {
+    try {
+      await _androidDownloadServiceChannel.invokeMethod<void>(
+        running ? 'start' : 'stop',
+      );
+      debugPrint(
+        '[DownloadManager] Android foreground download service '
+        '${running ? 'started' : 'stopped'}',
+      );
+    } catch (e) {
+      _androidDownloadServiceRunning = !running;
+      debugPrint(
+        '[DownloadManager] Failed to ${running ? 'start' : 'stop'} '
+        'Android foreground download service: $e',
+      );
+    }
+  }
+
   bool _isActiveStatus(DownloadTaskStatus status) =>
       status == DownloadTaskStatus.pending ||
       status == DownloadTaskStatus.downloading ||
@@ -589,6 +639,11 @@ class DownloadManager extends ChangeNotifier {
     _maxConcurrentDownloads = prefs.getInt(_maxConcurrentKey) ?? 3;
     _downloadLimitMbps = prefs.getDouble(_downloadLimitKey) ?? 0;
     _uploadLimitMbps = prefs.getDouble(_uploadLimitKey) ?? 0;
+    _allowBackgroundDownload =
+        prefs.getBool(_allowBackgroundDownloadKey) ?? true;
+    _keepSeedingInBackground =
+        _allowBackgroundDownload &&
+        (prefs.getBool(_keepSeedingInBackgroundKey) ?? false);
     if (_backendKind == BtBackendKind.libtorrent) {
       unawaited(_ensureLibtorrentInitialized());
     }
@@ -613,6 +668,8 @@ class DownloadManager extends ChangeNotifier {
     int? maxConcurrent,
     double? downloadLimitMbps,
     double? uploadLimitMbps,
+    bool? allowBackgroundDownload,
+    bool? keepSeedingInBackground,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     if (maxConcurrent != null) {
@@ -628,7 +685,27 @@ class DownloadManager extends ChangeNotifier {
       _uploadLimitMbps = uploadLimitMbps < 0 ? 0 : uploadLimitMbps;
       await prefs.setDouble(_uploadLimitKey, _uploadLimitMbps);
     }
+    if (allowBackgroundDownload != null) {
+      _allowBackgroundDownload = allowBackgroundDownload;
+      await prefs.setBool(
+        _allowBackgroundDownloadKey,
+        _allowBackgroundDownload,
+      );
+      if (!_allowBackgroundDownload) {
+        _keepSeedingInBackground = false;
+        await prefs.setBool(_keepSeedingInBackgroundKey, false);
+      }
+    }
+    if (keepSeedingInBackground != null) {
+      _keepSeedingInBackground =
+          _allowBackgroundDownload && keepSeedingInBackground;
+      await prefs.setBool(
+        _keepSeedingInBackgroundKey,
+        _keepSeedingInBackground,
+      );
+    }
     _applyLibtorrentSpeedLimits();
+    _syncAndroidDownloadService();
     notifyListeners();
   }
 
@@ -1927,6 +2004,7 @@ class DownloadManager extends ChangeNotifier {
   Future<void> _downloadM3u8File(DownloadTask task) async {
     final url = task.videoUrl;
     if (url == null) return;
+    _syncAndroidDownloadService();
 
     final client = HttpClient();
     final outputFile = File(task.localFilePath!);
@@ -2058,6 +2136,7 @@ class DownloadManager extends ChangeNotifier {
       if (_tasks.containsKey(task.id)) {
         await _saveTasks();
         notifyListeners();
+        _syncAndroidDownloadService();
       }
     }
   }
@@ -2069,6 +2148,8 @@ class DownloadManager extends ChangeNotifier {
         task.status != DownloadTaskStatus.queued) {
       return;
     }
+
+    _syncAndroidDownloadService();
 
     if (!_hasAvailableDownloadSlot) {
       await _markTaskQueued(task);
@@ -2206,10 +2287,12 @@ class DownloadManager extends ChangeNotifier {
         if (_tasks.containsKey(task.id)) {
           await _saveTasks();
           notifyListeners();
+          _syncAndroidDownloadService();
         }
       }
     } finally {
       _releaseDownloadSlot();
+      _syncAndroidDownloadService();
     }
   }
 
@@ -2427,6 +2510,7 @@ class DownloadManager extends ChangeNotifier {
 
   /// Starts polling if pollable tasks exist and timer is not running.
   void _ensureStatsPolling() {
+    _syncAndroidDownloadService();
     if (!_hasPollingTasks) {
       stopStatsPolling();
     } else if (_statsTimer == null || !_statsTimer!.isActive) {
@@ -2437,6 +2521,7 @@ class DownloadManager extends ChangeNotifier {
   void stopStatsPolling() {
     _statsTimer?.cancel();
     _statsTimer = null;
+    _syncAndroidDownloadService();
   }
 
   /// Extract info hash from magnet link.

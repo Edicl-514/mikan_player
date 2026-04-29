@@ -231,8 +231,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadUploadLimitHint => '0 means unlimited, BT only';
 
   @override
+  String get allowBackgroundDownload => 'Allow background downloads';
+
+  @override
+  String get allowBackgroundDownloadSubtitle =>
+      'Keep download tasks running after the app moves to the background';
+
+  @override
+  String get keepSeedingMode => 'Seeding mode';
+
+  @override
+  String get keepSeedingModeSubtitle =>
+      'Keep running in the background after downloads switch to seeding';
+
+  @override
   String get downloadSettingsEntrySubtitle =>
-      'Parallel tasks, limits, and BT engine';
+      'Parallel tasks, limits, BT engine, and background downloads';
 
   @override
   String get cacheManagement => 'Cache Management';

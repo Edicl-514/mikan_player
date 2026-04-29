@@ -228,7 +228,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get downloadUploadLimitHint => '0 表示不限速，仅对 BT 生效';
 
   @override
-  String get downloadSettingsEntrySubtitle => '并行任务数、限速、BT引擎';
+  String get allowBackgroundDownload => '允许后台下载';
+
+  @override
+  String get allowBackgroundDownloadSubtitle => '切到后台时保持下载任务运行';
+
+  @override
+  String get keepSeedingMode => '保种模式';
+
+  @override
+  String get keepSeedingModeSubtitle => '下载完成转为做种后继续保持后台运行';
+
+  @override
+  String get downloadSettingsEntrySubtitle => '并行任务数、限速、BT引擎、后台下载';
 
   @override
   String get cacheManagement => '缓存管理';

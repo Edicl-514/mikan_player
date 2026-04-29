@@ -16,6 +16,8 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
   late double _downloadLimit;
   late double _uploadLimit;
   late BtBackendKind _backendKind;
+  late bool _allowBackgroundDownload;
+  late bool _keepSeedingInBackground;
 
   final _concurrentController = TextEditingController();
   final _downloadLimitController = TextEditingController();
@@ -28,6 +30,8 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
     _downloadLimit = _dm.downloadLimitMbps;
     _uploadLimit = _dm.uploadLimitMbps;
     _backendKind = _dm.backendKind;
+    _allowBackgroundDownload = _dm.allowBackgroundDownload;
+    _keepSeedingInBackground = _dm.keepSeedingInBackground;
     _concurrentController.text = _maxConcurrent.toString();
     _downloadLimitController.text = _formatLimitValue(_downloadLimit);
     _uploadLimitController.text = _formatLimitValue(_uploadLimit);
@@ -61,6 +65,8 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
       maxConcurrent: concurrent,
       downloadLimitMbps: dlLimit,
       uploadLimitMbps: ulLimit,
+      allowBackgroundDownload: _allowBackgroundDownload,
+      keepSeedingInBackground: _keepSeedingInBackground,
     );
 
     if (!mounted) return;
@@ -69,6 +75,8 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
       _maxConcurrent = _dm.maxConcurrentDownloads;
       _downloadLimit = _dm.downloadLimitMbps;
       _uploadLimit = _dm.uploadLimitMbps;
+      _allowBackgroundDownload = _dm.allowBackgroundDownload;
+      _keepSeedingInBackground = _dm.keepSeedingInBackground;
     });
 
     _concurrentController.text = _maxConcurrent.toString();
@@ -183,6 +191,43 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
           ),
           const SizedBox(height: 8),
 
+          _buildSwitchCard(
+            icon: Icons.cloud_download_outlined,
+            title: AppLocalizations.of(context).allowBackgroundDownload,
+            subtitle: AppLocalizations.of(
+              context,
+            ).allowBackgroundDownloadSubtitle,
+            value: _allowBackgroundDownload,
+            onChanged: (value) async {
+              setState(() {
+                _allowBackgroundDownload = value;
+                if (!value) {
+                  _keepSeedingInBackground = false;
+                }
+              });
+              await _dm.setDownloadSettings(
+                allowBackgroundDownload: _allowBackgroundDownload,
+                keepSeedingInBackground: _keepSeedingInBackground,
+              );
+            },
+          ),
+          if (_allowBackgroundDownload) ...[
+            const SizedBox(height: 8),
+            _buildSwitchCard(
+              icon: Icons.all_inclusive,
+              title: AppLocalizations.of(context).keepSeedingMode,
+              subtitle: AppLocalizations.of(context).keepSeedingModeSubtitle,
+              value: _keepSeedingInBackground,
+              onChanged: (value) async {
+                setState(() => _keepSeedingInBackground = value);
+                await _dm.setDownloadSettings(
+                  keepSeedingInBackground: _keepSeedingInBackground,
+                );
+              },
+            ),
+          ],
+          const SizedBox(height: 16),
+
           // 并行下载数
           _buildNumberField(
             controller: _concurrentController,
@@ -277,6 +322,30 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSwitchCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(
+        context,
+      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: SwitchListTile(
+        secondary: Icon(icon, color: Theme.of(context).colorScheme.primary),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        value: value,
+        onChanged: onChanged,
       ),
     );
   }
