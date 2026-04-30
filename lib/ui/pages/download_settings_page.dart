@@ -278,18 +278,6 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
             hint: AppLocalizations.of(context).downloadUploadLimitHint,
             icon: Icons.upload,
           ),
-          const SizedBox(height: 32),
-
-          ElevatedButton.icon(
-            onPressed: _saveSettings,
-            icon: const Icon(Icons.save),
-            label: Text(
-              AppLocalizations.of(context).downloadSettingsSaveButton,
-            ),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
         ],
       ),
     );

@@ -640,14 +640,6 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                   ),
                 ],
                 const SizedBox(height: 32),
-                ElevatedButton.icon(
-                  onPressed: _saveSettings,
-                  icon: const Icon(Icons.save),
-                  label: Text(l10n.save),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
               ],
             ),
       floatingActionButton: FloatingActionButton(
