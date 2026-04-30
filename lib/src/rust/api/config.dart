@@ -51,6 +51,9 @@ Future<String> getCacheDir() =>
 Future<String> getDownloadDir() =>
     RustLib.instance.api.crateApiConfigGetDownloadDir();
 
+Future<void> setDownloadDir({required String dir}) =>
+    RustLib.instance.api.crateApiConfigSetDownloadDir(dir: dir);
+
 Future<void> setDisabledSources({required List<String> sources}) =>
     RustLib.instance.api.crateApiConfigSetDisabledSources(sources: sources);
 

@@ -1066,4 +1066,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get selectedSourceUnknown => 'Unknown';
+
+  @override
+  String get downloadDirTitle => 'Download Path';
+
+  @override
+  String get downloadDirBrowse => 'Browse';
+
+  @override
+  String get downloadDirPickerTitle => 'Select Download Directory';
 }

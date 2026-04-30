@@ -93,6 +93,12 @@ pub fn get_download_dir() -> String {
     CONFIG.read().unwrap().download_dir.clone()
 }
 
+pub fn set_download_dir(dir: String) {
+    let mut config = CONFIG.write().unwrap();
+    config.download_dir = dir.clone();
+    log::info!("Download directory updated to: {}", dir);
+}
+
 pub fn set_disabled_sources(sources: Vec<String>) {
     let mut config = CONFIG.write().unwrap();
     config.disabled_sources = sources;

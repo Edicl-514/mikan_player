@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:file_selector_windows/file_selector_windows.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/download_manager.dart';
 
@@ -18,6 +21,7 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
   late BtBackendKind _backendKind;
   late bool _allowBackgroundDownload;
   late bool _keepSeedingInBackground;
+  String? _customDownloadDir;
 
   final _concurrentController = TextEditingController();
   final _downloadLimitController = TextEditingController();
@@ -32,6 +36,7 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
     _backendKind = _dm.backendKind;
     _allowBackgroundDownload = _dm.allowBackgroundDownload;
     _keepSeedingInBackground = _dm.keepSeedingInBackground;
+    _customDownloadDir = _dm.hasCustomDownloadDir ? _dm.downloadDir : null;
     _concurrentController.text = _maxConcurrent.toString();
     _downloadLimitController.text = _formatLimitValue(_downloadLimit);
     _uploadLimitController.text = _formatLimitValue(_uploadLimit);
@@ -228,6 +233,12 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
           ],
           const SizedBox(height: 16),
 
+          // 下载路径（仅 Windows 桌面平台）
+          if (!kIsWeb && Platform.isWindows) ...[
+            _buildDownloadDirCard(),
+            const SizedBox(height: 16),
+          ],
+
           // 并行下载数
           _buildNumberField(
             controller: _concurrentController,
@@ -319,6 +330,109 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
                     ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))]
                     : [FilteringTextInputFormatter.digitsOnly],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickDownloadDir() async {
+    final l10n = AppLocalizations.of(context);
+    final result = await FileSelectorWindows().getDirectoryPath(
+      initialDirectory: _customDownloadDir ?? _dm.downloadDir,
+      confirmButtonText: l10n.downloadDirPickerTitle,
+    );
+    if (result != null) {
+      try {
+        await _dm.setDownloadDir(result);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _customDownloadDir = _dm.downloadDir;
+      });
+    }
+  }
+
+  Future<void> _resetDownloadDir() async {
+    try {
+      await _dm.setDownloadDir(null);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _customDownloadDir = null;
+    });
+  }
+
+  Widget _buildDownloadDirCard() {
+    final l10n = AppLocalizations.of(context);
+    final displayPath = _customDownloadDir ?? _dm.downloadDir;
+    final isCustom = _customDownloadDir != null;
+    return Card(
+      elevation: 0,
+      color: Theme.of(
+        context,
+      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.folder_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    l10n.downloadDirTitle,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              displayPath,
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: _pickDownloadDir,
+                  icon: const Icon(Icons.folder_open, size: 18),
+                  label: Text(l10n.downloadDirBrowse),
+                ),
+                if (isCustom) ...[
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: _resetDownloadDir,
+                    icon: const Icon(Icons.restore, size: 18),
+                    label: Text(l10n.restoreDefault),
+                  ),
+                ],
+              ],
             ),
           ],
         ),

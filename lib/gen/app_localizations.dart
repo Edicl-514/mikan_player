@@ -2047,6 +2047,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'未知'**
   String get selectedSourceUnknown;
+
+  /// No description provided for @downloadDirTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载路径'**
+  String get downloadDirTitle;
+
+  /// No description provided for @downloadDirBrowse.
+  ///
+  /// In zh, this message translates to:
+  /// **'浏览'**
+  String get downloadDirBrowse;
+
+  /// No description provided for @downloadDirPickerTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择下载目录'**
+  String get downloadDirPickerTitle;
 }
 
 class _AppLocalizationsDelegate

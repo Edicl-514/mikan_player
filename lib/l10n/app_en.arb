@@ -324,5 +324,8 @@
   "playbackSpeedTip": "Tip: playback speed affects both video and danmaku synchronization.",
   "subtitleTrackCount": "{count} episodes",
   "playWithSource": "Play - {source}",
-  "selectedSourceUnknown": "Unknown"
+  "selectedSourceUnknown": "Unknown",
+  "downloadDirTitle": "Download Path",
+  "downloadDirBrowse": "Browse",
+  "downloadDirPickerTitle": "Select Download Directory"
 }

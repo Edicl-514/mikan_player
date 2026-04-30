@@ -43,7 +43,12 @@ Future<void> main() async {
   // IMPORTANT: On Windows, use a unified app data directory to avoid debug/release path conflicts
   final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
   final cacheDir = Directory('${appSupportDir.path}/cache');
-  final downloadDir = Directory('${appSupportDir.path}/downloads');
+
+  // Check for custom download directory setting
+  final prefs = await SharedPreferences.getInstance();
+  final customDownloadDir = prefs.getString('download_dir_custom');
+  final downloadDirPath = customDownloadDir ?? '${appSupportDir.path}/downloads';
+  final downloadDir = Directory(downloadDirPath);
 
   if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
   if (!await downloadDir.exists()) await downloadDir.create(recursive: true);

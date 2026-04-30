@@ -324,5 +324,8 @@
   "playbackSpeedTip": "提示：播放速度会同时影响视频与弹幕的时间同步。",
   "subtitleTrackCount": "共 {count} 集",
   "playWithSource": "播放 - {source}",
-  "selectedSourceUnknown": "未知"
+  "selectedSourceUnknown": "未知",
+  "downloadDirTitle": "下载路径",
+  "downloadDirBrowse": "浏览",
+  "downloadDirPickerTitle": "选择下载目录"
 }

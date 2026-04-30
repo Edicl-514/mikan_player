@@ -1043,4 +1043,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get selectedSourceUnknown => '未知';
+
+  @override
+  String get downloadDirTitle => '下载路径';
+
+  @override
+  String get downloadDirBrowse => '浏览';
+
+  @override
+  String get downloadDirPickerTitle => '选择下载目录';
 }

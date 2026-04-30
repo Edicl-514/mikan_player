@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'generic_scraper.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `ensure_initialized`
+// These functions are ignored because they are not marked as `pub`: `ensure_initialized`, `get_session`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AppState`, `STATE`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `deref`, `fmt`, `fmt`, `initialize`
 
@@ -39,6 +39,9 @@ Future<void> setDisabledSources({required List<String> sources}) =>
 
 Future<void> setMaxConcurrentSearches({required int limit}) =>
     RustLib.instance.api.crateApiSimpleSetMaxConcurrentSearches(limit: limit);
+
+Future<void> setDownloadDir({required String dir}) =>
+    RustLib.instance.api.crateApiSimpleSetDownloadDir(dir: dir);
 
 Future<List<SourceState>> getPlaybackSources() =>
     RustLib.instance.api.crateApiSimpleGetPlaybackSources();
@@ -79,13 +82,10 @@ Future<bool> stopTorrent({
 );
 
 /// Pause a torrent by info hash
-/// This is implemented by stopping the torrent without deleting files
 Future<bool> pauseTorrent({required String infoHash}) =>
     RustLib.instance.api.crateApiSimplePauseTorrent(infoHash: infoHash);
 
 /// Resume a paused torrent by info hash
-/// Note: This requires the torrent to be restarted using start_torrent with the magnet link
-/// This function is kept for API compatibility but returns false as resume must be done via restart
 Future<bool> resumeTorrent({required String infoHash}) =>
     RustLib.instance.api.crateApiSimpleResumeTorrent(infoHash: infoHash);
 

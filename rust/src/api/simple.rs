@@ -49,6 +49,10 @@ pub fn set_max_concurrent_searches(limit: u32) {
     crate::api::config::set_max_concurrent_searches(limit);
 }
 
+pub fn set_download_dir(dir: String) {
+    crate::api::config::set_download_dir(dir);
+}
+
 pub async fn get_playback_sources() -> Vec<crate::api::generic_scraper::SourceState> {
     match crate::api::generic_scraper::get_playback_sources().await {
         Ok(s) => s,
@@ -268,7 +272,9 @@ pub async fn start_torrent(magnet: String) -> String {
     // This is crucial for video playback
     add_opts.overwrite = true;
     add_opts.only_files_regex = None; // We'll select the file after getting metadata
-    add_opts.output_folder = None; // Use default download folder
+    // Use the current download directory from config so that runtime path
+    // changes take effect for newly added torrents immediately.
+    add_opts.output_folder = Some(crate::api::config::get_download_dir());
 
     // Enable initial peer fetch to get more peers quickly
     add_opts.initial_peers = None; // Let it use tracker announces

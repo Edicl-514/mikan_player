@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:mikan_player/native/mikan_libtorrent_native.dart';
 import 'package:mikan_player/utils/app_directories.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:mikan_player/src/rust/api/simple.dart';
+import 'package:mikan_player/src/rust/api/simple.dart' as rust_api;
 
 /// Key for storing BT download tasks in SharedPreferences
 /// This key is NOT cleared by the cache clearing function
@@ -18,6 +18,7 @@ const String _downloadLimitKey = 'download_limit_mbps';
 const String _uploadLimitKey = 'upload_limit_mbps';
 const String _allowBackgroundDownloadKey = 'allow_background_download';
 const String _keepSeedingInBackgroundKey = 'keep_seeding_in_background';
+const String _customDownloadDirKey = 'download_dir_custom';
 
 enum DownloadTaskType { bt, http }
 
@@ -118,6 +119,7 @@ class DownloadTask {
   String? largestFilePath;
   BtBackendKind backend;
   String? errorMessage;
+  String? downloadDir;
 
   // HTTP-specific fields
   String? videoUrl;
@@ -145,6 +147,7 @@ class DownloadTask {
     this.largestFilePath,
     this.backend = BtBackendKind.rqbit,
     this.errorMessage,
+    this.downloadDir,
     this.videoUrl,
     this.headers,
     this.cookies,
@@ -204,6 +207,7 @@ class DownloadTask {
       largestFilePath: json['largestFilePath'] as String?,
       backend: backend,
       errorMessage: null,
+      downloadDir: json['downloadDir'] as String?,
       videoUrl: json['videoUrl'] as String?,
       headers: headers,
       cookies: json['cookies'] as String?,
@@ -229,6 +233,7 @@ class DownloadTask {
       'largestFilePath': largestFilePath,
       'backend': backend.storageValue,
       // streamUrl intentionally omitted — reconstructed from id + largestFileIdx
+      'downloadDir': downloadDir,
       'videoUrl': videoUrl,
       'headers': headers,
       'cookies': cookies,
@@ -358,6 +363,7 @@ class DownloadManager extends ChangeNotifier {
   Future<void>? _libtorrentInitialization;
   MikanLibtorrentSession? _nativeSession;
   String? _downloadDir;
+  String? _customDownloadDir;
   final Map<String, int> _ltTorrentIdsByHash = {};
   final Map<int, String> _ltInfoHashesByTorrentId = {};
   final Map<String, int> _ltStreamIdsByHash = {};
@@ -443,16 +449,34 @@ class DownloadManager extends ChangeNotifier {
     }
   }
 
+  /// Resolve the default download directory from app data path.
+  Future<String> _resolveDefaultDownloadDir() async {
+    final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
+    return '${appSupportDir.path}/downloads';
+  }
+
   /// Ensure download directory is initialized (for HTTP downloads)
   Future<void> _ensureDownloadDir() async {
     if (_downloadDir == null) {
-      final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
-      _downloadDir = '${appSupportDir.path}/downloads';
+      if (_customDownloadDir != null) {
+        _downloadDir = _customDownloadDir;
+      } else {
+        _downloadDir = await _resolveDefaultDownloadDir();
+      }
     }
   }
 
-  String _ltResumePath(String infoHash) {
-    return '$_downloadDir/${infoHash.toLowerCase()}.resume';
+  String _taskDownloadDir(DownloadTask? task) {
+    final dir = task?.downloadDir ?? _downloadDir;
+    if (dir == null || dir.isEmpty) {
+      throw StateError('Download directory is not initialized');
+    }
+    return dir;
+  }
+
+  String _ltResumePath(String infoHash, {DownloadTask? task, String? baseDir}) {
+    final dir = baseDir ?? _taskDownloadDir(task);
+    return '$dir/${infoHash.toLowerCase()}.resume';
   }
 
   bool _saveLibtorrentResumeDataForHash(String infoHash, String reason) {
@@ -471,7 +495,7 @@ class DownloadManager extends ChangeNotifier {
     try {
       _nativeSession!.saveResumeData(
         torrentId,
-        resumePath: _ltResumePath(hashLower),
+        resumePath: _ltResumePath(hashLower, task: task),
       );
       debugPrint(
         '[DownloadManager] Saved libtorrent resume data ($reason): $hashLower',
@@ -534,6 +558,12 @@ class DownloadManager extends ChangeNotifier {
   double get uploadLimitMbps => _uploadLimitMbps;
   bool get allowBackgroundDownload => _allowBackgroundDownload;
   bool get keepSeedingInBackground => _keepSeedingInBackground;
+
+  /// Current download directory (custom if set, otherwise default).
+  String get downloadDir => _downloadDir ?? '';
+
+  /// Whether a custom download directory has been configured.
+  bool get hasCustomDownloadDir => _customDownloadDir != null;
 
   /// Active tasks: downloading, metadata-fetching, checking (not seeding)
   List<DownloadTask> get activeTasks =>
@@ -647,6 +677,11 @@ class DownloadManager extends ChangeNotifier {
     _keepSeedingInBackground =
         _allowBackgroundDownload &&
         (prefs.getBool(_keepSeedingInBackgroundKey) ?? false);
+    _customDownloadDir = prefs.getString(_customDownloadDirKey);
+    if (_customDownloadDir != null) {
+      _downloadDir = _customDownloadDir;
+    }
+    await _ensureDownloadDir();
     if (_backendKind == BtBackendKind.libtorrent) {
       unawaited(_ensureLibtorrentInitialized());
     }
@@ -662,6 +697,40 @@ class DownloadManager extends ChangeNotifier {
     await prefs.setString(_btBackendStorageKey, backend.storageValue);
     if (backend == BtBackendKind.libtorrent) {
       unawaited(_ensureLibtorrentInitialized());
+    }
+    notifyListeners();
+  }
+
+  /// Set a custom download directory (or pass null to restore default).
+  /// New downloads will immediately use the new path; existing tasks are
+  /// unaffected and continue in their original location.
+  Future<void> setDownloadDir(String? path) async {
+    final prefs = await SharedPreferences.getInstance();
+    late final String nextDownloadDir;
+    if (path != null && path.isNotEmpty) {
+      final dir = Directory(path);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      nextDownloadDir = dir.path;
+      _customDownloadDir = nextDownloadDir;
+      _downloadDir = nextDownloadDir;
+      await prefs.setString(_customDownloadDirKey, nextDownloadDir);
+    } else {
+      nextDownloadDir = await _resolveDefaultDownloadDir();
+      final dir = Directory(nextDownloadDir);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      _customDownloadDir = null;
+      await prefs.remove(_customDownloadDirKey);
+      _downloadDir = nextDownloadDir;
+    }
+    // Sync the Rust-side config so rqbit reads the new path for new torrents
+    try {
+      await rust_api.setDownloadDir(dir: _downloadDir!);
+    } catch (e) {
+      debugPrint('[DownloadManager] Failed to sync Rust download dir: $e');
     }
     notifyListeners();
   }
@@ -734,6 +803,7 @@ class DownloadManager extends ChangeNotifier {
         final toResume = <DownloadTask>[];
         for (final json in jsonList) {
           final task = DownloadTask.fromJson(json as Map<String, dynamic>);
+          task.downloadDir ??= _downloadDir;
 
           // Only skip BT tasks with empty magnet; HTTP tasks have no magnet
           if (task.taskType == DownloadTaskType.bt && task.magnet.isEmpty) {
@@ -834,6 +904,7 @@ class DownloadManager extends ChangeNotifier {
         fallbackInfoHash: task.id,
         backend: task.backend,
         startStream: false,
+        downloadDir: task.downloadDir,
       );
       final actualId = result.infoHash;
       if (actualId != task.id) {
@@ -884,6 +955,13 @@ class DownloadManager extends ChangeNotifier {
       for (var w = 0; w < maxConcurrent; w++) worker(),
     ];
     await Future.wait(workers);
+    if (_downloadDir != null && _downloadDir!.isNotEmpty) {
+      try {
+        await rust_api.setDownloadDir(dir: _downloadDir!);
+      } catch (e) {
+        debugPrint('[DownloadManager] Failed to restore Rust download dir: $e');
+      }
+    }
   }
 
   /// Save tasks to SharedPreferences
@@ -916,8 +994,15 @@ class DownloadManager extends ChangeNotifier {
   }
 
   Future<void> _initializeLibtorrent() async {
-    final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
-    _downloadDir = '${appSupportDir.path}/downloads';
+    // Respect custom download dir if already set; otherwise resolve default.
+    if (_downloadDir == null) {
+      if (_customDownloadDir != null) {
+        _downloadDir = _customDownloadDir;
+      } else {
+        final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
+        _downloadDir = '${appSupportDir.path}/downloads';
+      }
+    }
     // Use a high listen port — the legacy 6881-6889 range is widely
     // throttled or blocked by ISPs; 49152 is in the IANA dynamic range.
     _nativeSession = MikanLibtorrentNative.instance.createSession(
@@ -943,9 +1028,14 @@ class DownloadManager extends ChangeNotifier {
     required String fallbackInfoHash,
     required BtBackendKind backend,
     bool startStream = true,
+    String? downloadDir,
   }) async {
     if (backend == BtBackendKind.rqbit) {
-      final streamUrl = await startTorrent(magnet: magnet);
+      final effectiveDownloadDir = downloadDir ?? _downloadDir;
+      if (effectiveDownloadDir != null && effectiveDownloadDir.isNotEmpty) {
+        await rust_api.setDownloadDir(dir: effectiveDownloadDir);
+      }
+      final streamUrl = await rust_api.startTorrent(magnet: magnet);
       if (streamUrl.startsWith('Error')) {
         throw Exception(streamUrl);
       }
@@ -961,8 +1051,13 @@ class DownloadManager extends ChangeNotifier {
     final infoHash = fallbackInfoHash.toLowerCase();
     var torrentId = _ltTorrentIdsByHash[infoHash];
     if (torrentId == null || !_isNativeTorrentValid(torrentId)) {
-      final resumePath = _ltResumePath(infoHash);
       final task = _tasks[infoHash];
+      final effectiveDownloadDir =
+          downloadDir ?? task?.downloadDir ?? _downloadDir;
+      if (effectiveDownloadDir == null || effectiveDownloadDir.isEmpty) {
+        throw StateError('Download directory is not initialized');
+      }
+      final resumePath = _ltResumePath(infoHash, baseDir: effectiveDownloadDir);
       final seed =
           task != null &&
           task.progress >= 100.0 &&
@@ -972,7 +1067,7 @@ class DownloadManager extends ChangeNotifier {
       final enrichedMagnet = _injectTrackers(magnet);
       torrentId = session.addMagnetEx(
         enrichedMagnet,
-        savePath: _downloadDir,
+        savePath: effectiveDownloadDir,
         resumePath: resumePath,
         seedMode: seed,
       );
@@ -1120,8 +1215,8 @@ class DownloadManager extends ChangeNotifier {
     await Future<void>.delayed(const Duration(milliseconds: 300));
   }
 
-  Future<List<TorrentStats>> _getTorrentStatsWithBackend() async {
-    final results = <TorrentStats>[];
+  Future<List<rust_api.TorrentStats>> _getTorrentStatsWithBackend() async {
+    final results = <rust_api.TorrentStats>[];
     final hasRqbitTasks = _tasks.values.any(
       (task) =>
           task.taskType == DownloadTaskType.bt &&
@@ -1134,7 +1229,7 @@ class DownloadManager extends ChangeNotifier {
     );
 
     if (hasRqbitTasks) {
-      results.addAll(await getTorrentStats());
+      results.addAll(await rust_api.getTorrentStats());
     }
 
     if (!hasLibtorrentTasks || !_libtorrentInitialized) {
@@ -1159,7 +1254,7 @@ class DownloadManager extends ChangeNotifier {
           ? (downloaded / totalSize * 100.0).clamp(0.0, 100.0)
           : stats.progress;
       results.add(
-        TorrentStats(
+        rust_api.TorrentStats(
           infoHash: infoHash,
           name: stats.name.isEmpty ? 'Torrent ${stats.torrentId}' : stats.name,
           state: _normalizeNativeLibtorrentState(stats),
@@ -1204,7 +1299,7 @@ class DownloadManager extends ChangeNotifier {
     required BtBackendKind backend,
   }) async {
     if (backend == BtBackendKind.rqbit) {
-      return pauseTorrent(infoHash: infoHash);
+      return rust_api.pauseTorrent(infoHash: infoHash);
     }
     if (!_libtorrentInitialized) return false;
     final hashLower = infoHash.toLowerCase();
@@ -1220,7 +1315,7 @@ class DownloadManager extends ChangeNotifier {
     required BtBackendKind backend,
   }) async {
     if (backend == BtBackendKind.rqbit) {
-      return resumeTorrent(infoHash: infoHash);
+      return rust_api.resumeTorrent(infoHash: infoHash);
     }
     if (!_libtorrentInitialized) return false;
     final hashLower = infoHash.toLowerCase();
@@ -1235,9 +1330,10 @@ class DownloadManager extends ChangeNotifier {
     String infoHash, {
     required BtBackendKind backend,
     required bool deleteFiles,
+    DownloadTask? task,
   }) async {
     if (backend == BtBackendKind.rqbit) {
-      return stopTorrent(infoHash: infoHash, deleteFiles: deleteFiles);
+      return rust_api.stopTorrent(infoHash: infoHash, deleteFiles: deleteFiles);
     }
     if (!_libtorrentInitialized) return false;
     final hashLower = infoHash.toLowerCase();
@@ -1260,7 +1356,7 @@ class DownloadManager extends ChangeNotifier {
     _ltFileIdxByHash.remove(hashLower);
     _ltFileSizeByHash.remove(hashLower);
     _ltCompletionResumeSavedHashes.remove(hashLower);
-    final resumePath = _ltResumePath(hashLower);
+    final resumePath = _ltResumePath(hashLower, task: task);
     if (deleteFiles) {
       try {
         final file = File(resumePath);
@@ -1280,8 +1376,8 @@ class DownloadManager extends ChangeNotifier {
     return true;
   }
 
-  bool _isPathUnderDownloadDir(String path) {
-    final downloadDir = _downloadDir;
+  bool _isPathUnderDownloadDir(String path, {String? baseDir}) {
+    final downloadDir = baseDir ?? _downloadDir;
     if (downloadDir == null || downloadDir.isEmpty) return false;
 
     var base = Directory(downloadDir).absolute.path;
@@ -1303,8 +1399,8 @@ class DownloadManager extends ChangeNotifier {
     return RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(path);
   }
 
-  String? _resolveDownloadChildPath(String relativePath) {
-    final downloadDir = _downloadDir;
+  String? _resolveDownloadChildPath(String relativePath, {String? baseDir}) {
+    final downloadDir = baseDir ?? _downloadDir;
     if (downloadDir == null || downloadDir.isEmpty) return null;
     if (relativePath.isEmpty || _isAbsolutePath(relativePath)) {
       return null;
@@ -1325,7 +1421,7 @@ class DownloadManager extends ChangeNotifier {
     for (final part in parts) {
       path = '$path${Platform.pathSeparator}$part';
     }
-    return _isPathUnderDownloadDir(path) ? path : null;
+    return _isPathUnderDownloadDir(path, baseDir: downloadDir) ? path : null;
   }
 
   bool _isLikelyVideoPath(String path) {
@@ -1365,7 +1461,7 @@ class DownloadManager extends ChangeNotifier {
   }
 
   File? _findUniqueDownloadedFileCandidate(DownloadTask task) {
-    final downloadDir = _downloadDir;
+    final downloadDir = task.downloadDir ?? _downloadDir;
     if (downloadDir == null || downloadDir.isEmpty) return null;
     final totalSize = task.totalSize.toInt();
     if (totalSize <= 0) return null;
@@ -1377,7 +1473,9 @@ class DownloadManager extends ChangeNotifier {
     try {
       for (final entity in root.listSync(recursive: true, followLinks: false)) {
         if (entity is! File) continue;
-        if (!_isPathUnderDownloadDir(entity.path)) continue;
+        if (!_isPathUnderDownloadDir(entity.path, baseDir: downloadDir)) {
+          continue;
+        }
         if (entity.path.toLowerCase().endsWith('.resume')) continue;
         if (!_isLikelyVideoPath(entity.path)) continue;
         if (entity.lengthSync() == totalSize) {
@@ -1399,13 +1497,13 @@ class DownloadManager extends ChangeNotifier {
     return named.length == 1 ? named.single : null;
   }
 
-  void _deleteEmptyParentsUnderDownloadDir(File file) {
-    final downloadDir = _downloadDir;
+  void _deleteEmptyParentsUnderDownloadDir(File file, {String? baseDir}) {
+    final downloadDir = baseDir ?? _downloadDir;
     if (downloadDir == null || downloadDir.isEmpty) return;
 
     var dir = file.parent;
     final root = Directory(downloadDir).absolute.path;
-    while (_isPathUnderDownloadDir(dir.path) &&
+    while (_isPathUnderDownloadDir(dir.path, baseDir: downloadDir) &&
         dir.absolute.path != Directory(root).absolute.path) {
       try {
         if (!dir.existsSync() || dir.listSync().isNotEmpty) return;
@@ -1420,10 +1518,11 @@ class DownloadManager extends ChangeNotifier {
 
   Future<void> _deleteLibtorrentFilesForTask(DownloadTask task) async {
     if (task.backend != BtBackendKind.libtorrent) return;
-    if (_downloadDir == null || _downloadDir!.isEmpty) return;
+    final downloadDir = task.downloadDir ?? _downloadDir;
+    if (downloadDir == null || downloadDir.isEmpty) return;
 
     try {
-      final resumeFile = File(_ltResumePath(task.id));
+      final resumeFile = File(_ltResumePath(task.id, task: task));
       if (resumeFile.existsSync()) {
         resumeFile.deleteSync();
       }
@@ -1432,7 +1531,10 @@ class DownloadManager extends ChangeNotifier {
     File? target;
     final relativePath = task.largestFilePath;
     if (relativePath != null) {
-      final path = _resolveDownloadChildPath(relativePath);
+      final path = _resolveDownloadChildPath(
+        relativePath,
+        baseDir: downloadDir,
+      );
       if (path != null) {
         final file = File(path);
         if (file.existsSync()) {
@@ -1453,7 +1555,7 @@ class DownloadManager extends ChangeNotifier {
     try {
       final deletedPath = target.path;
       target.deleteSync();
-      _deleteEmptyParentsUnderDownloadDir(target);
+      _deleteEmptyParentsUnderDownloadDir(target, baseDir: downloadDir);
       debugPrint('[DownloadManager] Deleted libtorrent file: $deletedPath');
     } catch (e) {
       debugPrint('[DownloadManager] Error deleting libtorrent file: $e');
@@ -1548,6 +1650,8 @@ class DownloadManager extends ChangeNotifier {
     int? episodeNumber,
     bool forPlayback = false,
   }) async {
+    await _ensureDownloadDir();
+
     // Generate a temporary ID from magnet hash
     final tempId =
         _extractInfoHash(magnet) ??
@@ -1592,6 +1696,7 @@ class DownloadManager extends ChangeNotifier {
           ? backendInitialStatus
           : DownloadTaskStatus.queued,
       backend: _backendKind,
+      downloadDir: _downloadDir,
     );
 
     _tasks[tempId] = task;
@@ -1619,6 +1724,7 @@ class DownloadManager extends ChangeNotifier {
         fallbackInfoHash: tempId,
         backend: task.backend,
         startStream: forPlayback,
+        downloadDir: task.downloadDir,
       );
       final streamUrl = result.streamUrl;
 
@@ -1732,6 +1838,7 @@ class DownloadManager extends ChangeNotifier {
         fallbackInfoHash: task.id,
         backend: task.backend,
         startStream: true,
+        downloadDir: task.downloadDir,
       );
       final actualId = result.infoHash;
       if (actualId != task.id) {
@@ -1853,6 +1960,7 @@ class DownloadManager extends ChangeNotifier {
       headers: headers,
       cookies: cookies,
       localFilePath: localFilePath,
+      downloadDir: _downloadDir,
     );
 
     _tasks[id] = task;
@@ -2472,7 +2580,7 @@ class DownloadManager extends ChangeNotifier {
 
     try {
       final stats = await _getTorrentStatsWithBackend();
-      final statsByHash = <String, TorrentStats>{
+      final statsByHash = <String, rust_api.TorrentStats>{
         for (final stat in stats) stat.infoHash.toLowerCase(): stat,
       };
       final missingTasks = <DownloadTask>[];
@@ -2612,7 +2720,7 @@ class DownloadManager extends ChangeNotifier {
             try {
               _nativeSession!.saveResumeData(
                 torrentId,
-                resumePath: _ltResumePath(hashLower),
+                resumePath: _ltResumePath(hashLower, task: task),
               );
             } catch (e) {
               debugPrint(
@@ -2713,6 +2821,7 @@ class DownloadManager extends ChangeNotifier {
         fallbackInfoHash: id,
         backend: task.backend,
         startStream: false,
+        downloadDir: task.downloadDir,
       );
       final actualId = result.infoHash;
       final fileIdx = result.fileIdx;
@@ -2785,6 +2894,7 @@ class DownloadManager extends ChangeNotifier {
         id,
         backend: task?.backend ?? _backendKind,
         deleteFiles: effectiveDeleteFiles,
+        task: task,
       );
       if (stopped) {
         debugPrint(
@@ -2901,6 +3011,7 @@ class DownloadManager extends ChangeNotifier {
           fallbackInfoHash: task.id,
           backend: task.backend,
           startStream: false,
+          downloadDir: task.downloadDir,
         );
         torrentId = result.torrentId;
         task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
@@ -3025,6 +3136,7 @@ class DownloadManager extends ChangeNotifier {
           id,
           backend: task?.backend ?? _backendKind,
           deleteFiles: effectiveDeleteFiles,
+          task: task,
         );
       } catch (e) {
         debugPrint('[DownloadManager] Error stopping torrent $id: $e');
