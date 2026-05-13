@@ -177,6 +177,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   int? _pendingStartPositionMs;
   int _lastSavedPositionMs = 0;
   static const int _saveIntervalMs = 5000;
+  static const Duration _manualSeekGracePeriod = Duration(seconds: 2);
+  static const Duration _positionResetGracePeriod = Duration(seconds: 4);
+  static const Duration _unexpectedJumpMinimum = Duration(seconds: 30);
+  static const Duration _unexpectedJumpRecoveryOffset = Duration(seconds: 5);
+  static const Duration _unexpectedJumpSourceMinimum = Duration(seconds: 60);
+  static const Duration _manualBackwardSeekMinimum = Duration(seconds: 10);
+  Duration _furthestObservedPosition = Duration.zero;
+  DateTime? _lastUserInteractionAt;
+  DateTime? _allowPositionResetUntil;
+  bool _isRecoveringUnexpectedJump = false;
 
   // Header Injection Proxy
   final HeaderInjectionProxy _headerProxy = HeaderInjectionProxy();
@@ -210,6 +220,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // Subscribe to player position for danmaku sync
     _positionSubscription = _player.stream.position.listen((position) {
       if (mounted) {
+        _handleUnexpectedPositionJump(position);
         _currentVideoTimeNotifier.value = position.inMilliseconds / 1000.0;
 
         try {
@@ -353,6 +364,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _isLoadingVideo = false;
           _videoError = null;
         });
+        _temporarilyAllowPositionReset();
         _player.open(Media(filePath), play: true).then((_) async {
           await _applyPlaybackSpeed();
           await _applyPendingStartPosition();
@@ -385,6 +397,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     debugPrint('[Player] Playing BT stream: $streamUrl');
+    _temporarilyAllowPositionReset();
     _player.open(Media(streamUrl), play: true).then((_) async {
       await _applyPlaybackSpeed();
       await _applyPendingStartPosition();
@@ -465,6 +478,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         await for (final duration in _player.stream.duration) {
           if (duration.inMilliseconds > 0) {
             // Media is ready, now seek
+            _temporarilyAllowPositionReset();
             await _player.seek(Duration(milliseconds: targetPosition));
             debugPrint('[Seek] Applied start position: ${targetPosition}ms');
             break;
@@ -3271,6 +3285,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     });
 
     // Open media and start playing
+    _temporarilyAllowPositionReset();
     _player.stop();
     try {
       _player.open(Media(finalUrl), play: true).then((_) async {
@@ -3300,58 +3315,64 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         listenable: _subtitleService,
         builder: (context, _) {
           final subtitleSettings = _subtitleService.settings;
-          return Video(
-            controller: _videoController,
-            subtitleViewConfiguration: SubtitleViewConfiguration(
-              visible: subtitleSettings.enabled,
-              style: subtitleSettings.toTextStyle(),
-              padding: EdgeInsets.fromLTRB(
-                16,
-                0,
-                16,
-                subtitleSettings.bottomPadding,
+          return Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => _markUserInteraction(),
+            onPointerMove: (_) => _markUserInteraction(),
+            onPointerUp: (_) => _markUserInteraction(),
+            child: Video(
+              controller: _videoController,
+              subtitleViewConfiguration: SubtitleViewConfiguration(
+                visible: subtitleSettings.enabled,
+                style: subtitleSettings.toTextStyle(),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  0,
+                  16,
+                  subtitleSettings.bottomPadding,
+                ),
               ),
-            ),
-            controls: (state) => CustomVideoControls(
-              state: state,
-              isMobile: isMobile,
-              danmakuService: _danmakuService,
-              subtitleService: _subtitleService,
-              currentVideoTimeListenable: _currentVideoTimeNotifier,
-              isVideoPausedListenable: _isVideoPausedNotifier,
-              showDanmakuSettingsListenable: _showDanmakuSettingsNotifier,
-              onToggleDanmakuSettings: () =>
-                  _showDanmakuSettingsNotifier.value =
-                      !_showDanmakuSettingsNotifier.value,
-              allEpisodes: widget.allEpisodes,
-              currentEpisode: _currentEpisode,
-              onEpisodeSelected: _onEpisodeSelected,
-              isAutoPlayNextEnabled: _isAutoPlayNextEnabled,
-              onToggleAutoPlayNext: () {
-                final newValue = !_isAutoPlayNextEnabled;
-                setState(() {
-                  _isAutoPlayNextEnabled = newValue;
-                });
-                _saveAutoPlaySetting(newValue);
-              },
-              playbackSpeed: _playbackSpeed,
-              onPlaybackSpeedChanged: _onPlaybackSpeedChanged,
-              availableSources: _sampleSuccessfulSources,
-              sourceIndexNotifier: _selectedSourceIndexNotifier,
-              currentSourceLabel: _playingSourceLabel,
-              onSourceSelected: (index) {
-                _onSourceSelected(index);
-                _startPlaybackFromSelectedSource();
-              },
-              isLoading: _isLoadingVideo || _loadingMagnet != null,
-              mobilePlayerLockNotifier: _mobilePlayerLockNotifier,
-              videoTitle:
-                  '${widget.anime.title} - 第${_currentEpisode.sort.toInt()}集',
-              onDownloadCurrentSource:
-                  _currentOnlineSource != null &&
-                      _currentOnlineSource!.directVideoUrl != null
-                  ? _onDownloadCurrentSource
-                  : null,
+              controls: (state) => CustomVideoControls(
+                state: state,
+                isMobile: isMobile,
+                danmakuService: _danmakuService,
+                subtitleService: _subtitleService,
+                currentVideoTimeListenable: _currentVideoTimeNotifier,
+                isVideoPausedListenable: _isVideoPausedNotifier,
+                showDanmakuSettingsListenable: _showDanmakuSettingsNotifier,
+                onToggleDanmakuSettings: () =>
+                    _showDanmakuSettingsNotifier.value =
+                        !_showDanmakuSettingsNotifier.value,
+                allEpisodes: widget.allEpisodes,
+                currentEpisode: _currentEpisode,
+                onEpisodeSelected: _onEpisodeSelected,
+                isAutoPlayNextEnabled: _isAutoPlayNextEnabled,
+                onToggleAutoPlayNext: () {
+                  final newValue = !_isAutoPlayNextEnabled;
+                  setState(() {
+                    _isAutoPlayNextEnabled = newValue;
+                  });
+                  _saveAutoPlaySetting(newValue);
+                },
+                playbackSpeed: _playbackSpeed,
+                onPlaybackSpeedChanged: _onPlaybackSpeedChanged,
+                availableSources: _sampleSuccessfulSources,
+                sourceIndexNotifier: _selectedSourceIndexNotifier,
+                currentSourceLabel: _playingSourceLabel,
+                onSourceSelected: (index) {
+                  _onSourceSelected(index);
+                  _startPlaybackFromSelectedSource();
+                },
+                isLoading: _isLoadingVideo || _loadingMagnet != null,
+                mobilePlayerLockNotifier: _mobilePlayerLockNotifier,
+                videoTitle:
+                    '${widget.anime.title} - 第${_currentEpisode.sort.toInt()}集',
+                onDownloadCurrentSource:
+                    _currentOnlineSource != null &&
+                        _currentOnlineSource!.directVideoUrl != null
+                    ? _onDownloadCurrentSource
+                    : null,
+              ),
             ),
           );
         },
@@ -5339,6 +5360,79 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ),
       );
     }
+  }
+
+  void _markUserInteraction() {
+    _lastUserInteractionAt = DateTime.now();
+  }
+
+  void _temporarilyAllowPositionReset() {
+    final now = DateTime.now();
+    _allowPositionResetUntil = now.add(_positionResetGracePeriod);
+    _furthestObservedPosition = Duration.zero;
+    _isRecoveringUnexpectedJump = false;
+  }
+
+  void _handleUnexpectedPositionJump(Duration position) {
+    final furthestPosition = _furthestObservedPosition;
+    final now = DateTime.now();
+    final isWithinManualInteractionWindow =
+        _lastUserInteractionAt != null &&
+        now.difference(_lastUserInteractionAt!) <= _manualSeekGracePeriod;
+
+    if (isWithinManualInteractionWindow &&
+        furthestPosition > position &&
+        furthestPosition - position >= _manualBackwardSeekMinimum) {
+      _furthestObservedPosition = position;
+      return;
+    }
+
+    if (position > _furthestObservedPosition) {
+      _furthestObservedPosition = position;
+    }
+
+    if (_isRecoveringUnexpectedJump) {
+      _isRecoveringUnexpectedJump = false;
+      return;
+    }
+
+    if (_allowPositionResetUntil?.isAfter(now) ?? false) {
+      return;
+    }
+
+    if (isWithinManualInteractionWindow) {
+      return;
+    }
+
+    if (furthestPosition < _unexpectedJumpSourceMinimum) {
+      return;
+    }
+
+    final droppedDuration = furthestPosition - position;
+    if (droppedDuration < _unexpectedJumpMinimum) {
+      return;
+    }
+
+    final recoverPosition = furthestPosition + _unexpectedJumpRecoveryOffset;
+    final duration = _player.state.duration;
+    final boundedRecoverPosition = duration > Duration.zero
+        ? recoverPosition > duration
+              ? duration
+              : recoverPosition
+        : recoverPosition;
+
+    if (boundedRecoverPosition <= position) {
+      return;
+    }
+
+    _temporarilyAllowPositionReset();
+    _isRecoveringUnexpectedJump = true;
+    unawaited(_player.seek(boundedRecoverPosition));
+    debugPrint(
+      '[AntiAd] Unexpected position jump detected: '
+      '${furthestPosition.inSeconds}s -> ${position.inSeconds}s, '
+      'recovering to ${boundedRecoverPosition.inSeconds}s',
+    );
   }
 
   Widget _buildRecommendationItemHorizontal(RankingAnime item) {
