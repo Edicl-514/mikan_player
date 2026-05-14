@@ -268,14 +268,26 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   Future<int> _tcpPing(String url) async {
     try {
       final uri = Uri.parse(url);
+      final port = uri.port != 0 ? uri.port : (uri.scheme == 'https' ? 443 : 80);
       final stopwatch = Stopwatch()..start();
-      final socket = await Socket.connect(
-        uri.host,
-        uri.port != 0 ? uri.port : (uri.scheme == 'https' ? 443 : 80),
-        timeout: const Duration(seconds: 2),
-      );
-      stopwatch.stop();
-      await socket.close();
+      if (uri.scheme == 'https') {
+        final socket = await SecureSocket.connect(
+          uri.host,
+          port,
+          timeout: const Duration(seconds: 3),
+          onBadCertificate: (_) => true,
+        );
+        stopwatch.stop();
+        await socket.close();
+      } else {
+        final socket = await Socket.connect(
+          uri.host,
+          port,
+          timeout: const Duration(seconds: 2),
+        );
+        stopwatch.stop();
+        await socket.close();
+      }
       return stopwatch.elapsedMilliseconds;
     } catch (_) {
       return 999999;
