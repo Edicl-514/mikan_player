@@ -5,6 +5,7 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'bangumi_details_page.dart';
 import 'person_detail_page.dart';
 
@@ -35,10 +36,22 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
   bool _isLoadingSubjects = true;
   String? _error;
 
+  final ScrollController _mobileScrollController = createPlatformScrollController();
+  final ScrollController _desktopLeftScrollController = createPlatformScrollController();
+  final ScrollController _desktopRightScrollController = createPlatformScrollController();
+
   @override
   void initState() {
     super.initState();
     _fetchData();
+  }
+
+  @override
+  void dispose() {
+    _mobileScrollController.dispose();
+    _desktopLeftScrollController.dispose();
+    _desktopRightScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchData() async {
@@ -205,6 +218,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
 
   Widget _buildMobileLayout(BuildContext context) {
     return CustomScrollView(
+      controller: _mobileScrollController,
       slivers: [
         SliverToBoxAdapter(
           child: _buildMobileHeader(context),
@@ -246,6 +260,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                 SizedBox(
                   width: 380,
                   child: SingleChildScrollView(
+                    controller: _desktopLeftScrollController,
                     padding: const EdgeInsets.fromLTRB(
                       32,
                       kToolbarHeight + 32,
@@ -266,6 +281,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                 // Right Panel
                 Expanded(
                   child: SingleChildScrollView(
+                    controller: _desktopRightScrollController,
                     padding: const EdgeInsets.fromLTRB(
                       32,
                       kToolbarHeight + 32,

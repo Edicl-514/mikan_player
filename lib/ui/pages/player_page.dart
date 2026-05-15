@@ -22,6 +22,7 @@ import 'package:mikan_player/services/header_injection_proxy.dart';
 import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
@@ -76,6 +77,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   late TabController _mobileTabController;
   late ScrollController _pcEpisodeScrollController;
   late ScrollController _mobileEpisodeScrollController;
+  final ScrollController _mobileInfoScrollController = createPlatformScrollController();
+  final ScrollController _pcMainScrollController = createPlatformScrollController();
+  final ScrollController _pcSidebarScrollController = createPlatformScrollController();
+  final ScrollController _commentsScrollController = createPlatformScrollController();
   bool _isDescriptionExpanded = false;
   bool _isEpisodesExpanded = false;
 
@@ -196,7 +201,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _mobileTabController = TabController(length: 2, vsync: this);
-    _pcEpisodeScrollController = ScrollController();
+    _pcEpisodeScrollController = createPlatformScrollController();
     _mobileEpisodeScrollController = ScrollController();
 
     // Initialize current episode from widget
@@ -2205,6 +2210,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _mobileTabController.dispose();
     _pcEpisodeScrollController.dispose();
     _mobileEpisodeScrollController.dispose();
+    _mobileInfoScrollController.dispose();
+    _pcMainScrollController.dispose();
+    _pcSidebarScrollController.dispose();
+    _commentsScrollController.dispose();
     _subtitleService.dispose();
     _player.stop(); // 确保播放器完全停止后再释放
     _player.dispose();
@@ -2296,6 +2305,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   Widget _buildMobileInfoTab(BuildContext context) {
     return SingleChildScrollView(
+      controller: _mobileInfoScrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2678,6 +2688,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               // Scrollable Content
               Expanded(
                 child: CustomScrollView(
+                  controller: _pcMainScrollController,
                   slivers: [
                     SliverToBoxAdapter(
                       child: Column(
@@ -2916,6 +2927,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           width: 380,
           color: const Color(0xFF13131A),
           child: CustomScrollView(
+            controller: _pcSidebarScrollController,
             slivers: [
               SliverPadding(
                 padding: const EdgeInsets.all(16),
@@ -5033,6 +5045,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         const Divider(height: 1, color: Colors.white10),
         Expanded(
           child: ListView.builder(
+            controller: _commentsScrollController,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             itemCount: _comments.length,
             itemBuilder: (context, index) {

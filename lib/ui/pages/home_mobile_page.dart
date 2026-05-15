@@ -20,6 +20,7 @@ import 'package:mikan_player/ui/pages/player_page.dart';
 import 'package:mikan_player/ui/pages/ranking_page.dart';
 import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/ui/pages/timetable_page.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
 import 'package:mikan_player/ui/widgets/blurred_cover_background.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
@@ -50,6 +51,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
 
   late PageController _todayPageController;
   Timer? _todayTimer;
+  final ScrollController _scrollController = createPlatformScrollController();
 
   @override
   void initState() {
@@ -63,6 +65,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
   void dispose() {
     _todayTimer?.cancel();
     _todayPageController.dispose();
+    _scrollController.dispose();
     _userManager.removeListener(_onUserUpdate);
     super.dispose();
   }
@@ -381,6 +384,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       body: RefreshIndicator(
         onRefresh: _loadAllData,
         child: CustomScrollView(
+          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverToBoxAdapter(child: _buildTodaySection()),

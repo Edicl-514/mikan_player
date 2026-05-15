@@ -5,6 +5,7 @@ import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'bangumi_details_page.dart';
 import 'character_detail_page.dart';
 
@@ -53,10 +54,22 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   // Tracks which grouped character cards are expanded
   final Set<int> _expandedCharIds = {};
 
+  final ScrollController _mobileScrollController = createPlatformScrollController();
+  final ScrollController _desktopLeftScrollController = createPlatformScrollController();
+  final ScrollController _desktopRightScrollController = createPlatformScrollController();
+
   @override
   void initState() {
     super.initState();
     _fetchData();
+  }
+
+  @override
+  void dispose() {
+    _mobileScrollController.dispose();
+    _desktopLeftScrollController.dispose();
+    _desktopRightScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchData() async {
@@ -286,6 +299,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
 
   Widget _buildMobileLayout(BuildContext context) {
     return CustomScrollView(
+      controller: _mobileScrollController,
       slivers: [
         SliverToBoxAdapter(child: _buildMobileHeader(context)),
         SliverToBoxAdapter(
@@ -325,6 +339,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                 SizedBox(
                   width: 380,
                   child: SingleChildScrollView(
+                    controller: _desktopLeftScrollController,
                     padding: const EdgeInsets.fromLTRB(
                       32,
                       kToolbarHeight + 32,
@@ -352,6 +367,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                       32,
                     ),
                     child: CustomScrollView(
+                      controller: _desktopRightScrollController,
                       slivers: [
                         SliverToBoxAdapter(child: _buildTitleSection(context)),
                         const SliverToBoxAdapter(child: SizedBox(height: 32)),

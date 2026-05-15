@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/src/rust/api/danmaku.dart';
 
@@ -624,6 +625,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _displaySettingsScrollController =
+      createPlatformScrollController();
 
   @override
   void initState() {
@@ -639,6 +642,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
+    _displaySettingsScrollController.dispose();
     super.dispose();
   }
 
@@ -702,6 +706,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
         final l10n = AppLocalizations.of(context);
         final settings = widget.danmakuService.settings;
         return ListView(
+          controller: _displaySettingsScrollController,
           padding: const EdgeInsets.symmetric(vertical: 8),
           children: [
             _buildSwitchTile(

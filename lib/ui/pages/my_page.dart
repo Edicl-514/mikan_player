@@ -4,6 +4,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/pages/settings_page.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/ui/pages/favorites_page.dart';
@@ -425,6 +426,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
   final DownloadManager _downloadManager = DownloadManager();
   DownloadTaskStatus? _statusFilter;
   final Set<String> _collapsedGroups = {};
+  final ScrollController _scrollController = createPlatformScrollController();
 
   bool get _forceDeleteFilesOnAndroid =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -437,6 +439,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _downloadManager.removeListener(_onUpdate);
     super.dispose();
   }
@@ -626,6 +629,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                 // Task list grouped by anime
                 Expanded(
                   child: ListView.builder(
+                    controller: _scrollController,
                     padding: const EdgeInsets.all(16),
                     itemCount: groupedTasks.length,
                     itemBuilder: (context, index) {

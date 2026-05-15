@@ -4,6 +4,7 @@ import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/player_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -15,11 +16,18 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   final PlaybackHistoryManager _historyManager = PlaybackHistoryManager();
   late Future<List<PlaybackHistoryItem>> _historyFuture;
+  final ScrollController _scrollController = createPlatformScrollController();
 
   @override
   void initState() {
     super.initState();
     _historyFuture = _historyManager.getHistory();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _reload() async {
@@ -134,6 +142,7 @@ class _HistoryPageState extends State<HistoryPage> {
           return RefreshIndicator(
             onRefresh: _reload,
             child: ListView.separated(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               itemCount: items.length,
               separatorBuilder: (_, _) => const SizedBox(height: 12),

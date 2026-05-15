@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
@@ -112,7 +113,7 @@ class _IndexPageState extends State<IndexPage> {
   int _page = 1;
   bool _hasMore = true;
   int _currentFetchId = 0;
-  final ScrollController _scrollController = ScrollController();
+  final ScrollController _scrollController = createPlatformScrollController();
 
   @override
   void initState() {

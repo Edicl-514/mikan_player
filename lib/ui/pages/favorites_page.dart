@@ -9,6 +9,7 @@ import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 import 'package:mikan_player/src/rust/api/crawler.dart' as rust_crawler;
 
@@ -24,6 +25,7 @@ class _FavoritesPageState extends State<FavoritesPage>
   late TabController _tabController;
   final UserManager _userManager = UserManager();
   final FavoritesManager _favoritesManager = FavoritesManager();
+  final ScrollController _scrollController = createPlatformScrollController();
 
   // Bangumi Data
   List<BangumiUserCollection> _bangumiCollections = [];
@@ -47,6 +49,7 @@ class _FavoritesPageState extends State<FavoritesPage>
   @override
   void dispose() {
     _tabController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -157,6 +160,7 @@ class _FavoritesPageState extends State<FavoritesPage>
     return RefreshIndicator(
       onRefresh: _fetchLocalFavorites,
       child: ListView.separated(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         itemCount: _localFavorites.length,
         separatorBuilder: (context, index) => const SizedBox(height: 12),
@@ -240,6 +244,7 @@ class _FavoritesPageState extends State<FavoritesPage>
     return RefreshIndicator(
       onRefresh: _fetchBangumiCollections,
       child: ListView.separated(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         itemCount: _bangumiCollections.length,
         separatorBuilder: (context, index) => const SizedBox(height: 12),

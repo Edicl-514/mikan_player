@@ -12,6 +12,7 @@ import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/ui/widgets/danmaku_overlay.dart';
 import 'package:mikan_player/ui/widgets/danmaku_settings.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 import 'package:screen_brightness/screen_brightness.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart';
@@ -882,6 +883,7 @@ class CustomVideoControls extends StatelessWidget {
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 250),
       pageBuilder: (context, animation, secondaryAnimation) {
+        final scrollController = createPlatformScrollController();
         return Align(
           alignment: Alignment.centerRight,
           child: Material(
@@ -935,6 +937,7 @@ class CustomVideoControls extends StatelessWidget {
                     // 选集列表
                     Expanded(
                       child: GridView.builder(
+                        controller: scrollController,
                         padding: const EdgeInsets.all(16),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
@@ -1900,7 +1903,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
       case 1:
         return DanmakuSettingsBottomSheet(
           danmakuService: widget.danmakuService,
-          scrollController: widget.scrollController ?? ScrollController(),
+          scrollController: widget.scrollController ?? createPlatformScrollController(),
         );
       case 2:
         return _buildSubtitleSettings();
