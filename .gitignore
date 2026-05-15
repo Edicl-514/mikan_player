@@ -79,6 +79,9 @@ windows/runner/rust.lib
 # Temporary/generated files
 check_api.py
 .gemini/
+.kilo
+.claude
+.vscode
 rust/openssl/
 sample.json
 
