@@ -327,5 +327,9 @@
   "selectedSourceUnknown": "Unknown",
   "downloadDirTitle": "Download Path",
   "downloadDirBrowse": "Browse",
-  "downloadDirPickerTitle": "Select Download Directory"
+  "downloadDirPickerTitle": "Select Download Directory",
+  "bangumiDetailsEpisodes": "Episodes",
+  "bangumiDetailsStory": "Story",
+  "bangumiDetailsRelatedItems": "Related Items",
+  "bangumiDetailsTags": "Tags"
 }

@@ -2065,6 +2065,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'选择下载目录'**
   String get downloadDirPickerTitle;
+
+  /// No description provided for @bangumiDetailsEpisodes.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧集'**
+  String get bangumiDetailsEpisodes;
+
+  /// No description provided for @bangumiDetailsStory.
+  ///
+  /// In zh, this message translates to:
+  /// **'简介'**
+  String get bangumiDetailsStory;
+
+  /// No description provided for @bangumiDetailsRelatedItems.
+  ///
+  /// In zh, this message translates to:
+  /// **'相关作品'**
+  String get bangumiDetailsRelatedItems;
+
+  /// No description provided for @bangumiDetailsTags.
+  ///
+  /// In zh, this message translates to:
+  /// **'标签'**
+  String get bangumiDetailsTags;
 }
 
 class _AppLocalizationsDelegate

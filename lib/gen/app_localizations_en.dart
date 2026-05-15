@@ -1075,4 +1075,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadDirPickerTitle => 'Select Download Directory';
+
+  @override
+  String get bangumiDetailsEpisodes => 'Episodes';
+
+  @override
+  String get bangumiDetailsStory => 'Story';
+
+  @override
+  String get bangumiDetailsRelatedItems => 'Related Items';
+
+  @override
+  String get bangumiDetailsTags => 'Tags';
 }

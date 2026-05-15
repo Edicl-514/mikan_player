@@ -327,5 +327,9 @@
   "selectedSourceUnknown": "未知",
   "downloadDirTitle": "下载路径",
   "downloadDirBrowse": "浏览",
-  "downloadDirPickerTitle": "选择下载目录"
+  "downloadDirPickerTitle": "选择下载目录",
+  "bangumiDetailsEpisodes": "剧集",
+  "bangumiDetailsStory": "简介",
+  "bangumiDetailsRelatedItems": "相关作品",
+  "bangumiDetailsTags": "标签"
 }

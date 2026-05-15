@@ -1052,4 +1052,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get downloadDirPickerTitle => '选择下载目录';
+
+  @override
+  String get bangumiDetailsEpisodes => '剧集';
+
+  @override
+  String get bangumiDetailsStory => '简介';
+
+  @override
+  String get bangumiDetailsRelatedItems => '相关作品';
+
+  @override
+  String get bangumiDetailsTags => '标签';
 }

@@ -359,30 +359,32 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                 ),
                 // Right panel
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      32,
-                      kToolbarHeight + 32,
-                      32,
-                      32,
-                    ),
-                    child: CustomScrollView(
-                      controller: _desktopRightScrollController,
-                      slivers: [
-                        SliverToBoxAdapter(child: _buildTitleSection(context)),
-                        const SliverToBoxAdapter(child: SizedBox(height: 32)),
-                        SliverToBoxAdapter(
-                          child: _buildSummarySection(context),
+                  child: CustomScrollView(
+                    controller: _desktopRightScrollController,
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(32, kToolbarHeight + 32, 32, 50),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate([
+                            _buildTitleSection(context),
+                            const SizedBox(height: 32),
+                            _buildSummarySection(context),
+                          ]),
                         ),
-                        if (_isSeiyu) ...[
-                          const SliverToBoxAdapter(child: SizedBox(height: 32)),
-                          ..._buildCharactersSlivers(context),
-                        ],
-                        const SliverToBoxAdapter(child: SizedBox(height: 32)),
-                        ..._buildSubjectsSlivers(context),
-                        const SliverToBoxAdapter(child: SizedBox(height: 50)),
+                      ),
+                      if (_isSeiyu) ...[
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          sliver: SliverToBoxAdapter(child: const SizedBox(height: 32)),
+                        ),
+                        ..._buildCharactersSlivers(context, padding: const EdgeInsets.symmetric(horizontal: 32)),
                       ],
-                    ),
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        sliver: SliverToBoxAdapter(child: const SizedBox(height: 32)),
+                      ),
+                      ..._buildSubjectsSlivers(context, padding: const EdgeInsets.symmetric(horizontal: 32)),
+                    ],
                   ),
                 ),
               ],

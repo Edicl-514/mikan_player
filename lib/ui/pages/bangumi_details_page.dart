@@ -1324,107 +1324,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   // --- Components (Shared/PC) ---
 
-  Widget _buildRelatedItemsSection(
-    BuildContext context, {
-    bool isDarkBg = false,
-  }) {
-    // Placeholder Data
-    final items = [
-      {"title": "葬送的芙莉莲 第一季", "type": "前传", "cover": null},
-      {"title": "葬送的芙莉莲 外传", "type": "外传", "cover": null},
-    ];
-
-    final textColor = isDarkBg ? Colors.white : Colors.black87;
-    final cardColor = isDarkBg
-        ? Colors.white.withValues(alpha: 0.05)
-        : Colors.grey[100];
-    final borderColor = isDarkBg ? Colors.white10 : Colors.grey[300]!;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionTitle(context, "Related Items", isDarkBg: isDarkBg),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 210,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: items.length + 1, // +1 for a "More" placeholder
-            separatorBuilder: (c, i) => const SizedBox(width: 16),
-            itemBuilder: (context, index) {
-              if (index == items.length) {
-                // Placeholder for future fetch
-                return Container(
-                  width: 110,
-                  decoration: BoxDecoration(
-                    color: cardColor,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: borderColor),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.add_rounded,
-                      color: isDarkBg ? Colors.white24 : Colors.grey,
-                      size: 28,
-                    ),
-                  ),
-                );
-              }
-
-              final item = items[index];
-              return SizedBox(
-                width: 110,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: cardColor,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: Center(
-                          child: Icon(
-                            Icons.movie_outlined,
-                            color: isDarkBg ? Colors.white24 : Colors.grey[400],
-                            size: 32,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      item['type'] as String,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDarkBg ? Colors.amber : Colors.deepPurple,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      item['title'] as String,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: textColor.withValues(alpha: 0.9),
-                        fontWeight: FontWeight.w500,
-                        height: 1.3,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildBlurredBackground(BuildContext context) {
     final imgUrl = _getImageUrl();
     if (imgUrl == null) {
@@ -1684,7 +1583,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(context, "Story", isDarkBg: isDarkBg),
+        _buildSectionTitle(context, AppLocalizations.of(context).bangumiDetailsStory, isDarkBg: isDarkBg),
         const SizedBox(height: 12),
         GestureDetector(
           onTap: _hasBothTranslationAndOriginal()
@@ -1725,7 +1624,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(context, "Tags", isDarkBg: isDarkBg),
+        _buildSectionTitle(context, AppLocalizations.of(context).bangumiDetailsTags, isDarkBg: isDarkBg),
         const SizedBox(height: 12),
         Wrap(
           spacing: 8,
@@ -2112,7 +2011,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     if (_isLoadingEpisodes) {
       return _buildPlaceholderSection(
         context,
-        "Episodes",
+        AppLocalizations.of(context).bangumiDetailsEpisodes,
         Icons.video_library,
         isDarkBg: isDarkBg,
       );
@@ -2130,7 +2029,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(context, "Episodes", isDarkBg: isDarkBg),
+        _buildSectionTitle(context, AppLocalizations.of(context).bangumiDetailsEpisodes, isDarkBg: isDarkBg),
         const SizedBox(height: 12),
         SizedBox(
           height: 138, // Reduced to bring scrollbar closer
@@ -2460,7 +2359,12 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   Widget _buildRelationsSection(BuildContext context, {bool isDarkBg = false}) {
     if (_isLoadingRelations) {
-      return _buildRelatedItemsSection(context, isDarkBg: isDarkBg);
+      return _buildPlaceholderSection(
+        context,
+        AppLocalizations.of(context).bangumiDetailsRelatedItems,
+        Icons.link,
+        isDarkBg: isDarkBg,
+      );
     }
 
     if (_relations == null || _relations!.isEmpty) {
@@ -2476,7 +2380,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(context, "Related Items", isDarkBg: isDarkBg),
+        _buildSectionTitle(context, AppLocalizations.of(context).bangumiDetailsRelatedItems, isDarkBg: isDarkBg),
         const SizedBox(height: 12),
         SizedBox(
           height: 204, // Height adjusted for scrollbar
