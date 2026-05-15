@@ -620,6 +620,66 @@ abstract class AppLocalizations {
   /// **'跟随系统'**
   String get auto;
 
+  /// No description provided for @themeMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'主题模式'**
+  String get themeMode;
+
+  /// No description provided for @themeModeSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择亮色或暗色模式'**
+  String get themeModeSubtitle;
+
+  /// No description provided for @themeModeSystem.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随系统'**
+  String get themeModeSystem;
+
+  /// No description provided for @themeModeLight.
+  ///
+  /// In zh, this message translates to:
+  /// **'浅色'**
+  String get themeModeLight;
+
+  /// No description provided for @themeModeDark.
+  ///
+  /// In zh, this message translates to:
+  /// **'深色'**
+  String get themeModeDark;
+
+  /// No description provided for @themeSettings.
+  ///
+  /// In zh, this message translates to:
+  /// **'主题设置'**
+  String get themeSettings;
+
+  /// No description provided for @themeSettingsSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'主题模式与颜色设置'**
+  String get themeSettingsSubtitle;
+
+  /// No description provided for @customThemeColor.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义主题色'**
+  String get customThemeColor;
+
+  /// No description provided for @themeColor.
+  ///
+  /// In zh, this message translates to:
+  /// **'主题色'**
+  String get themeColor;
+
+  /// No description provided for @themeColorSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择应用主题色'**
+  String get themeColorSubtitle;
+
   /// No description provided for @todayBroadcast.
   ///
   /// In zh, this message translates to:

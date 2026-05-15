@@ -110,6 +110,7 @@ class CustomVideoControls extends StatelessWidget {
           final settings = danmakuService.settings;
           final hasData = danmakuService.danmakuList.isNotEmpty;
           return _buildIntegratedButton(
+            context: context,
             icon: settings.enabled ? Icons.subtitles : Icons.subtitles_off,
             label: "弹幕",
             isActive: settings.enabled,
@@ -121,6 +122,7 @@ class CustomVideoControls extends StatelessWidget {
       if (onDownloadCurrentSource != null)
         Builder(
           builder: (ctx) => _buildIntegratedButton(
+            context: context,
             icon: Icons.download,
             onPressed: onDownloadCurrentSource!,
           ),
@@ -128,6 +130,7 @@ class CustomVideoControls extends StatelessWidget {
       const SizedBox(width: 8),
       Builder(
         builder: (ctx) => _buildIntegratedButton(
+          context: context,
           icon: Icons.tune,
           onPressed: () => _showMobileSettingsMenu(ctx, isFullscreen: false),
         ),
@@ -159,6 +162,7 @@ class CustomVideoControls extends StatelessWidget {
           final settings = danmakuService.settings;
           final hasData = danmakuService.danmakuList.isNotEmpty;
           return _buildIntegratedButton(
+            context: context,
             icon: settings.enabled ? Icons.subtitles : Icons.subtitles_off,
             isActive: settings.enabled,
             onPressed: hasData ? danmakuService.toggleEnabled : null,
@@ -169,12 +173,14 @@ class CustomVideoControls extends StatelessWidget {
       if (onDownloadCurrentSource != null)
         Builder(
           builder: (ctx) => _buildIntegratedButton(
+            context: context,
             icon: Icons.download,
             onPressed: onDownloadCurrentSource!,
           ),
         ),
       Builder(
         builder: (ctx) => _buildIntegratedButton(
+          context: context,
           icon: Icons.tune,
           onPressed: () => _showMobileSettingsMenu(ctx, isFullscreen: true),
         ),
@@ -217,6 +223,7 @@ class CustomVideoControls extends StatelessWidget {
       const Spacer(),
       Builder(
         builder: (ctx) => _buildIntegratedButton(
+          context: context,
           icon: Icons.playlist_play,
           label: "选集",
           onPressed: () => _showEpisodeSidePanel(ctx),
@@ -231,12 +238,14 @@ class CustomVideoControls extends StatelessWidget {
     final desktopNormalTopButtonBar = [
       const Spacer(),
       _buildIntegratedButton(
+        context: context,
         icon: Icons.fast_rewind,
         label: "空降-85s",
         onPressed: () => _onSkipTime(-85),
       ),
       const SizedBox(width: 8),
       _buildIntegratedButton(
+        context: context,
         icon: Icons.fast_forward,
         label: "空降+85s",
         onPressed: () => _onSkipTime(85),
@@ -259,12 +268,14 @@ class CustomVideoControls extends StatelessWidget {
       ],
       const Spacer(),
       _buildIntegratedButton(
+        context: context,
         icon: Icons.fast_rewind,
         label: "空降-85s",
         onPressed: () => _onSkipTime(-85),
       ),
       const SizedBox(width: 8),
       _buildIntegratedButton(
+        context: context,
         icon: Icons.fast_forward,
         label: "空降+85s",
         onPressed: () => _onSkipTime(85),
@@ -343,6 +354,7 @@ class CustomVideoControls extends StatelessWidget {
                     final settings = danmakuService.settings;
                     final hasData = danmakuService.danmakuList.isNotEmpty;
                     return _buildIntegratedButton(
+                      context: context,
                       icon: settings.enabled
                           ? Icons.comment
                           : Icons.comments_disabled,
@@ -362,6 +374,7 @@ class CustomVideoControls extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _buildIntegratedButton(
+                          context: context,
                           icon: isEnabled
                               ? Icons.closed_caption
                               : Icons.closed_caption_off,
@@ -374,12 +387,14 @@ class CustomVideoControls extends StatelessWidget {
                   },
                 ),
                 _buildIntegratedButton(
+                  context: context,
                   icon: Icons.settings,
                   onPressed: () => _showSettingsMenu(context),
                 ),
                 if (onDownloadCurrentSource != null) ...[
                   const SizedBox(width: 8),
                   _buildIntegratedButton(
+                    context: context,
                     icon: Icons.download,
                     onPressed: onDownloadCurrentSource!,
                   ),
@@ -422,6 +437,7 @@ class CustomVideoControls extends StatelessWidget {
                     final settings = danmakuService.settings;
                     final hasData = danmakuService.danmakuList.isNotEmpty;
                     return _buildIntegratedButton(
+                      context: context,
                       icon: settings.enabled
                           ? Icons.comment
                           : Icons.comments_disabled,
@@ -441,6 +457,7 @@ class CustomVideoControls extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _buildIntegratedButton(
+                          context: context,
                           icon: isEnabled
                               ? Icons.closed_caption
                               : Icons.closed_caption_off,
@@ -453,17 +470,20 @@ class CustomVideoControls extends StatelessWidget {
                   },
                 ),
                 _buildIntegratedButton(
+                  context: context,
                   icon: Icons.playlist_play,
                   onPressed: () => _showEpisodeSidePanel(context),
                 ),
                 const SizedBox(width: 8),
                 _buildIntegratedButton(
+                  context: context,
                   icon: Icons.settings,
                   onPressed: () => _showSettingsMenu(context),
                 ),
                 if (onDownloadCurrentSource != null) ...[
                   const SizedBox(width: 8),
                   _buildIntegratedButton(
+                    context: context,
                     icon: Icons.download,
                     onPressed: onDownloadCurrentSource!,
                   ),
@@ -506,9 +526,9 @@ class CustomVideoControls extends StatelessWidget {
                     Positioned.fill(
                       child: Container(
                         color: Colors.black54,
-                        child: const Center(
+                        child: Center(
                           child: CircularProgressIndicator(
-                            color: Color(0xFFBB86FC),
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                       ),
@@ -597,6 +617,7 @@ class CustomVideoControls extends StatelessWidget {
 
   /// 构建风格统一的工具栏按钮
   Widget _buildIntegratedButton({
+    required BuildContext context,
     required IconData icon,
     String? label,
     bool isActive = false,
@@ -614,7 +635,7 @@ class CustomVideoControls extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: isActive ? const Color(0xFFBB86FC) : Colors.white,
+                color: isActive ? Theme.of(context).colorScheme.primary : Colors.white,
                 size: 20,
               ),
               if (label != null) ...[
@@ -622,7 +643,7 @@ class CustomVideoControls extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    color: isActive ? const Color(0xFFBB86FC) : Colors.white,
+                    color: isActive ? Theme.of(context).colorScheme.primary : Colors.white,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
@@ -967,7 +988,7 @@ class CustomVideoControls extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: isSelected
-                                      ? const Color(0xFFBB86FC)
+                                      ? Theme.of(context).colorScheme.primary
                                       : Colors.white12,
                                   width: isSelected ? 2 : 1,
                                 ),
@@ -976,7 +997,7 @@ class CustomVideoControls extends StatelessWidget {
                                 ep.sort.toInt().toString(),
                                 style: TextStyle(
                                   color: isSelected
-                                      ? const Color(0xFFBB86FC)
+                                      ? Theme.of(context).colorScheme.primary
                                       : Colors.white70,
                                   fontWeight: isSelected
                                       ? FontWeight.bold
@@ -1051,12 +1072,12 @@ class CustomVideoControls extends StatelessWidget {
   //                       alignment: Alignment.center,
   //                       decoration: BoxDecoration(
   //                         color: isSelected
-  //                             ? const Color(0xFFBB86FC).withValues(alpha: 0.2)
+  //                             ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
   //                             : Colors.white.withValues(alpha: 0.05),
   //                         borderRadius: BorderRadius.circular(8),
   //                         border: Border.all(
   //                           color: isSelected
-  //                               ? const Color(0xFFBB86FC)
+  //                               ? Theme.of(context).colorScheme.primary
   //                               : Colors.transparent,
   //                         ),
   //                       ),
@@ -1064,7 +1085,7 @@ class CustomVideoControls extends StatelessWidget {
   //                         ep.sort.toInt().toString(),
   //                         style: TextStyle(
   //                           color: isSelected
-  //                               ? const Color(0xFFBB86FC)
+  //                               ? Theme.of(context).colorScheme.primary
   //                               : Colors.white70,
   //                         ),
   //                       ),
@@ -2293,7 +2314,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         Switch(
           value: value,
           onChanged: onChanged,
-          activeTrackColor: const Color(0xFFBB86FC),
+          activeTrackColor: Theme.of(context).colorScheme.primary,
           inactiveTrackColor: Colors.white24,
         ),
       ],
@@ -2321,8 +2342,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             ),
             Text(
               displayValue,
-              style: const TextStyle(
-                color: Color(0xFFBB86FC),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -2331,10 +2352,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         ),
         SliderTheme(
           data: SliderThemeData(
-            activeTrackColor: const Color(0xFFBB86FC),
+            activeTrackColor: Theme.of(context).colorScheme.primary,
             inactiveTrackColor: Colors.white24,
-            thumbColor: const Color(0xFFBB86FC),
-            overlayColor: const Color(0xFFBB86FC).withValues(alpha: 0.2),
+            thumbColor: Theme.of(context).colorScheme.primary,
+            overlayColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
             trackHeight: 3,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
           ),
@@ -2364,12 +2385,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFFBB86FC).withValues(alpha: 0.15)
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
               : Colors.white.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFFBB86FC).withValues(alpha: 0.5)
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
                 : Colors.transparent,
           ),
         ),
@@ -2383,7 +2404,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                     title,
                     style: TextStyle(
                       color: isSelected
-                          ? const Color(0xFFBB86FC)
+                          ? Theme.of(context).colorScheme.primary
                           : Colors.white,
                       fontSize: 14,
                       fontWeight: isSelected
@@ -2403,9 +2424,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
               ),
             ),
             if (isSelected)
-              const Icon(
+              Icon(
                 Icons.check_circle,
-                color: Color(0xFFBB86FC),
+                color: Theme.of(context).colorScheme.primary,
                 size: 18,
               ),
           ],
@@ -2428,13 +2449,13 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           color: color,
           shape: BoxShape.circle,
           border: Border.all(
-            color: isSelected ? const Color(0xFFBB86FC) : Colors.white24,
+            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.white24,
             width: isSelected ? 3 : 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFFBB86FC).withValues(alpha: 0.4),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
                     blurRadius: 8,
                   ),
                 ]
@@ -2485,12 +2506,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: isSelected
-                  ? const Color(0xFFBB86FC).withValues(alpha: 0.15)
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
                   : Colors.white.withValues(alpha: 0.03),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isSelected
-                    ? const Color(0xFFBB86FC).withValues(alpha: 0.5)
+                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
                     : Colors.transparent,
               ),
             ),
@@ -2501,14 +2522,14 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                   height: 36,
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFFBB86FC).withValues(alpha: 0.2)
+                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
                         : Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     Icons.play_circle_outline,
                     color: isSelected
-                        ? const Color(0xFFBB86FC)
+                        ? Theme.of(context).colorScheme.primary
                         : Colors.white54,
                     size: 20,
                   ),
@@ -2525,7 +2546,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                               source.sourceName,
                               style: TextStyle(
                                 color: isSelected
-                                    ? const Color(0xFFBB86FC)
+                                    ? Theme.of(context).colorScheme.primary
                                     : Colors.white,
                                 fontSize: 14,
                                 fontWeight: isSelected
@@ -2557,8 +2578,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                               ),
                               child: Text(
                                 source.channelName!,
-                                style: const TextStyle(
-                                  color: Color(0xFFBB86FC),
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -2582,9 +2603,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                   ),
                 ),
                 if (isSelected)
-                  const Icon(
+                  Icon(
                     Icons.check_circle,
-                    color: Color(0xFFBB86FC),
+                    color: Theme.of(context).colorScheme.primary,
                     size: 20,
                   ),
               ],

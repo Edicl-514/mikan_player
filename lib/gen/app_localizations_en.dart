@@ -291,6 +291,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get auto => 'System Default';
 
   @override
+  String get themeMode => 'Theme Mode';
+
+  @override
+  String get themeModeSubtitle => 'Choose light or dark mode';
+
+  @override
+  String get themeModeSystem => 'System Default';
+
+  @override
+  String get themeModeLight => 'Light';
+
+  @override
+  String get themeModeDark => 'Dark';
+
+  @override
+  String get themeSettings => 'Theme Settings';
+
+  @override
+  String get themeSettingsSubtitle => 'Theme mode and color settings';
+
+  @override
+  String get customThemeColor => 'Custom Theme Color';
+
+  @override
+  String get themeColor => 'Theme Color';
+
+  @override
+  String get themeColorSubtitle => 'Choose app accent color';
+
+  @override
   String get todayBroadcast => 'Today\'s Broadcast';
 
   @override

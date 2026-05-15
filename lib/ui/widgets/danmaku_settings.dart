@@ -50,9 +50,9 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
           ),
           child: TabBar(
             controller: _tabController,
-            indicatorColor: const Color(0xFFBB86FC),
+            indicatorColor: Theme.of(context).colorScheme.primary,
             indicatorSize: TabBarIndicatorSize.label,
-            labelColor: const Color(0xFFBB86FC),
+            labelColor: Theme.of(context).colorScheme.primary,
             unselectedLabelColor: Colors.white70,
             dividerColor: Colors.transparent,
             labelStyle: const TextStyle(
@@ -237,9 +237,9 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                     borderSide: BorderSide.none,
                   ),
                   suffixIcon: IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.search,
-                      color: Color(0xFFBB86FC),
+                      color: Theme.of(context).colorScheme.primary,
                       size: 18,
                     ),
                     onPressed: () {
@@ -259,10 +259,10 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               ),
             ),
             if (widget.danmakuService.isLoading)
-              const Expanded(
+              Expanded(
                 child: Center(
                   child: CircularProgressIndicator(
-                    color: Color(0xFFBB86FC),
+                    color: Theme.of(context).colorScheme.primary,
                     strokeWidth: 2,
                   ),
                 ),
@@ -370,7 +370,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? const Color(0xFFBB86FC)
+                                    ? Theme.of(context).colorScheme.primary
                                     : Colors.white.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(4),
                               ),
@@ -461,8 +461,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFBB86FC).withValues(alpha: 0.15),
-          border: Border.all(color: const Color(0xFFBB86FC), width: 1),
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+          border: Border.all(color: Theme.of(context).colorScheme.primary, width: 1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
@@ -517,8 +517,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
       child: Text(
         title,
-        style: const TextStyle(
-          color: Color(0xFFBB86FC),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
           fontSize: 12,
           fontWeight: FontWeight.bold,
         ),
@@ -548,7 +548,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               child: Switch(
                 value: value,
                 onChanged: onChanged,
-                activeThumbColor: const Color(0xFFBB86FC),
+                activeThumbColor: Theme.of(context).colorScheme.primary,
                 activeTrackColor: const Color(
                   0xFFBB86FC,
                 ).withValues(alpha: 0.3),
@@ -591,7 +591,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
         ),
         SliderTheme(
           data: SliderThemeData(
-            activeTrackColor: const Color(0xFFBB86FC),
+            activeTrackColor: Theme.of(context).colorScheme.primary,
             inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
             thumbColor: Colors.white,
             trackHeight: 2,
@@ -668,9 +668,9 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                 Expanded(
                   child: TabBar(
                     controller: _tabController,
-                    indicatorColor: const Color(0xFFBB86FC),
+                    indicatorColor: Theme.of(context).colorScheme.primary,
                     indicatorSize: TabBarIndicatorSize.label,
-                    labelColor: const Color(0xFFBB86FC),
+                    labelColor: Theme.of(context).colorScheme.primary,
                     unselectedLabelColor: Colors.white70,
                     dividerColor: Colors.transparent,
                     labelStyle: const TextStyle(
@@ -860,9 +860,9 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                     borderSide: BorderSide.none,
                   ),
                   suffixIcon: IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.search,
-                      color: Color(0xFFBB86FC),
+                      color: Theme.of(context).colorScheme.primary,
                       size: 18,
                     ),
                     onPressed: () {
@@ -882,10 +882,10 @@ class _VideoSidePanelState extends State<VideoSidePanel>
               ),
             ),
             if (widget.danmakuService.isLoading)
-              const Expanded(
+              Expanded(
                 child: Center(
                   child: CircularProgressIndicator(
-                    color: Color(0xFFBB86FC),
+                    color: Theme.of(context).colorScheme.primary,
                     strokeWidth: 2,
                   ),
                 ),
@@ -942,7 +942,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                               0xFFBB86FC,
                             ).withValues(alpha: 0.15),
                             border: Border.all(
-                              color: const Color(0xFFBB86FC),
+                              color: Theme.of(context).colorScheme.primary,
                               width: 1,
                             ),
                             borderRadius: BorderRadius.circular(8),
@@ -1026,7 +1026,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? const Color(0xFFBB86FC)
+                                    ? Theme.of(context).colorScheme.primary
                                     : Colors.white.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(4),
                               ),
@@ -1060,8 +1060,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
       child: Text(
         title,
-        style: const TextStyle(
-          color: Color(0xFFBB86FC),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
           fontSize: 12,
           fontWeight: FontWeight.bold,
         ),
@@ -1091,7 +1091,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
               child: Switch(
                 value: value,
                 onChanged: onChanged,
-                activeThumbColor: const Color(0xFFBB86FC),
+                activeThumbColor: Theme.of(context).colorScheme.primary,
                 activeTrackColor: const Color(
                   0xFFBB86FC,
                 ).withValues(alpha: 0.3),
@@ -1134,7 +1134,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
         ),
         SliderTheme(
           data: SliderThemeData(
-            activeTrackColor: const Color(0xFFBB86FC),
+            activeTrackColor: Theme.of(context).colorScheme.primary,
             inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
             thumbColor: Colors.white,
             trackHeight: 2,
@@ -1211,10 +1211,10 @@ class _VideoSidePanelState extends State<VideoSidePanel>
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFFBB86FC).withValues(alpha: 0.15)
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
               : Colors.white.withValues(alpha: 0.05),
           border: Border.all(
-            color: isSelected ? const Color(0xFFBB86FC) : Colors.transparent,
+            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
             width: 1,
           ),
           borderRadius: BorderRadius.circular(8),

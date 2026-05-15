@@ -4,6 +4,7 @@ import 'package:mikan_player/ui/pages/data_source_settings_page.dart';
 import 'package:mikan_player/ui/pages/download_settings_page.dart';
 import 'package:mikan_player/ui/pages/search_settings_page.dart';
 import 'package:mikan_player/ui/pages/subscription_debug_page.dart';
+import 'package:mikan_player/ui/pages/theme_settings_page.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/settings_service.dart';
 import 'package:mikan_player/utils/feature_flags.dart';
@@ -166,6 +167,20 @@ class _SettingsPageState extends State<SettingsPage> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const DownloadSettingsPage(),
+                ),
+              );
+            },
+          ),
+          _buildSettingTile(
+            context,
+            Icons.palette,
+            AppLocalizations.of(context).themeSettings,
+            AppLocalizations.of(context).themeSettingsSubtitle,
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ThemeSettingsPage(),
                 ),
               );
             },

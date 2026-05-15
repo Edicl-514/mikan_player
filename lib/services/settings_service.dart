@@ -9,10 +9,19 @@ class SettingsService extends ChangeNotifier {
   Locale? _locale;
   Locale? get locale => _locale;
 
+  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode get themeMode => _themeMode;
+
+  Color _seedColor = Colors.teal;
+  Color get seedColor => _seedColor;
+
   static const String _localeKey = 'app_locale';
+  static const String _themeModeKey = 'theme_mode';
+  static const String _seedColorKey = 'seed_color';
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
+
     final localeCode = prefs.getString(_localeKey);
     if (localeCode != null) {
       if (localeCode == 'zh') {
@@ -20,6 +29,20 @@ class SettingsService extends ChangeNotifier {
       } else if (localeCode == 'en') {
         _locale = const Locale('en');
       }
+    }
+
+    final themeModeStr = prefs.getString(_themeModeKey);
+    if (themeModeStr != null) {
+      _themeMode = switch (themeModeStr) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      };
+    }
+
+    final colorValue = prefs.getInt(_seedColorKey);
+    if (colorValue != null) {
+      _seedColor = Color(colorValue);
     }
   }
 
@@ -32,6 +55,22 @@ class SettingsService extends ChangeNotifier {
     } else {
       await prefs.setString(_localeKey, locale.languageCode);
     }
+    notifyListeners();
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    if (_themeMode == mode) return;
+    _themeMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeModeKey, mode.name);
+    notifyListeners();
+  }
+
+  Future<void> setSeedColor(Color color) async {
+    if (_seedColor == color) return;
+    _seedColor = color;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_seedColorKey, color.toARGB32());
     notifyListeners();
   }
 }

@@ -1029,7 +1029,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFBB86FC).withValues(alpha: 0.2),
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Row(
@@ -1038,13 +1038,13 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                             Icon(
                               Icons.play_arrow,
                               size: 12,
-                              color: Color(0xFFBB86FC),
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                             SizedBox(width: 2),
                             Text(
                               AppLocalizations.of(context).clickToPlay,
-                              style: const TextStyle(
-                                color: Color(0xFFBB86FC),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1064,7 +1064,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFBB86FC).withValues(alpha: 0.2),
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(
@@ -1073,13 +1073,13 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                         Icon(
                           Icons.play_arrow,
                           size: 12,
-                          color: Color(0xFFBB86FC),
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                         SizedBox(width: 2),
                         Text(
                           AppLocalizations.of(context).clickToPlay,
-                          style: const TextStyle(
-                            color: Color(0xFFBB86FC),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),

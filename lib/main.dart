@@ -5,6 +5,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/src/rust/api/simple.dart';
 import 'package:mikan_player/src/rust/rust_init.dart';
 import 'package:mikan_player/ui/screens/home_screen.dart';
+import 'package:mikan_player/ui/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/src/rust/api/network.dart' as network;
@@ -21,20 +22,6 @@ import 'package:mikan_player/gen/app_localizations.dart';
 
 /// 全局 WebView 环境（Windows 平台需要）
 WebViewEnvironment? webViewEnvironment;
-
-String? get _platformFontFamily {
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
-    return 'Segoe UI';
-  }
-  return null;
-}
-
-List<String>? get _platformFontFamilyFallback {
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
-    return const ['Microsoft YaHei UI', 'Microsoft YaHei', 'SimHei', 'SimSun'];
-  }
-  return null;
-}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -185,15 +172,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               GlobalCupertinoLocalizations.delegate,
             ],
             supportedLocales: AppLocalizations.supportedLocales,
-            theme: ThemeData(
-              fontFamily: _platformFontFamily,
-              fontFamilyFallback: _platformFontFamilyFallback,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.teal,
-                brightness: Brightness.dark,
-              ),
-              useMaterial3: true,
-            ),
+            theme: AppTheme.light(SettingsService().seedColor),
+            darkTheme: AppTheme.dark(SettingsService().seedColor),
+            themeMode: SettingsService().themeMode,
             home: const HomeScreen(),
           ),
         );

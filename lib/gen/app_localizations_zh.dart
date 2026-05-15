@@ -284,6 +284,36 @@ class AppLocalizationsZh extends AppLocalizations {
   String get auto => '跟随系统';
 
   @override
+  String get themeMode => '主题模式';
+
+  @override
+  String get themeModeSubtitle => '选择亮色或暗色模式';
+
+  @override
+  String get themeModeSystem => '跟随系统';
+
+  @override
+  String get themeModeLight => '浅色';
+
+  @override
+  String get themeModeDark => '深色';
+
+  @override
+  String get themeSettings => '主题设置';
+
+  @override
+  String get themeSettingsSubtitle => '主题模式与颜色设置';
+
+  @override
+  String get customThemeColor => '自定义主题色';
+
+  @override
+  String get themeColor => '主题色';
+
+  @override
+  String get themeColorSubtitle => '选择应用主题色';
+
+  @override
   String get todayBroadcast => '今日放送';
 
   @override
