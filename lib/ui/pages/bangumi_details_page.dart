@@ -56,6 +56,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   Timer? _copyTimer;
   bool _showOriginalSummary = false;
 
+  // Pre-sorted characters to avoid sorting in build
+  List<BangumiCharacter>? _sortedCharacters;
+
   // Pagination State
   int _commentPage = 1;
   bool _hasMoreComments = true;
@@ -247,8 +250,15 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         characters = [];
       } finally {
         if (mounted) {
+          final sorted = [...characters]
+            ..sort((a, b) {
+              final pa = _characterRolePriority(a);
+              final pb = _characterRolePriority(b);
+              return pa != pb ? pa.compareTo(pb) : a.name.compareTo(b.name);
+            });
           setState(() {
-            _characters = characters;
+            _characters = sorted;
+            _sortedCharacters = sorted;
             _mergePersonIdMap(personMap);
             _isLoadingCharacters = false;
           });
@@ -593,20 +603,22 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         else
           Container(color: Colors.grey[900]),
 
-        // Blur Effect + Dark Gradient
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.1),
-                  Colors.black.withValues(alpha: 0.6),
-                  bgColor,
-                ],
-                stops: const [0.0, 0.6, 1.0],
+        // Blur Effect + Dark Gradient (RepaintBoundary isolates expensive blur)
+        RepaintBoundary(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.1),
+                    Colors.black.withValues(alpha: 0.6),
+                    bgColor,
+                  ],
+                  stops: const [0.0, 0.6, 1.0],
+                ),
               ),
             ),
           ),
@@ -1402,9 +1414,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           fit: BoxFit.cover,
           errorWidget: Container(color: Colors.black87),
         ),
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(color: Colors.black.withValues(alpha: 0.6)),
+        RepaintBoundary(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(color: Colors.black.withValues(alpha: 0.6)),
+          ),
         ),
       ],
     );
@@ -1854,17 +1868,18 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     }
     final infobox = _data!['infobox'] as List;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Information",
+    return RepaintBoundary(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Information",
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -1961,6 +1976,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           }),
         ],
       ),
+    ),
     );
   }
 
@@ -2212,14 +2228,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       return const SizedBox.shrink();
     }
 
-    final characters = [..._characters!]
-      ..sort((a, b) {
-        final priorityCompare = _characterRolePriority(
-          a,
-        ).compareTo(_characterRolePriority(b));
-        if (priorityCompare != 0) return priorityCompare;
-        return a.name.compareTo(b.name);
-      });
+    final characters = _sortedCharacters ?? _characters!;
 
     final textColor = isDarkBg ? Colors.white : Colors.black87;
     final cardColor = isDarkBg
