@@ -2228,8 +2228,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width > 900;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0F0F13) : theme.scaffoldBackgroundColor;
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F13), // Deep dark background
+      backgroundColor: bgColor,
       body: Stack(
         children: [
           // 主界面
@@ -2257,6 +2260,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   // --- Mobile Layout ---
   Widget _buildMobileLayout(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Column(
       children: [
         // Top: Video Player Area
@@ -2273,12 +2278,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           child: Column(
             children: [
               Container(
-                color: const Color(0xFF16161E),
+                color: isDark ? const Color(0xFF16161E) : theme.colorScheme.surfaceContainerLow,
                 child: TabBar(
                   controller: _mobileTabController,
-                  labelColor: Theme.of(context).colorScheme.primary,
-                  unselectedLabelColor: Colors.grey,
-                  indicatorColor: Theme.of(context).colorScheme.primary,
+                  labelColor: theme.colorScheme.primary,
+                  unselectedLabelColor: isDark ? Colors.grey : theme.colorScheme.onSurfaceVariant,
+                  indicatorColor: theme.colorScheme.primary,
                   indicatorWeight: 3,
                   labelStyle: const TextStyle(fontWeight: FontWeight.bold),
                   tabs: [
@@ -2304,6 +2309,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildMobileInfoTab(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : theme.colorScheme.onSurface;
+    final subTextColor = isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant;
+    final descBgColor = isDark ? const Color.fromARGB(255, 20, 20, 25) : theme.colorScheme.surfaceContainerHigh;
+    final borderColor = isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.3);
     return SingleChildScrollView(
       controller: _mobileInfoScrollController,
       padding: const EdgeInsets.all(16),
@@ -2313,8 +2324,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           // Anime Title
           Text(
             widget.anime.title,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: textColor,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
@@ -2325,8 +2336,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             _currentEpisode.nameCn.isNotEmpty
                 ? _currentEpisode.nameCn
                 : _currentEpisode.name,
-            style: const TextStyle(
-              color: Colors.white70,
+            style: TextStyle(
+              color: subTextColor,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -2337,13 +2348,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   "EP ${_currentEpisode.sort % 1 == 0 ? _currentEpisode.sort.toInt() : _currentEpisode.sort}",
                   style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
+                    color: theme.colorScheme.primary,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
@@ -2354,16 +2365,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 "${widget.allEpisodes.length} Episodes",
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
-              // View count removed
-              /*
-              const Spacer(),
-              const Icon(Icons.remove_red_eye, size: 14, color: Colors.grey),
-              const SizedBox(width: 4),
-              const Text(
-                "1.2M",
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-              */
               const Spacer(),
             ],
           ),
@@ -2378,9 +2379,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 20, 20, 25),
+                color: descBgColor,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white10),
+                border: Border.all(color: borderColor),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2393,8 +2394,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     overflow: _isDescriptionExpanded
                         ? null
                         : TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: subTextColor,
                       fontSize: 14,
                       height: 1.5,
                     ),
@@ -2475,10 +2476,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   "选集",
                   style: TextStyle(
-                    color: Colors.white,
+                    color: isDark ? Colors.white : Theme.of(context).colorScheme.onSurface,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -2488,7 +2489,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   _isEpisodesExpanded
                       ? Icons.keyboard_arrow_up
                       : Icons.keyboard_arrow_down,
-                  color: Colors.white70,
+                  color: isDark ? Colors.white70 : Colors.grey,
                   size: 20,
                 ),
               ],
@@ -2512,13 +2513,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     final isSelected = ep == _currentEpisode;
                     final borderColor = isSelected
                         ? Theme.of(context).colorScheme.primary
-                        : Colors.white10;
-                    final textColor = Colors.white;
+                        : (isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.3));
+                    final epTextColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
 
                     return Material(
                       color: isSelected
                           ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
-                          : const Color(0xFF1E1E2C),
+                          : (isDark ? const Color(0xFF1E1E2C) : Theme.of(context).colorScheme.surfaceContainer),
                       borderRadius: BorderRadius.circular(8),
                       child: InkWell(
                         onTap: () {
@@ -2550,7 +2551,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 style: TextStyle(
                                   color: isSelected
                                       ? Theme.of(context).colorScheme.primary
-                                      : Colors.white54,
+                                      : (isDark ? Colors.white54 : Colors.grey),
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
                                 ),
@@ -2560,7 +2561,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 Text(
                                   ep.name,
                                   style: TextStyle(
-                                    color: textColor.withValues(alpha: 0.7),
+                                    color: epTextColor.withValues(alpha: 0.7),
                                     fontSize: 10,
                                     height: 1.3,
                                   ),
@@ -2572,7 +2573,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 Text(
                                   ep.nameCn,
                                   style: TextStyle(
-                                    color: textColor,
+                                    color: epTextColor,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,
                                     height: 1.3,
@@ -2585,8 +2586,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                               if (ep.airdate.isNotEmpty)
                                 Text(
                                   ep.airdate,
-                                  style: const TextStyle(
-                                    color: Colors.white24,
+                                  style: TextStyle(
+                                    color: isDark ? Colors.white24 : Colors.grey.withValues(alpha: 0.5),
                                     fontSize: 9,
                                   ),
                                 ),
@@ -2620,6 +2621,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   // --- PC Layout ---
   Widget _buildPCLayout(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0F0F13) : theme.scaffoldBackgroundColor;
+    final sidebarColor = isDark ? const Color(0xFF13131A) : theme.colorScheme.surfaceContainerLow;
+    final textColor = isDark ? Colors.white : theme.colorScheme.onSurface;
+    final subTextColor = isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant;
+    final borderColor = isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.3);
+
     return Row(
       children: [
         // Main Content (Left)
@@ -2630,7 +2639,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               // Title moved above player (Fixed Header)
               Container(
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-                color: const Color(0xFF0F0F13),
+                color: bgColor,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2643,13 +2652,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
+                              color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white10),
+                              border: Border.all(color: borderColor),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.arrow_back_ios_new,
-                              color: Colors.white,
+                              color: textColor,
                               size: 18,
                             ),
                           ),
@@ -2661,8 +2670,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                             children: [
                               Text(
                                 widget.anime.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: textColor,
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 0.5,
@@ -2671,8 +2680,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                               const SizedBox(height: 4),
                               Text(
                                 "EP ${_currentEpisode.sort % 1 == 0 ? _currentEpisode.sort.toInt() : _currentEpisode.sort} - ${_currentEpisode.nameCn.isNotEmpty ? _currentEpisode.nameCn : _currentEpisode.name}",
-                                style: const TextStyle(
-                                  color: Colors.white70,
+                                style: TextStyle(
+                                  color: subTextColor,
                                   fontSize: 14,
                                 ),
                               ),
@@ -2717,7 +2726,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                               horizontal: 24,
                               vertical: 16,
                             ),
-                            color: const Color(0xFF0F0F13),
+                            color: bgColor,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -2754,14 +2763,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                   child: Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: const Color.fromARGB(
-                                        255,
-                                        20,
-                                        20,
-                                        25,
-                                      ),
+                                      color: isDark ? const Color.fromARGB(255, 20, 20, 25) : theme.colorScheme.surfaceContainerHigh,
                                       borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.white10),
+                                      border: Border.all(color: borderColor),
                                     ),
                                     child: Column(
                                       crossAxisAlignment:
@@ -2782,8 +2786,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                           overflow: _isDescriptionExpanded
                                               ? null
                                               : TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: Colors.white70,
+                                          style: TextStyle(
+                                            color: subTextColor,
                                             fontSize: 14,
                                             height: 1.5,
                                           ),
@@ -2815,9 +2819,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                                       : Icons
                                                             .keyboard_arrow_down,
                                                   size: 16,
-                                                  color: const Color(
-                                                    0xFFBB86FC,
-                                                  ),
+                                                  color: theme.colorScheme.primary,
                                                 ),
                                               ],
                                             ),
@@ -2829,10 +2831,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 const SizedBox(height: 24),
 
                                 // Play Source
-                                const Text(
+                                Text(
                                   "播放源",
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    color: textColor,
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -2844,7 +2846,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                               ],
                             ),
                           ),
-                          const Divider(height: 1, color: Colors.white10),
+                          Divider(height: 1, color: borderColor),
                         ],
                       ),
                     ),
@@ -2890,13 +2892,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                         ),
                       )
                     else if (_comments.isEmpty)
-                      const SliverToBoxAdapter(
+                      SliverToBoxAdapter(
                         child: Center(
                           child: Padding(
-                            padding: EdgeInsets.all(20),
+                            padding: const EdgeInsets.all(20),
                             child: Text(
                               "暂无评论",
-                              style: TextStyle(color: Colors.white54),
+                              style: TextStyle(color: isDark ? Colors.white54 : Colors.grey),
                             ),
                           ),
                         ),
@@ -2925,7 +2927,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         // Sidebar (Right)
         Container(
           width: 380,
-          color: const Color(0xFF13131A),
+          color: sidebarColor,
           child: CustomScrollView(
             controller: _pcSidebarScrollController,
             slivers: [
@@ -2935,10 +2937,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   delegate: SliverChildListDelegate([
                     _buildSectionHeader("播放列表"),
                     const SizedBox(height: 12),
-                    const Text(
+                    Text(
                       "选集",
                       style: TextStyle(
-                        color: Colors.white,
+                        color: textColor,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -2978,6 +2980,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   Widget _buildPCEpisodeList() {
     // Vertical list for PC
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E2C) : theme.colorScheme.surfaceContainer;
+    final textColor = isDark ? Colors.white : theme.colorScheme.onSurface;
+    final subTextColor = isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant;
     return Scrollbar(
       controller: _pcEpisodeScrollController,
       thumbVisibility: true,
@@ -2995,7 +3002,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             decoration: BoxDecoration(
               color: isSelected
                   ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
-                  : const Color(0xFF1E1E2C),
+                  : cardColor,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isSelected
@@ -3020,12 +3027,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                         borderRadius: BorderRadius.circular(4),
                         color: isSelected
                             ? Theme.of(context).colorScheme.primary
-                            : Colors.white10,
+                            : (isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.2)),
                       ),
                       child: Text(
                         "${ep.sort % 1 == 0 ? ep.sort.toInt() : ep.sort}",
                         style: TextStyle(
-                          color: isSelected ? Colors.black : Colors.white70,
+                          color: isSelected ? (isDark ? Colors.black : Colors.white) : subTextColor,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
@@ -3042,7 +3049,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                               style: TextStyle(
                                 color: isSelected
                                     ? Theme.of(context).colorScheme.primary
-                                    : Colors.white,
+                                    : textColor,
                                 fontSize: 13,
                                 fontWeight: isSelected
                                     ? FontWeight.bold
@@ -3055,7 +3062,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                             Text(
                               ep.name,
                               style: TextStyle(
-                                color: Colors.white54,
+                                color: isDark ? Colors.white54 : Colors.grey,
                                 fontSize: 11,
                               ),
                               maxLines: 1,
@@ -3528,6 +3535,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildSortButton() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return PopupMenuButton<String>(
       onSelected: (value) {
         if (_commentSortMode != value) {
@@ -3538,27 +3547,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         }
       },
       position: PopupMenuPosition.under,
-      color: const Color(0xFF1E1E2C),
+      color: isDark ? const Color(0xFF1E1E2C) : theme.colorScheme.surfaceContainer,
       itemBuilder: (context) => [
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'default',
           child: Row(
             children: [
-              Icon(Icons.sort, size: 18, color: Colors.white70),
-              SizedBox(width: 8),
-              Text("默认排序", style: TextStyle(color: Colors.white, fontSize: 13)),
+              Icon(Icons.sort, size: 18, color: isDark ? Colors.white70 : Colors.grey),
+              const SizedBox(width: 8),
+              Text("默认排序", style: TextStyle(color: isDark ? Colors.white : theme.colorScheme.onSurface, fontSize: 13)),
             ],
           ),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'time',
           child: Row(
             children: [
-              Icon(Icons.access_time, size: 18, color: Colors.white70),
-              SizedBox(width: 8),
+              Icon(Icons.access_time, size: 18, color: isDark ? Colors.white70 : Colors.grey),
+              const SizedBox(width: 8),
               Text(
                 "按时间排序",
-                style: TextStyle(color: Colors.white, fontSize: 13),
+                style: TextStyle(color: isDark ? Colors.white : theme.colorScheme.onSurface, fontSize: 13),
               ),
             ],
           ),
@@ -3567,11 +3576,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.sort, color: Colors.white54, size: 16),
+          Icon(Icons.sort, color: isDark ? Colors.white54 : Colors.grey, size: 16),
           const SizedBox(width: 4),
           Text(
             _commentSortMode == 'default' ? "默认排序" : "按时间排序",
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
+            style: TextStyle(color: isDark ? Colors.white54 : Colors.grey, fontSize: 12),
           ),
         ],
       ),
@@ -3579,21 +3588,23 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildSectionHeader(String title, {Widget? trailing}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Row(
       children: [
         Container(
           width: 4,
           height: 16,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
+            color: theme.colorScheme.primary,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
         const SizedBox(width: 8),
         Text(
           title,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: isDark ? Colors.white : theme.colorScheme.onSurface,
             fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
@@ -3603,13 +3614,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           trailing,
         ] else ...[
           const Spacer(),
-          // const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
         ],
       ],
     );
   }
 
   Widget _buildPlaySourceSelector({required bool isMobile}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.3);
     final btCount = _mikanResources.length + _dmhyResources.length;
     final onlineCount = _sampleSuccessfulSources.length;
     final currentLabel = _playingSourceLabel;
@@ -3621,9 +3634,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: const Color.fromARGB(255, 20, 20, 25),
+            color: isDark ? const Color.fromARGB(255, 20, 20, 25) : theme.colorScheme.surfaceContainerHigh,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white10),
+            border: Border.all(color: borderColor),
           ),
           child: Row(
             children: [
@@ -3631,10 +3644,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 child: isMobile
                     ? Row(
                         children: [
-                          const Text(
+                          Text(
                             "已找到 ",
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant,
                               fontSize: 13,
                             ),
                           ),
@@ -3658,8 +3671,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           const SizedBox(width: 8),
                           Text(
                             "$onlineCount",
-                            style: const TextStyle(
-                              color: Color(0xFF03DAC6),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
                             ),
@@ -3667,18 +3680,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           const SizedBox(width: 2),
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
-                            child: const Icon(
+                            child: Icon(
                               Icons.subscriptions,
                               size: 14,
-                              color: Color(0xFF03DAC6),
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               "当前：$currentLabel",
-                              style: const TextStyle(
-                                color: Colors.white70,
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant,
                                 fontSize: 13,
                               ),
                               overflow: TextOverflow.ellipsis,
@@ -3688,13 +3701,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                       )
                     : Text(
                         "已找到 $btCount 个BT源， $onlineCount 个订阅源，当前源：$currentLabel",
-                        style: const TextStyle(
-                          color: Colors.white70,
+                        style: TextStyle(
+                          color: isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant,
                           fontSize: 13,
                         ),
                       ),
               ),
-              const Icon(Icons.keyboard_arrow_down, color: Colors.white70),
+              Icon(Icons.keyboard_arrow_down, color: isDark ? Colors.white70 : Colors.grey),
             ],
           ),
         ),
@@ -3704,14 +3717,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E2C),
+        color: isDark ? const Color(0xFF1E1E2C) : theme.colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
           Expanded(child: _buildSourceTab("BT", "bt")),
-          Container(width: 1, color: Colors.white10),
+          Container(width: 1, color: isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.3)),
           Expanded(child: _buildSourceTab("订阅源", "sample")),
           InkWell(
             onTap: () => setState(() => _isSourceControlExpanded = false),
@@ -3719,9 +3732,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               height: double.infinity,
               alignment: Alignment.center,
-              child: const Icon(
+              child: Icon(
                 Icons.keyboard_arrow_up,
-                color: Colors.white70,
+                color: isDark ? Colors.white70 : Colors.grey,
                 size: 20,
               ),
             ),
@@ -3771,7 +3784,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               child: Text(
                 label,
                 style: TextStyle(
-                  color: isSelected ? Theme.of(context).colorScheme.primary : Colors.white70,
+                  color: isSelected ? Theme.of(context).colorScheme.primary : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant),
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   fontSize: 13,
                 ),
@@ -3859,7 +3872,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                       style: TextStyle(
                         color: _sampleError != null
                             ? Colors.redAccent
-                            : Colors.white70,
+                            : (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant),
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
@@ -3949,12 +3962,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     padding: const EdgeInsets.only(bottom: 6),
                     child: Row(
                       children: [
-                        const SizedBox(
+                        SizedBox(
                           width: 10,
                           height: 10,
                           child: CircularProgressIndicator(
                             strokeWidth: 1.5,
-                            color: Color(0xFFFFC107),
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -4228,20 +4241,20 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             alignment: Alignment.center,
             child: Column(
               children: [
-                const Icon(Icons.search_off, color: Colors.white24, size: 32),
+                Icon(Icons.search_off, color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.grey.withValues(alpha: 0.5), size: 32),
                 const SizedBox(height: 8),
                 Text(
                   _disableAutoSourceSearchForCurrentEpisode
                       ? '已使用本地资源播放'
                       : '尚未开始搜索在线源',
-                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.grey, fontSize: 12),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   _disableAutoSourceSearchForCurrentEpisode
                       ? '如需在线源，请点击下方按钮手动搜索'
                       : '点击下方按钮开始搜索',
-                  style: const TextStyle(color: Colors.white24, fontSize: 11),
+                  style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.grey.withValues(alpha: 0.8), fontSize: 11),
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
@@ -4249,8 +4262,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   icon: const Icon(Icons.refresh, size: 16),
                   label: const Text("搜索在线源", style: TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white12,
-                    foregroundColor: Colors.white70,
+                    backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white12 : Colors.grey.withValues(alpha: 0.2),
+                    foregroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ],
@@ -4473,6 +4486,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return const SizedBox.shrink();
     }
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E2C) : theme.colorScheme.surfaceContainer;
+    final borderColor = isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.3);
+
     final btCount = _mikanResources.length + _dmhyResources.length;
     final btHasError = _mikanError != null || _dmhyError != null;
 
@@ -4503,7 +4521,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 style: TextStyle(
                   color: btHasError && btCount == 0
                       ? Colors.redAccent
-                      : Colors.white70,
+                      : (isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant),
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
@@ -4534,16 +4552,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             alignment: Alignment.center,
             child: Column(
               children: [
-                const Icon(Icons.search_off, color: Colors.white24, size: 32),
+                Icon(Icons.search_off, color: isDark ? Colors.white24 : Colors.grey.withValues(alpha: 0.5), size: 32),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   '尚未开始搜索BT源',
-                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                  style: TextStyle(color: isDark ? Colors.white38 : Colors.grey, fontSize: 12),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   '点击下方按钮开始搜索',
-                  style: TextStyle(color: Colors.white24, fontSize: 11),
+                  style: TextStyle(color: isDark ? Colors.white24 : Colors.grey.withValues(alpha: 0.8), fontSize: 11),
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
@@ -4557,8 +4575,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   icon: const Icon(Icons.refresh, size: 16),
                   label: const Text('搜索BT源', style: TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white12,
-                    foregroundColor: Colors.white70,
+                    backgroundColor: isDark ? Colors.white12 : Colors.grey.withValues(alpha: 0.2),
+                    foregroundColor: isDark ? Colors.white70 : theme.colorScheme.onSurface,
                   ),
                 ),
               ],
@@ -4596,9 +4614,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E2C),
+              color: cardColor,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white10),
+              border: Border.all(color: borderColor),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -5007,6 +5025,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildCommentsTab(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     if (_isLoadingComments) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -5019,8 +5039,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       );
     }
     if (_comments.isEmpty) {
-      return const Center(
-        child: Text("暂无评论", style: TextStyle(color: Colors.white54)),
+      return Center(
+        child: Text("暂无评论", style: TextStyle(color: isDark ? Colors.white54 : Colors.grey)),
       );
     }
     return Column(
@@ -5029,10 +5049,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Row(
             children: [
-              const Text(
+              Text(
                 "全部评论",
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),
@@ -5042,7 +5062,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             ],
           ),
         ),
-        const Divider(height: 1, color: Colors.white10),
+        Divider(height: 1, color: isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.3)),
         Expanded(
           child: ListView.builder(
             controller: _commentsScrollController,
@@ -5145,6 +5165,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildCommentItem(BangumiEpisodeComment comment) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Row(
@@ -5156,7 +5179,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             height: 32,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: comment.avatar.isEmpty ? Colors.grey[800] : null,
+              color: comment.avatar.isEmpty ? (isDark ? Colors.grey[800] : Colors.grey[300]) : null,
             ),
             child: comment.avatar.isNotEmpty
                 ? ClipOval(
@@ -5170,8 +5193,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 : Center(
                     child: Text(
                       comment.userName.isNotEmpty ? comment.userName[0] : "?",
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -5205,8 +5228,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 // Content
                 HtmlWidget(
                   comment.contentHtml,
-                  textStyle: const TextStyle(
-                    color: Colors.white70,
+                  textStyle: TextStyle(
+                    color: isDark ? Colors.white70 : theme.colorScheme.onSurface,
                     fontSize: 14,
                     height: 1.5,
                   ),
@@ -5230,7 +5253,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
@@ -5249,7 +5272,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: reply.avatar.isEmpty
-                                      ? Colors.grey[800]
+                                      ? (isDark ? Colors.grey[800] : Colors.grey[300])
                                       : null,
                                 ),
                                 child: reply.avatar.isNotEmpty
@@ -5291,8 +5314,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                     const SizedBox(height: 4),
                                     HtmlWidget(
                                       reply.contentHtml,
-                                      textStyle: const TextStyle(
-                                        color: Colors.white70,
+                                      textStyle: TextStyle(
+                                        color: isDark ? Colors.white70 : theme.colorScheme.onSurface,
                                         fontSize: 13,
                                         height: 1.4,
                                       ),
@@ -5334,6 +5357,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildRecommendationsList({required bool isVertical}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     if (_isLoadingRecommendations) {
       return const Center(
         child: Padding(
@@ -5349,7 +5375,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         alignment: Alignment.center,
         child: Text(
           "暂无相关推荐",
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+          style: TextStyle(color: isDark ? Colors.white.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.6)),
         ),
       );
     }
@@ -5449,6 +5475,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildRecommendationItemHorizontal(RankingAnime item) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return InkWell(
       onTap: () {
         _navigateToAnime(item);
@@ -5463,7 +5491,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  color: const Color(0xFF252535),
+                  color: isDark ? const Color(0xFF252535) : theme.colorScheme.surfaceContainerHigh,
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.2),
@@ -5486,8 +5514,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             const SizedBox(height: 8),
             Text(
               item.title,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: isDark ? Colors.white : theme.colorScheme.onSurface,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -5497,7 +5525,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             if (item.info.isNotEmpty)
               Text(
                 item.info.split(' / ').first,
-                style: TextStyle(color: Colors.grey[500], fontSize: 10),
+                style: TextStyle(color: isDark ? Colors.grey[500] : Colors.grey, fontSize: 10),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -5508,6 +5536,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildRecommendationItemVertical(RankingAnime item) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -5522,7 +5552,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               height: 60,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                color: const Color(0xFF252535),
+                color: isDark ? const Color(0xFF252535) : theme.colorScheme.surfaceContainerHigh,
               ),
               child: item.coverUrl.isNotEmpty
                   ? ClipRRect(
@@ -5541,8 +5571,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 children: [
                   Text(
                     item.title,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : theme.colorScheme.onSurface,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),

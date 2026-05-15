@@ -232,13 +232,16 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
       );
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF16161E) : Theme.of(context).scaffoldBackgroundColor;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF16161E),
+      backgroundColor: bgColor,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: IconThemeData(color: isDark ? Colors.white : Theme.of(context).colorScheme.onSurface),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -258,7 +261,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
         ),
       ),
       body: isMobile
-          ? _buildMobileLayout(context)
+          ? _buildMobileLayout(context, isDark: isDark)
           : _buildDesktopLayout(context),
     );
   }
@@ -297,29 +300,30 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
 
   // ── Layouts ───────────────────────────────────────────────────────────────
 
-  Widget _buildMobileLayout(BuildContext context) {
+  Widget _buildMobileLayout(BuildContext context, {required bool isDark}) {
     return CustomScrollView(
       controller: _mobileScrollController,
       slivers: [
-        SliverToBoxAdapter(child: _buildMobileHeader(context)),
+        SliverToBoxAdapter(child: _buildMobileHeader(context, isDark: isDark)),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: _buildSummarySection(context),
+            child: _buildSummarySection(context, isDarkBg: isDark),
           ),
         ),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildInfoBoxSection(context),
+            child: _buildInfoBoxSection(context, isDarkBg: isDark),
           ),
         ),
         if (_isSeiyu)
           ..._buildCharactersSlivers(
             context,
             padding: const EdgeInsets.all(16),
+            isDarkBg: isDark,
           ),
-        ..._buildSubjectsSlivers(context, padding: const EdgeInsets.all(16)),
+        ..._buildSubjectsSlivers(context, padding: const EdgeInsets.all(16), isDarkBg: isDark),
         const SliverToBoxAdapter(child: SizedBox(height: 32)),
       ],
     );
@@ -352,7 +356,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                         const SizedBox(height: 24),
                         _buildStatCard(context),
                         const SizedBox(height: 24),
-                        _buildInfoBoxSection(context),
+                        _buildInfoBoxSection(context, isDarkBg: true),
                       ],
                     ),
                   ),
@@ -368,7 +372,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                           delegate: SliverChildListDelegate([
                             _buildTitleSection(context),
                             const SizedBox(height: 32),
-                            _buildSummarySection(context),
+                            _buildSummarySection(context, isDarkBg: true),
                           ]),
                         ),
                       ),
@@ -377,13 +381,13 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                           padding: const EdgeInsets.symmetric(horizontal: 32),
                           sliver: SliverToBoxAdapter(child: const SizedBox(height: 32)),
                         ),
-                        ..._buildCharactersSlivers(context, padding: const EdgeInsets.symmetric(horizontal: 32)),
+                        ..._buildCharactersSlivers(context, padding: const EdgeInsets.symmetric(horizontal: 32), isDarkBg: true),
                       ],
                       SliverPadding(
                         padding: const EdgeInsets.symmetric(horizontal: 32),
                         sliver: SliverToBoxAdapter(child: const SizedBox(height: 32)),
                       ),
-                      ..._buildSubjectsSlivers(context, padding: const EdgeInsets.symmetric(horizontal: 32)),
+                      ..._buildSubjectsSlivers(context, padding: const EdgeInsets.symmetric(horizontal: 32), isDarkBg: true),
                     ],
                   ),
                 ),
@@ -397,8 +401,9 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
 
   // ── Header (mobile) ───────────────────────────────────────────────────────
 
-  Widget _buildMobileHeader(BuildContext context) {
+  Widget _buildMobileHeader(BuildContext context, {required bool isDark}) {
     final imgUrl = _details?.img ?? widget.heroImageUrl;
+    final bgColor = isDark ? const Color(0xFF16161E) : Theme.of(context).scaffoldBackgroundColor;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -406,8 +411,8 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
           end: Alignment.bottomCenter,
           colors: [
             Colors.transparent,
-            const Color(0xFF16161E).withValues(alpha: 0.5),
-            const Color(0xFF16161E),
+            bgColor.withValues(alpha: 0.5),
+            bgColor,
           ],
           stops: const [0.0, 0.6, 1.0],
         ),
@@ -421,14 +426,14 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
               _buildAvatarWidget(imgUrl, width: 160, height: 200, radius: 12),
               const SizedBox(height: 20),
               if (_isLoadingDetails)
-                _shimmer(width: 140, height: 28, radius: 6)
+                _shimmer(width: 140, height: 28, radius: 6, isDarkBg: isDark)
               else
                 Text(
                   _details?.name ?? widget.personName ?? 'Unknown',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: isDark ? Colors.white : Theme.of(context).textTheme.titleLarge?.color,
                     height: 1.2,
                   ),
                   textAlign: TextAlign.center,
@@ -441,9 +446,9 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _shimmer(width: 72, height: 28, radius: 14),
+                    _shimmer(width: 72, height: 28, radius: 14, isDarkBg: isDark),
                     const SizedBox(width: 12),
-                    _shimmer(width: 72, height: 28, radius: 14),
+                    _shimmer(width: 72, height: 28, radius: 14, isDarkBg: isDark),
                   ],
                 )
               else
@@ -453,11 +458,13 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                     _buildStatChip(
                       Icons.comment_outlined,
                       '${_details?.stat.comments ?? 0} 评论',
+                      isDarkBg: isDark,
                     ),
                     const SizedBox(width: 12),
                     _buildStatChip(
                       Icons.favorite_outline,
                       '${_details?.stat.collects ?? 0} 收藏',
+                      isDarkBg: isDark,
                     ),
                   ],
                 ),
@@ -672,18 +679,18 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
 
   // ── Summary section ───────────────────────────────────────────────────────
 
-  Widget _buildSummarySection(BuildContext context) {
+  Widget _buildSummarySection(BuildContext context, {bool isDarkBg = true}) {
     if (_isLoadingDetails) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _shimmer(width: 60, height: 20, radius: 4),
+          _shimmer(width: 60, height: 20, radius: 4, isDarkBg: isDarkBg),
           const SizedBox(height: 12),
-          _shimmer(width: double.infinity, height: 14, radius: 4),
+          _shimmer(width: double.infinity, height: 14, radius: 4, isDarkBg: isDarkBg),
           const SizedBox(height: 8),
-          _shimmer(width: double.infinity, height: 14, radius: 4),
+          _shimmer(width: double.infinity, height: 14, radius: 4, isDarkBg: isDarkBg),
           const SizedBox(height: 8),
-          _shimmer(width: 200, height: 14, radius: 4),
+          _shimmer(width: 200, height: 14, radius: 4, isDarkBg: isDarkBg),
         ],
       );
     }
@@ -695,14 +702,14 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle(context, '简介'),
+        _sectionTitle(context, '简介', isDarkBg: isDarkBg),
         const SizedBox(height: 12),
         HtmlWidget(
           processed,
           textStyle: TextStyle(
             fontSize: 14,
             height: 1.7,
-            color: Colors.white.withValues(alpha: 0.8),
+            color: isDarkBg ? Colors.white.withValues(alpha: 0.8) : Theme.of(context).textTheme.bodyMedium?.color,
           ),
         ),
       ],
@@ -711,20 +718,24 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
 
   // ── Infobox section ───────────────────────────────────────────────────────
 
-  Widget _buildInfoBoxSection(BuildContext context) {
+  Widget _buildInfoBoxSection(BuildContext context, {bool isDarkBg = true}) {
     final infobox = _details?.infobox ?? [];
     if (infobox.isEmpty) return const SizedBox.shrink();
+    final textColor = isDarkBg ? Colors.white.withValues(alpha: 0.9) : Theme.of(context).textTheme.bodyMedium?.color;
+    final keyColor = isDarkBg ? Colors.white.withValues(alpha: 0.5) : Colors.grey;
+    final bgColor = isDarkBg ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.1);
+    final borderColor = isDarkBg ? Colors.white10 : Colors.grey.withValues(alpha: 0.3);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle(context, '资料'),
+        _sectionTitle(context, '资料', isDarkBg: isDarkBg),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: bgColor,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white10),
+            border: Border.all(color: borderColor),
           ),
           child: Column(
             children: infobox.map((item) {
@@ -741,7 +752,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                                 a.trim(),
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.white.withValues(alpha: 0.9),
+                                  color: textColor,
                                   height: 1.4,
                                 ),
                               ),
@@ -753,7 +764,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                       item.value,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.white.withValues(alpha: 0.9),
+                        color: textColor,
                         height: 1.4,
                       ),
                     );
@@ -768,7 +779,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                         item.key,
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.white.withValues(alpha: 0.5),
+                          color: keyColor,
                         ),
                       ),
                     ),
@@ -786,6 +797,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   List<Widget> _buildCharactersSlivers(
     BuildContext context, {
     EdgeInsets padding = EdgeInsets.zero,
+    bool isDarkBg = true,
   }) {
     if (_isLoadingCharacters) {
       return [
@@ -795,7 +807,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _sectionTitle(context, '配音角色'),
+                _sectionTitle(context, '配音角色', isDarkBg: isDarkBg),
                 const SizedBox(height: 12),
                 const Center(
                   child: CircularProgressIndicator(color: Colors.amber),
@@ -820,7 +832,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionTitle(context, '配音角色'),
+              _sectionTitle(context, '配音角色', isDarkBg: isDarkBg),
               const SizedBox(height: 12),
             ],
           ),
@@ -836,7 +848,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
         sliver: SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, index) =>
-                _buildCharacterCard(context, _groupedCharacters[index]),
+                _buildCharacterCard(context, _groupedCharacters[index], isDarkBg: isDarkBg),
             childCount: _groupedCharacters.length,
           ),
         ),
@@ -844,7 +856,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     ];
   }
 
-  Widget _buildCharacterCard(BuildContext context, _GroupedCharacter group) {
+  Widget _buildCharacterCard(BuildContext context, _GroupedCharacter group, {bool isDarkBg = true}) {
     final imgUrl =
         group.images?.large ??
         group.images?.medium ??
@@ -864,9 +876,9 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: isDarkBg ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: isDarkBg ? Colors.white10 : Colors.grey.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -936,9 +948,9 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                         // Character name (original)
                         Text(
                           group.name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
-                            color: Colors.cyanAccent,
+                            color: isDarkBg ? Colors.cyanAccent : Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -948,7 +960,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                           '${uniqueAppearances.length} 部作品',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.white.withValues(alpha: 0.55),
+                            color: isDarkBg ? Colors.white.withValues(alpha: 0.55) : Colors.grey,
                           ),
                         ),
                       ],
@@ -1140,6 +1152,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   List<Widget> _buildSubjectsSlivers(
     BuildContext context, {
     EdgeInsets padding = EdgeInsets.zero,
+    bool isDarkBg = true,
   }) {
     final sectionLabel = _isSeiyu ? '出演作品' : '相关作品';
 
@@ -1151,7 +1164,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _sectionTitle(context, sectionLabel),
+                _sectionTitle(context, sectionLabel, isDarkBg: isDarkBg),
                 const SizedBox(height: 12),
                 const Center(
                   child: CircularProgressIndicator(color: Colors.amber),
@@ -1178,7 +1191,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionTitle(context, sectionLabel),
+              _sectionTitle(context, sectionLabel, isDarkBg: isDarkBg),
               const SizedBox(height: 12),
             ],
           ),
@@ -1194,7 +1207,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
         sliver: SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, index) =>
-                _buildSubjectCard(context, uniqueSubjects[index]),
+                _buildSubjectCard(context, uniqueSubjects[index], isDarkBg: isDarkBg),
             childCount: uniqueSubjects.length,
           ),
         ),
@@ -1202,14 +1215,14 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     ];
   }
 
-  Widget _buildSubjectCard(BuildContext context, PersonSubject subject) {
+  Widget _buildSubjectCard(BuildContext context, PersonSubject subject, {bool isDarkBg = true}) {
     final title = subject.nameCn.isNotEmpty ? subject.nameCn : subject.name;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: isDarkBg ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: isDarkBg ? Colors.white10 : Colors.grey.withValues(alpha: 0.3)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -1298,9 +1311,9 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                         ),
                       Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
-                          color: Colors.white,
+                          color: isDarkBg ? Colors.white : Theme.of(context).textTheme.titleSmall?.color,
                           fontWeight: FontWeight.w600,
                         ),
                         maxLines: 2,
@@ -1313,7 +1326,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                             subject.name,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.white.withValues(alpha: 0.5),
+                              color: isDarkBg ? Colors.white.withValues(alpha: 0.5) : Colors.grey,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1337,24 +1350,24 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  Widget _sectionTitle(BuildContext context, String title) {
+  Widget _sectionTitle(BuildContext context, String title, {bool isDarkBg = true}) {
     return Row(
       children: [
         Container(
           width: 3,
           height: 18,
           decoration: BoxDecoration(
-            color: Colors.amber,
+            color: isDarkBg ? Colors.amber : Theme.of(context).colorScheme.primary,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
         const SizedBox(width: 8),
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: isDarkBg ? Colors.white : Theme.of(context).textTheme.titleMedium?.color,
           ),
         ),
       ],
@@ -1365,32 +1378,33 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     required double width,
     required double height,
     required double radius,
+    bool isDarkBg = true,
   }) {
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: isDarkBg ? Colors.white.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(radius),
       ),
     );
   }
 
-  Widget _buildStatChip(IconData icon, String label) {
+  Widget _buildStatChip(IconData icon, String label, {bool isDarkBg = true}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: isDarkBg ? Colors.white.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: Colors.white70),
+          Icon(icon, size: 14, color: isDarkBg ? Colors.white70 : Colors.grey),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: Colors.white70),
+            style: TextStyle(fontSize: 12, color: isDarkBg ? Colors.white70 : Colors.grey),
           ),
         ],
       ),

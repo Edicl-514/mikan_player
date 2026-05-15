@@ -468,7 +468,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   // --- Mobile Layout (Refined based on screenshot) ---
   Widget _buildMobileLayout(BuildContext context) {
-    const bgColor = Color(0xFF16161E);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF16161E) : Theme.of(context).scaffoldBackgroundColor;
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -494,27 +495,27 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                       color: bgColor,
                       border: Border(
                         bottom: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.05),
+                          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.2),
                           width: 1,
                         ),
                       ),
                     ),
-                    child: const TabBar(
-                      labelColor: Colors.white,
-                      unselectedLabelColor: Colors.grey,
-                      indicatorColor: Colors.deepPurpleAccent,
+                    child: TabBar(
+                      labelColor: isDark ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                      unselectedLabelColor: isDark ? Colors.grey : Theme.of(context).colorScheme.onSurfaceVariant,
+                      indicatorColor: Theme.of(context).colorScheme.primary,
                       indicatorWeight: 3,
                       indicatorSize: TabBarIndicatorSize.label,
                       dividerColor: Colors.transparent,
-                      labelStyle: TextStyle(
+                      labelStyle: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
-                      unselectedLabelStyle: TextStyle(
+                      unselectedLabelStyle: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.normal,
                       ),
-                      tabs: [
+                      tabs: const [
                         Tab(text: "详情"), // Details
                         Tab(
                           text: "评论",
@@ -538,14 +539,14 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: _buildSectionTitle(context, "评论", isDarkBg: true),
+                            child: _buildSectionTitle(context, "评论", isDarkBg: isDark),
                           ),
                           const SizedBox(height: 96),
                           Center(
                             child: Text(
                               '暂无评论',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.6),
+                                color: isDark ? Colors.white.withValues(alpha: 0.6) : Colors.grey,
                               ),
                             ),
                           ),
@@ -565,7 +566,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                               child: _buildSectionTitle(
                                 context,
                                 "评论",
-                                isDarkBg: true,
+                                isDarkBg: isDark,
                               ),
                             );
                           }
@@ -591,7 +592,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                             child: _buildCommentCard(
                               context,
                               comment,
-                              isDarkBg: true,
+                              isDarkBg: isDark,
                             ),
                           );
                         },
@@ -607,7 +608,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   Widget _buildMobileHeaderContent(BuildContext context) {
     // Determine background image
     final imgUrl = _getImageUrl();
-    const bgColor = Color(0xFF16161E);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF16161E) : Theme.of(context).scaffoldBackgroundColor;
 
     return Stack(
       fit: StackFit.expand,
@@ -880,6 +882,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   }
 
   Widget _buildMobileDetailsTab(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SingleChildScrollView(
       controller: defaultTargetPlatform == TargetPlatform.windows
           ? _mobileDetailsScrollController
@@ -889,8 +892,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Episodes Section (Moved from Header)
-          // Using Dark Bg style as the page background is dark
-          _buildEpisodesSection(context, isDarkBg: true),
+          _buildEpisodesSection(context, isDarkBg: isDark),
           const SizedBox(height: 24),
 
           // Story Summary
@@ -910,10 +912,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   children: [
                     Text(
                       _getDisplaySummary() ?? "暂无简介",
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         height: 1.6,
-                        color: Colors.white70,
+                        color: isDark ? Colors.white70 : Theme.of(context).textTheme.bodyMedium?.color,
                       ),
                       textAlign: TextAlign.justify,
                     ),
@@ -921,9 +923,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                       const SizedBox(height: 8),
                       Text(
                         _showOriginalSummary ? "点击显示翻译" : "点击显示原文",
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: Colors.white38,
+                          color: isDark ? Colors.white38 : Colors.grey,
                         ),
                       ),
                     ],
@@ -935,19 +937,19 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           const SizedBox(height: 24),
 
           // Tags
-          _buildMobileTags(isDarkBg: true),
+          _buildMobileTags(isDarkBg: isDark),
           const SizedBox(height: 24),
 
           // Information Box (Infobox)
-          _buildInfoBoxList(context),
+          _buildInfoBoxList(context, isDarkBg: isDark),
           const SizedBox(height: 24),
 
           // Characters
-          _buildCharactersSection(context, isDarkBg: true),
+          _buildCharactersSection(context, isDarkBg: isDark),
           const SizedBox(height: 40),
 
           // Related Items (Associated entries)
-          _buildRelationsSection(context, isDarkBg: true),
+          _buildRelationsSection(context, isDarkBg: isDark),
           const SizedBox(height: 24),
         ],
       ),
@@ -1270,7 +1272,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                           const SizedBox(height: 24),
                           _buildActionButtons(context),
                           const SizedBox(height: 24),
-                          _buildInfoBoxList(context),
+                          _buildInfoBoxList(context, isDarkBg: true),
                         ],
                       ),
                     ),
@@ -1631,24 +1633,28 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           runSpacing: 8,
           children: tags.map<Widget>((tag) {
             final name = (tag['name'] ?? '') as String;
-            return ActionChip(
-              label: Text(name),
-              backgroundColor: isDarkBg ? Colors.white10 : Colors.grey[200],
-              labelStyle: TextStyle(
-                color: isDarkBg ? Colors.white : Colors.black87,
-                fontSize: 12,
-              ),
-              side: BorderSide.none,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              onPressed: name.isNotEmpty
+            return GestureDetector(
+              onTap: name.isNotEmpty
                   ? () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => TagBrowsePage(tagName: name),
                       ),
                     )
                   : null,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isDarkBg ? Colors.white10 : Colors.grey[200],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  name,
+                  style: TextStyle(
+                    color: isDarkBg ? Colors.white : Colors.black87,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
             );
           }).toList(),
         ),
@@ -1786,26 +1792,30 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     );
   }
 
-  Widget _buildInfoBoxList(BuildContext context) {
+  Widget _buildInfoBoxList(BuildContext context, {bool isDarkBg = false}) {
     if (_data == null || _data!['infobox'] == null) {
       return const SizedBox.shrink();
     }
     final infobox = _data!['infobox'] as List;
 
+    final textColor = isDarkBg ? Colors.white : Colors.black87;
+    final keyColor = isDarkBg ? Colors.white54 : Colors.grey;
+    final bgColor = isDarkBg ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.1);
+
     return RepaintBoundary(
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
+          color: bgColor,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               "Information",
             style: TextStyle(
-              color: Colors.white,
+              color: textColor,
               fontWeight: FontWeight.bold,
               fontSize: 16,
             ),
@@ -1813,8 +1823,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           const SizedBox(height: 16),
           ...infobox.map((item) {
             final val = item['value'];
-            const valueStyle = TextStyle(color: Colors.white, fontSize: 12);
-            const linkStyle = TextStyle(
+            final valueStyle = TextStyle(color: textColor, fontSize: 12);
+            final linkStyle = TextStyle(
               color: Colors.cyanAccent,
               fontSize: 12,
               decoration: TextDecoration.underline,
@@ -1837,8 +1847,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                       width: 70,
                       child: Text(
                         item['key'],
-                        style: const TextStyle(
-                          color: Colors.white54,
+                        style: TextStyle(
+                          color: keyColor,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1857,7 +1867,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                               linkStyle: linkStyle,
                             ),
                             if (i < names.length - 1)
-                              const Text(', ', style: valueStyle),
+                              Text(', ', style: valueStyle),
                           ],
                         ],
                       ),
@@ -1879,8 +1889,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                     width: 70,
                     child: Text(
                       item['key'],
-                      style: const TextStyle(
-                        color: Colors.white54,
+                      style: TextStyle(
+                        color: keyColor,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),

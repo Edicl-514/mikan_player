@@ -185,13 +185,16 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
       );
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF16161E) : Theme.of(context).scaffoldBackgroundColor;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF16161E),
+      backgroundColor: bgColor,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: IconThemeData(color: isDark ? Colors.white : Theme.of(context).colorScheme.onSurface),
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -211,34 +214,34 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
         ),
       ),
       body: isMobile
-          ? _buildMobileLayout(context)
+          ? _buildMobileLayout(context, isDark: isDark)
           : _buildDesktopLayout(context),
     );
   }
 
-  Widget _buildMobileLayout(BuildContext context) {
+  Widget _buildMobileLayout(BuildContext context, {required bool isDark}) {
     return CustomScrollView(
       controller: _mobileScrollController,
       slivers: [
         SliverToBoxAdapter(
-          child: _buildMobileHeader(context),
+          child: _buildMobileHeader(context, isDark: isDark),
         ),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: _buildSummarySection(context, isDarkBg: true),
+            child: _buildSummarySection(context, isDarkBg: isDark),
           ),
         ),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildInfoBoxSection(context, isDarkBg: true),
+            child: _buildInfoBoxSection(context, isDarkBg: isDark),
           ),
         ),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: _buildSubjectsSection(context, isDarkBg: true),
+            child: _buildSubjectsSection(context, isDarkBg: isDark),
           ),
         ),
         const SliverToBoxAdapter(child: SizedBox(height: 32)),
@@ -346,10 +349,11 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     );
   }
 
-  Widget _buildMobileHeader(BuildContext context) {
+  Widget _buildMobileHeader(BuildContext context, {required bool isDark}) {
     final imgUrl = _characterDetails?.images?.large ??
         _characterDetails?.images?.medium ??
         widget.heroImageUrl;
+    final bgColor = isDark ? const Color(0xFF16161E) : Theme.of(context).scaffoldBackgroundColor;
 
     return Container(
       decoration: BoxDecoration(
@@ -358,8 +362,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
           end: Alignment.bottomCenter,
           colors: [
             Colors.transparent,
-            const Color(0xFF16161E).withValues(alpha: 0.5),
-            const Color(0xFF16161E),
+            bgColor.withValues(alpha: 0.5),
+            bgColor,
           ],
           stops: const [0.0, 0.6, 1.0],
         ),
@@ -440,14 +444,14 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
               const SizedBox(height: 20),
               // Character Name
               if (_isLoadingDetails)
-                _buildShimmerBox(width: 140, height: 28, radius: 6)
+                _buildShimmerBox(width: 140, height: 28, radius: 6, isDark: isDark)
               else
                 Text(
                   _characterDetails?.name ?? widget.characterName ?? 'Unknown',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: isDark ? Colors.white : Colors.black87,
                     height: 1.2,
                   ),
                   textAlign: TextAlign.center,
@@ -455,7 +459,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
               const SizedBox(height: 8),
               // Gender badge
               if (_isLoadingDetails)
-                _buildShimmerBox(width: 60, height: 24, radius: 12)
+                _buildShimmerBox(width: 60, height: 24, radius: 12, isDark: isDark)
               else if (_characterDetails?.gender != null)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -478,7 +482,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
               const SizedBox(height: 16),
               // Birthday
               if (_isLoadingDetails)
-                _buildShimmerBox(width: 100, height: 18, radius: 4)
+                _buildShimmerBox(width: 100, height: 18, radius: 4, isDark: isDark)
               else if (_getDisplayBirthday() != null)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -486,14 +490,14 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                     Icon(
                       Icons.cake_outlined,
                       size: 16,
-                      color: Colors.white.withValues(alpha: 0.6),
+                      color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.6),
                     ),
                     const SizedBox(width: 6),
                     Text(
                       _getDisplayBirthday()!,
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.white.withValues(alpha: 0.7),
+                        color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.7),
                       ),
                     ),
                   ],
@@ -504,9 +508,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildShimmerBox(width: 72, height: 28, radius: 14),
+                    _buildShimmerBox(width: 72, height: 28, radius: 14, isDark: isDark),
                     const SizedBox(width: 12),
-                    _buildShimmerBox(width: 72, height: 28, radius: 14),
+                    _buildShimmerBox(width: 72, height: 28, radius: 14, isDark: isDark),
                   ],
                 )
               else
@@ -516,11 +520,13 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                     _buildStatChip(
                       Icons.comment_outlined,
                       '${_characterDetails?.stat.comments ?? 0} 评论',
+                      isDark: isDark,
                     ),
                     const SizedBox(width: 12),
                     _buildStatChip(
                       Icons.favorite_outline,
                       '${_characterDetails?.stat.collects ?? 0} 收藏',
+                      isDark: isDark,
                     ),
                   ],
                 ),
@@ -663,32 +669,33 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     );
   }
 
-  Widget _buildShimmerBox({required double width, required double height, required double radius}) {
+  Widget _buildShimmerBox({required double width, required double height, required double radius, bool isDark = true}) {
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(radius),
       ),
     );
   }
 
-  Widget _buildStatChip(IconData icon, String label) {
+  Widget _buildStatChip(IconData icon, String label, {bool isDark = true}) {
+    final textColor = isDark ? Colors.white70 : Colors.black87;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: Colors.white70),
+          Icon(icon, size: 14, color: textColor),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: Colors.white70),
+            style: TextStyle(fontSize: 12, color: textColor),
           ),
         ],
       ),
@@ -766,13 +773,13 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildShimmerBox(width: 60, height: 20, radius: 4),
+          _buildShimmerBox(width: 60, height: 20, radius: 4, isDark: isDarkBg),
           const SizedBox(height: 12),
-          _buildShimmerBox(width: double.infinity, height: 14, radius: 4),
+          _buildShimmerBox(width: double.infinity, height: 14, radius: 4, isDark: isDarkBg),
           const SizedBox(height: 8),
-          _buildShimmerBox(width: double.infinity, height: 14, radius: 4),
+          _buildShimmerBox(width: double.infinity, height: 14, radius: 4, isDark: isDarkBg),
           const SizedBox(height: 8),
-          _buildShimmerBox(width: 200, height: 14, radius: 4),
+          _buildShimmerBox(width: 200, height: 14, radius: 4, isDark: isDarkBg),
         ],
       );
     }
