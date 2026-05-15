@@ -4626,8 +4626,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     Expanded(
                       child: Text(
                         title,
-                        style: const TextStyle(
-                          color: Colors.white70,
+                        style: TextStyle(
+                          color: isDark ? Colors.white70 : theme.colorScheme.onSurface,
                           fontSize: 12,
                         ),
                         maxLines: 2,
@@ -4679,17 +4679,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white10,
+                          color: isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Icon(Icons.copy, size: 12, color: Colors.white),
-                            SizedBox(width: 4),
+                            Icon(Icons.copy, size: 12, color: isDark ? Colors.white : Colors.black87),
+                            const SizedBox(width: 4),
                             Text(
                               "复制",
                               style: TextStyle(
-                                color: Colors.white,
+                                color: isDark ? Colors.white : Colors.black87,
                                 fontSize: 11,
                               ),
                             ),
@@ -4718,17 +4718,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white10,
+                          color: isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Icon(Icons.download, size: 12, color: Colors.white),
-                            SizedBox(width: 4),
+                            Icon(Icons.download, size: 12, color: isDark ? Colors.white : Colors.black87),
+                            const SizedBox(width: 4),
                             Text(
                               "下载",
                               style: TextStyle(
-                                color: Colors.white,
+                                color: isDark ? Colors.white : Colors.black87,
                                 fontSize: 11,
                               ),
                             ),
