@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui';
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,7 @@ import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'player_page.dart';
 import 'tag_browse_page.dart';
 import 'character_detail_page.dart';
@@ -36,7 +38,9 @@ class BangumiDetailsPage extends StatefulWidget {
 
 class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   Map<String, dynamic>? _data;
-  late ScrollController _scrollController;
+  late ScrollController _mobileDetailsScrollController;
+  late ScrollController _wideLeftScrollController;
+  late ScrollController _wideRightScrollController;
 
   // Bangumi API data
   List<BangumiEpisode>? _episodes;
@@ -70,23 +74,36 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController();
-    _episodesScrollController = ScrollController();
-    _charactersScrollController = ScrollController();
-    _relationsScrollController = ScrollController();
+    _mobileDetailsScrollController = createPlatformScrollController();
+    _wideLeftScrollController = createPlatformScrollController();
+    _wideRightScrollController = createPlatformScrollController();
+    _wideRightScrollController.addListener(_handleWideRightScroll);
+    _episodesScrollController = createPlatformScrollController();
+    _charactersScrollController = createPlatformScrollController();
+    _relationsScrollController = createPlatformScrollController();
     _parseData();
     _checkFavoriteStatus();
     _fetchBangumiData();
   }
 
   bool _handleScrollNotification(ScrollNotification notification) {
-    if (notification is ScrollEndNotification) {
-      final metrics = notification.metrics;
-      if (metrics.pixels >= metrics.maxScrollExtent - 200) {
-        _loadMoreComments();
-      }
+    if (notification is ScrollUpdateNotification ||
+        notification is ScrollEndNotification ||
+        notification is OverscrollNotification) {
+      _tryLoadMoreComments(notification.metrics);
     }
     return false;
+  }
+
+  void _handleWideRightScroll() {
+    if (!_wideRightScrollController.hasClients) return;
+    _tryLoadMoreComments(_wideRightScrollController.position);
+  }
+
+  void _tryLoadMoreComments(ScrollMetrics metrics) {
+    if (metrics.pixels >= metrics.maxScrollExtent - 200) {
+      _loadMoreComments();
+    }
   }
 
   Future<void> _loadMoreComments() async {
@@ -428,7 +445,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   @override
   void dispose() {
     _copyTimer?.cancel();
-    _scrollController.dispose();
+    _wideRightScrollController.removeListener(_handleWideRightScroll);
+    _mobileDetailsScrollController.dispose();
+    _wideLeftScrollController.dispose();
+    _wideRightScrollController.dispose();
     _episodesScrollController.dispose();
     _charactersScrollController.dispose();
     _relationsScrollController.dispose();
@@ -861,6 +881,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   Widget _buildMobileDetailsTab(BuildContext context) {
     return SingleChildScrollView(
+      controller: defaultTargetPlatform == TargetPlatform.windows
+          ? _mobileDetailsScrollController
+          : null,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1232,6 +1255,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   SizedBox(
                     width: 350,
                     child: SingleChildScrollView(
+                      controller: _wideLeftScrollController,
                       padding: const EdgeInsets.fromLTRB(
                         24,
                         kToolbarHeight + 24,
@@ -1254,6 +1278,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   // Right Panel
                   Expanded(
                     child: SingleChildScrollView(
+                      controller: _wideRightScrollController,
                       padding: const EdgeInsets.fromLTRB(
                         32,
                         kToolbarHeight + 24,
