@@ -63,13 +63,6 @@ class _BackendStartResult {
   });
 }
 
-/// Base URL of the local rqbit streaming HTTP server (defined in Rust init).
-const String _streamBaseUrl = 'http://127.0.0.1:3000';
-
-/// Build the HTTP stream URL for a torrent + file index pair.
-String _buildStreamUrl(String infoHash, int fileIdx) =>
-    '$_streamBaseUrl/torrents/$infoHash/stream/$fileIdx';
-
 /// High-quality public trackers to inject into magnet links.
 /// Kept intentionally short: every extra tracker has to be announced to on
 /// startup, which delays the first peer connection when many are slow or dead.
@@ -114,8 +107,7 @@ class DownloadTask {
   BigInt totalSize;
   int peers;
   String? streamUrl;
-  int?
-  largestFileIdx; // Persisted so streamUrl can be synthesized after restart.
+  int? largestFileIdx; // Persisted so streamUrl can be recreated after restart.
   String? largestFilePath;
   BtBackendKind backend;
   String? errorMessage;
@@ -167,16 +159,6 @@ class DownloadTask {
       'http' => DownloadTaskType.http,
       _ => DownloadTaskType.bt,
     };
-    // Reconstruct the stream URL immediately when we know the file index.
-    // The rqbit HTTP server is started synchronously during initEngine, and
-    // once the torrent is re-added by [_resumeTorrentInBackground], this URL
-    // is valid. For paused tasks it won't be hit until the user resumes.
-    final streamUrl =
-        taskType == DownloadTaskType.bt &&
-            backend == BtBackendKind.rqbit &&
-            largestFileIdx != null
-        ? _buildStreamUrl(id, largestFileIdx)
-        : null;
 
     // Parse headers map
     Map<String, String>? headers;
@@ -202,7 +184,9 @@ class DownloadTask {
       downloaded: BigInt.parse(json['downloaded'] as String? ?? '0'),
       totalSize: BigInt.parse(json['totalSize'] as String? ?? '0'),
       peers: 0,
-      streamUrl: streamUrl,
+      // streamUrl is intentionally not restored. The local streaming endpoint
+      // only works after the torrent has been re-attached to this process.
+      streamUrl: null,
       largestFileIdx: largestFileIdx,
       largestFilePath: json['largestFilePath'] as String?,
       backend: backend,
@@ -232,7 +216,7 @@ class DownloadTask {
       'largestFileIdx': largestFileIdx,
       'largestFilePath': largestFilePath,
       'backend': backend.storageValue,
-      // streamUrl intentionally omitted — reconstructed from id + largestFileIdx
+      // streamUrl intentionally omitted — it is process-local and rebuilt on demand.
       'downloadDir': downloadDir,
       'videoUrl': videoUrl,
       'headers': headers,
@@ -324,6 +308,13 @@ class _HttpDownloadJob {
   }
 }
 
+class _DownloadSlotWaiter {
+  final String taskId;
+  final Completer<bool> completer = Completer<bool>();
+
+  _DownloadSlotWaiter(this.taskId);
+}
+
 enum DownloadTaskStatus {
   pending,
   downloading,
@@ -382,7 +373,7 @@ class DownloadManager extends ChangeNotifier {
   bool _keepSeedingInBackground = false;
 
   // Parallel download control
-  final Queue<Completer<void>> _downloadSlotQueue = Queue();
+  final Queue<_DownloadSlotWaiter> _downloadSlotQueue = Queue();
   int _activeDownloadSlotCount = 0;
   final Set<String> _slotHolderTaskIds = {};
 
@@ -414,39 +405,87 @@ class DownloadManager extends ChangeNotifier {
     }
   }
 
-  /// Acquire a download slot, waiting if the concurrency limit is reached.
-  Future<void> _acquireDownloadSlot() async {
-    if (_activeDownloadSlotCount < _maxConcurrentDownloads) {
-      _activeDownloadSlotCount++;
-      return;
-    }
-    final completer = Completer<void>();
-    _downloadSlotQueue.add(completer);
-    await completer.future;
+  bool _canAcquireDownloadSlot(String taskId) {
+    final task = _tasks[taskId];
+    return task != null &&
+        !_removedTaskIds.contains(taskId) &&
+        _isActiveStatus(task.status);
   }
 
-  /// Release a download slot and unblock the next queued download.
-  void _releaseDownloadSlot() {
-    if (_activeDownloadSlotCount > 0) _activeDownloadSlotCount--;
+  void _reconcileDownloadSlots() {
+    final staleHolders = _slotHolderTaskIds
+        .where((taskId) => !_canAcquireDownloadSlot(taskId))
+        .toList(growable: false);
+    for (final taskId in staleHolders) {
+      _slotHolderTaskIds.remove(taskId);
+      if (_activeDownloadSlotCount > 0) {
+        _activeDownloadSlotCount--;
+      }
+    }
+
+    // After slot holders were introduced for every acquired slot, the count is
+    // derived from the holder set. This self-heals stale counts from older
+    // paths and prevents phantom slots from keeping new tasks queued forever.
+    if (_activeDownloadSlotCount != _slotHolderTaskIds.length) {
+      _activeDownloadSlotCount = _slotHolderTaskIds.length;
+    }
+  }
+
+  /// Acquire a download slot for [taskId], waiting if the limit is reached.
+  ///
+  /// Returns false if the task was removed/paused while it was waiting.
+  Future<bool> _acquireDownloadSlot(String taskId) async {
+    _reconcileDownloadSlots();
+    if (!_canAcquireDownloadSlot(taskId)) return false;
+    if (_slotHolderTaskIds.contains(taskId)) return true;
+
+    if (_downloadSlotQueue.isEmpty &&
+        _activeDownloadSlotCount < _maxConcurrentDownloads) {
+      _activeDownloadSlotCount++;
+      _slotHolderTaskIds.add(taskId);
+      return true;
+    }
+
+    final waiter = _DownloadSlotWaiter(taskId);
+    _downloadSlotQueue.add(waiter);
     _drainDownloadSlotQueue();
+    return waiter.completer.future;
   }
 
   void _drainDownloadSlotQueue() {
-    if (_downloadSlotQueue.isNotEmpty) {
-      while (_downloadSlotQueue.isNotEmpty &&
-          _activeDownloadSlotCount < _maxConcurrentDownloads) {
-        _activeDownloadSlotCount++;
-        final next = _downloadSlotQueue.removeFirst();
-        next.complete();
+    _reconcileDownloadSlots();
+    while (_downloadSlotQueue.isNotEmpty &&
+        _activeDownloadSlotCount < _maxConcurrentDownloads) {
+      final next = _downloadSlotQueue.removeFirst();
+      if (next.completer.isCompleted) continue;
+      if (!_canAcquireDownloadSlot(next.taskId)) {
+        next.completer.complete(false);
+        continue;
       }
+      if (_slotHolderTaskIds.contains(next.taskId)) {
+        next.completer.complete(true);
+        continue;
+      }
+      _activeDownloadSlotCount++;
+      _slotHolderTaskIds.add(next.taskId);
+      next.completer.complete(true);
     }
   }
 
-  /// Release a download slot held by a specific BT task.
+  /// Release a download slot held by a specific task.
   void _releaseSlotForTask(String taskId) {
-    if (_slotHolderTaskIds.remove(taskId)) {
-      _releaseDownloadSlot();
+    if (_slotHolderTaskIds.remove(taskId) && _activeDownloadSlotCount > 0) {
+      _activeDownloadSlotCount--;
     }
+    _drainDownloadSlotQueue();
+  }
+
+  void _transferDownloadSlot(String oldTaskId, String newTaskId) {
+    if (oldTaskId == newTaskId) return;
+    if (_slotHolderTaskIds.remove(oldTaskId)) {
+      _slotHolderTaskIds.add(newTaskId);
+    }
+    _reconcileDownloadSlots();
   }
 
   /// Resolve the default download directory from app data path.
@@ -648,8 +687,11 @@ class DownloadManager extends ChangeNotifier {
   bool _shouldDeleteFiles(bool deleteFiles) =>
       deleteFiles || (!kIsWeb && Platform.isAndroid);
 
-  bool get _hasAvailableDownloadSlot =>
-      _activeDownloadSlotCount < _maxConcurrentDownloads;
+  bool get _hasAvailableDownloadSlot {
+    _reconcileDownloadSlots();
+    return _downloadSlotQueue.isEmpty &&
+        _activeDownloadSlotCount < _maxConcurrentDownloads;
+  }
 
   Future<void> _markTaskQueued(DownloadTask task) async {
     if (!_isActiveStatus(task.status)) return;
@@ -878,18 +920,24 @@ class DownloadManager extends ChangeNotifier {
 
   /// Resume a torrent in the background after app restart
   Future<void> _resumeTorrentInBackground(DownloadTask task) async {
+    if (task.status == DownloadTaskStatus.seeding ||
+        task.status == DownloadTaskStatus.completed) {
+      await _reattachTerminalTorrentInBackground(task);
+      return;
+    }
+
     if (!_hasAvailableDownloadSlot) {
       await _markTaskQueued(task);
     }
-    await _acquireDownloadSlot();
+    final acquiredSlot = await _acquireDownloadSlot(task.id);
+    if (!acquiredSlot) return;
     final currentTask = _tasks[task.id];
     if (!identical(currentTask, task) ||
         _removedTaskIds.contains(task.id) ||
         !_isActiveStatus(task.status)) {
-      _releaseDownloadSlot();
+      _releaseSlotForTask(task.id);
       return;
     }
-    _slotHolderTaskIds.add(task.id);
     if (task.status == DownloadTaskStatus.queued) {
       task.status = task.backend == BtBackendKind.rqbit
           ? DownloadTaskStatus.metadata
@@ -908,11 +956,11 @@ class DownloadManager extends ChangeNotifier {
       );
       final actualId = result.infoHash;
       if (actualId != task.id) {
-        _slotHolderTaskIds.remove(task.id);
-        _slotHolderTaskIds.add(actualId);
+        final previousId = task.id;
         _tasks.remove(task.id);
         task.id = actualId;
         _tasks[actualId] = task;
+        _transferDownloadSlot(previousId, actualId);
       }
       if (result.streamUrl != null) {
         task.streamUrl = result.streamUrl;
@@ -933,6 +981,50 @@ class DownloadManager extends ChangeNotifier {
     } catch (e) {
       debugPrint('[DownloadManager] Error auto-resuming torrent: $e');
       _releaseSlotForTask(task.id);
+    }
+  }
+
+  Future<void> _reattachTerminalTorrentInBackground(DownloadTask task) async {
+    final currentTask = _tasks[task.id];
+    if (!identical(currentTask, task) ||
+        _removedTaskIds.contains(task.id) ||
+        task.magnet.isEmpty) {
+      return;
+    }
+
+    try {
+      debugPrint(
+        '[DownloadManager] Re-attaching completed torrent: ${task.name}',
+      );
+      final result = await _startTorrentWithBackend(
+        task.magnet,
+        fallbackInfoHash: task.id,
+        backend: task.backend,
+        startStream: false,
+        downloadDir: task.downloadDir,
+      );
+      final actualId = result.infoHash;
+      if (actualId != task.id) {
+        _tasks.remove(task.id);
+        task.id = actualId;
+        _tasks[actualId] = task;
+      }
+      if (result.streamUrl != null) {
+        task.streamUrl = result.streamUrl;
+      }
+      task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
+      task.largestFilePath = result.filePath ?? task.largestFilePath;
+      if (result.fileSize != null && result.fileSize! > 0) {
+        task.totalSize = BigInt.from(result.fileSize!);
+      }
+      await _saveTasks();
+      notifyListeners();
+      _ensureStatsPolling();
+      debugPrint(
+        '[DownloadManager] Re-attached completed torrent: ${task.name}',
+      );
+    } catch (e) {
+      debugPrint('[DownloadManager] Error re-attaching completed torrent: $e');
     }
   }
 
@@ -1269,6 +1361,20 @@ class DownloadManager extends ChangeNotifier {
       );
     }
     return results;
+  }
+
+  Future<bool> _isRqbitTorrentManaged(String infoHash) async {
+    try {
+      final hashLower = infoHash.toLowerCase();
+      final stats = await rust_api.getTorrentStats();
+      return stats.any(
+        (stat) =>
+            stat.infoHash.toLowerCase() == hashLower && stat.state != 'error',
+      );
+    } catch (e) {
+      debugPrint('[DownloadManager] Error checking rqbit torrent state: $e');
+      return false;
+    }
   }
 
   String _normalizeNativeLibtorrentState(MikanLtTorrentStats stats) {
@@ -1667,7 +1773,8 @@ class DownloadManager extends ChangeNotifier {
         final resumed = await resumeTask(tempId);
         if (!resumed) return null;
       }
-      if (existingTask.streamUrl != null &&
+      if (!forPlayback &&
+          existingTask.streamUrl != null &&
           existingTask.streamUrl!.isNotEmpty) {
         debugPrint(
           '[DownloadManager] Torrent already active: ${existingTask.name}',
@@ -1704,14 +1811,17 @@ class DownloadManager extends ChangeNotifier {
     notifyListeners();
     _ensureStatsPolling();
 
-    await _acquireDownloadSlot();
+    if (!_hasAvailableDownloadSlot) {
+      await _markTaskQueued(task);
+    }
+    final acquiredSlot = await _acquireDownloadSlot(tempId);
+    if (!acquiredSlot) return null;
     if (!identical(_tasks[tempId], task) ||
         _removedTaskIds.contains(tempId) ||
         !_isActiveStatus(task.status)) {
-      _releaseDownloadSlot();
+      _releaseSlotForTask(tempId);
       return null;
     }
-    _slotHolderTaskIds.add(tempId);
     if (task.status == DownloadTaskStatus.queued) {
       task.status = backendInitialStatus;
       await _saveTasks();
@@ -1741,8 +1851,6 @@ class DownloadManager extends ChangeNotifier {
       final actualId = result.infoHash;
       final fileIdx = result.fileIdx;
       if (actualId != tempId) {
-        _slotHolderTaskIds.remove(tempId);
-        _slotHolderTaskIds.add(actualId);
         _tasks.remove(tempId);
         _removedTaskIds.remove(
           tempId,
@@ -1755,6 +1863,7 @@ class DownloadManager extends ChangeNotifier {
         task.largestFilePath = result.filePath ?? task.largestFilePath;
         task.status = DownloadTaskStatus.downloading;
         _tasks[actualId] = task;
+        _transferDownloadSlot(tempId, actualId);
       } else {
         task.streamUrl = streamUrl;
         task.largestFileIdx = fileIdx ?? task.largestFileIdx;
@@ -1805,29 +1914,28 @@ class DownloadManager extends ChangeNotifier {
       return null;
     }
 
-    if (task.streamUrl != null && task.streamUrl!.isNotEmpty) {
-      if (task.backend == BtBackendKind.libtorrent) {
-        final streamId = _ltStreamIdsByHash[task.id.toLowerCase()];
-        if (streamId == null) {
-          task.streamUrl = null;
-        } else if (task.status == DownloadTaskStatus.paused) {
-          final resumed = await resumeTask(id);
-          if (!resumed) return null;
-          return task.streamUrl;
-        } else {
-          return task.streamUrl;
-        }
-      } else {
-        if (task.status == DownloadTaskStatus.paused) {
-          final resumed = await resumeTask(id);
-          if (!resumed) return null;
-        }
-        return task.streamUrl;
-      }
-    }
     if (task.magnet.isEmpty) return null;
 
     try {
+      final hashLower = task.id.toLowerCase();
+      if (task.backend == BtBackendKind.libtorrent &&
+          task.streamUrl != null &&
+          task.streamUrl!.isNotEmpty) {
+        final streamId = _ltStreamIdsByHash[hashLower];
+        if (streamId != null && task.status != DownloadTaskStatus.paused) {
+          return task.streamUrl;
+        }
+        task.streamUrl = null;
+      } else if (task.backend == BtBackendKind.rqbit &&
+          task.streamUrl != null &&
+          task.streamUrl!.isNotEmpty &&
+          task.status != DownloadTaskStatus.paused &&
+          await _isRqbitTorrentManaged(hashLower)) {
+        return task.streamUrl;
+      } else if (task.backend == BtBackendKind.rqbit) {
+        task.streamUrl = null;
+      }
+
       if (task.status == DownloadTaskStatus.paused) {
         final resumed = await resumeTask(id);
         if (!resumed) return null;
@@ -2265,7 +2373,8 @@ class DownloadManager extends ChangeNotifier {
     if (!_hasAvailableDownloadSlot) {
       await _markTaskQueued(task);
     }
-    await _acquireDownloadSlot();
+    final acquiredSlot = await _acquireDownloadSlot(task.id);
+    if (!acquiredSlot) return;
     try {
       if (!identical(_tasks[task.id], task) ||
           _removedTaskIds.contains(task.id) ||
@@ -2402,7 +2511,7 @@ class DownloadManager extends ChangeNotifier {
         }
       }
     } finally {
-      _releaseDownloadSlot();
+      _releaseSlotForTask(task.id);
       _syncAndroidDownloadService();
     }
   }
@@ -2773,21 +2882,29 @@ class DownloadManager extends ChangeNotifier {
     }
 
     try {
-      if (!_hasAvailableDownloadSlot) {
+      final backendInitialStatus = task.backend == BtBackendKind.rqbit
+          ? DownloadTaskStatus.metadata
+          : DownloadTaskStatus.pending;
+      final hasAvailableSlot = _hasAvailableDownloadSlot;
+      if (task.status == DownloadTaskStatus.paused) {
+        task.status = hasAvailableSlot
+            ? backendInitialStatus
+            : DownloadTaskStatus.queued;
+        await _saveTasks();
+        notifyListeners();
+      } else if (!hasAvailableSlot) {
         await _markTaskQueued(task);
       }
-      await _acquireDownloadSlot();
+      final acquiredSlot = await _acquireDownloadSlot(id);
+      if (!acquiredSlot) return false;
       if (!identical(_tasks[id], task) ||
           _removedTaskIds.contains(id) ||
           !_isActiveStatus(task.status)) {
-        _releaseDownloadSlot();
+        _releaseSlotForTask(id);
         return false;
       }
-      _slotHolderTaskIds.add(id);
       if (task.status == DownloadTaskStatus.queued) {
-        task.status = task.backend == BtBackendKind.rqbit
-            ? DownloadTaskStatus.metadata
-            : DownloadTaskStatus.pending;
+        task.status = backendInitialStatus;
         await _saveTasks();
         notifyListeners();
       }
@@ -2800,6 +2917,9 @@ class DownloadManager extends ChangeNotifier {
         task.status = task.progress >= 100.0
             ? DownloadTaskStatus.seeding
             : DownloadTaskStatus.downloading;
+        if (task.status == DownloadTaskStatus.seeding) {
+          _releaseSlotForTask(id);
+        }
         if (task.backend == BtBackendKind.libtorrent) {
           unawaited(_restoreLibtorrentBackgroundDownload(task.id));
         }
@@ -2826,17 +2946,19 @@ class DownloadManager extends ChangeNotifier {
       final actualId = result.infoHash;
       final fileIdx = result.fileIdx;
       if (actualId != id) {
-        _slotHolderTaskIds.remove(id);
-        _slotHolderTaskIds.add(actualId);
         _tasks.remove(id);
         _pausedTaskIds.remove(id);
         task.id = actualId;
         _tasks[actualId] = task;
+        _transferDownloadSlot(id, actualId);
       }
       _removedTaskIds.remove(task.id);
       task.status = task.progress >= 100.0
           ? DownloadTaskStatus.seeding
           : DownloadTaskStatus.downloading;
+      if (task.status == DownloadTaskStatus.seeding) {
+        _releaseSlotForTask(task.id);
+      }
       if (result.streamUrl != null) {
         task.streamUrl = result.streamUrl;
       }

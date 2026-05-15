@@ -335,9 +335,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
 
     if (btTask != null) {
-      final streamUrl =
-          btTask.streamUrl ??
-          await _downloadManager.getOrCreateStreamUrl(btTask.id);
+      final streamUrl = await _downloadManager.getOrCreateStreamUrl(btTask.id);
       if (!mounted || streamUrl == null) {
         return false;
       }
@@ -1613,9 +1611,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
 
     if (btTask != null && _currentStreamUrl == null) {
-      final streamUrl =
-          btTask.streamUrl ??
-          await _downloadManager.getOrCreateStreamUrl(btTask.id);
+      final streamUrl = await _downloadManager.getOrCreateStreamUrl(btTask.id);
       if (!mounted || loadToken != _sampleLoadToken) return;
       if (streamUrl != null) {
         debugPrint(
