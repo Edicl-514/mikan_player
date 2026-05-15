@@ -24,7 +24,65 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
           _buildThemeModeTile(context),
           _buildThemeColorTile(context),
           _buildCustomColorTile(context),
+          _buildUseMaterial3ColorTile(context),
+          _buildPureBackgroundTile(context),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUseMaterial3ColorTile(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(
+        context,
+      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: SwitchListTile(
+        secondary: Icon(
+          Icons.auto_awesome,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        title: Text(
+          AppLocalizations.of(context).useMaterial3Color,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(AppLocalizations.of(context).useMaterial3ColorSubtitle),
+        value: _settingsService.useMaterial3Color,
+        onChanged: (bool value) {
+          setState(() {
+            _settingsService.setUseMaterial3Color(value);
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildPureBackgroundTile(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: Theme.of(
+        context,
+      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: SwitchListTile(
+        secondary: Icon(
+          Icons.format_color_fill,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        title: Text(
+          AppLocalizations.of(context).pureBackground,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(AppLocalizations.of(context).pureBackgroundSubtitle),
+        value: _settingsService.pureBackground,
+        onChanged: (bool value) {
+          setState(() {
+            _settingsService.setPureBackground(value);
+          });
+        },
       ),
     );
   }

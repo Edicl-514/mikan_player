@@ -680,6 +680,30 @@ abstract class AppLocalizations {
   /// **'选择应用主题色'**
   String get themeColorSubtitle;
 
+  /// No description provided for @useMaterial3Color.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用 Material 颜色'**
+  String get useMaterial3Color;
+
+  /// No description provided for @useMaterial3ColorSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启时由系统计算色彩阶梯，关闭时严格使用选取的主色'**
+  String get useMaterial3ColorSubtitle;
+
+  /// No description provided for @pureBackground.
+  ///
+  /// In zh, this message translates to:
+  /// **'纯净背景'**
+  String get pureBackground;
+
+  /// No description provided for @pureBackgroundSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启时背景应用纯灰阶颜色，不混入主题色'**
+  String get pureBackgroundSubtitle;
+
   /// No description provided for @todayBroadcast.
   ///
   /// In zh, this message translates to:

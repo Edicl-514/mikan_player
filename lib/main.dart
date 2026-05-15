@@ -172,8 +172,16 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               GlobalCupertinoLocalizations.delegate,
             ],
             supportedLocales: AppLocalizations.supportedLocales,
-            theme: AppTheme.light(SettingsService().seedColor),
-            darkTheme: AppTheme.dark(SettingsService().seedColor),
+            theme: AppTheme.light(
+              seedColor: SettingsService().seedColor,
+              useMaterial3Color: SettingsService().useMaterial3Color,
+              pureBackground: SettingsService().pureBackground,
+            ),
+            darkTheme: AppTheme.dark(
+              seedColor: SettingsService().seedColor,
+              useMaterial3Color: SettingsService().useMaterial3Color,
+              pureBackground: SettingsService().pureBackground,
+            ),
             themeMode: SettingsService().themeMode,
             home: const HomeScreen(),
           ),

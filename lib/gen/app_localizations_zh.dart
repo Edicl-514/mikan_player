@@ -314,6 +314,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get themeColorSubtitle => '选择应用主题色';
 
   @override
+  String get useMaterial3Color => '使用 Material 颜色';
+
+  @override
+  String get useMaterial3ColorSubtitle => '开启时由系统计算色彩阶梯，关闭时严格使用选取的主色';
+
+  @override
+  String get pureBackground => '纯净背景';
+
+  @override
+  String get pureBackgroundSubtitle => '开启时背景应用纯灰阶颜色，不混入主题色';
+
+  @override
   String get todayBroadcast => '今日放送';
 
   @override

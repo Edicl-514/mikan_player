@@ -321,6 +321,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get themeColorSubtitle => 'Choose app accent color';
 
   @override
+  String get useMaterial3Color => 'Use Material Color';
+
+  @override
+  String get useMaterial3ColorSubtitle =>
+      'Enable to use systemic color palette calculation, disable to use strict seed color';
+
+  @override
+  String get pureBackground => 'Pure Background';
+
+  @override
+  String get pureBackgroundSubtitle =>
+      'Enable to use pure grayscale backgrounds without mixing theme color';
+
+  @override
   String get todayBroadcast => 'Today\'s Broadcast';
 
   @override

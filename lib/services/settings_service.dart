@@ -15,9 +15,17 @@ class SettingsService extends ChangeNotifier {
   Color _seedColor = Colors.teal;
   Color get seedColor => _seedColor;
 
+  bool _useMaterial3Color = true;
+  bool get useMaterial3Color => _useMaterial3Color;
+
+  bool _pureBackground = false;
+  bool get pureBackground => _pureBackground;
+
   static const String _localeKey = 'app_locale';
   static const String _themeModeKey = 'theme_mode';
   static const String _seedColorKey = 'seed_color';
+  static const String _useMaterial3ColorKey = 'use_material3_color';
+  static const String _pureBackgroundKey = 'pure_background';
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -43,6 +51,16 @@ class SettingsService extends ChangeNotifier {
     final colorValue = prefs.getInt(_seedColorKey);
     if (colorValue != null) {
       _seedColor = Color(colorValue);
+    }
+
+    final useM3 = prefs.getBool(_useMaterial3ColorKey);
+    if (useM3 != null) {
+      _useMaterial3Color = useM3;
+    }
+
+    final pureBg = prefs.getBool(_pureBackgroundKey);
+    if (pureBg != null) {
+      _pureBackground = pureBg;
     }
   }
 
@@ -71,6 +89,22 @@ class SettingsService extends ChangeNotifier {
     _seedColor = color;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_seedColorKey, color.toARGB32());
+    notifyListeners();
+  }
+
+  Future<void> setUseMaterial3Color(bool value) async {
+    if (_useMaterial3Color == value) return;
+    _useMaterial3Color = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_useMaterial3ColorKey, value);
+    notifyListeners();
+  }
+
+  Future<void> setPureBackground(bool value) async {
+    if (_pureBackground == value) return;
+    _pureBackground = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_pureBackgroundKey, value);
     notifyListeners();
   }
 }
