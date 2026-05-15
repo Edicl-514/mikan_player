@@ -60,7 +60,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   int _commentPage = 1;
   bool _hasMoreComments = true;
   bool _isLoadingMoreComments = false;
-  final ScrollController _commentScrollController = ScrollController();
   late ScrollController _episodesScrollController;
   late ScrollController _charactersScrollController;
   late ScrollController _relationsScrollController;
@@ -75,16 +74,16 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _parseData();
     _checkFavoriteStatus();
     _fetchBangumiData();
-
-    _commentScrollController.addListener(_handleCommentScroll);
   }
 
-  void _handleCommentScroll() {
-    if (!_commentScrollController.hasClients) return;
-    if (_commentScrollController.position.pixels >=
-        _commentScrollController.position.maxScrollExtent - 200) {
-      _loadMoreComments();
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollEndNotification) {
+      final metrics = notification.metrics;
+      if (metrics.pixels >= metrics.maxScrollExtent - 200) {
+        _loadMoreComments();
+      }
     }
+    return false;
   }
 
   Future<void> _loadMoreComments() async {
@@ -423,8 +422,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _episodesScrollController.dispose();
     _charactersScrollController.dispose();
     _relationsScrollController.dispose();
-    _commentScrollController.removeListener(_handleCommentScroll);
-    _commentScrollController.dispose();
     super.dispose();
   }
 
@@ -502,74 +499,74 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           body: TabBarView(
             children: [
               _buildMobileDetailsTab(context),
-              if (_comments == null || _comments!.isEmpty)
-                ListView(
-                  controller: _commentScrollController,
-                  padding: const EdgeInsets.all(16),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildSectionTitle(context, "评论", isDarkBg: true),
-                    ),
-                    const SizedBox(height: 96),
-                    Center(
-                      child: Text(
-                        '暂无评论',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ),
-                  ],
-                )
-              else
-                ListView.builder(
-                  controller: _commentScrollController,
-                  padding: const EdgeInsets.all(16),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  itemCount:
-                      (_comments == null ? 0 : _comments!.length) +
-                      1 +
-                      (_isLoadingMoreComments ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildSectionTitle(
-                          context,
-                          "评论",
-                          isDarkBg: true,
-                        ),
-                      );
-                    }
-
-                    final commentIndex = index - 1;
-                    if (_comments == null ||
-                        commentIndex >= _comments!.length) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Center(
-                          child: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+              NotificationListener<ScrollNotification>(
+                onNotification: _handleScrollNotification,
+                child: _comments == null || _comments!.isEmpty
+                    ? ListView(
+                        padding: const EdgeInsets.all(16),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _buildSectionTitle(context, "评论", isDarkBg: true),
                           ),
-                        ),
-                      );
-                    }
+                          const SizedBox(height: 96),
+                          Center(
+                            child: Text(
+                              '暂无评论',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        itemCount:
+                            (_comments == null ? 0 : _comments!.length) +
+                            1 +
+                            (_isLoadingMoreComments ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == 0) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildSectionTitle(
+                                context,
+                                "评论",
+                                isDarkBg: true,
+                              ),
+                            );
+                          }
 
-                    final comment = _comments![commentIndex];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: _buildCommentCard(
-                        context,
-                        comment,
-                        isDarkBg: true,
+                          final commentIndex = index - 1;
+                          if (_comments == null ||
+                              commentIndex >= _comments!.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                            );
+                          }
+
+                          final comment = _comments![commentIndex];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _buildCommentCard(
+                              context,
+                              comment,
+                              isDarkBg: true,
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
+              ),
             ],
           ),
         ),
@@ -1245,7 +1242,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   // Right Panel
                   Expanded(
                     child: SingleChildScrollView(
-                      controller: _commentScrollController,
                       padding: const EdgeInsets.fromLTRB(
                         32,
                         kToolbarHeight + 24,
