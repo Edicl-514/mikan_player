@@ -159,6 +159,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   late final VideoController _videoController;
   bool _isPlayerInitialized = false;
   final ValueNotifier<bool> _mobilePlayerLockNotifier = ValueNotifier(false);
+  final ValueNotifier<List<SearchPlayResult>> _availableSourcesNotifier =
+      ValueNotifier(const <SearchPlayResult>[]);
+  final ValueNotifier<String> _playingSourceLabelNotifier = ValueNotifier(
+    '未播放',
+  );
   bool _isLoadingVideo =
       false; // Keep for general UI loading (like initial search or player overlay)
   String? _loadingMagnet; // Track which specific magnet is being loaded
@@ -219,6 +224,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     // Initialize current episode from widget
     _currentEpisode = widget.currentEpisode;
+    _playingSourceLabelNotifier.value = _playingSourceLabel;
 
     _pendingStartPositionMs = widget.startPositionMs;
 
@@ -1375,10 +1381,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           if (progress.directVideoUrl != null &&
               progress.directVideoUrl!.isNotEmpty) {
             unawaited(
-              _probeAndRegisterPlayableSource(
-                result,
-                autoPlayAfterProbe: true,
-              ),
+              _probeAndRegisterPlayableSource(result, autoPlayAfterProbe: true),
             );
           }
         }
@@ -1415,10 +1418,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         if (progress.directVideoUrl != null &&
             progress.directVideoUrl!.isNotEmpty) {
           unawaited(
-            _probeAndRegisterPlayableSource(
-              result,
-              autoPlayAfterProbe: true,
-            ),
+            _probeAndRegisterPlayableSource(result, autoPlayAfterProbe: true),
           );
         }
       }
@@ -1667,6 +1667,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _webViewPoolPumpScheduled = false;
       _clearPlaybackStartupWatchdog();
     });
+    _publishPlayerControlSourceState();
 
     if (!_autoSearchOnline) {
       if (mounted) {
@@ -1854,16 +1855,26 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   bool _containsPlayableSource(SearchPlayResult source) {
-    final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
+    final sourceKey = _buildSourceChannelKey(
+      source.sourceName,
+      source.channelIndex,
+    );
     return _sampleSuccessfulSources.any(
-      (item) => _buildSourceChannelKey(item.sourceName, item.channelIndex) == sourceKey,
+      (item) =>
+          _buildSourceChannelKey(item.sourceName, item.channelIndex) ==
+          sourceKey,
     );
   }
 
   void _addPlayableSource(SearchPlayResult source) {
-    final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
-    if (_playableSourceKeys.add(sourceKey) && !_containsPlayableSource(source)) {
+    final sourceKey = _buildSourceChannelKey(
+      source.sourceName,
+      source.channelIndex,
+    );
+    if (_playableSourceKeys.add(sourceKey) &&
+        !_containsPlayableSource(source)) {
       _sampleSuccessfulSources.add(source);
+      _publishPlayerControlSourceState();
     }
   }
 
@@ -1875,8 +1886,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (directVideoUrl == null || directVideoUrl.isEmpty) {
       return;
     }
-    final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
-    if (_playableSourceKeys.contains(sourceKey) || _probingSourceKeys.contains(sourceKey)) {
+    final sourceKey = _buildSourceChannelKey(
+      source.sourceName,
+      source.channelIndex,
+    );
+    if (_playableSourceKeys.contains(sourceKey) ||
+        _probingSourceKeys.contains(sourceKey)) {
       return;
     }
 
@@ -1928,7 +1943,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return urlToPlay;
     }
 
-    final finalUrl = _headerProxy.registerUrl(urlToPlay, _buildPlaybackHeaders(source));
+    final finalUrl = _headerProxy.registerUrl(
+      urlToPlay,
+      _buildPlaybackHeaders(source),
+    );
     debugPrint('[_buildPlaybackUrl] Using proxy for: $urlToPlay');
     return finalUrl;
   }
@@ -1939,9 +1957,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _pendingPlaySourceKey = null;
   }
 
-  void _schedulePlaybackStartupWatchdog(SearchPlayResult source, {required bool autoFallback}) {
+  void _schedulePlaybackStartupWatchdog(
+    SearchPlayResult source, {
+    required bool autoFallback,
+  }) {
     _clearPlaybackStartupWatchdog();
-    final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
+    final sourceKey = _buildSourceChannelKey(
+      source.sourceName,
+      source.channelIndex,
+    );
     _pendingPlaySourceKey = sourceKey;
     _playStartupTimer = Timer(_autoPlayStartupTimeout, () {
       if (!mounted || _pendingPlaySourceKey != sourceKey) {
@@ -1972,7 +1996,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     required bool autoFallback,
   }) async {
     final finalUrl = _buildPlaybackUrl(source);
-    final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
+    final sourceKey = _buildSourceChannelKey(
+      source.sourceName,
+      source.channelIndex,
+    );
 
     setState(() {
       _currentOnlineSource = source;
@@ -1984,6 +2011,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _isLoadingVideo = true;
       _videoError = null;
     });
+    _publishPlayerControlSourceState();
 
     _temporarilyAllowPositionReset();
     await _player.stop();
@@ -2121,14 +2149,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     // 仅允许Tier 0自动播放
-    final candidates = _sampleSuccessfulSources
-        .where((s) {
-          final sourceKey = _buildSourceChannelKey(s.sourceName, s.channelIndex);
-          return (_sourceTiers[s.sourceName] ?? 999) == 0 &&
-              sourceKey != excludedSourceKey &&
-              !_failedPlaybackSourceKeys.contains(sourceKey);
-        })
-        .toList();
+    final candidates = _sampleSuccessfulSources.where((s) {
+      final sourceKey = _buildSourceChannelKey(s.sourceName, s.channelIndex);
+      return (_sourceTiers[s.sourceName] ?? 999) == 0 &&
+          sourceKey != excludedSourceKey &&
+          !_failedPlaybackSourceKeys.contains(sourceKey);
+    }).toList();
 
     debugPrint(
       "[_attemptAutoPlay] Found ${candidates.length} Tier 0 candidates. Total sources: ${_sampleSuccessfulSources.length}",
@@ -2401,9 +2427,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _player.stop(); // 确保播放器完全停止后再释放
     _player.dispose();
     _mobilePlayerLockNotifier.dispose();
+    _availableSourcesNotifier.dispose();
     _currentVideoTimeNotifier.dispose();
     _isVideoPausedNotifier.dispose();
     _showDanmakuSettingsNotifier.dispose();
+    _playingSourceLabelNotifier.dispose();
     _sampleStatusMessageNotifier.dispose();
     _selectedSourceIndexNotifier.dispose();
     super.dispose();
@@ -3409,6 +3437,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _isLoadingComments = false;
       _commentsError = null;
     });
+    _publishPlayerControlSourceState();
 
     _savePlaybackHistory();
 
@@ -3489,6 +3518,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // Notifier for source index to bypass Video widget rebuild issues
   late final ValueNotifier<int> _selectedSourceIndexNotifier = ValueNotifier(0);
 
+  void _publishPlayerControlSourceState() {
+    _availableSourcesNotifier.value = List<SearchPlayResult>.unmodifiable(
+      _sampleSuccessfulSources,
+    );
+    _playingSourceLabelNotifier.value = _playingSourceLabel;
+  }
+
   void _onSourceSelected(int index) {
     if (index < 0 || index >= _sampleSuccessfulSources.length) return;
 
@@ -3503,6 +3539,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // We no longer set _currentStreamUrl or call _player.open here.
       // This allows the user to click and see selection without loading the data.
     });
+    _publishPlayerControlSourceState();
     debugPrint(
       '[_onSourceSelected] Source $index selected: ${source.sourceName}',
     );
@@ -3586,8 +3623,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 playbackSpeed: _playbackSpeed,
                 onPlaybackSpeedChanged: _onPlaybackSpeedChanged,
                 availableSources: _sampleSuccessfulSources,
+                availableSourcesListenable: _availableSourcesNotifier,
                 sourceIndexNotifier: _selectedSourceIndexNotifier,
                 currentSourceLabel: _playingSourceLabel,
+                currentSourceLabelListenable: _playingSourceLabelNotifier,
                 onSourceSelected: (index) {
                   _onSourceSelected(index);
                   _startPlaybackFromSelectedSource();
@@ -5170,6 +5209,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                   _loadingMagnet = null;
                                   _playingSourceLabel = "BT";
                                 });
+                                _publishPlayerControlSourceState();
                               } catch (e) {
                                 debugPrint("[Player] Error playing magnet: $e");
                                 setState(() {

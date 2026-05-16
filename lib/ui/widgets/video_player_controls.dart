@@ -40,9 +40,11 @@ class CustomVideoControls extends StatelessWidget {
 
   // 播放源相关
   final List<SearchPlayResult> availableSources;
+  final ValueListenable<List<SearchPlayResult>>? availableSourcesListenable;
   final ValueNotifier<int>? sourceIndexNotifier;
   final Function(int) onSourceSelected;
   final String currentSourceLabel;
+  final ValueListenable<String>? currentSourceLabelListenable;
 
   // 播放设置
   final bool isAutoPlayNextEnabled;
@@ -76,9 +78,11 @@ class CustomVideoControls extends StatelessWidget {
     required this.currentEpisode,
     required this.onEpisodeSelected,
     required this.availableSources,
+    this.availableSourcesListenable,
     this.sourceIndexNotifier,
     required this.onSourceSelected,
     this.currentSourceLabel = '未知',
+    this.currentSourceLabelListenable,
     this.isLoading = false,
     required this.mobilePlayerLockNotifier,
     this.videoTitle,
@@ -253,19 +257,19 @@ class CustomVideoControls extends StatelessWidget {
       const SizedBox(width: 16),
     ];
 
-  // 桌面端 - 全屏顶部按钮栏（显示标题和空降按钮）
-  final desktopFullscreenTopButtonBar = [
-    if (videoTitle != null) ...[
-      const SizedBox(width: 16),
-      Text(
-        videoTitle!,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
+    // 桌面端 - 全屏顶部按钮栏（显示标题和空降按钮）
+    final desktopFullscreenTopButtonBar = [
+      if (videoTitle != null) ...[
+        const SizedBox(width: 16),
+        Text(
+          videoTitle!,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
         ),
-      ),
-    ],
+      ],
       const Spacer(),
       _buildIntegratedButton(
         context: context,
@@ -521,18 +525,18 @@ class CustomVideoControls extends StatelessWidget {
                     ),
                   ),
 
-        // 2. 加载选集提示
-        if (isLoading)
-          Positioned.fill(
-            child: Container(
-              color: Colors.black54,
-              child: Center(
-                child: CircularProgressIndicator(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-          ),
+                  // 2. 加载选集提示
+                  if (isLoading)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black54,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ),
 
                   // 3. 原生控制层
                   AdaptiveVideoControls(state),
@@ -635,7 +639,9 @@ class CustomVideoControls extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: isActive ? Theme.of(context).colorScheme.primary : Colors.white,
+                color: isActive
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.white,
                 size: 20,
               ),
               if (label != null) ...[
@@ -643,7 +649,9 @@ class CustomVideoControls extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    color: isActive ? Theme.of(context).colorScheme.primary : Colors.white,
+                    color: isActive
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.white,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
@@ -792,8 +800,10 @@ class CustomVideoControls extends StatelessWidget {
                 danmakuService: danmakuService,
                 subtitleService: subtitleService,
                 availableSources: availableSources,
+                availableSourcesListenable: availableSourcesListenable,
                 sourceIndexNotifier: sourceIndexNotifier,
                 currentSourceLabel: currentSourceLabel,
+                currentSourceLabelListenable: currentSourceLabelListenable,
                 isAutoPlayNextEnabled: isAutoPlayNextEnabled,
                 onToggleAutoPlayNext: onToggleAutoPlayNext,
                 playbackSpeed: _resolveCurrentPlaybackSpeed(),
@@ -834,8 +844,10 @@ class CustomVideoControls extends StatelessWidget {
             danmakuService: danmakuService,
             subtitleService: subtitleService,
             availableSources: availableSources,
+            availableSourcesListenable: availableSourcesListenable,
             sourceIndexNotifier: sourceIndexNotifier,
             currentSourceLabel: currentSourceLabel,
+            currentSourceLabelListenable: currentSourceLabelListenable,
             isAutoPlayNextEnabled: isAutoPlayNextEnabled,
             onToggleAutoPlayNext: onToggleAutoPlayNext,
             playbackSpeed: _resolveCurrentPlaybackSpeed(),
@@ -869,8 +881,10 @@ class CustomVideoControls extends StatelessWidget {
               danmakuService: danmakuService,
               subtitleService: subtitleService,
               availableSources: availableSources,
+              availableSourcesListenable: availableSourcesListenable,
               sourceIndexNotifier: sourceIndexNotifier,
               currentSourceLabel: currentSourceLabel,
+              currentSourceLabelListenable: currentSourceLabelListenable,
               isAutoPlayNextEnabled: isAutoPlayNextEnabled,
               onToggleAutoPlayNext: onToggleAutoPlayNext,
               playbackSpeed: _resolveCurrentPlaybackSpeed(),
@@ -898,14 +912,30 @@ class CustomVideoControls extends StatelessWidget {
   /// 全屏时从右侧滑入的选集面板
   void _showEpisodeSidePanel(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panelBgColor = isDark ? const Color(0xFF1A1A24) : Theme.of(context).colorScheme.surfaceContainerHigh;
-    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
-    final subTextColor = isDark ? Colors.white54 : Theme.of(context).colorScheme.onSurfaceVariant;
-    final borderColor = isDark ? Colors.white12 : Theme.of(context).colorScheme.outlineVariant;
-    final closeIconColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
-    final unselectedBgColor = isDark ? Colors.white.withValues(alpha: 0.05) : Theme.of(context).colorScheme.surfaceContainerLow;
-    final unselectedBorderColor = isDark ? Colors.white12 : Theme.of(context).colorScheme.outlineVariant;
-    final unselectedTextColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final panelBgColor = isDark
+        ? const Color(0xFF1A1A24)
+        : Theme.of(context).colorScheme.surfaceContainerHigh;
+    final textColor = isDark
+        ? Colors.white
+        : Theme.of(context).colorScheme.onSurface;
+    final subTextColor = isDark
+        ? Colors.white54
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    final borderColor = isDark
+        ? Colors.white12
+        : Theme.of(context).colorScheme.outlineVariant;
+    final closeIconColor = isDark
+        ? Colors.white70
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    final unselectedBgColor = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Theme.of(context).colorScheme.surfaceContainerLow;
+    final unselectedBorderColor = isDark
+        ? Colors.white12
+        : Theme.of(context).colorScheme.outlineVariant;
+    final unselectedTextColor = isDark
+        ? Colors.white70
+        : Theme.of(context).colorScheme.onSurfaceVariant;
 
     showGeneralDialog(
       context: context,
@@ -948,18 +978,12 @@ class CustomVideoControls extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             '共${allEpisodes.length}集',
-                            style: TextStyle(
-                              color: subTextColor,
-                              fontSize: 14,
-                            ),
+                            style: TextStyle(color: subTextColor, fontSize: 14),
                           ),
                           const Spacer(),
                           IconButton(
                             onPressed: () => Navigator.pop(context),
-                            icon: Icon(
-                              Icons.close,
-                              color: closeIconColor,
-                            ),
+                            icon: Icon(Icons.close, color: closeIconColor),
                           ),
                         ],
                       ),
@@ -972,11 +996,11 @@ class CustomVideoControls extends StatelessWidget {
                         padding: const EdgeInsets.all(16),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
-                          childAspectRatio: 1.2,
-                        ),
+                              crossAxisCount: 4,
+                              mainAxisSpacing: 10,
+                              crossAxisSpacing: 10,
+                              childAspectRatio: 1.2,
+                            ),
                         itemCount: allEpisodes.length,
                         itemBuilder: (context, index) {
                           final ep = allEpisodes[index];
@@ -992,7 +1016,7 @@ class CustomVideoControls extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? Theme.of(context).colorScheme.primary
-                                        .withValues(alpha: 0.2)
+                                          .withValues(alpha: 0.2)
                                     : unselectedBgColor,
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
@@ -1029,8 +1053,8 @@ class CustomVideoControls extends StatelessWidget {
         return SlideTransition(
           position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
               .animate(
-            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-          ),
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              ),
           child: child,
         );
       },
@@ -1755,8 +1779,10 @@ class _SettingsPanel extends StatefulWidget {
   final DanmakuService danmakuService;
   final SubtitleService subtitleService;
   final List<SearchPlayResult> availableSources;
+  final ValueListenable<List<SearchPlayResult>>? availableSourcesListenable;
   final ValueNotifier<int>? sourceIndexNotifier;
   final String currentSourceLabel;
+  final ValueListenable<String>? currentSourceLabelListenable;
   final Function(int) onSourceSelected;
   final bool isAutoPlayNextEnabled;
   final VoidCallback onToggleAutoPlayNext;
@@ -1769,8 +1795,10 @@ class _SettingsPanel extends StatefulWidget {
     required this.danmakuService,
     required this.subtitleService,
     required this.availableSources,
+    this.availableSourcesListenable,
     this.sourceIndexNotifier,
     required this.currentSourceLabel,
+    this.currentSourceLabelListenable,
     required this.onSourceSelected,
     required this.isAutoPlayNextEnabled,
     required this.onToggleAutoPlayNext,
@@ -1788,6 +1816,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   int _currentPage = 0;
   late int _currentSourceIndex;
   late double _currentPlaybackSpeed;
+  late List<SearchPlayResult> _availableSources;
+  late String _currentSourceLabel;
 
   static const List<double> _playbackSpeedPresets = <double>[
     0.25,
@@ -1805,9 +1835,15 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   @override
   void initState() {
     super.initState();
+    _availableSources = widget.availableSources;
+    _currentSourceLabel = widget.currentSourceLabel;
     _currentSourceIndex = widget.sourceIndexNotifier?.value ?? 0;
     _currentPlaybackSpeed = widget.playbackSpeed.clamp(0.25, 3.0).toDouble();
     widget.sourceIndexNotifier?.addListener(_onSourceIndexChanged);
+    widget.availableSourcesListenable?.addListener(_onAvailableSourcesChanged);
+    widget.currentSourceLabelListenable?.addListener(
+      _onCurrentSourceLabelChanged,
+    );
   }
 
   @override
@@ -1818,6 +1854,34 @@ class _SettingsPanelState extends State<_SettingsPanel> {
       widget.sourceIndexNotifier?.addListener(_onSourceIndexChanged);
       _currentSourceIndex = widget.sourceIndexNotifier?.value ?? 0;
     }
+    if (widget.availableSourcesListenable !=
+        oldWidget.availableSourcesListenable) {
+      oldWidget.availableSourcesListenable?.removeListener(
+        _onAvailableSourcesChanged,
+      );
+      widget.availableSourcesListenable?.addListener(
+        _onAvailableSourcesChanged,
+      );
+    }
+    if (widget.currentSourceLabelListenable !=
+        oldWidget.currentSourceLabelListenable) {
+      oldWidget.currentSourceLabelListenable?.removeListener(
+        _onCurrentSourceLabelChanged,
+      );
+      widget.currentSourceLabelListenable?.addListener(
+        _onCurrentSourceLabelChanged,
+      );
+    }
+    if (!identical(widget.availableSources, oldWidget.availableSources)) {
+      _availableSources = widget.availableSources;
+      _currentSourceIndex = _clampSourceIndex(
+        _currentSourceIndex,
+        _availableSources,
+      );
+    }
+    if (widget.currentSourceLabel != oldWidget.currentSourceLabel) {
+      _currentSourceLabel = widget.currentSourceLabel;
+    }
     if ((widget.playbackSpeed - oldWidget.playbackSpeed).abs() > 0.001) {
       _currentPlaybackSpeed = widget.playbackSpeed.clamp(0.25, 3.0).toDouble();
     }
@@ -1826,21 +1890,59 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   @override
   void dispose() {
     widget.sourceIndexNotifier?.removeListener(_onSourceIndexChanged);
+    widget.availableSourcesListenable?.removeListener(
+      _onAvailableSourcesChanged,
+    );
+    widget.currentSourceLabelListenable?.removeListener(
+      _onCurrentSourceLabelChanged,
+    );
     super.dispose();
   }
 
   void _onSourceIndexChanged() {
     setState(() {
-      _currentSourceIndex = widget.sourceIndexNotifier!.value;
+      _currentSourceIndex = _clampSourceIndex(
+        widget.sourceIndexNotifier!.value,
+        _availableSources,
+      );
     });
+  }
+
+  void _onAvailableSourcesChanged() {
+    final nextSources =
+        widget.availableSourcesListenable?.value ?? widget.availableSources;
+    setState(() {
+      _availableSources = nextSources;
+      _currentSourceIndex = _clampSourceIndex(
+        _currentSourceIndex,
+        _availableSources,
+      );
+    });
+  }
+
+  void _onCurrentSourceLabelChanged() {
+    setState(() {
+      _currentSourceLabel =
+          widget.currentSourceLabelListenable?.value ??
+          widget.currentSourceLabel;
+    });
+  }
+
+  int _clampSourceIndex(int index, List<SearchPlayResult> sources) {
+    if (sources.isEmpty) return 0;
+    return index.clamp(0, sources.length - 1);
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panelBgColor = isDark ? const Color(0xFF1A1A24) : Theme.of(context).colorScheme.surfaceContainerHigh;
+    final panelBgColor = isDark
+        ? const Color(0xFF1A1A24)
+        : Theme.of(context).colorScheme.surfaceContainerHigh;
     final dragIndicatorColor = isDark ? Colors.white30 : Colors.black26;
-    final dividerColor = isDark ? Colors.white12 : Theme.of(context).colorScheme.outlineVariant;
+    final dividerColor = isDark
+        ? Colors.white12
+        : Theme.of(context).colorScheme.outlineVariant;
 
     return Container(
       width: widget.isFullscreen ? 320 : double.infinity,
@@ -1881,8 +1983,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
 
   Widget _buildHeader() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
-    final iconColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final textColor = isDark
+        ? Colors.white
+        : Theme.of(context).colorScheme.onSurface;
+    final iconColor = isDark
+        ? Colors.white70
+        : Theme.of(context).colorScheme.onSurfaceVariant;
 
     String title;
     switch (_currentPage) {
@@ -1909,11 +2015,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           if (_currentPage != 0)
             IconButton(
               onPressed: () => setState(() => _currentPage = 0),
-              icon: Icon(
-                Icons.arrow_back,
-                color: iconColor,
-                size: 20,
-              ),
+              icon: Icon(Icons.arrow_back, color: iconColor, size: 20),
             )
           else
             const SizedBox(width: 48),
@@ -1942,7 +2044,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
       case 1:
         return DanmakuSettingsBottomSheet(
           danmakuService: widget.danmakuService,
-          scrollController: widget.scrollController ?? createPlatformScrollController(),
+          scrollController:
+              widget.scrollController ?? createPlatformScrollController(),
         );
       case 2:
         return _buildSubtitleSettings();
@@ -2001,13 +2104,18 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         _buildMenuItem(
           icon: Icons.video_library_outlined,
           title: '播放源',
-          subtitle: widget.availableSources.isEmpty
+          subtitle: _availableSources.isEmpty
               ? '暂无可用源'
-              : '${widget.availableSources.isNotEmpty && _currentSourceIndex >= 0 && _currentSourceIndex < widget.availableSources.length ? widget.availableSources[_currentSourceIndex].sourceName : widget.currentSourceLabel} (${widget.availableSources.length}个可用)',
+              : '${_currentSourceIndex >= 0 && _currentSourceIndex < _availableSources.length ? _availableSources[_currentSourceIndex].sourceName : _currentSourceLabel} (${_availableSources.length}个可用)',
           onTap: () => setState(() => _currentPage = 3),
         ),
         const SizedBox(height: 16),
-        Divider(color: isDark ? Colors.white12 : Theme.of(context).colorScheme.outlineVariant, height: 1),
+        Divider(
+          color: isDark
+              ? Colors.white12
+              : Theme.of(context).colorScheme.outlineVariant,
+          height: 1,
+        ),
         const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -2023,8 +2131,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
 
   Widget _buildPlaybackSpeedSettings() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
-    final hintColor = isDark ? Colors.white38 : Theme.of(context).colorScheme.outline;
+    final textColor = isDark
+        ? Colors.white70
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    final hintColor = isDark
+        ? Colors.white38
+        : Theme.of(context).colorScheme.outline;
 
     final speed = _currentPlaybackSpeed.clamp(0.25, 3.0).toDouble();
     return ListView(
@@ -2099,11 +2211,21 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     required VoidCallback onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
-    final iconColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
-    final subTextColor = isDark ? Colors.white54 : Theme.of(context).colorScheme.onSurfaceVariant;
-    final chevronColor = isDark ? Colors.white38 : Theme.of(context).colorScheme.outline;
-    final iconBgColor = isDark ? Colors.white.withValues(alpha: 0.05) : Theme.of(context).colorScheme.surfaceContainerLow;
+    final textColor = isDark
+        ? Colors.white
+        : Theme.of(context).colorScheme.onSurface;
+    final iconColor = isDark
+        ? Colors.white70
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    final subTextColor = isDark
+        ? Colors.white54
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    final chevronColor = isDark
+        ? Colors.white38
+        : Theme.of(context).colorScheme.outline;
+    final iconBgColor = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Theme.of(context).colorScheme.surfaceContainerLow;
 
     return InkWell(
       onTap: onTap,
@@ -2153,10 +2275,18 @@ class _SettingsPanelState extends State<_SettingsPanel> {
       listenable: widget.subtitleService,
       builder: (context, _) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        final dividerColor = isDark ? Colors.white12 : Theme.of(context).colorScheme.outlineVariant;
-        final sectionLabelColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
-        final hintColor = isDark ? Colors.white38 : Theme.of(context).colorScheme.outline;
-        final emptyIconColor = isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.15);
+        final dividerColor = isDark
+            ? Colors.white12
+            : Theme.of(context).colorScheme.outlineVariant;
+        final sectionLabelColor = isDark
+            ? Colors.white70
+            : Theme.of(context).colorScheme.onSurfaceVariant;
+        final hintColor = isDark
+            ? Colors.white38
+            : Theme.of(context).colorScheme.outline;
+        final emptyIconColor = isDark
+            ? Colors.white.withValues(alpha: 0.2)
+            : Colors.black.withValues(alpha: 0.15);
         final previewBgColor = isDark ? Colors.black : Colors.white;
 
         final service = widget.subtitleService;
@@ -2296,19 +2426,22 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             const SizedBox(height: 16),
 
             // 字体颜色选择
-            Builder(builder: (context) {
-              final sectionLabelColor = Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white70
-                  : Theme.of(context).colorScheme.onSurfaceVariant;
-              return Text(
-                '字体颜色',
-                style: TextStyle(
-                  color: sectionLabelColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              );
-            }),
+            Builder(
+              builder: (context) {
+                final sectionLabelColor =
+                    Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white70
+                    : Theme.of(context).colorScheme.onSurfaceVariant;
+                return Text(
+                  '字体颜色',
+                  style: TextStyle(
+                    color: sectionLabelColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                );
+              },
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -2351,8 +2484,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     required ValueChanged<bool>? onChanged,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
-    final inactiveTrackColor = isDark ? Colors.white24 : Theme.of(context).colorScheme.surfaceContainerHighest;
+    final textColor = isDark
+        ? Colors.white
+        : Theme.of(context).colorScheme.onSurface;
+    final inactiveTrackColor = isDark
+        ? Colors.white24
+        : Theme.of(context).colorScheme.surfaceContainerHighest;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -2377,18 +2514,19 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     required ValueChanged<double> onChanged,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
-    final inactiveTrackColor = isDark ? Colors.white24 : Theme.of(context).colorScheme.surfaceContainerHighest;
+    final textColor = isDark
+        ? Colors.white
+        : Theme.of(context).colorScheme.onSurface;
+    final inactiveTrackColor = isDark
+        ? Colors.white24
+        : Theme.of(context).colorScheme.surfaceContainerHighest;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title,
-              style: TextStyle(color: textColor, fontSize: 14),
-            ),
+            Text(title, style: TextStyle(color: textColor, fontSize: 14)),
             Text(
               displayValue,
               style: TextStyle(
@@ -2404,7 +2542,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             activeTrackColor: Theme.of(context).colorScheme.primary,
             inactiveTrackColor: inactiveTrackColor,
             thumbColor: Theme.of(context).colorScheme.primary,
-            overlayColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+            overlayColor: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.2),
             trackHeight: 3,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
           ),
@@ -2427,10 +2567,18 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     required VoidCallback onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
-    final unselectedBgColor = isDark ? Colors.white.withValues(alpha: 0.03) : Theme.of(context).colorScheme.surfaceContainerLow;
-    final unselectedBorderColor = isDark ? Colors.transparent : Colors.transparent;
-    final subTextColor = isDark ? Colors.white38 : Theme.of(context).colorScheme.outline;
+    final textColor = isDark
+        ? Colors.white
+        : Theme.of(context).colorScheme.onSurface;
+    final unselectedBgColor = isDark
+        ? Colors.white.withValues(alpha: 0.03)
+        : Theme.of(context).colorScheme.surfaceContainerLow;
+    final unselectedBorderColor = isDark
+        ? Colors.transparent
+        : Colors.transparent;
+    final subTextColor = isDark
+        ? Colors.white38
+        : Theme.of(context).colorScheme.outline;
 
     return InkWell(
       onTap: onTap,
@@ -2470,10 +2618,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                   if (subtitle.isNotEmpty)
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        color: subTextColor,
-                        fontSize: 11,
-                      ),
+                      style: TextStyle(color: subTextColor, fontSize: 11),
                     ),
                 ],
               ),
@@ -2506,13 +2651,17 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           color: color,
           shape: BoxShape.circle,
           border: Border.all(
-            color: isSelected ? Theme.of(context).colorScheme.primary : unselectedBorderColor,
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : unselectedBorderColor,
             width: isSelected ? 3 : 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.4),
                     blurRadius: 8,
                   ),
                 ]
@@ -2524,24 +2673,34 @@ class _SettingsPanelState extends State<_SettingsPanel> {
 
   Widget _buildSourceList() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
-    final subTextColor = isDark ? Colors.white54 : Theme.of(context).colorScheme.onSurfaceVariant;
-    final hintTextColor = isDark ? Colors.white38 : Theme.of(context).colorScheme.outline;
-    final unselectedIconColor = isDark ? Colors.white54 : Theme.of(context).colorScheme.onSurfaceVariant;
-    final unselectedBgColor = isDark ? Colors.white.withValues(alpha: 0.03) : Theme.of(context).colorScheme.surfaceContainerLow;
-    final unselectedIconBgColor = isDark ? Colors.white.withValues(alpha: 0.05) : Theme.of(context).colorScheme.surfaceContainerLow;
-    final emptyIconColor = isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.15);
+    final textColor = isDark
+        ? Colors.white
+        : Theme.of(context).colorScheme.onSurface;
+    final subTextColor = isDark
+        ? Colors.white54
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    final hintTextColor = isDark
+        ? Colors.white38
+        : Theme.of(context).colorScheme.outline;
+    final unselectedIconColor = isDark
+        ? Colors.white54
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    final unselectedBgColor = isDark
+        ? Colors.white.withValues(alpha: 0.03)
+        : Theme.of(context).colorScheme.surfaceContainerLow;
+    final unselectedIconBgColor = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Theme.of(context).colorScheme.surfaceContainerLow;
+    final emptyIconColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.15);
 
-    if (widget.availableSources.isEmpty) {
+    if (_availableSources.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.videocam_off_outlined,
-              size: 64,
-              color: emptyIconColor,
-            ),
+            Icon(Icons.videocam_off_outlined, size: 64, color: emptyIconColor),
             const SizedBox(height: 16),
             Text(
               '暂无可用播放源',
@@ -2555,9 +2714,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     return ListView.builder(
       controller: widget.scrollController,
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: widget.availableSources.length,
+      itemCount: _availableSources.length,
       itemBuilder: (context, index) {
-        final source = widget.availableSources[index];
+        final source = _availableSources[index];
         final isSelected = index == _currentSourceIndex;
 
         return InkWell(
@@ -2572,12 +2731,16 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: isSelected
-                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
+                  ? Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.15)
                   : unselectedBgColor,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isSelected
-                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.5)
                     : Colors.transparent,
               ),
             ),
@@ -2588,7 +2751,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                   height: 36,
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.2)
                         : unselectedIconBgColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -2632,16 +2797,14 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withValues(alpha: 0.2),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primary.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .primary
-                                      .withValues(alpha: 0.3),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.3),
                                 ),
                               ),
                               child: Text(
@@ -2659,10 +2822,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                         const SizedBox(height: 2),
                         Text(
                           source.directVideoUrl!,
-                          style: TextStyle(
-                            color: hintTextColor,
-                            fontSize: 10,
-                          ),
+                          style: TextStyle(color: hintTextColor, fontSize: 10),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
