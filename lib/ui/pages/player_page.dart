@@ -15,6 +15,7 @@ import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/services/download_manager.dart';
+import 'package:mikan_player/services/video_url_probe.dart';
 import 'package:mikan_player/services/webview_video_extractor.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/services/subtitle_service.dart';
@@ -199,7 +200,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   // Header Injection Proxy
   final HeaderInjectionProxy _headerProxy = HeaderInjectionProxy();
+  final VideoUrlProbeService _videoUrlProbeService = VideoUrlProbeService();
   final ValueNotifier<String> _sampleStatusMessageNotifier = ValueNotifier('');
+  final Set<String> _playableSourceKeys = <String>{};
+  final Set<String> _probingSourceKeys = <String>{};
+  final Set<String> _failedPlaybackSourceKeys = <String>{};
+  static const Duration _autoPlayStartupTimeout = Duration(seconds: 10);
+  Timer? _playStartupTimer;
+  String? _pendingPlaySourceKey;
+  bool _isAutoPlayFallbackInProgress = false;
 
   @override
   void initState() {
@@ -229,6 +238,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // Subscribe to player position for danmaku sync
     _positionSubscription = _player.stream.position.listen((position) {
       if (mounted) {
+        if (position > Duration.zero) {
+          _clearPlaybackStartupWatchdog();
+        }
         _handleUnexpectedPositionJump(position);
         _currentVideoTimeNotifier.value = position.inMilliseconds / 1000.0;
 
@@ -253,6 +265,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _playingSubscription = _player.stream.playing.listen((playing) {
       if (mounted) {
         _isVideoPausedNotifier.value = !playing;
+        if (playing) {
+          _clearPlaybackStartupWatchdog();
+        }
         // Save position when paused
         if (!playing) {
           try {
@@ -1359,13 +1374,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           // 如果有直接视频URL，也添加到成功列表
           if (progress.directVideoUrl != null &&
               progress.directVideoUrl!.isNotEmpty) {
-            if (!_sampleSuccessfulSources.any(
-              (s) =>
-                  _buildSourceChannelKey(s.sourceName, s.channelIndex) ==
-                  channelKey,
-            )) {
-              _sampleSuccessfulSources.add(result);
-            }
+            unawaited(
+              _probeAndRegisterPlayableSource(
+                result,
+                autoPlayAfterProbe: true,
+              ),
+            );
           }
         }
       } else {
@@ -1400,11 +1414,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         // 如果有直接视频URL，添加到成功列表
         if (progress.directVideoUrl != null &&
             progress.directVideoUrl!.isNotEmpty) {
-          if (!_sampleSuccessfulSources.any(
-            (s) => s.sourceName == progress.sourceName,
-          )) {
-            _sampleSuccessfulSources.add(result);
-          }
+          unawaited(
+            _probeAndRegisterPlayableSource(
+              result,
+              autoPlayAfterProbe: true,
+            ),
+          );
         }
       }
 
@@ -1633,6 +1648,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _sampleVideoUrl = _sampleVideoUrl; // Keep existing if BT is playing
       _samplePlayPages = [];
       _sampleSuccessfulSources = [];
+      _playableSourceKeys.clear();
+      _probingSourceKeys.clear();
+      _failedPlaybackSourceKeys.clear();
       _selectedSourceIndex = 0;
       _activeWebViews.clear();
       _activeCaptchaTasks.clear();
@@ -1647,6 +1665,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _sourceTiers = {};
       _hasAutoPlayed = false;
       _webViewPoolPumpScheduled = false;
+      _clearPlaybackStartupWatchdog();
     });
 
     if (!_autoSearchOnline) {
@@ -1803,6 +1822,185 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return '${sourceName}_${channelIndex ?? BigInt.from(-1)}';
   }
 
+  Map<String, String> _buildPlaybackHeaders(SearchPlayResult source) {
+    final headers = <String, String>{
+      if (source.headers != null) ...source.headers!,
+    };
+    headers.putIfAbsent(
+      'User-Agent',
+      () =>
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    );
+    if (!headers.containsKey('Referer') && !headers.containsKey('referer')) {
+      headers['Referer'] = source.playPageUrl;
+    }
+    return headers;
+  }
+
+  bool _containsPlayableSource(SearchPlayResult source) {
+    final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
+    return _sampleSuccessfulSources.any(
+      (item) => _buildSourceChannelKey(item.sourceName, item.channelIndex) == sourceKey,
+    );
+  }
+
+  void _addPlayableSource(SearchPlayResult source) {
+    final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
+    if (_playableSourceKeys.add(sourceKey) && !_containsPlayableSource(source)) {
+      _sampleSuccessfulSources.add(source);
+    }
+  }
+
+  Future<void> _probeAndRegisterPlayableSource(
+    SearchPlayResult source, {
+    bool autoPlayAfterProbe = false,
+  }) async {
+    final directVideoUrl = source.directVideoUrl;
+    if (directVideoUrl == null || directVideoUrl.isEmpty) {
+      return;
+    }
+    final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
+    if (_playableSourceKeys.contains(sourceKey) || _probingSourceKeys.contains(sourceKey)) {
+      return;
+    }
+
+    _probingSourceKeys.add(sourceKey);
+    final probeResult = await _videoUrlProbeService.probe(
+      directVideoUrl,
+      headers: _buildPlaybackHeaders(source),
+      cookies: source.cookies,
+    );
+    _probingSourceKeys.remove(sourceKey);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!probeResult.playable) {
+      debugPrint(
+        '[VideoProbe] Rejected ${source.sourceName} channel=${source.channelIndex}: '
+        '${probeResult.error} status=${probeResult.statusCode} type=${probeResult.contentType}',
+      );
+      _failedWebViewPageKeys.add(sourceKey);
+      _maybeFinishSampleSearch();
+      return;
+    }
+
+    debugPrint(
+      '[VideoProbe] Accepted ${source.sourceName} channel=${source.channelIndex} '
+      'status=${probeResult.statusCode} latency=${probeResult.latency.inMilliseconds}ms',
+    );
+
+    setState(() {
+      _addPlayableSource(source);
+      _sampleStatusMessageNotifier.value =
+          '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
+    });
+
+    if (autoPlayAfterProbe && _autoPlaySearchedSource) {
+      _attemptAutoPlay();
+    }
+
+    _maybeFinishSampleSearch();
+  }
+
+  String _buildPlaybackUrl(SearchPlayResult source) {
+    final urlToPlay = source.directVideoUrl!;
+    final needsReferer = _needsRefererHeader(urlToPlay);
+    if (!needsReferer) {
+      debugPrint('[_buildPlaybackUrl] Using direct URL for: $urlToPlay');
+      return urlToPlay;
+    }
+
+    final finalUrl = _headerProxy.registerUrl(urlToPlay, _buildPlaybackHeaders(source));
+    debugPrint('[_buildPlaybackUrl] Using proxy for: $urlToPlay');
+    return finalUrl;
+  }
+
+  void _clearPlaybackStartupWatchdog() {
+    _playStartupTimer?.cancel();
+    _playStartupTimer = null;
+    _pendingPlaySourceKey = null;
+  }
+
+  void _schedulePlaybackStartupWatchdog(SearchPlayResult source, {required bool autoFallback}) {
+    _clearPlaybackStartupWatchdog();
+    final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
+    _pendingPlaySourceKey = sourceKey;
+    _playStartupTimer = Timer(_autoPlayStartupTimeout, () {
+      if (!mounted || _pendingPlaySourceKey != sourceKey) {
+        return;
+      }
+      final hasStarted =
+          _player.state.playing || _player.state.position > Duration.zero;
+      if (hasStarted) {
+        _clearPlaybackStartupWatchdog();
+        return;
+      }
+      debugPrint('[PlaybackWatchdog] Startup timed out for $sourceKey');
+      _clearPlaybackStartupWatchdog();
+      _failedPlaybackSourceKeys.add(sourceKey);
+      if (autoFallback) {
+        _attemptAutoPlay(excludedSourceKey: sourceKey, forceRetry: true);
+      } else if (mounted) {
+        setState(() {
+          _isLoadingVideo = false;
+          _videoError = '当前线路启动超时，请切换其他源';
+        });
+      }
+    });
+  }
+
+  Future<void> _openOnlineSource(
+    SearchPlayResult source, {
+    required bool autoFallback,
+  }) async {
+    final finalUrl = _buildPlaybackUrl(source);
+    final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
+
+    setState(() {
+      _currentOnlineSource = source;
+      _currentStreamUrl = finalUrl;
+      _sampleVideoUrl = source.directVideoUrl;
+      _playingSourceLabel = source.channelName != null
+          ? '${source.sourceName}(${source.channelName})'
+          : source.sourceName;
+      _isLoadingVideo = true;
+      _videoError = null;
+    });
+
+    _temporarilyAllowPositionReset();
+    await _player.stop();
+    _schedulePlaybackStartupWatchdog(source, autoFallback: autoFallback);
+
+    try {
+      await _player.open(Media(finalUrl), play: true);
+      await _applyPlaybackSpeed();
+      if (mounted) {
+        setState(() {
+          _isLoadingVideo = false;
+        });
+      }
+      await _applyPendingStartPosition();
+      debugPrint('[_openOnlineSource] Media loading started for $sourceKey');
+    } catch (e, st) {
+      debugPrint('[_openOnlineSource] ERROR loading media: $e');
+      debugPrint('Stack trace: $st');
+      _clearPlaybackStartupWatchdog();
+      _failedPlaybackSourceKeys.add(sourceKey);
+      if (mounted) {
+        setState(() {
+          _isLoadingVideo = false;
+          _videoError = '播放失败: $e';
+        });
+      }
+      if (autoFallback) {
+        _attemptAutoPlay(excludedSourceKey: sourceKey, forceRetry: true);
+      }
+    }
+  }
+
   Future<void> _resolveChannelPlayPageUrl({
     required String sourceName,
     required String animeName,
@@ -1868,13 +2066,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
         if (channelResult.directVideoUrl != null &&
             channelResult.directVideoUrl!.isNotEmpty) {
-          if (!_sampleSuccessfulSources.any(
-            (page) =>
-                _buildSourceChannelKey(page.sourceName, page.channelIndex) ==
-                pageKey,
-          )) {
-            _sampleSuccessfulSources.add(channelResult);
-          }
+          unawaited(
+            _probeAndRegisterPlayableSource(
+              channelResult,
+              autoPlayAfterProbe: true,
+            ),
+          );
         }
 
         _samplePlayPages.sort((a, b) {
@@ -1895,17 +2092,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-  void _attemptAutoPlay() {
+  void _attemptAutoPlay({String? excludedSourceKey, bool forceRetry = false}) {
     // Don't auto-play if already playing something (including BT)
-    if (_hasAutoPlayed ||
-        _sampleVideoUrl != null ||
-        _currentStreamUrl != null) {
+    if (!forceRetry &&
+        (_hasAutoPlayed ||
+            _sampleVideoUrl != null ||
+            _currentStreamUrl != null)) {
+      return;
+    }
+
+    if (_isAutoPlayFallbackInProgress) {
       return;
     }
 
     // 仅允许Tier 0自动播放
     final candidates = _sampleSuccessfulSources
-        .where((s) => (_sourceTiers[s.sourceName] ?? 999) == 0)
+        .where((s) {
+          final sourceKey = _buildSourceChannelKey(s.sourceName, s.channelIndex);
+          return (_sourceTiers[s.sourceName] ?? 999) == 0 &&
+              sourceKey != excludedSourceKey &&
+              !_failedPlaybackSourceKeys.contains(sourceKey);
+        })
         .toList();
 
     debugPrint(
@@ -1918,68 +2125,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _playSource(SearchPlayResult source) {
-    // Don't override if already playing something (including BT stream)
-    if (_sampleVideoUrl != null || _currentStreamUrl != null) return;
-
     debugPrint(
       "Auto-playing source: ${source.sourceName} (Tier ${_sourceTiers[source.sourceName]})",
     );
 
     setState(() {
       _hasAutoPlayed = true;
-      _sampleVideoUrl = source.directVideoUrl;
-      _currentOnlineSource = source;
       // Ensure index is correct in the display list
       _selectedSourceIndex = _sampleSuccessfulSources.indexOf(source);
       if (_selectedSourceIndex == -1) {
         // Should not happen if source is from _sampleSuccessfulSources
         _selectedSourceIndex = 0;
       }
-
-      // Check if this source needs Referer header (proxy)
-      final needsReferer = _needsRefererHeader(_sampleVideoUrl!);
-
-      String urlToPlay;
-      if (needsReferer) {
-        // Use proxy for sources that need Referer
-        final headers = <String, String>{
-          'Referer': source.playPageUrl,
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        };
-        urlToPlay = _headerProxy.registerUrl(_sampleVideoUrl!, headers);
-        debugPrint('[_playSource] Auto-play (Tier 0) - using proxy:');
-        debugPrint('  Original URL: $_sampleVideoUrl');
-        debugPrint('  Proxied URL: $urlToPlay');
-      } else {
-        // Use direct URL for sources that don't need Referer
-        urlToPlay = _sampleVideoUrl!;
-        debugPrint('[_playSource] Auto-play (Tier 0) - using direct URL:');
-        debugPrint('  URL: $urlToPlay');
-      }
-
-      // Store the URL to play
-      _currentStreamUrl = urlToPlay;
-      _playingSourceLabel = source.sourceName;
-
-      // 停止之前的播放，防止后台继续播放
-      _player.stop();
-
-      try {
-        // Auto-play for Tier 0 sources
-        _player.open(Media(urlToPlay), play: true).then((_) async {
-          await _applyPlaybackSpeed();
-          await _applyPendingStartPosition();
-        });
-        debugPrint('[_playSource] Media loaded and auto-playing (Tier 0).');
-      } catch (e, st) {
-        debugPrint('[_playSource] ERROR loading media: $e\n$st');
-        _videoError = '播放器打开失败: $e';
-      }
-
-      _isLoadingVideo = false;
-      _videoError = null;
+      _selectedSourceIndexNotifier.value = _selectedSourceIndex;
     });
+
+    _isAutoPlayFallbackInProgress = true;
+    unawaited(
+      _openOnlineSource(source, autoFallback: true).whenComplete(() {
+        _isAutoPlayFallbackInProgress = false;
+      }),
+    );
   }
 
   /// WebView 提取结果回调（并发版本）
@@ -2043,16 +2209,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               channelIndex: page.channelIndex,
             );
 
-            _sampleSuccessfulSources.add(updatedPage);
+            unawaited(
+              _probeAndRegisterPlayableSource(
+                updatedPage,
+                autoPlayAfterProbe: true,
+              ),
+            );
 
             // 如果这是第一个成功提取且没有其他源在播放
             debugPrint(
               '[_onWebViewResult] _sampleVideoUrl currently=$_sampleVideoUrl',
             );
-            // 手动触发搜索后不自动播放，等待用户主动点击“播放”
-            if (_autoPlaySearchedSource) {
-              _attemptAutoPlay();
-            }
           } else {
             debugPrint(
               '[_onWebViewResult] No matching page found for pageKey=$pageKey',
@@ -2195,6 +2362,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _searchSubscriptions.clear();
     _activeCaptchaTasks.clear();
     _pendingCaptchaTasks.clear();
+    _clearPlaybackStartupWatchdog();
 
     // 通知下载管理器BT流不再活跃
     if (_currentStreamUrl != null) {
@@ -2222,6 +2390,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _isVideoPausedNotifier.dispose();
     _showDanmakuSettingsNotifier.dispose();
     _sampleStatusMessageNotifier.dispose();
+    _selectedSourceIndexNotifier.dispose();
     super.dispose();
   }
 
@@ -3346,55 +3515,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
     }
 
-    setState(() {
-      _isLoadingVideo = true;
-      _videoError = null;
-    });
-
-    setState(() {
-      _currentOnlineSource = source;
-    });
-
-    final urlToPlay = source.directVideoUrl!;
-    final needsReferer = _needsRefererHeader(urlToPlay);
-
-    String finalUrl;
-    if (needsReferer) {
-      // Use proxy for sources that need Referer
-      final headers = <String, String>{
-        'Referer': source.playPageUrl,
-        'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      };
-      finalUrl = _headerProxy.registerUrl(urlToPlay, headers);
-      debugPrint('[_startPlayback] Using proxy for: $urlToPlay');
-    } else {
-      finalUrl = urlToPlay;
-      debugPrint('[_startPlayback] Using direct URL for: $urlToPlay');
-    }
-
-    setState(() {
-      _currentStreamUrl = finalUrl;
-    });
-
-    // Open media and start playing
-    _temporarilyAllowPositionReset();
-    _player.stop();
-    try {
-      _player.open(Media(finalUrl), play: true).then((_) async {
-        await _applyPlaybackSpeed();
-        setState(() => _isLoadingVideo = false);
-        await _applyPendingStartPosition();
-      });
-      debugPrint('[_startPlayback] Media loading started.');
-    } catch (e, st) {
-      debugPrint('[_startPlayback] ERROR loading media: $e');
-      debugPrint('Stack trace: $st');
-      setState(() {
-        _isLoadingVideo = false;
-        _videoError = "播放失败: $e";
-      });
-    }
+    unawaited(_openOnlineSource(source, autoFallback: false));
   }
 
   Widget _buildVideoPlayerPlaceholder(

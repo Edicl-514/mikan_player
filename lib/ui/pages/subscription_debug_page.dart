@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/captcha_webview_bypasser.dart';
+import 'package:mikan_player/services/video_url_probe.dart';
 import 'package:mikan_player/services/webview_video_extractor.dart';
 import 'package:mikan_player/src/rust/api/config.dart' as rust_config;
 import 'package:mikan_player/src/rust/api/generic_scraper.dart'
@@ -31,6 +32,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       {};
   final List<String> _searchLogs = [];
   final List<String> _extractLogs = [];
+  final VideoUrlProbeService _videoUrlProbeService = VideoUrlProbeService();
+  final Map<String, VideoUrlProbeResult> _probeResultsByKey = {};
+  final Set<String> _probingSourceKeys = <String>{};
 
   bool _isSearching = false;
   bool _showWebView = false;
@@ -42,6 +46,135 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
   String? _extractedVideoUrl;
   String? _extractError;
   Map<String, String> _extractHeaders = const {};
+
+  String _buildSourceChannelKey(String sourceName, BigInt? channelIndex) {
+    return '${sourceName}_${channelIndex ?? BigInt.from(-1)}';
+  }
+
+  Map<String, String> _buildPlaybackHeaders(
+    generic_scraper.SearchPlayResult source,
+  ) {
+    final headers = <String, String>{
+      if (source.headers != null) ...source.headers!,
+    };
+    headers.putIfAbsent(
+      'User-Agent',
+      () =>
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    );
+    if (!headers.containsKey('Referer') &&
+        !headers.containsKey('referer') &&
+        source.playPageUrl.isNotEmpty) {
+      headers['Referer'] = source.playPageUrl;
+    }
+    return headers;
+  }
+
+  Future<void> _probeVideoUrl(
+    generic_scraper.SearchPlayResult source, {
+    String? overrideUrl,
+    Map<String, String>? overrideHeaders,
+    String? logPrefix,
+  }) async {
+    final videoUrl = overrideUrl ?? source.directVideoUrl;
+    if (videoUrl == null || videoUrl.isEmpty) {
+      return;
+    }
+
+    final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
+    if (_probingSourceKeys.contains(sourceKey)) {
+      return;
+    }
+
+    setState(() {
+      _probingSourceKeys.add(sourceKey);
+    });
+
+    final probeResult = await _videoUrlProbeService.probe(
+      videoUrl,
+      headers: overrideHeaders ?? _buildPlaybackHeaders(source),
+      cookies: source.cookies,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _probingSourceKeys.remove(sourceKey);
+      _probeResultsByKey[sourceKey] = probeResult;
+      _appendLog(
+        _extractTarget != null &&
+                _buildSourceChannelKey(
+                      _extractTarget!.sourceName,
+                      _extractTarget!.channelIndex,
+                    ) ==
+                    sourceKey
+            ? _extractLogs
+            : _searchLogs,
+        '${logPrefix ?? 'Probe'} ${source.sourceName}: '
+        '${probeResult.playable ? '可播放' : '不可播放'}'
+        '${probeResult.statusCode != null ? ' | HTTP ${probeResult.statusCode}' : ''}'
+        '${probeResult.contentType != null ? ' | ${probeResult.contentType}' : ''}'
+        '${probeResult.error != null ? ' | ${probeResult.error}' : ''}',
+      );
+    });
+  }
+
+  void _queueProbeForProgress(generic_scraper.SourceSearchProgress progress) {
+    final directVideoUrl = progress.directVideoUrl;
+    if (directVideoUrl == null || directVideoUrl.isEmpty) {
+      return;
+    }
+
+    final source = generic_scraper.SearchPlayResult(
+      sourceName: progress.sourceName,
+      playPageUrl: progress.playPageUrl ?? '',
+      videoRegex: progress.videoRegex ?? r'$^',
+      directVideoUrl: directVideoUrl,
+      cookies: progress.cookies,
+      headers: progress.headers,
+      channelName: progress.channelName,
+      channelIndex: progress.channelIndex,
+      captchaConfigJson: progress.captchaConfigJson,
+    );
+    unawaited(_probeVideoUrl(source, logPrefix: '搜索直链 Probe'));
+  }
+
+  String _probeStatusText(
+    VideoUrlProbeResult? result, {
+    required bool isProbing,
+  }) {
+    if (isProbing) {
+      return 'Probe 中...';
+    }
+    if (result == null) {
+      return '未 Probe';
+    }
+    final detail = <String>[
+      result.playable ? '可播放' : '不可播放',
+      if (result.statusCode != null) 'HTTP ${result.statusCode}',
+      if (result.contentType != null && result.contentType!.isNotEmpty)
+        result.contentType!,
+      '${result.latency.inMilliseconds}ms',
+    ];
+    return 'Probe: ${detail.join(' | ')}';
+  }
+
+  Color _probeStatusColor(
+    BuildContext context,
+    VideoUrlProbeResult? result, {
+    required bool isProbing,
+  }) {
+    if (isProbing) {
+      return Theme.of(context).colorScheme.primary;
+    }
+    if (result == null) {
+      return Theme.of(context).colorScheme.outline;
+    }
+    return result.playable ? Colors.green : Colors.redAccent;
+  }
 
   @override
   void dispose() {
@@ -206,6 +339,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       _isSearching = true;
       _searchError = null;
       _progressBySource.clear();
+      _probeResultsByKey.clear();
+      _probingSourceKeys.clear();
       _searchLogs.clear();
       _extractLogs.clear();
       _extractingSourceName = null;
@@ -248,6 +383,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                 '${progress.sourceName} -> ${_stepLabel(progress.step)}${progress.error != null ? ' | ${progress.error}' : ''}',
               );
             });
+            if (progress.step == generic_scraper.SearchStep.success) {
+              _queueProbeForProgress(progress);
+            }
           },
           onError: (error, _) {
             if (!mounted) {
@@ -505,6 +643,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       _isSearching = false;
       _searchError = null;
       _progressBySource.clear();
+      _probeResultsByKey.clear();
+      _probingSourceKeys.clear();
       _searchLogs.clear();
       _extractLogs.clear();
       _extractingSourceName = null;
@@ -708,6 +848,16 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               result.playPageUrl != null &&
               result.playPageUrl!.isNotEmpty;
           final stepColor = _stepColor(context, result.step);
+          final sourceKey = _buildSourceChannelKey(
+            result.sourceName,
+            result.channelIndex,
+          );
+          final probeResult = _probeResultsByKey[sourceKey];
+          final isProbing = _probingSourceKeys.contains(sourceKey);
+          final canProbe =
+              result.step == generic_scraper.SearchStep.success &&
+              result.directVideoUrl != null &&
+              result.directVideoUrl!.isNotEmpty;
 
           return ListTile(
             leading: Icon(_stepIcon(result.step), color: stepColor),
@@ -733,6 +883,23 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                if (result.directVideoUrl != null &&
+                    result.directVideoUrl!.isNotEmpty)
+                  Text(
+                    '直链: ${result.directVideoUrl!}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                Text(
+                  _probeStatusText(probeResult, isProbing: isProbing),
+                  style: TextStyle(
+                    color: _probeStatusColor(
+                      context,
+                      probeResult,
+                      isProbing: isProbing,
+                    ),
+                  ),
+                ),
                 if (result.error != null && result.error!.isNotEmpty)
                   Text(
                     result.error!,
@@ -742,14 +909,40 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                   ),
               ],
             ),
-            trailing: canExtract
-                ? FilledButton.tonal(
+            trailing: Wrap(
+              spacing: 8,
+              children: [
+                if (canProbe)
+                  OutlinedButton(
+                    onPressed: isProbing
+                        ? null
+                        : () {
+                            final source = generic_scraper.SearchPlayResult(
+                              sourceName: result.sourceName,
+                              playPageUrl: result.playPageUrl ?? '',
+                              videoRegex: result.videoRegex ?? r'$^',
+                              directVideoUrl: result.directVideoUrl,
+                              cookies: result.cookies,
+                              headers: result.headers,
+                              channelName: result.channelName,
+                              channelIndex: result.channelIndex,
+                              captchaConfigJson: result.captchaConfigJson,
+                            );
+                            unawaited(
+                              _probeVideoUrl(source, logPrefix: '手动 Probe'),
+                            );
+                          },
+                    child: Text(isProbing ? 'Probe 中' : 'Probe'),
+                  ),
+                if (canExtract)
+                  FilledButton.tonal(
                     onPressed: _extractingSourceName == null
                         ? () => _startExtractVideoUrl(result)
                         : null,
                     child: Text(AppLocalizations.of(context).extractUrl),
-                  )
-                : null,
+                  ),
+              ],
+            ),
           );
         },
       ),
@@ -795,9 +988,37 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             if (_extractedVideoUrl != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: SelectableText(
-                  AppLocalizations.of(context).extractSuccess(_extractedVideoUrl ?? ''),
-                  style: const TextStyle(color: Colors.green),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SelectableText(
+                      AppLocalizations.of(context).extractSuccess(
+                        _extractedVideoUrl ?? '',
+                      ),
+                      style: const TextStyle(color: Colors.green),
+                    ),
+                    const SizedBox(height: 4),
+                    Builder(
+                      builder: (context) {
+                        final sourceKey = _buildSourceChannelKey(
+                          _extractTarget!.sourceName,
+                          _extractTarget!.channelIndex,
+                        );
+                        final probeResult = _probeResultsByKey[sourceKey];
+                        final isProbing = _probingSourceKeys.contains(sourceKey);
+                        return Text(
+                          _probeStatusText(probeResult, isProbing: isProbing),
+                          style: TextStyle(
+                            color: _probeStatusColor(
+                              context,
+                              probeResult,
+                              isProbing: isProbing,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
             if (_extractHeaders.isNotEmpty)
@@ -827,15 +1048,16 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                   if (!mounted) {
                     return;
                   }
+                  final target = _extractTarget;
                   setState(() {
                     _extractingSourceName = null;
                     _extractHeaders = result.headers;
-                  if (result.success) {
-                      _extractedVideoUrl = result.videoUrl;
-                      _extractError = null;
-                      _appendLog(
-                        _extractLogs,
-                        '提取成功: ${result.videoUrl}',
+                    if (result.success) {
+                       _extractedVideoUrl = result.videoUrl;
+                       _extractError = null;
+                       _appendLog(
+                         _extractLogs,
+                         '提取成功: ${result.videoUrl}',
                         maxLines: 120,
                       );
                     } else {
@@ -845,9 +1067,32 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                         _extractLogs,
                         '提取失败: ${result.error}',
                         maxLines: 120,
-                      );
-                    }
+                        );
+                      }
                   });
+                  if (result.success && result.videoUrl != null && target != null) {
+                    final probeTarget = generic_scraper.SearchPlayResult(
+                      sourceName: target.sourceName,
+                      playPageUrl: target.playPageUrl,
+                      videoRegex: target.videoRegex,
+                      directVideoUrl: result.videoUrl,
+                      cookies: target.cookies,
+                      headers: result.headers.isNotEmpty
+                          ? result.headers
+                          : target.headers,
+                      channelName: target.channelName,
+                      channelIndex: target.channelIndex,
+                      captchaConfigJson: target.captchaConfigJson,
+                    );
+                    unawaited(
+                      _probeVideoUrl(
+                        probeTarget,
+                        overrideUrl: result.videoUrl,
+                        overrideHeaders: _buildPlaybackHeaders(probeTarget),
+                        logPrefix: '提取后 Probe',
+                      ),
+                    );
+                  }
                 },
               ),
           ],
