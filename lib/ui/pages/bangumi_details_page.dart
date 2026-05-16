@@ -946,10 +946,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
           // Characters
           _buildCharactersSection(context, isDarkBg: isDark),
-          const SizedBox(height: 40),
-
-          // Related Items (Associated entries)
-          _buildRelationsSection(context, isDarkBg: isDark),
+          if (_relations != null && _relations!.isNotEmpty) ...[
+            const SizedBox(height: 40),
+            // Related Items (Associated entries)
+            _buildRelationsSection(context, isDarkBg: isDark),
+          ],
           const SizedBox(height: 24),
         ],
       ),
@@ -1303,11 +1304,14 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                           const SizedBox(height: 32),
 
                           _buildCharactersSection(context, isDarkBg: true),
-                          const SizedBox(height: 32),
-
-                          // RELATED ITEMS
-                          _buildRelationsSection(context, isDarkBg: true),
-                          const SizedBox(height: 32),
+                          if (_relations != null && _relations!.isNotEmpty) ...[
+                            const SizedBox(height: 32),
+                            // RELATED ITEMS
+                            _buildRelationsSection(context, isDarkBg: true),
+                            const SizedBox(height: 32),
+                          ] else ...[
+                            const SizedBox(height: 32),
+                          ],
 
                           _buildCommentsSection(context, isDarkBg: true),
                           const SizedBox(height: 50),
@@ -1824,11 +1828,12 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           ...infobox.map((item) {
             final val = item['value'];
             final valueStyle = TextStyle(color: textColor, fontSize: 12);
+            final linkColor = isDarkBg ? Colors.cyanAccent : Colors.blue.shade800;
             final linkStyle = TextStyle(
-              color: Colors.cyanAccent,
+              color: linkColor,
               fontSize: 12,
               decoration: TextDecoration.underline,
-              decorationColor: Colors.cyanAccent,
+              decorationColor: linkColor,
             );
 
             // When value is a list of persons, render each as a clickable span
@@ -2174,192 +2179,206 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       children: [
         _buildSectionTitle(context, "角色", isDarkBg: isDarkBg),
         const SizedBox(height: 12),
-        SizedBox(
-          height:
-              240, // Increased from 228 to avoid overflow when names are long
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
           child: Scrollbar(
             controller: _charactersScrollController,
             thumbVisibility: true,
-            child: ListView.separated(
+            child: SingleChildScrollView(
               controller: _charactersScrollController,
-              padding: const EdgeInsets.only(
-                bottom: 10,
-              ), // Reduced space for scrollbar
               scrollDirection: Axis.horizontal,
-              itemCount: characters.take(10).length,
-              separatorBuilder: (c, i) => const SizedBox(width: 16),
-              itemBuilder: (context, index) {
-                final char = characters[index];
-                final imageUrl =
-                    char.images?.large ?? char.images?.medium ?? '';
-                final cvName = char.actors.isNotEmpty
-                    ? char.actors.first.name
-                    : '';
-                final canOpenCharacterPage = char.id != 0;
-                final roleLabel = _characterRoleLabel(char);
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var index = 0; index < characters.take(10).length; index++) ...[
+                      if (index > 0) const SizedBox(width: 16),
+                      Builder(
+                        builder: (context) {
+                          final char = characters[index];
+                          final imageUrl =
+                              char.images?.large ?? char.images?.medium ?? '';
+                          final cvName = char.actors.isNotEmpty
+                              ? char.actors.first.name
+                              : '';
+                          final canOpenCharacterPage = char.id != 0;
+                          final roleLabel = _characterRoleLabel(char);
 
-                return SizedBox(
-                  width: 120,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Character Image
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: canOpenCharacterPage
-                              ? () => _openCharacterPage(
-                                  char.id.toInt(),
-                                  characterName: char.name,
-                                  heroImageUrl: imageUrl,
-                                )
-                              : null,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
+                          return SizedBox(
                             width: 120,
-                            height: 140,
-                            decoration: BoxDecoration(
-                              color: cardColor,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isDarkBg
-                                    ? Colors.white10
-                                    : Colors.grey[300]!,
-                              ),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  imageUrl.isNotEmpty
-                                      ? widget.enableCharacterHero
-                                            ? Hero(
-                                                tag:
-                                                    'character_${char.id.toInt()}',
-                                                child: CachedNetworkImage(
-                                                  imageUrl: imageUrl,
-                                                  fit: BoxFit.cover,
-                                                  alignment:
-                                                      Alignment.topCenter,
-                                                  deferOffscreenLoad: false,
-                                                ),
-                                              )
-                                            : CachedNetworkImage(
-                                                imageUrl: imageUrl,
-                                                fit: BoxFit.cover,
-                                                alignment: Alignment.topCenter,
-                                                deferOffscreenLoad: false,
-                                              )
-                                      : Center(
-                                          child: Icon(
-                                            Icons.person,
-                                            color: isDarkBg
-                                                ? Colors.white24
-                                                : Colors.grey[400],
-                                            size: 40,
-                                          ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Character Image
+                                Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: canOpenCharacterPage
+                                        ? () => _openCharacterPage(
+                                            char.id.toInt(),
+                                            characterName: char.name,
+                                            heroImageUrl: imageUrl,
+                                          )
+                                        : null,
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      width: 120,
+                                      height: 140,
+                                      decoration: BoxDecoration(
+                                        color: cardColor,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: isDarkBg
+                                              ? Colors.white10
+                                              : Colors.grey[300]!,
                                         ),
-                                  if (roleLabel != null)
-                                    Positioned(
-                                      left: 6,
-                                      top: 6,
-                                      child: _buildCharacterRoleBadge(
-                                        roleLabel,
-                                        isDarkBg: isDarkBg,
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            imageUrl.isNotEmpty
+                                                ? widget.enableCharacterHero
+                                                      ? Hero(
+                                                          tag:
+                                                              'character_${char.id.toInt()}',
+                                                          child: CachedNetworkImage(
+                                                            imageUrl: imageUrl,
+                                                            fit: BoxFit.cover,
+                                                            alignment:
+                                                                Alignment.topCenter,
+                                                            deferOffscreenLoad: false,
+                                                          ),
+                                                        )
+                                                      : CachedNetworkImage(
+                                                          imageUrl: imageUrl,
+                                                          fit: BoxFit.cover,
+                                                          alignment:
+                                                              Alignment.topCenter,
+                                                          deferOffscreenLoad: false,
+                                                        )
+                                                : Center(
+                                                    child: Icon(
+                                                      Icons.person,
+                                                      color: isDarkBg
+                                                          ? Colors.white24
+                                                          : Colors.grey[400],
+                                                      size: 40,
+                                                    ),
+                                                  ),
+                                            if (roleLabel != null)
+                                              Positioned(
+                                                left: 6,
+                                                top: 6,
+                                                child: _buildCharacterRoleBadge(
+                                                  roleLabel,
+                                                  isDarkBg: isDarkBg,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      // Character Name
-                      canOpenCharacterPage
-                          ? GestureDetector(
-                              onTap: () => _openCharacterPage(
-                                char.id.toInt(),
-                                characterName: char.name,
-                                heroImageUrl: imageUrl,
-                              ),
-                              child: Text(
-                                char.name,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isDarkBg
-                                      ? Colors.cyanAccent
-                                      : Colors.blue,
-                                  fontWeight: FontWeight.w600,
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: isDarkBg
-                                      ? Colors.cyanAccent
-                                      : Colors.blue,
+                                  ),
                                 ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            )
-                          : Text(
-                              char.name,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: textColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                      // CV Name
-                      if (cvName.isNotEmpty)
-                        Row(
-                          children: [
-                            Text(
-                              'CV: ',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: textColor.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            Expanded(
-                              child: _personIdMap.containsKey(cvName)
-                                  ? GestureDetector(
-                                      onTap: () => _openPersonPage(
-                                        _personIdMap[cvName]!,
-                                      ),
-                                      child: Text(
-                                        cvName,
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: isDarkBg
-                                              ? Colors.cyanAccent
-                                              : Colors.blue,
-                                          decoration: TextDecoration.underline,
-                                          decorationColor: isDarkBg
-                                              ? Colors.cyanAccent
-                                              : Colors.blue,
+                                const SizedBox(height: 8),
+                                // Character Name
+                                canOpenCharacterPage
+                                    ? GestureDetector(
+                                        onTap: () => _openCharacterPage(
+                                          char.id.toInt(),
+                                          characterName: char.name,
+                                          heroImageUrl: imageUrl,
                                         ),
-                                        maxLines: 1,
+                                        child: Text(
+                                          char.name,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: isDarkBg
+                                                ? Colors.cyanAccent
+                                                : Colors.blue.shade800,
+                                            fontWeight: FontWeight.w600,
+                                            decoration: TextDecoration.underline,
+                                            decorationColor: isDarkBg
+                                                ? Colors.cyanAccent
+                                                : Colors.blue.shade800,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      )
+                                    : Text(
+                                        char.name,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: textColor,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                    )
-                                  : Text(
-                                      cvName,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: textColor.withValues(alpha: 0.7),
+                                // CV Name
+                                if (cvName.isNotEmpty)
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'CV: ',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: textColor.withValues(alpha: 0.5),
+                                        ),
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                      Expanded(
+                                        child: _personIdMap.containsKey(cvName)
+                                            ? GestureDetector(
+                                                onTap: () => _openPersonPage(
+                                                  _personIdMap[cvName]!,
+                                                ),
+                                                child: Text(
+                                                  cvName,
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    color: isDarkBg
+                                                        ? Colors.cyanAccent
+                                                        : Colors.blue.shade800,
+                                                    decoration:
+                                                        TextDecoration.underline,
+                                                    decorationColor: isDarkBg
+                                                        ? Colors.cyanAccent
+                                                        : Colors.blue.shade800,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              )
+                                            : Text(
+                                                cvName,
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: textColor.withValues(
+                                                    alpha: 0.7,
+                                                  ),
+                                                ),
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                              ),
+                                      ),
+                                    ],
+                                  ),
+                              ],
                             ),
-                          ],
-                        ),
+                          );
+                        },
+                      ),
                     ],
-                  ),
-                );
-              },
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -2392,97 +2411,113 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       children: [
         _buildSectionTitle(context, AppLocalizations.of(context).bangumiDetailsRelatedItems, isDarkBg: isDarkBg),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 204, // Height adjusted for scrollbar
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
           child: Scrollbar(
             controller: _relationsScrollController,
             thumbVisibility: true,
-            child: ListView.separated(
+            child: SingleChildScrollView(
               controller: _relationsScrollController,
-              padding: const EdgeInsets.only(bottom: 10), // Space for scrollbar
               scrollDirection: Axis.horizontal,
-              itemCount: _relations!.length,
-              separatorBuilder: (c, i) => const SizedBox(width: 16),
-              itemBuilder: (context, index) {
-                final rel = _relations![index];
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => BangumiDetailsPage(
-                          anime: AnimeInfo(
-                            title: rel.nameCn.isNotEmpty
-                                ? rel.nameCn
-                                : rel.name,
-                            bangumiId: rel.id.toString(),
-                            coverUrl: rel.image,
-                            tags: const [],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                  child: SizedBox(
-                    width: 110,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 110,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: cardColor,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: borderColor),
-                          ),
-                          child: rel.image.isNotEmpty
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: CachedNetworkImage(
-                                    imageUrl: rel.image,
-                                    fit: BoxFit.cover,
-                                    alignment: Alignment.center,
-                                    deferOffscreenLoad: false,
-                                  ),
-                                )
-                              : Center(
-                                  child: Icon(
-                                    Icons.movie_outlined,
-                                    color: isDarkBg
-                                        ? Colors.white24
-                                        : Colors.grey[400],
-                                    size: 32,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var index = 0; index < _relations!.length; index++) ...[
+                      if (index > 0) const SizedBox(width: 16),
+                      Builder(
+                        builder: (context) {
+                          final rel = _relations![index];
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => BangumiDetailsPage(
+                                    anime: AnimeInfo(
+                                      title: rel.nameCn.isNotEmpty
+                                          ? rel.nameCn
+                                          : rel.name,
+                                      bangumiId: rel.id.toString(),
+                                      coverUrl: rel.image,
+                                      tags: const [],
+                                    ),
                                   ),
                                 ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          rel.relation,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: isDarkBg ? Colors.amber : Colors.deepPurple,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          rel.nameCn.isNotEmpty ? rel.nameCn : rel.name,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: textColor.withValues(alpha: 0.9),
-                            fontWeight: FontWeight.w500,
-                            height: 1.3,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+                              );
+                            },
+                            child: SizedBox(
+                              width: 110,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 110,
+                                    height: 120,
+                                    decoration: BoxDecoration(
+                                      color: cardColor,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: borderColor),
+                                    ),
+                                    child: rel.image.isNotEmpty
+                                        ? ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            child: CachedNetworkImage(
+                                              imageUrl: rel.image,
+                                              fit: BoxFit.cover,
+                                              alignment: Alignment.center,
+                                              deferOffscreenLoad: false,
+                                            ),
+                                          )
+                                        : Center(
+                                            child: Icon(
+                                              Icons.movie_outlined,
+                                              color: isDarkBg
+                                                  ? Colors.white24
+                                                  : Colors.grey[400],
+                                              size: 32,
+                                            ),
+                                          ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    rel.relation,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isDarkBg
+                                          ? Colors.amber
+                                          : Colors.deepPurple,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    rel.nameCn.isNotEmpty
+                                        ? rel.nameCn
+                                        : rel.name,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: textColor.withValues(alpha: 0.9),
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.3,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),

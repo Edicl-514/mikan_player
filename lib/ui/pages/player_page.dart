@@ -2639,7 +2639,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           // Recommendations
           _buildSectionHeader("相关推荐"),
           const SizedBox(height: 12),
-          _buildRecommendationsList(isVertical: false),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildRecommendationsList(isVertical: false),
+          ),
         ],
       ),
     );
@@ -3015,7 +3018,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     const SizedBox(height: 24),
                     _buildSectionHeader("相关推荐"),
                     const SizedBox(height: 12),
-                    _buildRecommendationsList(isVertical: true),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildRecommendationsList(isVertical: true),
+                    ),
                   ]),
                 ),
               ),
@@ -4399,7 +4405,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.black,
+                    foregroundColor: Colors.white,
                     minimumSize: const Size.fromHeight(36),
                   ),
                 ),
@@ -5055,20 +5061,20 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 height: 12,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.black54,
+                                  color: Colors.white70,
                                 ),
                               )
                             else
                               const Icon(
                                 Icons.play_arrow,
                                 size: 12,
-                                color: Colors.black,
+                                color: Colors.white,
                               ),
                             const SizedBox(width: 4),
                             Text(
                               _loadingMagnet == magnet ? "加载中" : "播放",
                               style: const TextStyle(
-                                color: Colors.black,
+                                color: Colors.white,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -5647,19 +5653,20 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             .map((item) => _buildRecommendationItemVertical(item))
             .toList(),
       );
-    } else {
-      return SizedBox(
-        height: 160,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: _recommendations.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 12),
-          itemBuilder: (context, index) {
-            return _buildRecommendationItemHorizontal(_recommendations[index]);
-          },
-        ),
-      );
     }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < _recommendations.length; i++) ...[
+            if (i > 0) const SizedBox(width: 12),
+            _buildRecommendationItemHorizontal(_recommendations[i]),
+          ],
+        ],
+      ),
+    );
   }
 
   void _markUserInteraction() {
@@ -5747,32 +5754,33 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         width: 110,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: isDark
-                      ? const Color(0xFF252535)
-                      : theme.colorScheme.surfaceContainerHigh,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: item.coverUrl.isNotEmpty
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: CachedNetworkImage(
-                          imageUrl: item.coverUrl,
-                          fit: BoxFit.cover,
-                        ),
-                      )
-                    : null,
+            Container(
+              width: 110,
+              height: 150,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: isDark
+                    ? const Color(0xFF252535)
+                    : theme.colorScheme.surfaceContainerHigh,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
+              child: item.coverUrl.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CachedNetworkImage(
+                        imageUrl: item.coverUrl,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : null,
             ),
             const SizedBox(height: 8),
             Text(
