@@ -4794,6 +4794,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           customVideoRegex: matchedPage.videoRegex != r'$^'
               ? matchedPage.videoRegex
               : null,
+          headers: matchedPage.headers,
+          cookies: matchedPage.cookies,
           timeout: const Duration(seconds: 20),
           showWebView: _showWebView,
           onResult: (result) => _onWebViewResult(pageKey, result),

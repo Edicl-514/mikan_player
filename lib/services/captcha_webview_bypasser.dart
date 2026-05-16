@@ -1119,7 +1119,7 @@ class _CaptchaWebViewBypassWidgetState
       return null;
     }
 
-    final query = widget.searchKeyword?.trim() ?? '';
+    final query = _preprocessSearchKeyword(widget.searchKeyword) ?? '';
     if (query.isEmpty) {
       final first = candidates.first;
       return _SearchCandidate(title: first.title, url: first.url, score: 0);
@@ -1148,7 +1148,7 @@ class _CaptchaWebViewBypassWidgetState
       return null;
     }
 
-    final keyword = widget.searchKeyword?.trim();
+    final keyword = _preprocessSearchKeyword(widget.searchKeyword);
     if (keyword != null && keyword.isNotEmpty) {
       return searchTemplate.replaceAll('{keyword}', keyword);
     }
@@ -1158,6 +1158,15 @@ class _CaptchaWebViewBypassWidgetState
     }
 
     return null;
+  }
+
+  static String? _preprocessSearchKeyword(String? keyword) {
+    final trimmed = keyword?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+    final core = _extractCoreName(trimmed);
+    return core.isNotEmpty ? core : trimmed;
   }
 
   static Map<String, String> _buildNavigationHeaders(

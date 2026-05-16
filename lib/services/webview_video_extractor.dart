@@ -93,6 +93,8 @@ class WebViewVideoExtractor {
     RegExp(r'https?://[^\s"<>]+\.mp4(\?[^\s"<>]*)?', caseSensitive: false),
     // flv 格式
     RegExp(r'https?://[^\s"<>]+\.flv[^\s"<>]*', caseSensitive: false),
+    // 图片流格式（部分站点实际可播资源）
+    RegExp(r'https?://[^\s"<>]+\.image[^\s"<>]*', caseSensitive: false),
     // playlist.m3u8
     RegExp(r'https?://[^\s"<>]+/playlist\.m3u8', caseSensitive: false),
     // CDN 特征
@@ -193,6 +195,8 @@ class WebViewVideoExtractor {
 class WebViewVideoExtractorWidget extends StatefulWidget {
   final String url;
   final String? customVideoRegex;
+  final Map<String, String>? headers;
+  final String? cookies;
   final Duration timeout;
   final void Function(VideoExtractResult result) onResult;
   final void Function(String message)? onLog;
@@ -202,6 +206,8 @@ class WebViewVideoExtractorWidget extends StatefulWidget {
     super.key,
     required this.url,
     this.customVideoRegex,
+    this.headers,
+    this.cookies,
     this.timeout = const Duration(seconds: 30),
     required this.onResult,
     this.onLog,
@@ -215,6 +221,8 @@ class WebViewVideoExtractorWidget extends StatefulWidget {
 
 class _WebViewVideoExtractorWidgetState
     extends State<WebViewVideoExtractorWidget> {
+  static const String _skipParserNavigationHeader =
+      'x-opencode-skip-parser-navigation';
   InAppWebViewController? _webViewController;
   final Set<String> _capturedUrls = {};
   Timer? _timeoutTimer;
@@ -255,6 +263,84 @@ class _WebViewVideoExtractorWidgetState
     widget.onResult(result);
   }
 
+  Map<String, String> _normalizedConfiguredHeaders() {
+    final normalized = <String, String>{};
+    final sourceHeaders = widget.headers;
+    if (sourceHeaders != null) {
+      for (final entry in sourceHeaders.entries) {
+        final rawKey = entry.key.trim();
+        final value = entry.value.trim();
+        if (rawKey.isEmpty || value.isEmpty) {
+          continue;
+        }
+        final lowerKey = rawKey.toLowerCase();
+        final normalizedKey = switch (lowerKey) {
+          'useragent' => 'User-Agent',
+          'referer' => 'Referer',
+          'cookie' => 'Cookie',
+          _ => rawKey,
+        };
+        normalized[normalizedKey] = value;
+      }
+    }
+    final cookies = widget.cookies?.trim();
+    if (cookies != null && cookies.isNotEmpty) {
+      normalized.putIfAbsent('Cookie', () => cookies);
+    }
+    return normalized;
+  }
+
+  bool _shouldSkipParserNavigation() {
+    final headers = _normalizedConfiguredHeaders();
+    final value = headers[_skipParserNavigationHeader]?.trim().toLowerCase();
+    return value == '1' || value == 'true' || value == 'yes' || value == 'on';
+  }
+
+  String _defaultRefererFor(String url) {
+    final sourcePage = Uri.tryParse(widget.url);
+    if (sourcePage != null &&
+        sourcePage.scheme.isNotEmpty &&
+        sourcePage.host.isNotEmpty) {
+      return sourcePage.origin.endsWith('/')
+          ? sourcePage.origin
+          : '${sourcePage.origin}/';
+    }
+    final parsed = Uri.tryParse(url);
+    if (parsed != null && parsed.scheme.isNotEmpty && parsed.host.isNotEmpty) {
+      return parsed.origin.endsWith('/') ? parsed.origin : '${parsed.origin}/';
+    }
+    return widget.url;
+  }
+
+  Map<String, String> _mergeRequestHeaders(
+    String url, {
+    Map<String, String>? requestHeaders,
+  }) {
+    final merged = _normalizedConfiguredHeaders();
+    if (requestHeaders != null) {
+      for (final entry in requestHeaders.entries) {
+        final key = entry.key.trim();
+        final value = entry.value.trim();
+        if (key.isEmpty || value.isEmpty) {
+          continue;
+        }
+        final lowerKey = key.toLowerCase();
+        final normalizedKey = switch (lowerKey) {
+          'useragent' => 'User-Agent',
+          'referer' => 'Referer',
+          'cookie' => 'Cookie',
+          _ => key,
+        };
+        merged[normalizedKey] = value;
+      }
+    }
+
+    if (!merged.containsKey('Referer') && !merged.containsKey('referer')) {
+      merged['Referer'] = _defaultRefererFor(url);
+    }
+    return merged;
+  }
+
   bool _checkAndCaptureUrl(String url, {Map<String, String>? headers}) {
     if (_capturedUrls.contains(url)) return false;
     _capturedUrls.add(url);
@@ -267,32 +353,25 @@ class _WebViewVideoExtractorWidgetState
         url.contains('.m3u8') ||
         url.contains('.mp4') ||
         url.contains('.flv') ||
+        url.contains('.image') ||
         url.contains('akamaized') ||
         url.contains('bilivideo') ||
-        url.contains('qq.com');
+        url.contains('qq.com') ||
+        url.contains('byteimg.com');
 
     if (looksLikeVideo) {
       _log('🔍 检测到疑似视频URL: $url');
     }
 
     // 确保 headers 包含 Referer，如果没有则使用初始页面URL
-    final Map<String, String> finalHeaders = {};
-    if (headers != null) {
-      headers.forEach((key, value) {
-        finalHeaders[key] = value;
-      });
-    }
+    final finalHeaders = _mergeRequestHeaders(url, requestHeaders: headers);
 
     if (looksLikeVideo) {
       _log('   Headers provided: ${headers?.keys.join(", ")}');
     }
 
-    if (!finalHeaders.containsKey('Referer') &&
-        !finalHeaders.containsKey('referer')) {
-      finalHeaders['Referer'] = widget.url;
-      if (looksLikeVideo) {
-        _log('   Added default Referer: ${widget.url}');
-      }
+    if (looksLikeVideo && finalHeaders['Referer'] != null) {
+      _log('   Effective Referer: ${finalHeaders['Referer']}');
     }
 
     // 检查是否是播放器解析接口（这些URL通常在iframe中，需要实际导航）
@@ -321,7 +400,13 @@ class _WebViewVideoExtractorWidgetState
         !url.contains('/static/') &&
         !url.contains(widget.url);
 
+    final skipParserNavigation = _shouldSkipParserNavigation();
+
     if (isPlayerParser) {
+      if (skipParserNavigation) {
+        _log('⏭️ 已按源配置跳过内联播放器导航: $url');
+        return false;
+      }
       if (_navigationCount >= 3) {
         _log('⚠️ 已达到最大跳转尝试次数 ($_navigationCount)，忽略此接口: $url');
         return false;
@@ -449,8 +534,16 @@ class _WebViewVideoExtractorWidgetState
 
   @override
   Widget build(BuildContext context) {
+    final configuredHeaders = _normalizedConfiguredHeaders();
+    final configuredUserAgent =
+        configuredHeaders['User-Agent'] ?? configuredHeaders['userAgent'];
     final webView = InAppWebView(
-      initialUrlRequest: URLRequest(url: WebUri(widget.url)),
+      initialUrlRequest: URLRequest(
+        url: WebUri(widget.url),
+        headers: configuredHeaders.isEmpty
+            ? null
+            : _mergeRequestHeaders(widget.url, requestHeaders: configuredHeaders),
+      ),
       webViewEnvironment: webViewEnvironment, // 使用全局 WebView 环境（Windows 需要）
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
@@ -465,6 +558,7 @@ class _WebViewVideoExtractorWidgetState
         mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
         // 设置 User-Agent
         userAgent:
+            configuredUserAgent ??
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       ),
       onWebViewCreated: (controller) {
@@ -524,7 +618,10 @@ class _WebViewVideoExtractorWidgetState
       onConsoleMessage: (controller, consoleMessage) {
         // 监听控制台消息，有些网站会在控制台输出视频URL
         final message = consoleMessage.message;
-        if (message.contains('m3u8') || message.contains('mp4')) {
+        if (message.contains('m3u8') ||
+            message.contains('mp4') ||
+            message.contains('.image') ||
+            message.contains('byteimg.com')) {
           _log('控制台消息: $message');
           // 尝试从消息中提取URL
           final urlRegex = RegExp(r'https?://[^\s"<>]+');
@@ -577,7 +674,7 @@ class _WebViewVideoExtractorWidgetState
     // 尝试直接匹配视频URL（更宽松的模式）
     // 匹配 .mp4（包括 .f0.mp4 这样的变体）
     final urlRegex = RegExp(
-      r'''https?://[^\s"<>'\\]+\.mp4(\?[^\s"<>'\\]*)?''',
+      r'''https?://[^\s"<>'\\]+\.(?:mp4|image)(\?[^\s"<>'\\]*)?''',
       caseSensitive: false,
     );
     final urlMatches = urlRegex.allMatches(html);

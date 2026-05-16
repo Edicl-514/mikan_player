@@ -1031,6 +1031,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                 customVideoRegex: _extractTarget!.videoRegex != r'$^'
                     ? _extractTarget!.videoRegex
                     : null,
+                headers: _extractTarget!.headers,
+                cookies: _extractTarget!.cookies,
                 timeout: const Duration(seconds: 25),
                 showWebView: _showWebView,
                 onLog: (message) {
