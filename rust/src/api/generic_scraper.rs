@@ -291,16 +291,14 @@ async fn detect_current_region() -> Option<String> {
 }
 
 async fn detect_current_region_once() -> Option<String> {
+    let _client = crate::api::network::get_shared_client();
 
-    let client = match crate::api::network::create_client() {
-        Ok(client) => client,
-        Err(e) => {
-            log::warn!("Failed to create client for region detection: {}", e);
-            return None;
-        }
-    };
-
-    let response = match client.get("https://ipapi.co/json/").send().await {
+    let response = match crate::api::network::retry_request(
+        "detect_current_region",
+        |cl| cl.get("https://ipapi.co/json/"),
+    )
+    .await
+    {
         Ok(resp) => resp,
         Err(e) => {
             log::warn!("Failed to request region detection endpoint: {}", e);
@@ -1560,12 +1558,14 @@ async fn load_playback_source_config(_client: &reqwest::Client) -> anyhow::Resul
 
 /// 从订阅地址刷新播放源配置并保存到本地缓存
 pub async fn refresh_playback_source_config() -> anyhow::Result<String> {
-    let client = crate::api::network::create_client()?;
     let sub_url = crate::api::config::get_playback_sub_url();
     log::info!("Refreshing playback source config from: {}", sub_url);
 
-    // 从订阅地址拉取
-    let resp = client.get(&sub_url).send().await?;
+    let resp = crate::api::network::retry_request(
+        "refresh_playback_source_config",
+        |client| client.get(&sub_url),
+    )
+    .await?;
     let content = resp.text().await?;
     log::info!("Successfully fetched config from subscription URL");
 
@@ -1603,7 +1603,7 @@ pub async fn preload_playback_sources() -> anyhow::Result<()> {
 
 /// 获取所有播放源的状态
 pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
     let root: SampleRoot = serde_json::from_str(&content)?;
     let root = detect_and_filter_root(root).await;
@@ -1665,7 +1665,7 @@ pub struct SourceConfigUpdate {
 
 /// 更新单个源的配置
 pub async fn update_single_source_config(update: SourceConfigUpdate) -> anyhow::Result<()> {
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
     let mut root: SampleRoot = serde_json::from_str(&content)?;
 
@@ -1748,7 +1748,7 @@ pub async fn add_source_config(new_config: SourceConfigUpdate) -> anyhow::Result
         return Err(anyhow::anyhow!("Source name cannot be empty"));
     }
 
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
     let content = match load_playback_source_config(&client).await {
         Ok(c) => c,
         Err(_) => {
@@ -1853,7 +1853,7 @@ pub async fn generic_search_play_pages(
     absolute_episode: Option<u32>,
     relative_episode: Option<u32>,
 ) -> anyhow::Result<Vec<SearchPlayResult>> {
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
@@ -1921,7 +1921,7 @@ pub async fn generic_search_play_pages_stream(
     relative_episode: Option<u32>,
     sink: crate::frb_generated::StreamSink<SearchPlayResult>,
 ) -> anyhow::Result<()> {
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
@@ -1994,7 +1994,7 @@ pub async fn generic_search_play_pages_stream(
 
 /// 获取所有已启用源的列表（用于初始化UI显示）
 pub async fn get_enabled_source_names() -> anyhow::Result<Vec<String>> {
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
     let root: SampleRoot = serde_json::from_str(&content)?;
     let root = detect_and_filter_root(root).await;
@@ -2034,7 +2034,7 @@ pub async fn generic_search_with_progress_runtime(
     runtime_overrides: Vec<SourceRuntimeOverride>,
     sink: crate::frb_generated::StreamSink<SourceSearchProgress>,
 ) -> anyhow::Result<()> {
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
     let root: SampleRoot = serde_json::from_str(&content)?;
     let root = detect_and_filter_root(root).await;
@@ -2176,7 +2176,7 @@ pub async fn debug_search_with_local_json_runtime(
     runtime_overrides: Vec<SourceRuntimeOverride>,
     sink: crate::frb_generated::StreamSink<SourceSearchProgress>,
 ) -> anyhow::Result<()> {
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
 
     let content = fs::read_to_string(&json_path)
         .map_err(|e| anyhow::anyhow!("Failed to read local JSON file '{}': {}", json_path, e))?;
@@ -3547,7 +3547,7 @@ async fn generic_search_and_play_internal(
     relative_episode: Option<u32>,
 ) -> anyhow::Result<String> {
     // 1. 从订阅地址拉取播放源配置 JSON
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
@@ -4340,7 +4340,7 @@ fn extract_episode_number_from_text(text: &str, custom_pattern: Option<&str>) ->
 pub async fn generic_search_with_channels(
     anime_name: String,
 ) -> anyhow::Result<Vec<SearchResultWithChannels>> {
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
@@ -4385,7 +4385,7 @@ pub async fn generic_search_with_channels_stream(
     anime_name: String,
     sink: crate::frb_generated::StreamSink<SearchResultWithChannels>,
 ) -> anyhow::Result<()> {
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
@@ -4436,7 +4436,7 @@ pub async fn get_episode_play_url(
     channel_index: usize,
     episode_number: Option<u32>,
 ) -> anyhow::Result<SearchPlayResult> {
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;

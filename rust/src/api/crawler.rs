@@ -28,9 +28,14 @@ pub struct ArchiveQuarter {
 
 pub async fn fetch_archive_list() -> anyhow::Result<Vec<ArchiveQuarter>> {
     let url = format!("{}/archive", crate::api::config::get_bgmlist_url());
-    let client = crate::api::network::create_client()?;
-    let resp = client.get(url).send().await?.text().await?;
-    let document = Html::parse_document(&resp);
+    let resp_text = crate::api::network::retry_request(
+        "fetch_archive_list",
+        |client| client.get(&url),
+    )
+    .await?
+    .text()
+    .await?;
+    let document = Html::parse_document(&resp_text);
 
     // Each year is an h3, followed by a list of months/quarters as a or li
     // Actually, looking at the markdown, it's like:
@@ -82,12 +87,17 @@ pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<An
         crate::api::config::get_bgmlist_url(),
         year_quarter
     );
-    let client = crate::api::network::create_client()?;
-    let resp = client.get(&url).send().await?.text().await?;
+    let resp_text = crate::api::network::retry_request(
+        "fetch_schedule_basic",
+        |client| client.get(&url),
+    )
+    .await?
+    .text()
+    .await?;
     let mut animes = Vec::new();
 
     {
-        let document = Html::parse_document(&resp);
+        let document = Html::parse_document(&resp_text);
 
         // Select all anime root items. The hashes after __ might change, so we use starts-with.
         let root_selector = Selector::parse("[class*=\"BangumiItem_root__\"]").unwrap();
@@ -174,7 +184,7 @@ pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<An
 }
 
 pub async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<AnimeInfo>> {
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
 
     let mut tasks = Vec::new();
     for mut anime in animes {
@@ -228,7 +238,7 @@ pub async fn fetch_extra_subjects(
     year_quarter: String,
     existing_ids: Vec<String>,
 ) -> anyhow::Result<Vec<AnimeInfo>> {
-    let client = crate::api::network::create_client()?;
+    let client = crate::api::network::get_shared_client().clone();
 
     let existing_set: HashSet<String> = existing_ids.into_iter().collect();
 

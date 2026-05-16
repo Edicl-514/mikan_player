@@ -25,8 +25,6 @@ pub async fn fetch_bangumi_browser(
     tags: Vec<String>,
     page: i32,
 ) -> anyhow::Result<Vec<RankingAnime>> {
-    let client = crate::api::network::create_client()?;
-
     let mut url = reqwest::Url::parse(&format!(
         "{}/anime/browser",
         crate::api::config::get_bangumi_url()
@@ -53,7 +51,13 @@ pub async fn fetch_bangumi_browser(
         .append_pair("sort", &sort_type)
         .append_pair("page", &page.to_string());
 
-    let resp = client.get(url).send().await?.error_for_status()?;
+    let url_str = url.to_string();
+    let resp = crate::api::network::retry_request(
+        "fetch_bangumi_browser",
+        |client| client.get(&url_str),
+    )
+    .await?
+    .error_for_status()?;
     let html = resp.text().await?;
     let document = Html::parse_document(&html);
 
@@ -64,7 +68,6 @@ pub async fn search_bangumi_subject(
     keyword: String,
     page: i32,
 ) -> anyhow::Result<Vec<RankingAnime>> {
-    let client = crate::api::network::create_client()?;
     let url = format!(
         "{}/subject_search/{}?cat=2&page={}",
         crate::api::config::get_bangumi_url(),
@@ -72,7 +75,12 @@ pub async fn search_bangumi_subject(
         page
     );
 
-    let resp = client.get(&url).send().await?.error_for_status()?;
+    let resp = crate::api::network::retry_request(
+        "search_bangumi_subject",
+        |client| client.get(&url),
+    )
+    .await?
+    .error_for_status()?;
     let html = resp.text().await?;
     let document = Html::parse_document(&html);
 

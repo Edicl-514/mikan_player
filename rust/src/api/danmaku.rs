@@ -289,20 +289,19 @@ fn parse_danmaku_comment(comment: &DanmakuComment) -> Option<Danmaku> {
 /// 匹配的动画列表
 #[frb]
 pub async fn danmaku_search_anime(keyword: String) -> Result<Vec<DanmakuAnime>, String> {
-    let url = format!(
+let url = format!(
         "https://api.dandanplay.net/api/v2/search/anime?keyword={}",
         urlencoding::encode(&keyword)
     );
 
     let headers = build_signed_headers(&url)?;
 
-    let client = crate::api::network::create_client().map_err(|e| e.to_string())?;
-    let response = client
-        .get(&url)
-        .headers(headers)
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+    let response = crate::api::network::retry_request(
+        "danmaku_search_anime",
+        |client| client.get(&url).headers(headers.clone()),
+    )
+    .await
+    .map_err(|e| format!("Request failed: {}", e))?;
 
     let status = response.status();
     let text = response.text().await.map_err(|e| e.to_string())?;
@@ -336,17 +335,16 @@ pub async fn danmaku_search_anime(keyword: String) -> Result<Vec<DanmakuAnime>, 
 /// 剧集列表
 #[frb]
 pub async fn danmaku_get_episodes(anime_id: i64) -> Result<Vec<DanmakuEpisode>, String> {
-    let url = format!("https://api.dandanplay.net/api/v2/bangumi/{}", anime_id);
+let url = format!("https://api.dandanplay.net/api/v2/bangumi/{}", anime_id);
 
     let headers = build_signed_headers(&url)?;
 
-    let client = crate::api::network::create_client().map_err(|e| e.to_string())?;
-    let response = client
-        .get(&url)
-        .headers(headers)
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+    let response = crate::api::network::retry_request(
+        "danmaku_get_episodes",
+        |client| client.get(&url).headers(headers.clone()),
+    )
+    .await
+    .map_err(|e| format!("Request failed: {}", e))?;
 
     let status = response.status();
     let text = response.text().await.map_err(|e| e.to_string())?;
@@ -381,20 +379,19 @@ pub async fn danmaku_get_episodes(anime_id: i64) -> Result<Vec<DanmakuEpisode>, 
 pub async fn danmaku_get_bangumi_episodes(
     subject_id: i64,
 ) -> Result<Vec<BangumiTvEpisode>, String> {
-    let url = format!(
+let url = format!(
         "https://api.dandanplay.net/api/v2/bangumi/bgmtv/{}",
         subject_id
     );
 
     let headers = build_signed_headers(&url)?;
 
-    let client = crate::api::network::create_client().map_err(|e| e.to_string())?;
-    let response = client
-        .get(&url)
-        .headers(headers)
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+    let response = crate::api::network::retry_request(
+        "danmaku_get_bangumi_episodes",
+        |client| client.get(&url).headers(headers.clone()),
+    )
+    .await
+    .map_err(|e| format!("Request failed: {}", e))?;
 
     let status = response.status();
     let text = response.text().await.map_err(|e| e.to_string())?;
@@ -434,20 +431,19 @@ pub async fn danmaku_get_bangumi_episodes(
 /// 弹幕列表，按时间排序
 #[frb]
 pub async fn danmaku_get_comments(episode_id: i64) -> Result<Vec<Danmaku>, String> {
-    let url = format!(
+let url = format!(
         "https://api.dandanplay.net/api/v2/comment/{}?withRelated=true&chConvert=1",
         episode_id
     );
 
     let headers = build_signed_headers(&url)?;
 
-    let client = crate::api::network::create_client().map_err(|e| e.to_string())?;
-    let response = client
-        .get(&url)
-        .headers(headers)
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+    let response = crate::api::network::retry_request(
+        "danmaku_get_comments",
+        |client| client.get(&url).headers(headers.clone()),
+    )
+    .await
+    .map_err(|e| format!("Request failed: {}", e))?;
 
     let status = response.status();
     let text = response.text().await.map_err(|e| e.to_string())?;
@@ -494,7 +490,7 @@ pub async fn danmaku_match_anime(
     file_name: String,
     file_hash: Option<String>,
 ) -> Result<Vec<DanmakuMatch>, String> {
-    let url = "https://api.dandanplay.net/api/v2/match";
+let url = "https://api.dandanplay.net/api/v2/match";
 
     let headers = build_signed_headers(url)?;
 
@@ -504,15 +500,18 @@ pub async fn danmaku_match_anime(
         "matchMode": "hashAndFileName"
     });
 
-    let client = crate::api::network::create_client().map_err(|e| e.to_string())?;
-    let response = client
-        .post(url)
-        .headers(headers)
-        .header("Content-Type", "application/json")
-        .body(body.to_string())
-        .send()
-        .await
-        .map_err(|e| format!("Request failed: {}", e))?;
+    let response = crate::api::network::retry_request(
+        "danmaku_match_anime",
+        |client| {
+            client
+                .post(url)
+                .headers(headers.clone())
+                .header("Content-Type", "application/json")
+                .body(body.to_string())
+        },
+    )
+    .await
+    .map_err(|e| format!("Request failed: {}", e))?;
 
     let status = response.status();
     let text = response.text().await.map_err(|e| e.to_string())?;

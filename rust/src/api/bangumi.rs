@@ -59,8 +59,6 @@ pub struct BangumiComment {
 /// Fetch episodes for a subject
 /// API: GET https://api.bgm.tv/v0/episodes?subject_id={subject_id}&limit=100&offset=0
 pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<BangumiEpisode>> {
-    let client = crate::api::network::create_client()?;
-
     let mut all_episodes = Vec::new();
     let mut offset = 0;
     let limit = 100;
@@ -81,11 +79,11 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
             offset
         );
 
-        let resp = client
-            .get(&url)
-            .header("accept", "application/json")
-            .send()
-            .await?;
+        let resp = crate::api::network::retry_request(
+            "fetch_bangumi_episodes",
+            |client| client.get(&url).header("accept", "application/json"),
+        )
+        .await?;
 
         if !resp.status().is_success() {
             break;
@@ -137,19 +135,17 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
 /// Fetch characters for a subject
 /// API: GET https://api.bgm.tv/v0/subjects/{subject_id}/characters
 pub async fn fetch_bangumi_characters(subject_id: i64) -> anyhow::Result<Vec<BangumiCharacter>> {
-    let client = crate::api::network::create_client()?;
-
     let url = format!(
         "{}/v0/subjects/{}/characters",
         crate::api::config::get_bangumi_api_url(),
         subject_id
     );
 
-    let resp = client
-        .get(&url)
-        .header("accept", "application/json")
-        .send()
-        .await?;
+    let resp = crate::api::network::retry_request(
+        "fetch_bangumi_characters",
+        |client| client.get(&url).header("accept", "application/json"),
+    )
+    .await?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
@@ -208,19 +204,17 @@ pub async fn fetch_bangumi_characters(subject_id: i64) -> anyhow::Result<Vec<Ban
 pub async fn fetch_bangumi_relations(
     subject_id: i64,
 ) -> anyhow::Result<Vec<BangumiRelatedSubject>> {
-    let client = crate::api::network::create_client()?;
-
     let url = format!(
         "{}/v0/subjects/{}/subjects",
         crate::api::config::get_bangumi_api_url(),
         subject_id
     );
 
-    let resp = client
-        .get(&url)
-        .header("accept", "application/json")
-        .send()
-        .await?;
+    let resp = crate::api::network::retry_request(
+        "fetch_bangumi_relations",
+        |client| client.get(&url).header("accept", "application/json"),
+    )
+    .await?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
@@ -261,8 +255,6 @@ pub async fn fetch_bangumi_comments(
     subject_id: i64,
     page: i32,
 ) -> anyhow::Result<Vec<BangumiComment>> {
-    let client = crate::api::network::create_client()?;
-
     let url = format!(
         "{}/subject/{}/comments?page={}",
         crate::api::config::get_bangumi_url(),
@@ -270,7 +262,11 @@ pub async fn fetch_bangumi_comments(
         page
     );
 
-    let resp = client.get(&url).send().await?;
+    let resp = crate::api::network::retry_request(
+        "fetch_bangumi_comments",
+        |client| client.get(&url),
+    )
+    .await?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
@@ -410,19 +406,17 @@ pub struct BangumiEpisodeComment {
 /// Fetch persons (staff) for a subject
 /// API: GET https://api.bgm.tv/v0/subjects/{subject_id}/persons
 pub async fn fetch_bangumi_persons(subject_id: i64) -> anyhow::Result<Vec<BangumiPerson>> {
-    let client = crate::api::network::create_client()?;
-
     let url = format!(
         "{}/v0/subjects/{}/persons",
         crate::api::config::get_bangumi_api_url(),
         subject_id
     );
 
-    let resp = client
-        .get(&url)
-        .header("accept", "application/json")
-        .send()
-        .await?;
+    let resp = crate::api::network::retry_request(
+        "fetch_bangumi_persons",
+        |client| client.get(&url).header("accept", "application/json"),
+    )
+    .await?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
@@ -485,14 +479,16 @@ pub async fn fetch_bangumi_persons(subject_id: i64) -> anyhow::Result<Vec<Bangum
 pub async fn fetch_bangumi_episode_comments(
     episode_id: i64,
 ) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
-    let client = crate::api::network::create_client()?;
-
     let url = format!(
         "{}/ep/{}",
         crate::api::config::get_bangumi_url(),
         episode_id
     );
-    let resp = client.get(&url).send().await?;
+    let resp = crate::api::network::retry_request(
+        "fetch_bangumi_episode_comments",
+        |client| client.get(&url),
+    )
+    .await?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
@@ -731,19 +727,17 @@ pub struct CharacterSubjectPerson {
 /// Fetch character details
 /// API: GET https://api.bgm.tv/v0/characters/{character_id}
 pub async fn fetch_character_details(character_id: i64) -> anyhow::Result<CharacterDetails> {
-    let client = crate::api::network::create_client()?;
-
     let url = format!(
         "{}/v0/characters/{}",
         crate::api::config::get_bangumi_api_url(),
         character_id
     );
 
-    let resp = client
-        .get(&url)
-        .header("accept", "application/json")
-        .send()
-        .await?;
+    let resp = crate::api::network::retry_request(
+        "fetch_character_details",
+        |client| client.get(&url).header("accept", "application/json"),
+    )
+    .await?;
 
     if !resp.status().is_success() {
         return Err(anyhow::anyhow!(
@@ -873,19 +867,17 @@ pub struct PersonCharacter {
 /// Fetch person details
 /// API: GET https://api.bgm.tv/v0/persons/{person_id}
 pub async fn fetch_person_details(person_id: i64) -> anyhow::Result<PersonDetails> {
-    let client = crate::api::network::create_client()?;
-
     let url = format!(
         "{}/v0/persons/{}",
         crate::api::config::get_bangumi_api_url(),
         person_id
     );
 
-    let resp = client
-        .get(&url)
-        .header("accept", "application/json")
-        .send()
-        .await?;
+    let resp = crate::api::network::retry_request(
+        "fetch_person_details",
+        |client| client.get(&url).header("accept", "application/json"),
+    )
+    .await?;
 
     if !resp.status().is_success() {
         return Err(anyhow::anyhow!(
@@ -963,19 +955,17 @@ pub async fn fetch_person_details(person_id: i64) -> anyhow::Result<PersonDetail
 /// Fetch subjects for a person (only anime, type=2)
 /// API: GET https://api.bgm.tv/v0/persons/{person_id}/subjects
 pub async fn fetch_person_subjects(person_id: i64) -> anyhow::Result<Vec<PersonSubject>> {
-    let client = crate::api::network::create_client()?;
-
     let url = format!(
         "{}/v0/persons/{}/subjects",
         crate::api::config::get_bangumi_api_url(),
         person_id
     );
 
-    let resp = client
-        .get(&url)
-        .header("accept", "application/json")
-        .send()
-        .await?;
+    let resp = crate::api::network::retry_request(
+        "fetch_person_subjects",
+        |client| client.get(&url).header("accept", "application/json"),
+    )
+    .await?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
@@ -1013,19 +1003,17 @@ pub async fn fetch_person_subjects(person_id: i64) -> anyhow::Result<Vec<PersonS
 /// Fetch characters voiced/played by a person (only anime subjects, subject_type=2)
 /// API: GET https://api.bgm.tv/v0/persons/{person_id}/characters
 pub async fn fetch_person_characters(person_id: i64) -> anyhow::Result<Vec<PersonCharacter>> {
-    let client = crate::api::network::create_client()?;
-
     let url = format!(
         "{}/v0/persons/{}/characters",
         crate::api::config::get_bangumi_api_url(),
         person_id
     );
 
-    let resp = client
-        .get(&url)
-        .header("accept", "application/json")
-        .send()
-        .await?;
+    let resp = crate::api::network::retry_request(
+        "fetch_person_characters",
+        |client| client.get(&url).header("accept", "application/json"),
+    )
+    .await?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
@@ -1087,9 +1075,6 @@ pub async fn fetch_person_characters(person_id: i64) -> anyhow::Result<Vec<Perso
 /// - GET https://api.bgm.tv/v0/characters/{character_id}/persons
 /// Returns only anime subjects (type=2) with associated voice actors
 pub async fn fetch_character_subjects(character_id: i64) -> anyhow::Result<Vec<CharacterSubject>> {
-    let client = crate::api::network::create_client()?;
-
-    // Fetch both endpoints concurrently
     let subjects_url = format!(
         "{}/v0/characters/{}/subjects",
         crate::api::config::get_bangumi_api_url(),
@@ -1102,14 +1087,14 @@ pub async fn fetch_character_subjects(character_id: i64) -> anyhow::Result<Vec<C
     );
 
     let (subjects_resp, persons_resp) = tokio::join!(
-        client
-            .get(&subjects_url)
-            .header("accept", "application/json")
-            .send(),
-        client
-            .get(&persons_url)
-            .header("accept", "application/json")
-            .send()
+        crate::api::network::retry_request(
+            "fetch_character_subjects/subjects",
+            |client| client.get(&subjects_url).header("accept", "application/json"),
+        ),
+        crate::api::network::retry_request(
+            "fetch_character_subjects/persons",
+            |client| client.get(&persons_url).header("accept", "application/json"),
+        )
     );
 
     // Parse subjects (only type=2 anime)

@@ -87,15 +87,13 @@ pub async fn fetch_dmhy_resources(
     );
 
     let url = format!("https://api.animes.garden/feed.xml?subject={}", subject_id);
-    let client = crate::api::network::create_client()?;
-
-    let xml_content = client
-        .get(&url)
-        .header("accept", "application/xml")
-        .send()
-        .await?
-        .text()
-        .await?;
+    let xml_content = crate::api::network::retry_request(
+        "fetch_dmhy_resources",
+        |client| client.get(&url).header("accept", "application/xml"),
+    )
+    .await?
+    .text()
+    .await?;
 
     let rss: Rss = quick_xml::de::from_str(&xml_content)?;
 

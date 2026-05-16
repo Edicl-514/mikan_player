@@ -99,9 +99,14 @@ pub async fn search_mikan_anime(name_cn: String) -> anyhow::Result<Option<MikanS
         final_search_str
     );
     debug!("Mikan search URL: {}", url);
-    let client = crate::api::network::create_client()?;
-    let resp = client.get(&url).send().await?.text().await?;
-    let document = Html::parse_document(&resp);
+    let resp_text = crate::api::network::retry_request(
+        "search_mikan_anime",
+        |client| client.get(&url),
+    )
+    .await?
+    .text()
+    .await?;
+    let document = Html::parse_document(&resp_text);
 
     let list_selector = Selector::parse(".an-ul li a").unwrap();
     let text_selector = Selector::parse(".an-text").unwrap();
@@ -297,13 +302,19 @@ pub async fn get_mikan_resources(
         mikan_id
     );
     debug!("Mikan bangumi URL: {}", url);
-    let client = crate::api::network::create_client()?;
-    let resp = client.get(&url).send().await?.text().await?;
+    let client = crate::api::network::get_shared_client().clone();
+    let resp_text = crate::api::network::retry_request(
+        "get_mikan_resources",
+        |cl| cl.get(&url),
+    )
+    .await?
+    .text()
+    .await?;
 
-    let mut resources = parse_mikan_resources_from_html(&resp, current_episode_sort);
+    let mut resources = parse_mikan_resources_from_html(&resp_text, current_episode_sort);
 
     // Check for "Show More" buttons
-    let expand_urls = get_mikan_expand_urls(&resp, &mikan_id);
+    let expand_urls = get_mikan_expand_urls(&resp_text, &mikan_id);
 
     if !expand_urls.is_empty() {
         info!(
