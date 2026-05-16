@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize}; // Added Serialize
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::{Hash, Hasher};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::RwLock;
+use tokio::sync::Mutex as TokioMutex;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SourceState {
@@ -41,6 +44,9 @@ pub struct SourceRuntimeOverride {
 lazy_static::lazy_static! {
     /// 匹配季数相关的关键词
     static ref SEASON_RE: Regex = Regex::new(r"(?i)第[一二三四五六七八九十\d]+季|Part\s*\d+|\d+(st|nd|rd|th)\s*Season|Season\s*\d+").unwrap();
+    static ref CURRENT_REGION: RwLock<Option<String>> = RwLock::new(None);
+    static ref REGION_DETECTION_MUTEX: TokioMutex<()> = TokioMutex::new(());
+    static ref REGION_DETECTION_ATTEMPTED: AtomicBool = AtomicBool::new(false);
 }
 
 /// 预处理搜索词，提取核心动画名称
@@ -247,12 +253,174 @@ pub struct SourceArguments {
     #[serde(rename = "iconUrl")]
     pub icon_url: Option<String>,
     pub tier: Option<i32>,
+    #[serde(rename = "restrictedRegion")]
+    pub restricted_region: Option<Vec<String>>,
     #[serde(rename = "searchConfig")]
     pub search_config: SearchConfig,
     #[serde(rename = "captchaConfig")]
     pub captcha_config: Option<CaptchaConfig>,
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_json::Value>,
+}
+
+async fn detect_current_region() -> Option<String> {
+    // Fast path: already detected
+    if let Some(region) = current_region_option() {
+        return Some(region);
+    }
+
+    if REGION_DETECTION_ATTEMPTED.load(Ordering::Acquire) {
+        return None;
+    }
+
+    // Slow path: serialize concurrent callers to avoid duplicate HTTP requests
+    let _lock = REGION_DETECTION_MUTEX.lock().await;
+
+    // Double-check after acquiring the lock
+    if let Some(region) = current_region_option() {
+        return Some(region);
+    }
+
+    if REGION_DETECTION_ATTEMPTED.load(Ordering::Acquire) {
+        return None;
+    }
+
+    let region = detect_current_region_once().await;
+    REGION_DETECTION_ATTEMPTED.store(true, Ordering::Release);
+    region
+}
+
+async fn detect_current_region_once() -> Option<String> {
+
+    let client = match crate::api::network::create_client() {
+        Ok(client) => client,
+        Err(e) => {
+            log::warn!("Failed to create client for region detection: {}", e);
+            return None;
+        }
+    };
+
+    let response = match client.get("https://ipapi.co/json/").send().await {
+        Ok(resp) => resp,
+        Err(e) => {
+            log::warn!("Failed to request region detection endpoint: {}", e);
+            return None;
+        }
+    };
+
+    let payload: serde_json::Value = match response.json().await {
+        Ok(json) => json,
+        Err(e) => {
+            log::warn!("Failed to parse region detection response: {}", e);
+            return None;
+        }
+    };
+
+    let region = payload
+        .get("country_code")
+        .or_else(|| payload.get("country"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim().to_uppercase())
+        .filter(|value| !value.is_empty());
+
+    if let Some(region) = &region {
+        if let Ok(mut guard) = CURRENT_REGION.write() {
+            *guard = Some(region.clone());
+        }
+    }
+
+    region
+}
+
+async fn detect_current_region_with_retry(max_attempts: usize) -> Option<String> {
+    let attempts = max_attempts.max(1);
+
+    if let Some(region) = current_region_option() {
+        return Some(region);
+    }
+
+    let _lock = REGION_DETECTION_MUTEX.lock().await;
+
+    if let Some(region) = current_region_option() {
+        return Some(region);
+    }
+
+    if REGION_DETECTION_ATTEMPTED.load(Ordering::Acquire) {
+        return None;
+    }
+
+    for attempt in 1..=attempts {
+        if let Some(region) = detect_current_region_once().await {
+            REGION_DETECTION_ATTEMPTED.store(true, Ordering::Release);
+            return Some(region);
+        }
+
+        if attempt < attempts {
+            log::warn!(
+                "Region detection attempt {}/{} failed, retrying...",
+                attempt,
+                attempts
+            );
+        }
+    }
+
+    log::warn!(
+        "Region detection failed after {} attempts, falling back to unrestricted sources",
+        attempts
+    );
+    REGION_DETECTION_ATTEMPTED.store(true, Ordering::Release);
+    None
+}
+
+fn normalize_region(value: &str) -> String {
+    value.trim().to_uppercase()
+}
+
+fn source_is_restricted(source: &MediaSource, region: Option<&str>) -> bool {
+    let Some(current_region) = region else {
+        return false;
+    };
+
+    let Some(restricted_regions) = &source.arguments.restricted_region else {
+        return false;
+    };
+
+    restricted_regions
+        .iter()
+        .map(|item| normalize_region(item))
+        .any(|item| item == current_region)
+}
+
+fn filter_restricted_sources(mut sources: Vec<MediaSource>, region: Option<&str>) -> Vec<MediaSource> {
+    if region.is_none() {
+        return sources;
+    }
+
+    sources.retain(|source| !source_is_restricted(source, region));
+    sources
+}
+
+fn filter_root_by_region(root: SampleRoot, region: Option<&str>) -> SampleRoot {
+    if region.is_none() {
+        return root;
+    }
+    SampleRoot {
+        exported_media_source_data_list: ExportedMediaSourceDataList {
+            media_sources: filter_restricted_sources(
+                root.exported_media_source_data_list.media_sources,
+                region,
+            ),
+        },
+    }
+}
+
+fn current_region_option() -> Option<String> {
+    CURRENT_REGION.read().ok().and_then(|guard| guard.clone())
+}
+
+async fn detect_and_filter_root(root: SampleRoot) -> SampleRoot {
+    let region = detect_current_region().await;
+    filter_root_by_region(root, region.as_deref())
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -1414,6 +1582,8 @@ pub async fn refresh_playback_source_config() -> anyhow::Result<String> {
 /// 预加载播放源配置（应用启动时调用）
 /// 尝试从本地缓存加载配置，如果缓存不存在则从订阅地址拉取
 pub async fn preload_playback_sources() -> anyhow::Result<()> {
+    let _ = detect_current_region_with_retry(2).await;
+
     // 先尝试从缓存加载
     match load_from_cache() {
         Ok(content) => {
@@ -1436,6 +1606,7 @@ pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
     let client = crate::api::network::create_client()?;
     let content = load_playback_source_config(&client).await?;
     let root: SampleRoot = serde_json::from_str(&content)?;
+    let root = detect_and_filter_root(root).await;
 
     let mut sources = Vec::new();
     for source in root.exported_media_source_data_list.media_sources {
@@ -1651,6 +1822,7 @@ pub async fn add_source_config(new_config: SourceConfigUpdate) -> anyhow::Result
             description: new_config.description,
             icon_url: new_config.icon_url,
             tier: new_config.tier,
+            restricted_region: None,
             search_config,
             captcha_config,
             extra: std::collections::HashMap::new(),
@@ -1685,6 +1857,7 @@ pub async fn generic_search_play_pages(
     let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
+    let root = detect_and_filter_root(root).await;
 
     // 1. Filter enabled sources and sort by tier
     let mut sources: Vec<_> = root
@@ -1752,6 +1925,7 @@ pub async fn generic_search_play_pages_stream(
     let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
+    let root = detect_and_filter_root(root).await;
 
     // 1. Filter enabled sources and sort by tier
     let mut sources: Vec<_> = root
@@ -1823,6 +1997,7 @@ pub async fn get_enabled_source_names() -> anyhow::Result<Vec<String>> {
     let client = crate::api::network::create_client()?;
     let content = load_playback_source_config(&client).await?;
     let root: SampleRoot = serde_json::from_str(&content)?;
+    let root = detect_and_filter_root(root).await;
 
     let names: Vec<String> = root
         .exported_media_source_data_list
@@ -1862,6 +2037,7 @@ pub async fn generic_search_with_progress_runtime(
     let client = crate::api::network::create_client()?;
     let content = load_playback_source_config(&client).await?;
     let root: SampleRoot = serde_json::from_str(&content)?;
+    let root = detect_and_filter_root(root).await;
     let runtime_override_map: std::collections::HashMap<_, _> = runtime_overrides
         .into_iter()
         .map(|item| (item.source_name.clone(), item))
@@ -2006,6 +2182,7 @@ pub async fn debug_search_with_local_json_runtime(
         .map_err(|e| anyhow::anyhow!("Failed to read local JSON file '{}': {}", json_path, e))?;
     let root: SampleRoot = serde_json::from_str(&content)
         .map_err(|e| anyhow::anyhow!("Failed to parse local JSON file '{}': {}", json_path, e))?;
+    let root = detect_and_filter_root(root).await;
     let runtime_override_map: std::collections::HashMap<_, _> = runtime_overrides
         .into_iter()
         .map(|item| (item.source_name.clone(), item))
@@ -3374,6 +3551,7 @@ async fn generic_search_and_play_internal(
     let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
+    let root = detect_and_filter_root(root).await;
 
     // 2. Iterate sources and try to find the anime
     let search_candidates = build_search_candidates(&anime_name);
@@ -4166,6 +4344,7 @@ pub async fn generic_search_with_channels(
     let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
+    let root = detect_and_filter_root(root).await;
 
     // 并发搜索所有源（每个源占用一个并发槽位）
     let limit = crate::api::config::get_max_concurrent_searches();
@@ -4210,6 +4389,7 @@ pub async fn generic_search_with_channels_stream(
     let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
+    let root = detect_and_filter_root(root).await;
 
     let limit = crate::api::config::get_max_concurrent_searches();
     let limit = if limit == 0 {
@@ -4260,6 +4440,7 @@ pub async fn get_episode_play_url(
     let content = load_playback_source_config(&client).await?;
 
     let root: SampleRoot = serde_json::from_str(&content)?;
+    let root = detect_and_filter_root(root).await;
 
     // 找到指定的源
     let source = root
