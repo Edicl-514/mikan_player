@@ -41,19 +41,22 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.white10 : Theme.of(context).colorScheme.outlineVariant;
+    final unselectedLabelColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
     return Column(
       children: [
         // Tab 栏
         Container(
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: Colors.white10, width: 1)),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: borderColor, width: 1)),
           ),
           child: TabBar(
             controller: _tabController,
             indicatorColor: Theme.of(context).colorScheme.primary,
             indicatorSize: TabBarIndicatorSize.label,
             labelColor: Theme.of(context).colorScheme.primary,
-            unselectedLabelColor: Colors.white70,
+            unselectedLabelColor: unselectedLabelColor,
             dividerColor: Colors.transparent,
             labelStyle: const TextStyle(
               fontSize: 14,
@@ -76,48 +79,49 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
     );
   }
 
-  Widget _buildDisplaySettings() {
-    return ListenableBuilder(
-      listenable: widget.danmakuService,
-      builder: (context, _) {
-        final l10n = AppLocalizations.of(context);
-        final settings = widget.danmakuService.settings;
-        return ListView(
-          controller: widget.scrollController,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          children: [
-            _buildSwitchTile(
-              l10n.danmakuSettingsEnable,
-              settings.enabled,
-              (value) => widget.danmakuService.updateSettings(
-                settings.copyWith(enabled: value),
-              ),
-            ),
-            const Divider(color: Colors.white10, height: 1),
+Widget _buildDisplaySettings() {
+return ListenableBuilder(
+  listenable: widget.danmakuService,
+  builder: (context, _) {
+    final l10n = AppLocalizations.of(context);
+    final settings = widget.danmakuService.settings;
+    final dividerColor = Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Theme.of(context).colorScheme.outlineVariant;
+    return ListView(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        _buildSwitchTile(
+          l10n.danmakuSettingsEnable,
+          settings.enabled,
+          (value) => widget.danmakuService.updateSettings(
+            settings.copyWith(enabled: value),
+          ),
+        ),
+        Divider(color: dividerColor, height: 1),
 
-            _buildSectionHeader(l10n.danmakuSettingsVisibilitySection),
-            _buildSwitchTile(
-              l10n.danmakuSettingsScrolling,
-              settings.showScrolling,
-              (value) => widget.danmakuService.updateSettings(
-                settings.copyWith(showScrolling: value),
-              ),
-            ),
-            _buildSwitchTile(
-              l10n.danmakuSettingsTop,
-              settings.showTop,
-              (value) => widget.danmakuService.updateSettings(
-                settings.copyWith(showTop: value),
-              ),
-            ),
-            _buildSwitchTile(
-              l10n.danmakuSettingsBottom,
-              settings.showBottom,
-              (value) => widget.danmakuService.updateSettings(
-                settings.copyWith(showBottom: value),
-              ),
-            ),
-            const Divider(color: Colors.white10, height: 1),
+        _buildSectionHeader(l10n.danmakuSettingsVisibilitySection),
+        _buildSwitchTile(
+          l10n.danmakuSettingsScrolling,
+          settings.showScrolling,
+          (value) => widget.danmakuService.updateSettings(
+            settings.copyWith(showScrolling: value),
+          ),
+        ),
+        _buildSwitchTile(
+          l10n.danmakuSettingsTop,
+          settings.showTop,
+          (value) => widget.danmakuService.updateSettings(
+            settings.copyWith(showTop: value),
+          ),
+        ),
+        _buildSwitchTile(
+          l10n.danmakuSettingsBottom,
+          settings.showBottom,
+          (value) => widget.danmakuService.updateSettings(
+            settings.copyWith(showBottom: value),
+          ),
+        ),
+        Divider(color: dividerColor, height: 1),
 
             _buildSectionHeader(l10n.danmakuSettingsStyleSection),
             _buildSliderTile(
@@ -216,18 +220,25 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
       listenable: widget.danmakuService,
       builder: (context, _) {
         final l10n = AppLocalizations.of(context);
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+        final subTextColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+        final hintTextColor = isDark ? Colors.white38 : Theme.of(context).colorScheme.outline;
+        final fillColor = isDark ? Colors.white.withValues(alpha: 0.1) : Theme.of(context).colorScheme.surfaceContainerHigh;
+        final unselectedEpColor = isDark ? Colors.white.withValues(alpha: 0.1) : Theme.of(context).colorScheme.surfaceContainerHigh;
+        final unselectedEpTextColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
         return Column(
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
               child: TextField(
                 controller: _searchController,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: TextStyle(color: textColor, fontSize: 13),
                 decoration: InputDecoration(
                   hintText: l10n.searchHintText,
-                  hintStyle: const TextStyle(color: Colors.white38),
+                  hintStyle: TextStyle(color: hintTextColor),
                   filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.1),
+                  fillColor: fillColor,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
@@ -282,12 +293,11 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                   controller: widget.scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
-                    // 显示当前已加载的弹幕信息
                     if (widget.danmakuService.danmakuCount > 0) ...[
                       Text(
                         l10n.loadedDanmaku,
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: subTextColor,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -300,7 +310,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                       Text(
                         l10n.currentMatch,
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: subTextColor,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -315,7 +325,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                       Text(
                         l10n.searchResult,
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: subTextColor,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -332,7 +342,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                           Text(
                             l10n.episodeList,
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: subTextColor,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
@@ -342,8 +352,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                             l10n.subtitleTrackCount(
                               widget.danmakuService.episodes.length,
                             ),
-                            style: const TextStyle(
-                              color: Colors.white38,
+                            style: TextStyle(
+                              color: hintTextColor,
                               fontSize: 11,
                             ),
                           ),
@@ -359,7 +369,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                                   .danmakuService
                                   .selectedEpisode
                                   ?.episodeId ==
-                              ep.episodeId;
+                                  ep.episodeId;
                           return InkWell(
                             onTap: () =>
                                 widget.danmakuService.selectEpisode(ep),
@@ -371,15 +381,15 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? Theme.of(context).colorScheme.primary
-                                    : Colors.white.withValues(alpha: 0.1),
+                                    : unselectedEpColor,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 ep.episodeTitle,
                                 style: TextStyle(
                                   color: isSelected
-                                      ? Colors.black
-                                      : Colors.white70,
+                                      ? Theme.of(context).colorScheme.onPrimary
+                                      : unselectedEpTextColor,
                                   fontSize: 12,
                                 ),
                                 maxLines: 1,
@@ -403,6 +413,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
     final service = widget.danmakuService;
     final count = service.danmakuCount;
     final l10n = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final subTextColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
 
     String infoText = '';
     if (service.selectedAnime != null) {
@@ -440,21 +452,23 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               ),
             ],
           ),
-          if (infoText.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              infoText,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+        if (infoText.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            infoText,
+            style: TextStyle(color: subTextColor, fontSize: 12),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
-      ),
+      ],
+    ),
     );
   }
 
   Widget _buildSelectedAnimeCard(DanmakuAnime anime) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
     return InkWell(
       onTap: () => widget.danmakuService.selectAnime(anime),
       borderRadius: BorderRadius.circular(8),
@@ -467,8 +481,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
         ),
         child: Text(
           anime.animeTitle,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: textColor,
             fontSize: 13,
             fontWeight: FontWeight.bold,
           ),
@@ -478,6 +492,10 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
   }
 
   Widget _buildAnimeCard(DanmakuAnime anime) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final subTextColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final cardBgColor = isDark ? Colors.white.withValues(alpha: 0.05) : Theme.of(context).colorScheme.surfaceContainerLow;
     return InkWell(
       onTap: () => widget.danmakuService.selectAnime(anime),
       borderRadius: BorderRadius.circular(8),
@@ -485,7 +503,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
+          color: cardBgColor,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -493,8 +511,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
           children: [
             Text(
               anime.animeTitle,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: textColor,
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
               ),
@@ -503,7 +521,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
               const SizedBox(height: 4),
               Text(
                 anime.typeDescription!,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(color: subTextColor, fontSize: 12),
               ),
             ],
           ],
@@ -531,6 +549,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
     bool value,
     ValueChanged<bool> onChanged,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
     return InkWell(
       onTap: () => onChanged(!value),
       child: Padding(
@@ -540,7 +560,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: textColor, fontSize: 14),
               ),
             ),
             SizedBox(
@@ -549,11 +569,9 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                 value: value,
                 onChanged: onChanged,
                 activeThumbColor: Theme.of(context).colorScheme.primary,
-                activeTrackColor: const Color(
-                  0xFFBB86FC,
-                ).withValues(alpha: 0.3),
-                inactiveThumbColor: Colors.grey,
-                inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
+                activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                inactiveThumbColor: isDark ? Colors.grey : Theme.of(context).colorScheme.outline,
+                inactiveTrackColor: isDark ? Colors.grey.withValues(alpha: 0.3) : Theme.of(context).colorScheme.surfaceContainerHighest,
               ),
             ),
           ],
@@ -570,6 +588,11 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
     double max,
     ValueChanged<double> onChanged,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final valueTextColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final thumbColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final inactiveTrackColor = isDark ? Colors.white.withValues(alpha: 0.1) : Theme.of(context).colorScheme.surfaceContainerHighest;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -580,11 +603,11 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
             children: [
               Text(
                 title,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: textColor, fontSize: 14),
               ),
               Text(
                 valueText,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(color: valueTextColor, fontSize: 12),
               ),
             ],
           ),
@@ -592,8 +615,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
         SliderTheme(
           data: SliderThemeData(
             activeTrackColor: Theme.of(context).colorScheme.primary,
-            inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
-            thumbColor: Colors.white,
+            inactiveTrackColor: inactiveTrackColor,
+            thumbColor: thumbColor,
             trackHeight: 2,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
@@ -649,18 +672,22 @@ class _VideoSidePanelState extends State<VideoSidePanel>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final panelBgColor = isDark ? const Color(0xFF13131A).withValues(alpha: 0.95) : Theme.of(context).colorScheme.surfaceContainerHigh.withValues(alpha: 0.95);
+    final borderColor = isDark ? Colors.white10 : Theme.of(context).colorScheme.outlineVariant;
+    final unselectedLabelColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
     return Container(
       width: 320,
       height: double.infinity,
-      color: const Color(0xFF13131A).withValues(alpha: 0.95),
+      color: panelBgColor,
       child: Column(
         children: [
           // 顶部 Tab 栏
           Container(
             height: 48,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: Colors.white10, width: 1),
+                bottom: BorderSide(color: borderColor, width: 1),
               ),
             ),
             child: Row(
@@ -671,7 +698,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                     indicatorColor: Theme.of(context).colorScheme.primary,
                     indicatorSize: TabBarIndicatorSize.label,
                     labelColor: Theme.of(context).colorScheme.primary,
-                    unselectedLabelColor: Colors.white70,
+                    unselectedLabelColor: unselectedLabelColor,
                     dividerColor: Colors.transparent,
                     labelStyle: const TextStyle(
                       fontSize: 14,
@@ -705,6 +732,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
       builder: (context, _) {
         final l10n = AppLocalizations.of(context);
         final settings = widget.danmakuService.settings;
+        final dividerColor = Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Theme.of(context).colorScheme.outlineVariant;
         return ListView(
           controller: _displaySettingsScrollController,
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -716,7 +744,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                 settings.copyWith(enabled: value),
               ),
             ),
-            const Divider(color: Colors.white10, height: 1),
+            Divider(color: dividerColor, height: 1),
 
             _buildSectionHeader(l10n.danmakuSettingsVisibilitySection),
             _buildSwitchTile(
@@ -740,7 +768,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                 settings.copyWith(showBottom: value),
               ),
             ),
-            const Divider(color: Colors.white10, height: 1),
+            Divider(color: dividerColor, height: 1),
 
             _buildSectionHeader(l10n.danmakuSettingsStyleSection),
             _buildSliderTile(
@@ -839,18 +867,26 @@ class _VideoSidePanelState extends State<VideoSidePanel>
       listenable: widget.danmakuService,
       builder: (context, _) {
         final l10n = AppLocalizations.of(context);
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+        final subTextColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+        final hintTextColor = isDark ? Colors.white38 : Theme.of(context).colorScheme.outline;
+        final fillColor = isDark ? Colors.white.withValues(alpha: 0.1) : Theme.of(context).colorScheme.surfaceContainerHigh;
+        final unselectedEpColor = isDark ? Colors.white.withValues(alpha: 0.1) : Theme.of(context).colorScheme.surfaceContainerHigh;
+        final unselectedEpTextColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+        final selectedAnimeBgColor = Theme.of(context).colorScheme.primary.withValues(alpha: 0.15);
         return Column(
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
               child: TextField(
                 controller: _searchController,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: TextStyle(color: textColor, fontSize: 13),
                 decoration: InputDecoration(
                   hintText: l10n.searchHintText,
-                  hintStyle: const TextStyle(color: Colors.white38),
+                  hintStyle: TextStyle(color: hintTextColor),
                   filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.1),
+                  fillColor: fillColor,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
@@ -904,12 +940,11 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
-                    // 显示当前已加载的弹幕信息
                     if (widget.danmakuService.danmakuCount > 0) ...[
                       Text(
                         l10n.loadedDanmaku,
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: subTextColor,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -922,14 +957,12 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                       Text(
                         l10n.currentMatch,
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: subTextColor,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // 使用 _buildAnimeCard 但需要确保它可以处理这两种情况，或者我们这里重写逻辑
-                      // _buildAnimeCard(widget.danmakuService.selectedAnime!, ),
                       InkWell(
                         onTap: () => widget.danmakuService.selectAnime(
                           widget.danmakuService.selectedAnime!,
@@ -938,9 +971,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(
-                              0xFFBB86FC,
-                            ).withValues(alpha: 0.15),
+                            color: selectedAnimeBgColor,
                             border: Border.all(
                               color: Theme.of(context).colorScheme.primary,
                               width: 1,
@@ -952,13 +983,12 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                             children: [
                               Text(
                                 widget.danmakuService.selectedAnime!.animeTitle,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: textColor,
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              // 假设 DanmakuAnime 没有 seasonTitle，所以这里不显示
                             ],
                           ),
                         ),
@@ -969,7 +999,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                       Text(
                         l10n.searchResult,
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: subTextColor,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -986,7 +1016,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                           Text(
                             l10n.episodeList,
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: subTextColor,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
@@ -996,8 +1026,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                             l10n.subtitleTrackCount(
                               widget.danmakuService.episodes.length,
                             ),
-                            style: const TextStyle(
-                              color: Colors.white38,
+                            style: TextStyle(
+                              color: hintTextColor,
                               fontSize: 11,
                             ),
                           ),
@@ -1008,14 +1038,12 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                         spacing: 8,
                         runSpacing: 8,
                         children: widget.danmakuService.episodes.map((ep) {
-                          // selectedEpisode 是 DanmakuEpisode 类型
-                          // ep 是 DanmakuEpisode 类型
                           final isSelected =
                               widget
                                   .danmakuService
                                   .selectedEpisode
                                   ?.episodeId ==
-                              ep.episodeId;
+                                  ep.episodeId;
                           return InkWell(
                             onTap: () =>
                                 widget.danmakuService.selectEpisode(ep),
@@ -1027,15 +1055,15 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? Theme.of(context).colorScheme.primary
-                                    : Colors.white.withValues(alpha: 0.1),
+                                    : unselectedEpColor,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                ep.episodeTitle, // 之前看到是 episodeTitle
+                                ep.episodeTitle,
                                 style: TextStyle(
                                   color: isSelected
-                                      ? Colors.black
-                                      : Colors.white70,
+                                      ? Theme.of(context).colorScheme.onPrimary
+                                      : unselectedEpTextColor,
                                   fontSize: 12,
                                 ),
                                 maxLines: 1,
@@ -1074,6 +1102,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
     bool value,
     ValueChanged<bool> onChanged,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
     return InkWell(
       onTap: () => onChanged(!value),
       child: Padding(
@@ -1083,7 +1113,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: TextStyle(color: textColor, fontSize: 13),
               ),
             ),
             SizedBox(
@@ -1092,11 +1122,9 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                 value: value,
                 onChanged: onChanged,
                 activeThumbColor: Theme.of(context).colorScheme.primary,
-                activeTrackColor: const Color(
-                  0xFFBB86FC,
-                ).withValues(alpha: 0.3),
-                inactiveThumbColor: Colors.grey,
-                inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
+                activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                inactiveThumbColor: isDark ? Colors.grey : Theme.of(context).colorScheme.outline,
+                inactiveTrackColor: isDark ? Colors.grey.withValues(alpha: 0.3) : Theme.of(context).colorScheme.surfaceContainerHighest,
               ),
             ),
           ],
@@ -1113,6 +1141,11 @@ class _VideoSidePanelState extends State<VideoSidePanel>
     double max,
     ValueChanged<double> onChanged,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final valueTextColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final thumbColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final inactiveTrackColor = isDark ? Colors.white.withValues(alpha: 0.1) : Theme.of(context).colorScheme.surfaceContainerHighest;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1123,11 +1156,11 @@ class _VideoSidePanelState extends State<VideoSidePanel>
             children: [
               Text(
                 title,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: TextStyle(color: textColor, fontSize: 13),
               ),
               Text(
                 valueText,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(color: valueTextColor, fontSize: 12),
               ),
             ],
           ),
@@ -1135,8 +1168,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
         SliderTheme(
           data: SliderThemeData(
             activeTrackColor: Theme.of(context).colorScheme.primary,
-            inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
-            thumbColor: Colors.white,
+            inactiveTrackColor: inactiveTrackColor,
+            thumbColor: thumbColor,
             trackHeight: 2,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
@@ -1151,6 +1184,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
     final service = widget.danmakuService;
     final count = service.danmakuCount;
     final l10n = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final subTextColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
 
     String infoText = '';
     if (service.selectedAnime != null) {
@@ -1192,7 +1227,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
             const SizedBox(height: 6),
             Text(
               infoText,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              style: TextStyle(color: subTextColor, fontSize: 12),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1203,6 +1238,10 @@ class _VideoSidePanelState extends State<VideoSidePanel>
   }
 
   Widget _buildAnimeCard(DanmakuAnime anime, bool isSelected) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final subTextColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final unselectedBgColor = isDark ? Colors.white.withValues(alpha: 0.05) : Theme.of(context).colorScheme.surfaceContainerLow;
     return InkWell(
       onTap: () => widget.danmakuService.selectAnime(anime),
       borderRadius: BorderRadius.circular(8),
@@ -1212,7 +1251,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
         decoration: BoxDecoration(
           color: isSelected
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
-              : Colors.white.withValues(alpha: 0.05),
+              : unselectedBgColor,
           border: Border.all(
             color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
             width: 1,
@@ -1224,8 +1263,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
           children: [
             Text(
               anime.animeTitle,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: textColor,
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
               ),
@@ -1234,7 +1273,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
               const SizedBox(height: 4),
               Text(
                 anime.typeDescription!,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(color: subTextColor, fontSize: 12),
               ),
             ],
           ],

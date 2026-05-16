@@ -532,7 +532,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               _buildMobileDetailsTab(context),
               NotificationListener<ScrollNotification>(
                 onNotification: _handleScrollNotification,
-                child: _comments == null || _comments!.isEmpty
+                child: _isLoadingComments
                     ? ListView(
                         padding: const EdgeInsets.all(16),
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -543,16 +543,48 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                           ),
                           const SizedBox(height: 96),
                           Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: isDark ? Colors.white54 : Colors.grey,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Center(
                             child: Text(
-                              '暂无评论',
+                              '加载中...',
                               style: TextStyle(
                                 color: isDark ? Colors.white.withValues(alpha: 0.6) : Colors.grey,
+                                fontSize: 14,
                               ),
                             ),
                           ),
                         ],
                       )
-                    : ListView.builder(
+                    : _comments == null || _comments!.isEmpty
+                        ? ListView(
+                            padding: const EdgeInsets.all(16),
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _buildSectionTitle(context, "评论", isDarkBg: isDark),
+                              ),
+                              const SizedBox(height: 96),
+                              Center(
+                                child: Text(
+                                  '暂无评论',
+                                  style: TextStyle(
+                                    color: isDark ? Colors.white.withValues(alpha: 0.6) : Colors.grey,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : ListView.builder(
                         padding: const EdgeInsets.all(16),
                         physics: const AlwaysScrollableScrollPhysics(),
                         itemCount:

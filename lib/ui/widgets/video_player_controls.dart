@@ -253,19 +253,19 @@ class CustomVideoControls extends StatelessWidget {
       const SizedBox(width: 16),
     ];
 
-    // 桌面端 - 全屏顶部按钮栏（显示标题和空降按钮）
-    final desktopFullscreenTopButtonBar = [
-      if (videoTitle != null) ...[
-        const SizedBox(width: 16),
-        Text(
-          videoTitle!,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-          ),
+  // 桌面端 - 全屏顶部按钮栏（显示标题和空降按钮）
+  final desktopFullscreenTopButtonBar = [
+    if (videoTitle != null) ...[
+      const SizedBox(width: 16),
+      Text(
+        videoTitle!,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
         ),
-      ],
+      ),
+    ],
       const Spacer(),
       _buildIntegratedButton(
         context: context,
@@ -521,18 +521,18 @@ class CustomVideoControls extends StatelessWidget {
                     ),
                   ),
 
-                  // 2. 加载选集提示
-                  if (isLoading)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.black54,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ),
+        // 2. 加载选集提示
+        if (isLoading)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black54,
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ),
 
                   // 3. 原生控制层
                   AdaptiveVideoControls(state),
@@ -897,6 +897,16 @@ class CustomVideoControls extends StatelessWidget {
 
   /// 全屏时从右侧滑入的选集面板
   void _showEpisodeSidePanel(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final panelBgColor = isDark ? const Color(0xFF1A1A24) : Theme.of(context).colorScheme.surfaceContainerHigh;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final subTextColor = isDark ? Colors.white54 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final borderColor = isDark ? Colors.white12 : Theme.of(context).colorScheme.outlineVariant;
+    final closeIconColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final unselectedBgColor = isDark ? Colors.white.withValues(alpha: 0.05) : Theme.of(context).colorScheme.surfaceContainerLow;
+    final unselectedBorderColor = isDark ? Colors.white12 : Theme.of(context).colorScheme.outlineVariant;
+    final unselectedTextColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
@@ -912,9 +922,9 @@ class CustomVideoControls extends StatelessWidget {
             child: Container(
               width: 280,
               height: double.infinity,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1A1A24),
-                borderRadius: BorderRadius.horizontal(
+              decoration: BoxDecoration(
+                color: panelBgColor,
+                borderRadius: const BorderRadius.horizontal(
                   left: Radius.circular(16),
                 ),
               ),
@@ -927,10 +937,10 @@ class CustomVideoControls extends StatelessWidget {
                       padding: const EdgeInsets.all(16),
                       child: Row(
                         children: [
-                          const Text(
+                          Text(
                             '选集',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: textColor,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
@@ -938,23 +948,23 @@ class CustomVideoControls extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             '共${allEpisodes.length}集',
-                            style: const TextStyle(
-                              color: Colors.white54,
+                            style: TextStyle(
+                              color: subTextColor,
                               fontSize: 14,
                             ),
                           ),
                           const Spacer(),
                           IconButton(
                             onPressed: () => Navigator.pop(context),
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.close,
-                              color: Colors.white70,
+                              color: closeIconColor,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Divider(color: Colors.white12, height: 1),
+                    Divider(color: borderColor, height: 1),
                     // 选集列表
                     Expanded(
                       child: GridView.builder(
@@ -962,11 +972,11 @@ class CustomVideoControls extends StatelessWidget {
                         padding: const EdgeInsets.all(16),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 4,
-                              mainAxisSpacing: 10,
-                              crossAxisSpacing: 10,
-                              childAspectRatio: 1.2,
-                            ),
+                          crossAxisCount: 4,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 1.2,
+                        ),
                         itemCount: allEpisodes.length,
                         itemBuilder: (context, index) {
                           final ep = allEpisodes[index];
@@ -981,15 +991,14 @@ class CustomVideoControls extends StatelessWidget {
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? const Color(
-                                        0xFFBB86FC,
-                                      ).withValues(alpha: 0.2)
-                                    : Colors.white.withValues(alpha: 0.05),
+                                    ? Theme.of(context).colorScheme.primary
+                                        .withValues(alpha: 0.2)
+                                    : unselectedBgColor,
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: isSelected
                                       ? Theme.of(context).colorScheme.primary
-                                      : Colors.white12,
+                                      : unselectedBorderColor,
                                   width: isSelected ? 2 : 1,
                                 ),
                               ),
@@ -998,7 +1007,7 @@ class CustomVideoControls extends StatelessWidget {
                                 style: TextStyle(
                                   color: isSelected
                                       ? Theme.of(context).colorScheme.primary
-                                      : Colors.white70,
+                                      : unselectedTextColor,
                                   fontWeight: isSelected
                                       ? FontWeight.bold
                                       : FontWeight.normal,
@@ -1020,8 +1029,8 @@ class CustomVideoControls extends StatelessWidget {
         return SlideTransition(
           position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
               .animate(
-                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-              ),
+            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+          ),
           child: child,
         );
       },
@@ -1828,11 +1837,16 @@ class _SettingsPanelState extends State<_SettingsPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final panelBgColor = isDark ? const Color(0xFF1A1A24) : Theme.of(context).colorScheme.surfaceContainerHigh;
+    final dragIndicatorColor = isDark ? Colors.white30 : Colors.black26;
+    final dividerColor = isDark ? Colors.white12 : Theme.of(context).colorScheme.outlineVariant;
+
     return Container(
       width: widget.isFullscreen ? 320 : double.infinity,
       height: widget.isFullscreen ? double.infinity : null,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A24),
+        color: panelBgColor,
         borderRadius: widget.isFullscreen
             ? const BorderRadius.horizontal(left: Radius.circular(16))
             : const BorderRadius.vertical(top: Radius.circular(16)),
@@ -1850,13 +1864,13 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white30,
+                  color: dragIndicatorColor,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             // 标题栏
             _buildHeader(),
-            const Divider(color: Colors.white12, height: 1),
+            Divider(color: dividerColor, height: 1),
             // 内容区域
             Expanded(child: _buildContent()),
           ],
@@ -1866,6 +1880,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   }
 
   Widget _buildHeader() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final iconColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+
     String title;
     switch (_currentPage) {
       case 1:
@@ -1891,9 +1909,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           if (_currentPage != 0)
             IconButton(
               onPressed: () => setState(() => _currentPage = 0),
-              icon: const Icon(
+              icon: Icon(
                 Icons.arrow_back,
-                color: Colors.white70,
+                color: iconColor,
                 size: 20,
               ),
             )
@@ -1903,8 +1921,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             child: Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: textColor,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -1912,7 +1930,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           ),
           IconButton(
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+            icon: Icon(Icons.close, color: iconColor, size: 20),
           ),
         ],
       ),
@@ -1938,6 +1956,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   }
 
   Widget _buildMainMenu() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     // 获取字幕状态描述
     String subtitleStatus;
     if (widget.subtitleService.hasSubtitles) {
@@ -1987,7 +2007,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           onTap: () => setState(() => _currentPage = 3),
         ),
         const SizedBox(height: 16),
-        const Divider(color: Colors.white12, height: 1),
+        Divider(color: isDark ? Colors.white12 : Theme.of(context).colorScheme.outlineVariant, height: 1),
         const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -2002,6 +2022,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   }
 
   Widget _buildPlaybackSpeedSettings() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final hintColor = isDark ? Colors.white38 : Theme.of(context).colorScheme.outline;
+
     final speed = _currentPlaybackSpeed.clamp(0.25, 3.0).toDouble();
     return ListView(
       controller: widget.scrollController,
@@ -2017,10 +2041,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           onChanged: _updatePlaybackSpeed,
         ),
         const SizedBox(height: 16),
-        const Text(
+        Text(
           '常用倍速',
           style: TextStyle(
-            color: Colors.white70,
+            color: textColor,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
@@ -2038,9 +2062,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           }).toList(),
         ),
         const SizedBox(height: 12),
-        const Text(
+        Text(
           '提示：播放速度会同时影响视频与弹幕的时间同步。',
-          style: TextStyle(color: Colors.white38, fontSize: 12),
+          style: TextStyle(color: hintColor, fontSize: 12),
         ),
       ],
     );
@@ -2074,6 +2098,13 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     required String subtitle,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final iconColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final subTextColor = isDark ? Colors.white54 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final chevronColor = isDark ? Colors.white38 : Theme.of(context).colorScheme.outline;
+    final iconBgColor = isDark ? Colors.white.withValues(alpha: 0.05) : Theme.of(context).colorScheme.surfaceContainerLow;
+
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -2084,10 +2115,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: iconBgColor,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: Colors.white70, size: 22),
+              child: Icon(icon, color: iconColor, size: 22),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -2096,8 +2127,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: textColor,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
@@ -2105,12 +2136,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    style: TextStyle(color: subTextColor, fontSize: 12),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
+            Icon(Icons.chevron_right, color: chevronColor, size: 20),
           ],
         ),
       ),
@@ -2121,6 +2152,13 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     return ListenableBuilder(
       listenable: widget.subtitleService,
       builder: (context, _) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final dividerColor = isDark ? Colors.white12 : Theme.of(context).colorScheme.outlineVariant;
+        final sectionLabelColor = isDark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant;
+        final hintColor = isDark ? Colors.white38 : Theme.of(context).colorScheme.outline;
+        final emptyIconColor = isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.15);
+        final previewBgColor = isDark ? Colors.black : Colors.white;
+
         final service = widget.subtitleService;
         final settings = service.settings;
         final hasSubtitles = service.hasSubtitles;
@@ -2138,14 +2176,14 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             ),
 
             const SizedBox(height: 16),
-            const Divider(color: Colors.white12, height: 1),
+            Divider(color: dividerColor, height: 1),
             const SizedBox(height: 16),
 
             // 字幕轨道选择
-            const Text(
+            Text(
               '字幕轨道',
               style: TextStyle(
-                color: Colors.white70,
+                color: sectionLabelColor,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -2160,12 +2198,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                     Icon(
                       Icons.subtitles_off_outlined,
                       size: 48,
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: emptyIconColor,
                     ),
                     const SizedBox(height: 12),
-                    const Text(
+                    Text(
                       '当前视频没有内嵌字幕',
-                      style: TextStyle(color: Colors.white38, fontSize: 13),
+                      style: TextStyle(color: hintColor, fontSize: 13),
                     ),
                   ],
                 ),
@@ -2191,14 +2229,14 @@ class _SettingsPanelState extends State<_SettingsPanel> {
               ),
 
             const SizedBox(height: 16),
-            const Divider(color: Colors.white12, height: 1),
+            Divider(color: dividerColor, height: 1),
             const SizedBox(height: 16),
 
             // 字幕样式设置
-            const Text(
+            Text(
               '字幕样式',
               style: TextStyle(
-                color: Colors.white70,
+                color: sectionLabelColor,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -2258,14 +2296,19 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             const SizedBox(height: 16),
 
             // 字体颜色选择
-            const Text(
-              '字体颜色',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            Builder(builder: (context) {
+              final sectionLabelColor = Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white70
+                  : Theme.of(context).colorScheme.onSurfaceVariant;
+              return Text(
+                '字体颜色',
+                style: TextStyle(
+                  color: sectionLabelColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              );
+            }),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -2287,7 +2330,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.black,
+                color: previewBgColor,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
@@ -2307,15 +2350,18 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     required bool value,
     required ValueChanged<bool>? onChanged,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final inactiveTrackColor = isDark ? Colors.white24 : Theme.of(context).colorScheme.surfaceContainerHighest;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: const TextStyle(color: Colors.white, fontSize: 14)),
+        Text(title, style: TextStyle(color: textColor, fontSize: 14)),
         Switch(
           value: value,
           onChanged: onChanged,
           activeTrackColor: Theme.of(context).colorScheme.primary,
-          inactiveTrackColor: Colors.white24,
+          inactiveTrackColor: inactiveTrackColor,
         ),
       ],
     );
@@ -2330,6 +2376,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     required String displayValue,
     required ValueChanged<double> onChanged,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final inactiveTrackColor = isDark ? Colors.white24 : Theme.of(context).colorScheme.surfaceContainerHighest;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2338,7 +2387,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           children: [
             Text(
               title,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: TextStyle(color: textColor, fontSize: 14),
             ),
             Text(
               displayValue,
@@ -2353,7 +2402,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         SliderTheme(
           data: SliderThemeData(
             activeTrackColor: Theme.of(context).colorScheme.primary,
-            inactiveTrackColor: Colors.white24,
+            inactiveTrackColor: inactiveTrackColor,
             thumbColor: Theme.of(context).colorScheme.primary,
             overlayColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
             trackHeight: 3,
@@ -2377,6 +2426,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final unselectedBgColor = isDark ? Colors.white.withValues(alpha: 0.03) : Theme.of(context).colorScheme.surfaceContainerLow;
+    final unselectedBorderColor = isDark ? Colors.transparent : Colors.transparent;
+    final subTextColor = isDark ? Colors.white38 : Theme.of(context).colorScheme.outline;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -2386,12 +2441,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         decoration: BoxDecoration(
           color: isSelected
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
-              : Colors.white.withValues(alpha: 0.03),
+              : unselectedBgColor,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
                 ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)
-                : Colors.transparent,
+                : unselectedBorderColor,
           ),
         ),
         child: Row(
@@ -2405,7 +2460,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                     style: TextStyle(
                       color: isSelected
                           ? Theme.of(context).colorScheme.primary
-                          : Colors.white,
+                          : textColor,
                       fontSize: 14,
                       fontWeight: isSelected
                           ? FontWeight.bold
@@ -2415,8 +2470,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                   if (subtitle.isNotEmpty)
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        color: Colors.white38,
+                      style: TextStyle(
+                        color: subTextColor,
                         fontSize: 11,
                       ),
                     ),
@@ -2440,6 +2495,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final unselectedBorderColor = isDark ? Colors.white24 : Colors.black26;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -2449,7 +2506,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           color: color,
           shape: BoxShape.circle,
           border: Border.all(
-            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.white24,
+            color: isSelected ? Theme.of(context).colorScheme.primary : unselectedBorderColor,
             width: isSelected ? 3 : 1,
           ),
           boxShadow: isSelected
@@ -2466,6 +2523,15 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   }
 
   Widget _buildSourceList() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Theme.of(context).colorScheme.onSurface;
+    final subTextColor = isDark ? Colors.white54 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final hintTextColor = isDark ? Colors.white38 : Theme.of(context).colorScheme.outline;
+    final unselectedIconColor = isDark ? Colors.white54 : Theme.of(context).colorScheme.onSurfaceVariant;
+    final unselectedBgColor = isDark ? Colors.white.withValues(alpha: 0.03) : Theme.of(context).colorScheme.surfaceContainerLow;
+    final unselectedIconBgColor = isDark ? Colors.white.withValues(alpha: 0.05) : Theme.of(context).colorScheme.surfaceContainerLow;
+    final emptyIconColor = isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.15);
+
     if (widget.availableSources.isEmpty) {
       return Center(
         child: Column(
@@ -2474,12 +2540,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             Icon(
               Icons.videocam_off_outlined,
               size: 64,
-              color: Colors.white.withValues(alpha: 0.2),
+              color: emptyIconColor,
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               '暂无可用播放源',
-              style: TextStyle(color: Colors.white54, fontSize: 14),
+              style: TextStyle(color: subTextColor, fontSize: 14),
             ),
           ],
         ),
@@ -2507,7 +2573,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
             decoration: BoxDecoration(
               color: isSelected
                   ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
-                  : Colors.white.withValues(alpha: 0.03),
+                  : unselectedBgColor,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isSelected
@@ -2523,14 +2589,14 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
-                        : Colors.white.withValues(alpha: 0.05),
+                        : unselectedIconBgColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     Icons.play_circle_outline,
                     color: isSelected
                         ? Theme.of(context).colorScheme.primary
-                        : Colors.white54,
+                        : unselectedIconColor,
                     size: 20,
                   ),
                 ),
@@ -2547,7 +2613,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                               style: TextStyle(
                                 color: isSelected
                                     ? Theme.of(context).colorScheme.primary
-                                    : Colors.white,
+                                    : textColor,
                                 fontSize: 14,
                                 fontWeight: isSelected
                                     ? FontWeight.bold
@@ -2566,14 +2632,16 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFFBB86FC,
-                                ).withValues(alpha: 0.2),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
-                                  color: const Color(
-                                    0xFFBB86FC,
-                                  ).withValues(alpha: 0.3),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withValues(alpha: 0.3),
                                 ),
                               ),
                               child: Text(
@@ -2591,8 +2659,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                         const SizedBox(height: 2),
                         Text(
                           source.directVideoUrl!,
-                          style: const TextStyle(
-                            color: Colors.white38,
+                          style: TextStyle(
+                            color: hintTextColor,
                             fontSize: 10,
                           ),
                           maxLines: 1,
