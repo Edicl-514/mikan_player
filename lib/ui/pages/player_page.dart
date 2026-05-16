@@ -1838,6 +1838,21 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return headers;
   }
 
+  Map<String, String> _buildProbeHeaders(SearchPlayResult source) {
+    final headers = <String, String>{
+      if (source.headers != null) ...source.headers!,
+    };
+    headers.remove('Referer');
+    headers.remove('referer');
+    headers.putIfAbsent(
+      'User-Agent',
+      () =>
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    );
+    return headers;
+  }
+
   bool _containsPlayableSource(SearchPlayResult source) {
     final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
     return _sampleSuccessfulSources.any(
@@ -1868,7 +1883,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _probingSourceKeys.add(sourceKey);
     final probeResult = await _videoUrlProbeService.probe(
       directVideoUrl,
-      headers: _buildPlaybackHeaders(source),
+      headers: _buildProbeHeaders(source),
       cookies: source.cookies,
     );
     _probingSourceKeys.remove(sourceKey);

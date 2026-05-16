@@ -51,23 +51,20 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
     return '${sourceName}_${channelIndex ?? BigInt.from(-1)}';
   }
 
-  Map<String, String> _buildPlaybackHeaders(
+  Map<String, String> _buildProbeHeaders(
     generic_scraper.SearchPlayResult source,
   ) {
     final headers = <String, String>{
       if (source.headers != null) ...source.headers!,
     };
+    headers.remove('Referer');
+    headers.remove('referer');
     headers.putIfAbsent(
       'User-Agent',
       () =>
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
           '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     );
-    if (!headers.containsKey('Referer') &&
-        !headers.containsKey('referer') &&
-        source.playPageUrl.isNotEmpty) {
-      headers['Referer'] = source.playPageUrl;
-    }
     return headers;
   }
 
@@ -93,7 +90,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
 
     final probeResult = await _videoUrlProbeService.probe(
       videoUrl,
-      headers: overrideHeaders ?? _buildPlaybackHeaders(source),
+      headers: overrideHeaders ?? _buildProbeHeaders(source),
       cookies: source.cookies,
     );
 
@@ -1088,7 +1085,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                       _probeVideoUrl(
                         probeTarget,
                         overrideUrl: result.videoUrl,
-                        overrideHeaders: _buildPlaybackHeaders(probeTarget),
+                        overrideHeaders: _buildProbeHeaders(probeTarget),
                         logPrefix: '提取后 Probe',
                       ),
                     );
