@@ -22,6 +22,7 @@ class _IndexPageState extends State<IndexPage> {
     '类型': '全部',
     '地区': '全部',
     '时间': '不限',
+    '月份': '全部',
     '排序': '排名',
   };
 
@@ -105,6 +106,7 @@ class _IndexPageState extends State<IndexPage> {
       '2001',
       '2000',
     ],
+    '月份': ['全部', '1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
     '排序': ['排名', '日期', '热度', '收藏', '名称'],
   };
 
@@ -167,13 +169,21 @@ class _IndexPageState extends State<IndexPage> {
           sortType = 'rank';
       }
 
-      final String year = (_selections['时间'] == '不限')
+      final String selectedYear = _selections['时间'] ?? '不限';
+      final String selectedMonth = _selections['月份'] ?? '全部';
+      final String year = selectedYear == '不限'
           ? ''
-          : (_selections['时间'] ?? '');
+          : selectedMonth == '全部'
+          ? selectedYear
+          : '$selectedYear-$selectedMonth';
 
       final List<String> tags = [];
       _selections.forEach((key, value) {
-        if (key != '时间' && key != '排序' && value != '全部' && value != '不限') {
+        if (key != '时间' &&
+            key != '月份' &&
+            key != '排序' &&
+            value != '全部' &&
+            value != '不限') {
           if (key == '分类') {
             if (value == 'TV') {
               tags.add('tv');
@@ -240,6 +250,9 @@ class _IndexPageState extends State<IndexPage> {
     if (_selections[label] == value) return;
     setState(() {
       _selections[label] = value;
+      if (label == '时间') {
+        _selections['月份'] = '全部';
+      }
       _animes = []; // 清空列表，显示加载动画
       _page = 1;
       _hasMore = true;
@@ -251,6 +264,7 @@ class _IndexPageState extends State<IndexPage> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final bool showMonthFilter = (_selections['时间'] ?? '不限') != '不限';
 
     Widget body = CustomScrollView(
       controller: _scrollController,
@@ -260,9 +274,18 @@ class _IndexPageState extends State<IndexPage> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: _filterData.entries.map((entry) {
-                return _buildFilterRow(context, entry.key, entry.value);
-              }).toList(),
+              children: [
+                for (final entry in _filterData.entries) ...[
+                  if (entry.key != '月份')
+                    _buildFilterRow(context, entry.key, entry.value),
+                  if (entry.key == '时间' && showMonthFilter)
+                    _buildFilterRow(
+                      context,
+                      '月份',
+                      _filterData['月份'] ?? const ['全部'],
+                    ),
+                ],
+              ],
             ),
           ),
         ),
