@@ -13,6 +13,7 @@ import 'package:mikan_player/src/http_overrides.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/download_manager.dart';
+import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'dart:io';
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/services/settings_service.dart';
@@ -34,7 +35,8 @@ Future<void> main() async {
   // Check for custom download directory setting
   final prefs = await SharedPreferences.getInstance();
   final customDownloadDir = prefs.getString('download_dir_custom');
-  final downloadDirPath = customDownloadDir ?? '${appSupportDir.path}/downloads';
+  final downloadDirPath =
+      customDownloadDir ?? '${appSupportDir.path}/downloads';
   final downloadDir = Directory(downloadDirPath);
 
   if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
@@ -112,6 +114,8 @@ Future<void> _syncSettings() async {
 
     final disabledSources = prefs.getStringList('disabled_sources') ?? [];
     await rust.setDisabledSources(sources: disabledSources);
+
+    await BangumiRequestModeService.syncToRust();
 
     final maxConcurrentSearches = prefs.getInt('max_concurrent_searches') ?? 3;
     await rust.setMaxConcurrentSearches(limit: maxConcurrentSearches);

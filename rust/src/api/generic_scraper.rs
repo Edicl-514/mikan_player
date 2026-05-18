@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize}; // Added Serialize
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::Mutex as TokioMutex;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -293,10 +293,9 @@ async fn detect_current_region() -> Option<String> {
 async fn detect_current_region_once() -> Option<String> {
     let _client = crate::api::network::get_shared_client();
 
-    let response = match crate::api::network::retry_request(
-        "detect_current_region",
-        |cl| cl.get("https://ipapi.co/json/"),
-    )
+    let response = match crate::api::network::retry_request("detect_current_region", |cl| {
+        cl.get("https://ipapi.co/json/")
+    })
     .await
     {
         Ok(resp) => resp,
@@ -389,7 +388,10 @@ fn source_is_restricted(source: &MediaSource, region: Option<&str>) -> bool {
         .any(|item| item == current_region)
 }
 
-fn filter_restricted_sources(mut sources: Vec<MediaSource>, region: Option<&str>) -> Vec<MediaSource> {
+fn filter_restricted_sources(
+    mut sources: Vec<MediaSource>,
+    region: Option<&str>,
+) -> Vec<MediaSource> {
     if region.is_none() {
         return sources;
     }
@@ -1561,10 +1563,9 @@ pub async fn refresh_playback_source_config() -> anyhow::Result<String> {
     let sub_url = crate::api::config::get_playback_sub_url();
     log::info!("Refreshing playback source config from: {}", sub_url);
 
-    let resp = crate::api::network::retry_request(
-        "refresh_playback_source_config",
-        |client| client.get(&sub_url),
-    )
+    let resp = crate::api::network::retry_request("refresh_playback_source_config", |client| {
+        client.get(&sub_url)
+    })
     .await?;
     let content = resp.text().await?;
     log::info!("Successfully fetched config from subscription URL");

@@ -52,12 +52,10 @@ pub async fn fetch_bangumi_browser(
         .append_pair("page", &page.to_string());
 
     let url_str = url.to_string();
-    let resp = crate::api::network::retry_request(
-        "fetch_bangumi_browser",
-        |client| client.get(&url_str),
-    )
-    .await?
-    .error_for_status()?;
+    let resp =
+        crate::api::network::retry_request("fetch_bangumi_browser", |client| client.get(&url_str))
+            .await?
+            .error_for_status()?;
     let html = resp.text().await?;
     let document = Html::parse_document(&html);
 
@@ -75,12 +73,10 @@ pub async fn search_bangumi_subject(
         page
     );
 
-    let resp = crate::api::network::retry_request(
-        "search_bangumi_subject",
-        |client| client.get(&url),
-    )
-    .await?
-    .error_for_status()?;
+    let resp =
+        crate::api::network::retry_request("search_bangumi_subject", |client| client.get(&url))
+            .await?
+            .error_for_status()?;
     let html = resp.text().await?;
     let document = Html::parse_document(&html);
 

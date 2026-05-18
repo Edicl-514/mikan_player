@@ -45,6 +45,12 @@ Future<String> getMikanUrl() =>
 Future<String> getPlaybackSubUrl() =>
     RustLib.instance.api.crateApiConfigGetPlaybackSubUrl();
 
+Future<void> setBangumiRequestMode({required String mode}) =>
+    RustLib.instance.api.crateApiConfigSetBangumiRequestMode(mode: mode);
+
+Future<String> getBangumiRequestMode() =>
+    RustLib.instance.api.crateApiConfigGetBangumiRequestMode();
+
 Future<String> getCacheDir() =>
     RustLib.instance.api.crateApiConfigGetCacheDir();
 

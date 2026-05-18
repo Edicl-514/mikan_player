@@ -1,3 +1,4 @@
+use chrono::{Local, TimeZone};
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 
@@ -69,7 +70,11 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
     loop {
         page_count += 1;
         if page_count > max_pages {
-            log::warn!("fetch_bangumi_episodes: reached max page limit ({}) for subject_id={}", max_pages, subject_id);
+            log::warn!(
+                "fetch_bangumi_episodes: reached max page limit ({}) for subject_id={}",
+                max_pages,
+                subject_id
+            );
             break;
         }
         let url = format!(
@@ -80,10 +85,9 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
             offset
         );
 
-        let resp = crate::api::network::retry_request(
-            "fetch_bangumi_episodes",
-            |client| client.get(&url).header("accept", "application/json"),
-        )
+        let resp = crate::api::network::retry_request("fetch_bangumi_episodes", |client| {
+            client.get(&url).header("accept", "application/json")
+        })
         .await?;
 
         if !resp.status().is_success() {
@@ -158,10 +162,9 @@ pub async fn fetch_bangumi_characters(subject_id: i64) -> anyhow::Result<Vec<Ban
         subject_id
     );
 
-    let resp = crate::api::network::retry_request(
-        "fetch_bangumi_characters",
-        |client| client.get(&url).header("accept", "application/json"),
-    )
+    let resp = crate::api::network::retry_request("fetch_bangumi_characters", |client| {
+        client.get(&url).header("accept", "application/json")
+    })
     .await?;
 
     if !resp.status().is_success() {
@@ -227,10 +230,9 @@ pub async fn fetch_bangumi_relations(
         subject_id
     );
 
-    let resp = crate::api::network::retry_request(
-        "fetch_bangumi_relations",
-        |client| client.get(&url).header("accept", "application/json"),
-    )
+    let resp = crate::api::network::retry_request("fetch_bangumi_relations", |client| {
+        client.get(&url).header("accept", "application/json")
+    })
     .await?;
 
     if !resp.status().is_success() {
@@ -272,6 +274,36 @@ pub async fn fetch_bangumi_comments(
     subject_id: i64,
     page: i32,
 ) -> anyhow::Result<Vec<BangumiComment>> {
+    let mode = crate::api::config::get_bangumi_request_mode();
+    log::info!(
+        "bangumi.comments.subject mode={} subject_id={} page={}",
+        mode,
+        subject_id,
+        page
+    );
+
+    match mode.as_str() {
+        "legacy" => fetch_bangumi_comments_legacy(subject_id, page).await,
+        "modern" => fetch_bangumi_comments_next(subject_id, page).await,
+        _ => match fetch_bangumi_comments_next(subject_id, page).await {
+            Ok(comments) => Ok(comments),
+            Err(err) => {
+                log::warn!(
+                    "bangumi.comments.subject.next failed, fallback to legacy: subject_id={} page={} error={}",
+                    subject_id,
+                    page,
+                    err
+                );
+                fetch_bangumi_comments_legacy(subject_id, page).await
+            }
+        },
+    }
+}
+
+async fn fetch_bangumi_comments_legacy(
+    subject_id: i64,
+    page: i32,
+) -> anyhow::Result<Vec<BangumiComment>> {
     let url = format!(
         "{}/subject/{}/comments?page={}",
         crate::api::config::get_bangumi_url(),
@@ -279,11 +311,9 @@ pub async fn fetch_bangumi_comments(
         page
     );
 
-    let resp = crate::api::network::retry_request(
-        "fetch_bangumi_comments",
-        |client| client.get(&url),
-    )
-    .await?;
+    let resp =
+        crate::api::network::retry_request("fetch_bangumi_comments", |client| client.get(&url))
+            .await?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
@@ -429,10 +459,9 @@ pub async fn fetch_bangumi_persons(subject_id: i64) -> anyhow::Result<Vec<Bangum
         subject_id
     );
 
-    let resp = crate::api::network::retry_request(
-        "fetch_bangumi_persons",
-        |client| client.get(&url).header("accept", "application/json"),
-    )
+    let resp = crate::api::network::retry_request("fetch_bangumi_persons", |client| {
+        client.get(&url).header("accept", "application/json")
+    })
     .await?;
 
     if !resp.status().is_success() {
@@ -496,15 +525,41 @@ pub async fn fetch_bangumi_persons(subject_id: i64) -> anyhow::Result<Vec<Bangum
 pub async fn fetch_bangumi_episode_comments(
     episode_id: i64,
 ) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
+    let mode = crate::api::config::get_bangumi_request_mode();
+    log::info!(
+        "bangumi.comments.episode mode={} episode_id={}",
+        mode,
+        episode_id
+    );
+
+    match mode.as_str() {
+        "legacy" => fetch_bangumi_episode_comments_legacy(episode_id).await,
+        "modern" => fetch_bangumi_episode_comments_next(episode_id).await,
+        _ => match fetch_bangumi_episode_comments_next(episode_id).await {
+            Ok(comments) => Ok(comments),
+            Err(err) => {
+                log::warn!(
+                    "bangumi.comments.episode.next failed, fallback to legacy: episode_id={} error={}",
+                    episode_id,
+                    err
+                );
+                fetch_bangumi_episode_comments_legacy(episode_id).await
+            }
+        },
+    }
+}
+
+async fn fetch_bangumi_episode_comments_legacy(
+    episode_id: i64,
+) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
     let url = format!(
         "{}/ep/{}",
         crate::api::config::get_bangumi_url(),
         episode_id
     );
-    let resp = crate::api::network::retry_request(
-        "fetch_bangumi_episode_comments",
-        |client| client.get(&url),
-    )
+    let resp = crate::api::network::retry_request("fetch_bangumi_episode_comments", |client| {
+        client.get(&url)
+    })
     .await?;
 
     if !resp.status().is_success() {
@@ -689,6 +744,165 @@ pub async fn fetch_bangumi_episode_comments(
     Ok(comments)
 }
 
+const BANGUMI_NEXT_BASE_URL: &str = "https://next.bgm.tv";
+const BANGUMI_NEXT_COMMENTS_PAGE_SIZE: i64 = 20;
+
+fn bangumi_next_url(path: &str) -> String {
+    format!("{BANGUMI_NEXT_BASE_URL}{path}")
+}
+
+fn format_bangumi_timestamp(timestamp: i64) -> String {
+    Local
+        .timestamp_opt(timestamp, 0)
+        .single()
+        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+        .unwrap_or_else(|| timestamp.to_string())
+}
+
+fn escape_html(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+
+    for ch in text.chars() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&#39;"),
+            '\n' => escaped.push_str("<br>"),
+            '\r' => {}
+            _ => escaped.push(ch),
+        }
+    }
+
+    escaped
+}
+
+fn normalize_avatar_url(value: Option<&str>) -> String {
+    value.unwrap_or("").to_string()
+}
+
+async fn fetch_bangumi_comments_next(
+    subject_id: i64,
+    page: i32,
+) -> anyhow::Result<Vec<BangumiComment>> {
+    let page = page.max(1);
+    let offset = i64::from(page - 1) * BANGUMI_NEXT_COMMENTS_PAGE_SIZE;
+    let url = bangumi_next_url(&format!(
+        "/p1/subjects/{subject_id}/comments?limit={BANGUMI_NEXT_COMMENTS_PAGE_SIZE}&offset={offset}"
+    ));
+
+    let resp = crate::api::network::retry_request("fetch_bangumi_comments.next", |client| {
+        client.get(&url).header("accept", "application/json")
+    })
+    .await?;
+
+    let status = resp.status();
+    if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::BAD_REQUEST {
+        return Ok(Vec::new());
+    }
+
+    if !status.is_success() {
+        anyhow::bail!("next subject comments failed with status {}", status);
+    }
+
+    let json: serde_json::Value = resp.json().await?;
+    let mut comments = Vec::new();
+
+    if let Some(items) = json["data"].as_array() {
+        for item in items {
+            let content = item["comment"].as_str().unwrap_or("").to_string();
+            if content.is_empty() {
+                continue;
+            }
+
+            let user = &item["user"];
+            comments.push(BangumiComment {
+                user_name: user["nickname"]
+                    .as_str()
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or_else(|| user["username"].as_str().unwrap_or(""))
+                    .to_string(),
+                rate: item["rate"]
+                    .as_i64()
+                    .and_then(|value| i32::try_from(value).ok())
+                    .and_then(|value| if value > 0 { Some(value) } else { None }),
+                content_html: escape_html(&content),
+                content,
+                time: item["updatedAt"]
+                    .as_i64()
+                    .map(format_bangumi_timestamp)
+                    .unwrap_or_default(),
+                avatar: normalize_avatar_url(user["avatar"]["large"].as_str()),
+            });
+        }
+    }
+
+    Ok(comments)
+}
+
+fn parse_next_episode_comment(item: &serde_json::Value) -> BangumiEpisodeComment {
+    let user = &item["user"];
+    let user_name = user["nickname"]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| user["username"].as_str().unwrap_or(""))
+        .to_string();
+    let user_id = user["username"]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| user["id"].as_i64().unwrap_or_default().to_string());
+    let content = item["content"].as_str().unwrap_or("");
+
+    let replies = item["replies"]
+        .as_array()
+        .map(|items| items.iter().map(parse_next_episode_comment).collect())
+        .unwrap_or_default();
+
+    BangumiEpisodeComment {
+        id: item["id"].as_i64().unwrap_or_default(),
+        user_name,
+        user_id,
+        avatar: normalize_avatar_url(user["avatar"]["large"].as_str()),
+        time: item["createdAt"]
+            .as_i64()
+            .map(format_bangumi_timestamp)
+            .unwrap_or_default(),
+        content_html: escape_html(content),
+        replies,
+    }
+}
+
+async fn fetch_bangumi_episode_comments_next(
+    episode_id: i64,
+) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
+    let url = bangumi_next_url(&format!("/p1/episodes/{episode_id}/comments"));
+
+    let resp =
+        crate::api::network::retry_request("fetch_bangumi_episode_comments.next", |client| {
+            client.get(&url).header("accept", "application/json")
+        })
+        .await?;
+
+    let status = resp.status();
+    if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::BAD_REQUEST {
+        return Ok(Vec::new());
+    }
+
+    if !status.is_success() {
+        anyhow::bail!("next episode comments failed with status {}", status);
+    }
+
+    let json: serde_json::Value = resp.json().await?;
+    let comments = json
+        .as_array()
+        .map(|items| items.iter().map(parse_next_episode_comment).collect())
+        .unwrap_or_default();
+
+    Ok(comments)
+}
+
 // ============================================================================
 // Character Detail API
 // ============================================================================
@@ -750,10 +964,9 @@ pub async fn fetch_character_details(character_id: i64) -> anyhow::Result<Charac
         character_id
     );
 
-    let resp = crate::api::network::retry_request(
-        "fetch_character_details",
-        |client| client.get(&url).header("accept", "application/json"),
-    )
+    let resp = crate::api::network::retry_request("fetch_character_details", |client| {
+        client.get(&url).header("accept", "application/json")
+    })
     .await?;
 
     if !resp.status().is_success() {
@@ -890,10 +1103,9 @@ pub async fn fetch_person_details(person_id: i64) -> anyhow::Result<PersonDetail
         person_id
     );
 
-    let resp = crate::api::network::retry_request(
-        "fetch_person_details",
-        |client| client.get(&url).header("accept", "application/json"),
-    )
+    let resp = crate::api::network::retry_request("fetch_person_details", |client| {
+        client.get(&url).header("accept", "application/json")
+    })
     .await?;
 
     if !resp.status().is_success() {
@@ -978,10 +1190,9 @@ pub async fn fetch_person_subjects(person_id: i64) -> anyhow::Result<Vec<PersonS
         person_id
     );
 
-    let resp = crate::api::network::retry_request(
-        "fetch_person_subjects",
-        |client| client.get(&url).header("accept", "application/json"),
-    )
+    let resp = crate::api::network::retry_request("fetch_person_subjects", |client| {
+        client.get(&url).header("accept", "application/json")
+    })
     .await?;
 
     if !resp.status().is_success() {
@@ -1026,10 +1237,9 @@ pub async fn fetch_person_characters(person_id: i64) -> anyhow::Result<Vec<Perso
         person_id
     );
 
-    let resp = crate::api::network::retry_request(
-        "fetch_person_characters",
-        |client| client.get(&url).header("accept", "application/json"),
-    )
+    let resp = crate::api::network::retry_request("fetch_person_characters", |client| {
+        client.get(&url).header("accept", "application/json")
+    })
     .await?;
 
     if !resp.status().is_success() {
@@ -1104,14 +1314,12 @@ pub async fn fetch_character_subjects(character_id: i64) -> anyhow::Result<Vec<C
     );
 
     let (subjects_resp, persons_resp) = tokio::join!(
-        crate::api::network::retry_request(
-            "fetch_character_subjects/subjects",
-            |client| client.get(&subjects_url).header("accept", "application/json"),
-        ),
-        crate::api::network::retry_request(
-            "fetch_character_subjects/persons",
-            |client| client.get(&persons_url).header("accept", "application/json"),
-        )
+        crate::api::network::retry_request("fetch_character_subjects/subjects", |client| client
+            .get(&subjects_url)
+            .header("accept", "application/json"),),
+        crate::api::network::retry_request("fetch_character_subjects/persons", |client| client
+            .get(&persons_url)
+            .header("accept", "application/json"),)
     );
 
     // Parse subjects (only type=2 anime)

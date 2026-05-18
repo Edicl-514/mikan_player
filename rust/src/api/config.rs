@@ -6,6 +6,7 @@ pub struct RuntimeConfig {
     pub bangumi_url: String,
     pub mikan_url: String,
     pub playback_sub_url: String,
+    pub bangumi_request_mode: String,
     pub disabled_sources: Vec<String>,
     pub cache_dir: String,
     pub download_dir: String,
@@ -19,6 +20,7 @@ lazy_static! {
         mikan_url: "https://mikanani.kas.pub".to_string(),
         playback_sub_url: "https://gitee.com/edicl/online-subscription/raw/master/online.json"
             .to_string(),
+        bangumi_request_mode: "hybrid".to_string(),
         disabled_sources: vec![],
         cache_dir: ".".to_string(),
         download_dir: "downloads".to_string(),
@@ -83,6 +85,25 @@ pub fn get_mikan_url() -> String {
 
 pub fn get_playback_sub_url() -> String {
     CONFIG.read().unwrap().playback_sub_url.clone()
+}
+
+pub fn set_bangumi_request_mode(mode: String) {
+    let normalized = match mode.trim().to_ascii_lowercase().as_str() {
+        "legacy" => "legacy",
+        "modern" => "modern",
+        _ => "hybrid",
+    };
+
+    let mut config = CONFIG.write().unwrap();
+    config.bangumi_request_mode = normalized.to_string();
+    log::info!(
+        "Bangumi request mode updated to: {}",
+        config.bangumi_request_mode
+    );
+}
+
+pub fn get_bangumi_request_mode() -> String {
+    CONFIG.read().unwrap().bangumi_request_mode.clone()
 }
 
 pub fn get_cache_dir() -> String {

@@ -99,13 +99,11 @@ pub async fn search_mikan_anime(name_cn: String) -> anyhow::Result<Option<MikanS
         final_search_str
     );
     debug!("Mikan search URL: {}", url);
-    let resp_text = crate::api::network::retry_request(
-        "search_mikan_anime",
-        |client| client.get(&url),
-    )
-    .await?
-    .text()
-    .await?;
+    let resp_text =
+        crate::api::network::retry_request("search_mikan_anime", |client| client.get(&url))
+            .await?
+            .text()
+            .await?;
     let document = Html::parse_document(&resp_text);
 
     let list_selector = Selector::parse(".an-ul li a").unwrap();
@@ -303,13 +301,10 @@ pub async fn get_mikan_resources(
     );
     debug!("Mikan bangumi URL: {}", url);
     let client = crate::api::network::get_shared_client().clone();
-    let resp_text = crate::api::network::retry_request(
-        "get_mikan_resources",
-        |cl| cl.get(&url),
-    )
-    .await?
-    .text()
-    .await?;
+    let resp_text = crate::api::network::retry_request("get_mikan_resources", |cl| cl.get(&url))
+        .await?
+        .text()
+        .await?;
 
     let mut resources = parse_mikan_resources_from_html(&resp_text, current_episode_sort);
 

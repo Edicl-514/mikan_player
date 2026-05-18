@@ -76,9 +76,8 @@ pub fn get_system_proxy() -> Option<String> {
     None
 }
 
-static SHARED_CLIENT: LazyLock<Client> = LazyLock::new(|| {
-    create_client().expect("Failed to create shared HTTP client")
-});
+static SHARED_CLIENT: LazyLock<Client> =
+    LazyLock::new(|| create_client().expect("Failed to create shared HTTP client"));
 
 pub fn get_shared_client() -> &'static Client {
     &SHARED_CLIENT

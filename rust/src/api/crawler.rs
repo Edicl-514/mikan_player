@@ -28,13 +28,11 @@ pub struct ArchiveQuarter {
 
 pub async fn fetch_archive_list() -> anyhow::Result<Vec<ArchiveQuarter>> {
     let url = format!("{}/archive", crate::api::config::get_bgmlist_url());
-    let resp_text = crate::api::network::retry_request(
-        "fetch_archive_list",
-        |client| client.get(&url),
-    )
-    .await?
-    .text()
-    .await?;
+    let resp_text =
+        crate::api::network::retry_request("fetch_archive_list", |client| client.get(&url))
+            .await?
+            .text()
+            .await?;
     let document = Html::parse_document(&resp_text);
 
     // Each year is an h3, followed by a list of months/quarters as a or li
@@ -87,13 +85,11 @@ pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<An
         crate::api::config::get_bgmlist_url(),
         year_quarter
     );
-    let resp_text = crate::api::network::retry_request(
-        "fetch_schedule_basic",
-        |client| client.get(&url),
-    )
-    .await?
-    .text()
-    .await?;
+    let resp_text =
+        crate::api::network::retry_request("fetch_schedule_basic", |client| client.get(&url))
+            .await?
+            .text()
+            .await?;
     let mut animes = Vec::new();
 
     {

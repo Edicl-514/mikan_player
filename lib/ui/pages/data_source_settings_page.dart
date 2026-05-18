@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/src/rust/api/generic_scraper.dart'
     as generic_scraper;
@@ -27,6 +28,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   Set<String> _disabledSources = {};
   bool _isAutoSettingBangumi = false;
   bool _isAutoSettingMikan = false;
+  BangumiRequestMode _bangumiRequestMode = BangumiRequestMode.hybrid;
 
   bool? _parseBool(dynamic value) {
     if (value is bool) {
@@ -146,6 +148,9 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       _playbackSubController.text =
           prefs.getString('playback_sub_url') ??
           'https://gitee.com/edicl/online-subscription/raw/master/online.json';
+      _bangumiRequestMode = BangumiRequestMode.fromValue(
+        prefs.getString(BangumiRequestModeService.preferenceKey),
+      );
 
       _sources = sources;
       _disabledSources = sources
@@ -163,6 +168,10 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     await prefs.setString('bangumi_url', _bangumiController.text);
     await prefs.setString('mikan_url', _mikanController.text);
     await prefs.setString('playback_sub_url', _playbackSubController.text);
+    await prefs.setString(
+      BangumiRequestModeService.preferenceKey,
+      _bangumiRequestMode.value,
+    );
     await prefs.setStringList('disabled_sources', _disabledSources.toList());
 
     // Sync to Rust
@@ -173,6 +182,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       mikan: _mikanController.text,
       playbackSub: _playbackSubController.text,
     );
+    await BangumiRequestModeService.syncToRust();
 
     if (mounted) {
       final l10n = AppLocalizations.of(context);
@@ -228,9 +238,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       if (mounted) {
         final l10n = AppLocalizations.of(context);
         final syncCount = defaultEnabledOverrides.length;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               syncCount > 0
@@ -243,9 +251,9 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     } catch (e) {
       if (mounted) {
         final l10n = AppLocalizations.of(context);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.refreshFailed(e.toString()))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.refreshFailed(e.toString()))),
+        );
       }
       debugPrint('Failed to refresh playback sources: $e');
     } finally {
@@ -268,7 +276,9 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   Future<int> _tcpPing(String url) async {
     try {
       final uri = Uri.parse(url);
-      final port = uri.port != 0 ? uri.port : (uri.scheme == 'https' ? 443 : 80);
+      final port = uri.port != 0
+          ? uri.port
+          : (uri.scheme == 'https' ? 443 : 80);
       final stopwatch = Stopwatch()..start();
       if (uri.scheme == 'https') {
         final socket = await SecureSocket.connect(
@@ -457,6 +467,36 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                         ? null
                         : _autoSelectBangumiUrl,
                   ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<BangumiRequestMode>(
+                  initialValue: _bangumiRequestMode,
+                  decoration: const InputDecoration(
+                    labelText: 'Bangumi 请求方式',
+                    border: OutlineInputBorder(),
+                    filled: true,
+                    helperText: '混合版推荐：评论优先走 next.bgm.tv，失败时回退旧实现',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: BangumiRequestMode.legacy,
+                      child: Text('旧版（稳定兼容）'),
+                    ),
+                    DropdownMenuItem(
+                      value: BangumiRequestMode.hybrid,
+                      child: Text('混合版（推荐）'),
+                    ),
+                    DropdownMenuItem(
+                      value: BangumiRequestMode.modern,
+                      child: Text('新版（逐步迁移）'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _bangumiRequestMode = value;
+                    });
+                  },
                 ),
                 const SizedBox(height: 16),
                 _buildTextField(

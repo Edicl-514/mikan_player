@@ -87,10 +87,9 @@ pub async fn fetch_dmhy_resources(
     );
 
     let url = format!("https://api.animes.garden/feed.xml?subject={}", subject_id);
-    let xml_content = crate::api::network::retry_request(
-        "fetch_dmhy_resources",
-        |client| client.get(&url).header("accept", "application/xml"),
-    )
+    let xml_content = crate::api::network::retry_request("fetch_dmhy_resources", |client| {
+        client.get(&url).header("accept", "application/xml")
+    })
     .await?
     .text()
     .await?;
