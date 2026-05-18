@@ -61,6 +61,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   bool _isCopied = false;
   Timer? _copyTimer;
   bool _showOriginalSummary = false;
+  bool _isInfoBoxExpanded = false;
 
   // Pre-sorted characters to avoid sorting in build
   List<BangumiCharacter>? _sortedCharacters;
@@ -1840,13 +1841,23 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     if (_data == null || _data!['infobox'] == null) {
       return const SizedBox.shrink();
     }
-    final infobox = _data!['infobox'] as List;
+    final infobox = (_data!['infobox'] as List)
+        .where((item) => !_isInfoboxItemEmpty(item))
+        .toList();
+    if (infobox.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     final textColor = isDarkBg ? Colors.white : Colors.black87;
     final keyColor = isDarkBg ? Colors.white54 : Colors.grey;
     final bgColor = isDarkBg
         ? Colors.white.withValues(alpha: 0.05)
         : Colors.grey.withValues(alpha: 0.1);
+    final canCollapse = _shouldEnableInfoBoxCollapse(infobox);
+    final visibleItems = _isInfoBoxExpanded || !canCollapse
+        ? infobox
+        : infobox.take(6).toList();
+    final hiddenCount = infobox.length - visibleItems.length;
 
     return RepaintBoundary(
       child: Container(
@@ -1858,109 +1869,198 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Information",
-              style: TextStyle(
-                color: textColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    "Information",
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                if (canCollapse)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _isInfoBoxExpanded = !_isInfoBoxExpanded;
+                      });
+                    },
+                    style: TextButton.styleFrom(
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                    ),
+                    child: Text(_isInfoBoxExpanded ? "收起" : "展开"),
+                  ),
+              ],
             ),
             const SizedBox(height: 16),
-            ...infobox.map((item) {
-              final val = item['value'];
-              final valueStyle = TextStyle(color: textColor, fontSize: 12);
-              final linkColor = isDarkBg
-                  ? Colors.cyanAccent
-                  : Colors.blue.shade800;
-              final linkStyle = TextStyle(
-                color: linkColor,
-                fontSize: 12,
-                decoration: TextDecoration.underline,
-                decorationColor: linkColor,
-              );
-
-              // When value is a list of persons, render each as a clickable span
-              if (val is List) {
-                final names = val
-                    .map((v) => (v['v'] ?? '').toString())
-                    .where((s) => s.isNotEmpty)
-                    .toList();
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 70,
-                        child: Text(
-                          item['key'],
-                          style: TextStyle(
-                            color: keyColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Wrap(
-                          spacing: 0,
-                          runSpacing: 4,
-                          children: [
-                            for (int i = 0; i < names.length; i++) ...[
-                              _buildPersonAwareText(
-                                names[i],
-                                textStyle: valueStyle,
-                                linkStyle: linkStyle,
-                              ),
-                              if (i < names.length - 1)
-                                Text(', ', style: valueStyle),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              // Plain string value
-              final valueStr = val.toString();
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 70,
+            AnimatedSize(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final item in visibleItems)
+                    _buildInfoBoxItem(
+                      item,
+                      isExpanded: _isInfoBoxExpanded || !canCollapse,
+                      textColor: textColor,
+                      keyColor: keyColor,
+                      isDarkBg: isDarkBg,
+                    ),
+                  if (!_isInfoBoxExpanded && canCollapse && hiddenCount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        item['key'],
-                        style: TextStyle(
-                          color: keyColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        "还有 $hiddenCount 项，点击展开查看完整信息",
+                        style: TextStyle(color: keyColor, fontSize: 12),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildPersonAwareText(
-                        valueStr,
-                        textStyle: valueStyle,
-                        linkStyle: linkStyle,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  bool _shouldEnableInfoBoxCollapse(List infobox) {
+    if (infobox.length > 6) {
+      return true;
+    }
+
+    for (final item in infobox) {
+      final value = item is Map ? item['value'] : null;
+      if (value is List && value.length > 4) {
+        return true;
+      }
+      if (_summarizeInfoboxValue(value).length > 80) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool _isInfoboxItemEmpty(dynamic item) {
+    if (item is! Map) {
+      return true;
+    }
+
+    final key = (item['key'] ?? '').toString().trim();
+    final value = _summarizeInfoboxValue(item['value']).trim();
+    return key.isEmpty || value.isEmpty;
+  }
+
+  Widget _buildInfoBoxItem(
+    dynamic item, {
+    required bool isExpanded,
+    required Color textColor,
+    required Color keyColor,
+    required bool isDarkBg,
+  }) {
+    final key = (item['key'] ?? '').toString();
+    final value = item['value'];
+    final valueStyle = TextStyle(color: textColor, fontSize: 12);
+    final linkColor = isDarkBg ? Colors.cyanAccent : Colors.blue.shade800;
+    final linkStyle = TextStyle(
+      color: linkColor,
+      fontSize: 12,
+      decoration: TextDecoration.underline,
+      decorationColor: linkColor,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 70,
+            child: Text(
+              key,
+              style: TextStyle(
+                color: keyColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: isExpanded
+                ? _buildExpandedInfoBoxValue(
+                    value,
+                    valueStyle: valueStyle,
+                    linkStyle: linkStyle,
+                  )
+                : Text(
+                    _summarizeInfoboxValue(value),
+                    style: valueStyle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExpandedInfoBoxValue(
+    dynamic value, {
+    required TextStyle valueStyle,
+    required TextStyle linkStyle,
+  }) {
+    if (value is List) {
+      final names = value
+          .map((v) => (v['v'] ?? '').toString())
+          .where((s) => s.isNotEmpty)
+          .toList();
+
+      if (names.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
+      return Wrap(
+        spacing: 0,
+        runSpacing: 4,
+        children: [
+          for (int i = 0; i < names.length; i++) ...[
+            _buildPersonAwareText(
+              names[i],
+              textStyle: valueStyle,
+              linkStyle: linkStyle,
+            ),
+            if (i < names.length - 1) Text(', ', style: valueStyle),
+          ],
+        ],
+      );
+    }
+
+    return _buildPersonAwareText(
+      value?.toString() ?? '',
+      textStyle: valueStyle,
+      linkStyle: linkStyle,
+    );
+  }
+
+  String _summarizeInfoboxValue(dynamic value) {
+    if (value is List) {
+      return value
+          .map((v) => (v['v'] ?? '').toString())
+          .where((s) => s.isNotEmpty)
+          .join(', ');
+    }
+    return value?.toString() ?? '';
   }
 
   Widget _buildPlaceholderSection(
