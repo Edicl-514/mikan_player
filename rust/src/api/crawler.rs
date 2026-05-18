@@ -180,56 +180,166 @@ pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<An
 }
 
 pub async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<AnimeInfo>> {
-    let mut tasks = Vec::new();
-    for mut anime in animes {
-        tasks.push(tokio::spawn(async move {
-            if let Some(ref id) = anime.bangumi_id {
-                let api_url = format!(
-                    "{}/v0/subjects/{}",
-                    crate::api::config::get_bangumi_api_url(),
-                    id
-                );
-                let label = format!("fill_anime_details.subject.{}", id);
-                if let Ok(resp) = crate::api::network::retry_request(&label, |client| {
-                    client.get(&api_url).header("accept", "application/json")
-                })
-                .await
-                {
-                    if let Ok(json) = resp.json::<serde_json::Value>().await {
-                        if let Some(image_url) = json["images"]["large"].as_str() {
-                            anime.cover_url = Some(image_url.to_string());
-                        }
-                        if let Some(score) = json["rating"]["score"].as_f64() {
-                            anime.score = Some(score);
-                        }
-                        if let Some(rank) = json["rating"]["rank"].as_i64() {
-                            anime.rank = Some(rank as i32);
-                        }
-                        if let Some(meta_tags) = json["meta_tags"].as_array() {
-                            let mut tags: Vec<String> = meta_tags
-                                .iter()
-                                .filter_map(|t| t.as_str().map(|s| s.to_string()))
-                                .collect();
-                            tags.sort();
-                            tags.dedup();
-                            anime.tags = tags;
-                        }
-                        anime.full_json = Some(json.to_string());
-                    }
-                }
-            }
-            anime
-        }));
+    let mode = crate::api::config::get_bangumi_request_mode();
+    let mut results = animes;
+
+    let graphql_details = if mode != "legacy" {
+        let mut seen_ids = HashSet::new();
+        let ids: Vec<i64> = results
+            .iter()
+            .filter_map(|anime| anime.bangumi_id.as_deref())
+            .filter_map(|id| id.parse::<i64>().ok())
+            .filter(|id| seen_ids.insert(*id))
+            .collect();
+
+        log::info!(
+            "fill_anime_details strategy=graphql_then_rest mode={} batch_size={}",
+            mode,
+            ids.len()
+        );
+        crate::api::bangumi_graphql::fetch_subject_details_graphql_batch(&ids).await
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    let mut rest_tasks = Vec::new();
+
+    for (index, anime) in results.iter_mut().enumerate() {
+        let Some(id) = anime.bangumi_id.clone() else {
+            continue;
+        };
+
+        let used_graphql = id
+            .parse::<i64>()
+            .ok()
+            .and_then(|parsed_id| graphql_details.get(&parsed_id))
+            .map(|json| {
+                apply_subject_details(anime, json);
+            })
+            .is_some();
+
+        if !used_graphql {
+            rest_tasks.push(tokio::spawn(async move {
+                (index, fetch_subject_details_rest_json(&id).await)
+            }));
+        }
     }
 
-    let mut results = Vec::new();
-    for task in tasks {
-        if let Ok(anime) = task.await {
-            results.push(anime);
+    for task in rest_tasks {
+        if let Ok((index, Ok(json))) = task.await {
+            if let Some(anime) = results.get_mut(index) {
+                apply_subject_details(anime, &json);
+            }
         }
     }
 
     Ok(results)
+}
+
+async fn fetch_subject_details_rest_json(id: &str) -> anyhow::Result<serde_json::Value> {
+    let api_url = format!(
+        "{}/v0/subjects/{}",
+        crate::api::config::get_bangumi_api_url(),
+        id
+    );
+    let label = format!("fill_anime_details.subject.{}", id);
+    let resp = crate::api::network::retry_request(&label, |client| {
+        client.get(&api_url).header("accept", "application/json")
+    })
+    .await?;
+
+    Ok(resp.json::<serde_json::Value>().await?)
+}
+
+fn apply_subject_details(anime: &mut AnimeInfo, json: &serde_json::Value) {
+    let image_url = json["images"]["large"]
+        .as_str()
+        .filter(|url| !url.is_empty())
+        .or_else(|| {
+            json["images"]["common"]
+                .as_str()
+                .filter(|url| !url.is_empty())
+        });
+    if let Some(image_url) = image_url {
+        anime.cover_url = Some(image_url.to_string());
+    }
+
+    if let Some(score) = json["rating"]["score"].as_f64() {
+        anime.score = Some(score);
+    }
+    if let Some(rank) = json["rating"]["rank"].as_i64() {
+        anime.rank = Some(rank as i32);
+    }
+
+    let mut tags: Vec<String> = json["meta_tags"]
+        .as_array()
+        .map(|meta_tags| {
+            meta_tags
+                .iter()
+                .filter_map(|tag| tag.as_str().map(|value| value.to_string()))
+                .collect()
+        })
+        .unwrap_or_else(|| {
+            json["tags"]
+                .as_array()
+                .map(|tags| {
+                    tags.iter()
+                        .filter_map(|tag| tag["name"].as_str().map(|value| value.to_string()))
+                        .collect()
+                })
+                .unwrap_or_default()
+        });
+    tags.sort();
+    tags.dedup();
+    anime.tags = tags;
+    anime.full_json = Some(json.to_string());
+}
+
+pub async fn fetch_light_subject_details(subject_id: i64) -> anyhow::Result<AnimeInfo> {
+    let raw = crate::api::bangumi_graphql::fetch_light_subject_details_graphql(subject_id).await?;
+    let json = crate::api::bangumi_graphql::normalize_light_subject_graphql_json(&raw);
+
+    let title = json["name"].as_str().unwrap_or("").to_string();
+    let sub_title = json["name_cn"].as_str().unwrap_or("").to_string();
+    let cover_url = json["images"]["large"]
+        .as_str()
+        .filter(|url| !url.is_empty())
+        .map(|url| url.to_string());
+    let broadcast_day = None;
+    let broadcast_time = None;
+    let score = json["rating"]["score"].as_f64();
+    let rank = json["rating"]["rank"].as_i64().map(|value| value as i32);
+
+    let mut tags: Vec<String> = json["meta_tags"]
+        .as_array()
+        .map(|meta_tags| {
+            meta_tags
+                .iter()
+                .filter_map(|tag| tag.as_str().map(|value| value.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+    tags.sort();
+    tags.dedup();
+
+    Ok(AnimeInfo {
+        title,
+        sub_title: if sub_title.is_empty() {
+            None
+        } else {
+            Some(sub_title)
+        },
+        bangumi_id: Some(subject_id.to_string()),
+        mikan_id: None,
+        cover_url,
+        site_url: None,
+        broadcast_day,
+        broadcast_time,
+        score,
+        rank,
+        tags,
+        full_json: Some(json.to_string()),
+    })
 }
 
 pub async fn fetch_extra_subjects(

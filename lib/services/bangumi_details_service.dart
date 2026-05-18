@@ -47,24 +47,27 @@ class BangumiDetailsService {
     final subjectFuture = includeSubjectDetails
         ? _loadSubjectData(anime, subjectId)
         : Future<Map<String, dynamic>?>.value(null);
-    final episodesFuture = _loadEpisodes(subjectId);
     final charactersFuture = _loadCharacters(subjectId);
     final relationsFuture = _loadRelations(subjectId);
     final personsFuture = _loadPersons(subjectId);
 
     final results = await Future.wait<Object?>([
       subjectFuture,
-      episodesFuture,
       charactersFuture,
       relationsFuture,
       personsFuture,
     ]);
 
     final subjectData = results[0] as Map<String, dynamic>?;
-    final episodes = results[1] as List<BangumiEpisode>;
-    final characters = results[2] as List<BangumiCharacter>;
-    final relations = results[3] as List<BangumiRelatedSubject>;
-    final persons = results[4] as List<BangumiPerson>;
+    final characters = results[1] as List<BangumiCharacter>;
+    final relations = results[2] as List<BangumiRelatedSubject>;
+    final persons = results[3] as List<BangumiPerson>;
+
+    final episodes = includeSubjectDetails
+        ? (_parseEpisodesFromSubjectData(subjectData).isNotEmpty
+              ? _parseEpisodesFromSubjectData(subjectData)
+              : await _loadEpisodes(subjectId))
+        : await _loadEpisodes(subjectId);
 
     return BangumiDetailsLoadResult(
       subjectData: subjectData,
@@ -136,6 +139,59 @@ class BangumiDetailsService {
       debugPrint('Error fetching episodes: $e');
       return [];
     }
+  }
+
+  List<BangumiEpisode> _parseEpisodesFromSubjectData(
+    Map<String, dynamic>? subjectData,
+  ) {
+    final episodes = subjectData?['episodes'];
+    if (episodes is! List) return const [];
+
+    final parsed = <BangumiEpisode>[];
+    for (final item in episodes) {
+      if (item is! Map) continue;
+
+      final rawType = item['type'];
+      final type = rawType is int
+          ? rawType
+          : int.tryParse(rawType?.toString() ?? '') ?? 0;
+      if (type != 0) continue;
+
+      final id = _readInt(item['id']);
+      if (id == null) continue;
+
+      final name = item['name']?.toString() ?? '';
+      final nameCn = item['name_cn']?.toString() ?? '';
+      final description = item['description']?.toString() ?? '';
+      final airdate = item['airdate']?.toString() ?? '';
+      final duration = item['duration']?.toString() ?? '';
+      final sort = _readDouble(item['sort']) ?? 0.0;
+
+      parsed.add(
+        BangumiEpisode(
+          id: id,
+          name: name,
+          nameCn: nameCn,
+          description: description,
+          airdate: airdate,
+          duration: duration,
+          sort: sort,
+        ),
+      );
+    }
+
+    return parsed;
+  }
+
+  int? _readInt(dynamic value) {
+    if (value is int) return value;
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  double? _readDouble(dynamic value) {
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
   }
 
   Future<List<BangumiCharacter>> _loadCharacters(int subjectId) async {

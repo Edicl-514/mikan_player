@@ -1,5 +1,6 @@
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RankingAnime {
@@ -12,6 +13,10 @@ pub struct RankingAnime {
     pub original_title: Option<String>,
 }
 
+fn is_legacy_mode(mode: &str) -> bool {
+    mode == "legacy"
+}
+
 pub async fn fetch_bangumi_ranking(
     sort_type: String,
     page: i32,
@@ -20,6 +25,53 @@ pub async fn fetch_bangumi_ranking(
 }
 
 pub async fn fetch_bangumi_browser(
+    sort_type: String,
+    year: String,
+    tags: Vec<String>,
+    page: i32,
+) -> anyhow::Result<Vec<RankingAnime>> {
+    let mode = crate::api::config::get_bangumi_request_mode();
+    if !is_legacy_mode(&mode) {
+        match fetch_bangumi_browser_api(&sort_type, &year, &tags, page).await {
+            Ok(results) if !results.is_empty() => {
+                log::info!(
+                    "bangumi.browser source=api mode={} sort={} year={} tags={:?} page={}",
+                    mode,
+                    sort_type,
+                    year,
+                    tags,
+                    page
+                );
+                return Ok(results);
+            }
+            Ok(_) => {
+                log::warn!(
+                    "bangumi.browser fallback=html reason=empty mode={} sort={} year={} tags={:?} page={}",
+                    mode,
+                    sort_type,
+                    year,
+                    tags,
+                    page
+                );
+            }
+            Err(err) => {
+                log::warn!(
+                    "bangumi.browser fallback=html mode={} sort={} year={} tags={:?} page={} error={}",
+                    mode,
+                    sort_type,
+                    year,
+                    tags,
+                    page,
+                    err
+                );
+            }
+        }
+    }
+
+    fetch_bangumi_browser_html(sort_type, year, tags, page).await
+}
+
+async fn fetch_bangumi_browser_html(
     sort_type: String,
     year: String,
     tags: Vec<String>,
@@ -66,6 +118,18 @@ pub async fn search_bangumi_subject(
     keyword: String,
     page: i32,
 ) -> anyhow::Result<Vec<RankingAnime>> {
+    let mode = crate::api::config::get_bangumi_request_mode();
+    if !is_legacy_mode(&mode) {
+        return fetch_bangumi_search_api(&keyword, page).await;
+    }
+
+    search_bangumi_subject_html(keyword, page).await
+}
+
+async fn search_bangumi_subject_html(
+    keyword: String,
+    page: i32,
+) -> anyhow::Result<Vec<RankingAnime>> {
     let url = format!(
         "{}/subject_search/{}?cat=2&page={}",
         crate::api::config::get_bangumi_url(),
@@ -81,6 +145,196 @@ pub async fn search_bangumi_subject(
     let document = Html::parse_document(&html);
 
     Ok(parse_bangumi_list(&document))
+}
+
+async fn fetch_bangumi_search_api(keyword: &str, page: i32) -> anyhow::Result<Vec<RankingAnime>> {
+    let body = json!({
+        "keyword": keyword,
+        "sort": "rank",
+        "filter": {
+            "type": [2]
+        }
+    });
+
+    fetch_bangumi_subjects_v0("bangumi.search.api", body, page).await
+}
+
+async fn fetch_bangumi_browser_api(
+    sort_type: &str,
+    year: &str,
+    tags: &[String],
+    page: i32,
+) -> anyhow::Result<Vec<RankingAnime>> {
+    let mut filter = serde_json::Map::new();
+    filter.insert("type".to_string(), json!([2]));
+
+    let normalized_tags: Vec<String> = tags
+        .iter()
+        .filter(|tag| !tag.is_empty() && tag.as_str() != "全部")
+        .cloned()
+        .collect();
+    if !normalized_tags.is_empty() {
+        filter.insert("tag".to_string(), json!(normalized_tags));
+    }
+
+    if let Some(air_date) = build_air_date_filter(year) {
+        filter.insert("air_date".to_string(), json!(air_date));
+    }
+
+    let body = json!({
+        "sort": normalize_browser_sort_type(sort_type),
+        "filter": Value::Object(filter),
+    });
+
+    fetch_bangumi_subjects_v0("bangumi.browser.api", body, page).await
+}
+
+async fn fetch_bangumi_subjects_v0(
+    label: &str,
+    body: Value,
+    page: i32,
+) -> anyhow::Result<Vec<RankingAnime>> {
+    let offset = ((page.max(1) - 1) * 24).to_string();
+    let limit = "24".to_string();
+    let url = format!(
+        "{}/v0/search/subjects",
+        crate::api::config::get_bangumi_api_url()
+    );
+
+    let resp = crate::api::network::retry_request(label, |client| {
+        client
+            .post(&url)
+            .query(&[("limit", limit.as_str()), ("offset", offset.as_str())])
+            .header("Content-Type", "application/json")
+            .header("accept", "application/json")
+            .json(&body)
+    })
+    .await?;
+
+    let json: serde_json::Value = resp.json().await?;
+    Ok(parse_bangumi_search_results(&json))
+}
+
+fn normalize_browser_sort_type(sort_type: &str) -> &str {
+    match sort_type {
+        "rank" | "date" | "collects" | "title" | "trends" => sort_type,
+        _ => "rank",
+    }
+}
+
+fn build_air_date_filter(year: &str) -> Option<Vec<String>> {
+    let trimmed = year.trim();
+    if trimmed.is_empty() || trimmed == "不限" {
+        return None;
+    }
+
+    if let Some((year_part, month_part)) = trimmed.split_once('-') {
+        let month = month_part.parse::<u32>().ok()?;
+        if !(1..=12).contains(&month) {
+            return None;
+        }
+
+        let next_year = if month == 12 {
+            year_part.parse::<i32>().ok()?.checked_add(1)?.to_string()
+        } else {
+            year_part.to_string()
+        };
+        let next_month = if month == 12 { 1 } else { month + 1 };
+
+        return Some(vec![
+            format!(">={}-{:02}-01", year_part, month),
+            format!("<{}-{:02}-01", next_year, next_month),
+        ]);
+    }
+
+    Some(vec![
+        format!(">={}-01-01", trimmed),
+        format!("<{}-01-01", trimmed.parse::<i32>().ok()?.checked_add(1)?),
+    ])
+}
+
+fn parse_bangumi_search_results(json: &Value) -> Vec<RankingAnime> {
+    json["data"]
+        .as_array()
+        .map(|items| items.iter().filter_map(parse_bangumi_search_item).collect())
+        .unwrap_or_default()
+}
+
+fn parse_bangumi_search_item(item: &Value) -> Option<RankingAnime> {
+    let bangumi_id = item["id"]
+        .as_i64()
+        .map(|value| value.to_string())
+        .or_else(|| item["id"].as_str().map(|value| value.to_string()))?;
+
+    let original_title = item["name"].as_str().map(|value| value.trim().to_string());
+    let name_cn = item["name_cn"].as_str().unwrap_or("").trim();
+    let title = if !name_cn.is_empty() {
+        name_cn.to_string()
+    } else {
+        original_title.clone().unwrap_or_default()
+    };
+
+    if title.is_empty() {
+        return None;
+    }
+
+    let mut cover_url = item["images"]["large"]
+        .as_str()
+        .or_else(|| item["images"]["common"].as_str())
+        .or_else(|| item["images"]["medium"].as_str())
+        .or_else(|| item["images"]["small"].as_str())
+        .unwrap_or("")
+        .to_string();
+    if cover_url.starts_with("//") {
+        cover_url = format!("https:{}", cover_url);
+    }
+
+    let score = item["score"]
+        .as_f64()
+        .or_else(|| item["rating"]["score"].as_f64());
+    let rank = item["rank"]
+        .as_i64()
+        .or_else(|| item["rating"]["rank"].as_i64())
+        .map(|value| value as i32);
+
+    let info = build_subject_info(item);
+    let normalized_original_title =
+        original_title.filter(|value| !value.is_empty() && *value != title);
+
+    Some(RankingAnime {
+        title,
+        bangumi_id,
+        cover_url,
+        score,
+        rank,
+        info,
+        original_title: normalized_original_title,
+    })
+}
+
+fn build_subject_info(item: &Value) -> String {
+    let mut parts = Vec::new();
+
+    if let Some(date) = item["date"].as_str().filter(|value| !value.is_empty()) {
+        parts.push(date.to_string());
+    }
+    if let Some(platform) = item["platform"].as_str().filter(|value| !value.is_empty()) {
+        parts.push(platform.to_string());
+    }
+
+    if parts.is_empty() {
+        if let Some(tags) = item["meta_tags"].as_array() {
+            parts.extend(
+                tags.iter()
+                    .filter_map(|tag| tag.as_str())
+                    .filter(|tag| !tag.is_empty())
+                    .take(3)
+                    .map(|tag| tag.to_string()),
+            );
+        }
+    }
+
+    parts.join(" / ")
 }
 
 fn parse_bangumi_list(document: &Html) -> Vec<RankingAnime> {
@@ -153,4 +407,53 @@ fn parse_bangumi_list(document: &Html) -> Vec<RankingAnime> {
     }
 
     results
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_air_date_filter_supports_year_and_month() {
+        assert_eq!(
+            build_air_date_filter("2025"),
+            Some(vec![">=2025-01-01".to_string(), "<2026-01-01".to_string(),])
+        );
+        assert_eq!(
+            build_air_date_filter("2025-04"),
+            Some(vec![">=2025-04-01".to_string(), "<2025-05-01".to_string(),])
+        );
+        assert_eq!(
+            build_air_date_filter("2025-12"),
+            Some(vec![">=2025-12-01".to_string(), "<2026-01-01".to_string(),])
+        );
+    }
+
+    #[test]
+    fn parse_bangumi_search_results_maps_v0_payload() {
+        let input = json!({
+            "data": [
+                {
+                    "id": 543360,
+                    "name": "Kamiina Botan",
+                    "name_cn": "上伊那牡丹",
+                    "date": "2026-04-10",
+                    "platform": "TV",
+                    "images": { "large": "https://example.com/cover.jpg" },
+                    "score": 7.58,
+                    "rank": 123,
+                    "meta_tags": ["百合", "日常"]
+                }
+            ]
+        });
+
+        let results = parse_bangumi_search_results(&input);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].bangumi_id, "543360");
+        assert_eq!(results[0].title, "上伊那牡丹");
+        assert_eq!(results[0].original_title.as_deref(), Some("Kamiina Botan"));
+        assert_eq!(results[0].info, "2026-04-10 / TV");
+        assert_eq!(results[0].score, Some(7.58));
+        assert_eq!(results[0].rank, Some(123));
+    }
 }
