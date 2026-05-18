@@ -180,11 +180,8 @@ pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<An
 }
 
 pub async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<AnimeInfo>> {
-    let client = crate::api::network::get_shared_client().clone();
-
     let mut tasks = Vec::new();
     for mut anime in animes {
-        let client_clone = client.clone();
         tasks.push(tokio::spawn(async move {
             if let Some(ref id) = anime.bangumi_id {
                 let api_url = format!(
@@ -192,7 +189,12 @@ pub async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<An
                     crate::api::config::get_bangumi_api_url(),
                     id
                 );
-                if let Ok(resp) = client_clone.get(api_url).send().await {
+                let label = format!("fill_anime_details.subject.{}", id);
+                if let Ok(resp) = crate::api::network::retry_request(&label, |client| {
+                    client.get(&api_url).header("accept", "application/json")
+                })
+                .await
+                {
                     if let Ok(json) = resp.json::<serde_json::Value>().await {
                         if let Some(image_url) = json["images"]["large"].as_str() {
                             anime.cover_url = Some(image_url.to_string());
@@ -234,15 +236,12 @@ pub async fn fetch_extra_subjects(
     year_quarter: String,
     existing_ids: Vec<String>,
 ) -> anyhow::Result<Vec<AnimeInfo>> {
-    let client = crate::api::network::get_shared_client().clone();
-
     let existing_set: HashSet<String> = existing_ids.into_iter().collect();
 
-    fetch_extra_bangumi_subjects(&client, &year_quarter, &existing_set).await
+    fetch_extra_bangumi_subjects(&year_quarter, &existing_set).await
 }
 
 async fn fetch_extra_bangumi_subjects(
-    client: &reqwest::Client,
     year_quarter: &str,
     existing_ids: &HashSet<String>,
 ) -> anyhow::Result<Vec<AnimeInfo>> {
@@ -278,14 +277,23 @@ async fn fetch_extra_bangumi_subjects(
         }
     });
 
-    let init_resp = client
-        .post(url)
-        .query(&[("limit", "1"), ("offset", "0")])
-        .header("Content-Type", "application/json")
-        .header("accept", "application/json")
-        .json(&body_json)
-        .send()
-        .await?;
+    let init_resp =
+        match crate::api::network::retry_request("fetch_extra_subjects.init", |client| {
+            client
+                .post(&url)
+                .query(&[("limit", "1"), ("offset", "0")])
+                .header("Content-Type", "application/json")
+                .header("accept", "application/json")
+                .json(&body_json)
+        })
+        .await
+        {
+            Ok(resp) => resp,
+            Err(err) => {
+                log::warn!("fetch_extra_subjects.init failed: {}", err);
+                return Ok(vec![]);
+            }
+        };
 
     if !init_resp.status().is_success() {
         return Ok(vec![]);
@@ -305,28 +313,29 @@ async fn fetch_extra_bangumi_subjects(
 
     for i in 0..num_pages {
         let offset = i * limit;
-        let client_c = client.clone();
         let body_c = body_json.clone();
+        let page_url = url.clone();
 
         tasks.push(tokio::spawn(async move {
-            let resp = client_c
-                .post(format!(
-                    "{}/v0/search/subjects",
-                    crate::api::config::get_bangumi_api_url()
-                ))
-                .query(&[
-                    ("limit", &limit.to_string()),
-                    ("offset", &offset.to_string()),
-                ])
-                .header("Content-Type", "application/json")
-                .header("accept", "application/json")
-                .json(&body_c)
-                .send()
-                .await;
-
-            match resp {
-                Ok(r) => r.json::<serde_json::Value>().await.ok(),
-                Err(_) => None,
+            let label = format!("fetch_extra_subjects.page.offset_{}", offset);
+            match crate::api::network::retry_request(&label, |client| {
+                client
+                    .post(&page_url)
+                    .query(&[
+                        ("limit", &limit.to_string()),
+                        ("offset", &offset.to_string()),
+                    ])
+                    .header("Content-Type", "application/json")
+                    .header("accept", "application/json")
+                    .json(&body_c)
+            })
+            .await
+            {
+                Ok(resp) => resp.json::<serde_json::Value>().await.ok(),
+                Err(err) => {
+                    log::warn!("{} failed: {}", label, err);
+                    None
+                }
             }
         }));
     }
