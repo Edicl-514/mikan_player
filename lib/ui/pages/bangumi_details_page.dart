@@ -8,10 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+import 'package:mikan_player/services/bangumi_details_service.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
-import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
@@ -37,6 +37,7 @@ class BangumiDetailsPage extends StatefulWidget {
 }
 
 class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
+  final BangumiDetailsService _detailsService = BangumiDetailsService.instance;
   Map<String, dynamic>? _data;
   late ScrollController _mobileDetailsScrollController;
   late ScrollController _wideLeftScrollController;
@@ -124,7 +125,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       }
       final subjectId = int.parse(subjectIdStr);
 
-      final newComments = await fetchBangumiComments(
+      final newComments = await _detailsService.fetchCommentsPage(
         subjectId: subjectId,
         page: _commentPage + 1,
       );
@@ -169,7 +170,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     });
 
     try {
-      final comments = await fetchBangumiComments(
+      final comments = await _detailsService.fetchCommentsPage(
         subjectId: subjectId,
         page: 1,
       );
@@ -209,9 +210,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       return;
     }
 
-    final subjectId = int.parse(subjectIdStr);
-    final cache = CacheManager.instance;
-
     setState(() {
       _isLoadingEpisodes = true;
       _isLoadingCharacters = true;
@@ -228,157 +226,31 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       _personIdMap.clear();
     });
 
-    Future<void> loadDetails() async {
-      if (_data != null) return;
+    final result = await _detailsService.loadInitialData(
+      anime: widget.anime,
+      includeSubjectDetails: _data == null,
+    );
 
-      try {
-        final cachedAnime = await cache.getSubject(subjectId);
-        if (cachedAnime != null && cachedAnime.fullJson != null) {
-          debugPrint('Subject loaded from cache: $subjectId');
-          final data = jsonDecode(cachedAnime.fullJson!);
-          if (mounted) {
-            setState(() {
-              _data = data;
-            });
-          }
-        } else {
-          final details = await fillAnimeDetails(animes: [widget.anime]);
-          if (details.isNotEmpty) {
-            final detail = details.first;
-            if (detail.fullJson != null) {
-              final data = jsonDecode(detail.fullJson!);
-              if (mounted) {
-                setState(() {
-                  _data = data;
-                });
-              }
-              unawaited(cache.cacheAnimeInfo(detail));
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('Error loading anime details: $e');
-      }
-    }
+    if (!mounted) return;
 
-    List<BangumiEpisode> episodes = [];
-    List<BangumiCharacter> characters = [];
-    List<BangumiRelatedSubject> relations = [];
-    final personMap = <String, int>{};
+    final sortedCharacters = [...result.characters]
+      ..sort((a, b) {
+        final pa = _characterRolePriority(a);
+        final pb = _characterRolePriority(b);
+        return pa != pb ? pa.compareTo(pb) : a.name.compareTo(b.name);
+      });
 
-    Future<void> loadEpisodes() async {
-      try {
-        final allEpisodes = await cache.getEpisodes(
-          subjectId: subjectId,
-          fetchFromNetwork: () => fetchBangumiEpisodes(subjectId: subjectId),
-        );
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        episodes = allEpisodes.where((ep) {
-          if (ep.airdate.isEmpty) return true;
-          try {
-            final date = DateTime.parse(ep.airdate);
-            final epDate = DateTime(date.year, date.month, date.day);
-            return !epDate.isAfter(today);
-          } catch (e) {
-            return true;
-          }
-        }).toList();
-      } catch (e) {
-        debugPrint('Error fetching episodes: $e');
-        episodes = [];
-      } finally {
-        if (mounted) {
-          setState(() {
-            _episodes = episodes;
-            _isLoadingEpisodes = false;
-          });
-        }
-      }
-    }
-
-    Future<void> loadCharacters() async {
-      try {
-        characters = await cache.getCharacters(
-          subjectId: subjectId,
-          fetchFromNetwork: () => fetchBangumiCharacters(subjectId: subjectId),
-        );
-        for (final ch in characters) {
-          for (final actor in ch.actors) {
-            if (actor.name.isNotEmpty && actor.id != 0) {
-              personMap.putIfAbsent(actor.name, () => actor.id);
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('Error fetching characters: $e');
-        characters = [];
-      } finally {
-        if (mounted) {
-          final sorted = [...characters]
-            ..sort((a, b) {
-              final pa = _characterRolePriority(a);
-              final pb = _characterRolePriority(b);
-              return pa != pb ? pa.compareTo(pb) : a.name.compareTo(b.name);
-            });
-          setState(() {
-            _characters = sorted;
-            _sortedCharacters = sorted;
-            _mergePersonIdMap(personMap);
-            _isLoadingCharacters = false;
-          });
-        }
-      }
-    }
-
-    Future<void> loadRelations() async {
-      try {
-        relations = await cache.getRelations(
-          subjectId: subjectId,
-          fetchFromNetwork: () => fetchBangumiRelations(subjectId: subjectId),
-        );
-      } catch (e) {
-        debugPrint('Error fetching relations: $e');
-        relations = [];
-      } finally {
-        if (mounted) {
-          setState(() {
-            _relations = relations;
-            _isLoadingRelations = false;
-          });
-        }
-      }
-    }
-
-    Future<void> loadPersons() async {
-      try {
-        final persons = await cache.getPersons(
-          subjectId: subjectId,
-          fetchFromNetwork: () => fetchBangumiPersons(subjectId: subjectId),
-        );
-        for (final p in persons) {
-          if (p.name.isNotEmpty && p.id != 0) {
-            personMap.putIfAbsent(p.name, () => p.id);
-          }
-        }
-      } catch (e) {
-        debugPrint('Error fetching persons: $e');
-      } finally {
-        if (mounted) {
-          setState(() {
-            _mergePersonIdMap(personMap);
-          });
-        }
-      }
-    }
-
-    await Future.wait([
-      loadDetails(),
-      loadEpisodes(),
-      loadCharacters(),
-      loadRelations(),
-      loadPersons(),
-    ]);
+    setState(() {
+      _data ??= result.subjectData;
+      _episodes = result.episodes;
+      _characters = sortedCharacters;
+      _sortedCharacters = sortedCharacters;
+      _relations = result.relations;
+      _mergePersonIdMap(result.personIdMap);
+      _isLoadingEpisodes = false;
+      _isLoadingCharacters = false;
+      _isLoadingRelations = false;
+    });
 
     if (mounted) {
       unawaited(
