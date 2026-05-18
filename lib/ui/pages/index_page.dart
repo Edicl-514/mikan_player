@@ -171,11 +171,12 @@ class _IndexPageState extends State<IndexPage> {
 
       final String selectedYear = _selections['时间'] ?? '不限';
       final String selectedMonth = _selections['月份'] ?? '全部';
+      final String? normalizedMonth = _normalizeMonthValue(selectedMonth);
       final String year = selectedYear == '不限'
           ? ''
-          : selectedMonth == '全部'
+          : normalizedMonth == null
           ? selectedYear
-          : '$selectedYear-$selectedMonth';
+          : '$selectedYear-$normalizedMonth';
 
       final List<String> tags = [];
       _selections.forEach((key, value) {
@@ -244,6 +245,18 @@ class _IndexPageState extends State<IndexPage> {
         });
       }
     }
+  }
+
+  String? _normalizeMonthValue(String monthLabel) {
+    if (monthLabel == '全部' || monthLabel == '不限') return null;
+
+    final monthMatch = RegExp(r'^(\d{1,2})月$').firstMatch(monthLabel);
+    if (monthMatch == null) return null;
+
+    final month = int.tryParse(monthMatch.group(1)!);
+    if (month == null || month < 1 || month > 12) return null;
+
+    return month.toString().padLeft(2, '0');
   }
 
   void _onSelectionChanged(String label, String value) {
