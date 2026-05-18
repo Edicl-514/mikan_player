@@ -60,10 +60,11 @@ pub struct BangumiComment {
 /// API: GET https://api.bgm.tv/v0/episodes?subject_id={subject_id}&limit=100&offset=0
 pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<BangumiEpisode>> {
     let mut all_episodes = Vec::new();
-    let mut offset = 0;
+    let mut offset: usize = 0;
     let limit = 100;
     let max_pages = 20;
     let mut page_count = 0;
+    let mut total_count: Option<usize> = None;
 
     loop {
         page_count += 1;
@@ -92,6 +93,11 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
         let json: serde_json::Value = resp.json().await?;
 
         if let Some(data) = json["data"].as_array() {
+            total_count = json["total"]
+                .as_u64()
+                .and_then(|value| usize::try_from(value).ok())
+                .or(total_count);
+
             if data.is_empty() {
                 break;
             }
@@ -123,7 +129,18 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
                 all_episodes.push(episode);
             }
 
-            offset += limit;
+            let page_len = data.len();
+            offset += page_len;
+
+            if page_len < limit {
+                break;
+            }
+
+            if let Some(total) = total_count {
+                if offset >= total {
+                    break;
+                }
+            }
         } else {
             break;
         }
