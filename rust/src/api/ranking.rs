@@ -2,6 +2,8 @@ use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+const BANGUMI_NEXT_BASE_URL: &str = "https://next.bgm.tv";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RankingAnime {
     pub title: String,
@@ -31,44 +33,11 @@ pub async fn fetch_bangumi_browser(
     page: i32,
 ) -> anyhow::Result<Vec<RankingAnime>> {
     let mode = crate::api::config::get_bangumi_request_mode();
-    if !is_legacy_mode(&mode) {
-        match fetch_bangumi_browser_api(&sort_type, &year, &tags, page).await {
-            Ok(results) if !results.is_empty() => {
-                log::info!(
-                    "bangumi.browser source=api mode={} sort={} year={} tags={:?} page={}",
-                    mode,
-                    sort_type,
-                    year,
-                    tags,
-                    page
-                );
-                return Ok(results);
-            }
-            Ok(_) => {
-                log::warn!(
-                    "bangumi.browser fallback=html reason=empty mode={} sort={} year={} tags={:?} page={}",
-                    mode,
-                    sort_type,
-                    year,
-                    tags,
-                    page
-                );
-            }
-            Err(err) => {
-                log::warn!(
-                    "bangumi.browser fallback=html mode={} sort={} year={} tags={:?} page={} error={}",
-                    mode,
-                    sort_type,
-                    year,
-                    tags,
-                    page,
-                    err
-                );
-            }
-        }
+    match mode.as_str() {
+        "legacy" => fetch_bangumi_browser_html(sort_type, year, tags, page).await,
+        _ if sort_type == "trends" => fetch_bangumi_trending_next(page).await,
+        _ => fetch_bangumi_browser_api(&sort_type, &year, &tags, page).await,
     }
-
-    fetch_bangumi_browser_html(sort_type, year, tags, page).await
 }
 
 async fn fetch_bangumi_browser_html(
@@ -189,6 +158,22 @@ async fn fetch_bangumi_browser_api(
     fetch_bangumi_subjects_v0("bangumi.browser.api", body, page).await
 }
 
+async fn fetch_bangumi_trending_next(page: i32) -> anyhow::Result<Vec<RankingAnime>> {
+    let offset = ((page.max(1) - 1) * 20).to_string();
+    let limit = "20";
+    let url = format!(
+        "{BANGUMI_NEXT_BASE_URL}/p1/trending/subjects?type=2&limit={limit}&offset={offset}"
+    );
+
+    let resp = crate::api::network::retry_request("bangumi.trending.next", |client| {
+        client.get(&url).header("accept", "application/json")
+    })
+    .await?;
+
+    let json: Value = resp.json().await?;
+    Ok(parse_bangumi_next_trending_results(&json))
+}
+
 async fn fetch_bangumi_subjects_v0(
     label: &str,
     body: Value,
@@ -257,6 +242,23 @@ fn parse_bangumi_search_results(json: &Value) -> Vec<RankingAnime> {
     json["data"]
         .as_array()
         .map(|items| items.iter().filter_map(parse_bangumi_search_item).collect())
+        .unwrap_or_default()
+}
+
+fn parse_bangumi_next_trending_results(json: &Value) -> Vec<RankingAnime> {
+    json["data"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    item.get("subject")
+                        .filter(|subject| subject.is_object())
+                        .or(Some(item))
+                        .and_then(parse_bangumi_search_item)
+                })
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -448,6 +450,36 @@ mod tests {
         });
 
         let results = parse_bangumi_search_results(&input);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].bangumi_id, "543360");
+        assert_eq!(results[0].title, "上伊那牡丹");
+        assert_eq!(results[0].original_title.as_deref(), Some("Kamiina Botan"));
+        assert_eq!(results[0].info, "2026-04-10 / TV");
+        assert_eq!(results[0].score, Some(7.58));
+        assert_eq!(results[0].rank, Some(123));
+    }
+
+    #[test]
+    fn parse_bangumi_next_trending_results_maps_subject_payload() {
+        let input = json!({
+            "data": [
+                {
+                    "subject": {
+                        "id": 543360,
+                        "name": "Kamiina Botan",
+                        "name_cn": "上伊那牡丹",
+                        "date": "2026-04-10",
+                        "platform": "TV",
+                        "images": { "large": "https://example.com/cover.jpg" },
+                        "rating": { "score": 7.58, "rank": 123 },
+                        "meta_tags": ["百合", "日常"]
+                    }
+                }
+            ],
+            "total": 1
+        });
+
+        let results = parse_bangumi_next_trending_results(&input);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].bangumi_id, "543360");
         assert_eq!(results[0].title, "上伊那牡丹");

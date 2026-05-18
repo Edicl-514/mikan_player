@@ -62,9 +62,9 @@ const BANGUMI_SUBJECT_COMMENTS_NEXT_LABEL: &str = "bangumi.comments.subject.next
 const BANGUMI_EPISODE_COMMENTS_LEGACY_LABEL: &str = "bangumi.comments.episode.legacy";
 const BANGUMI_EPISODE_COMMENTS_NEXT_LABEL: &str = "bangumi.comments.episode.next";
 
-fn is_hybrid_mode(mode: &str) -> bool {
-    mode == "hybrid"
-}
+// fn is_hybrid_mode(mode: &str) -> bool {
+//     mode == "hybrid"
+// }
 
 /// Fetch episodes for a subject
 /// API: GET https://api.bgm.tv/v0/episodes?subject_id={subject_id}&limit=100&offset=0
@@ -293,20 +293,7 @@ pub async fn fetch_bangumi_comments(
 
     match mode.as_str() {
         "legacy" => fetch_bangumi_comments_legacy(subject_id, page).await,
-        "modern" => fetch_bangumi_comments_next(subject_id, page).await,
-        _ => match fetch_bangumi_comments_next(subject_id, page).await {
-            Ok(comments) => Ok(comments),
-            Err(err) if is_hybrid_mode(&mode) => {
-                log::warn!(
-                    "bangumi.comments.subject fallback=legacy subject_id={} page={} error={}",
-                    subject_id,
-                    page,
-                    err
-                );
-                fetch_bangumi_comments_legacy(subject_id, page).await
-            }
-            Err(err) => Err(err),
-        },
+        _ => fetch_bangumi_comments_next(subject_id, page).await,
     }
 }
 
@@ -546,19 +533,7 @@ pub async fn fetch_bangumi_episode_comments(
 
     match mode.as_str() {
         "legacy" => fetch_bangumi_episode_comments_legacy(episode_id).await,
-        "modern" => fetch_bangumi_episode_comments_next(episode_id).await,
-        _ => match fetch_bangumi_episode_comments_next(episode_id).await {
-            Ok(comments) => Ok(comments),
-            Err(err) if is_hybrid_mode(&mode) => {
-                log::warn!(
-                    "bangumi.comments.episode fallback=legacy episode_id={} error={}",
-                    episode_id,
-                    err
-                );
-                fetch_bangumi_episode_comments_legacy(episode_id).await
-            }
-            Err(err) => Err(err),
-        },
+        _ => fetch_bangumi_episode_comments_next(episode_id).await,
     }
 }
 
