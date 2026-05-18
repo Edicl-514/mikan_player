@@ -2746,14 +2746,19 @@ fn wire__crate__api__ranking__search_bangumi_subject_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_keyword = <String>::sse_decode(&mut deserializer);
+            let api_sort_type = <String>::sse_decode(&mut deserializer);
             let api_page = <i32>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::ranking::search_bangumi_subject(api_keyword, api_page)
-                                .await?;
+                            crate::api::ranking::search_bangumi_subject(
+                                api_keyword,
+                                api_sort_type,
+                                api_page,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,

@@ -1004,6 +1004,54 @@ abstract class AppLocalizations {
   /// **'搜索番剧...'**
   String get searchHintText;
 
+  /// No description provided for @searchModeTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换搜索模式'**
+  String get searchModeTooltip;
+
+  /// No description provided for @searchKeywordModeLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'关键词搜索'**
+  String get searchKeywordModeLabel;
+
+  /// No description provided for @searchTagModeLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'Tag 搜索'**
+  String get searchTagModeLabel;
+
+  /// No description provided for @searchEnterTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入标签进行搜索'**
+  String get searchEnterTag;
+
+  /// No description provided for @searchSortTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换排序方式'**
+  String get searchSortTooltip;
+
+  /// No description provided for @searchSortRank.
+  ///
+  /// In zh, this message translates to:
+  /// **'排名'**
+  String get searchSortRank;
+
+  /// No description provided for @searchSortMatch.
+  ///
+  /// In zh, this message translates to:
+  /// **'相关度'**
+  String get searchSortMatch;
+
+  /// No description provided for @searchSortHeat.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏数'**
+  String get searchSortHeat;
+
   /// No description provided for @searchNoResults.
   ///
   /// In zh, this message translates to:

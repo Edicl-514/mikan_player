@@ -31,9 +31,11 @@ Future<List<RankingAnime>> fetchBangumiBrowser({
 
 Future<List<RankingAnime>> searchBangumiSubject({
   required String keyword,
+  required String sortType,
   required int page,
 }) => RustLib.instance.api.crateApiRankingSearchBangumiSubject(
   keyword: keyword,
+  sortType: sortType,
   page: page,
 );
 

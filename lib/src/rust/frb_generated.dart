@@ -359,6 +359,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<List<RankingAnime>> crateApiRankingSearchBangumiSubject({
     required String keyword,
+    required String sortType,
     required int page,
   });
 
@@ -2771,6 +2772,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<List<RankingAnime>> crateApiRankingSearchBangumiSubject({
     required String keyword,
+    required String sortType,
     required int page,
   }) {
     return handler.executeNormal(
@@ -2778,6 +2780,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(keyword, serializer);
+          sse_encode_String(sortType, serializer);
           sse_encode_i_32(page, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -2791,7 +2794,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiRankingSearchBangumiSubjectConstMeta,
-        argValues: [keyword, page],
+        argValues: [keyword, sortType, page],
         apiImpl: this,
       ),
     );
@@ -2800,7 +2803,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiRankingSearchBangumiSubjectConstMeta =>
       const TaskConstMeta(
         debugName: "search_bangumi_subject",
-        argNames: ["keyword", "page"],
+        argNames: ["keyword", "sortType", "page"],
       );
 
   @override

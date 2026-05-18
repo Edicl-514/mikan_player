@@ -493,6 +493,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchHintText => 'Search anime...';
 
   @override
+  String get searchModeTooltip => 'Switch search mode';
+
+  @override
+  String get searchKeywordModeLabel => 'Keyword search';
+
+  @override
+  String get searchTagModeLabel => 'Tag search';
+
+  @override
+  String get searchEnterTag => 'Enter a tag to search';
+
+  @override
+  String get searchSortTooltip => 'Switch sort order';
+
+  @override
+  String get searchSortRank => 'Ranking';
+
+  @override
+  String get searchSortMatch => 'Relevance';
+
+  @override
+  String get searchSortHeat => 'Favorites';
+
+  @override
   String get searchNoResults => 'No results found';
 
   @override

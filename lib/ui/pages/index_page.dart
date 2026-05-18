@@ -106,8 +106,22 @@ class _IndexPageState extends State<IndexPage> {
       '2001',
       '2000',
     ],
-    '月份': ['全部', '1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
-    '排序': ['排名', '日期', '热度', '收藏', '名称'],
+    '月份': [
+      '全部',
+      '1月',
+      '2月',
+      '3月',
+      '4月',
+      '5月',
+      '6月',
+      '7月',
+      '8月',
+      '9月',
+      '10月',
+      '11月',
+      '12月',
+    ],
+    '排序': ['排名', '相关度', '收藏数'],
   };
 
   List<RankingAnime> _animes = [];
@@ -150,20 +164,14 @@ class _IndexPageState extends State<IndexPage> {
       final String sortLabel = _selections['排序'] ?? '排名';
       String sortType;
       switch (sortLabel) {
-        case '日期':
-          sortType = 'date';
-          break;
         case '排名':
           sortType = 'rank';
           break;
-        case '热度':
-          sortType = 'trends';
+        case '相关度':
+          sortType = 'match';
           break;
-        case '收藏':
-          sortType = 'collects';
-          break;
-        case '名称':
-          sortType = 'title';
+        case '收藏数':
+          sortType = 'heat';
           break;
         default:
           sortType = 'rank';
@@ -355,7 +363,8 @@ class _IndexPageState extends State<IndexPage> {
                       MaterialPageRoute(
                         builder: (context) => BangumiDetailsPage(
                           anime: animeInfo,
-                          heroTag: 'index_cover_${animeInfo.bangumiId ?? animeInfo.mikanId ?? animeInfo.title.hashCode}',
+                          heroTag:
+                              'index_cover_${animeInfo.bangumiId ?? animeInfo.mikanId ?? animeInfo.title.hashCode}',
                         ),
                       ),
                     );

@@ -480,6 +480,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchHintText => '搜索番剧...';
 
   @override
+  String get searchModeTooltip => '切换搜索模式';
+
+  @override
+  String get searchKeywordModeLabel => '关键词搜索';
+
+  @override
+  String get searchTagModeLabel => 'Tag 搜索';
+
+  @override
+  String get searchEnterTag => '输入标签进行搜索';
+
+  @override
+  String get searchSortTooltip => '切换排序方式';
+
+  @override
+  String get searchSortRank => '排名';
+
+  @override
+  String get searchSortMatch => '相关度';
+
+  @override
+  String get searchSortHeat => '收藏数';
+
+  @override
   String get searchNoResults => '未找到结果';
 
   @override

@@ -23,7 +23,12 @@ pub async fn fetch_bangumi_ranking(
     sort_type: String,
     page: i32,
 ) -> anyhow::Result<Vec<RankingAnime>> {
-    fetch_bangumi_browser(sort_type, "".to_string(), vec![], page).await
+    let mode = crate::api::config::get_bangumi_request_mode();
+    match mode.as_str() {
+        "legacy" => fetch_bangumi_browser_html(sort_type, "".to_string(), vec![], page).await,
+        _ if sort_type == "trends" => fetch_bangumi_trending_next(page).await,
+        _ => fetch_bangumi_browser_api(&sort_type, "", &[], page).await,
+    }
 }
 
 pub async fn fetch_bangumi_browser(
@@ -35,7 +40,6 @@ pub async fn fetch_bangumi_browser(
     let mode = crate::api::config::get_bangumi_request_mode();
     match mode.as_str() {
         "legacy" => fetch_bangumi_browser_html(sort_type, year, tags, page).await,
-        _ if sort_type == "trends" => fetch_bangumi_trending_next(page).await,
         _ => fetch_bangumi_browser_api(&sort_type, &year, &tags, page).await,
     }
 }
@@ -85,11 +89,12 @@ async fn fetch_bangumi_browser_html(
 
 pub async fn search_bangumi_subject(
     keyword: String,
+    sort_type: String,
     page: i32,
 ) -> anyhow::Result<Vec<RankingAnime>> {
     let mode = crate::api::config::get_bangumi_request_mode();
     if !is_legacy_mode(&mode) {
-        return fetch_bangumi_search_api(&keyword, page).await;
+        return fetch_bangumi_search_api(&keyword, &sort_type, page).await;
     }
 
     search_bangumi_subject_html(keyword, page).await
@@ -116,12 +121,17 @@ async fn search_bangumi_subject_html(
     Ok(parse_bangumi_list(&document))
 }
 
-async fn fetch_bangumi_search_api(keyword: &str, page: i32) -> anyhow::Result<Vec<RankingAnime>> {
+async fn fetch_bangumi_search_api(
+    keyword: &str,
+    sort_type: &str,
+    page: i32,
+) -> anyhow::Result<Vec<RankingAnime>> {
     let body = json!({
         "keyword": keyword,
-        "sort": "rank",
+        "sort": normalize_api_sort_type(sort_type),
         "filter": {
-            "type": [2]
+            "type": [2],
+            "rank": [">0"]
         }
     });
 
@@ -134,25 +144,9 @@ async fn fetch_bangumi_browser_api(
     tags: &[String],
     page: i32,
 ) -> anyhow::Result<Vec<RankingAnime>> {
-    let mut filter = serde_json::Map::new();
-    filter.insert("type".to_string(), json!([2]));
-
-    let normalized_tags: Vec<String> = tags
-        .iter()
-        .filter(|tag| !tag.is_empty() && tag.as_str() != "全部")
-        .cloned()
-        .collect();
-    if !normalized_tags.is_empty() {
-        filter.insert("tag".to_string(), json!(normalized_tags));
-    }
-
-    if let Some(air_date) = build_air_date_filter(year) {
-        filter.insert("air_date".to_string(), json!(air_date));
-    }
-
     let body = json!({
-        "sort": normalize_browser_sort_type(sort_type),
-        "filter": Value::Object(filter),
+        "sort": normalize_api_sort_type(sort_type),
+        "filter": Value::Object(build_api_subject_filter(year, tags)),
     });
 
     fetch_bangumi_subjects_v0("bangumi.browser.api", body, page).await
@@ -200,11 +194,34 @@ async fn fetch_bangumi_subjects_v0(
     Ok(parse_bangumi_search_results(&json))
 }
 
-fn normalize_browser_sort_type(sort_type: &str) -> &str {
+fn normalize_api_sort_type(sort_type: &str) -> &str {
     match sort_type {
-        "rank" | "date" | "collects" | "title" | "trends" => sort_type,
+        "rank" => "rank",
+        "match" | "date" | "title" => "match",
+        "heat" | "collects" | "trends" => "heat",
         _ => "rank",
     }
+}
+
+fn build_api_subject_filter(year: &str, tags: &[String]) -> serde_json::Map<String, Value> {
+    let mut filter = serde_json::Map::new();
+    filter.insert("type".to_string(), json!([2]));
+    filter.insert("rank".to_string(), json!([">0"]));
+
+    let normalized_tags: Vec<String> = tags
+        .iter()
+        .filter(|tag| !tag.is_empty() && tag.as_str() != "全部")
+        .cloned()
+        .collect();
+    if !normalized_tags.is_empty() {
+        filter.insert("tag".to_string(), json!(normalized_tags));
+    }
+
+    if let Some(air_date) = build_air_date_filter(year) {
+        filter.insert("air_date".to_string(), json!(air_date));
+    }
+
+    filter
 }
 
 fn build_air_date_filter(year: &str) -> Option<Vec<String>> {
@@ -487,5 +504,29 @@ mod tests {
         assert_eq!(results[0].info, "2026-04-10 / TV");
         assert_eq!(results[0].score, Some(7.58));
         assert_eq!(results[0].rank, Some(123));
+    }
+
+    #[test]
+    fn normalize_api_sort_type_maps_supported_values() {
+        assert_eq!(normalize_api_sort_type("rank"), "rank");
+        assert_eq!(normalize_api_sort_type("match"), "match");
+        assert_eq!(normalize_api_sort_type("heat"), "heat");
+        assert_eq!(normalize_api_sort_type("collects"), "heat");
+        assert_eq!(normalize_api_sort_type("trends"), "heat");
+        assert_eq!(normalize_api_sort_type("date"), "match");
+        assert_eq!(normalize_api_sort_type("title"), "match");
+        assert_eq!(normalize_api_sort_type("unknown"), "rank");
+    }
+
+    #[test]
+    fn build_api_subject_filter_includes_rank_floor() {
+        let filter = build_api_subject_filter("2025-04", &[String::from("tv")]);
+        assert_eq!(filter.get("type"), Some(&json!([2])));
+        assert_eq!(filter.get("rank"), Some(&json!([">0"])));
+        assert_eq!(filter.get("tag"), Some(&json!(["tv"])));
+        assert_eq!(
+            filter.get("air_date"),
+            Some(&json!([">=2025-04-01", "<2025-05-01"]))
+        );
     }
 }

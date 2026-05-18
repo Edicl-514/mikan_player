@@ -8,8 +8,9 @@ import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 
 class SearchPage extends StatefulWidget {
   final String? initialKeyword;
+  final String? initialTag;
 
-  const SearchPage({super.key, this.initialKeyword});
+  const SearchPage({super.key, this.initialKeyword, this.initialTag});
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -22,17 +23,34 @@ class _SearchPageState extends State<SearchPage> {
   int _page = 1;
   bool _hasMore = true;
   String _currentKeyword = '';
+  String _sortType = 'rank';
+  SearchMode _searchMode = SearchMode.keyword;
+  bool _initialQueryLoaded = false;
   final ScrollController _scrollController = createPlatformScrollController();
 
   @override
   void initState() {
     super.initState();
-    if (widget.initialKeyword != null) {
+    if (widget.initialTag != null) {
+      _searchMode = SearchMode.tag;
+      _searchController.text = widget.initialTag!;
+      _currentKeyword = widget.initialTag!;
+    } else if (widget.initialKeyword != null) {
+      _searchMode = SearchMode.keyword;
       _searchController.text = widget.initialKeyword!;
       _currentKeyword = widget.initialKeyword!;
-      _performSearch();
     }
     _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialQueryLoaded) return;
+    _initialQueryLoaded = true;
+    if (_currentKeyword.isNotEmpty) {
+      _performSearch();
+    }
   }
 
   @override
@@ -60,8 +78,9 @@ class _SearchPageState extends State<SearchPage> {
     });
 
     try {
-      final results = await searchBangumiSubject(
+      final results = await _searchMode.fetch(
         keyword: _currentKeyword,
+        sortType: _sortType,
         page: 1,
       );
       if (mounted) {
@@ -73,9 +92,13 @@ class _SearchPageState extends State<SearchPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).searchFailed(e.toString()))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context).searchFailed(e.toString()),
+            ),
+          ),
+        );
         setState(() {
           _isLoading = false;
         });
@@ -92,8 +115,9 @@ class _SearchPageState extends State<SearchPage> {
 
     try {
       final nextPage = _page + 1;
-      final results = await searchBangumiSubject(
+      final results = await _searchMode.fetch(
         keyword: _currentKeyword,
+        sortType: _sortType,
         page: nextPage,
       );
       if (mounted) {
@@ -120,6 +144,28 @@ class _SearchPageState extends State<SearchPage> {
     _performSearch();
   }
 
+  Future<void> _setSearchMode(SearchMode mode) async {
+    if (_searchMode == mode) return;
+    setState(() {
+      _searchMode = mode;
+      _results = [];
+      _page = 1;
+      _hasMore = true;
+    });
+    await _performSearch();
+  }
+
+  Future<void> _setSortType(String sortType) async {
+    if (_sortType == sortType) return;
+    setState(() {
+      _sortType = sortType;
+      _results = [];
+      _page = 1;
+      _hasMore = true;
+    });
+    await _performSearch();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -129,14 +175,60 @@ class _SearchPageState extends State<SearchPage> {
           decoration: InputDecoration(
             hintText: AppLocalizations.of(context).searchHintText,
             border: InputBorder.none,
-            hintStyle: TextStyle(color: Colors.white70),
+            hintStyle: TextStyle(
+              color: Theme.of(context).appBarTheme.titleTextStyle?.color?.withValues(alpha: 0.7) ??
+                  Theme.of(context).textTheme.titleLarge?.color?.withValues(alpha: 0.7),
+            ),
           ),
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(
+            color: Theme.of(context).appBarTheme.titleTextStyle?.color ??
+                Theme.of(context).textTheme.titleLarge?.color,
+          ),
           textInputAction: TextInputAction.search,
           onSubmitted: _handleSearchSubmit,
           autofocus: true,
         ),
         actions: [
+          PopupMenuButton<SearchMode>(
+            icon: Icon(
+              _searchMode == SearchMode.keyword
+                  ? Icons.text_fields
+                  : Icons.label,
+            ),
+            tooltip: AppLocalizations.of(context).searchModeTooltip,
+            onSelected: _setSearchMode,
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: SearchMode.keyword,
+                child: Text(
+                  AppLocalizations.of(context).searchKeywordModeLabel,
+                ),
+              ),
+              PopupMenuItem(
+                value: SearchMode.tag,
+                child: Text(AppLocalizations.of(context).searchTagModeLabel),
+              ),
+            ],
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.sort),
+            tooltip: AppLocalizations.of(context).searchSortTooltip,
+            onSelected: _setSortType,
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'rank',
+                child: Text(AppLocalizations.of(context).searchSortRank),
+              ),
+              PopupMenuItem(
+                value: 'match',
+                child: Text(AppLocalizations.of(context).searchSortMatch),
+              ),
+              PopupMenuItem(
+                value: 'heat',
+                child: Text(AppLocalizations.of(context).searchSortHeat),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () => _handleSearchSubmit(_searchController.text),
@@ -157,7 +249,13 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     if (_currentKeyword.isEmpty) {
-      return Center(child: Text(AppLocalizations.of(context).searchEnterKeyword));
+      return Center(
+        child: Text(
+          _searchMode == SearchMode.keyword
+              ? AppLocalizations.of(context).searchEnterKeyword
+              : AppLocalizations.of(context).searchEnterTag,
+        ),
+      );
     }
 
     return CustomScrollView(
@@ -229,5 +327,31 @@ class _SearchPageState extends State<SearchPage> {
           ),
       ],
     );
+  }
+}
+
+enum SearchMode { keyword, tag }
+
+extension on SearchMode {
+  Future<List<RankingAnime>> fetch({
+    required String keyword,
+    required String sortType,
+    required int page,
+  }) {
+    switch (this) {
+      case SearchMode.keyword:
+        return searchBangumiSubject(
+          keyword: keyword,
+          sortType: sortType,
+          page: page,
+        );
+      case SearchMode.tag:
+        return fetchBangumiBrowser(
+          sortType: sortType,
+          year: '',
+          tags: [keyword],
+          page: page,
+        );
+    }
   }
 }
