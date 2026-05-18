@@ -26,9 +26,11 @@
 
 // Section: imports
 
+use crate::api::bangumi_graphql::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
-use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
+use serde_json::Value;
 
 // Section: boilerplate
 
@@ -38,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -610746884;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1094333712;
 
 // Section: executor
 
@@ -460,6 +462,49 @@ fn wire__crate__api__generic_scraper__debug_search_with_local_json_runtime_impl(
                                 api_sink,
                             )
                             .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__bangumi_graphql__execute_bangumi_graphql_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "execute_bangumi_graphql",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_action_name = <String>::sse_decode(&mut deserializer);
+            let api_query = <String>::sse_decode(&mut deserializer);
+            let api_variables = <Value>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::bangumi_graphql::execute_bangumi_graphql(
+                            &api_action_name,
+                            &api_query,
+                            api_variables,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -968,6 +1013,84 @@ fn wire__crate__api__crawler__fetch_extra_subjects_impl(
         },
     )
 }
+fn wire__crate__api__crawler__fetch_light_subject_details_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "fetch_light_subject_details",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_subject_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::crawler::fetch_light_subject_details(api_subject_id)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__bangumi_graphql__fetch_light_subject_details_graphql_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "fetch_light_subject_details_graphql",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_subject_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::bangumi_graphql::fetch_light_subject_details_graphql(
+                                api_subject_id,
+                            )
+                            .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__bangumi__fetch_person_characters_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1108,6 +1231,47 @@ fn wire__crate__api__crawler__fetch_schedule_basic_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::crawler::fetch_schedule_basic(api_year_quarter).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__bangumi_graphql__fetch_subject_details_graphql_batch_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "fetch_subject_details_graphql_batch",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_ids = <Vec<i64>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::bangumi_graphql::fetch_subject_details_graphql_batch(
+                                &api_ids,
+                            )
+                            .await,
+                        )?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -2418,6 +2582,116 @@ fn wire__crate__api__config__is_source_enabled_impl(
         },
     )
 }
+fn wire__crate__api__bangumi_graphql__normalize_graphql_subject_json_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "normalize_graphql_subject_json",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_subject = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Value>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_subject_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_subject,
+                                0,
+                                false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_subject_guard = Some(api_subject.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_subject_guard = api_subject_guard.unwrap();
+                    let output_ok = Result::<_, ()>::Ok(
+                        crate::api::bangumi_graphql::normalize_graphql_subject_json(
+                            &*api_subject_guard,
+                        ),
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__bangumi_graphql__normalize_light_subject_graphql_json_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "normalize_light_subject_graphql_json",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_subject = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Value>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_subject_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_subject,
+                                0,
+                                false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_subject_guard = Some(api_subject.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_subject_guard = api_subject_guard.unwrap();
+                    let output_ok = Result::<_, ()>::Ok(
+                        crate::api::bangumi_graphql::normalize_light_subject_graphql_json(
+                            &*api_subject_guard,
+                        ),
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__simple__pause_torrent_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2752,13 +3026,55 @@ fn wire__crate__api__ranking__search_bangumi_subject_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok =
-                            crate::api::ranking::search_bangumi_subject(
-                                api_keyword,
-                                api_sort_type,
-                                api_page,
-                            )
-                            .await?;
+                        let output_ok = crate::api::ranking::search_bangumi_subject(
+                            api_keyword,
+                            api_sort_type,
+                            api_page,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__ranking__search_bangumi_tag_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "search_bangumi_tag",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_tag = <String>::sse_decode(&mut deserializer);
+            let api_sort_type = <String>::sse_decode(&mut deserializer);
+            let api_page = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::ranking::search_bangumi_tag(
+                            api_tag,
+                            api_sort_type,
+                            api_page,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -3251,6 +3567,12 @@ fn wire__crate__api__generic_scraper__update_single_source_config_impl(
     )
 }
 
+// Section: related_funcs
+
+flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Value>
+);
+
 // Section: dart2rust
 
 impl SseDecode for flutter_rust_bridge::for_generated::anyhow::Error {
@@ -3261,11 +3583,37 @@ impl SseDecode for flutter_rust_bridge::for_generated::anyhow::Error {
     }
 }
 
+impl SseDecode for Value {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <RustOpaqueMoi<
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Value>,
+        >>::sse_decode(deserializer);
+        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
+    }
+}
+
 impl SseDecode for std::collections::HashMap<String, String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <Vec<(String, String)>>::sse_decode(deserializer);
         return inner.into_iter().collect();
+    }
+}
+
+impl SseDecode for std::collections::HashMap<i64, Value> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <Vec<(i64, Value)>>::sse_decode(deserializer);
+        return inner.into_iter().collect();
+    }
+}
+
+impl SseDecode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Value>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <usize>::sse_decode(deserializer);
+        return decode_rust_opaque_moi(inner);
     }
 }
 
@@ -4096,6 +4444,18 @@ impl SseDecode for Vec<crate::api::bangumi::PersonSubject> {
     }
 }
 
+impl SseDecode for Vec<i64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<i64>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4117,6 +4477,18 @@ impl SseDecode for Vec<crate::api::ranking::RankingAnime> {
             ans_.push(<crate::api::ranking::RankingAnime>::sse_decode(
                 deserializer,
             ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<(i64, Value)> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<(i64, Value)>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -4440,6 +4812,15 @@ impl SseDecode for crate::api::ranking::RankingAnime {
             info: var_info,
             original_title: var_originalTitle,
         };
+    }
+}
+
+impl SseDecode for (i64, Value) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_field0 = <i64>::sse_decode(deserializer);
+        let mut var_field1 = <Value>::sse_decode(deserializer);
+        return (var_field0, var_field1);
     }
 }
 
@@ -4768,269 +5149,306 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        11 => wire__crate__api__crawler__fetch_archive_list_impl(port, ptr, rust_vec_len, data_len),
-        12 => {
+        11 => wire__crate__api__bangumi_graphql__execute_bangumi_graphql_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        12 => wire__crate__api__crawler__fetch_archive_list_impl(port, ptr, rust_vec_len, data_len),
+        13 => {
             wire__crate__api__ranking__fetch_bangumi_browser_impl(port, ptr, rust_vec_len, data_len)
         }
-        13 => wire__crate__api__bangumi__fetch_bangumi_characters_impl(
+        14 => wire__crate__api__bangumi__fetch_bangumi_characters_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__bangumi__fetch_bangumi_comments_impl(
+        15 => wire__crate__api__bangumi__fetch_bangumi_comments_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        15 => wire__crate__api__bangumi__fetch_bangumi_episode_comments_impl(
+        16 => wire__crate__api__bangumi__fetch_bangumi_episode_comments_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        16 => wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
+        17 => wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        17 => {
+        18 => {
             wire__crate__api__bangumi__fetch_bangumi_persons_impl(port, ptr, rust_vec_len, data_len)
         }
-        18 => {
+        19 => {
             wire__crate__api__ranking__fetch_bangumi_ranking_impl(port, ptr, rust_vec_len, data_len)
         }
-        19 => wire__crate__api__bangumi__fetch_bangumi_relations_impl(
+        20 => wire__crate__api__bangumi__fetch_bangumi_relations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        20 => wire__crate__api__bangumi__fetch_character_details_impl(
+        21 => wire__crate__api__bangumi__fetch_character_details_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__bangumi__fetch_character_subjects_impl(
+        22 => wire__crate__api__bangumi__fetch_character_subjects_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => wire__crate__api__dmhy__fetch_dmhy_resources_impl(port, ptr, rust_vec_len, data_len),
-        23 => {
+        23 => wire__crate__api__dmhy__fetch_dmhy_resources_impl(port, ptr, rust_vec_len, data_len),
+        24 => {
             wire__crate__api__crawler__fetch_extra_subjects_impl(port, ptr, rust_vec_len, data_len)
         }
-        24 => wire__crate__api__bangumi__fetch_person_characters_impl(
+        25 => wire__crate__api__crawler__fetch_light_subject_details_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => {
+        26 => wire__crate__api__bangumi_graphql__fetch_light_subject_details_graphql_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        27 => wire__crate__api__bangumi__fetch_person_characters_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        28 => {
             wire__crate__api__bangumi__fetch_person_details_impl(port, ptr, rust_vec_len, data_len)
         }
-        26 => {
+        29 => {
             wire__crate__api__bangumi__fetch_person_subjects_impl(port, ptr, rust_vec_len, data_len)
         }
-        27 => {
+        30 => {
             wire__crate__api__crawler__fetch_schedule_basic_impl(port, ptr, rust_vec_len, data_len)
         }
-        28 => wire__crate__api__crawler__fill_anime_details_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__generic_scraper__generic_search_and_play_impl(
+        31 => wire__crate__api__bangumi_graphql__fetch_subject_details_graphql_batch_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__generic_scraper__generic_search_and_play_with_episode_impl(
+        32 => wire__crate__api__crawler__fill_anime_details_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__generic_scraper__generic_search_and_play_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => wire__crate__api__generic_scraper__generic_search_play_pages_impl(
+        34 => wire__crate__api__generic_scraper__generic_search_and_play_with_episode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        32 => wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
+        35 => wire__crate__api__generic_scraper__generic_search_play_pages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => wire__crate__api__generic_scraper__generic_search_with_channels_impl(
+        36 => wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        34 => wire__crate__api__generic_scraper__generic_search_with_channels_stream_impl(
+        37 => wire__crate__api__generic_scraper__generic_search_with_channels_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        35 => wire__crate__api__generic_scraper__generic_search_with_progress_impl(
+        38 => wire__crate__api__generic_scraper__generic_search_with_channels_stream_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__generic_scraper__generic_search_with_progress_runtime_impl(
+        39 => wire__crate__api__generic_scraper__generic_search_with_progress_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => {
+        40 => wire__crate__api__generic_scraper__generic_search_with_progress_runtime_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        41 => {
             wire__crate__api__simple__get_all_torrents_info_impl(port, ptr, rust_vec_len, data_len)
         }
-        38 => wire__crate__api__config__get_bangumi_api_url_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__config__get_bangumi_request_mode_impl(
+        42 => wire__crate__api__config__get_bangumi_api_url_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__config__get_bangumi_request_mode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        40 => wire__crate__api__config__get_bangumi_url_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__config__get_bgmlist_url_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__config__get_cache_dir_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__captcha__get_captcha_ocr_model_info_impl(
+        44 => wire__crate__api__config__get_bangumi_url_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__config__get_bgmlist_url_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__config__get_cache_dir_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__captcha__get_captcha_ocr_model_info_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        44 => wire__crate__api__config__get_download_dir_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__generic_scraper__get_enabled_source_names_impl(
+        48 => wire__crate__api__config__get_download_dir_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__generic_scraper__get_enabled_source_names_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        46 => wire__crate__api__generic_scraper__get_episode_play_url_impl(
+        50 => wire__crate__api__generic_scraper__get_episode_play_url_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => wire__crate__api__config__get_max_concurrent_searches_impl(
+        51 => wire__crate__api__config__get_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        48 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__config__get_mikan_url_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__generic_scraper__get_playback_sources_impl(
+        52 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__config__get_mikan_url_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__generic_scraper__get_playback_sources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => {
+        55 => {
             wire__crate__api__simple__get_playback_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        52 => {
+        56 => {
             wire__crate__api__config__get_playback_sub_url_impl(port, ptr, rust_vec_len, data_len)
         }
-        53 => wire__crate__api__network__get_shared_client_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__network__get_system_proxy_impl(port, ptr, rust_vec_len, data_len),
-        55 => wire__crate__api__simple__get_torrent_stats_impl(port, ptr, rust_vec_len, data_len),
-        56 => wire__crate__api__simple__get_tracker_info_impl(port, ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
-        58 => wire__crate__api__config__init_config_impl(port, ptr, rust_vec_len, data_len),
-        59 => wire__crate__api__simple__init_engine_impl(port, ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__captcha__initialize_captcha_ocr_impl(
+        57 => wire__crate__api__network__get_shared_client_impl(port, ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__network__get_system_proxy_impl(port, ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__simple__get_torrent_stats_impl(port, ptr, rust_vec_len, data_len),
+        60 => wire__crate__api__simple__get_tracker_info_impl(port, ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__config__init_config_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__simple__init_engine_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__captcha__initialize_captcha_ocr_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        61 => wire__crate__api__captcha__is_captcha_ocr_initialized_impl(
+        65 => wire__crate__api__captcha__is_captcha_ocr_initialized_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        62 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__simple__pause_torrent_impl(port, ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__simple__preload_playback_source_config_impl(
+        66 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
+        67 => wire__crate__api__bangumi_graphql__normalize_graphql_subject_json_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        65 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
+        68 => wire__crate__api__bangumi_graphql__normalize_light_subject_graphql_json_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        66 => wire__crate__api__captcha__recognize_captcha_impl(port, ptr, rust_vec_len, data_len),
-        67 => wire__crate__api__captcha__recognize_captcha_with_constraints_impl(
+        69 => wire__crate__api__simple__pause_torrent_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__simple__preload_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        68 => wire__crate__api__generic_scraper__refresh_playback_source_config_impl(
+        71 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        69 => wire__crate__api__simple__refresh_playback_source_config_impl(
+        72 => wire__crate__api__captcha__recognize_captcha_impl(port, ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__captcha__recognize_captcha_with_constraints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        70 => wire__crate__api__simple__resume_torrent_impl(port, ptr, rust_vec_len, data_len),
-        71 => wire__crate__api__ranking__search_bangumi_subject_impl(
+        74 => wire__crate__api__generic_scraper__refresh_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        72 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
-        73 => wire__crate__api__config__set_bangumi_request_mode_impl(
+        75 => wire__crate__api__simple__refresh_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        74 => {
+        76 => wire__crate__api__simple__resume_torrent_impl(port, ptr, rust_vec_len, data_len),
+        77 => wire__crate__api__ranking__search_bangumi_subject_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        78 => wire__crate__api__ranking__search_bangumi_tag_impl(port, ptr, rust_vec_len, data_len),
+        79 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
+        80 => wire__crate__api__config__set_bangumi_request_mode_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        81 => {
             wire__crate__api__config__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        75 => {
+        82 => {
             wire__crate__api__simple__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        76 => wire__crate__api__config__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
-        77 => wire__crate__api__simple__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
-        78 => wire__crate__api__config__set_max_concurrent_searches_impl(
+        83 => wire__crate__api__config__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
+        84 => wire__crate__api__simple__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
+        85 => wire__crate__api__config__set_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        79 => wire__crate__api__simple__set_max_concurrent_searches_impl(
+        86 => wire__crate__api__simple__set_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        80 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
-        81 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
-        82 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
-        83 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
-        84 => wire__crate__api__generic_scraper__update_single_source_config_impl(
+        87 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
+        88 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
+        89 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
+        90 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
+        91 => wire__crate__api__generic_scraper__update_single_source_config_impl(
             port,
             ptr,
             rust_vec_len,
@@ -5053,6 +5471,21 @@ fn pde_ffi_dispatcher_sync_impl(
 }
 
 // Section: rust2dart
+
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<Value> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
+            .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<Value> {}
+
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Value>> for Value {
+    fn into_into_dart(self) -> FrbWrapper<Value> {
+        self.into()
+    }
+}
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::crawler::AnimeInfo {
@@ -6032,10 +6465,36 @@ impl SseEncode for flutter_rust_bridge::for_generated::anyhow::Error {
     }
 }
 
+impl SseEncode for Value {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Value>>>::sse_encode(
+            flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self),
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for std::collections::HashMap<String, String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<(String, String)>>::sse_encode(self.into_iter().collect(), serializer);
+    }
+}
+
+impl SseEncode for std::collections::HashMap<i64, Value> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<(i64, Value)>>::sse_encode(self.into_iter().collect(), serializer);
+    }
+}
+
+impl SseEncode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Value>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        let (ptr, size) = self.sse_encode_raw();
+        <usize>::sse_encode(ptr, serializer);
+        <i32>::sse_encode(size, serializer);
     }
 }
 
@@ -6610,6 +7069,16 @@ impl SseEncode for Vec<crate::api::bangumi::PersonSubject> {
     }
 }
 
+impl SseEncode for Vec<i64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <i64>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -6626,6 +7095,16 @@ impl SseEncode for Vec<crate::api::ranking::RankingAnime> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::ranking::RankingAnime>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<(i64, Value)> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <(i64, Value)>::sse_encode(item, serializer);
         }
     }
 }
@@ -6863,6 +7342,14 @@ impl SseEncode for crate::api::ranking::RankingAnime {
     }
 }
 
+impl SseEncode for (i64, Value) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.0, serializer);
+        <Value>::sse_encode(self.1, serializer);
+    }
+}
+
 impl SseEncode for (String, String) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -7059,15 +7546,30 @@ mod io {
     // Section: imports
 
     use super::*;
+    use crate::api::bangumi_graphql::*;
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
-    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate
 
     flutter_rust_bridge::frb_generated_boilerplate_io!();
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_mikan_player_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Value>>::increment_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_mikan_player_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Value>>::decrement_strong_count(ptr as _);
+    }
 }
 #[cfg(not(target_family = "wasm"))]
 pub use io::*;
@@ -7081,17 +7583,32 @@ mod web {
     // Section: imports
 
     use super::*;
+    use crate::api::bangumi_graphql::*;
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
     use flutter_rust_bridge::for_generated::wasm_bindgen;
     use flutter_rust_bridge::for_generated::wasm_bindgen::prelude::*;
-    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate
 
     flutter_rust_bridge::frb_generated_boilerplate_web!();
+
+    #[wasm_bindgen]
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Value>>::increment_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Value>>::decrement_strong_count(ptr as _);
+    }
 }
 #[cfg(target_family = "wasm")]
 pub use web::*;

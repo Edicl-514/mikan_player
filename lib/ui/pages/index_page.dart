@@ -6,6 +6,7 @@ import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
+import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 
 class IndexPage extends StatefulWidget {
@@ -16,6 +17,7 @@ class IndexPage extends StatefulWidget {
 }
 
 class _IndexPageState extends State<IndexPage> {
+  BangumiRequestMode _requestMode = BangumiRequestMode.hybrid;
   final Map<String, String> _selections = {
     '分类': '全部',
     '来源': '全部',
@@ -135,13 +137,40 @@ class _IndexPageState extends State<IndexPage> {
   void initState() {
     super.initState();
     _fetchAnimes();
+    BangumiRequestModeService.load().then((mode) {
+      if (!mounted) return;
+      final shouldRefresh = _requestMode != mode;
+      setState(() {
+        _requestMode = mode;
+        _ensureValidSortSelection();
+      });
+      if (shouldRefresh) {
+        _fetchAnimes();
+      }
+    });
+    BangumiRequestModeService.notifier.addListener(_handleRequestModeChanged);
     _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    BangumiRequestModeService.notifier.removeListener(_handleRequestModeChanged);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _handleRequestModeChanged() {
+    final mode = BangumiRequestModeService.notifier.value;
+    if (!mounted || _requestMode == mode) return;
+
+    setState(() {
+      _requestMode = mode;
+      _ensureValidSortSelection();
+      _animes = [];
+      _page = 1;
+      _hasMore = true;
+    });
+    _fetchAnimes();
   }
 
   void _onScroll() {
@@ -167,11 +196,21 @@ class _IndexPageState extends State<IndexPage> {
         case '排名':
           sortType = 'rank';
           break;
+        case '热度':
+          sortType = 'trends';
+          break;
+        case '收藏':
+        case '收藏数':
+          sortType = _isLegacyMode ? 'collects' : 'heat';
+          break;
+        case '日期':
+          sortType = 'date';
+          break;
+        case '名称':
+          sortType = 'title';
+          break;
         case '相关度':
           sortType = 'match';
-          break;
-        case '收藏数':
-          sortType = 'heat';
           break;
         default:
           sortType = 'rank';
@@ -267,6 +306,23 @@ class _IndexPageState extends State<IndexPage> {
     return month.toString().padLeft(2, '0');
   }
 
+  bool get _isLegacyMode => _requestMode == BangumiRequestMode.legacy;
+
+  List<String> _sortOptions() {
+    if (_isLegacyMode) {
+      return ['排名', '热度', '收藏', '日期', '名称'];
+    }
+    return ['排名', '相关度', '收藏数'];
+  }
+
+  void _ensureValidSortSelection() {
+    final options = _sortOptions();
+    final current = _selections['排序'];
+    if (current == null || !options.contains(current)) {
+      _selections['排序'] = options.first;
+    }
+  }
+
   void _onSelectionChanged(String label, String value) {
     if (_selections[label] == value) return;
     setState(() {
@@ -298,7 +354,11 @@ class _IndexPageState extends State<IndexPage> {
               children: [
                 for (final entry in _filterData.entries) ...[
                   if (entry.key != '月份')
-                    _buildFilterRow(context, entry.key, entry.value),
+                    _buildFilterRow(
+                      context,
+                      entry.key,
+                      entry.key == '排序' ? _sortOptions() : entry.value,
+                    ),
                   if (entry.key == '时间' && showMonthFilter)
                     _buildFilterRow(
                       context,

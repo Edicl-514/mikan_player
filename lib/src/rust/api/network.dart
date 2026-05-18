@@ -10,7 +10,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ProxyConfig`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `create_client`
-// These functions have error during generation (see debug logs or enable `stop_on_error: true` for more details): `retry_request`
+// These functions have error during generation (see debug logs or enable `stop_on_error: true` for more details): `retry_request_with_status`, `retry_request`
 
 Future<String?> getSystemProxy() =>
     RustLib.instance.api.crateApiNetworkGetSystemProxy();

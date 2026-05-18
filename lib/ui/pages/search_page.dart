@@ -3,6 +3,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
+import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 
@@ -32,6 +33,7 @@ class _SearchPageState extends State<SearchPage> {
   String _sortType = 'rank';
   SearchMode _searchMode = SearchMode.keyword;
   bool _initialQueryLoaded = false;
+  BangumiRequestMode _requestMode = BangumiRequestMode.hybrid;
   final ScrollController _scrollController = createPlatformScrollController();
 
   @override
@@ -46,6 +48,11 @@ class _SearchPageState extends State<SearchPage> {
       _searchController.text = widget.initialKeyword!;
       _currentKeyword = widget.initialKeyword!;
     }
+    BangumiRequestModeService.load().then((mode) {
+      if (!mounted) return;
+      _applyRequestMode(mode);
+    });
+    BangumiRequestModeService.notifier.addListener(_handleRequestModeChanged);
     _scrollController.addListener(_onScroll);
   }
 
@@ -61,9 +68,31 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   void dispose() {
+    BangumiRequestModeService.notifier.removeListener(_handleRequestModeChanged);
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _handleRequestModeChanged() {
+    if (!mounted) return;
+    _applyRequestMode(BangumiRequestModeService.notifier.value);
+  }
+
+  void _applyRequestMode(BangumiRequestMode mode) {
+    final nextSortType = _defaultSortType(mode: mode);
+    final shouldRefresh =
+        _currentKeyword.isNotEmpty &&
+        (_requestMode != mode || _sortType != nextSortType);
+
+    setState(() {
+      _requestMode = mode;
+      _sortType = nextSortType;
+    });
+
+    if (shouldRefresh) {
+      _performSearch();
+    }
   }
 
   void _onScroll() {
@@ -154,6 +183,7 @@ class _SearchPageState extends State<SearchPage> {
     if (_searchMode == mode) return;
     setState(() {
       _searchMode = mode;
+      _sortType = _defaultSortType();
       _results = [];
       _page = 1;
       _hasMore = true;
@@ -172,8 +202,41 @@ class _SearchPageState extends State<SearchPage> {
     await _performSearch();
   }
 
+  bool get _isLegacyMode => _requestMode == BangumiRequestMode.legacy;
+
+  String _defaultSortType({BangumiRequestMode? mode}) {
+    final requestMode = mode ?? _requestMode;
+    if (_searchMode == SearchMode.tag) {
+      return requestMode == BangumiRequestMode.legacy ? 'rank' : 'rank';
+    }
+    return requestMode == BangumiRequestMode.legacy ? 'rank' : 'rank';
+  }
+
+  List<_SearchSortOption> _buildSortOptions(AppLocalizations l10n) {
+    if (_searchMode == SearchMode.tag && _isLegacyMode) {
+      return [
+        _SearchSortOption('rank', l10n.searchSortRank),
+        _SearchSortOption('collects', l10n.searchSortHeat),
+        _SearchSortOption('date', '日期'),
+        _SearchSortOption('title', '名称'),
+      ];
+    }
+
+    return [
+      _SearchSortOption('rank', l10n.searchSortRank),
+      _SearchSortOption('match', l10n.searchSortMatch),
+      _SearchSortOption('heat', l10n.searchSortHeat),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final sortOptions = _buildSortOptions(l10n);
+    final effectiveSortType = sortOptions.any((option) => option.value == _sortType)
+        ? _sortType
+        : sortOptions.first.value;
+
     return Scaffold(
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
@@ -225,22 +288,19 @@ class _SearchPageState extends State<SearchPage> {
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.sort),
-            tooltip: AppLocalizations.of(context).searchSortTooltip,
-            onSelected: _setSortType,
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'rank',
-                child: Text(AppLocalizations.of(context).searchSortRank),
-              ),
-              PopupMenuItem(
-                value: 'match',
-                child: Text(AppLocalizations.of(context).searchSortMatch),
-              ),
-              PopupMenuItem(
-                value: 'heat',
-                child: Text(AppLocalizations.of(context).searchSortHeat),
-              ),
-            ],
+            tooltip: l10n.searchSortTooltip,
+            onSelected: (value) async {
+              if (value == effectiveSortType) return;
+              await _setSortType(value);
+            },
+            itemBuilder: (context) => sortOptions
+                .map(
+                  (option) => PopupMenuItem(
+                    value: option.value,
+                    child: Text(option.label),
+                  ),
+                )
+                .toList(),
           ),
           IconButton(
             icon: const Icon(Icons.search),
@@ -359,12 +419,18 @@ extension on SearchMode {
           page: page,
         );
       case SearchMode.tag:
-        return fetchBangumiBrowser(
+        return searchBangumiTag(
+          tag: keyword,
           sortType: sortType,
-          year: '',
-          tags: [keyword],
           page: page,
         );
     }
   }
+}
+
+class _SearchSortOption {
+  final String value;
+  final String label;
+
+  const _SearchSortOption(this.value, this.label);
 }

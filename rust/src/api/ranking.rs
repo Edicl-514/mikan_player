@@ -100,6 +100,19 @@ pub async fn search_bangumi_subject(
     search_bangumi_subject_html(keyword, page).await
 }
 
+pub async fn search_bangumi_tag(
+    tag: String,
+    sort_type: String,
+    page: i32,
+) -> anyhow::Result<Vec<RankingAnime>> {
+    let mode = crate::api::config::get_bangumi_request_mode();
+    if !is_legacy_mode(&mode) {
+        return fetch_bangumi_browser_api(&sort_type, "", &[tag], page).await;
+    }
+
+    search_bangumi_tag_html(tag, sort_type, page).await
+}
+
 async fn search_bangumi_subject_html(
     keyword: String,
     page: i32,
@@ -115,6 +128,41 @@ async fn search_bangumi_subject_html(
         crate::api::network::retry_request("search_bangumi_subject", |client| client.get(&url))
             .await?
             .error_for_status()?;
+    let html = resp.text().await?;
+    let document = Html::parse_document(&html);
+
+    Ok(parse_bangumi_list(&document))
+}
+
+async fn search_bangumi_tag_html(
+    tag: String,
+    sort_type: String,
+    page: i32,
+) -> anyhow::Result<Vec<RankingAnime>> {
+    let mut url = reqwest::Url::parse(&format!(
+        "{}/anime/tag",
+        crate::api::config::get_bangumi_url()
+    ))?;
+
+    {
+        let mut path_segments = url
+            .path_segments_mut()
+            .map_err(|_| anyhow::anyhow!("Invalid base URL"))?;
+
+        if !tag.is_empty() && tag != "全部" {
+            path_segments.push(&tag);
+        }
+    }
+
+    url.query_pairs_mut()
+        .append_pair("sort", &sort_type)
+        .append_pair("page", &page.to_string());
+
+    let resp = crate::api::network::retry_request("bangumi.search.tag.legacy", |client| {
+        client.get(url.as_str())
+    })
+    .await?
+    .error_for_status()?;
     let html = resp.text().await?;
     let document = Html::parse_document(&html);
 
@@ -516,6 +564,23 @@ mod tests {
         assert_eq!(normalize_api_sort_type("date"), "match");
         assert_eq!(normalize_api_sort_type("title"), "match");
         assert_eq!(normalize_api_sort_type("unknown"), "rank");
+    }
+
+    #[test]
+    fn legacy_tag_search_url_matches_bangumi_route_shape() {
+        let mut url = reqwest::Url::parse("https://bangumi.tv/anime/tag").unwrap();
+        {
+            let mut path_segments = url.path_segments_mut().unwrap();
+            path_segments.push("百合");
+        }
+        url.query_pairs_mut()
+            .append_pair("sort", "collects")
+            .append_pair("page", "2");
+
+        assert_eq!(
+            url.as_str(),
+            "https://bangumi.tv/anime/tag/%E7%99%BE%E5%90%88?sort=collects&page=2"
+        );
     }
 
     #[test]

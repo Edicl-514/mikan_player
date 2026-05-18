@@ -168,10 +168,6 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     await prefs.setString('bangumi_url', _bangumiController.text);
     await prefs.setString('mikan_url', _mikanController.text);
     await prefs.setString('playback_sub_url', _playbackSubController.text);
-    await prefs.setString(
-      BangumiRequestModeService.preferenceKey,
-      _bangumiRequestMode.value,
-    );
     await prefs.setStringList('disabled_sources', _disabledSources.toList());
 
     // Sync to Rust
@@ -182,7 +178,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       mikan: _mikanController.text,
       playbackSub: _playbackSubController.text,
     );
-    await BangumiRequestModeService.syncToRust();
+    await BangumiRequestModeService.save(_bangumiRequestMode);
 
     if (mounted) {
       final l10n = AppLocalizations.of(context);

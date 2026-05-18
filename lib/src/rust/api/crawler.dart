@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `fetch_extra_bangumi_subjects`
+// These functions are ignored because they are not marked as `pub`: `apply_subject_details`, `fetch_extra_bangumi_subjects`, `fetch_subject_details_rest_json`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
 
 Future<List<ArchiveQuarter>> fetchArchiveList() =>
@@ -19,6 +19,12 @@ Future<List<AnimeInfo>> fetchScheduleBasic({required String yearQuarter}) =>
 
 Future<List<AnimeInfo>> fillAnimeDetails({required List<AnimeInfo> animes}) =>
     RustLib.instance.api.crateApiCrawlerFillAnimeDetails(animes: animes);
+
+Future<AnimeInfo> fetchLightSubjectDetails({
+  required PlatformInt64 subjectId,
+}) => RustLib.instance.api.crateApiCrawlerFetchLightSubjectDetails(
+  subjectId: subjectId,
+);
 
 Future<List<AnimeInfo>> fetchExtraSubjects({
   required String yearQuarter,
