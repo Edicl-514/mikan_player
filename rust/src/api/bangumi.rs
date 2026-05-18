@@ -293,6 +293,20 @@ pub async fn fetch_bangumi_comments(
 
     match mode.as_str() {
         "legacy" => fetch_bangumi_comments_legacy(subject_id, page).await,
+        "hybrid" => {
+            match fetch_bangumi_comments_next(subject_id, page).await {
+                Ok(comments) => Ok(comments),
+                Err(err) => {
+                    log::warn!(
+                        "bangumi.comments.subject next failed subject_id={} page={}, falling back to legacy: {}",
+                        subject_id,
+                        page,
+                        err
+                    );
+                    fetch_bangumi_comments_legacy(subject_id, page).await
+                }
+            }
+        }
         _ => fetch_bangumi_comments_next(subject_id, page).await,
     }
 }
@@ -533,6 +547,19 @@ pub async fn fetch_bangumi_episode_comments(
 
     match mode.as_str() {
         "legacy" => fetch_bangumi_episode_comments_legacy(episode_id).await,
+        "hybrid" => {
+            match fetch_bangumi_episode_comments_next(episode_id).await {
+                Ok(comments) => Ok(comments),
+                Err(err) => {
+                    log::warn!(
+                        "bangumi.comments.episode next failed episode_id={}, falling back to legacy: {}",
+                        episode_id,
+                        err
+                    );
+                    fetch_bangumi_episode_comments_legacy(episode_id).await
+                }
+            }
+        }
         _ => fetch_bangumi_episode_comments_next(episode_id).await,
     }
 }

@@ -296,33 +296,73 @@ fn apply_subject_details(anime: &mut AnimeInfo, json: &serde_json::Value) {
 }
 
 pub async fn fetch_light_subject_details(subject_id: i64) -> anyhow::Result<AnimeInfo> {
-    let raw = crate::api::bangumi_graphql::fetch_light_subject_details_graphql(subject_id).await?;
-    let json = crate::api::bangumi_graphql::normalize_light_subject_graphql_json(&raw);
+    let mode = crate::api::config::get_bangumi_request_mode();
+    log::debug!(
+        "fetch_light_subject_details mode={} subject_id={}",
+        mode,
+        subject_id
+    );
 
+    let graphql_result = if mode != "legacy" {
+        match crate::api::bangumi_graphql::fetch_light_subject_details_graphql(subject_id).await {
+            Ok(raw) => Some(crate::api::bangumi_graphql::normalize_light_subject_graphql_json(&raw)),
+            Err(err) if mode == "hybrid" => {
+                log::warn!(
+                    "fetch_light_subject_details graphql failed, falling back to REST: {}",
+                    err
+                );
+                None
+            }
+            Err(err) => return Err(err),
+        }
+    } else {
+        None
+    };
+
+    let json = match graphql_result {
+        Some(json) => json,
+        None => fetch_subject_details_rest_json(&subject_id.to_string()).await?,
+    };
+
+    Ok(build_light_subject_from_json(subject_id, &json))
+}
+
+fn build_light_subject_from_json(subject_id: i64, json: &serde_json::Value) -> AnimeInfo {
     let title = json["name"].as_str().unwrap_or("").to_string();
     let sub_title = json["name_cn"].as_str().unwrap_or("").to_string();
     let cover_url = json["images"]["large"]
         .as_str()
         .filter(|url| !url.is_empty())
+        .or_else(|| {
+            json["images"]["common"]
+                .as_str()
+                .filter(|url| !url.is_empty())
+        })
         .map(|url| url.to_string());
-    let broadcast_day = None;
-    let broadcast_time = None;
     let score = json["rating"]["score"].as_f64();
     let rank = json["rating"]["rank"].as_i64().map(|value| value as i32);
 
     let mut tags: Vec<String> = json["meta_tags"]
         .as_array()
-        .map(|meta_tags| {
-            meta_tags
-                .iter()
-                .filter_map(|tag| tag.as_str().map(|value| value.to_string()))
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
                 .collect()
         })
-        .unwrap_or_default();
+        .unwrap_or_else(|| {
+            json["tags"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|tag| tag["name"].as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default()
+        });
     tags.sort();
     tags.dedup();
 
-    Ok(AnimeInfo {
+    AnimeInfo {
         title,
         sub_title: if sub_title.is_empty() {
             None
@@ -333,13 +373,13 @@ pub async fn fetch_light_subject_details(subject_id: i64) -> anyhow::Result<Anim
         mikan_id: None,
         cover_url,
         site_url: None,
-        broadcast_day,
-        broadcast_time,
+        broadcast_day: None,
+        broadcast_time: None,
         score,
         rank,
         tags,
         full_json: Some(json.to_string()),
-    })
+    }
 }
 
 pub async fn fetch_extra_subjects(
