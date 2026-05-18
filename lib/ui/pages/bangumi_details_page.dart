@@ -55,6 +55,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   bool _isLoadingCharacters = false;
   bool _isLoadingRelations = false;
   bool _isLoadingComments = false;
+  bool _hasRequestedComments = false;
   bool _isLocalFavorite = false;
   bool _isCopied = false;
   Timer? _copyTimer;
@@ -107,7 +108,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   }
 
   Future<void> _loadMoreComments() async {
-    if (_isLoadingMoreComments || !_hasMoreComments) return;
+    if (_isLoadingMoreComments || !_hasMoreComments || !_hasRequestedComments) {
+      return;
+    }
 
     setState(() {
       _isLoadingMoreComments = true;
@@ -147,6 +150,51 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     }
   }
 
+  Future<void> _ensureCommentsLoaded() async {
+    if (_hasRequestedComments || _isLoadingComments) return;
+
+    final subjectIdStr = widget.anime.bangumiId;
+    if (subjectIdStr == null) return;
+
+    final subjectId = int.tryParse(subjectIdStr);
+    if (subjectId == null) return;
+
+    setState(() {
+      _hasRequestedComments = true;
+      _isLoadingComments = true;
+      _commentPage = 1;
+      _hasMoreComments = true;
+      _isLoadingMoreComments = false;
+      _comments = null;
+    });
+
+    try {
+      final comments = await fetchBangumiComments(
+        subjectId: subjectId,
+        page: 1,
+      );
+      if (!mounted) return;
+      setState(() {
+        _comments = comments;
+        _hasMoreComments = comments.isNotEmpty;
+      });
+    } catch (e) {
+      debugPrint('Error fetching comments: $e');
+      if (mounted) {
+        setState(() {
+          _comments = [];
+          _hasMoreComments = false;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingComments = false;
+        });
+      }
+    }
+  }
+
   Future<void> _fetchBangumiData() async {
     final subjectIdStr = widget.anime.bangumiId;
     if (subjectIdStr == null) {
@@ -168,7 +216,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       _isLoadingEpisodes = true;
       _isLoadingCharacters = true;
       _isLoadingRelations = true;
-      _isLoadingComments = true;
+      _isLoadingComments = false;
+      _hasRequestedComments = false;
       _commentPage = 1;
       _hasMoreComments = true;
       _isLoadingMoreComments = false;
@@ -215,7 +264,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     List<BangumiEpisode> episodes = [];
     List<BangumiCharacter> characters = [];
     List<BangumiRelatedSubject> relations = [];
-    List<BangumiComment> comments = [];
     final personMap = <String, int>{};
 
     Future<void> loadEpisodes() async {
@@ -304,7 +352,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
     Future<void> loadPersons() async {
       try {
-        final persons = await fetchBangumiPersons(subjectId: subjectId);
+        final persons = await cache.getPersons(
+          subjectId: subjectId,
+          fetchFromNetwork: () => fetchBangumiPersons(subjectId: subjectId),
+        );
         for (final p in persons) {
           if (p.name.isNotEmpty && p.id != 0) {
             personMap.putIfAbsent(p.name, () => p.id);
@@ -321,30 +372,22 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       }
     }
 
-    Future<void> loadComments() async {
-      try {
-        comments = await fetchBangumiComments(subjectId: subjectId, page: 1);
-      } catch (e) {
-        debugPrint('Error fetching comments: $e');
-        comments = [];
-      } finally {
-        if (mounted) {
-          setState(() {
-            _comments = comments;
-            _isLoadingComments = false;
-          });
-        }
-      }
-    }
-
     await Future.wait([
       loadDetails(),
       loadEpisodes(),
       loadCharacters(),
       loadRelations(),
       loadPersons(),
-      loadComments(),
     ]);
+
+    if (mounted) {
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 250), () async {
+          if (!mounted) return;
+          await _ensureCommentsLoaded();
+        }),
+      );
+    }
   }
 
   void _parseData() {
@@ -469,7 +512,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   // --- Mobile Layout (Refined based on screenshot) ---
   Widget _buildMobileLayout(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF16161E) : Theme.of(context).scaffoldBackgroundColor;
+    final bgColor = isDark
+        ? const Color(0xFF16161E)
+        : Theme.of(context).scaffoldBackgroundColor;
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -495,14 +540,20 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                       color: bgColor,
                       border: Border(
                         bottom: BorderSide(
-                          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.2),
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : Colors.grey.withValues(alpha: 0.2),
                           width: 1,
                         ),
                       ),
                     ),
                     child: TabBar(
-                      labelColor: isDark ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                      unselectedLabelColor: isDark ? Colors.grey : Theme.of(context).colorScheme.onSurfaceVariant,
+                      labelColor: isDark
+                          ? Colors.white
+                          : Theme.of(context).colorScheme.onSurface,
+                      unselectedLabelColor: isDark
+                          ? Colors.grey
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                       indicatorColor: Theme.of(context).colorScheme.primary,
                       indicatorWeight: 3,
                       indicatorSize: TabBarIndicatorSize.label,
@@ -530,105 +581,129 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           body: TabBarView(
             children: [
               _buildMobileDetailsTab(context),
-              NotificationListener<ScrollNotification>(
-                onNotification: _handleScrollNotification,
-                child: _isLoadingComments
-                    ? ListView(
-                        padding: const EdgeInsets.all(16),
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _buildSectionTitle(context, "评论", isDarkBg: isDark),
-                          ),
-                          const SizedBox(height: 96),
-                          Center(
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: isDark ? Colors.white54 : Colors.grey,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Center(
-                            child: Text(
-                              '加载中...',
-                              style: TextStyle(
-                                color: isDark ? Colors.white.withValues(alpha: 0.6) : Colors.grey,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    : _comments == null || _comments!.isEmpty
+              Builder(
+                builder: (context) {
+                  if (!_hasRequestedComments && !_isLoadingComments) {
+                    unawaited(_ensureCommentsLoaded());
+                  }
+
+                  return NotificationListener<ScrollNotification>(
+                    onNotification: _handleScrollNotification,
+                    child: _isLoadingComments
                         ? ListView(
                             padding: const EdgeInsets.all(16),
                             physics: const AlwaysScrollableScrollPhysics(),
                             children: [
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
-                                child: _buildSectionTitle(context, "评论", isDarkBg: isDark),
+                                child: _buildSectionTitle(
+                                  context,
+                                  "评论",
+                                  isDarkBg: isDark,
+                                ),
+                              ),
+                              const SizedBox(height: 96),
+                              Center(
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: isDark
+                                        ? Colors.white54
+                                        : Colors.grey,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Center(
+                                child: Text(
+                                  '加载中...',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.6)
+                                        : Colors.grey,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : _comments == null || _comments!.isEmpty
+                        ? ListView(
+                            padding: const EdgeInsets.all(16),
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _buildSectionTitle(
+                                  context,
+                                  "评论",
+                                  isDarkBg: isDark,
+                                ),
                               ),
                               const SizedBox(height: 96),
                               Center(
                                 child: Text(
                                   '暂无评论',
                                   style: TextStyle(
-                                    color: isDark ? Colors.white.withValues(alpha: 0.6) : Colors.grey,
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.6)
+                                        : Colors.grey,
                                   ),
                                 ),
                               ),
                             ],
                           )
                         : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        itemCount:
-                            (_comments == null ? 0 : _comments!.length) +
-                            1 +
-                            (_isLoadingMoreComments ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index == 0) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _buildSectionTitle(
-                                context,
-                                "评论",
-                                isDarkBg: isDark,
-                              ),
-                            );
-                          }
+                            padding: const EdgeInsets.all(16),
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            itemCount:
+                                (_comments == null ? 0 : _comments!.length) +
+                                1 +
+                                (_isLoadingMoreComments ? 1 : 0),
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _buildSectionTitle(
+                                    context,
+                                    "评论",
+                                    isDarkBg: isDark,
+                                  ),
+                                );
+                              }
 
-                          final commentIndex = index - 1;
-                          if (_comments == null ||
-                              commentIndex >= _comments!.length) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              child: Center(
-                                child: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                              final commentIndex = index - 1;
+                              if (_comments == null ||
+                                  commentIndex >= _comments!.length) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              final comment = _comments![commentIndex];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: _buildCommentCard(
+                                  context,
+                                  comment,
+                                  isDarkBg: isDark,
                                 ),
-                              ),
-                            );
-                          }
-
-                          final comment = _comments![commentIndex];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: _buildCommentCard(
-                              context,
-                              comment,
-                              isDarkBg: isDark,
-                            ),
-                          );
-                        },
-                      ),
+                              );
+                            },
+                          ),
+                  );
+                },
               ),
             ],
           ),
@@ -641,7 +716,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     // Determine background image
     final imgUrl = _getImageUrl();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF16161E) : Theme.of(context).scaffoldBackgroundColor;
+    final bgColor = isDark
+        ? const Color(0xFF16161E)
+        : Theme.of(context).scaffoldBackgroundColor;
 
     return Stack(
       fit: StackFit.expand,
@@ -947,7 +1024,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                       style: TextStyle(
                         fontSize: 14,
                         height: 1.6,
-                        color: isDark ? Colors.white70 : Theme.of(context).textTheme.bodyMedium?.color,
+                        color: isDark
+                            ? Colors.white70
+                            : Theme.of(context).textTheme.bodyMedium?.color,
                       ),
                       textAlign: TextAlign.justify,
                     ),
@@ -1621,7 +1700,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(context, AppLocalizations.of(context).bangumiDetailsStory, isDarkBg: isDarkBg),
+        _buildSectionTitle(
+          context,
+          AppLocalizations.of(context).bangumiDetailsStory,
+          isDarkBg: isDarkBg,
+        ),
         const SizedBox(height: 12),
         GestureDetector(
           onTap: _hasBothTranslationAndOriginal()
@@ -1662,7 +1745,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(context, AppLocalizations.of(context).bangumiDetailsTags, isDarkBg: isDarkBg),
+        _buildSectionTitle(
+          context,
+          AppLocalizations.of(context).bangumiDetailsTags,
+          isDarkBg: isDarkBg,
+        ),
         const SizedBox(height: 12),
         Wrap(
           spacing: 8,
@@ -1678,7 +1765,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                     )
                   : null,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: isDarkBg ? Colors.white10 : Colors.grey[200],
                   borderRadius: BorderRadius.circular(20),
@@ -1836,7 +1926,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
     final textColor = isDarkBg ? Colors.white : Colors.black87;
     final keyColor = isDarkBg ? Colors.white54 : Colors.grey;
-    final bgColor = isDarkBg ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.1);
+    final bgColor = isDarkBg
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.grey.withValues(alpha: 0.1);
 
     return RepaintBoundary(
       child: Container(
@@ -1850,30 +1942,74 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           children: [
             Text(
               "Information",
-            style: TextStyle(
-              color: textColor,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          ...infobox.map((item) {
-            final val = item['value'];
-            final valueStyle = TextStyle(color: textColor, fontSize: 12);
-            final linkColor = isDarkBg ? Colors.cyanAccent : Colors.blue.shade800;
-            final linkStyle = TextStyle(
-              color: linkColor,
-              fontSize: 12,
-              decoration: TextDecoration.underline,
-              decorationColor: linkColor,
-            );
+            const SizedBox(height: 16),
+            ...infobox.map((item) {
+              final val = item['value'];
+              final valueStyle = TextStyle(color: textColor, fontSize: 12);
+              final linkColor = isDarkBg
+                  ? Colors.cyanAccent
+                  : Colors.blue.shade800;
+              final linkStyle = TextStyle(
+                color: linkColor,
+                fontSize: 12,
+                decoration: TextDecoration.underline,
+                decorationColor: linkColor,
+              );
 
-            // When value is a list of persons, render each as a clickable span
-            if (val is List) {
-              final names = val
-                  .map((v) => (v['v'] ?? '').toString())
-                  .where((s) => s.isNotEmpty)
-                  .toList();
+              // When value is a list of persons, render each as a clickable span
+              if (val is List) {
+                final names = val
+                    .map((v) => (v['v'] ?? '').toString())
+                    .where((s) => s.isNotEmpty)
+                    .toList();
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 70,
+                        child: Text(
+                          item['key'],
+                          style: TextStyle(
+                            color: keyColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Wrap(
+                          spacing: 0,
+                          runSpacing: 4,
+                          children: [
+                            for (int i = 0; i < names.length; i++) ...[
+                              _buildPersonAwareText(
+                                names[i],
+                                textStyle: valueStyle,
+                                linkStyle: linkStyle,
+                              ),
+                              if (i < names.length - 1)
+                                Text(', ', style: valueStyle),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              // Plain string value
+              final valueStr = val.toString();
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12.0),
@@ -1893,61 +2029,19 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Wrap(
-                        spacing: 0,
-                        runSpacing: 4,
-                        children: [
-                          for (int i = 0; i < names.length; i++) ...[
-                            _buildPersonAwareText(
-                              names[i],
-                              textStyle: valueStyle,
-                              linkStyle: linkStyle,
-                            ),
-                            if (i < names.length - 1)
-                              Text(', ', style: valueStyle),
-                          ],
-                        ],
+                      child: _buildPersonAwareText(
+                        valueStr,
+                        textStyle: valueStyle,
+                        linkStyle: linkStyle,
                       ),
                     ),
                   ],
                 ),
               );
-            }
-
-            // Plain string value
-            final valueStr = val.toString();
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 70,
-                    child: Text(
-                      item['key'],
-                      style: TextStyle(
-                        color: keyColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _buildPersonAwareText(
-                      valueStr,
-                      textStyle: valueStyle,
-                      linkStyle: linkStyle,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
+            }),
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -2076,7 +2170,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(context, AppLocalizations.of(context).bangumiDetailsEpisodes, isDarkBg: isDarkBg),
+        _buildSectionTitle(
+          context,
+          AppLocalizations.of(context).bangumiDetailsEpisodes,
+          isDarkBg: isDarkBg,
+        ),
         const SizedBox(height: 12),
         SizedBox(
           height: 138, // Reduced to bring scrollbar closer
@@ -2224,7 +2322,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (var index = 0; index < characters.take(10).length; index++) ...[
+                    for (
+                      var index = 0;
+                      index < characters.take(10).length;
+                      index++
+                    ) ...[
                       if (index > 0) const SizedBox(width: 16),
                       Builder(
                         builder: (context) {
@@ -2280,17 +2382,19 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                                           child: CachedNetworkImage(
                                                             imageUrl: imageUrl,
                                                             fit: BoxFit.cover,
-                                                            alignment:
-                                                                Alignment.topCenter,
-                                                            deferOffscreenLoad: false,
+                                                            alignment: Alignment
+                                                                .topCenter,
+                                                            deferOffscreenLoad:
+                                                                false,
                                                           ),
                                                         )
                                                       : CachedNetworkImage(
                                                           imageUrl: imageUrl,
                                                           fit: BoxFit.cover,
-                                                          alignment:
-                                                              Alignment.topCenter,
-                                                          deferOffscreenLoad: false,
+                                                          alignment: Alignment
+                                                              .topCenter,
+                                                          deferOffscreenLoad:
+                                                              false,
                                                         )
                                                 : Center(
                                                     child: Icon(
@@ -2333,7 +2437,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                                 ? Colors.cyanAccent
                                                 : Colors.blue.shade800,
                                             fontWeight: FontWeight.w600,
-                                            decoration: TextDecoration.underline,
+                                            decoration:
+                                                TextDecoration.underline,
                                             decorationColor: isDarkBg
                                                 ? Colors.cyanAccent
                                                 : Colors.blue.shade800,
@@ -2360,7 +2465,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                         'CV: ',
                                         style: TextStyle(
                                           fontSize: 10,
-                                          color: textColor.withValues(alpha: 0.5),
+                                          color: textColor.withValues(
+                                            alpha: 0.5,
+                                          ),
                                         ),
                                       ),
                                       Expanded(
@@ -2376,8 +2483,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                                     color: isDarkBg
                                                         ? Colors.cyanAccent
                                                         : Colors.blue.shade800,
-                                                    decoration:
-                                                        TextDecoration.underline,
+                                                    decoration: TextDecoration
+                                                        .underline,
                                                     decorationColor: isDarkBg
                                                         ? Colors.cyanAccent
                                                         : Colors.blue.shade800,
@@ -2396,8 +2503,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                                   ),
                                                 ),
                                                 maxLines: 1,
-                                                overflow:
-                                                    TextOverflow.ellipsis,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                       ),
                                     ],
@@ -2441,7 +2547,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(context, AppLocalizations.of(context).bangumiDetailsRelatedItems, isDarkBg: isDarkBg),
+        _buildSectionTitle(
+          context,
+          AppLocalizations.of(context).bangumiDetailsRelatedItems,
+          isDarkBg: isDarkBg,
+        ),
         const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -2456,7 +2566,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (var index = 0; index < _relations!.length; index++) ...[
+                    for (
+                      var index = 0;
+                      index < _relations!.length;
+                      index++
+                    ) ...[
                       if (index > 0) const SizedBox(width: 16),
                       Builder(
                         builder: (context) {
@@ -2495,8 +2609,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                                     ),
                                     child: rel.image.isNotEmpty
                                         ? ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
                                             child: CachedNetworkImage(
                                               imageUrl: rel.image,
                                               fit: BoxFit.cover,
@@ -2558,6 +2673,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   }
 
   Widget _buildCommentsSection(BuildContext context, {bool isDarkBg = false}) {
+    if (!_hasRequestedComments && !_isLoadingComments) {
+      unawaited(_ensureCommentsLoaded());
+    }
+
     if (_isLoadingComments) {
       return _buildPlaceholderSection(
         context,

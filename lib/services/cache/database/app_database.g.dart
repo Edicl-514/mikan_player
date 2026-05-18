@@ -4390,6 +4390,367 @@ class DbBangumiEpisodeCachesCompanion
   }
 }
 
+class $DbBangumiPersonCachesTable extends DbBangumiPersonCaches
+    with TableInfo<$DbBangumiPersonCachesTable, DbBangumiPersonCache> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DbBangumiPersonCachesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _subjectIdMeta = const VerificationMeta(
+    'subjectId',
+  );
+  @override
+  late final GeneratedColumn<int> subjectId = GeneratedColumn<int>(
+    'subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _personsJsonMeta = const VerificationMeta(
+    'personsJson',
+  );
+  @override
+  late final GeneratedColumn<String> personsJson = GeneratedColumn<String>(
+    'persons_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cachedAtMeta = const VerificationMeta(
+    'cachedAt',
+  );
+  @override
+  late final GeneratedColumn<int> cachedAt = GeneratedColumn<int>(
+    'cached_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<int> expiresAt = GeneratedColumn<int>(
+    'expires_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    subjectId,
+    personsJson,
+    cachedAt,
+    expiresAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'db_bangumi_person_caches';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DbBangumiPersonCache> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('subject_id')) {
+      context.handle(
+        _subjectIdMeta,
+        subjectId.isAcceptableOrUnknown(data['subject_id']!, _subjectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_subjectIdMeta);
+    }
+    if (data.containsKey('persons_json')) {
+      context.handle(
+        _personsJsonMeta,
+        personsJson.isAcceptableOrUnknown(
+          data['persons_json']!,
+          _personsJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_personsJsonMeta);
+    }
+    if (data.containsKey('cached_at')) {
+      context.handle(
+        _cachedAtMeta,
+        cachedAt.isAcceptableOrUnknown(data['cached_at']!, _cachedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cachedAtMeta);
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_expiresAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DbBangumiPersonCache map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DbBangumiPersonCache(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      subjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}subject_id'],
+      )!,
+      personsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}persons_json'],
+      )!,
+      cachedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cached_at'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}expires_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DbBangumiPersonCachesTable createAlias(String alias) {
+    return $DbBangumiPersonCachesTable(attachedDatabase, alias);
+  }
+}
+
+class DbBangumiPersonCache extends DataClass
+    implements Insertable<DbBangumiPersonCache> {
+  final int id;
+  final int subjectId;
+  final String personsJson;
+  final int cachedAt;
+  final int expiresAt;
+  const DbBangumiPersonCache({
+    required this.id,
+    required this.subjectId,
+    required this.personsJson,
+    required this.cachedAt,
+    required this.expiresAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['subject_id'] = Variable<int>(subjectId);
+    map['persons_json'] = Variable<String>(personsJson);
+    map['cached_at'] = Variable<int>(cachedAt);
+    map['expires_at'] = Variable<int>(expiresAt);
+    return map;
+  }
+
+  DbBangumiPersonCachesCompanion toCompanion(bool nullToAbsent) {
+    return DbBangumiPersonCachesCompanion(
+      id: Value(id),
+      subjectId: Value(subjectId),
+      personsJson: Value(personsJson),
+      cachedAt: Value(cachedAt),
+      expiresAt: Value(expiresAt),
+    );
+  }
+
+  factory DbBangumiPersonCache.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DbBangumiPersonCache(
+      id: serializer.fromJson<int>(json['id']),
+      subjectId: serializer.fromJson<int>(json['subjectId']),
+      personsJson: serializer.fromJson<String>(json['personsJson']),
+      cachedAt: serializer.fromJson<int>(json['cachedAt']),
+      expiresAt: serializer.fromJson<int>(json['expiresAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'subjectId': serializer.toJson<int>(subjectId),
+      'personsJson': serializer.toJson<String>(personsJson),
+      'cachedAt': serializer.toJson<int>(cachedAt),
+      'expiresAt': serializer.toJson<int>(expiresAt),
+    };
+  }
+
+  DbBangumiPersonCache copyWith({
+    int? id,
+    int? subjectId,
+    String? personsJson,
+    int? cachedAt,
+    int? expiresAt,
+  }) => DbBangumiPersonCache(
+    id: id ?? this.id,
+    subjectId: subjectId ?? this.subjectId,
+    personsJson: personsJson ?? this.personsJson,
+    cachedAt: cachedAt ?? this.cachedAt,
+    expiresAt: expiresAt ?? this.expiresAt,
+  );
+  DbBangumiPersonCache copyWithCompanion(DbBangumiPersonCachesCompanion data) {
+    return DbBangumiPersonCache(
+      id: data.id.present ? data.id.value : this.id,
+      subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
+      personsJson: data.personsJson.present
+          ? data.personsJson.value
+          : this.personsJson,
+      cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DbBangumiPersonCache(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('personsJson: $personsJson, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('expiresAt: $expiresAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, subjectId, personsJson, cachedAt, expiresAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DbBangumiPersonCache &&
+          other.id == this.id &&
+          other.subjectId == this.subjectId &&
+          other.personsJson == this.personsJson &&
+          other.cachedAt == this.cachedAt &&
+          other.expiresAt == this.expiresAt);
+}
+
+class DbBangumiPersonCachesCompanion
+    extends UpdateCompanion<DbBangumiPersonCache> {
+  final Value<int> id;
+  final Value<int> subjectId;
+  final Value<String> personsJson;
+  final Value<int> cachedAt;
+  final Value<int> expiresAt;
+  const DbBangumiPersonCachesCompanion({
+    this.id = const Value.absent(),
+    this.subjectId = const Value.absent(),
+    this.personsJson = const Value.absent(),
+    this.cachedAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+  });
+  DbBangumiPersonCachesCompanion.insert({
+    this.id = const Value.absent(),
+    required int subjectId,
+    required String personsJson,
+    required int cachedAt,
+    required int expiresAt,
+  }) : subjectId = Value(subjectId),
+       personsJson = Value(personsJson),
+       cachedAt = Value(cachedAt),
+       expiresAt = Value(expiresAt);
+  static Insertable<DbBangumiPersonCache> custom({
+    Expression<int>? id,
+    Expression<int>? subjectId,
+    Expression<String>? personsJson,
+    Expression<int>? cachedAt,
+    Expression<int>? expiresAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (subjectId != null) 'subject_id': subjectId,
+      if (personsJson != null) 'persons_json': personsJson,
+      if (cachedAt != null) 'cached_at': cachedAt,
+      if (expiresAt != null) 'expires_at': expiresAt,
+    });
+  }
+
+  DbBangumiPersonCachesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? subjectId,
+    Value<String>? personsJson,
+    Value<int>? cachedAt,
+    Value<int>? expiresAt,
+  }) {
+    return DbBangumiPersonCachesCompanion(
+      id: id ?? this.id,
+      subjectId: subjectId ?? this.subjectId,
+      personsJson: personsJson ?? this.personsJson,
+      cachedAt: cachedAt ?? this.cachedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (subjectId.present) {
+      map['subject_id'] = Variable<int>(subjectId.value);
+    }
+    if (personsJson.present) {
+      map['persons_json'] = Variable<String>(personsJson.value);
+    }
+    if (cachedAt.present) {
+      map['cached_at'] = Variable<int>(cachedAt.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<int>(expiresAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DbBangumiPersonCachesCompanion(')
+          ..write('id: $id, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('personsJson: $personsJson, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('expiresAt: $expiresAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $DbDownloadRecordsTable extends DbDownloadRecords
     with TableInfo<$DbDownloadRecordsTable, DbDownloadRecord> {
   @override
@@ -5159,6 +5520,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $DbBangumiEpisodeCachesTable dbBangumiEpisodeCaches =
       $DbBangumiEpisodeCachesTable(this);
+  late final $DbBangumiPersonCachesTable dbBangumiPersonCaches =
+      $DbBangumiPersonCachesTable(this);
   late final $DbDownloadRecordsTable dbDownloadRecords =
       $DbDownloadRecordsTable(this);
   @override
@@ -5173,6 +5536,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     dbTimetableCaches,
     dbRankingCaches,
     dbBangumiEpisodeCaches,
+    dbBangumiPersonCaches,
     dbDownloadRecords,
   ];
 }
@@ -7383,6 +7747,221 @@ typedef $$DbBangumiEpisodeCachesTableProcessedTableManager =
       DbBangumiEpisodeCache,
       PrefetchHooks Function()
     >;
+typedef $$DbBangumiPersonCachesTableCreateCompanionBuilder =
+    DbBangumiPersonCachesCompanion Function({
+      Value<int> id,
+      required int subjectId,
+      required String personsJson,
+      required int cachedAt,
+      required int expiresAt,
+    });
+typedef $$DbBangumiPersonCachesTableUpdateCompanionBuilder =
+    DbBangumiPersonCachesCompanion Function({
+      Value<int> id,
+      Value<int> subjectId,
+      Value<String> personsJson,
+      Value<int> cachedAt,
+      Value<int> expiresAt,
+    });
+
+class $$DbBangumiPersonCachesTableFilterComposer
+    extends Composer<_$AppDatabase, $DbBangumiPersonCachesTable> {
+  $$DbBangumiPersonCachesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get subjectId => $composableBuilder(
+    column: $table.subjectId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get personsJson => $composableBuilder(
+    column: $table.personsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DbBangumiPersonCachesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DbBangumiPersonCachesTable> {
+  $$DbBangumiPersonCachesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get subjectId => $composableBuilder(
+    column: $table.subjectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get personsJson => $composableBuilder(
+    column: $table.personsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DbBangumiPersonCachesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DbBangumiPersonCachesTable> {
+  $$DbBangumiPersonCachesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get subjectId =>
+      $composableBuilder(column: $table.subjectId, builder: (column) => column);
+
+  GeneratedColumn<String> get personsJson => $composableBuilder(
+    column: $table.personsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get cachedAt =>
+      $composableBuilder(column: $table.cachedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+}
+
+class $$DbBangumiPersonCachesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DbBangumiPersonCachesTable,
+          DbBangumiPersonCache,
+          $$DbBangumiPersonCachesTableFilterComposer,
+          $$DbBangumiPersonCachesTableOrderingComposer,
+          $$DbBangumiPersonCachesTableAnnotationComposer,
+          $$DbBangumiPersonCachesTableCreateCompanionBuilder,
+          $$DbBangumiPersonCachesTableUpdateCompanionBuilder,
+          (
+            DbBangumiPersonCache,
+            BaseReferences<
+              _$AppDatabase,
+              $DbBangumiPersonCachesTable,
+              DbBangumiPersonCache
+            >,
+          ),
+          DbBangumiPersonCache,
+          PrefetchHooks Function()
+        > {
+  $$DbBangumiPersonCachesTableTableManager(
+    _$AppDatabase db,
+    $DbBangumiPersonCachesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DbBangumiPersonCachesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$DbBangumiPersonCachesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DbBangumiPersonCachesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> subjectId = const Value.absent(),
+                Value<String> personsJson = const Value.absent(),
+                Value<int> cachedAt = const Value.absent(),
+                Value<int> expiresAt = const Value.absent(),
+              }) => DbBangumiPersonCachesCompanion(
+                id: id,
+                subjectId: subjectId,
+                personsJson: personsJson,
+                cachedAt: cachedAt,
+                expiresAt: expiresAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int subjectId,
+                required String personsJson,
+                required int cachedAt,
+                required int expiresAt,
+              }) => DbBangumiPersonCachesCompanion.insert(
+                id: id,
+                subjectId: subjectId,
+                personsJson: personsJson,
+                cachedAt: cachedAt,
+                expiresAt: expiresAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DbBangumiPersonCachesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DbBangumiPersonCachesTable,
+      DbBangumiPersonCache,
+      $$DbBangumiPersonCachesTableFilterComposer,
+      $$DbBangumiPersonCachesTableOrderingComposer,
+      $$DbBangumiPersonCachesTableAnnotationComposer,
+      $$DbBangumiPersonCachesTableCreateCompanionBuilder,
+      $$DbBangumiPersonCachesTableUpdateCompanionBuilder,
+      (
+        DbBangumiPersonCache,
+        BaseReferences<
+          _$AppDatabase,
+          $DbBangumiPersonCachesTable,
+          DbBangumiPersonCache
+        >,
+      ),
+      DbBangumiPersonCache,
+      PrefetchHooks Function()
+    >;
 typedef $$DbDownloadRecordsTableCreateCompanionBuilder =
     DbDownloadRecordsCompanion Function({
       Value<int> id,
@@ -7776,6 +8355,8 @@ class $AppDatabaseManager {
         _db,
         _db.dbBangumiEpisodeCaches,
       );
+  $$DbBangumiPersonCachesTableTableManager get dbBangumiPersonCaches =>
+      $$DbBangumiPersonCachesTableTableManager(_db, _db.dbBangumiPersonCaches);
   $$DbDownloadRecordsTableTableManager get dbDownloadRecords =>
       $$DbDownloadRecordsTableTableManager(_db, _db.dbDownloadRecords);
 }

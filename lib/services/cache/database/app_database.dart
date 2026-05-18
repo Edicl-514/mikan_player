@@ -100,6 +100,14 @@ class DbBangumiEpisodeCaches extends Table {
   IntColumn get expiresAt => integer()();
 }
 
+class DbBangumiPersonCaches extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get subjectId => integer().unique()();
+  TextColumn get personsJson => text()();
+  IntColumn get cachedAt => integer()();
+  IntColumn get expiresAt => integer()();
+}
+
 class DbDownloadRecords extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get infoHash => text().unique()();
@@ -125,6 +133,7 @@ class DbDownloadRecords extends Table {
     DbTimetableCaches,
     DbRankingCaches,
     DbBangumiEpisodeCaches,
+    DbBangumiPersonCaches,
     DbDownloadRecords,
   ],
 )
@@ -138,7 +147,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase._internal() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -146,6 +155,9 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.createTable(dbBangumiEpisodeCaches);
+      }
+      if (from < 3) {
+        await m.createTable(dbBangumiPersonCaches);
       }
     },
   );

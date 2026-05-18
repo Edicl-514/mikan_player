@@ -355,6 +355,49 @@ class CacheManager {
     }
   }
 
+  // ==================== 人物相关 ====================
+
+  /// 获取人物数据（优先从缓存）
+  Future<List<BangumiPerson>> getPersons({
+    required int subjectId,
+    required Future<List<BangumiPerson>> Function() fetchFromNetwork,
+  }) async {
+    final cache = await _dbCache.getPersons(subjectId);
+    if (cache.isNotEmpty) {
+      debugPrint('Persons loaded from cache: $subjectId');
+      return cache;
+    }
+
+    debugPrint('Fetching persons from network: $subjectId');
+    try {
+      final persons = await fetchFromNetwork();
+      if (persons.isEmpty) {
+        debugPrint(
+          'Persons network returned empty; keeping cache untouched: $subjectId',
+        );
+        final expiredCache = await _dbCache.getPersonsIncludingExpired(
+          subjectId,
+        );
+        if (expiredCache.isNotEmpty) {
+          debugPrint('Using expired persons cache: $subjectId');
+          return expiredCache;
+        }
+        return persons;
+      }
+
+      await _dbCache.savePersons(subjectId, persons);
+      return persons;
+    } catch (e) {
+      debugPrint('Network failed for persons: $e');
+      final expiredCache = await _dbCache.getPersonsIncludingExpired(subjectId);
+      if (expiredCache.isNotEmpty) {
+        debugPrint('Using expired persons cache: $subjectId');
+        return expiredCache;
+      }
+      rethrow;
+    }
+  }
+
   // ==================== 条目详情相关 ====================
 
   /// 获取条目详情（优先从缓存）

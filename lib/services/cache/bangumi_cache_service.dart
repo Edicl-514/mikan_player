@@ -6,6 +6,7 @@ import 'package:mikan_player/services/cache/database/app_database.dart';
 
 import 'models/bangumi_character_cache.dart';
 import 'models/bangumi_episode_cache.dart';
+import 'models/bangumi_person_cache.dart';
 import 'models/bangumi_relation_cache.dart';
 import 'models/bangumi_subject_cache.dart';
 import 'models/download_record.dart';
@@ -67,6 +68,7 @@ class BangumiCacheService {
       await db.delete(db.dbTimetableCaches).go();
       await db.delete(db.dbRankingCaches).go();
       await db.delete(db.dbBangumiEpisodeCaches).go();
+      await db.delete(db.dbBangumiPersonCaches).go();
       // NOTE: Do not clear downloadRecords here as they are user data
     });
   }
@@ -93,6 +95,9 @@ class BangumiCacheService {
       )..where((tbl) => tbl.expiresAt.isSmallerThanValue(now))).go();
       await (db.delete(
         db.dbBangumiEpisodeCaches,
+      )..where((tbl) => tbl.expiresAt.isSmallerThanValue(now))).go();
+      await (db.delete(
+        db.dbBangumiPersonCaches,
       )..where((tbl) => tbl.expiresAt.isSmallerThanValue(now))).go();
     });
   }
@@ -462,6 +467,113 @@ class BangumiCacheService {
     }
   }
 
+  // ==================== 人物缓存操作 ====================
+
+  /// 获取条目的人物缓存列表
+  Future<List<BangumiPerson>> getPersons(int subjectId) async {
+    final cache = await _getPersonRow(subjectId);
+
+    if (cache != null && !cache.isExpired) {
+      debugPrint('Drift Cache: Hit Persons $subjectId');
+      return personsFromCache(cache);
+    }
+    debugPrint('Drift Cache: Miss Persons $subjectId');
+    return [];
+  }
+
+  Future<List<BangumiPerson>> getPersonsIncludingExpired(int subjectId) async {
+    final cache = await _getPersonRow(subjectId);
+
+    if (cache != null) {
+      if (cache.isExpired) {
+        debugPrint('Drift Cache: Hit Persons (expired) $subjectId');
+      } else {
+        debugPrint('Drift Cache: Hit Persons $subjectId');
+      }
+      return personsFromCache(cache);
+    }
+    debugPrint('Drift Cache: Miss Persons $subjectId');
+    return [];
+  }
+
+  Future<BangumiPersonCache?> _getPersonRow(int subjectId) async {
+    final row = await (db.select(
+      db.dbBangumiPersonCaches,
+    )..where((tbl) => tbl.subjectId.equals(subjectId))).getSingleOrNull();
+    return row == null ? null : _personFromRow(row);
+  }
+
+  /// 保存条目的人物缓存
+  Future<void> savePersons(int subjectId, List<BangumiPerson> persons) async {
+    if (persons.isEmpty) {
+      debugPrint('Drift Cache: Skip empty Persons $subjectId');
+      return;
+    }
+
+    final personsJson = jsonEncode(
+      persons
+          .map(
+            (person) => {
+              'id': person.id,
+              'name': person.name,
+              'relation': person.relation,
+              'career': person.career,
+              'personType': person.personType,
+              'images': person.images == null
+                  ? null
+                  : {
+                      'small': person.images!.small,
+                      'grid': person.images!.grid,
+                      'large': person.images!.large,
+                      'medium': person.images!.medium,
+                      'common': person.images!.common,
+                    },
+            },
+          )
+          .toList(),
+    );
+
+    final cache = BangumiPersonCache.create(
+      subjectId: subjectId,
+      personsJson: personsJson,
+    );
+
+    await db
+        .into(db.dbBangumiPersonCaches)
+        .insert(_personToCompanion(cache), mode: InsertMode.insertOrReplace);
+    debugPrint('Drift Cache: Save Persons $subjectId count=${persons.length}');
+  }
+
+  /// 将缓存转换为 BangumiPerson 列表
+  List<BangumiPerson> personsFromCache(BangumiPersonCache cache) {
+    try {
+      final list = jsonDecode(cache.personsJson) as List;
+      return list
+          .map(
+            (item) => BangumiPerson(
+              id: item['id'] ?? 0,
+              name: item['name'] ?? '',
+              relation: item['relation'] ?? '',
+              career: (item['career'] as List?)?.cast<String>() ?? const [],
+              personType: item['personType'] ?? 0,
+              images: item['images'] == null
+                  ? null
+                  : BangumiImages(
+                      small: item['images']['small'] ?? '',
+                      grid: item['images']['grid'] ?? '',
+                      large: item['images']['large'] ?? '',
+                      medium: item['images']['medium'] ?? '',
+                      common: item['images']['common'] ?? '',
+                    ),
+            ),
+          )
+          .toList();
+    } catch (e) {
+      debugPrint('Error parsing person cache: $e');
+      return [];
+    }
+  }
+
   // ==================== 时间表缓存操作 ====================
 
   /// 获取时间表缓存
@@ -753,6 +865,7 @@ class BangumiCacheService {
       'timetables': await _count(db.dbTimetableCaches),
       'rankings': await _count(db.dbRankingCaches),
       'episodes': await _count(db.dbBangumiEpisodeCaches),
+      'persons': await _count(db.dbBangumiPersonCaches),
       'downloadRecords': await _count(db.dbDownloadRecords),
     };
   }
@@ -1016,6 +1129,24 @@ class BangumiCacheService {
       ..id = row.id
       ..subjectId = row.subjectId
       ..episodesJson = row.episodesJson
+      ..cachedAt = row.cachedAt
+      ..expiresAt = row.expiresAt;
+  }
+
+  DbBangumiPersonCachesCompanion _personToCompanion(BangumiPersonCache cache) {
+    return DbBangumiPersonCachesCompanion.insert(
+      subjectId: cache.subjectId,
+      personsJson: cache.personsJson,
+      cachedAt: cache.cachedAt,
+      expiresAt: cache.expiresAt,
+    );
+  }
+
+  BangumiPersonCache _personFromRow(DbBangumiPersonCache row) {
+    return BangumiPersonCache()
+      ..id = row.id
+      ..subjectId = row.subjectId
+      ..personsJson = row.personsJson
       ..cachedAt = row.cachedAt
       ..expiresAt = row.expiresAt;
   }
