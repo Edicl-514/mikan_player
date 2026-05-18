@@ -63,7 +63,14 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeStartLoading());
+    final syncPath = ImageCacheService.instance.getCachedPathSync(widget.imageUrl);
+    if (syncPath != null) {
+      _localPath = syncPath;
+      _isLoading = false;
+      _hasStartedLoading = true;
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeStartLoading());
+    }
   }
 
   @override

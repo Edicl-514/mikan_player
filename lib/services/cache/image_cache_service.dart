@@ -24,6 +24,9 @@ class ImageCacheService {
   final HttpClient _httpClient = HttpClient()
     ..connectionTimeout = const Duration(seconds: 10);
   final Map<String, Future<String?>> _inFlightDownloads = {};
+  final LinkedHashMap<String, String> _memoryPathCache =
+      LinkedHashMap<String, String>();
+  static const int _maxMemoryCacheSize = 500;
   final Queue<Completer<void>> _downloadQueue = Queue<Completer<void>>();
   int _activeDownloads = 0;
   static const int _maxConcurrentDownloads = 4;
@@ -100,13 +103,31 @@ class ImageCacheService {
     return await File(localPath).exists();
   }
 
+  void _putMemoryCache(String url, String path) {
+    _memoryPathCache.remove(url);
+    _memoryPathCache[url] = path;
+    if (_memoryPathCache.length > _maxMemoryCacheSize) {
+      _memoryPathCache.remove(_memoryPathCache.keys.first);
+    }
+  }
+
+  String? getCachedPathSync(String url) {
+    final path = _memoryPathCache[url];
+    if (path != null) {
+      _putMemoryCache(url, path);
+    }
+    return path;
+  }
+
   /// 获取已缓存图片的本地路径，如果未缓存则返回 null
   Future<String?> getCachedPath(String url) async {
     final localPath = getLocalPath(url);
     final file = File(localPath);
     if (await file.exists()) {
+      _putMemoryCache(url, localPath);
       return localPath;
     }
+    _memoryPathCache.remove(url);
     return null;
   }
 
@@ -119,7 +140,6 @@ class ImageCacheService {
     // 检查是否已缓存
     final existingPath = await getCachedPath(url);
     if (existingPath != null) {
-      debugPrint('[ImageCache] Loaded from cache: $url');
       return existingPath;
     }
 
@@ -131,7 +151,11 @@ class ImageCacheService {
     final future = _cacheImageWithLimit(url);
     _inFlightDownloads[url] = future;
     future.whenComplete(() => _inFlightDownloads.remove(url));
-    return future;
+    final result = await future;
+    if (result != null) {
+      _putMemoryCache(url, result);
+    }
+    return result;
   }
 
   Future<String?> _cacheImageWithLimit(String url) async {
@@ -149,6 +173,7 @@ class ImageCacheService {
       if (bytes != null && bytes.isNotEmpty) {
         final file = File(localPath);
         await file.writeAsBytes(bytes);
+        _putMemoryCache(url, localPath);
         debugPrint('[ImageCache] Loaded from network: $url');
         return localPath;
       }
@@ -235,6 +260,7 @@ class ImageCacheService {
       final file = File(localPath);
       if (await file.exists()) {
         await file.delete();
+        _memoryPathCache.remove(url);
         return true;
       }
     } catch (e) {
@@ -246,6 +272,7 @@ class ImageCacheService {
   /// 清空所有缓存图片
   Future<void> clearAll() async {
     try {
+      _memoryPathCache.clear();
       if (_cacheDir != null && await _cacheDir!.exists()) {
         await _cacheDir!.delete(recursive: true);
         await _cacheDir!.create(recursive: true);
