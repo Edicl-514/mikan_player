@@ -129,6 +129,14 @@ pub async fn retry_request(
     label: &str,
     request_fn: impl Fn(&Client) -> reqwest::RequestBuilder,
 ) -> anyhow::Result<reqwest::Response> {
+    retry_request_with_status(label, request_fn, false).await
+}
+
+pub async fn retry_request_with_status(
+    label: &str,
+    request_fn: impl Fn(&Client) -> reqwest::RequestBuilder,
+    allow_error_status: bool,
+) -> anyhow::Result<reqwest::Response> {
     let client = get_shared_client();
     let mut delay = Duration::from_millis(INITIAL_DELAY_MS);
 
@@ -149,6 +157,9 @@ pub async fn retry_request(
                     tokio::time::sleep(delay).await;
                     delay *= 2;
                     continue;
+                }
+                if allow_error_status {
+                    return Ok(resp);
                 }
                 return Ok(resp.error_for_status()?);
             }

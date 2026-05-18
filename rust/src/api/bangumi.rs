@@ -57,6 +57,15 @@ pub struct BangumiComment {
     pub avatar: String,
 }
 
+const BANGUMI_SUBJECT_COMMENTS_LEGACY_LABEL: &str = "bangumi.comments.subject.legacy";
+const BANGUMI_SUBJECT_COMMENTS_NEXT_LABEL: &str = "bangumi.comments.subject.next";
+const BANGUMI_EPISODE_COMMENTS_LEGACY_LABEL: &str = "bangumi.comments.episode.legacy";
+const BANGUMI_EPISODE_COMMENTS_NEXT_LABEL: &str = "bangumi.comments.episode.next";
+
+fn is_hybrid_mode(mode: &str) -> bool {
+    mode == "hybrid"
+}
+
 /// Fetch episodes for a subject
 /// API: GET https://api.bgm.tv/v0/episodes?subject_id={subject_id}&limit=100&offset=0
 pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<BangumiEpisode>> {
@@ -287,15 +296,16 @@ pub async fn fetch_bangumi_comments(
         "modern" => fetch_bangumi_comments_next(subject_id, page).await,
         _ => match fetch_bangumi_comments_next(subject_id, page).await {
             Ok(comments) => Ok(comments),
-            Err(err) => {
+            Err(err) if is_hybrid_mode(&mode) => {
                 log::warn!(
-                    "bangumi.comments.subject.next failed, fallback to legacy: subject_id={} page={} error={}",
+                    "bangumi.comments.subject fallback=legacy subject_id={} page={} error={}",
                     subject_id,
                     page,
                     err
                 );
                 fetch_bangumi_comments_legacy(subject_id, page).await
             }
+            Err(err) => Err(err),
         },
     }
 }
@@ -312,8 +322,10 @@ async fn fetch_bangumi_comments_legacy(
     );
 
     let resp =
-        crate::api::network::retry_request("fetch_bangumi_comments", |client| client.get(&url))
-            .await?;
+        crate::api::network::retry_request(BANGUMI_SUBJECT_COMMENTS_LEGACY_LABEL, |client| {
+            client.get(&url)
+        })
+        .await?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
@@ -537,14 +549,15 @@ pub async fn fetch_bangumi_episode_comments(
         "modern" => fetch_bangumi_episode_comments_next(episode_id).await,
         _ => match fetch_bangumi_episode_comments_next(episode_id).await {
             Ok(comments) => Ok(comments),
-            Err(err) => {
+            Err(err) if is_hybrid_mode(&mode) => {
                 log::warn!(
-                    "bangumi.comments.episode.next failed, fallback to legacy: episode_id={} error={}",
+                    "bangumi.comments.episode fallback=legacy episode_id={} error={}",
                     episode_id,
                     err
                 );
                 fetch_bangumi_episode_comments_legacy(episode_id).await
             }
+            Err(err) => Err(err),
         },
     }
 }
@@ -557,10 +570,11 @@ async fn fetch_bangumi_episode_comments_legacy(
         crate::api::config::get_bangumi_url(),
         episode_id
     );
-    let resp = crate::api::network::retry_request("fetch_bangumi_episode_comments", |client| {
-        client.get(&url)
-    })
-    .await?;
+    let resp =
+        crate::api::network::retry_request(BANGUMI_EPISODE_COMMENTS_LEGACY_LABEL, |client| {
+            client.get(&url)
+        })
+        .await?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
@@ -792,9 +806,11 @@ async fn fetch_bangumi_comments_next(
         "/p1/subjects/{subject_id}/comments?limit={BANGUMI_NEXT_COMMENTS_PAGE_SIZE}&offset={offset}"
     ));
 
-    let resp = crate::api::network::retry_request("fetch_bangumi_comments.next", |client| {
-        client.get(&url).header("accept", "application/json")
-    })
+    let resp = crate::api::network::retry_request_with_status(
+        BANGUMI_SUBJECT_COMMENTS_NEXT_LABEL,
+        |client| client.get(&url).header("accept", "application/json"),
+        true,
+    )
     .await?;
 
     let status = resp.status();
@@ -879,11 +895,12 @@ async fn fetch_bangumi_episode_comments_next(
 ) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
     let url = bangumi_next_url(&format!("/p1/episodes/{episode_id}/comments"));
 
-    let resp =
-        crate::api::network::retry_request("fetch_bangumi_episode_comments.next", |client| {
-            client.get(&url).header("accept", "application/json")
-        })
-        .await?;
+    let resp = crate::api::network::retry_request_with_status(
+        BANGUMI_EPISODE_COMMENTS_NEXT_LABEL,
+        |client| client.get(&url).header("accept", "application/json"),
+        true,
+    )
+    .await?;
 
     let status = resp.status();
     if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::BAD_REQUEST {
