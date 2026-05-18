@@ -29,6 +29,81 @@ class BangumiDetailsService {
 
   CacheManager get _cache => CacheManager.instance;
 
+  Future<Map<String, dynamic>?> loadCachedSubjectData(AnimeInfo anime) async {
+    final subjectId = _parseSubjectId(anime.bangumiId);
+    if (subjectId == null) return null;
+
+    try {
+      final cachedAnime = await _cache.getCachedSubject(subjectId);
+      if (cachedAnime?.fullJson == null) return null;
+
+      debugPrint('Subject primed from cache: $subjectId');
+      return jsonDecode(cachedAnime!.fullJson!) as Map<String, dynamic>;
+    } catch (e) {
+      debugPrint('Error priming subject from cache: $e');
+      return null;
+    }
+  }
+
+  Future<BangumiDetailsLoadResult?> loadCachedInitialData({
+    required AnimeInfo anime,
+    bool includeSubjectDetails = true,
+  }) async {
+    final subjectId = _parseSubjectId(anime.bangumiId);
+    if (subjectId == null) return null;
+
+    try {
+      final subjectFuture = includeSubjectDetails
+          ? loadCachedSubjectData(anime)
+          : Future<Map<String, dynamic>?>.value(null);
+      final episodesFuture = _cache.getCachedEpisodes(subjectId);
+      final charactersFuture = _cache.getCachedCharacters(subjectId);
+      final relationsFuture = _cache.getCachedRelations(subjectId);
+      final personsFuture = _cache.getCachedPersons(subjectId);
+
+      final results = await Future.wait<Object?>([
+        subjectFuture,
+        episodesFuture,
+        charactersFuture,
+        relationsFuture,
+        personsFuture,
+      ]);
+
+      final subjectData = results[0] as Map<String, dynamic>?;
+      final cachedEpisodes = results[1] as List<BangumiEpisode>;
+      final episodes = _filterReleasedEpisodes(
+        cachedEpisodes.isNotEmpty
+            ? cachedEpisodes
+            : _parseEpisodesFromSubjectData(subjectData),
+      );
+      final characters = results[2] as List<BangumiCharacter>;
+      final relations = results[3] as List<BangumiRelatedSubject>;
+      final persons = results[4] as List<BangumiPerson>;
+
+      if (subjectData == null &&
+          episodes.isEmpty &&
+          characters.isEmpty &&
+          relations.isEmpty &&
+          persons.isEmpty) {
+        return null;
+      }
+
+      return BangumiDetailsLoadResult(
+        subjectData: subjectData,
+        episodes: episodes,
+        characters: characters,
+        relations: relations,
+        personIdMap: _buildPersonIdMap(
+          characters: characters,
+          persons: persons,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error loading cached initial data: $e');
+      return null;
+    }
+  }
+
   Future<BangumiDetailsLoadResult> loadInitialData({
     required AnimeInfo anime,
     bool includeSubjectDetails = true,
@@ -122,23 +197,27 @@ class BangumiDetailsService {
         subjectId: subjectId,
         fetchFromNetwork: () => fetchBangumiEpisodes(subjectId: subjectId),
       );
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-
-      return allEpisodes.where((ep) {
-        if (ep.airdate.isEmpty) return true;
-        try {
-          final date = DateTime.parse(ep.airdate);
-          final episodeDate = DateTime(date.year, date.month, date.day);
-          return !episodeDate.isAfter(today);
-        } catch (_) {
-          return true;
-        }
-      }).toList();
+      return _filterReleasedEpisodes(allEpisodes);
     } catch (e) {
       debugPrint('Error fetching episodes: $e');
       return [];
     }
+  }
+
+  List<BangumiEpisode> _filterReleasedEpisodes(List<BangumiEpisode> episodes) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return episodes.where((ep) {
+      if (ep.airdate.isEmpty) return true;
+      try {
+        final date = DateTime.parse(ep.airdate);
+        final episodeDate = DateTime(date.year, date.month, date.day);
+        return !episodeDate.isAfter(today);
+      } catch (_) {
+        return true;
+      }
+    }).toList();
   }
 
   List<BangumiEpisode> _parseEpisodesFromSubjectData(

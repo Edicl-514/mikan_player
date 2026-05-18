@@ -106,10 +106,7 @@ class BangumiCacheService {
 
   /// 获取条目缓存
   Future<BangumiSubjectCache?> getSubject(int bangumiId) async {
-    final row = await (db.select(
-      db.dbBangumiSubjectCaches,
-    )..where((tbl) => tbl.bangumiId.equals(bangumiId))).getSingleOrNull();
-    final cache = row == null ? null : _subjectFromRow(row);
+    final cache = await _getSubjectRow(bangumiId);
 
     if (cache != null && !cache.isExpired) {
       debugPrint('Drift Cache: Hit Subject $bangumiId');
@@ -117,6 +114,28 @@ class BangumiCacheService {
     }
     debugPrint('Drift Cache: Miss Subject $bangumiId');
     return null;
+  }
+
+  Future<BangumiSubjectCache?> getSubjectIncludingExpired(int bangumiId) async {
+    final cache = await _getSubjectRow(bangumiId);
+
+    if (cache != null) {
+      if (cache.isExpired) {
+        debugPrint('Drift Cache: Hit Subject (expired) $bangumiId');
+      } else {
+        debugPrint('Drift Cache: Hit Subject $bangumiId');
+      }
+      return cache;
+    }
+    debugPrint('Drift Cache: Miss Subject $bangumiId');
+    return null;
+  }
+
+  Future<BangumiSubjectCache?> _getSubjectRow(int bangumiId) async {
+    final row = await (db.select(
+      db.dbBangumiSubjectCaches,
+    )..where((tbl) => tbl.bangumiId.equals(bangumiId))).getSingleOrNull();
+    return row == null ? null : _subjectFromRow(row);
   }
 
   /// 保存条目缓存
@@ -209,10 +228,7 @@ class BangumiCacheService {
 
   /// 获取条目的角色缓存列表
   Future<List<BangumiCharacterCache>> getCharacters(int subjectId) async {
-    final rows = await (db.select(
-      db.dbBangumiCharacterCaches,
-    )..where((tbl) => tbl.subjectId.equals(subjectId))).get();
-    final caches = rows.map(_characterFromRow).toList();
+    final caches = await _getCharacterRows(subjectId);
 
     if (caches.isNotEmpty && !caches.first.isExpired) {
       debugPrint('Drift Cache: Hit Characters $subjectId');
@@ -220,6 +236,30 @@ class BangumiCacheService {
     }
     debugPrint('Drift Cache: Miss Characters $subjectId');
     return [];
+  }
+
+  Future<List<BangumiCharacterCache>> getCharactersIncludingExpired(
+    int subjectId,
+  ) async {
+    final caches = await _getCharacterRows(subjectId);
+
+    if (caches.isNotEmpty) {
+      if (caches.first.isExpired) {
+        debugPrint('Drift Cache: Hit Characters (expired) $subjectId');
+      } else {
+        debugPrint('Drift Cache: Hit Characters $subjectId');
+      }
+      return caches;
+    }
+    debugPrint('Drift Cache: Miss Characters $subjectId');
+    return [];
+  }
+
+  Future<List<BangumiCharacterCache>> _getCharacterRows(int subjectId) async {
+    final rows = await (db.select(
+      db.dbBangumiCharacterCaches,
+    )..where((tbl) => tbl.subjectId.equals(subjectId))).get();
+    return rows.map(_characterFromRow).toList();
   }
 
   /// 保存角色缓存
@@ -297,10 +337,7 @@ class BangumiCacheService {
 
   /// 获取条目的关联条目缓存列表
   Future<List<BangumiRelationCache>> getRelations(int subjectId) async {
-    final rows = await (db.select(
-      db.dbBangumiRelationCaches,
-    )..where((tbl) => tbl.sourceSubjectId.equals(subjectId))).get();
-    final caches = rows.map(_relationFromRow).toList();
+    final caches = await _getRelationRows(subjectId);
 
     if (caches.isNotEmpty && !caches.first.isExpired) {
       debugPrint('Drift Cache: Hit Relations $subjectId');
@@ -308,6 +345,30 @@ class BangumiCacheService {
     }
     debugPrint('Drift Cache: Miss Relations $subjectId');
     return [];
+  }
+
+  Future<List<BangumiRelationCache>> getRelationsIncludingExpired(
+    int subjectId,
+  ) async {
+    final caches = await _getRelationRows(subjectId);
+
+    if (caches.isNotEmpty) {
+      if (caches.first.isExpired) {
+        debugPrint('Drift Cache: Hit Relations (expired) $subjectId');
+      } else {
+        debugPrint('Drift Cache: Hit Relations $subjectId');
+      }
+      return caches.where((c) => c.relatedSubjectId != -1).toList();
+    }
+    debugPrint('Drift Cache: Miss Relations $subjectId');
+    return [];
+  }
+
+  Future<List<BangumiRelationCache>> _getRelationRows(int subjectId) async {
+    final rows = await (db.select(
+      db.dbBangumiRelationCaches,
+    )..where((tbl) => tbl.sourceSubjectId.equals(subjectId))).get();
+    return rows.map(_relationFromRow).toList();
   }
 
   /// 保存关联条目缓存

@@ -85,6 +85,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _relationsScrollController = createPlatformScrollController();
     _parseData();
     _checkFavoriteStatus();
+    _primeInitialDataFromCache();
     _fetchBangumiData();
   }
 
@@ -242,10 +243,22 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
     setState(() {
       _data ??= result.subjectData;
-      _episodes = result.episodes;
-      _characters = sortedCharacters;
-      _sortedCharacters = sortedCharacters;
-      _relations = result.relations;
+      if (result.episodes.isNotEmpty ||
+          _episodes == null ||
+          _episodes!.isEmpty) {
+        _episodes = result.episodes;
+      }
+      if (sortedCharacters.isNotEmpty ||
+          _characters == null ||
+          _characters!.isEmpty) {
+        _characters = sortedCharacters;
+        _sortedCharacters = sortedCharacters;
+      }
+      if (result.relations.isNotEmpty ||
+          _relations == null ||
+          _relations!.isEmpty) {
+        _relations = result.relations;
+      }
       _mergePersonIdMap(result.personIdMap);
       _isLoadingEpisodes = false;
       _isLoadingCharacters = false;
@@ -260,6 +273,39 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         }),
       );
     }
+  }
+
+  Future<void> _primeInitialDataFromCache() async {
+    final result = await _detailsService.loadCachedInitialData(
+      anime: widget.anime,
+      includeSubjectDetails: _data == null,
+    );
+    if (!mounted || result == null) return;
+
+    final sortedCharacters = [...result.characters]
+      ..sort((a, b) {
+        final pa = _characterRolePriority(a);
+        final pb = _characterRolePriority(b);
+        return pa != pb ? pa.compareTo(pb) : a.name.compareTo(b.name);
+      });
+
+    setState(() {
+      _data ??= result.subjectData;
+      if (result.episodes.isNotEmpty) {
+        _episodes = result.episodes;
+        _isLoadingEpisodes = false;
+      }
+      if (sortedCharacters.isNotEmpty) {
+        _characters = sortedCharacters;
+        _sortedCharacters = sortedCharacters;
+        _isLoadingCharacters = false;
+      }
+      if (result.relations.isNotEmpty) {
+        _relations = result.relations;
+        _isLoadingRelations = false;
+      }
+      _mergePersonIdMap(result.personIdMap);
+    });
   }
 
   void _parseData() {

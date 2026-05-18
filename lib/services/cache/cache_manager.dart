@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'bangumi_cache_service.dart';
 import 'image_cache_service.dart';
+import 'models/bangumi_subject_cache.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -278,6 +279,12 @@ class CacheManager {
     }
   }
 
+  Future<List<BangumiCharacter>> getCachedCharacters(int subjectId) async {
+    final cache = await _dbCache.getCharactersIncludingExpired(subjectId);
+    if (cache.isEmpty) return const [];
+    return _dbCache.charactersFromCache(cache);
+  }
+
   // ==================== 关联条目相关 ====================
 
   /// 获取关联条目数据（优先从缓存）
@@ -308,6 +315,12 @@ class CacheManager {
       debugPrint('Network failed for relations: $e');
       rethrow;
     }
+  }
+
+  Future<List<BangumiRelatedSubject>> getCachedRelations(int subjectId) async {
+    final cache = await _dbCache.getRelationsIncludingExpired(subjectId);
+    if (cache.isEmpty) return const [];
+    return _dbCache.relationsFromCache(cache);
   }
 
   // ==================== 剧集相关 ====================
@@ -355,6 +368,10 @@ class CacheManager {
     }
   }
 
+  Future<List<BangumiEpisode>> getCachedEpisodes(int subjectId) {
+    return _dbCache.getEpisodesIncludingExpired(subjectId);
+  }
+
   // ==================== 人物相关 ====================
 
   /// 获取人物数据（优先从缓存）
@@ -398,6 +415,10 @@ class CacheManager {
     }
   }
 
+  Future<List<BangumiPerson>> getCachedPersons(int subjectId) {
+    return _dbCache.getPersonsIncludingExpired(subjectId);
+  }
+
   // ==================== 条目详情相关 ====================
 
   /// 获取条目详情（优先从缓存）
@@ -407,6 +428,17 @@ class CacheManager {
     final cache = await _dbCache.getSubject(bangumiId);
     if (cache == null) return null;
 
+    return _subjectCacheToAnimeInfo(cache);
+  }
+
+  Future<AnimeInfo?> getCachedSubject(int bangumiId) async {
+    final cache = await _dbCache.getSubjectIncludingExpired(bangumiId);
+    if (cache == null) return null;
+
+    return _subjectCacheToAnimeInfo(cache);
+  }
+
+  AnimeInfo _subjectCacheToAnimeInfo(BangumiSubjectCache cache) {
     // 将缓存转换为 AnimeInfo
     return AnimeInfo(
       title: cache.title,

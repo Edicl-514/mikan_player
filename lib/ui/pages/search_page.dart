@@ -9,8 +9,14 @@ import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 class SearchPage extends StatefulWidget {
   final String? initialKeyword;
   final String? initialTag;
+  final bool autofocus;
 
-  const SearchPage({super.key, this.initialKeyword, this.initialTag});
+  const SearchPage({
+    super.key,
+    this.initialKeyword,
+    this.initialTag,
+    bool? autofocus,
+  }) : autofocus = autofocus ?? (initialKeyword == null && initialTag == null);
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -169,6 +175,7 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: TextField(
           controller: _searchController,
@@ -176,17 +183,23 @@ class _SearchPageState extends State<SearchPage> {
             hintText: AppLocalizations.of(context).searchHintText,
             border: InputBorder.none,
             hintStyle: TextStyle(
-              color: Theme.of(context).appBarTheme.titleTextStyle?.color?.withValues(alpha: 0.7) ??
-                  Theme.of(context).textTheme.titleLarge?.color?.withValues(alpha: 0.7),
+              color:
+                  Theme.of(
+                    context,
+                  ).appBarTheme.titleTextStyle?.color?.withValues(alpha: 0.7) ??
+                  Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.color?.withValues(alpha: 0.7),
             ),
           ),
           style: TextStyle(
-            color: Theme.of(context).appBarTheme.titleTextStyle?.color ??
+            color:
+                Theme.of(context).appBarTheme.titleTextStyle?.color ??
                 Theme.of(context).textTheme.titleLarge?.color,
           ),
           textInputAction: TextInputAction.search,
           onSubmitted: _handleSearchSubmit,
-          autofocus: true,
+          autofocus: widget.autofocus,
         ),
         actions: [
           PopupMenuButton<SearchMode>(
