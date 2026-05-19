@@ -183,26 +183,28 @@ pub async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<An
     let mode = crate::api::config::get_bangumi_request_mode();
     let mut results = animes;
 
-    let graphql_details = if mode != "legacy" {
-        let mut seen_ids = HashSet::new();
-        let ids: Vec<i64> = results
-            .iter()
-            .filter_map(|anime| anime.bangumi_id.as_deref())
-            .filter_map(|id| id.parse::<i64>().ok())
-            .filter(|id| seen_ids.insert(*id))
-            .collect();
+    let graphql_details = match mode.as_str() {
+        "legacy" => std::collections::HashMap::new(),
+        "hybrid" | "modern" | _ => {
+            let mut seen_ids = HashSet::new();
+            let ids: Vec<i64> = results
+                .iter()
+                .filter_map(|anime| anime.bangumi_id.as_deref())
+                .filter_map(|id| id.parse::<i64>().ok())
+                .filter(|id| seen_ids.insert(*id))
+                .collect();
 
-        log::info!(
-            "fill_anime_details strategy=graphql_then_rest mode={} batch_size={}",
-            mode,
-            ids.len()
-        );
-        crate::api::bangumi_graphql::fetch_subject_details_graphql_batch(&ids).await
-    } else {
-        std::collections::HashMap::new()
+            log::info!(
+                "fill_anime_details strategy=graphql_then_rest mode={} batch_size={}",
+                mode,
+                ids.len()
+            );
+            crate::api::bangumi_graphql::fetch_subject_details_graphql_batch(&ids).await
+        }
     };
 
-    let mut rest_tasks = Vec::new();
+    let is_modern = mode == "modern";
+    let mut fallback_tasks: Vec<tokio::task::JoinHandle<anyhow::Result<(usize, serde_json::Value)>>> = Vec::new();
 
     for (index, anime) in results.iter_mut().enumerate() {
         let Some(id) = anime.bangumi_id.clone() else {
@@ -219,16 +221,33 @@ pub async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<An
             .is_some();
 
         if !used_graphql {
-            rest_tasks.push(tokio::spawn(async move {
-                (index, fetch_subject_details_rest_json(&id).await)
-            }));
+            if is_modern {
+                fallback_tasks.push(tokio::spawn(async move {
+                    let p1_json = fetch_subject_details_next_p1_json(id.parse::<i64>().unwrap_or(0))
+                        .await?;
+                    Ok((index, normalize_next_subject_json(&p1_json)))
+                }));
+            } else {
+                fallback_tasks.push(tokio::spawn(async move {
+                    let json = fetch_subject_details_rest_json(&id).await?;
+                    Ok((index, json))
+                }));
+            }
         }
     }
 
-    for task in rest_tasks {
-        if let Ok((index, Ok(json))) = task.await {
-            if let Some(anime) = results.get_mut(index) {
-                apply_subject_details(anime, &json);
+    for task in fallback_tasks {
+        match task.await {
+            Ok(Ok((index, json))) => {
+                if let Some(anime) = results.get_mut(index) {
+                    apply_subject_details(anime, &json);
+                }
+            }
+            Ok(Err(err)) => {
+                log::warn!("fill_anime_details fallback task failed: {}", err);
+            }
+            Err(err) => {
+                log::warn!("fill_anime_details fallback task join error: {}", err);
             }
         }
     }
@@ -249,6 +268,115 @@ async fn fetch_subject_details_rest_json(id: &str) -> anyhow::Result<serde_json:
     .await?;
 
     Ok(resp.json::<serde_json::Value>().await?)
+}
+
+async fn fetch_subject_details_next_p1_json(id: i64) -> anyhow::Result<serde_json::Value> {
+    let url = format!(
+        "{}/p1/subjects/{}",
+        crate::api::config::get_bangumi_next_url(),
+        id
+    );
+    let label = format!("fetch_subject_details_next_p1.subject.{}", id);
+    let resp = crate::api::network::retry_request(&label, |client| {
+        client.get(&url).header("accept", "application/json")
+    })
+    .await?;
+
+    if !resp.status().is_success() {
+        anyhow::bail!(
+            "p1 subject request failed for id={} status={}",
+            id,
+            resp.status()
+        );
+    }
+
+    Ok(resp.json::<serde_json::Value>().await?)
+}
+
+fn normalize_next_subject_json(subject: &serde_json::Value) -> serde_json::Value {
+    let mut normalized = subject.as_object().cloned().unwrap_or_default();
+
+    if let Some(name_cn) = normalized.get("nameCN").and_then(|v| v.as_str()) {
+        normalized.insert("name_cn".to_string(), serde_json::json!(name_cn));
+    }
+
+    if let Some(meta_tags) = normalized.get("metaTags").and_then(|v| v.as_array()) {
+        normalized.insert(
+            "meta_tags".to_string(),
+            serde_json::json!(meta_tags),
+        );
+    }
+
+    if let Some(infobox_items) = normalized.get("infobox").and_then(|v| v.as_array()) {
+        let normalized_infobox: Vec<serde_json::Value> = infobox_items
+            .iter()
+            .map(|item| {
+                let mut normalized_item = item.as_object().cloned().unwrap_or_default();
+
+                if normalized_item.get("value").is_none() {
+                    if let Some(values) = normalized_item.get("values").cloned() {
+                        normalized_item.insert("value".to_string(), values);
+                    }
+                }
+
+                serde_json::Value::Object(normalized_item)
+            })
+            .collect();
+
+        normalized.insert("infobox".to_string(), serde_json::json!(normalized_infobox));
+    }
+
+    let airtime_date = normalized
+        .get("airtime")
+        .and_then(|v| v.get("date"))
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    normalized.insert("date".to_string(), airtime_date);
+
+    if let Some(collection) = normalized.get("collection").and_then(|v| v.as_object()) {
+        let mut normalized_collection = serde_json::Map::new();
+        let mapping = [
+            ("1", "wish"),
+            ("2", "collect"),
+            ("3", "doing"),
+            ("4", "on_hold"),
+            ("5", "dropped"),
+        ];
+        for (num_key, name_key) in mapping {
+            if let Some(count) = collection.get(num_key).and_then(|v| v.as_i64()) {
+                normalized_collection.insert(name_key.to_string(), serde_json::json!(count));
+            }
+        }
+        normalized.insert(
+            "collection".to_string(),
+            serde_json::Value::Object(normalized_collection),
+        );
+    }
+
+    if let Some(images) = normalized
+        .get_mut("images")
+        .and_then(|v| v.as_object_mut())
+    {
+        if images.get("large").is_none() {
+            images.insert("large".to_string(), serde_json::Value::String(String::new()));
+        }
+        if images.get("common").is_none() {
+            images.insert("common".to_string(), serde_json::Value::String(String::new()));
+        }
+    }
+
+    if let Some(rating) = normalized.get_mut("rating").and_then(|v| v.as_object_mut()) {
+        if let Some(score_str) = rating.get("score").and_then(|v| v.as_str()) {
+            if let Ok(score) = score_str.parse::<f64>() {
+                rating.insert("score".to_string(), serde_json::json!(score));
+            }
+        }
+    }
+
+    let total_episodes = normalized.get("eps").cloned().unwrap_or(serde_json::Value::Null);
+    normalized.insert("total_episodes".to_string(), total_episodes);
+
+    serde_json::Value::Object(normalized)
 }
 
 fn apply_subject_details(anime: &mut AnimeInfo, json: &serde_json::Value) {
@@ -303,28 +431,87 @@ pub async fn fetch_light_subject_details(subject_id: i64) -> anyhow::Result<Anim
         subject_id
     );
 
-    let graphql_result = if mode != "legacy" {
-        match crate::api::bangumi_graphql::fetch_light_subject_details_graphql(subject_id).await {
-            Ok(raw) => Some(crate::api::bangumi_graphql::normalize_light_subject_graphql_json(&raw)),
-            Err(err) if mode == "hybrid" => {
-                log::warn!(
-                    "fetch_light_subject_details graphql failed, falling back to REST: {}",
-                    err
-                );
-                None
-            }
-            Err(err) => return Err(err),
+    match mode.as_str() {
+        "legacy" => {
+            let json = fetch_subject_details_rest_json(&subject_id.to_string()).await?;
+            Ok(build_light_subject_from_json(subject_id, &json))
         }
-    } else {
-        None
-    };
+        "hybrid" => {
+            let graphql_result =
+                match crate::api::bangumi_graphql::fetch_light_subject_details_graphql(subject_id)
+                    .await
+                {
+                    Ok(raw) => Some(
+                        crate::api::bangumi_graphql::normalize_light_subject_graphql_json(&raw),
+                    ),
+                    Err(err) => {
+                        log::warn!(
+                            "fetch_light_subject_details graphql failed, falling back to REST: {}",
+                            err
+                        );
+                        None
+                    }
+                };
 
-    let json = match graphql_result {
-        Some(json) => json,
-        None => fetch_subject_details_rest_json(&subject_id.to_string()).await?,
-    };
+            let json = match graphql_result {
+                Some(json) => json,
+                None => fetch_subject_details_rest_json(&subject_id.to_string()).await?,
+            };
 
-    Ok(build_light_subject_from_json(subject_id, &json))
+            Ok(build_light_subject_from_json(subject_id, &json))
+        }
+        "modern" => {
+            let graphql_result =
+                match crate::api::bangumi_graphql::fetch_light_subject_details_graphql(subject_id)
+                    .await
+                {
+                    Ok(raw) => Some(
+                        crate::api::bangumi_graphql::normalize_light_subject_graphql_json(&raw),
+                    ),
+                    Err(err) => {
+                        log::warn!(
+                            "fetch_light_subject_details graphql failed for modern mode, falling back to p1: {}",
+                            err
+                        );
+                        None
+                    }
+                };
+
+            let json = match graphql_result {
+                Some(json) => json,
+                None => {
+                    let p1_json = fetch_subject_details_next_p1_json(subject_id).await?;
+                    normalize_next_subject_json(&p1_json)
+                }
+            };
+
+            Ok(build_light_subject_from_json(subject_id, &json))
+        }
+        _ => {
+            let graphql_result =
+                match crate::api::bangumi_graphql::fetch_light_subject_details_graphql(subject_id)
+                    .await
+                {
+                    Ok(raw) => Some(
+                        crate::api::bangumi_graphql::normalize_light_subject_graphql_json(&raw),
+                    ),
+                    Err(err) => {
+                        log::warn!(
+                            "fetch_light_subject_details graphql failed, falling back to REST: {}",
+                            err
+                        );
+                        None
+                    }
+                };
+
+            let json = match graphql_result {
+                Some(json) => json,
+                None => fetch_subject_details_rest_json(&subject_id.to_string()).await?,
+            };
+
+            Ok(build_light_subject_from_json(subject_id, &json))
+        }
+    }
 }
 
 fn build_light_subject_from_json(subject_id: i64, json: &serde_json::Value) -> AnimeInfo {

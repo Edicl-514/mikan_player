@@ -62,13 +62,15 @@ const BANGUMI_SUBJECT_COMMENTS_NEXT_LABEL: &str = "bangumi.comments.subject.next
 const BANGUMI_EPISODE_COMMENTS_LEGACY_LABEL: &str = "bangumi.comments.episode.legacy";
 const BANGUMI_EPISODE_COMMENTS_NEXT_LABEL: &str = "bangumi.comments.episode.next";
 
-// fn is_hybrid_mode(mode: &str) -> bool {
-//     mode == "hybrid"
-// }
-
-/// Fetch episodes for a subject
-/// API: GET https://api.bgm.tv/v0/episodes?subject_id={subject_id}&limit=100&offset=0
 pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<BangumiEpisode>> {
+    let mode = crate::api::config::get_bangumi_request_mode();
+    match mode.as_str() {
+        "modern" => fetch_bangumi_episodes_next(subject_id).await,
+        _ => fetch_bangumi_episodes_rest(subject_id).await,
+    }
+}
+
+async fn fetch_bangumi_episodes_rest(subject_id: i64) -> anyhow::Result<Vec<BangumiEpisode>> {
     let mut all_episodes = Vec::new();
     let mut offset: usize = 0;
     let limit = 100;
@@ -116,18 +118,12 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
             }
 
             for item in data {
-                // 只保留"本篇" (type == 0)，排除 OP、ED、预告等
                 let ep_type = item["type"].as_i64().unwrap_or(0);
                 if ep_type != 0 {
                     continue;
                 }
 
                 let name = item["name"].as_str().unwrap_or("").to_string();
-
-                // Skip episodes with empty name -> logic moved to Dart (filtered by date)
-                // if name.is_empty() {
-                //    continue;
-                // }
 
                 let episode = BangumiEpisode {
                     id: item["id"].as_i64().unwrap_or(0),
@@ -162,9 +158,120 @@ pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<Bangu
     Ok(all_episodes)
 }
 
-/// Fetch characters for a subject
-/// API: GET https://api.bgm.tv/v0/subjects/{subject_id}/characters
+async fn fetch_bangumi_episodes_next(subject_id: i64) -> anyhow::Result<Vec<BangumiEpisode>> {
+    let mut all_episodes = Vec::new();
+    let mut offset: usize = 0;
+    let limit = 100;
+    let max_pages = 20;
+    let mut page_count = 0;
+    let mut total_count: Option<usize> = None;
+
+    loop {
+        page_count += 1;
+        if page_count > max_pages {
+            log::warn!(
+                "fetch_bangumi_episodes_next: reached max page limit ({}) for subject_id={}",
+                max_pages,
+                subject_id
+            );
+            break;
+        }
+
+        let url = format!(
+            "{}/p1/subjects/{}/episodes?limit={}&offset={}",
+            crate::api::config::get_bangumi_next_url(),
+            subject_id,
+            limit,
+            offset
+        );
+
+        let resp = crate::api::network::retry_request("fetch_bangumi_episodes.next", |client| {
+            client.get(&url).header("accept", "application/json")
+        })
+        .await?;
+
+        if !resp.status().is_success() {
+            anyhow::bail!(
+                "p1 episodes request failed for subject_id={} status={}",
+                subject_id,
+                resp.status()
+            );
+        }
+
+        let json: serde_json::Value = resp.json().await?;
+
+        if let Some(data) = json["data"].as_array() {
+            total_count = json["total"]
+                .as_u64()
+                .and_then(|value| usize::try_from(value).ok())
+                .or(total_count);
+
+            if data.is_empty() {
+                break;
+            }
+
+            for item in data {
+                if item["type"].as_i64().unwrap_or(0) != 0 {
+                    continue;
+                }
+
+                all_episodes.push(BangumiEpisode {
+                    id: item["id"].as_i64().unwrap_or(0),
+                    name: item["name"].as_str().unwrap_or("").to_string(),
+                    name_cn: item["nameCN"].as_str().unwrap_or("").to_string(),
+                    description: item["desc"].as_str().unwrap_or("").to_string(),
+                    airdate: item["airdate"].as_str().unwrap_or("").to_string(),
+                    duration: item["duration"].as_str().unwrap_or("").to_string(),
+                    sort: item["sort"].as_f64().unwrap_or(0.0),
+                });
+            }
+
+            let page_len = data.len();
+            offset += page_len;
+
+            if page_len < limit {
+                break;
+            }
+
+            if let Some(total) = total_count {
+                if offset >= total {
+                    break;
+                }
+            }
+        } else {
+            break;
+        }
+    }
+
+    log::info!(
+        "fetch_bangumi_episodes_next subject_id={} total={} returned={}",
+        subject_id,
+        total_count.unwrap_or(0),
+        all_episodes.len()
+    );
+
+    Ok(all_episodes)
+}
+
 pub async fn fetch_bangumi_characters(subject_id: i64) -> anyhow::Result<Vec<BangumiCharacter>> {
+    let mode = crate::api::config::get_bangumi_request_mode();
+    match mode.as_str() {
+        "modern" => fetch_bangumi_characters_next(subject_id).await,
+        _ => fetch_bangumi_characters_rest(subject_id).await,
+    }
+}
+
+fn map_character_role_type(role_type: i64) -> String {
+    match role_type {
+        1 => "主角".to_string(),
+        2 => "配角".to_string(),
+        3 => "客串".to_string(),
+        4 => "闲角".to_string(),
+        _ => String::new(),
+    }
+}
+
+async fn fetch_bangumi_characters_rest(subject_id: i64) -> anyhow::Result<Vec<BangumiCharacter>> {
     let url = format!(
         "{}/v0/subjects/{}/characters",
         crate::api::config::get_bangumi_api_url(),
@@ -185,7 +292,6 @@ pub async fn fetch_bangumi_characters(subject_id: i64) -> anyhow::Result<Vec<Ban
 
     if let Some(data) = json.as_array() {
         for item in data {
-            // The actors data is directly in the item
             let actors_data = item["actors"].as_array();
 
             let mut actors = Vec::new();
@@ -198,7 +304,6 @@ pub async fn fetch_bangumi_characters(subject_id: i64) -> anyhow::Result<Vec<Ban
                 }
             }
 
-            // Images are directly in the item
             let images_data = &item["images"];
             let images = if !images_data.is_null() {
                 Some(BangumiImages {
@@ -216,6 +321,74 @@ pub async fn fetch_bangumi_characters(subject_id: i64) -> anyhow::Result<Vec<Ban
                 id: item["id"].as_i64().unwrap_or(0),
                 name: item["name"].as_str().unwrap_or("").to_string(),
                 role_name: item["relation"].as_str().unwrap_or("").to_string(),
+                images,
+                actors,
+            };
+
+            characters.push(character);
+        }
+    }
+
+    Ok(characters)
+}
+
+async fn fetch_bangumi_characters_next(subject_id: i64) -> anyhow::Result<Vec<BangumiCharacter>> {
+    let url = format!(
+        "{}/p1/subjects/{}/characters?limit=100&offset=0",
+        crate::api::config::get_bangumi_next_url(),
+        subject_id
+    );
+
+    let resp = crate::api::network::retry_request("fetch_bangumi_characters.next", |client| {
+        client.get(&url).header("accept", "application/json")
+    })
+    .await?;
+
+    if !resp.status().is_success() {
+        anyhow::bail!(
+            "p1 characters request failed for subject_id={} status={}",
+            subject_id,
+            resp.status()
+        );
+    }
+
+    let json: serde_json::Value = resp.json().await?;
+    let mut characters = Vec::new();
+
+    if let Some(data) = json["data"].as_array() {
+        for item in data {
+            let character_data = &item["character"];
+            let role_type = item["type"].as_i64().unwrap_or(0);
+            let role_name = map_character_role_type(role_type);
+
+            let mut actors = Vec::new();
+            if let Some(casts) = item["casts"].as_array() {
+                for cast in casts {
+                    let person = &cast["person"];
+                    actors.push(BangumiActor {
+                        id: person["id"].as_i64().unwrap_or(0),
+                        name: person["name"].as_str().unwrap_or("").to_string(),
+                    });
+                }
+            }
+
+            let images_data = &character_data["images"];
+            let images = if images_data.is_object() {
+                Some(BangumiImages {
+                    small: images_data["small"].as_str().unwrap_or("").to_string(),
+                    grid: images_data["grid"].as_str().unwrap_or("").to_string(),
+                    large: images_data["large"].as_str().unwrap_or("").to_string(),
+                    medium: images_data["medium"].as_str().unwrap_or("").to_string(),
+                    common: String::new(),
+                })
+            } else {
+                None
+            };
+
+            let character = BangumiCharacter {
+                id: character_data["id"].as_i64().unwrap_or(0),
+                name: character_data["name"].as_str().unwrap_or("").to_string(),
+                role_name,
                 images,
                 actors,
             };
@@ -307,7 +480,21 @@ pub async fn fetch_bangumi_comments(
                 }
             }
         }
-        _ => fetch_bangumi_comments_next(subject_id, page).await,
+        "modern" => fetch_bangumi_comments_next(subject_id, page).await,
+        _ => {
+            match fetch_bangumi_comments_next(subject_id, page).await {
+                Ok(comments) => Ok(comments),
+                Err(err) => {
+                    log::warn!(
+                        "bangumi.comments.subject next failed subject_id={} page={}, falling back to legacy: {}",
+                        subject_id,
+                        page,
+                        err
+                    );
+                    fetch_bangumi_comments_legacy(subject_id, page).await
+                }
+            }
+        }
     }
 }
 
@@ -560,7 +747,20 @@ pub async fn fetch_bangumi_episode_comments(
                 }
             }
         }
-        _ => fetch_bangumi_episode_comments_next(episode_id).await,
+        "modern" => fetch_bangumi_episode_comments_next(episode_id).await,
+        _ => {
+            match fetch_bangumi_episode_comments_next(episode_id).await {
+                Ok(comments) => Ok(comments),
+                Err(err) => {
+                    log::warn!(
+                        "bangumi.comments.episode next failed episode_id={}, falling back to legacy: {}",
+                        episode_id,
+                        err
+                    );
+                    fetch_bangumi_episode_comments_legacy(episode_id).await
+                }
+            }
+        }
     }
 }
 
@@ -760,11 +960,10 @@ async fn fetch_bangumi_episode_comments_legacy(
     Ok(comments)
 }
 
-const BANGUMI_NEXT_BASE_URL: &str = "https://next.bgm.tv";
 const BANGUMI_NEXT_COMMENTS_PAGE_SIZE: i64 = 20;
 
 fn bangumi_next_url(path: &str) -> String {
-    format!("{BANGUMI_NEXT_BASE_URL}{path}")
+    format!("{}{}", crate::api::config::get_bangumi_next_url(), path)
 }
 
 fn format_bangumi_timestamp(timestamp: i64) -> String {

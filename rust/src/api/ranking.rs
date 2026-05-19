@@ -2,8 +2,6 @@ use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-const BANGUMI_NEXT_BASE_URL: &str = "https://next.bgm.tv";
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RankingAnime {
     pub title: String,
@@ -15,10 +13,6 @@ pub struct RankingAnime {
     pub original_title: Option<String>,
 }
 
-fn is_legacy_mode(mode: &str) -> bool {
-    mode == "legacy"
-}
-
 pub async fn fetch_bangumi_ranking(
     sort_type: String,
     page: i32,
@@ -26,8 +20,15 @@ pub async fn fetch_bangumi_ranking(
     let mode = crate::api::config::get_bangumi_request_mode();
     match mode.as_str() {
         "legacy" => fetch_bangumi_browser_html(sort_type, "".to_string(), vec![], page).await,
-        _ if sort_type == "trends" => fetch_bangumi_trending_next(page).await,
-        _ => fetch_bangumi_browser_api(&sort_type, "", &[], page).await,
+        "hybrid" | "modern" if sort_type == "trends" => fetch_bangumi_trending_next(page).await,
+        "hybrid" | "modern" => fetch_bangumi_browser_api(&sort_type, "", &[], page).await,
+        _ => {
+            if sort_type == "trends" {
+                fetch_bangumi_trending_next(page).await
+            } else {
+                fetch_bangumi_browser_api(&sort_type, "", &[], page).await
+            }
+        }
     }
 }
 
@@ -40,6 +41,7 @@ pub async fn fetch_bangumi_browser(
     let mode = crate::api::config::get_bangumi_request_mode();
     match mode.as_str() {
         "legacy" => fetch_bangumi_browser_html(sort_type, year, tags, page).await,
+        "hybrid" | "modern" => fetch_bangumi_browser_api(&sort_type, &year, &tags, page).await,
         _ => fetch_bangumi_browser_api(&sort_type, &year, &tags, page).await,
     }
 }
@@ -93,11 +95,11 @@ pub async fn search_bangumi_subject(
     page: i32,
 ) -> anyhow::Result<Vec<RankingAnime>> {
     let mode = crate::api::config::get_bangumi_request_mode();
-    if !is_legacy_mode(&mode) {
-        return fetch_bangumi_search_api(&keyword, &sort_type, page).await;
+    match mode.as_str() {
+        "legacy" => search_bangumi_subject_html(keyword, page).await,
+        "hybrid" | "modern" => fetch_bangumi_search_api(&keyword, &sort_type, page).await,
+        _ => fetch_bangumi_search_api(&keyword, &sort_type, page).await,
     }
-
-    search_bangumi_subject_html(keyword, page).await
 }
 
 pub async fn search_bangumi_tag(
@@ -106,11 +108,11 @@ pub async fn search_bangumi_tag(
     page: i32,
 ) -> anyhow::Result<Vec<RankingAnime>> {
     let mode = crate::api::config::get_bangumi_request_mode();
-    if !is_legacy_mode(&mode) {
-        return fetch_bangumi_browser_api(&sort_type, "", &[tag], page).await;
+    match mode.as_str() {
+        "legacy" => search_bangumi_tag_html(tag, sort_type, page).await,
+        "hybrid" | "modern" => fetch_bangumi_browser_api(&sort_type, "", &[tag], page).await,
+        _ => fetch_bangumi_browser_api(&sort_type, "", &[tag], page).await,
     }
-
-    search_bangumi_tag_html(tag, sort_type, page).await
 }
 
 async fn search_bangumi_subject_html(
@@ -203,8 +205,9 @@ async fn fetch_bangumi_browser_api(
 async fn fetch_bangumi_trending_next(page: i32) -> anyhow::Result<Vec<RankingAnime>> {
     let offset = ((page.max(1) - 1) * 20).to_string();
     let limit = "20";
+    let base_url = crate::api::config::get_bangumi_next_url();
     let url = format!(
-        "{BANGUMI_NEXT_BASE_URL}/p1/trending/subjects?type=2&limit={limit}&offset={offset}"
+        "{base_url}/p1/trending/subjects?type=2&limit={limit}&offset={offset}"
     );
 
     let resp = crate::api::network::retry_request("bangumi.trending.next", |client| {

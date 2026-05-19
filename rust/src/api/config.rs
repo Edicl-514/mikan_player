@@ -4,6 +4,7 @@ use std::sync::RwLock;
 pub struct RuntimeConfig {
     pub bgmlist_url: String,
     pub bangumi_url: String,
+    pub bangumi_next_url: String,
     pub mikan_url: String,
     pub playback_sub_url: String,
     pub bangumi_request_mode: String,
@@ -17,6 +18,7 @@ lazy_static! {
     pub static ref CONFIG: RwLock<RuntimeConfig> = RwLock::new(RuntimeConfig {
         bgmlist_url: "https://bgmlist.com".to_string(),
         bangumi_url: "https://bangumi.tv".to_string(),
+        bangumi_next_url: "https://next.bgm.tv".to_string(),
         mikan_url: "https://mikanani.kas.pub".to_string(),
         playback_sub_url: "https://gitee.com/edicl/online-subscription/raw/master/online.json"
             .to_string(),
@@ -77,6 +79,10 @@ pub fn get_bangumi_api_url() -> String {
     } else {
         base
     }
+}
+
+pub fn get_bangumi_next_url() -> String {
+    CONFIG.read().unwrap().bangumi_next_url.clone()
 }
 
 pub fn get_mikan_url() -> String {
