@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/player_page.dart';
@@ -69,7 +70,8 @@ class _HistoryPageState extends State<HistoryPage> {
       }
     }
 
-    if (episodes.isEmpty) {
+    final playableEpisodes = episodes.releasedEpisodes();
+    if (playableEpisodes.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -78,12 +80,12 @@ class _HistoryPageState extends State<HistoryPage> {
       return;
     }
 
-    BangumiEpisode currentEpisode = episodes.first;
-    final byId = episodes.where((e) => e.id == item.episodeId).toList();
+    BangumiEpisode currentEpisode = playableEpisodes.latestReleasedEpisode()!;
+    final byId = playableEpisodes.where((e) => e.id == item.episodeId).toList();
     if (byId.isNotEmpty) {
       currentEpisode = byId.first;
     } else {
-      final bySort = episodes.where((e) => e.sort == item.episodeSort).toList();
+      final bySort = playableEpisodes.where((e) => e.sort == item.episodeSort).toList();
       if (bySort.isNotEmpty) {
         currentEpisode = bySort.first;
       }
@@ -96,7 +98,7 @@ class _HistoryPageState extends State<HistoryPage> {
         builder: (context) => PlayerPage(
           anime: item.toAnimeInfo(),
           currentEpisode: currentEpisode,
-          allEpisodes: episodes,
+          allEpisodes: playableEpisodes,
           startPositionMs: item.lastPositionMs,
         ),
       ),

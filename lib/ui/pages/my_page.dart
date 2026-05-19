@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/pages/settings_page.dart';
@@ -1289,7 +1290,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
           );
 
           // Restore episodes from history
-          allEpisodes = item.toEpisodes();
+          allEpisodes = item.toEpisodes().releasedEpisodes();
 
           // Find the matching episode
           final epNumber = task.episodeNumber ?? 1;
@@ -1334,6 +1335,16 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
 
     if (allEpisodes.isEmpty) {
       allEpisodes = [currentEpisode];
+    } else if (!currentEpisode.isReleased()) {
+      currentEpisode = allEpisodes.latestReleasedEpisode();
+    }
+
+    if (currentEpisode == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).cannotLoadEpisodes)));
+      return;
     }
 
     if (!mounted) return;

@@ -71,11 +71,9 @@ class BangumiDetailsService {
 
       final subjectData = results[0] as Map<String, dynamic>?;
       final cachedEpisodes = results[1] as List<BangumiEpisode>;
-      final episodes = _filterReleasedEpisodes(
-        cachedEpisodes.isNotEmpty
+      final episodes = cachedEpisodes.isNotEmpty
             ? cachedEpisodes
-            : _parseEpisodesFromSubjectData(subjectData),
-      );
+            : _parseEpisodesFromSubjectData(subjectData);
       final characters = results[2] as List<BangumiCharacter>;
       final relations = results[3] as List<BangumiRelatedSubject>;
       final persons = results[4] as List<BangumiPerson>;
@@ -197,27 +195,11 @@ class BangumiDetailsService {
         subjectId: subjectId,
         fetchFromNetwork: () => fetchBangumiEpisodes(subjectId: subjectId),
       );
-      return _filterReleasedEpisodes(allEpisodes);
+      return allEpisodes;
     } catch (e) {
       debugPrint('Error fetching episodes: $e');
       return [];
     }
-  }
-
-  List<BangumiEpisode> _filterReleasedEpisodes(List<BangumiEpisode> episodes) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    return episodes.where((ep) {
-      if (ep.airdate.isEmpty) return true;
-      try {
-        final date = DateTime.parse(ep.airdate);
-        final episodeDate = DateTime(date.year, date.month, date.day);
-        return !episodeDate.isAfter(today);
-      } catch (_) {
-        return true;
-      }
-    }).toList();
   }
 
   List<BangumiEpisode> _parseEpisodesFromSubjectData(

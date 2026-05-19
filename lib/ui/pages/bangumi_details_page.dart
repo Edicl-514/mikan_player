@@ -10,6 +10,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/services/bangumi_details_service.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
+import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
@@ -2209,30 +2210,55 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               separatorBuilder: (c, i) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final ep = _episodes![index];
+                final released = ep.isReleased();
+                final epCardColor = released
+                    ? cardColor
+                    : (isDarkBg
+                          ? Colors.white.withValues(alpha: 0.03)
+                          : Colors.grey.shade50);
+                final epBorderColor = released
+                    ? (isDarkBg ? Colors.white10 : Colors.grey[300]!)
+                    : (isDarkBg
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : Colors.grey.shade200);
+                final epTextColor = released
+                    ? textColor
+                    : (isDarkBg
+                          ? Colors.white.withValues(alpha: 0.6)
+                          : Colors.black.withValues(alpha: 0.42));
+                final epIndexColor = released
+                    ? (isDarkBg ? Colors.amber : Colors.deepPurple)
+                    : (isDarkBg
+                          ? Colors.amber.withValues(alpha: 0.45)
+                          : Colors.blueGrey.withValues(alpha: 0.7));
+                final epDateColor = released
+                    ? epTextColor.withValues(alpha: 0.5)
+                    : epTextColor.withValues(alpha: 0.72);
                 return Material(
-                  color: cardColor,
+                  color: epCardColor,
                   borderRadius: BorderRadius.circular(8),
                   child: InkWell(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => PlayerPage(
-                            anime: widget.anime,
-                            currentEpisode: ep,
-                            allEpisodes: _episodes!,
-                          ),
-                        ),
-                      );
-                    },
+                    onTap: released
+                        ? () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => PlayerPage(
+                                  anime: widget.anime,
+                                  currentEpisode: ep,
+                                  allEpisodes: _episodes!,
+                                ),
+                              ),
+                            );
+                          }
+                        : null,
                     borderRadius: BorderRadius.circular(8),
                     child: Container(
                       width: 140,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        // Color moved to Material
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: isDarkBg ? Colors.white10 : Colors.grey[300]!,
+                          color: epBorderColor,
                         ),
                       ),
                       child: Column(
@@ -2243,9 +2269,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: isDarkBg
-                                  ? Colors.amber
-                                  : Colors.deepPurple,
+                              color: epIndexColor,
                             ),
                           ),
                           const SizedBox(height: 6),
@@ -2255,7 +2279,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                               ep.name,
                               style: TextStyle(
                                 fontSize: 10,
-                                color: textColor.withValues(alpha: 0.7),
+                                color: epTextColor.withValues(alpha: 0.7),
                                 height: 1.3,
                               ),
                               maxLines: 2,
@@ -2268,7 +2292,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                               ep.nameCn,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: textColor,
+                                color: epTextColor,
                                 fontWeight: FontWeight.w500,
                                 height: 1.3,
                               ),
@@ -2282,7 +2306,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                               ep.airdate,
                               style: TextStyle(
                                 fontSize: 9,
-                                color: textColor.withValues(alpha: 0.5),
+                                color: epDateColor,
                               ),
                             ),
                         ],

@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
@@ -91,6 +92,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   // Current episode (can be switched internally)
   late BangumiEpisode _currentEpisode;
+  late List<BangumiEpisode> _playableEpisodes;
 
   List<BangumiEpisodeComment> _comments = [];
   bool _isLoadingComments = false;
@@ -222,8 +224,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _pcEpisodeScrollController = createPlatformScrollController();
     _mobileEpisodeScrollController = ScrollController();
 
-    // Initialize current episode from widget
-    _currentEpisode = widget.currentEpisode;
+    _playableEpisodes = widget.allEpisodes.releasedEpisodes();
+    _currentEpisode =
+        widget.currentEpisode.isReleased()
+            ? widget.currentEpisode
+            : (_playableEpisodes.latestReleasedEpisode() ??
+                widget.currentEpisode);
     _playingSourceLabelNotifier.value = _playingSourceLabel;
 
     _pendingStartPositionMs = widget.startPositionMs;
@@ -2586,7 +2592,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               ),
               const SizedBox(width: 12),
               Text(
-                "${widget.allEpisodes.length} Episodes",
+                "${_playableEpisodes.length} Episodes",
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
               const Spacer(),
@@ -2661,7 +2667,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 if (_isEpisodesExpanded) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (_mobileEpisodeScrollController.hasClients) {
-                      final index = widget.allEpisodes.indexOf(_currentEpisode);
+                      final index = _playableEpisodes.indexOf(_currentEpisode);
                       if (index != -1) {
                         final screenWidth = MediaQuery.of(context).size.width;
                         // Item width 140 + separator 12 = 152
@@ -2732,45 +2738,57 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   controller: _mobileEpisodeScrollController,
                   padding: const EdgeInsets.only(bottom: 8),
                   scrollDirection: Axis.horizontal,
-                  itemCount: widget.allEpisodes.length,
+                  itemCount: _playableEpisodes.length,
                   separatorBuilder: (_, _) => const SizedBox(width: 12),
                   itemBuilder: (context, index) {
-                    final ep = widget.allEpisodes[index];
+                    final ep = _playableEpisodes[index];
                     final isSelected = ep == _currentEpisode;
                     final borderColor = isSelected
                         ? Theme.of(context).colorScheme.primary
                         : (isDark
-                              ? Colors.white10
-                              : Colors.grey.withValues(alpha: 0.3));
-                    final epTextColor = isDark
-                        ? Colors.white
-                        : Theme.of(context).colorScheme.onSurface;
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : Theme.of(context).colorScheme.outlineVariant);
+                    final epTextColor =
+                        isDark
+                            ? Colors.white
+                            : Theme.of(context).colorScheme.onSurface;
+                    final epCardColor =
+                        isSelected
+                            ? Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: 0.12)
+                            : (isDark
+                                ? const Color(0xFF1B1D28)
+                                : Theme.of(context).colorScheme.surfaceContainerLow);
+                    final epIndexColor =
+                        isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : (isDark
+                                ? Colors.white70
+                                : Theme.of(context).colorScheme.onSurfaceVariant);
+                    final epMetaColor =
+                        isDark
+                            ? Colors.white54
+                            : Theme.of(context).colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.85);
 
                     return Material(
-                      color: isSelected
-                          ? Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: 0.1)
-                          : (isDark
-                                ? const Color(0xFF1E1E2C)
-                                : Theme.of(
-                                    context,
-                                  ).colorScheme.surfaceContainer),
+                      color: epCardColor,
                       borderRadius: BorderRadius.circular(8),
                       child: InkWell(
-                        onTap: () {
-                          if (!isSelected) {
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                builder: (context) => PlayerPage(
-                                  anime: widget.anime,
-                                  currentEpisode: ep,
-                                  allEpisodes: widget.allEpisodes,
-                                ),
-                              ),
-                            );
-                          }
-                        },
+                        onTap: !isSelected
+                            ? () {
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(
+                                    builder: (context) => PlayerPage(
+                                      anime: widget.anime,
+                                      currentEpisode: ep,
+                                      allEpisodes: _playableEpisodes,
+                                    ),
+                                  ),
+                                );
+                              }
+                            : null,
                         borderRadius: BorderRadius.circular(8),
                         child: Container(
                           width: 140,
@@ -2787,7 +2805,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 style: TextStyle(
                                   color: isSelected
                                       ? Theme.of(context).colorScheme.primary
-                                      : (isDark ? Colors.white54 : Colors.grey),
+                                      : epIndexColor,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
                                 ),
@@ -2823,9 +2841,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 Text(
                                   ep.airdate,
                                   style: TextStyle(
-                                    color: isDark
-                                        ? Colors.white24
-                                        : Colors.grey.withValues(alpha: 0.5),
+                                    color: epMetaColor,
                                     fontSize: 9,
                                   ),
                                 ),
@@ -3270,19 +3286,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         shrinkWrap: true,
         controller: _pcEpisodeScrollController,
         padding: const EdgeInsets.only(right: 12), // space for scrollbar
-        itemCount: widget.allEpisodes.length,
+        itemCount: _playableEpisodes.length,
         separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
-          final ep = widget.allEpisodes[index];
+          final ep = _playableEpisodes[index];
           final isSelected = ep == _currentEpisode;
+          final epCardColor = isSelected
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
+              : cardColor;
 
           return Container(
             decoration: BoxDecoration(
-              color: isSelected
-                  ? Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.15)
-                  : cardColor,
+              color: epCardColor,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isSelected
@@ -3310,7 +3325,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                         color: isSelected
                             ? Theme.of(context).colorScheme.primary
                             : (isDark
-                                  ? Colors.white10
+                                  ? Colors.white.withValues(alpha: 0.08)
                                   : Colors.grey.withValues(alpha: 0.2)),
                       ),
                       child: Text(
@@ -3373,14 +3388,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _onSkipNext() {
-    final currentIndex = widget.allEpisodes.indexOf(_currentEpisode);
-    if (currentIndex < widget.allEpisodes.length - 1) {
-      _onEpisodeSelected(widget.allEpisodes[currentIndex + 1]);
+    final currentIndex = _playableEpisodes.indexOf(_currentEpisode);
+    if (currentIndex >= 0 && currentIndex < _playableEpisodes.length - 1) {
+      _onEpisodeSelected(_playableEpisodes[currentIndex + 1]);
     }
   }
 
   Future<void> _onEpisodeSelected(BangumiEpisode ep) async {
-    if (ep.id == _currentEpisode.id) return;
+    if (!ep.isReleased() || ep.id == _currentEpisode.id) return;
 
     // Stop current player
     _player.stop();

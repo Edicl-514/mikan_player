@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/models/bangumi_user_collection.dart';
 import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
@@ -298,7 +299,8 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       }
     }
 
-    if (episodes.isEmpty) {
+    final playableEpisodes = episodes.releasedEpisodes();
+    if (playableEpisodes.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -309,12 +311,12 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       return;
     }
 
-    BangumiEpisode currentEpisode = episodes.first;
-    final byId = episodes.where((e) => e.id == item.episodeId).toList();
+    BangumiEpisode currentEpisode = playableEpisodes.latestReleasedEpisode()!;
+    final byId = playableEpisodes.where((e) => e.id == item.episodeId).toList();
     if (byId.isNotEmpty) {
       currentEpisode = byId.first;
     } else {
-      final bySort = episodes.where((e) => e.sort == item.episodeSort).toList();
+      final bySort = playableEpisodes.where((e) => e.sort == item.episodeSort).toList();
       if (bySort.isNotEmpty) {
         currentEpisode = bySort.first;
       }
@@ -327,7 +329,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
         builder: (context) => PlayerPage(
           anime: item.toAnimeInfo(),
           currentEpisode: currentEpisode,
-          allEpisodes: episodes,
+          allEpisodes: playableEpisodes,
           startPositionMs: item.lastPositionMs,
         ),
       ),
