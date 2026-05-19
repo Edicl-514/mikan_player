@@ -466,35 +466,31 @@ pub async fn fetch_bangumi_comments(
 
     match mode.as_str() {
         "legacy" => fetch_bangumi_comments_legacy(subject_id, page).await,
-        "hybrid" => {
-            match fetch_bangumi_comments_next(subject_id, page).await {
-                Ok(comments) => Ok(comments),
-                Err(err) => {
-                    log::warn!(
-                        "bangumi.comments.subject next failed subject_id={} page={}, falling back to legacy: {}",
-                        subject_id,
-                        page,
-                        err
-                    );
-                    fetch_bangumi_comments_legacy(subject_id, page).await
-                }
+        "hybrid" => match fetch_bangumi_comments_next(subject_id, page).await {
+            Ok(comments) => Ok(comments),
+            Err(err) => {
+                log::warn!(
+                    "bangumi.comments.subject next failed subject_id={} page={}, falling back to legacy: {}",
+                    subject_id,
+                    page,
+                    err
+                );
+                fetch_bangumi_comments_legacy(subject_id, page).await
             }
-        }
+        },
         "modern" => fetch_bangumi_comments_next(subject_id, page).await,
-        _ => {
-            match fetch_bangumi_comments_next(subject_id, page).await {
-                Ok(comments) => Ok(comments),
-                Err(err) => {
-                    log::warn!(
-                        "bangumi.comments.subject next failed subject_id={} page={}, falling back to legacy: {}",
-                        subject_id,
-                        page,
-                        err
-                    );
-                    fetch_bangumi_comments_legacy(subject_id, page).await
-                }
+        _ => match fetch_bangumi_comments_next(subject_id, page).await {
+            Ok(comments) => Ok(comments),
+            Err(err) => {
+                log::warn!(
+                    "bangumi.comments.subject next failed subject_id={} page={}, falling back to legacy: {}",
+                    subject_id,
+                    page,
+                    err
+                );
+                fetch_bangumi_comments_legacy(subject_id, page).await
             }
-        }
+        },
     }
 }
 
@@ -734,33 +730,29 @@ pub async fn fetch_bangumi_episode_comments(
 
     match mode.as_str() {
         "legacy" => fetch_bangumi_episode_comments_legacy(episode_id).await,
-        "hybrid" => {
-            match fetch_bangumi_episode_comments_next(episode_id).await {
-                Ok(comments) => Ok(comments),
-                Err(err) => {
-                    log::warn!(
-                        "bangumi.comments.episode next failed episode_id={}, falling back to legacy: {}",
-                        episode_id,
-                        err
-                    );
-                    fetch_bangumi_episode_comments_legacy(episode_id).await
-                }
+        "hybrid" => match fetch_bangumi_episode_comments_next(episode_id).await {
+            Ok(comments) => Ok(comments),
+            Err(err) => {
+                log::warn!(
+                    "bangumi.comments.episode next failed episode_id={}, falling back to legacy: {}",
+                    episode_id,
+                    err
+                );
+                fetch_bangumi_episode_comments_legacy(episode_id).await
             }
-        }
+        },
         "modern" => fetch_bangumi_episode_comments_next(episode_id).await,
-        _ => {
-            match fetch_bangumi_episode_comments_next(episode_id).await {
-                Ok(comments) => Ok(comments),
-                Err(err) => {
-                    log::warn!(
-                        "bangumi.comments.episode next failed episode_id={}, falling back to legacy: {}",
-                        episode_id,
-                        err
-                    );
-                    fetch_bangumi_episode_comments_legacy(episode_id).await
-                }
+        _ => match fetch_bangumi_episode_comments_next(episode_id).await {
+            Ok(comments) => Ok(comments),
+            Err(err) => {
+                log::warn!(
+                    "bangumi.comments.episode next failed episode_id={}, falling back to legacy: {}",
+                    episode_id,
+                    err
+                );
+                fetch_bangumi_episode_comments_legacy(episode_id).await
             }
-        }
+        },
     }
 }
 
@@ -974,7 +966,26 @@ fn format_bangumi_timestamp(timestamp: i64) -> String {
         .unwrap_or_else(|| timestamp.to_string())
 }
 
-fn escape_html(text: &str) -> String {
+fn escape_html_attribute(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+
+    for ch in text.chars() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&#39;"),
+            '\n' => escaped.push_str("&#10;"),
+            '\r' => {}
+            _ => escaped.push(ch),
+        }
+    }
+
+    escaped
+}
+
+fn escape_html_text(text: &str) -> String {
     let mut escaped = String::with_capacity(text.len());
 
     for ch in text.chars() {
@@ -995,6 +1006,313 @@ fn escape_html(text: &str) -> String {
 
 fn normalize_avatar_url(value: Option<&str>) -> String {
     value.unwrap_or("").to_string()
+}
+
+fn normalize_bangumi_url(value: &str) -> String {
+    if value.starts_with("//") {
+        format!("https:{value}")
+    } else if value.starts_with('/') {
+        format!("{}{}", crate::api::config::get_bangumi_url(), value)
+    } else {
+        value.to_string()
+    }
+}
+
+fn sanitize_style_value(value: &str) -> String {
+    value
+        .chars()
+        .filter(|ch| {
+            ch.is_ascii_alphanumeric()
+                || matches!(ch, '#' | ',' | '.' | '%' | '-' | '_' | ' ' | '(' | ')')
+        })
+        .collect()
+}
+
+fn bangumi_smile_html(code: &str) -> Option<String> {
+    let normalized = code.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+
+    let (src, class_name) = if normalized.starts_with("musume_") {
+        (
+            format!("https://lain.bgm.tv/img/smiles/musume/{normalized}.gif"),
+            "smile smile-dynamic smile-musume",
+        )
+    } else if normalized.starts_with("blake_") {
+        (
+            format!("https://lain.bgm.tv/img/smiles/blake/{normalized}.gif"),
+            "smile smile-dynamic smile-blake",
+        )
+    } else if let Some(number) = normalized
+        .strip_prefix("bgm")
+        .and_then(|value| value.parse::<i32>().ok())
+    {
+        if number == 23 {
+            (
+                format!(
+                    "{}/img/smiles/bgm/{number:02}.gif",
+                    crate::api::config::get_bangumi_url()
+                ),
+                "smile",
+            )
+        } else if (1..=22).contains(&number) {
+            (
+                format!(
+                    "{}/img/smiles/bgm/{number:02}.png",
+                    crate::api::config::get_bangumi_url()
+                ),
+                "smile",
+            )
+        } else if (24..=199).contains(&number) {
+            (
+                format!(
+                    "{}/img/smiles/tv/{:02}.gif",
+                    crate::api::config::get_bangumi_url(),
+                    number - 23
+                ),
+                "smile",
+            )
+        } else if (201..=220).contains(&number) {
+            (
+                format!(
+                    "{}/img/smiles/tv_vs/bgm_{number}.png",
+                    crate::api::config::get_bangumi_url()
+                ),
+                "smile",
+            )
+        } else if (501..=599).contains(&number) {
+            let ext = if number == 501 { "gif" } else { "png" };
+            (
+                format!(
+                    "{}/img/smiles/tv_500/bgm_{number}.{ext}",
+                    crate::api::config::get_bangumi_url()
+                ),
+                "smile",
+            )
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    };
+
+    Some(format!(
+        "<img src=\"{}\" class=\"{}\" smileid=\"{}\" alt=\"({})\" />",
+        escape_html_attribute(&src),
+        class_name,
+        escape_html_attribute(normalized),
+        escape_html_attribute(normalized),
+    ))
+}
+
+fn render_bangumi_plain_text(text: &str) -> String {
+    let mut rendered = String::new();
+    let mut cursor = 0;
+
+    while cursor < text.len() {
+        let Some(open_offset) = text[cursor..].find('(') else {
+            rendered.push_str(&escape_html_text(&text[cursor..]));
+            break;
+        };
+
+        let open_index = cursor + open_offset;
+        rendered.push_str(&escape_html_text(&text[cursor..open_index]));
+
+        let Some(close_offset) = text[open_index + 1..].find(')') else {
+            rendered.push_str(&escape_html_text(&text[open_index..]));
+            break;
+        };
+
+        let close_index = open_index + 1 + close_offset;
+        let token = &text[open_index + 1..close_index];
+        let is_candidate = !token.is_empty()
+            && token.len() <= 32
+            && token
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || ch == '_');
+
+        if is_candidate {
+            if let Some(smile) = bangumi_smile_html(token) {
+                rendered.push_str(&smile);
+                cursor = close_index + 1;
+                continue;
+            }
+        }
+
+        rendered.push_str(&escape_html_text(&text[open_index..=close_index]));
+        cursor = close_index + 1;
+    }
+
+    rendered
+}
+
+fn find_bangumi_closing_tag(input: &str, from: usize, tag: &str) -> Option<usize> {
+    let closing = format!("[/{tag}]");
+    input[from..].find(&closing).map(|offset| from + offset)
+}
+
+fn parse_bangumi_markup_until(
+    input: &str,
+    start: usize,
+    closing_tag: Option<&str>,
+) -> (String, usize) {
+    let mut output = String::new();
+    let mut cursor = start;
+
+    while cursor < input.len() {
+        if let Some(tag) = closing_tag {
+            let expected = format!("[/{tag}]");
+            if input[cursor..].starts_with(&expected) {
+                return (output, cursor + expected.len());
+            }
+        }
+
+        if input[cursor..].starts_with('[') {
+            if let Some(next_bracket) = input[cursor..].find(']') {
+                let tag_end = cursor + next_bracket;
+                let raw_tag = &input[cursor + 1..tag_end];
+                if !raw_tag.starts_with('/') {
+                    let (name, attr) = raw_tag
+                        .split_once('=')
+                        .map(|(name, attr)| (name.trim().to_ascii_lowercase(), Some(attr.trim())))
+                        .unwrap_or_else(|| (raw_tag.trim().to_ascii_lowercase(), None));
+
+                    match name.as_str() {
+                        "img" => {
+                            if let Some(close_index) =
+                                find_bangumi_closing_tag(input, tag_end + 1, "img")
+                            {
+                                let src = input[tag_end + 1..close_index].trim();
+                                let normalized_src = normalize_bangumi_url(src);
+                                output.push_str(&format!(
+                                    "<img src=\"{}\" class=\"code\" rel=\"noreferrer\" referrerpolicy=\"no-referrer\" alt=\"\" loading=\"lazy\" />",
+                                    escape_html_attribute(&normalized_src)
+                                ));
+                                cursor = close_index + "[/img]".len();
+                                continue;
+                            }
+                        }
+                        "url" => {
+                            if let Some(close_index) =
+                                find_bangumi_closing_tag(input, tag_end + 1, "url")
+                            {
+                                let href_raw =
+                                    attr.unwrap_or_else(|| input[tag_end + 1..close_index].trim());
+                                let href = normalize_bangumi_url(href_raw);
+                                let (inner, next) =
+                                    parse_bangumi_markup_until(input, tag_end + 1, Some("url"));
+                                output.push_str(&format!(
+                                    "<a href=\"{}\" target=\"_blank\" rel=\"nofollow external noopener noreferrer\" class=\"l\">{}</a>",
+                                    escape_html_attribute(&href),
+                                    inner
+                                ));
+                                cursor = next;
+                                continue;
+                            }
+                        }
+                        "mask" => {
+                            let (inner, next) =
+                                parse_bangumi_markup_until(input, tag_end + 1, Some("mask"));
+                            output.push_str(
+                                "<span class=\"text_mask\" style=\"background-color:#555;color:#555;border:1px solid #555;\"><span class=\"inner\">",
+                            );
+                            output.push_str(&inner);
+                            output.push_str("</span></span>");
+                            cursor = next;
+                            continue;
+                        }
+                        "quote" => {
+                            let (inner, next) =
+                                parse_bangumi_markup_until(input, tag_end + 1, Some("quote"));
+                            output.push_str("<div class=\"quote\"><q>");
+                            output.push_str(&inner);
+                            output.push_str("</q></div>");
+                            cursor = next;
+                            continue;
+                        }
+                        "b" | "i" | "u" | "s" | "right" | "left" | "center" | "size" | "color" => {
+                            let (inner, next) =
+                                parse_bangumi_markup_until(input, tag_end + 1, Some(&name));
+                            match name.as_str() {
+                                "b" => {
+                                    output.push_str("<span style=\"font-weight:bold;\">");
+                                    output.push_str(&inner);
+                                    output.push_str("</span>");
+                                }
+                                "i" => {
+                                    output.push_str("<span style=\"font-style:italic;\">");
+                                    output.push_str(&inner);
+                                    output.push_str("</span>");
+                                }
+                                "u" => {
+                                    output.push_str("<span style=\"text-decoration:underline;\">");
+                                    output.push_str(&inner);
+                                    output.push_str("</span>");
+                                }
+                                "s" => {
+                                    output.push_str(
+                                        "<span style=\"text-decoration: line-through;\">",
+                                    );
+                                    output.push_str(&inner);
+                                    output.push_str("</span>");
+                                }
+                                "right" | "left" | "center" => {
+                                    output
+                                        .push_str(&format!("<div style=\"text-align:{};\">", name));
+                                    output.push_str(&inner);
+                                    output.push_str("</div>");
+                                }
+                                "size" => {
+                                    let size = attr
+                                        .and_then(|value| value.parse::<i32>().ok())
+                                        .map(|value| value.clamp(8, 72))
+                                        .unwrap_or(14);
+                                    output.push_str(&format!(
+                                        "<span style=\"font-size:{size}px; line-height:{size}px;\">"
+                                    ));
+                                    output.push_str(&inner);
+                                    output.push_str("</span>");
+                                }
+                                "color" => {
+                                    let color = sanitize_style_value(attr.unwrap_or(""));
+                                    output.push_str(&format!(
+                                        "<span style=\"color:{};\">",
+                                        escape_html_attribute(&color)
+                                    ));
+                                    output.push_str(&inner);
+                                    output.push_str("</span>");
+                                }
+                                _ => {}
+                            }
+                            cursor = next;
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        let search_start = if input[cursor..].starts_with('[') {
+            cursor + '['.len_utf8()
+        } else {
+            cursor
+        };
+        let next_control = input[search_start..]
+            .find('[')
+            .map(|offset| search_start + offset)
+            .unwrap_or(input.len());
+        output.push_str(&render_bangumi_plain_text(&input[cursor..next_control]));
+        cursor = next_control;
+    }
+
+    (output, cursor)
+}
+
+fn render_bangumi_markup(text: &str) -> String {
+    let (rendered, _) = parse_bangumi_markup_until(text, 0, None);
+    rendered
 }
 
 async fn fetch_bangumi_comments_next(
@@ -1044,7 +1362,7 @@ async fn fetch_bangumi_comments_next(
                     .as_i64()
                     .and_then(|value| i32::try_from(value).ok())
                     .and_then(|value| if value > 0 { Some(value) } else { None }),
-                content_html: escape_html(&content),
+                content_html: render_bangumi_markup(&content),
                 content,
                 time: item["updatedAt"]
                     .as_i64()
@@ -1086,7 +1404,7 @@ fn parse_next_episode_comment(item: &serde_json::Value) -> BangumiEpisodeComment
             .as_i64()
             .map(format_bangumi_timestamp)
             .unwrap_or_default(),
-        content_html: escape_html(content),
+        content_html: render_bangumi_markup(content),
         replies,
     }
 }

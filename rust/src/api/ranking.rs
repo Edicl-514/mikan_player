@@ -206,9 +206,7 @@ async fn fetch_bangumi_trending_next(page: i32) -> anyhow::Result<Vec<RankingAni
     let offset = ((page.max(1) - 1) * 20).to_string();
     let limit = "20";
     let base_url = crate::api::config::get_bangumi_next_url();
-    let url = format!(
-        "{base_url}/p1/trending/subjects?type=2&limit={limit}&offset={offset}"
-    );
+    let url = format!("{base_url}/p1/trending/subjects?type=2&limit={limit}&offset={offset}");
 
     let resp = crate::api::network::retry_request("bangumi.trending.next", |client| {
         client.get(&url).header("accept", "application/json")

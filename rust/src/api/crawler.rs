@@ -204,7 +204,9 @@ pub async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<An
     };
 
     let is_modern = mode == "modern";
-    let mut fallback_tasks: Vec<tokio::task::JoinHandle<anyhow::Result<(usize, serde_json::Value)>>> = Vec::new();
+    let mut fallback_tasks: Vec<
+        tokio::task::JoinHandle<anyhow::Result<(usize, serde_json::Value)>>,
+    > = Vec::new();
 
     for (index, anime) in results.iter_mut().enumerate() {
         let Some(id) = anime.bangumi_id.clone() else {
@@ -223,8 +225,8 @@ pub async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<An
         if !used_graphql {
             if is_modern {
                 fallback_tasks.push(tokio::spawn(async move {
-                    let p1_json = fetch_subject_details_next_p1_json(id.parse::<i64>().unwrap_or(0))
-                        .await?;
+                    let p1_json =
+                        fetch_subject_details_next_p1_json(id.parse::<i64>().unwrap_or(0)).await?;
                     Ok((index, normalize_next_subject_json(&p1_json)))
                 }));
             } else {
@@ -301,10 +303,7 @@ fn normalize_next_subject_json(subject: &serde_json::Value) -> serde_json::Value
     }
 
     if let Some(meta_tags) = normalized.get("metaTags").and_then(|v| v.as_array()) {
-        normalized.insert(
-            "meta_tags".to_string(),
-            serde_json::json!(meta_tags),
-        );
+        normalized.insert("meta_tags".to_string(), serde_json::json!(meta_tags));
     }
 
     if let Some(infobox_items) = normalized.get("infobox").and_then(|v| v.as_array()) {
@@ -353,15 +352,18 @@ fn normalize_next_subject_json(subject: &serde_json::Value) -> serde_json::Value
         );
     }
 
-    if let Some(images) = normalized
-        .get_mut("images")
-        .and_then(|v| v.as_object_mut())
-    {
+    if let Some(images) = normalized.get_mut("images").and_then(|v| v.as_object_mut()) {
         if images.get("large").is_none() {
-            images.insert("large".to_string(), serde_json::Value::String(String::new()));
+            images.insert(
+                "large".to_string(),
+                serde_json::Value::String(String::new()),
+            );
         }
         if images.get("common").is_none() {
-            images.insert("common".to_string(), serde_json::Value::String(String::new()));
+            images.insert(
+                "common".to_string(),
+                serde_json::Value::String(String::new()),
+            );
         }
     }
 
@@ -373,7 +375,10 @@ fn normalize_next_subject_json(subject: &serde_json::Value) -> serde_json::Value
         }
     }
 
-    let total_episodes = normalized.get("eps").cloned().unwrap_or(serde_json::Value::Null);
+    let total_episodes = normalized
+        .get("eps")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
     normalized.insert("total_episodes".to_string(), total_episodes);
 
     serde_json::Value::Object(normalized)
