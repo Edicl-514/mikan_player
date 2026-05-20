@@ -9,12 +9,15 @@ import 'package:mikan_player/ui/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/src/rust/api/network.dart' as network;
+import 'package:mikan_player/src/rust/api/config.dart' as rust_config;
 import 'package:mikan_player/src/http_overrides.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'dart:io';
+import 'dart:async';
+import 'dart:convert';
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/services/settings_service.dart';
 import 'package:mikan_player/utils/app_directories.dart';
@@ -82,8 +85,9 @@ Future<void> main() async {
     }
   }
 
-  // Load and sync settings
-  await _syncSettings();
+  // Apply local settings needed by the runtime before the first screen renders.
+  // Network-bound warm-up is deferred until after the first frame.
+  await _syncRuntimeSettings();
 
   // Setup Proxy
   final proxy = await network.getSystemProxy();
@@ -93,14 +97,20 @@ Future<void> main() async {
   }
 
   runApp(const MyApp());
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(_runDeferredStartupTasks());
+  });
 }
 
-Future<void> _syncSettings() async {
+Future<void> _syncRuntimeSettings() async {
   try {
     final prefs = await SharedPreferences.getInstance();
     final bgm = prefs.getString('bgmlist_url') ?? 'https://bgmlist.com';
-    final bangumi = prefs.getString('bangumi_url') ?? 'https://bangumi.tv';
-    final mikan = prefs.getString('mikan_url') ?? 'https://mikanani.kas.pub';
+    final bangumi =
+        prefs.getString('bangumi_url') ?? 'https://bangumi.tv';
+    final mikan =
+        prefs.getString('mikan_url') ?? 'https://mikanani.kas.pub';
     final playbackSub =
         prefs.getString('playback_sub_url') ??
         'https://gitee.com/edicl/online-subscription/raw/master/online.json';
@@ -119,12 +129,198 @@ Future<void> _syncSettings() async {
 
     final maxConcurrentSearches = prefs.getInt('max_concurrent_searches') ?? 3;
     await rust.setMaxConcurrentSearches(limit: maxConcurrentSearches);
-
-    // 应用启动时预加载播放源配置
-    debugPrint('Preloading playback source config on app startup...');
-    await rust.preloadPlaybackSourceConfig();
   } catch (e) {
-    debugPrint('Failed to sync settings: $e');
+    debugPrint('Failed to sync runtime settings: $e');
+  }
+}
+
+Future<void> _runDeferredStartupTasks() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final initialUrls = await _ensureOptimalInitialBaseUrls(prefs);
+
+    if (initialUrls.$1 != null || initialUrls.$2 != null) {
+      final bgm = prefs.getString('bgmlist_url') ?? 'https://bgmlist.com';
+      final bangumi =
+          initialUrls.$1 ??
+          prefs.getString('bangumi_url') ??
+          'https://bangumi.tv';
+      final mikan =
+          initialUrls.$2 ??
+          prefs.getString('mikan_url') ??
+          'https://mikanani.kas.pub';
+      final playbackSub =
+          prefs.getString('playback_sub_url') ??
+          'https://gitee.com/edicl/online-subscription/raw/master/online.json';
+
+      await rust.updateConfig(
+        bgm: bgm,
+        bangumi: bangumi,
+        mikan: mikan,
+        playbackSub: playbackSub,
+      );
+    }
+
+    debugPrint('Preloading playback source config after first frame...');
+    await rust.preloadPlaybackSourceConfig();
+
+    if (prefs.getStringList('disabled_sources') == null) {
+      final initialDisabledSources = await _loadInitialDisabledSourcesFromCache();
+      await prefs.setStringList('disabled_sources', initialDisabledSources);
+      await rust.setDisabledSources(sources: initialDisabledSources);
+      debugPrint(
+        'Initialized disabled_sources from subscription defaults: '
+        '${initialDisabledSources.length} disabled',
+      );
+    }
+  } catch (e) {
+    debugPrint('Deferred startup tasks failed: $e');
+  }
+}
+
+Future<(String?, String?)> _ensureOptimalInitialBaseUrls(
+  SharedPreferences prefs,
+) async {
+  final hasBangumiUrl = prefs.getString('bangumi_url') != null;
+  final hasMikanUrl = prefs.getString('mikan_url') != null;
+  if (hasBangumiUrl && hasMikanUrl) {
+    return (null, null);
+  }
+
+  final bangumiFuture = hasBangumiUrl
+      ? Future<String?>.value(null)
+      : _selectFastestUrl([
+          'https://bangumi.tv',
+          'https://bgm.tv',
+          'https://chii.in',
+        ]);
+  final mikanFuture = hasMikanUrl
+      ? Future<String?>.value(null)
+      : _selectFastestUrl([
+          'https://mikanani.kas.pub',
+          'https://mikan2.yujiangqaq.com',
+          'https://mikan.makura.cc',
+          'https://mikanani.me',
+        ]);
+
+  final results = await Future.wait<String?>([bangumiFuture, mikanFuture]);
+  final bangumiUrl = results[0];
+  final mikanUrl = results[1];
+
+  if (bangumiUrl != null) {
+    await prefs.setString('bangumi_url', bangumiUrl);
+    debugPrint('Initialized fastest Bangumi base URL: $bangumiUrl');
+  }
+  if (mikanUrl != null) {
+    await prefs.setString('mikan_url', mikanUrl);
+    debugPrint('Initialized fastest Mikan base URL: $mikanUrl');
+  }
+
+  return (bangumiUrl, mikanUrl);
+}
+
+Future<String?> _selectFastestUrl(List<String> urls) async {
+  if (urls.isEmpty) return null;
+
+  var bestUrl = urls.first;
+  var minLatency = 999999;
+  for (final url in urls) {
+    final latency = await _tcpPing(url);
+    if (latency < minLatency) {
+      minLatency = latency;
+      bestUrl = url;
+    }
+  }
+  return bestUrl;
+}
+
+Future<int> _tcpPing(String url) async {
+  try {
+    final uri = Uri.parse(url);
+    final port = uri.port != 0 ? uri.port : (uri.scheme == 'https' ? 443 : 80);
+    final stopwatch = Stopwatch()..start();
+    if (uri.scheme == 'https') {
+      final socket = await SecureSocket.connect(
+        uri.host,
+        port,
+        timeout: const Duration(seconds: 3),
+        onBadCertificate: (_) => true,
+      );
+      stopwatch.stop();
+      await socket.close();
+    } else {
+      final socket = await Socket.connect(
+        uri.host,
+        port,
+        timeout: const Duration(seconds: 2),
+      );
+      stopwatch.stop();
+      await socket.close();
+    }
+    return stopwatch.elapsedMilliseconds;
+  } catch (_) {
+    return 999999;
+  }
+}
+
+bool? _parseSubscriptionBool(dynamic value) {
+  if (value is bool) {
+    return value;
+  }
+  if (value is num) {
+    return value != 0;
+  }
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+      return true;
+    }
+    if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+      return false;
+    }
+  }
+  return null;
+}
+
+Future<List<String>> _loadInitialDisabledSourcesFromCache() async {
+  try {
+    final cacheDir = await rust_config.getCacheDir();
+    final cacheFile = File(
+      '$cacheDir${Platform.pathSeparator}playback_sources_cache.json',
+    );
+    if (!await cacheFile.exists()) {
+      return const [];
+    }
+
+    final content = await cacheFile.readAsString();
+    final root = jsonDecode(content);
+    if (root is! Map) return const [];
+
+    final exported = root['exportedMediaSourceDataList'];
+    if (exported is! Map) return const [];
+
+    final mediaSources = exported['mediaSources'];
+    if (mediaSources is! List) return const [];
+
+    final disabledSources = <String>[];
+    for (final item in mediaSources) {
+      if (item is! Map) continue;
+      final arguments = item['arguments'];
+      if (arguments is! Map) continue;
+
+      final name = arguments['name']?.toString().trim() ?? '';
+      if (name.isEmpty) continue;
+
+      final parsed = _parseSubscriptionBool(arguments['defaultEnabled']);
+      if (parsed == false) {
+        disabledSources.add(name);
+      }
+    }
+
+    return disabledSources;
+  } catch (e) {
+    debugPrint('Failed to initialize source toggles from cache: $e');
+    return const [];
   }
 }
 
