@@ -213,6 +213,10 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   List<_SearchSortOption> _buildSortOptions(AppLocalizations l10n) {
+    if (_searchMode == SearchMode.keyword && _isLegacyMode) {
+      return const [];
+    }
+
     if (_searchMode == SearchMode.tag && _isLegacyMode) {
       return [
         _SearchSortOption('rank', l10n.searchSortRank),
@@ -235,7 +239,7 @@ class _SearchPageState extends State<SearchPage> {
     final sortOptions = _buildSortOptions(l10n);
     final effectiveSortType = sortOptions.any((option) => option.value == _sortType)
         ? _sortType
-        : sortOptions.first.value;
+        : (sortOptions.isEmpty ? _sortType : sortOptions.first.value);
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -286,22 +290,23 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ],
           ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.sort),
-            tooltip: l10n.searchSortTooltip,
-            onSelected: (value) async {
-              if (value == effectiveSortType) return;
-              await _setSortType(value);
-            },
-            itemBuilder: (context) => sortOptions
-                .map(
-                  (option) => PopupMenuItem(
-                    value: option.value,
-                    child: Text(option.label),
-                  ),
-                )
-                .toList(),
-          ),
+          if (sortOptions.isNotEmpty)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.sort),
+              tooltip: l10n.searchSortTooltip,
+              onSelected: (value) async {
+                if (value == effectiveSortType) return;
+                await _setSortType(value);
+              },
+              itemBuilder: (context) => sortOptions
+                  .map(
+                    (option) => PopupMenuItem(
+                      value: option.value,
+                      child: Text(option.label),
+                    ),
+                  )
+                  .toList(),
+            ),
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () => _handleSearchSubmit(_searchController.text),

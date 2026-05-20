@@ -25,6 +25,7 @@ import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
+import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
@@ -671,6 +672,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     try {
       final List<RankingAnime> results = [];
       final Set<String> addedIds = {};
+      final isLegacyMode =
+          BangumiRequestModeService.notifier.value == BangumiRequestMode.legacy;
+      debugPrint(
+        '[Recommendations] Start loading for '
+        '${widget.anime.bangumiId ?? "unknown"} / ${widget.anime.title}, '
+        'mode=${BangumiRequestModeService.notifier.value.value}, '
+        'tagSort=${isLegacyMode ? "collects" : "trends"}',
+      );
 
       // 0. Add current anime ID to exclude list
       if (widget.anime.bangumiId != null) {
@@ -691,6 +700,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             final others = relations
                 .where((r) => r.relation != '前传' && r.relation != '续集')
                 .toList();
+            debugPrint(
+              '[Recommendations] Relations fetched for $id: total=${relations.length}, '
+              'priority=${pres.length}, others=${others.length}',
+            );
 
             for (var r in [...pres, ...others]) {
               final bid = r.id.toString();
@@ -710,15 +723,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               addedIds.add(bid);
             }
           } catch (e) {
-            debugPrint("Error fetching relations: $e");
+            debugPrint("[Recommendations] Error fetching relations: $e");
           }
         }
       }
 
       // 2. Tag-based Search
-      final tags = widget.anime.tags;
-      const invalidTags = ['TV', '日本', '中国'];
-      final validTags = tags.where((t) => !invalidTags.contains(t)).toList();
+      final validTags = await _resolveRecommendationTags();
+      debugPrint(
+        '[Recommendations] Resolved tags for '
+        '${widget.anime.bangumiId ?? widget.anime.title}: count=${validTags.length}, tags=$validTags',
+      );
 
       if (validTags.isNotEmpty) {
         // Limit results: more tags => fewer per tag
@@ -728,17 +743,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
         // Take max 5 tags to search
         final searchTags = validTags.take(5).toList();
+        debugPrint(
+          '[Recommendations] Searching tags: $searchTags, limitPerTag=$limitPerTag',
+        );
 
         // Fetch in parallel
         final futures = searchTags.map((tag) async {
           try {
-            return await fetchBangumiBrowser(
-              sortType: 'trends', // Use trends for "You might like"
+            final items = await fetchBangumiBrowser(
+              sortType: isLegacyMode ? 'collects' : 'trends',
               year: '',
               tags: [tag],
               page: 1,
             );
+            debugPrint(
+              '[Recommendations] Tag "$tag" returned ${items.length} items',
+            );
+            return items;
           } catch (e) {
+            debugPrint(
+              '[Recommendations] Tag "$tag" search failed: $e',
+            );
             return <RankingAnime>[];
           }
         });
@@ -756,6 +781,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             }
           }
         }
+      } else {
+        debugPrint(
+          '[Recommendations] Skip tag search because resolved tags are empty',
+        );
       }
 
       if (mounted) {
@@ -764,8 +793,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _isLoadingRecommendations = false;
         });
       }
+      debugPrint(
+        '[Recommendations] Finished loading for '
+        '${widget.anime.bangumiId ?? widget.anime.title}: total=${results.length}',
+      );
     } catch (e) {
-      debugPrint("Error loading recommendations: $e");
+      debugPrint("[Recommendations] Error loading recommendations: $e");
       if (mounted) {
         setState(() {
           _isLoadingRecommendations = false;
@@ -973,6 +1006,127 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
     }
     return widget.anime.title.trim();
+  }
+
+  List<String> _extractRecommendationTagsFromBangumiJson(String? fullJson) {
+    if (fullJson == null || fullJson.isEmpty) return const [];
+
+    try {
+      final data = jsonDecode(fullJson);
+      if (data is! Map) return const [];
+
+      final tags = <String>[];
+
+      final metaTags = data['meta_tags'];
+      if (metaTags is List) {
+        for (final item in metaTags) {
+          final value = item?.toString().trim() ?? '';
+          if (value.isNotEmpty) {
+            tags.add(value);
+          }
+        }
+      }
+
+      final detailTags = data['tags'];
+      if (detailTags is List) {
+        for (final item in detailTags) {
+          if (item is Map) {
+            final value = item['name']?.toString().trim() ?? '';
+            if (value.isNotEmpty) {
+              tags.add(value);
+            }
+          } else {
+            final value = item?.toString().trim() ?? '';
+            if (value.isNotEmpty) {
+              tags.add(value);
+            }
+          }
+        }
+      }
+
+      final unique = <String>[];
+      final seen = <String>{};
+      for (final tag in tags) {
+        final key = tag.toLowerCase();
+        if (seen.add(key)) {
+          unique.add(tag);
+        }
+      }
+      return unique;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  List<String> _normalizeRecommendationTags(Iterable<String> rawTags) {
+    const invalidTags = {
+      'tv',
+      'web',
+      'ova',
+      '日本',
+      '中国',
+      '动画',
+      'anime',
+    };
+
+    final unique = <String>[];
+    final seen = <String>{};
+    for (final raw in rawTags) {
+      final tag = raw.trim();
+      if (tag.isEmpty || tag.length <= 1) continue;
+      if (RegExp(r'^\d{4}([-/]\d{1,2})?$').hasMatch(tag)) continue;
+      final lower = tag.toLowerCase();
+      if (invalidTags.contains(lower) || invalidTags.contains(tag)) continue;
+      if (seen.add(lower)) {
+        unique.add(tag);
+      }
+    }
+    return unique;
+  }
+
+  Future<List<String>> _resolveRecommendationTags() async {
+    final directTags = _normalizeRecommendationTags(widget.anime.tags);
+    if (directTags.isNotEmpty) {
+      debugPrint(
+        '[Recommendations] Using widget tags for ${widget.anime.bangumiId ?? widget.anime.title}: $directTags',
+      );
+      return directTags;
+    }
+
+    final jsonTags = _normalizeRecommendationTags(
+      _extractRecommendationTagsFromBangumiJson(widget.anime.fullJson),
+    );
+    if (jsonTags.isNotEmpty) {
+      debugPrint(
+        '[Recommendations] Using fullJson tags for ${widget.anime.bangumiId ?? widget.anime.title}: $jsonTags',
+      );
+      return jsonTags;
+    }
+
+    final subjectId = int.tryParse(widget.anime.bangumiId ?? '');
+    if (subjectId == null) {
+      debugPrint(
+        '[Recommendations] No bangumiId and no local tags for ${widget.anime.title}',
+      );
+      return const [];
+    }
+
+    try {
+      final detail = await fetchLightSubjectDetails(subjectId: subjectId);
+      final resolvedTags = _normalizeRecommendationTags([
+        ...detail.tags,
+        ..._extractRecommendationTagsFromBangumiJson(detail.fullJson),
+      ]);
+      debugPrint(
+        '[Recommendations] Using fetched detail tags for $subjectId: $resolvedTags',
+      );
+      return resolvedTags;
+    } catch (e) {
+      debugPrint(
+        '[Recommendations] Error resolving tags for $subjectId: $e',
+      );
+      return const [];
+    }
   }
 
   Future<void> _cancelSearchSubscriptions() async {

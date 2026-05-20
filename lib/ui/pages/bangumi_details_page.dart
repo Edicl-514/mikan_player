@@ -320,6 +320,49 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     }
   }
 
+  List<String> _extractCurrentTags() {
+    final rawTags = _data?['tags'];
+    if (rawTags is! List) {
+      return widget.anime.tags;
+    }
+
+    final tags = <String>[];
+    final seen = <String>{};
+    for (final item in rawTags) {
+      String value = '';
+      if (item is Map) {
+        value = item['name']?.toString().trim() ?? '';
+      } else {
+        value = item?.toString().trim() ?? '';
+      }
+      if (value.isEmpty) continue;
+      final key = value.toLowerCase();
+      if (seen.add(key)) {
+        tags.add(value);
+      }
+    }
+    return tags.isNotEmpty ? tags : widget.anime.tags;
+  }
+
+  AnimeInfo _buildAnimeForPlayer() {
+    final currentNameCn = _data?['name_cn']?.toString().trim() ?? '';
+
+    return AnimeInfo(
+      title: widget.anime.title,
+      subTitle: currentNameCn.isNotEmpty ? currentNameCn : widget.anime.subTitle,
+      bangumiId: widget.anime.bangumiId,
+      mikanId: widget.anime.mikanId,
+      coverUrl: widget.anime.coverUrl,
+      siteUrl: widget.anime.siteUrl,
+      broadcastDay: widget.anime.broadcastDay,
+      broadcastTime: widget.anime.broadcastTime,
+      score: widget.anime.score,
+      rank: widget.anime.rank,
+      tags: _extractCurrentTags(),
+      fullJson: _data != null ? jsonEncode(_data) : widget.anime.fullJson,
+    );
+  }
+
   // Parse summary to extract translation and original text
   Map<String, String?> _parseSummary(String? summary) {
     if (summary == null || summary.isEmpty) {
@@ -2243,7 +2286,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (context) => PlayerPage(
-                                  anime: widget.anime,
+                                  anime: _buildAnimeForPlayer(),
                                   currentEpisode: ep,
                                   allEpisodes: _episodes!,
                                 ),
