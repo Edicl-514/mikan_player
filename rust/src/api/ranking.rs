@@ -110,8 +110,14 @@ pub async fn search_bangumi_tag(
     let mode = crate::api::config::get_bangumi_request_mode();
     match mode.as_str() {
         "legacy" => search_bangumi_tag_html(tag, sort_type, page).await,
-        "hybrid" | "modern" => fetch_bangumi_browser_api(&sort_type, "", &[tag], page).await,
-        _ => fetch_bangumi_browser_api(&sort_type, "", &[tag], page).await,
+        "hybrid" | "modern" => {
+            let tags = parse_search_tags(&tag);
+            fetch_bangumi_browser_api(&sort_type, "", &tags, page).await
+        }
+        _ => {
+            let tags = parse_search_tags(&tag);
+            fetch_bangumi_browser_api(&sort_type, "", &tags, page).await
+        }
     }
 }
 
@@ -252,6 +258,45 @@ fn normalize_api_sort_type(sort_type: &str) -> &str {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+struct YearMonth {
+    year: i32,
+    month: u32,
+}
+
+fn parse_search_tags(tag_query: &str) -> Vec<String> {
+    tag_query
+        .split_whitespace()
+        .filter(|tag| !tag.is_empty() && *tag != "全部")
+        .map(|tag| tag.to_string())
+        .collect()
+}
+
+fn parse_year_month(input: &str) -> Option<YearMonth> {
+    let normalized = input.trim().replace('.', "-");
+    let (year_part, month_part) = normalized.split_once('-')?;
+    let year = year_part.parse::<i32>().ok()?;
+    let month = month_part.parse::<u32>().ok()?;
+    if !(1..=12).contains(&month) {
+        return None;
+    }
+    Some(YearMonth { year, month })
+}
+
+fn next_year_month(year_month: YearMonth) -> Option<YearMonth> {
+    if year_month.month == 12 {
+        Some(YearMonth {
+            year: year_month.year.checked_add(1)?,
+            month: 1,
+        })
+    } else {
+        Some(YearMonth {
+            year: year_month.year,
+            month: year_month.month + 1,
+        })
+    }
+}
+
 fn build_api_subject_filter(year: &str, tags: &[String]) -> serde_json::Map<String, Value> {
     let mut filter = serde_json::Map::new();
     filter.insert("type".to_string(), json!([2]));
@@ -279,22 +324,27 @@ fn build_air_date_filter(year: &str) -> Option<Vec<String>> {
         return None;
     }
 
-    if let Some((year_part, month_part)) = trimmed.split_once('-') {
-        let month = month_part.parse::<u32>().ok()?;
-        if !(1..=12).contains(&month) {
+    if let Some((start_part, end_part)) = trimmed.split_once("..") {
+        let start = parse_year_month(start_part)?;
+        let end = parse_year_month(end_part)?;
+        if start > end {
             return None;
         }
 
-        let next_year = if month == 12 {
-            year_part.parse::<i32>().ok()?.checked_add(1)?.to_string()
-        } else {
-            year_part.to_string()
-        };
-        let next_month = if month == 12 { 1 } else { month + 1 };
+        let next_month = next_year_month(end)?;
+        return Some(vec![
+            format!(">={}-{:02}-01", start.year, start.month),
+            format!("<{}-{:02}-01", next_month.year, next_month.month),
+        ]);
+    }
+
+    if let Some((year_part, month_part)) = trimmed.split_once('-') {
+        let year_month = parse_year_month(&format!("{year_part}-{month_part}"))?;
+        let next_month = next_year_month(year_month)?;
 
         return Some(vec![
-            format!(">={}-{:02}-01", year_part, month),
-            format!("<{}-{:02}-01", next_year, next_month),
+            format!(">={}-{:02}-01", year_month.year, year_month.month),
+            format!("<{}-{:02}-01", next_month.year, next_month.month),
         ]);
     }
 
@@ -498,6 +548,19 @@ mod tests {
     }
 
     #[test]
+    fn build_air_date_filter_supports_year_month_ranges() {
+        assert_eq!(
+            build_air_date_filter("2020-07..2025-09"),
+            Some(vec![">=2020-07-01".to_string(), "<2025-10-01".to_string(),])
+        );
+        assert_eq!(
+            build_air_date_filter("2020.07..2025.09"),
+            Some(vec![">=2020-07-01".to_string(), "<2025-10-01".to_string(),])
+        );
+        assert_eq!(build_air_date_filter("2025-09..2020-07"), None);
+    }
+
+    #[test]
     fn parse_bangumi_search_results_maps_v0_payload() {
         let input = json!({
             "data": [
@@ -565,6 +628,13 @@ mod tests {
         assert_eq!(normalize_api_sort_type("date"), "match");
         assert_eq!(normalize_api_sort_type("title"), "match");
         assert_eq!(normalize_api_sort_type("unknown"), "rank");
+    }
+
+    #[test]
+    fn parse_search_tags_splits_whitespace_for_multi_tag_queries() {
+        assert_eq!(parse_search_tags("百合 喜剧"), vec!["百合", "喜剧"]);
+        assert_eq!(parse_search_tags("  百合\t喜剧  校园 "), vec!["百合", "喜剧", "校园"]);
+        assert!(parse_search_tags("全部").is_empty());
     }
 
     #[test]

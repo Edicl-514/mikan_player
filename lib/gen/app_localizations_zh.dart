@@ -492,6 +492,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchEnterTag => '输入标签进行搜索';
 
   @override
+  String get searchEnterTagsMulti => '输入标签进行搜索，多个标签用空格分隔';
+
+  @override
   String get searchSortTooltip => '切换排序方式';
 
   @override
@@ -623,6 +626,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get rankingRanking => '排行榜';
+
+  @override
+  String get indexDateRangeSelected => '区间';
+
+  @override
+  String get indexDateRangeUnset => '不限时间范围';
 
   @override
   String loadFailed(Object error) {

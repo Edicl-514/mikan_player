@@ -247,7 +247,11 @@ class _SearchPageState extends State<SearchPage> {
         title: TextField(
           controller: _searchController,
           decoration: InputDecoration(
-            hintText: AppLocalizations.of(context).searchHintText,
+            hintText: _searchMode == SearchMode.keyword
+                ? AppLocalizations.of(context).searchHintText
+                : (_isLegacyMode
+                      ? AppLocalizations.of(context).searchEnterTag
+                      : AppLocalizations.of(context).searchEnterTagsMulti),
             border: InputBorder.none,
             hintStyle: TextStyle(
               color:
@@ -331,7 +335,9 @@ class _SearchPageState extends State<SearchPage> {
         child: Text(
           _searchMode == SearchMode.keyword
               ? AppLocalizations.of(context).searchEnterKeyword
-              : AppLocalizations.of(context).searchEnterTag,
+              : (_isLegacyMode
+                    ? AppLocalizations.of(context).searchEnterTag
+                    : AppLocalizations.of(context).searchEnterTagsMulti),
         ),
       );
     }

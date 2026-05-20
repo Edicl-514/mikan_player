@@ -1028,6 +1028,12 @@ abstract class AppLocalizations {
   /// **'输入标签进行搜索'**
   String get searchEnterTag;
 
+  /// No description provided for @searchEnterTagsMulti.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入标签进行搜索，多个标签用空格分隔'**
+  String get searchEnterTagsMulti;
+
   /// No description provided for @searchSortTooltip.
   ///
   /// In zh, this message translates to:
@@ -1273,6 +1279,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'排行榜'**
   String get rankingRanking;
+
+  /// No description provided for @indexDateRangeSelected.
+  ///
+  /// In zh, this message translates to:
+  /// **'区间'**
+  String get indexDateRangeSelected;
+
+  /// No description provided for @indexDateRangeUnset.
+  ///
+  /// In zh, this message translates to:
+  /// **'不限时间范围'**
+  String get indexDateRangeUnset;
 
   /// No description provided for @loadFailed.
   ///

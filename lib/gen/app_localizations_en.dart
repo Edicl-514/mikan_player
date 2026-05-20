@@ -505,6 +505,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchEnterTag => 'Enter a tag to search';
 
   @override
+  String get searchEnterTagsMulti =>
+      'Enter tags to search, separated by spaces';
+
+  @override
   String get searchSortTooltip => 'Switch sort order';
 
   @override
@@ -640,6 +644,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get rankingRanking => 'Ranking';
+
+  @override
+  String get indexDateRangeSelected => 'Range';
+
+  @override
+  String get indexDateRangeUnset => 'No date range';
 
   @override
   String loadFailed(Object error) {
