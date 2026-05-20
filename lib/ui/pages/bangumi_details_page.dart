@@ -2801,15 +2801,44 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   String _getEpisodeStatusText() {
     // Placeholder logic matching screenshot: "连载至 30 · 预定全 10 话"
     // We should use real data if possible
-    final eps = _data?['eps'] ?? widget.anime.fullJson?.length ?? 0; // fallback
-    final total = _data?['total_episodes'] ?? 0;
-
-    // If total is 0, maybe it's unknown.
-    // Let's just say "Total X eps" if we know it.
-    if (total > 0) {
+    final total = _getTotalEpisodeCount();
+    if (total != null && total > 0) {
       return "全 $total 话";
     }
-    return "$eps 话";
+    return "0话";
+  }
+
+  int? _getTotalEpisodeCount() {
+    final totalFromData = _readIntValue(_data?['total_episodes']);
+    if (totalFromData != null && totalFromData > 0) {
+      return totalFromData;
+    }
+
+    final epsFromData = _readIntValue(_data?['eps']);
+    if (epsFromData != null && epsFromData > 0) {
+      return epsFromData;
+    }
+
+    final episodeCount = _episodes?.length ?? 0;
+    if (episodeCount > 0) {
+      return episodeCount;
+    }
+
+    final parsedEpisodes = _data?['episodes'];
+    if (parsedEpisodes is List) {
+      final count = parsedEpisodes.whereType<Map>().length;
+      if (count > 0) {
+        return count;
+      }
+    }
+
+    return null;
+  }
+
+  int? _readIntValue(dynamic value) {
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
   }
 }
 

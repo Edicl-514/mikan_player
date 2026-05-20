@@ -385,7 +385,11 @@ fn parse_bangumi_search_item(item: &Value) -> Option<RankingAnime> {
         .or_else(|| item["id"].as_str().map(|value| value.to_string()))?;
 
     let original_title = item["name"].as_str().map(|value| value.trim().to_string());
-    let name_cn = item["name_cn"].as_str().unwrap_or("").trim();
+    let name_cn = item["name_cn"]
+        .as_str()
+        .or_else(|| item["nameCN"].as_str())
+        .unwrap_or("")
+        .trim();
     let title = if !name_cn.is_empty() {
         name_cn.to_string()
     } else {
@@ -431,13 +435,55 @@ fn parse_bangumi_search_item(item: &Value) -> Option<RankingAnime> {
 }
 
 fn build_subject_info(item: &Value) -> String {
+    if let Some(info) = item["info"].as_str().filter(|value| !value.is_empty()) {
+        return info.to_string();
+    }
+
+    let infobox = item["infobox"].as_array();
     let mut parts = Vec::new();
+    let mut has_legacy_detail = false;
+
+    if let Some(episodes) = extract_episode_count(item, infobox) {
+        parts.push(format!("{episodes}话"));
+        has_legacy_detail = true;
+    }
+
+    if let Some(date) = extract_air_date(item, infobox) {
+        parts.push(date);
+    }
+
+    if let Some(director) = extract_infobox_value(infobox, &["导演", "监督"]) {
+        parts.push(director);
+        has_legacy_detail = true;
+    }
+
+    if let Some(original) = extract_infobox_value(infobox, &["原作"]) {
+        parts.push(original);
+        has_legacy_detail = true;
+    }
+
+    if let Some(character_design) = extract_infobox_value(infobox, &["人物设定", "角色设计"]) {
+        parts.push(character_design);
+        has_legacy_detail = true;
+    }
+
+    if has_legacy_detail {
+        return parts.join(" / ");
+    }
+
+    parts.clear();
 
     if let Some(date) = item["date"].as_str().filter(|value| !value.is_empty()) {
         parts.push(date.to_string());
     }
     if let Some(platform) = item["platform"].as_str().filter(|value| !value.is_empty()) {
         parts.push(platform.to_string());
+    }
+
+    if parts.is_empty() {
+        if let Some(date) = item["date"].as_str().filter(|value| !value.is_empty()) {
+            parts.push(date.to_string());
+        }
     }
 
     if parts.is_empty() {
@@ -453,6 +499,89 @@ fn build_subject_info(item: &Value) -> String {
     }
 
     parts.join(" / ")
+}
+
+fn extract_episode_count(item: &Value, infobox: Option<&Vec<Value>>) -> Option<String> {
+    item["eps"]
+        .as_i64()
+        .filter(|value| *value > 0)
+        .map(|value| value.to_string())
+        .or_else(|| {
+            item["total_episodes"]
+                .as_i64()
+                .filter(|value| *value > 0)
+                .map(|value| value.to_string())
+        })
+        .or_else(|| extract_infobox_value(infobox, &["话数"]))
+}
+
+fn extract_air_date(item: &Value, infobox: Option<&Vec<Value>>) -> Option<String> {
+    extract_infobox_value(infobox, &["放送开始", "开始", "发售日", "上映年度"])
+        .or_else(|| item["date"].as_str().map(format_bangumi_date))
+}
+
+fn extract_infobox_value(infobox: Option<&Vec<Value>>, keys: &[&str]) -> Option<String> {
+    let entries = infobox?;
+
+    entries.iter().find_map(|entry| {
+        let key = entry["key"].as_str()?.trim();
+        if !keys.iter().any(|candidate| *candidate == key) {
+            return None;
+        }
+
+        stringify_infobox_value(&entry["value"])
+    })
+}
+
+fn stringify_infobox_value(value: &Value) -> Option<String> {
+    match value {
+        Value::String(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+        Value::Array(items) => {
+            let joined = items
+                .iter()
+                .filter_map(|item| {
+                    item.get("v")
+                        .and_then(Value::as_str)
+                        .or_else(|| item.as_str())
+                        .map(str::trim)
+                        .filter(|text| !text.is_empty())
+                        .map(|text| text.to_string())
+                })
+                .collect::<Vec<_>>()
+                .join(" / ");
+
+            if joined.is_empty() {
+                None
+            } else {
+                Some(joined)
+            }
+        }
+        _ => None,
+    }
+}
+
+fn format_bangumi_date(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let mut parts = trimmed.split('-');
+    let year = parts.next().and_then(|part| part.parse::<i32>().ok());
+    let month = parts.next().and_then(|part| part.parse::<u32>().ok());
+    let day = parts.next().and_then(|part| part.parse::<u32>().ok());
+
+    match (year, month, day) {
+        (Some(year), Some(month), Some(day)) => format!("{year}年{month}月{day}日"),
+        _ => trimmed.to_string(),
+    }
 }
 
 fn parse_bangumi_list(document: &Html) -> Vec<RankingAnime> {
@@ -589,6 +718,37 @@ mod tests {
     }
 
     #[test]
+    fn parse_bangumi_search_results_builds_legacy_like_info_from_infobox() {
+        let input = json!({
+            "data": [
+                {
+                    "id": 326,
+                    "name": "攻殻機動隊 S.A.C. 2nd GIG",
+                    "name_cn": "攻壳机动队 S.A.C. 2nd GIG",
+                    "date": "2004-01-01",
+                    "eps": 26,
+                    "images": { "large": "https://example.com/cover.jpg" },
+                    "rating": { "score": 9.2, "rank": 1 },
+                    "infobox": [
+                        { "key": "话数", "value": "26" },
+                        { "key": "放送开始", "value": "2004年1月1日" },
+                        { "key": "导演", "value": "神山健治" },
+                        { "key": "原作", "value": "士郎正宗" },
+                        { "key": "人物设定", "value": "後藤隆幸、西尾鉄也" }
+                    ]
+                }
+            ]
+        });
+
+        let results = parse_bangumi_search_results(&input);
+        assert_eq!(results.len(), 1);
+        assert_eq!(
+            results[0].info,
+            "26话 / 2004年1月1日 / 神山健治 / 士郎正宗 / 後藤隆幸、西尾鉄也"
+        );
+    }
+
+    #[test]
     fn parse_bangumi_next_trending_results_maps_subject_payload() {
         let input = json!({
             "data": [
@@ -596,9 +756,8 @@ mod tests {
                     "subject": {
                         "id": 543360,
                         "name": "Kamiina Botan",
-                        "name_cn": "上伊那牡丹",
-                        "date": "2026-04-10",
-                        "platform": "TV",
+                        "nameCN": "上伊那牡丹",
+                        "info": "12话 / 2026年4月10日 / 佐久間貴史 / 塀 / 吉成鋼",
                         "images": { "large": "https://example.com/cover.jpg" },
                         "rating": { "score": 7.58, "rank": 123 },
                         "meta_tags": ["百合", "日常"]
@@ -613,7 +772,7 @@ mod tests {
         assert_eq!(results[0].bangumi_id, "543360");
         assert_eq!(results[0].title, "上伊那牡丹");
         assert_eq!(results[0].original_title.as_deref(), Some("Kamiina Botan"));
-        assert_eq!(results[0].info, "2026-04-10 / TV");
+        assert_eq!(results[0].info, "12话 / 2026年4月10日 / 佐久間貴史 / 塀 / 吉成鋼");
         assert_eq!(results[0].score, Some(7.58));
         assert_eq!(results[0].rank, Some(123));
     }
