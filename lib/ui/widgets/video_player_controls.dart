@@ -36,6 +36,7 @@ class CustomVideoControls extends StatelessWidget {
   // 选集相关
   final List<BangumiEpisode> allEpisodes;
   final BangumiEpisode currentEpisode;
+  final ValueListenable<BangumiEpisode>? currentEpisodeListenable;
   final Function(BangumiEpisode) onEpisodeSelected;
 
   // 播放源相关
@@ -60,6 +61,7 @@ class CustomVideoControls extends StatelessWidget {
 
   // 视频标题
   final String? videoTitle;
+  final ValueListenable<String>? videoTitleListenable;
 
   // 下载当前在线源
   final VoidCallback? onDownloadCurrentSource;
@@ -76,6 +78,7 @@ class CustomVideoControls extends StatelessWidget {
     required this.subtitleService,
     required this.allEpisodes,
     required this.currentEpisode,
+    this.currentEpisodeListenable,
     required this.onEpisodeSelected,
     required this.availableSources,
     this.availableSourcesListenable,
@@ -86,6 +89,7 @@ class CustomVideoControls extends StatelessWidget {
     this.isLoading = false,
     required this.mobilePlayerLockNotifier,
     this.videoTitle,
+    this.videoTitleListenable,
     this.onDownloadCurrentSource,
     required this.isAutoPlayNextEnabled,
     required this.onToggleAutoPlayNext,
@@ -95,6 +99,32 @@ class CustomVideoControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final listenables = <Listenable>[
+      ...[
+        currentEpisodeListenable,
+        videoTitleListenable,
+      ].whereType<Listenable>(),
+    ];
+
+    if (listenables.isEmpty) {
+      return _buildControls(context);
+    }
+
+    return _ReactiveListenablesBuilder(
+      listenables: listenables,
+      builder: (context) => _buildControls(context),
+    );
+  }
+
+  BangumiEpisode get _resolvedCurrentEpisode =>
+      currentEpisodeListenable?.value ?? currentEpisode;
+
+  String? get _resolvedVideoTitle => videoTitleListenable?.value ?? videoTitle;
+
+  Widget _buildControls(BuildContext context) {
+    final currentEpisode = _resolvedCurrentEpisode;
+    final videoTitle = _resolvedVideoTitle;
+
     // 计算当前集数索引，用于控制按钮显示
     final currentIndex = allEpisodes.indexOf(currentEpisode);
     final isFirstEpisode = currentIndex <= 0;
@@ -150,14 +180,7 @@ class CustomVideoControls extends StatelessWidget {
       ),
       if (videoTitle != null) ...[
         const SizedBox(width: 8),
-        Text(
-          videoTitle!,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
+        _buildFullscreenTitleText(videoTitle),
       ],
       const Spacer(),
       ListenableBuilder(
@@ -261,14 +284,7 @@ class CustomVideoControls extends StatelessWidget {
     final desktopFullscreenTopButtonBar = [
       if (videoTitle != null) ...[
         const SizedBox(width: 16),
-        Text(
-          videoTitle!,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
+        _buildFullscreenTitleText(videoTitle, isDesktop: true),
       ],
       const Spacer(),
       _buildIntegratedButton(
@@ -614,6 +630,24 @@ class CustomVideoControls extends StatelessWidget {
     );
   }
 
+  Widget _buildFullscreenTitleText(String fallback, {bool isDesktop = false}) {
+    final style = TextStyle(
+      color: Colors.white,
+      fontSize: isDesktop ? 16 : 14,
+      fontWeight: FontWeight.w500,
+    );
+
+    if (videoTitleListenable == null) {
+      return Text(fallback, style: style);
+    }
+
+    return ValueListenableBuilder<String>(
+      valueListenable: videoTitleListenable!,
+      builder: (context, value, _) =>
+          Text(value.isNotEmpty ? value : fallback, style: style),
+    );
+  }
+
   /// 构建系统时间显示组件 - 只在全屏时显示
   Widget _buildSystemTimeDisplay() {
     return _SystemTimeDisplay();
@@ -731,7 +765,7 @@ class CustomVideoControls extends StatelessWidget {
 
   /// 切换到上一集
   void _onSkipPrevious() {
-    final currentIndex = allEpisodes.indexOf(currentEpisode);
+    final currentIndex = allEpisodes.indexOf(_resolvedCurrentEpisode);
     if (currentIndex > 0) {
       onEpisodeSelected(allEpisodes[currentIndex - 1]);
     }
@@ -739,7 +773,7 @@ class CustomVideoControls extends StatelessWidget {
 
   /// 切换到下一集
   void _onSkipNext() {
-    final currentIndex = allEpisodes.indexOf(currentEpisode);
+    final currentIndex = allEpisodes.indexOf(_resolvedCurrentEpisode);
     if (currentIndex < allEpisodes.length - 1) {
       onEpisodeSelected(allEpisodes[currentIndex + 1]);
     }
@@ -945,108 +979,132 @@ class CustomVideoControls extends StatelessWidget {
       transitionDuration: const Duration(milliseconds: 250),
       pageBuilder: (context, animation, secondaryAnimation) {
         final scrollController = createPlatformScrollController();
-        return Align(
-          alignment: Alignment.centerRight,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              width: 280,
-              height: double.infinity,
-              decoration: BoxDecoration(
-                color: panelBgColor,
-                borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(16),
+        final listenables = <Listenable>[
+          ...[currentEpisodeListenable].whereType<Listenable>(),
+        ];
+
+        Widget buildPanel(BuildContext panelContext) {
+          return Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: 280,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  color: panelBgColor,
+                  borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(16),
+                  ),
                 ),
-              ),
-              child: SafeArea(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 标题栏
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Text(
-                            '选集',
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '共${allEpisodes.length}集',
-                            style: TextStyle(color: subTextColor, fontSize: 14),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            onPressed: () => Navigator.pop(context),
-                            icon: Icon(Icons.close, color: closeIconColor),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Divider(color: borderColor, height: 1),
-                    // 选集列表
-                    Expanded(
-                      child: GridView.builder(
-                        controller: scrollController,
+                child: SafeArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 标题栏
+                      Padding(
                         padding: const EdgeInsets.all(16),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 4,
-                              mainAxisSpacing: 10,
-                              crossAxisSpacing: 10,
-                              childAspectRatio: 1.2,
-                            ),
-                        itemCount: allEpisodes.length,
-                        itemBuilder: (context, index) {
-                          final ep = allEpisodes[index];
-                          final isSelected = ep == currentEpisode;
-                          return InkWell(
-                            onTap: () {
-                              Navigator.pop(context);
-                              onEpisodeSelected(ep);
-                            },
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? Theme.of(context).colorScheme.primary
-                                          .withValues(alpha: 0.2)
-                                    : unselectedBgColor,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? Theme.of(context).colorScheme.primary
-                                      : unselectedBorderColor,
-                                  width: isSelected ? 2 : 1,
-                                ),
-                              ),
-                              child: Text(
-                                ep.sort.toInt().toString(),
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? Theme.of(context).colorScheme.primary
-                                      : unselectedTextColor,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                ),
+                        child: Row(
+                          children: [
+                            Text(
+                              '选集',
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                          );
-                        },
+                            const SizedBox(width: 8),
+                            Text(
+                              '共${allEpisodes.length}集',
+                              style: TextStyle(
+                                color: subTextColor,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              onPressed: () => Navigator.pop(panelContext),
+                              icon: Icon(Icons.close, color: closeIconColor),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      Divider(color: borderColor, height: 1),
+                      // 选集列表
+                      Expanded(
+                        child: GridView.builder(
+                          controller: scrollController,
+                          padding: const EdgeInsets.all(16),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 4,
+                                mainAxisSpacing: 10,
+                                crossAxisSpacing: 10,
+                                childAspectRatio: 1.2,
+                              ),
+                          itemCount: allEpisodes.length,
+                          itemBuilder: (context, index) {
+                            final ep = allEpisodes[index];
+                            final isSelected = ep == _resolvedCurrentEpisode;
+                            return InkWell(
+                              onTap: () {
+                                Navigator.pop(panelContext);
+                                onEpisodeSelected(ep);
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? Theme.of(panelContext)
+                                            .colorScheme
+                                            .primary
+                                            .withValues(alpha: 0.2)
+                                      : unselectedBgColor,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Theme.of(
+                                            panelContext,
+                                          ).colorScheme.primary
+                                        : unselectedBorderColor,
+                                    width: isSelected ? 2 : 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  ep.sort.toInt().toString(),
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? Theme.of(
+                                            panelContext,
+                                          ).colorScheme.primary
+                                        : unselectedTextColor,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
+          );
+        }
+
+        if (listenables.isEmpty) {
+          return buildPanel(context);
+        }
+
+        return _ReactiveListenablesBuilder(
+          listenables: listenables,
+          builder: buildPanel,
         );
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
@@ -1133,6 +1191,62 @@ class CustomVideoControls extends StatelessWidget {
   //     },
   //   );
   // }
+}
+
+class _ReactiveListenablesBuilder extends StatefulWidget {
+  final List<Listenable> listenables;
+  final WidgetBuilder builder;
+
+  const _ReactiveListenablesBuilder({
+    required this.listenables,
+    required this.builder,
+  });
+
+  @override
+  State<_ReactiveListenablesBuilder> createState() =>
+      _ReactiveListenablesBuilderState();
+}
+
+class _ReactiveListenablesBuilderState
+    extends State<_ReactiveListenablesBuilder> {
+  @override
+  void initState() {
+    super.initState();
+    for (final listenable in widget.listenables) {
+      listenable.addListener(_markNeedsBuild);
+    }
+  }
+
+  @override
+  void didUpdateWidget(_ReactiveListenablesBuilder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (identical(widget.listenables, oldWidget.listenables)) {
+      return;
+    }
+    for (final listenable in oldWidget.listenables) {
+      listenable.removeListener(_markNeedsBuild);
+    }
+    for (final listenable in widget.listenables) {
+      listenable.addListener(_markNeedsBuild);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final listenable in widget.listenables) {
+      listenable.removeListener(_markNeedsBuild);
+    }
+    super.dispose();
+  }
+
+  void _markNeedsBuild() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context);
 }
 
 class _MobileGestureAndLockLayer extends StatefulWidget {

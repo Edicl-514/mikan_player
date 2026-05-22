@@ -162,6 +162,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   late final VideoController _videoController;
   bool _isPlayerInitialized = false;
   final ValueNotifier<bool> _mobilePlayerLockNotifier = ValueNotifier(false);
+  late final ValueNotifier<BangumiEpisode> _currentEpisodeNotifier;
+  late final ValueNotifier<String> _videoTitleNotifier;
   final ValueNotifier<List<SearchPlayResult>> _availableSourcesNotifier =
       ValueNotifier(const <SearchPlayResult>[]);
   final ValueNotifier<String> _playingSourceLabelNotifier = ValueNotifier(
@@ -226,11 +228,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _mobileEpisodeScrollController = ScrollController();
 
     _playableEpisodes = widget.allEpisodes.releasedEpisodes();
-    _currentEpisode =
-        widget.currentEpisode.isReleased()
-            ? widget.currentEpisode
-            : (_playableEpisodes.latestReleasedEpisode() ??
-                widget.currentEpisode);
+    _currentEpisode = widget.currentEpisode.isReleased()
+        ? widget.currentEpisode
+        : (_playableEpisodes.latestReleasedEpisode() ?? widget.currentEpisode);
+    _currentEpisodeNotifier = ValueNotifier(_currentEpisode);
+    _videoTitleNotifier = ValueNotifier(
+      '${widget.anime.title} - 第${_currentEpisode.sort.toInt()}集',
+    );
     _playingSourceLabelNotifier.value = _playingSourceLabel;
 
     _pendingStartPositionMs = widget.startPositionMs;
@@ -761,9 +765,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             );
             return items;
           } catch (e) {
-            debugPrint(
-              '[Recommendations] Tag "$tag" search failed: $e',
-            );
+            debugPrint('[Recommendations] Tag "$tag" search failed: $e');
             return <RankingAnime>[];
           }
         });
@@ -1059,15 +1061,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   List<String> _normalizeRecommendationTags(Iterable<String> rawTags) {
-    const invalidTags = {
-      'tv',
-      'web',
-      'ova',
-      '日本',
-      '中国',
-      '动画',
-      'anime',
-    };
+    const invalidTags = {'tv', 'web', 'ova', '日本', '中国', '动画', 'anime'};
 
     final unique = <String>[];
     final seen = <String>{};
@@ -1122,9 +1116,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       );
       return resolvedTags;
     } catch (e) {
-      debugPrint(
-        '[Recommendations] Error resolving tags for $subjectId: $e',
-      );
+      debugPrint('[Recommendations] Error resolving tags for $subjectId: $e');
       return const [];
     }
   }
@@ -2594,6 +2586,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _playingSourceLabelNotifier.dispose();
     _sampleStatusMessageNotifier.dispose();
     _selectedSourceIndexNotifier.dispose();
+    _currentEpisodeNotifier.dispose();
+    _videoTitleNotifier.dispose();
     super.dispose();
   }
 
@@ -2902,29 +2896,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                         : (isDark
                               ? Colors.white.withValues(alpha: 0.08)
                               : Theme.of(context).colorScheme.outlineVariant);
-                    final epTextColor =
-                        isDark
-                            ? Colors.white
-                            : Theme.of(context).colorScheme.onSurface;
-                    final epCardColor =
-                        isSelected
-                            ? Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: 0.12)
-                            : (isDark
-                                ? const Color(0xFF1B1D28)
-                                : Theme.of(context).colorScheme.surfaceContainerLow);
-                    final epIndexColor =
-                        isSelected
-                            ? Theme.of(context).colorScheme.primary
-                            : (isDark
-                                ? Colors.white70
-                                : Theme.of(context).colorScheme.onSurfaceVariant);
-                    final epMetaColor =
-                        isDark
-                            ? Colors.white54
-                            : Theme.of(context).colorScheme.onSurfaceVariant
-                                .withValues(alpha: 0.85);
+                    final epTextColor = isDark
+                        ? Colors.white
+                        : Theme.of(context).colorScheme.onSurface;
+                    final epCardColor = isSelected
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.12)
+                        : (isDark
+                              ? const Color(0xFF1B1D28)
+                              : Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerLow);
+                    final epIndexColor = isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : (isDark
+                              ? Colors.white70
+                              : Theme.of(context).colorScheme.onSurfaceVariant);
+                    final epMetaColor = isDark
+                        ? Colors.white54
+                        : Theme.of(context).colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.85);
 
                     return Material(
                       color: epCardColor,
@@ -3202,13 +3194,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          widget
-                                                  .currentEpisode
-                                                  .description
-                                                  .isNotEmpty
-                                              ? widget
-                                                    .currentEpisode
-                                                    .description
+                                          _currentEpisode.description.isNotEmpty
+                                              ? _currentEpisode.description
                                               : "暂无简介",
                                           maxLines: _isDescriptionExpanded
                                               ? null
@@ -3222,8 +3209,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                             height: 1.5,
                                           ),
                                         ),
-                                        if (widget
-                                            .currentEpisode
+                                        if (_currentEpisode
                                             .description
                                             .isNotEmpty)
                                           Padding(
@@ -3606,6 +3592,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _isLoadingComments = false;
       _commentsError = null;
     });
+    _currentEpisodeNotifier.value = ep;
+    _videoTitleNotifier.value = '${widget.anime.title} - 第${ep.sort.toInt()}集';
     _publishPlayerControlSourceState();
 
     _savePlaybackHistory();
@@ -3780,6 +3768,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                         !_showDanmakuSettingsNotifier.value,
                 allEpisodes: widget.allEpisodes,
                 currentEpisode: _currentEpisode,
+                currentEpisodeListenable: _currentEpisodeNotifier,
                 onEpisodeSelected: _onEpisodeSelected,
                 isAutoPlayNextEnabled: _isAutoPlayNextEnabled,
                 onToggleAutoPlayNext: () {
@@ -3802,8 +3791,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 },
                 isLoading: _isLoadingVideo || _loadingMagnet != null,
                 mobilePlayerLockNotifier: _mobilePlayerLockNotifier,
-                videoTitle:
-                    '${widget.anime.title} - 第${_currentEpisode.sort.toInt()}集',
+                videoTitle: _videoTitleNotifier.value,
+                videoTitleListenable: _videoTitleNotifier,
                 onDownloadCurrentSource:
                     _currentOnlineSource != null &&
                         _currentOnlineSource!.directVideoUrl != null
