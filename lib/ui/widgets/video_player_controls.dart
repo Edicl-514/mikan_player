@@ -2047,6 +2047,65 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     return index.clamp(0, sources.length - 1);
   }
 
+  String _sourceDisplayLabel(SearchPlayResult source) {
+    final channelName = source.channelName;
+    if (channelName != null && channelName.isNotEmpty) {
+      return '${source.sourceName}($channelName)';
+    }
+    return source.sourceName;
+  }
+
+  int? _resolveActiveOnlineSourceIndex() {
+    if (_availableSources.isEmpty) {
+      return null;
+    }
+
+    final currentLabel = _currentSourceLabel.trim();
+    if (currentLabel.isNotEmpty) {
+      final exactMatchIndex = _availableSources.indexWhere(
+        (source) => _sourceDisplayLabel(source) == currentLabel,
+      );
+      if (exactMatchIndex >= 0) {
+        return exactMatchIndex;
+      }
+
+      final sourceNameMatchIndex = _availableSources.indexWhere(
+        (source) => source.sourceName == currentLabel,
+      );
+      if (sourceNameMatchIndex >= 0) {
+        return sourceNameMatchIndex;
+      }
+    }
+
+    return null;
+  }
+
+  String _buildSourceMenuSubtitle() {
+    final activeOnlineSourceIndex = _resolveActiveOnlineSourceIndex();
+    if (activeOnlineSourceIndex != null) {
+      return '${_sourceDisplayLabel(_availableSources[activeOnlineSourceIndex])} (${_availableSources.length}个可用)';
+    }
+
+    final currentLabel = _currentSourceLabel.trim();
+    if (currentLabel.isNotEmpty &&
+        currentLabel != '未知' &&
+        currentLabel != '未播放') {
+      return _availableSources.isEmpty
+          ? '当前：$currentLabel'
+          : '当前：$currentLabel (${_availableSources.length}个在线源可切换)';
+    }
+
+    if (_availableSources.isNotEmpty) {
+      final fallbackIndex = _clampSourceIndex(
+        _currentSourceIndex,
+        _availableSources,
+      );
+      return '${_sourceDisplayLabel(_availableSources[fallbackIndex])} (${_availableSources.length}个可用)';
+    }
+
+    return '暂无可用源';
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -2218,9 +2277,7 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         _buildMenuItem(
           icon: Icons.video_library_outlined,
           title: '播放源',
-          subtitle: _availableSources.isEmpty
-              ? '暂无可用源'
-              : '${_currentSourceIndex >= 0 && _currentSourceIndex < _availableSources.length ? _availableSources[_currentSourceIndex].sourceName : _currentSourceLabel} (${_availableSources.length}个可用)',
+          subtitle: _buildSourceMenuSubtitle(),
           onTap: () => setState(() => _currentPage = 3),
         ),
         const SizedBox(height: 16),
@@ -2831,7 +2888,10 @@ class _SettingsPanelState extends State<_SettingsPanel> {
       itemCount: _availableSources.length,
       itemBuilder: (context, index) {
         final source = _availableSources[index];
-        final isSelected = index == _currentSourceIndex;
+        final activeOnlineSourceIndex = _resolveActiveOnlineSourceIndex();
+        final isSelected = activeOnlineSourceIndex != null
+            ? index == activeOnlineSourceIndex
+            : false;
 
         return InkWell(
           onTap: () {

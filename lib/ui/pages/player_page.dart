@@ -403,6 +403,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _isLoadingVideo = false;
           _videoError = null;
         });
+        _publishPlayerControlSourceState();
         _temporarilyAllowPositionReset();
         _player.open(Media(filePath), play: true).then((_) async {
           await _applyPlaybackSpeed();
@@ -425,6 +426,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _isLoadingVideo = false;
       _videoError = null;
     });
+    _publishPlayerControlSourceState();
 
     // 通知下载管理器BT流现在活跃（防止libtorrent流被移除）
     final btHash = _extractBtHashFromStreamUrl(streamUrl);
@@ -3676,6 +3678,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   late final ValueNotifier<int> _selectedSourceIndexNotifier = ValueNotifier(0);
 
   void _publishPlayerControlSourceState() {
+    final nextSourceIndex = _sampleSuccessfulSources.isEmpty
+        ? 0
+        : _selectedSourceIndex.clamp(0, _sampleSuccessfulSources.length - 1);
+    _selectedSourceIndex = nextSourceIndex;
+    _selectedSourceIndexNotifier.value = nextSourceIndex;
     _availableSourcesNotifier.value = List<SearchPlayResult>.unmodifiable(
       _sampleSuccessfulSources,
     );
