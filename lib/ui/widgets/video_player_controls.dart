@@ -121,15 +121,37 @@ class CustomVideoControls extends StatelessWidget {
 
   String? get _resolvedVideoTitle => videoTitleListenable?.value ?? videoTitle;
 
-  Widget _buildControls(BuildContext context) {
+  int get _resolvedCurrentEpisodeIndex {
     final currentEpisode = _resolvedCurrentEpisode;
+    final idIndex = currentEpisode.id == 0
+        ? -1
+        : allEpisodes.indexWhere((episode) => episode.id == currentEpisode.id);
+    if (idIndex != -1) {
+      return idIndex;
+    }
+
+    final sortIndex = allEpisodes.indexWhere(
+      (episode) => episode.sort == currentEpisode.sort,
+    );
+    if (sortIndex != -1) {
+      return sortIndex;
+    }
+
+    return allEpisodes.indexOf(currentEpisode);
+  }
+
+  bool _isEpisodeSelected(BangumiEpisode episode) {
+    final currentEpisode = _resolvedCurrentEpisode;
+    if (episode.id != 0 && currentEpisode.id != 0) {
+      return episode.id == currentEpisode.id;
+    }
+    return episode.sort == currentEpisode.sort;
+  }
+
+  Widget _buildControls(BuildContext context) {
     final videoTitle = _resolvedVideoTitle;
 
     // 计算当前集数索引，用于控制按钮显示
-    final currentIndex = allEpisodes.indexOf(currentEpisode);
-    final isFirstEpisode = currentIndex <= 0;
-    final isLastEpisode = currentIndex >= allEpisodes.length - 1;
-
     // 移动端 - 非全屏顶部按钮栏
     final mobileNormalTopButtonBar = [
       IconButton(
@@ -233,18 +255,9 @@ class CustomVideoControls extends StatelessWidget {
     // 注意：进度条由 media_kit 内置的 displaySeekBar 处理
     final mobileFullscreenBottomButtonBar = [
       const SizedBox(width: 16),
-      if (!isFirstEpisode) ...[
-        _buildSkipButton(
-          icon: Icons.skip_previous,
-          onPressed: () => _onSkipPrevious(),
-        ),
-        const SizedBox(width: 8),
-      ],
+      _buildEpisodeSkipButton(direction: _EpisodeSkipDirection.previous),
       const MaterialPlayOrPauseButton(),
-      if (!isLastEpisode) ...[
-        const SizedBox(width: 8),
-        _buildSkipButton(icon: Icons.skip_next, onPressed: () => _onSkipNext()),
-      ],
+      _buildEpisodeSkipButton(direction: _EpisodeSkipDirection.next),
       const SizedBox(width: 8),
       const MaterialPositionIndicator(),
       const Spacer(),
@@ -346,21 +359,11 @@ class CustomVideoControls extends StatelessWidget {
               bottomButtonBar: [
                 const SizedBox(width: 8),
                 // 左下角：播放控制
-                if (!isFirstEpisode) ...[
-                  _buildSkipButton(
-                    icon: Icons.skip_previous,
-                    onPressed: () => _onSkipPrevious(),
-                  ),
-                  const SizedBox(width: 8),
-                ],
+                _buildEpisodeSkipButton(
+                  direction: _EpisodeSkipDirection.previous,
+                ),
                 const MaterialDesktopPlayOrPauseButton(iconSize: 32),
-                if (!isLastEpisode) ...[
-                  const SizedBox(width: 8),
-                  _buildSkipButton(
-                    icon: Icons.skip_next,
-                    onPressed: () => _onSkipNext(),
-                  ),
-                ],
+                _buildEpisodeSkipButton(direction: _EpisodeSkipDirection.next),
                 const SizedBox(width: 8),
                 const MaterialDesktopVolumeButton(),
                 const SizedBox(width: 8),
@@ -429,21 +432,11 @@ class CustomVideoControls extends StatelessWidget {
               bottomButtonBar: [
                 const SizedBox(width: 16),
                 // 左下角：播放控制
-                if (!isFirstEpisode) ...[
-                  _buildSkipButton(
-                    icon: Icons.skip_previous,
-                    onPressed: () => _onSkipPrevious(),
-                  ),
-                  const SizedBox(width: 8),
-                ],
+                _buildEpisodeSkipButton(
+                  direction: _EpisodeSkipDirection.previous,
+                ),
                 const MaterialDesktopPlayOrPauseButton(iconSize: 32),
-                if (!isLastEpisode) ...[
-                  const SizedBox(width: 8),
-                  _buildSkipButton(
-                    icon: Icons.skip_next,
-                    onPressed: () => _onSkipNext(),
-                  ),
-                ],
+                _buildEpisodeSkipButton(direction: _EpisodeSkipDirection.next),
                 const SizedBox(width: 16),
                 const MaterialDesktopVolumeButton(),
                 const SizedBox(width: 16),
@@ -750,6 +743,49 @@ class CustomVideoControls extends StatelessWidget {
   }
 
   /// 构建上一集/下一集按钮
+  Widget _buildEpisodeSkipButton({required _EpisodeSkipDirection direction}) {
+    final listenable = currentEpisodeListenable;
+    if (listenable == null) {
+      return _buildEpisodeSkipButtonContent(direction);
+    }
+
+    return ValueListenableBuilder<BangumiEpisode>(
+      valueListenable: listenable,
+      builder: (context, _, child) => _buildEpisodeSkipButtonContent(direction),
+    );
+  }
+
+  Widget _buildEpisodeSkipButtonContent(_EpisodeSkipDirection direction) {
+    final currentIndex = _resolvedCurrentEpisodeIndex;
+    final isVisible = switch (direction) {
+      _EpisodeSkipDirection.previous => currentIndex > 0,
+      _EpisodeSkipDirection.next =>
+        currentIndex >= 0 && currentIndex < allEpisodes.length - 1,
+    };
+    if (!isVisible) {
+      return const SizedBox.shrink();
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: direction == _EpisodeSkipDirection.previous
+          ? [
+              _buildSkipButton(
+                icon: Icons.skip_previous,
+                onPressed: () => _onSkipPrevious(),
+              ),
+              const SizedBox(width: 8),
+            ]
+          : [
+              const SizedBox(width: 8),
+              _buildSkipButton(
+                icon: Icons.skip_next,
+                onPressed: () => _onSkipNext(),
+              ),
+            ],
+    );
+  }
+
   Widget _buildSkipButton({
     required IconData icon,
     required VoidCallback onPressed,
@@ -765,7 +801,7 @@ class CustomVideoControls extends StatelessWidget {
 
   /// 切换到上一集
   void _onSkipPrevious() {
-    final currentIndex = allEpisodes.indexOf(_resolvedCurrentEpisode);
+    final currentIndex = _resolvedCurrentEpisodeIndex;
     if (currentIndex > 0) {
       onEpisodeSelected(allEpisodes[currentIndex - 1]);
     }
@@ -773,8 +809,8 @@ class CustomVideoControls extends StatelessWidget {
 
   /// 切换到下一集
   void _onSkipNext() {
-    final currentIndex = allEpisodes.indexOf(_resolvedCurrentEpisode);
-    if (currentIndex < allEpisodes.length - 1) {
+    final currentIndex = _resolvedCurrentEpisodeIndex;
+    if (currentIndex >= 0 && currentIndex < allEpisodes.length - 1) {
       onEpisodeSelected(allEpisodes[currentIndex + 1]);
     }
   }
@@ -1046,7 +1082,7 @@ class CustomVideoControls extends StatelessWidget {
                           itemCount: allEpisodes.length,
                           itemBuilder: (context, index) {
                             final ep = allEpisodes[index];
-                            final isSelected = ep == _resolvedCurrentEpisode;
+                            final isSelected = _isEpisodeSelected(ep);
                             return InkWell(
                               onTap: () {
                                 Navigator.pop(panelContext);
@@ -1192,6 +1228,8 @@ class CustomVideoControls extends StatelessWidget {
   //   );
   // }
 }
+
+enum _EpisodeSkipDirection { previous, next }
 
 class _ReactiveListenablesBuilder extends StatefulWidget {
   final List<Listenable> listenables;

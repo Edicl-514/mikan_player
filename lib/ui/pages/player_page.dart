@@ -3773,7 +3773,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 onToggleDanmakuSettings: () =>
                     _showDanmakuSettingsNotifier.value =
                         !_showDanmakuSettingsNotifier.value,
-                allEpisodes: widget.allEpisodes,
+                allEpisodes: _playableEpisodes,
                 currentEpisode: _currentEpisode,
                 currentEpisodeListenable: _currentEpisodeNotifier,
                 onEpisodeSelected: _onEpisodeSelected,
