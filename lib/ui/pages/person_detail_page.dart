@@ -6,6 +6,8 @@ import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
+import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
+import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
 import 'bangumi_details_page.dart';
 import 'character_detail_page.dart';
 
@@ -51,6 +53,12 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   bool _isLoadingCharacters = true;
   String? _error;
 
+  /// Cached api host used to assemble the `/v0/subjects/{id}/image?type=common`
+  /// fallback URL when the per-subject image isn't already known. Refreshed on
+  /// every page rebuild so users flipping the reverse-proxy switch see the
+  /// change immediately.
+  late String _apiHost;
+
   // Tracks which grouped character cards are expanded
   final Set<int> _expandedCharIds = {};
 
@@ -61,11 +69,29 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   @override
   void initState() {
     super.initState();
+    // The cached value is read synchronously to avoid an `await` inside the
+    // synchronous GridView builder. When the user toggles reverse-proxy mode
+    // the page rebuilds and we pick up the new value.
+    _apiHost = BangumiUrlRewriter.enabled == true ? 'api.bangumi.lol' : 'api.bgm.tv';
+    // React to runtime changes (the user might toggle reverse-proxy mode while
+    // this page is on the navigation stack).
+    BangumiReverseProxyService.notifier.addListener(_onReverseProxyChanged);
     _fetchData();
+  }
+
+  void _onReverseProxyChanged() {
+    final newHost =
+        BangumiReverseProxyService.notifier.value ? 'api.bangumi.lol' : 'api.bgm.tv';
+    if (newHost != _apiHost) {
+      setState(() {
+        _apiHost = newHost;
+      });
+    }
   }
 
   @override
   void dispose() {
+    BangumiReverseProxyService.notifier.removeListener(_onReverseProxyChanged);
     _mobileScrollController.dispose();
     _desktopLeftScrollController.dispose();
     _desktopRightScrollController.dispose();
@@ -1034,9 +1060,8 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
         final title = a.subjectNameCn.isNotEmpty
             ? a.subjectNameCn
             : a.subjectName;
-        final coverUrl =
-            subjectImageMap[subjectId] ??
-            'https://api.bgm.tv/v0/subjects/$subjectId/image?type=common';
+        final coverUrl = subjectImageMap[subjectId] ??
+            'https://$_apiHost/v0/subjects/$subjectId/image?type=common';
         final heroTag =
             'person_${widget.personId}_char_${charId}_subj_$subjectId';
         return _buildCharacterSubjectTile(

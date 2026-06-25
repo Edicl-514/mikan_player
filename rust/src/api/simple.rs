@@ -37,8 +37,22 @@ pub fn greet(name: String) -> String {
     format!("Hello, {}!", name)
 }
 
-pub fn update_config(bgm: String, bangumi: String, mikan: String, playback_sub: String) {
-    crate::api::config::update_config(bgm, bangumi, mikan, playback_sub);
+pub fn update_config(
+    bgm: String,
+    bangumi: String,
+    mikan: String,
+    playback_sub: String,
+    use_reverse_proxy: bool,
+) {
+    crate::api::config::update_config(bgm, bangumi, mikan, playback_sub, use_reverse_proxy);
+}
+
+pub fn set_bangumi_reverse_proxy(enabled: bool) {
+    crate::api::config::set_bangumi_reverse_proxy(enabled);
+}
+
+pub fn get_bangumi_reverse_proxy() -> bool {
+    crate::api::config::get_bangumi_reverse_proxy()
 }
 
 pub fn set_disabled_sources(sources: Vec<String>) {

@@ -62,13 +62,36 @@ class CacheManager {
     final cache = await _dbCache.getTimetable(quarter);
     if (cache != null) {
       debugPrint('Timetable loaded from cache: $quarter');
-      return _dbCache.animesFromTimetableCache(cache);
+      final cachedAnimes = _dbCache.animesFromTimetableCache(cache);
+      if (cachedAnimes.isNotEmpty &&
+          cachedAnimes.any(
+            (anime) =>
+                anime.broadcastDay != null && anime.broadcastDay!.isNotEmpty,
+          )) {
+        return cachedAnimes;
+      }
+      debugPrint(
+        'Timetable cache is empty or incomplete; refreshing: $quarter',
+      );
     }
 
     // 从网络获取
     debugPrint('Fetching timetable from network: $quarter');
     try {
       final animes = await fetchFromNetwork();
+
+      if (animes.isEmpty) {
+        debugPrint(
+          'Timetable network returned empty; keeping cache untouched: $quarter',
+        );
+        final expiredCache = await _dbCache.getTimetableIncludingExpired(
+          quarter,
+        );
+        if (expiredCache != null) {
+          return _dbCache.animesFromTimetableCache(expiredCache);
+        }
+        return animes;
+      }
 
       // 保存到缓存
       await _dbCache.saveTimetable(quarter, animes);

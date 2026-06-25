@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:mikan_player/models/user.dart';
+import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class UserManager extends ChangeNotifier {
@@ -37,8 +38,11 @@ class UserManager extends ChangeNotifier {
     try {
       final client = HttpClient()
         ..connectionTimeout = const Duration(seconds: 10);
+      final apiHost = await BangumiUrlRewriter.hostFor('api');
       final request = await client.getUrl(
-        Uri.parse('https://api.bgm.tv/v0/users/$username'),
+        Uri.parse(BangumiUrlRewriter.rewrite(
+          'https://api.bgm.tv/v0/users/$username',
+        ).replaceFirst('api.bgm.tv', apiHost)),
       );
       request.headers.add('accept', 'application/json');
       // Add User-Agent as good practice for APIs

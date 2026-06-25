@@ -100,6 +100,8 @@ pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<An
         let title_selector = Selector::parse("[class*=\"BangumiItem_title__\"]").unwrap();
         let sub_title_selector = Selector::parse("[class*=\"BangumiItem_subTitle__\"]").unwrap();
         let time_selector = Selector::parse("[class*=\"BangumiItem_jpTime__\"] dd").unwrap();
+        let modern_time_selector =
+            Selector::parse("[class*=\"BangumiItem_datetime__\"] span").unwrap();
         let link_selector = Selector::parse("a").unwrap();
 
         for root in document.select(&root_selector) {
@@ -123,23 +125,13 @@ pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<An
                 .next()
                 .map(|e| e.text().collect::<String>().trim().to_string());
 
-            let mut broadcast_day = None;
-            let mut broadcast_time = None;
+            let time_str = time_str.or_else(|| {
+                root.select(&modern_time_selector)
+                    .map(|e| e.text().collect::<String>().trim().to_string())
+                    .find(|text| text.contains('周') || text.contains(':'))
+            });
 
-            if let Some(ts) = time_str {
-                // ts is like "周一 00:00"
-                let parts: Vec<&str> = ts.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    broadcast_day = Some(parts[0].to_string());
-                    broadcast_time = Some(parts[1].to_string());
-                } else if parts.len() == 1 {
-                    if parts[0].contains(':') {
-                        broadcast_time = Some(parts[0].to_string());
-                    } else {
-                        broadcast_day = Some(parts[0].to_string());
-                    }
-                }
-            }
+            let (broadcast_day, broadcast_time) = parse_broadcast_parts(time_str.as_deref());
 
             let mut anime = AnimeInfo {
                 title,
@@ -177,6 +169,34 @@ pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<An
     }
 
     Ok(animes)
+}
+
+fn parse_broadcast_parts(raw: Option<&str>) -> (Option<String>, Option<String>) {
+    let Some(raw) = raw.map(str::trim).filter(|value| !value.is_empty()) else {
+        return (None, None);
+    };
+
+    let normalized = raw.replace("每周", "周");
+    let mut broadcast_day = None;
+    let mut broadcast_time = None;
+
+    for part in normalized.split_whitespace() {
+        if part.starts_with('周') {
+            broadcast_day = Some(part.to_string());
+        } else if part.contains(':') {
+            broadcast_time = Some(part.to_string());
+        }
+    }
+
+    if broadcast_day.is_none() && broadcast_time.is_none() {
+        if normalized.contains(':') {
+            broadcast_time = Some(normalized);
+        } else {
+            broadcast_day = Some(normalized);
+        }
+    }
+
+    (broadcast_day, broadcast_time)
 }
 
 pub async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<AnimeInfo>> {
@@ -353,6 +373,18 @@ fn normalize_next_subject_json(subject: &serde_json::Value) -> serde_json::Value
     }
 
     if let Some(images) = normalized.get_mut("images").and_then(|v| v.as_object_mut()) {
+        if let Some(value) = images.get("large").and_then(|v| v.as_str()) {
+            let rewritten = crate::api::config::rewrite_bangumi_url_if_proxied(value);
+            if rewritten != value {
+                images.insert("large".to_string(), serde_json::Value::String(rewritten));
+            }
+        }
+        if let Some(value) = images.get("common").and_then(|v| v.as_str()) {
+            let rewritten = crate::api::config::rewrite_bangumi_url_if_proxied(value);
+            if rewritten != value {
+                images.insert("common".to_string(), serde_json::Value::String(rewritten));
+            }
+        }
         if images.get("large").is_none() {
             images.insert(
                 "large".to_string(),
@@ -394,7 +426,7 @@ fn apply_subject_details(anime: &mut AnimeInfo, json: &serde_json::Value) {
                 .filter(|url| !url.is_empty())
         });
     if let Some(image_url) = image_url {
-        anime.cover_url = Some(image_url.to_string());
+        anime.cover_url = Some(crate::api::config::rewrite_bangumi_url_if_proxied(image_url));
     }
 
     if let Some(score) = json["rating"]["score"].as_f64() {
@@ -530,7 +562,7 @@ fn build_light_subject_from_json(subject_id: i64, json: &serde_json::Value) -> A
                 .as_str()
                 .filter(|url| !url.is_empty())
         })
-        .map(|url| url.to_string());
+        .map(|url| crate::api::config::rewrite_bangumi_url_if_proxied(url));
     let score = json["rating"]["score"].as_f64();
     let rank = json["rating"]["rank"].as_i64().map(|value| value as i32);
 
@@ -715,7 +747,9 @@ async fn fetch_extra_bangumi_subjects(
                     }
 
                     let date = item["date"].as_str().unwrap_or("").to_string();
-                    let cover = item["images"]["large"].as_str().map(|s| s.to_string());
+                    let cover = item["images"]["large"]
+                        .as_str()
+                        .map(|s| crate::api::config::rewrite_bangumi_url_if_proxied(s));
 
                     let score = item["score"]
                         .as_f64()
@@ -767,4 +801,21 @@ async fn fetch_extra_bangumi_subjects(
     // Since we set `broadcast_time` to `date`, they will be sorted by date in the UI.
 
     Ok(new_animes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_broadcast_parts_supports_legacy_and_current_bgmlist_text() {
+        assert_eq!(
+            parse_broadcast_parts(Some("周一 00:00")),
+            (Some("周一".to_string()), Some("00:00".to_string()))
+        );
+        assert_eq!(
+            parse_broadcast_parts(Some("每周日 00:00")),
+            (Some("周日".to_string()), Some("00:00".to_string()))
+        );
+    }
 }

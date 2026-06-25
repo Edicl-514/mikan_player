@@ -4,7 +4,10 @@ use std::sync::RwLock;
 pub struct RuntimeConfig {
     pub bgmlist_url: String,
     pub bangumi_url: String,
+    pub bangumi_api_url: String,
     pub bangumi_next_url: String,
+    pub bangumi_lain_url: String,
+    pub bangumi_use_reverse_proxy: bool,
     pub mikan_url: String,
     pub playback_sub_url: String,
     pub bangumi_request_mode: String,
@@ -18,7 +21,10 @@ lazy_static! {
     pub static ref CONFIG: RwLock<RuntimeConfig> = RwLock::new(RuntimeConfig {
         bgmlist_url: "https://bgmlist.com".to_string(),
         bangumi_url: "https://bangumi.tv".to_string(),
+        bangumi_api_url: "https://api.bgm.tv".to_string(),
         bangumi_next_url: "https://next.bgm.tv".to_string(),
+        bangumi_lain_url: "https://lain.bgm.tv".to_string(),
+        bangumi_use_reverse_proxy: false,
         mikan_url: "https://mikanani.kas.pub".to_string(),
         playback_sub_url: "https://gitee.com/edicl/online-subscription/raw/master/online.json"
             .to_string(),
@@ -29,6 +35,31 @@ lazy_static! {
         max_concurrent_searches: 3,
     });
 }
+
+/// Host mapping table for bangumi reverse proxies.
+///
+/// The bangumi reverse-proxy landscape keeps changing (e.g. `bangumi.one` -> `bangumi.lol`),
+/// so we centralise the host pairings here. Update this table whenever the upstream mirror
+/// domain rotates.
+///
+/// Format: `(real_host, mirror_host)` where `real_host` is the canonical bangumi host
+/// (bgm.tv / bangumi.tv / chii.in / api.bgm.tv / next.bgm.tv / lain.bgm.tv /
+/// fast.bgm.tv / doujin.bgm.tv) and `mirror_host` is the corresponding reverse-proxy
+/// host that fronts the same upstream.
+const BANGUMI_HOST_PAIRS: &[(&str, &str)] = &[
+    // Main site
+    ("bangumi.tv", "bangumi.lol"),
+    ("bgm.tv", "bangumi.lol"),
+    ("chii.in", "bangumi.lol"),
+    // API
+    ("api.bgm.tv", "api.bangumi.lol"),
+    // Modern API (next.bgm.tv / p1)
+    ("next.bgm.tv", "next.bangumi.lol"),
+    // Static asset CDNs
+    ("lain.bgm.tv", "lain.bangumi.lol"),
+    ("fast.bgm.tv", "fast.bangumi.lol"),
+    ("doujin.bgm.tv", "doujin.bangumi.lol"),
+];
 
 fn normalize_url(url: &str) -> String {
     let mut s = url.trim().to_string();
@@ -49,19 +80,53 @@ pub fn init_config(cache_dir: String, download_dir: String) {
     );
 }
 
-pub fn update_config(bgm: String, bangumi: String, mikan: String, playback_sub: String) {
+pub fn update_config(
+    bgm: String,
+    bangumi: String,
+    mikan: String,
+    playback_sub: String,
+    use_reverse_proxy: bool,
+) {
     let mut config = CONFIG.write().unwrap();
     config.bgmlist_url = normalize_url(&bgm);
     config.bangumi_url = normalize_url(&bangumi);
     config.mikan_url = normalize_url(&mikan);
     config.playback_sub_url = playback_sub.trim().to_string();
+    apply_reverse_proxy_settings(&mut config, use_reverse_proxy);
     log::info!(
-        "Config updated: bgm={}, bangumi={}, mikan={}, playback_sub={}",
+        "Config updated: bgm={}, bangumi={}, mikan={}, playback_sub={}, use_reverse_proxy={}",
         config.bgmlist_url,
         config.bangumi_url,
         config.mikan_url,
-        config.playback_sub_url
+        config.playback_sub_url,
+        config.bangumi_use_reverse_proxy,
     );
+}
+
+fn apply_reverse_proxy_settings(config: &mut RuntimeConfig, use_reverse_proxy: bool) {
+    config.bangumi_use_reverse_proxy = use_reverse_proxy;
+    if use_reverse_proxy {
+        // Force every bangumi base URL to its canonical real-host form so the
+        // request fan-out mirrors what the user originally configured (with no
+        // legacy `bangumi.tv` aliasing leaks that some mirrors don't accept).
+        // The actual host rewrite happens in `remap_bangumi_host`.
+        if config.bangumi_url.is_empty() {
+            config.bangumi_url = "https://bangumi.tv".to_string();
+        }
+    }
+}
+
+pub fn set_bangumi_reverse_proxy(enabled: bool) {
+    let mut config = CONFIG.write().unwrap();
+    config.bangumi_use_reverse_proxy = enabled;
+    log::info!(
+        "Bangumi reverse proxy {}",
+        if enabled { "enabled" } else { "disabled" }
+    );
+}
+
+pub fn get_bangumi_reverse_proxy() -> bool {
+    CONFIG.read().unwrap().bangumi_use_reverse_proxy
 }
 
 pub fn get_bgmlist_url() -> String {
@@ -69,20 +134,58 @@ pub fn get_bgmlist_url() -> String {
 }
 
 pub fn get_bangumi_url() -> String {
-    CONFIG.read().unwrap().bangumi_url.clone()
+    let config = CONFIG.read().unwrap();
+    bangumi_url_for_proxy_mode(&config.bangumi_url, config.bangumi_use_reverse_proxy)
 }
 
 pub fn get_bangumi_api_url() -> String {
-    let base = get_bangumi_url();
-    if base.contains("bangumi.tv") || base.contains("bgm.tv") || base.contains("chii.in") {
-        "https://api.bgm.tv".to_string()
+    let config = CONFIG.read().unwrap();
+    if config.bangumi_use_reverse_proxy {
+        bangumi_url_for_proxy_mode(&config.bangumi_api_url, true)
     } else {
-        base
+        // Legacy behaviour: keep the hard-coded api.bgm.tv mapping when the user
+        // is using the canonical bangumi.tv / bgm.tv / chii.in endpoints.
+        let base = &config.bangumi_url;
+        if base.contains("bangumi.tv") || base.contains("bgm.tv") || base.contains("chii.in") {
+            "https://api.bgm.tv".to_string()
+        } else {
+            base.clone()
+        }
     }
 }
 
 pub fn get_bangumi_next_url() -> String {
-    CONFIG.read().unwrap().bangumi_next_url.clone()
+    let config = CONFIG.read().unwrap();
+    bangumi_url_for_proxy_mode(&config.bangumi_next_url, config.bangumi_use_reverse_proxy)
+}
+
+pub fn get_bangumi_lain_url() -> String {
+    let config = CONFIG.read().unwrap();
+    bangumi_url_for_proxy_mode(&config.bangumi_lain_url, config.bangumi_use_reverse_proxy)
+}
+
+fn bangumi_url_for_proxy_mode(url: &str, use_reverse_proxy: bool) -> String {
+    if use_reverse_proxy {
+        rewrite_bangumi_url(url, true)
+    } else {
+        url.to_string()
+    }
+}
+
+/// Rewrite a bangumi URL coming back from an API response (cover images, avatars,
+/// share links, etc.) to its mirror host **only when the user has opted into the
+/// reverse proxy**. When proxying is disabled the input is returned unchanged so
+/// the canonical bangumi.tv / bgm.tv / lain.bgm.tv hosts are preserved.
+///
+/// Use this for any value derived from upstream data. The raw [`rewrite_bangumi_url`]
+/// (which always rewrites when `to_mirror` is true) should be reserved for base-URL
+/// construction and for converting mirror hosts back to their canonical form.
+pub fn rewrite_bangumi_url_if_proxied(raw: &str) -> String {
+    if CONFIG.read().unwrap().bangumi_use_reverse_proxy {
+        rewrite_bangumi_url(raw, true)
+    } else {
+        raw.to_string()
+    }
 }
 
 pub fn get_mikan_url() -> String {
@@ -148,4 +251,205 @@ pub fn set_max_concurrent_searches(limit: u32) {
 
 pub fn get_max_concurrent_searches() -> u32 {
     CONFIG.read().unwrap().max_concurrent_searches
+}
+
+/// Resolve the canonical real-host for a given bangumi host (i.e. the form the upstream
+/// mirror expects). When reverse proxying is enabled this maps the public alias
+/// (e.g. `bangumi.lol`) back to its upstream (e.g. `bangumi.tv`) so consumers always see
+/// consistent host strings.
+fn canonical_bangumi_host(host: &str) -> Option<&'static str> {
+    let lower = host.to_ascii_lowercase();
+    for (real, mirror) in BANGUMI_HOST_PAIRS {
+        if lower == *mirror {
+            return Some(real);
+        }
+    }
+    for (real, _) in BANGUMI_HOST_PAIRS {
+        if lower == *real {
+            return Some(real);
+        }
+    }
+    None
+}
+
+fn mirror_for_host(host: &str) -> Option<&'static str> {
+    let lower = host.to_ascii_lowercase();
+    for (real, mirror) in BANGUMI_HOST_PAIRS {
+        if lower == *real {
+            return Some(mirror);
+        }
+    }
+    None
+}
+
+/// Rewrite a bangumi host from its canonical real form to the mirror form (when reverse
+/// proxying is enabled), or vice-versa. Returns `None` if the host is not a bangumi host
+/// we know about.
+pub fn remap_bangumi_host(host: &str, to_mirror: bool) -> Option<String> {
+    if to_mirror {
+        mirror_for_host(host).map(|value| value.to_string())
+    } else {
+        canonical_bangumi_host(host).map(|value| value.to_string())
+    }
+}
+
+/// Rewrite all bangumi hosts inside a URL. If `to_mirror` is true the URL is rewritten to
+/// use the reverse-proxy host; if false it is rewritten back to the canonical real host.
+/// Returns the input unchanged when the URL is not parseable or has no known bangumi host.
+pub fn rewrite_bangumi_url(raw: &str, to_mirror: bool) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return trimmed.to_string();
+    }
+
+    let value = trimmed.to_string();
+
+    // Handle protocol-relative URLs like `//lain.bgm.tv/...`.
+    if let Some(rest) = value.strip_prefix("//") {
+        let rewritten = rewrite_host_in_authority(rest, to_mirror);
+        return format!("//{rewritten}");
+    }
+
+    if let Some((scheme, rest)) = split_scheme(&value) {
+        let rewritten = rewrite_host_in_authority(rest, to_mirror);
+        return format!("{scheme}://{rewritten}");
+    }
+
+    value
+}
+
+fn split_scheme(value: &str) -> Option<(&str, &str)> {
+    let idx = value.find("://")?;
+    let scheme = &value[..idx];
+    if scheme.is_empty() || !scheme.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return None;
+    }
+    Some((scheme, &value[idx + 3..]))
+}
+
+fn rewrite_host_in_authority(authority_and_path: &str, to_mirror: bool) -> String {
+    // The authority segment runs from the start until the first `/`, `?`, `#`, or end.
+    let end = authority_and_path
+        .find(|c: char| c == '/' || c == '?' || c == '#')
+        .unwrap_or(authority_and_path.len());
+    let (authority, tail) = authority_and_path.split_at(end);
+    if authority.is_empty() {
+        return authority_and_path.to_string();
+    }
+
+    let (host_port, user_info) = match authority.rsplit_once('@') {
+        Some((user, hp)) => (hp, Some(user)),
+        None => (authority, None),
+    };
+
+    let host = host_port
+        .rsplit_once(':')
+        .map(|(h, _)| h)
+        .unwrap_or(host_port);
+
+    let new_host = match remap_bangumi_host(host, to_mirror) {
+        Some(value) => value,
+        None => return authority_and_path.to_string(),
+    };
+
+    let new_host_port = if let Some((_, port)) = host_port.rsplit_once(':') {
+        format!("{new_host}:{port}")
+    } else {
+        new_host
+    };
+
+    let new_authority = match user_info {
+        Some(user) => format!("{user}@{new_host_port}"),
+        None => new_host_port,
+    };
+
+    format!("{new_authority}{tail}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rewrite_bangumi_url_swaps_real_to_mirror() {
+        assert_eq!(
+            rewrite_bangumi_url("https://bangumi.tv/subject/1", true),
+            "https://bangumi.lol/subject/1"
+        );
+        assert_eq!(
+            rewrite_bangumi_url("https://api.bgm.tv/v0/subjects/1", true),
+            "https://api.bangumi.lol/v0/subjects/1"
+        );
+        assert_eq!(
+            rewrite_bangumi_url("https://lain.bgm.tv/img/icon.png", true),
+            "https://lain.bangumi.lol/img/icon.png"
+        );
+        assert_eq!(
+            rewrite_bangumi_url("https://bgm.tv/subject/1?foo=bar#frag", true),
+            "https://bangumi.lol/subject/1?foo=bar#frag"
+        );
+    }
+
+    #[test]
+    fn rewrite_bangumi_url_handles_protocol_relative() {
+        assert_eq!(
+            rewrite_bangumi_url("//lain.bgm.tv/img/icon.png", true),
+            "//lain.bangumi.lol/img/icon.png"
+        );
+    }
+
+    #[test]
+    fn rewrite_bangumi_url_handles_relative_paths() {
+        // Relative paths don't carry a host; we can't rewrite them in isolation.
+        assert_eq!(rewrite_bangumi_url("/subject/1", true), "/subject/1");
+    }
+
+    #[test]
+    fn rewrite_bangumi_url_passes_through_unknown_hosts() {
+        assert_eq!(
+            rewrite_bangumi_url("https://example.com/foo", true),
+            "https://example.com/foo"
+        );
+    }
+
+    #[test]
+    fn proxy_mode_url_helper_applies_mapping_only_when_enabled() {
+        assert_eq!(
+            bangumi_url_for_proxy_mode("https://api.bgm.tv", true),
+            "https://api.bangumi.lol"
+        );
+        assert_eq!(
+            bangumi_url_for_proxy_mode("https://next.bgm.tv", true),
+            "https://next.bangumi.lol"
+        );
+        assert_eq!(
+            bangumi_url_for_proxy_mode("https://lain.bgm.tv", true),
+            "https://lain.bangumi.lol"
+        );
+        assert_eq!(
+            bangumi_url_for_proxy_mode("https://bangumi.tv", false),
+            "https://bangumi.tv"
+        );
+    }
+
+    #[test]
+    fn if_proxied_respects_the_runtime_flag() {
+        // Disabled (the default): API-response URLs must be left untouched so the
+        // canonical hosts are preserved.
+        set_bangumi_reverse_proxy(false);
+        assert_eq!(
+            rewrite_bangumi_url_if_proxied("https://lain.bgm.tv/img/icon.png"),
+            "https://lain.bgm.tv/img/icon.png"
+        );
+
+        // Enabled: the same URL is rewritten to the mirror host.
+        set_bangumi_reverse_proxy(true);
+        assert_eq!(
+            rewrite_bangumi_url_if_proxied("https://lain.bgm.tv/img/icon.png"),
+            "https://lain.bangumi.lol/img/icon.png"
+        );
+
+        // Reset so this test does not leak state into others sharing CONFIG.
+        set_bangumi_reverse_proxy(false);
+    }
 }

@@ -30,6 +30,7 @@ import 'package:mikan_player/services/playback_history_manager.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
 class _CaptchaPreflightTask {
   final String taskKey;
@@ -5712,12 +5713,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   String _normalizeBangumiImageSrc(String src) {
     if (src.startsWith('//')) {
-      return 'https:$src';
+      return BangumiUrlRewriter.rewrite('https:$src');
     }
     if (src.startsWith('/img/')) {
-      return 'https://bangumi.tv$src';
+      // The relative path is always under the main bangumi host (the comment
+      // renderer builds it with the configured base url). Use the same
+      // bangumi_url the Rust side is using.
+      return BangumiUrlRewriter.rewrite('https://bangumi.tv$src');
     }
-    return src;
+    return BangumiUrlRewriter.rewrite(src);
   }
 
   bool _isBangumiSmileUrl(String src) {
@@ -5729,7 +5733,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         (host == 'bangumi.tv' ||
             host == 'bgm.tv' ||
             host.endsWith('.bgm.tv') ||
-            host == 'chii.in');
+            host == 'chii.in' ||
+            // Bangumi reverse-proxy hosts
+            host == 'bangumi.lol' ||
+            host.endsWith('.bangumi.lol'));
   }
 
   Size _commentSmileSize(dynamic element) {

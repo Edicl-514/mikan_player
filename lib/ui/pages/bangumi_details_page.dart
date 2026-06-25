@@ -16,6 +16,7 @@ import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
+import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'player_page.dart';
 import 'tag_browse_page.dart';
 import 'character_detail_page.dart';
@@ -1099,22 +1100,25 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: () {
+            onPressed: () async {
               final subjectId = widget.anime.bangumiId;
               if (subjectId != null) {
-                final url = "https://bgm.tv/subject/$subjectId";
-                Clipboard.setData(ClipboardData(text: url)).then((_) {
-                  setState(() {
-                    _isCopied = true;
-                  });
-                  _copyTimer?.cancel();
-                  _copyTimer = Timer(const Duration(seconds: 2), () {
-                    if (mounted) {
-                      setState(() {
-                        _isCopied = false;
-                      });
-                    }
-                  });
+                final mainHost = await BangumiUrlRewriter.hostFor('main');
+                final url =
+                    BangumiUrlRewriter.rewrite("https://bgm.tv/subject/$subjectId")
+                        .replaceFirst('bgm.tv', mainHost);
+                await Clipboard.setData(ClipboardData(text: url));
+                if (!mounted) return;
+                setState(() {
+                  _isCopied = true;
+                });
+                _copyTimer?.cancel();
+                _copyTimer = Timer(const Duration(seconds: 2), () {
+                  if (mounted) {
+                    setState(() {
+                      _isCopied = false;
+                    });
+                  }
                 });
               }
             },

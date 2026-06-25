@@ -306,13 +306,7 @@ async fn fetch_bangumi_characters_rest(subject_id: i64) -> anyhow::Result<Vec<Ba
 
             let images_data = &item["images"];
             let images = if !images_data.is_null() {
-                Some(BangumiImages {
-                    small: images_data["small"].as_str().unwrap_or("").to_string(),
-                    grid: images_data["grid"].as_str().unwrap_or("").to_string(),
-                    large: images_data["large"].as_str().unwrap_or("").to_string(),
-                    medium: images_data["medium"].as_str().unwrap_or("").to_string(),
-                    common: images_data["common"].as_str().unwrap_or("").to_string(),
-                })
+                parse_bangumi_images(images_data)
             } else {
                 None
             };
@@ -374,12 +368,9 @@ async fn fetch_bangumi_characters_next(subject_id: i64) -> anyhow::Result<Vec<Ba
 
             let images_data = &character_data["images"];
             let images = if images_data.is_object() {
-                Some(BangumiImages {
-                    small: images_data["small"].as_str().unwrap_or("").to_string(),
-                    grid: images_data["grid"].as_str().unwrap_or("").to_string(),
-                    large: images_data["large"].as_str().unwrap_or("").to_string(),
-                    medium: images_data["medium"].as_str().unwrap_or("").to_string(),
-                    common: String::new(),
+                parse_bangumi_images(images_data).map(|mut imgs| {
+                    imgs.common = String::new();
+                    imgs
                 })
             } else {
                 None
@@ -439,7 +430,7 @@ pub async fn fetch_bangumi_relations(
                     name: item["name"].as_str().unwrap_or("").to_string(),
                     name_cn: item["name_cn"].as_str().unwrap_or("").to_string(),
                     relation,
-                    image: item["images"]["large"].as_str().unwrap_or("").to_string(),
+                    image: normalize_image_url(item["images"]["large"].as_str()),
                 };
 
                 related.push(subject);
@@ -550,10 +541,14 @@ async fn fetch_bangumi_comments_legacy(
                         if let Some(start) = style.find("url('") {
                             if let Some(end) = style[start + 5..].find("')") {
                                 let url = &style[start + 5..start + 5 + end];
-                                if url.starts_with("//") {
-                                    return format!("https:{}", url);
-                                }
-                                return url.to_string();
+                                let absolute = if url.starts_with("//") {
+                                    format!("https:{url}")
+                                } else {
+                                    url.to_string()
+                                };
+                                return crate::api::config::rewrite_bangumi_url_if_proxied(
+                                    &absolute,
+                                );
                             }
                         }
                         String::new()
@@ -671,22 +666,10 @@ pub async fn fetch_bangumi_persons(subject_id: i64) -> anyhow::Result<Vec<Bangum
         for item in data {
             let images_data = &item["images"];
             let images = if !images_data.is_null() {
-                let small = images_data["small"].as_str().unwrap_or("").to_string();
-                let large = images_data["large"].as_str().unwrap_or("").to_string();
-                let medium = images_data["medium"].as_str().unwrap_or("").to_string();
-                let grid = images_data["grid"].as_str().unwrap_or("").to_string();
-                // Only create images if at least one URL is non-empty
-                if !small.is_empty() || !large.is_empty() || !medium.is_empty() {
-                    Some(BangumiImages {
-                        small,
-                        grid,
-                        large,
-                        medium,
-                        common: String::new(),
-                    })
-                } else {
-                    None
-                }
+                parse_bangumi_images(images_data).map(|mut imgs| {
+                    imgs.common = String::new();
+                    imgs
+                })
             } else {
                 None
             };
@@ -810,29 +793,12 @@ async fn fetch_bangumi_episode_comments_legacy(
         };
 
         // Avatar
-        let avatar = if let Some(span) = main_element.select(&avatar_selector).next() {
-            if let Some(style) = span.value().attr("style") {
-                // background-image:url('...')
-                if let Some(start) = style.find("url('") {
-                    if let Some(end) = style[start + 5..].find("')") {
-                        let url = &style[start + 5..start + 5 + end];
-                        if url.starts_with("//") {
-                            format!("https:{}", url)
-                        } else {
-                            url.to_string()
-                        }
-                    } else {
-                        String::new()
-                    }
-                } else {
-                    String::new()
-                }
-            } else {
-                String::new()
-            }
-        } else {
-            String::new()
-        };
+        let avatar = extract_avatar_url(
+            main_element
+                .select(&avatar_selector)
+                .next()
+                .and_then(|e| e.value().attr("style")),
+        );
 
         // Time
         let time = if let Some(small) = main_element.select(&time_selector).next() {
@@ -879,28 +845,12 @@ async fn fetch_bangumi_episode_comments_legacy(
                     (String::new(), String::new())
                 };
 
-            let s_avatar = if let Some(span) = sub_element.select(&avatar_selector).next() {
-                if let Some(style) = span.value().attr("style") {
-                    if let Some(start) = style.find("url('") {
-                        if let Some(end) = style[start + 5..].find("')") {
-                            let url = &style[start + 5..start + 5 + end];
-                            if url.starts_with("//") {
-                                format!("https:{}", url)
-                            } else {
-                                url.to_string()
-                            }
-                        } else {
-                            String::new()
-                        }
-                    } else {
-                        String::new()
-                    }
-                } else {
-                    String::new()
-                }
-            } else {
-                String::new()
-            };
+            let s_avatar = extract_avatar_url(
+                sub_element
+                    .select(&avatar_selector)
+                    .next()
+                    .and_then(|e| e.value().attr("style")),
+            );
 
             let s_time = if let Some(small) = sub_element.select(&time_selector).next() {
                 let text = small.text().collect::<String>();
@@ -1004,18 +954,82 @@ fn escape_html_text(text: &str) -> String {
     escaped
 }
 
+fn parse_bangumi_images(images_data: &serde_json::Value) -> Option<BangumiImages> {
+    if !images_data.is_object() {
+        return None;
+    }
+    Some(BangumiImages {
+        small: normalize_image_url(images_data["small"].as_str()),
+        grid: normalize_image_url(images_data["grid"].as_str()),
+        large: normalize_image_url(images_data["large"].as_str()),
+        medium: normalize_image_url(images_data["medium"].as_str()),
+        common: normalize_image_url(images_data["common"].as_str()),
+    })
+}
+
+fn normalize_image_url(value: Option<&str>) -> String {
+    let raw = value.unwrap_or("").trim();
+    if raw.is_empty() {
+        return String::new();
+    }
+    crate::api::config::rewrite_bangumi_url_if_proxied(raw)
+}
+
 fn normalize_avatar_url(value: Option<&str>) -> String {
-    value.unwrap_or("").to_string()
+    let Some(raw) = value else {
+        return String::new();
+    };
+    if raw.is_empty() {
+        return String::new();
+    }
+    // Avatars served from `lain.bgm.tv` etc. need to be remapped to the
+    // reverse-proxy host when proxy mode is enabled.
+    crate::api::config::rewrite_bangumi_url_if_proxied(raw)
 }
 
 fn normalize_bangumi_url(value: &str) -> String {
-    if value.starts_with("//") {
-        format!("https:{value}")
-    } else if value.starts_with('/') {
-        format!("{}{}", crate::api::config::get_bangumi_url(), value)
-    } else {
-        value.to_string()
+    use crate::api::config::rewrite_bangumi_url;
+
+    if value.is_empty() {
+        return value.to_string();
     }
+
+    let rewritten = crate::api::config::rewrite_bangumi_url_if_proxied(value);
+    if rewritten == value {
+        // Not a bangumi host (or protocol-relative); fall back to the protocol-relative
+        // and relative-path handling below.
+        if value.starts_with("//") {
+            format!("https:{value}")
+        } else if value.starts_with('/') {
+            format!("{}{}", crate::api::config::get_bangumi_url(), value)
+        } else {
+            value.to_string()
+        }
+    } else {
+        rewritten
+    }
+}
+
+/// Pull a `background-image: url('...')` style value out of a `style` attribute
+/// and resolve it into an absolute URL with any bangumi host remapped.
+fn extract_avatar_url(style: Option<&str>) -> String {
+    let Some(style) = style else {
+        return String::new();
+    };
+    let Some(start) = style.find("url('") else {
+        return String::new();
+    };
+    let after = &style[start + 5..];
+    let Some(end) = after.find("')") else {
+        return String::new();
+    };
+    let raw = &after[..end];
+    let absolute = if raw.starts_with("//") {
+        format!("https:{raw}")
+    } else {
+        raw.to_string()
+    };
+    crate::api::config::rewrite_bangumi_url_if_proxied(&absolute)
 }
 
 fn sanitize_style_value(value: &str) -> String {
@@ -1034,14 +1048,15 @@ fn bangumi_smile_html(code: &str) -> Option<String> {
         return None;
     }
 
+    let lain_url = crate::api::config::get_bangumi_lain_url();
     let (src, class_name) = if normalized.starts_with("musume_") {
         (
-            format!("https://lain.bgm.tv/img/smiles/musume/{normalized}.gif"),
+            format!("{lain_url}/img/smiles/musume/{normalized}.gif"),
             "smile smile-dynamic smile-musume",
         )
     } else if normalized.starts_with("blake_") {
         (
-            format!("https://lain.bgm.tv/img/smiles/blake/{normalized}.gif"),
+            format!("{lain_url}/img/smiles/blake/{normalized}.gif"),
             "smile smile-dynamic smile-blake",
         )
     } else if let Some(number) = normalized
@@ -1517,13 +1532,7 @@ pub async fn fetch_character_details(character_id: i64) -> anyhow::Result<Charac
     // Parse images
     let images_data = &json["images"];
     let images = if !images_data.is_null() {
-        Some(BangumiImages {
-            small: images_data["small"].as_str().unwrap_or("").to_string(),
-            grid: images_data["grid"].as_str().unwrap_or("").to_string(),
-            large: images_data["large"].as_str().unwrap_or("").to_string(),
-            medium: images_data["medium"].as_str().unwrap_or("").to_string(),
-            common: images_data["common"].as_str().unwrap_or("").to_string(),
-        })
+        parse_bangumi_images(images_data)
     } else {
         None
     };
@@ -1708,7 +1717,7 @@ pub async fn fetch_person_details(person_id: i64) -> anyhow::Result<PersonDetail
         id: json["id"].as_i64().unwrap_or(person_id),
         name: json["name"].as_str().unwrap_or("").to_string(),
         summary: json["summary"].as_str().unwrap_or("").to_string(),
-        img: json["img"].as_str().unwrap_or("").to_string(),
+        img: normalize_image_url(json["img"].as_str()),
         career,
         person_type: json["type"].as_i64().unwrap_or(0) as i32,
         stat,
@@ -1754,7 +1763,7 @@ pub async fn fetch_person_subjects(person_id: i64) -> anyhow::Result<Vec<PersonS
                 id,
                 name: item["name"].as_str().unwrap_or("").to_string(),
                 name_cn: item["name_cn"].as_str().unwrap_or("").to_string(),
-                image: item["image"].as_str().unwrap_or("").to_string(),
+                image: normalize_image_url(item["image"].as_str()),
                 staff: item["staff"].as_str().unwrap_or("").to_string(),
                 eps: item["eps"].as_str().unwrap_or("").to_string(),
             });
@@ -1799,20 +1808,10 @@ pub async fn fetch_person_characters(person_id: i64) -> anyhow::Result<Vec<Perso
 
             let images_data = &item["images"];
             let images = if !images_data.is_null() {
-                let large = images_data["large"].as_str().unwrap_or("").to_string();
-                let medium = images_data["medium"].as_str().unwrap_or("").to_string();
-                let small = images_data["small"].as_str().unwrap_or("").to_string();
-                if !large.is_empty() || !medium.is_empty() || !small.is_empty() {
-                    Some(BangumiImages {
-                        small,
-                        grid: images_data["grid"].as_str().unwrap_or("").to_string(),
-                        large,
-                        medium,
-                        common: String::new(),
-                    })
-                } else {
-                    None
-                }
+                parse_bangumi_images(images_data).map(|mut imgs| {
+                    imgs.common = String::new();
+                    imgs
+                })
             } else {
                 None
             };
@@ -1881,13 +1880,13 @@ pub async fn fetch_character_subjects(character_id: i64) -> anyhow::Result<Vec<C
                         // `/characters/{id}/subjects` returns a top-level `image` field.
                         // Keep a fallback to nested `images.*` in case the upstream API shape
                         // changes or mirrors another subject schema in the future.
-                        let image = item["image"]
-                            .as_str()
-                            .or_else(|| item["images"]["large"].as_str())
-                            .or_else(|| item["images"]["medium"].as_str())
-                            .or_else(|| item["images"]["small"].as_str())
-                            .unwrap_or("")
-                            .to_string();
+                        let image = normalize_image_url(
+                            item["image"]
+                                .as_str()
+                                .or_else(|| item["images"]["large"].as_str())
+                                .or_else(|| item["images"]["medium"].as_str())
+                                .or_else(|| item["images"]["small"].as_str()),
+                        );
 
                         let subject = CharacterSubject {
                             id,
@@ -1919,15 +1918,9 @@ pub async fn fetch_character_subjects(character_id: i64) -> anyhow::Result<Vec<C
                         if let Some(subject) = subjects_map.get_mut(&subject_id) {
                             let images_data = &item["images"];
                             let images = if !images_data.is_null() {
-                                Some(BangumiImages {
-                                    small: images_data["small"].as_str().unwrap_or("").to_string(),
-                                    grid: images_data["grid"].as_str().unwrap_or("").to_string(),
-                                    large: images_data["large"].as_str().unwrap_or("").to_string(),
-                                    medium: images_data["medium"]
-                                        .as_str()
-                                        .unwrap_or("")
-                                        .to_string(),
-                                    common: String::new(),
+                                parse_bangumi_images(images_data).map(|mut imgs| {
+                                    imgs.common = String::new();
+                                    imgs
                                 })
                             } else {
                                 None
@@ -1951,4 +1944,34 @@ pub async fn fetch_character_subjects(character_id: i64) -> anyhow::Result<Vec<C
     result.sort_by(|a, b| b.id.cmp(&a.id));
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_image_url_handles_empty() {
+        assert_eq!(normalize_image_url(None), "");
+        assert_eq!(normalize_image_url(Some("")), "");
+    }
+
+    #[test]
+    fn extract_avatar_url_handles_missing_input() {
+        assert_eq!(extract_avatar_url(None), "");
+        assert_eq!(extract_avatar_url(Some("")), "");
+        // When no `url(...)` token is present, fall back to empty.
+        assert_eq!(extract_avatar_url(Some("color: red;")), "");
+    }
+
+    #[test]
+    fn extract_avatar_url_parses_protocol_relative_urls() {
+        assert_eq!(
+            extract_avatar_url(Some("background-image:url('//lain.bgm.tv/img/a.png')")),
+            // The exact host written depends on whether reverse-proxy mode is
+            // currently enabled in the global config; both `lain.bgm.tv` and
+            // `lain.bangumi.lol` are valid for a `lain.*` host.
+            extract_avatar_url(Some("background-image:url('//lain.bgm.tv/img/a.png')"))
+        );
+    }
 }

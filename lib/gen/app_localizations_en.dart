@@ -1165,4 +1165,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bangumiDetailsTags => 'Tags';
+
+  @override
+  String get bangumiReverseProxyTitle => 'Use Bangumi reverse proxy';
+
+  @override
+  String get bangumiReverseProxyDescription =>
+      'When enabled, all Bangumi requests are routed through the mirror.';
 }

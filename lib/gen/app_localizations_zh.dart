@@ -1139,4 +1139,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get bangumiDetailsTags => '标签';
+
+  @override
+  String get bangumiReverseProxyTitle => '使用 Bangumi 反代镜像';
+
+  @override
+  String get bangumiReverseProxyDescription => '开启后将所有Bangumi请求路由到反代地址。';
 }

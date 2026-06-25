@@ -15,6 +15,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
+import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
@@ -114,12 +115,14 @@ Future<void> _syncRuntimeSettings() async {
     final playbackSub =
         prefs.getString('playback_sub_url') ??
         'https://gitee.com/edicl/online-subscription/raw/master/online.json';
+    final useReverseProxy = await BangumiReverseProxyService.load();
 
     await rust.updateConfig(
       bgm: bgm,
       bangumi: bangumi,
       mikan: mikan,
       playbackSub: playbackSub,
+      useReverseProxy: useReverseProxy,
     );
 
     final disabledSources = prefs.getStringList('disabled_sources') ?? [];
@@ -152,12 +155,14 @@ Future<void> _runDeferredStartupTasks() async {
       final playbackSub =
           prefs.getString('playback_sub_url') ??
           'https://gitee.com/edicl/online-subscription/raw/master/online.json';
+      final useReverseProxy = await BangumiReverseProxyService.load();
 
       await rust.updateConfig(
         bgm: bgm,
         bangumi: bangumi,
         mikan: mikan,
         playbackSub: playbackSub,
+        useReverseProxy: useReverseProxy,
       );
     }
 

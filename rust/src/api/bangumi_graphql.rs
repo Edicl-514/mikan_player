@@ -216,6 +216,7 @@ pub fn normalize_light_subject_graphql_json(subject: &Value) -> Value {
         .get_mut("images")
         .and_then(|value| value.as_object_mut())
     {
+        remap_image_field(images, "large");
         if images.get("large").is_none() {
             images.insert("large".to_string(), Value::String(String::new()));
         }
@@ -271,6 +272,8 @@ pub fn normalize_graphql_subject_json(subject: &Value) -> Value {
         .get_mut("images")
         .and_then(|value| value.as_object_mut())
     {
+        remap_image_field(images, "large");
+        remap_image_field(images, "common");
         if images.get("large").is_none() {
             images.insert("large".to_string(), Value::String(String::new()));
         }
@@ -309,6 +312,15 @@ pub fn normalize_graphql_subject_json(subject: &Value) -> Value {
     normalized.insert("episodes".to_string(), Value::Array(episodes));
 
     Value::Object(normalized)
+}
+
+fn remap_image_field(images: &mut serde_json::Map<String, Value>, key: &str) {
+    if let Some(value) = images.get(key).and_then(|value| value.as_str()) {
+        let rewritten = crate::api::config::rewrite_bangumi_url_if_proxied(value);
+        if rewritten != value {
+            images.insert(key.to_string(), Value::String(rewritten));
+        }
+    }
 }
 
 fn build_subject_batch_graphql_query(size: usize) -> String {

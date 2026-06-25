@@ -2239,6 +2239,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'标签'**
   String get bangumiDetailsTags;
+
+  /// No description provided for @bangumiReverseProxyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用 Bangumi 反代镜像'**
+  String get bangumiReverseProxyTitle;
+
+  /// No description provided for @bangumiReverseProxyDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启后将所有Bangumi请求路由到反代地址。'**
+  String get bangumiReverseProxyDescription;
 }
 
 class _AppLocalizationsDelegate

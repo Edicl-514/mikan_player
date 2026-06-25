@@ -1,4 +1,5 @@
 import 'package:mikan_player/src/rust/api/bangumi.dart';
+import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
 class BangumiUserCollection {
   final String date;
@@ -58,6 +59,7 @@ class BangumiUserCollectionSubject {
   });
 
   factory BangumiUserCollectionSubject.fromJson(Map<String, dynamic> json) {
+    final imagesJson = json['images'] as Map<String, dynamic>?;
     return BangumiUserCollectionSubject(
       id: json['id'] ?? 0,
       name: json['name'] ?? '',
@@ -65,11 +67,11 @@ class BangumiUserCollectionSubject {
       shortSummary: json['short_summary'] ?? '',
       score: (json['score'] ?? 0).toDouble(),
       images: BangumiImages(
-        small: json['images']?['small'] ?? '',
-        grid: json['images']?['grid'] ?? '',
-        large: json['images']?['large'] ?? '',
-        medium: json['images']?['medium'] ?? '',
-        common: json['images']?['common'] ?? '',
+        small: BangumiUrlRewriter.rewrite(imagesJson?['small'] ?? ''),
+        grid: BangumiUrlRewriter.rewrite(imagesJson?['grid'] ?? ''),
+        large: BangumiUrlRewriter.rewrite(imagesJson?['large'] ?? ''),
+        medium: BangumiUrlRewriter.rewrite(imagesJson?['medium'] ?? ''),
+        common: BangumiUrlRewriter.rewrite(imagesJson?['common'] ?? ''),
       ),
       eps: json['eps'] ?? 0,
       collectionTotal: json['collection_total'] ?? 0,

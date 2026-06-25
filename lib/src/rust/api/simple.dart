@@ -27,12 +27,20 @@ Future<void> updateConfig({
   required String bangumi,
   required String mikan,
   required String playbackSub,
+  required bool useReverseProxy,
 }) => RustLib.instance.api.crateApiSimpleUpdateConfig(
   bgm: bgm,
   bangumi: bangumi,
   mikan: mikan,
   playbackSub: playbackSub,
+  useReverseProxy: useReverseProxy,
 );
+
+Future<void> setBangumiReverseProxy({required bool enabled}) =>
+    RustLib.instance.api.crateApiSimpleSetBangumiReverseProxy(enabled: enabled);
+
+Future<bool> getBangumiReverseProxy() =>
+    RustLib.instance.api.crateApiSimpleGetBangumiReverseProxy();
 
 Future<void> setDisabledSources({required List<String> sources}) =>
     RustLib.instance.api.crateApiSimpleSetDisabledSources(sources: sources);

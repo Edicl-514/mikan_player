@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:mikan_player/services/cache/image_cache_service.dart';
+import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
 /// 缓存图片 Widget
 /// 自动从缓存中加载图片，如果没有缓存则显示网络图片并在后台缓存
@@ -47,6 +48,8 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
   ScrollPosition? _scrollPosition;
   int _loadGeneration = 0;
 
+  String get _downloadUrl => BangumiUrlRewriter.rewrite(widget.imageUrl);
+
   Map<String, String> _buildHeaders(String imageUrl) {
     try {
       final uri = Uri.parse(imageUrl);
@@ -63,7 +66,9 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
   @override
   void initState() {
     super.initState();
-    final syncPath = ImageCacheService.instance.getCachedPathSync(widget.imageUrl);
+    final syncPath = ImageCacheService.instance.getCachedPathSync(
+      widget.imageUrl,
+    );
     if (syncPath != null) {
       _localPath = syncPath;
       _isLoading = false;
@@ -161,7 +166,8 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
   }
 
   Future<void> _loadImage(int generation) async {
-    if (widget.imageUrl.isEmpty) {
+    final imageUrl = widget.imageUrl;
+    if (imageUrl.isEmpty) {
       setState(() {
         _hasError = true;
         _isLoading = false;
@@ -184,7 +190,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
       if (!mounted || generation != _loadGeneration) return;
 
       // 先检查是否已缓存
-      final cachedPath = await cache.getCachedPath(widget.imageUrl);
+      final cachedPath = await cache.getCachedPath(imageUrl);
 
       if (cachedPath != null && mounted && generation == _loadGeneration) {
         setState(() {
@@ -205,7 +211,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
       }
 
       // 后台缓存图片，完成后切换到本地文件（更可靠）
-      cache.cacheImage(widget.imageUrl).then((path) {
+      cache.cacheImage(imageUrl).then((path) {
         if (mounted && generation == _loadGeneration && path != null) {
           setState(() {
             _localPath = path;
@@ -232,6 +238,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
   @override
   Widget build(BuildContext context) {
     Widget imageWidget;
+    final downloadUrl = _downloadUrl;
 
     if (_isLoading) {
       imageWidget = widget.placeholder ?? _buildPlaceholder();
@@ -250,14 +257,14 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
         },
       );
     } else {
-      // 从网络加载
+      // 从网络加载（使用反代 URL 下载，缓存 key 始终用原始 URL）
       imageWidget = Image.network(
-        widget.imageUrl,
+        downloadUrl,
         width: widget.width,
         height: widget.height,
         fit: widget.fit ?? BoxFit.cover,
         alignment: widget.alignment ?? Alignment.center,
-        headers: _buildHeaders(widget.imageUrl),
+        headers: _buildHeaders(downloadUrl),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return widget.placeholder ?? _buildPlaceholder();

@@ -410,6 +410,7 @@ fn parse_bangumi_search_item(item: &Value) -> Option<RankingAnime> {
     if cover_url.starts_with("//") {
         cover_url = format!("https:{}", cover_url);
     }
+    cover_url = crate::api::config::rewrite_bangumi_url_if_proxied(&cover_url);
 
     let score = item["score"]
         .as_f64()
@@ -621,6 +622,7 @@ fn parse_bangumi_list(document: &Html) -> Vec<RankingAnime> {
         if cover_url.starts_with("//") {
             cover_url = format!("https:{}", cover_url);
         }
+        cover_url = crate::api::config::rewrite_bangumi_url_if_proxied(&cover_url);
 
         let info = item
             .select(&info_selector)

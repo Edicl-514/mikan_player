@@ -23,11 +23,13 @@ Future<void> updateConfig({
   required String bangumi,
   required String mikan,
   required String playbackSub,
+  required bool useReverseProxy,
 }) => RustLib.instance.api.crateApiConfigUpdateConfig(
   bgm: bgm,
   bangumi: bangumi,
   mikan: mikan,
   playbackSub: playbackSub,
+  useReverseProxy: useReverseProxy,
 );
 
 Future<String> getBgmlistUrl() =>
@@ -47,6 +49,12 @@ Future<String> getPlaybackSubUrl() =>
 
 Future<void> setBangumiRequestMode({required String mode}) =>
     RustLib.instance.api.crateApiConfigSetBangumiRequestMode(mode: mode);
+
+Future<void> setBangumiReverseProxy({required bool enabled}) =>
+    RustLib.instance.api.crateApiConfigSetBangumiReverseProxy(enabled: enabled);
+
+Future<bool> getBangumiReverseProxy() =>
+    RustLib.instance.api.crateApiConfigGetBangumiReverseProxy();
 
 Future<String> getBangumiRequestMode() =>
     RustLib.instance.api.crateApiConfigGetBangumiRequestMode();

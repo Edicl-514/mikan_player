@@ -10,6 +10,7 @@ import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
+import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
 import 'package:mikan_player/src/rust/api/crawler.dart' as rust_crawler;
 
@@ -72,15 +73,15 @@ class _FavoritesPageState extends State<FavoritesPage>
       _bangumiError = null;
     });
 
-    try {
-      final username = _userManager.user!.username;
-      final client = HttpClient()
-        ..connectionTimeout = const Duration(seconds: 10);
-      final request = await client.getUrl(
-        Uri.parse(
+try {
+        final username = _userManager.user!.username;
+        final client = HttpClient()
+          ..connectionTimeout = const Duration(seconds: 10);
+        final apiHost = await BangumiUrlRewriter.hostFor('api');
+        final url = BangumiUrlRewriter.rewrite(
           'https://api.bgm.tv/v0/users/$username/collections?subject_type=2&limit=30&offset=0',
-        ),
-      );
+        ).replaceFirst('api.bgm.tv', apiHost);
+        final request = await client.getUrl(Uri.parse(url));
       request.headers.add('accept', 'application/json');
       request.headers.add('User-Agent', 'MikanPlayer/1.0.0 (flutter)');
 

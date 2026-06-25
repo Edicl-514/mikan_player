@@ -1,3 +1,5 @@
+import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
+
 class User {
   final int id;
   final String username;
@@ -21,7 +23,9 @@ class User {
       username: json['username'] as String,
       nickname: json['nickname'] as String,
       sign: json['sign'] as String?,
-      url: json['url'] as String?,
+      url: json['url'] == null
+          ? null
+          : BangumiUrlRewriter.rewrite(json['url'] as String),
       avatar: UserAvatar.fromJson(json['avatar'] as Map<String, dynamic>),
     );
   }
@@ -47,9 +51,9 @@ class UserAvatar {
 
   factory UserAvatar.fromJson(Map<String, dynamic> json) {
     return UserAvatar(
-      large: json['large'] as String,
-      medium: json['medium'] as String,
-      small: json['small'] as String,
+      large: BangumiUrlRewriter.rewrite(json['large'] as String),
+      medium: BangumiUrlRewriter.rewrite(json['medium'] as String),
+      small: BangumiUrlRewriter.rewrite(json['small'] as String),
     );
   }
 

@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mikan_player/utils/app_directories.dart';
+import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
 /// 图片缓存服务
 /// 负责将网络图片下载并缓存到本地文件系统
@@ -69,13 +70,18 @@ class ImageCacheService {
     return Directory('${baseDir.path}/image_cache');
   }
 
+  static String _normalizeCacheKey(String url) {
+    return BangumiUrlRewriter.canonicalize(url);
+  }
+
   /// 根据 URL 生成唯一的文件名
   String _generateFileName(String url) {
-    final hash = md5.convert(url.codeUnits).toString();
+    final key = _normalizeCacheKey(url);
+    final hash = md5.convert(key.codeUnits).toString();
     // 尝试从 URL 获取扩展名
     String ext = '.jpg';
     try {
-      final uri = Uri.parse(url);
+      final uri = Uri.parse(key);
       final path = uri.path.toLowerCase();
       if (path.endsWith('.png')) {
         ext = '.png';
@@ -104,17 +110,19 @@ class ImageCacheService {
   }
 
   void _putMemoryCache(String url, String path) {
-    _memoryPathCache.remove(url);
-    _memoryPathCache[url] = path;
+    final key = _normalizeCacheKey(url);
+    _memoryPathCache.remove(key);
+    _memoryPathCache[key] = path;
     if (_memoryPathCache.length > _maxMemoryCacheSize) {
       _memoryPathCache.remove(_memoryPathCache.keys.first);
     }
   }
 
   String? getCachedPathSync(String url) {
-    final path = _memoryPathCache[url];
+    final key = _normalizeCacheKey(url);
+    final path = _memoryPathCache[key];
     if (path != null) {
-      _putMemoryCache(url, path);
+      _putMemoryCache(key, path);
     }
     return path;
   }
@@ -127,7 +135,7 @@ class ImageCacheService {
       _putMemoryCache(url, localPath);
       return localPath;
     }
-    _memoryPathCache.remove(url);
+    _memoryPathCache.remove(_normalizeCacheKey(url));
     return null;
   }
 
@@ -137,23 +145,25 @@ class ImageCacheService {
       await initialize();
     }
 
+    final key = _normalizeCacheKey(url);
+
     // 检查是否已缓存
-    final existingPath = await getCachedPath(url);
+    final existingPath = await getCachedPath(key);
     if (existingPath != null) {
       return existingPath;
     }
 
-    final inFlight = _inFlightDownloads[url];
+    final inFlight = _inFlightDownloads[key];
     if (inFlight != null) {
       return inFlight;
     }
 
-    final future = _cacheImageWithLimit(url);
-    _inFlightDownloads[url] = future;
-    future.whenComplete(() => _inFlightDownloads.remove(url));
+    final future = _cacheImageWithLimit(key);
+    _inFlightDownloads[key] = future;
+    future.whenComplete(() => _inFlightDownloads.remove(key));
     final result = await future;
     if (result != null) {
-      _putMemoryCache(url, result);
+      _putMemoryCache(key, result);
     }
     return result;
   }
@@ -168,7 +178,8 @@ class ImageCacheService {
       }
 
       final localPath = getLocalPath(url);
-      final bytes = await _downloadImage(url);
+      final downloadUrl = BangumiUrlRewriter.rewrite(url);
+      final bytes = await _downloadImage(downloadUrl);
 
       if (bytes != null && bytes.isNotEmpty) {
         final file = File(localPath);
@@ -219,7 +230,9 @@ class ImageCacheService {
       );
       request.headers.set('Referer', '${uri.scheme}://${uri.host}/');
 
-      final response = await request.close().timeout(const Duration(seconds: 15));
+      final response = await request.close().timeout(
+        const Duration(seconds: 15),
+      );
 
       if (response.statusCode == 200) {
         final bytes = await consolidateHttpClientResponseBytes(response);
@@ -260,7 +273,7 @@ class ImageCacheService {
       final file = File(localPath);
       if (await file.exists()) {
         await file.delete();
-        _memoryPathCache.remove(url);
+        _memoryPathCache.remove(_normalizeCacheKey(url));
         return true;
       }
     } catch (e) {

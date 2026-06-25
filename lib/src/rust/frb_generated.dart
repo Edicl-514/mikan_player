@@ -403,6 +403,14 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiConfigSetBangumiRequestMode({required String mode});
 
+  Future<void> crateApiConfigSetBangumiReverseProxy({required bool enabled});
+
+  Future<bool> crateApiConfigGetBangumiReverseProxy();
+
+  Future<void> crateApiSimpleSetBangumiReverseProxy({required bool enabled});
+
+  Future<bool> crateApiSimpleGetBangumiReverseProxy();
+
   Future<void> crateApiConfigSetDisabledSources({
     required List<String> sources,
   });
@@ -431,6 +439,7 @@ abstract class RustLibApi extends BaseApi {
     required String bangumi,
     required String mikan,
     required String playbackSub,
+    required bool useReverseProxy,
   });
 
   Future<void> crateApiSimpleUpdateConfig({
@@ -438,6 +447,7 @@ abstract class RustLibApi extends BaseApi {
     required String bangumi,
     required String mikan,
     required String playbackSub,
+    required bool useReverseProxy,
   });
 
   Future<void> crateApiGenericScraperUpdateSingleSourceConfig({
@@ -3172,6 +3182,128 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiConfigSetBangumiReverseProxy({required bool enabled}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_bool(enabled, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 92,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiConfigSetBangumiReverseProxyConstMeta,
+        argValues: [enabled],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiConfigSetBangumiReverseProxyConstMeta =>
+      const TaskConstMeta(
+        debugName: "set_bangumi_reverse_proxy",
+        argNames: ["enabled"],
+      );
+
+  @override
+  Future<bool> crateApiConfigGetBangumiReverseProxy() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 94,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiConfigGetBangumiReverseProxyConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiConfigGetBangumiReverseProxyConstMeta =>
+      const TaskConstMeta(
+        debugName: "get_bangumi_reverse_proxy",
+        argNames: [],
+      );
+
+  @override
+  Future<void> crateApiSimpleSetBangumiReverseProxy({required bool enabled}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_bool(enabled, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 93,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleSetBangumiReverseProxyConstMeta,
+        argValues: [enabled],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleSetBangumiReverseProxyConstMeta =>
+      const TaskConstMeta(
+        debugName: "set_bangumi_reverse_proxy",
+        argNames: ["enabled"],
+      );
+
+  @override
+  Future<bool> crateApiSimpleGetBangumiReverseProxy() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 95,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleGetBangumiReverseProxyConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleGetBangumiReverseProxyConstMeta =>
+      const TaskConstMeta(
+        debugName: "get_bangumi_reverse_proxy",
+        argNames: [],
+      );
+
+  @override
   Future<void> crateApiConfigSetDisabledSources({
     required List<String> sources,
   }) {
@@ -3423,6 +3555,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String bangumi,
     required String mikan,
     required String playbackSub,
+    required bool useReverseProxy,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -3432,6 +3565,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(bangumi, serializer);
           sse_encode_String(mikan, serializer);
           sse_encode_String(playbackSub, serializer);
+          sse_encode_bool(useReverseProxy, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -3444,7 +3578,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateApiConfigUpdateConfigConstMeta,
-        argValues: [bgm, bangumi, mikan, playbackSub],
+        argValues: [bgm, bangumi, mikan, playbackSub, useReverseProxy],
         apiImpl: this,
       ),
     );
@@ -3452,7 +3586,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiConfigUpdateConfigConstMeta => const TaskConstMeta(
     debugName: "update_config",
-    argNames: ["bgm", "bangumi", "mikan", "playbackSub"],
+    argNames: ["bgm", "bangumi", "mikan", "playbackSub", "useReverseProxy"],
   );
 
   @override
@@ -3461,6 +3595,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String bangumi,
     required String mikan,
     required String playbackSub,
+    required bool useReverseProxy,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -3470,6 +3605,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(bangumi, serializer);
           sse_encode_String(mikan, serializer);
           sse_encode_String(playbackSub, serializer);
+          sse_encode_bool(useReverseProxy, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -3482,7 +3618,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateApiSimpleUpdateConfigConstMeta,
-        argValues: [bgm, bangumi, mikan, playbackSub],
+        argValues: [bgm, bangumi, mikan, playbackSub, useReverseProxy],
         apiImpl: this,
       ),
     );
@@ -3490,7 +3626,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiSimpleUpdateConfigConstMeta => const TaskConstMeta(
     debugName: "update_config",
-    argNames: ["bgm", "bangumi", "mikan", "playbackSub"],
+    argNames: ["bgm", "bangumi", "mikan", "playbackSub", "useReverseProxy"],
   );
 
   @override

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
+import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/src/rust/api/generic_scraper.dart'
     as generic_scraper;
@@ -29,6 +30,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   bool _isAutoSettingBangumi = false;
   bool _isAutoSettingMikan = false;
   BangumiRequestMode _bangumiRequestMode = BangumiRequestMode.hybrid;
+  bool _bangumiUseReverseProxy = false;
 
   bool? _parseBool(dynamic value) {
     if (value is bool) {
@@ -151,6 +153,8 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       _bangumiRequestMode = BangumiRequestMode.fromValue(
         prefs.getString(BangumiRequestModeService.preferenceKey),
       );
+      _bangumiUseReverseProxy =
+          prefs.getBool(BangumiReverseProxyService.preferenceKey) ?? false;
 
       _sources = sources;
       _disabledSources = sources
@@ -177,8 +181,10 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       bangumi: _bangumiController.text,
       mikan: _mikanController.text,
       playbackSub: _playbackSubController.text,
+      useReverseProxy: _bangumiUseReverseProxy,
     );
     await BangumiRequestModeService.save(_bangumiRequestMode);
+    await BangumiReverseProxyService.save(_bangumiUseReverseProxy);
 
     if (mounted) {
       final l10n = AppLocalizations.of(context);
@@ -493,6 +499,35 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                       _bangumiRequestMode = value;
                     });
                   },
+                ),
+                const SizedBox(height: 16),
+                Card(
+                  margin: EdgeInsets.zero,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: Theme.of(context).dividerColor.withAlpha(50),
+                    ),
+                  ),
+                  child: SwitchListTile(
+                    value: _bangumiUseReverseProxy,
+                    onChanged: (value) {
+                      setState(() {
+                        _bangumiUseReverseProxy = value;
+                      });
+                    },
+                    title: Text(l10n.bangumiReverseProxyTitle),
+                    subtitle: Text(
+                      l10n.bangumiReverseProxyDescription,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    secondary: const Icon(Icons.dns_outlined),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _buildTextField(

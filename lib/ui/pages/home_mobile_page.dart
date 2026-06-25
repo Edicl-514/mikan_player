@@ -25,6 +25,7 @@ import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
 import 'package:mikan_player/ui/widgets/blurred_cover_background.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
 class HomeMobilePage extends StatefulWidget {
   const HomeMobilePage({super.key});
@@ -240,11 +241,11 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           final username = _userManager.user!.username;
           final client = HttpClient()
             ..connectionTimeout = const Duration(seconds: 10);
-          final request = await client.getUrl(
-            Uri.parse(
-              'https://api.bgm.tv/v0/users/$username/collections?subject_type=2&limit=20&offset=0',
-            ),
-          );
+          final apiHost = await BangumiUrlRewriter.hostFor('api');
+          final url = BangumiUrlRewriter.rewrite(
+            'https://api.bgm.tv/v0/users/$username/collections?subject_type=2&limit=20&offset=0',
+          ).replaceFirst('api.bgm.tv', apiHost);
+          final request = await client.getUrl(Uri.parse(url));
           request.headers.add('accept', 'application/json');
           request.headers.add('User-Agent', 'MikanPlayer/1.0.0 (flutter)');
 
