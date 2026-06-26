@@ -58,8 +58,8 @@ pub const ECH_QUERY_NAME: &str = "cloudflare-ech.com";
 /// an `ech=` SvcParam.
 pub const DEFAULT_DOH_ENDPOINTS: &[&str] = &[
     "https://doh.090227.xyz/SB-query",
-    "https://dns.alidns.com/dns-query",
-    "https://doh.pub/dns-query",
+    "https://dns.alidns.com/resolve",
+    "https://doh.pub/resolve",
 ];
 
 /// ECHConfig TTL. Cloudflare rotates the HPKE public key frequently (a single
@@ -167,15 +167,26 @@ pub async fn fetch_cloudflare_ech_bytes() -> anyhow::Result<Vec<u8>> {
 async fn fetch_from_single_doh(endpoint: &str) -> anyhow::Result<Vec<u8>> {
     let url = format!("{endpoint}?name={ECH_QUERY_NAME}&type=HTTPS");
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(DOH_TIMEOUT_SECS))
-        .user_agent("MikanPlayer/1.0")
-        .build()
-        .context("build DoH client")?;
+    // IMPORTANT: reuse the app-wide shared client, which pins `webpki-roots`
+    // via `.tls_backend_preconfigured(...)`. A bare `reqwest::Client::builder()`
+    // here would fall back to reqwest's default TLS verifier
+    // (`rustls-platform-verifier`) on Android. That verifier's Java helper
+    // classes (`org.rustls.platformverifier.*`) are reached only through JNI,
+    // so R8 — which runs in `flutter build apk --release` — strips them as
+    // "unused". The result: every DoH TLS handshake failed in release APKs
+    // (but NOT in `flutter run` debug builds, where R8 is off, nor on Windows,
+    // which uses the OS cert store), so the ECHConfig could never be fetched
+    // and "刷新 ECH 公钥" always failed. The shared client already proves the
+    // webpki-roots path works in release (mikan/dmhy/etc. use it), so routing
+    // DoH through it removes the platform-verifier dependency from the ECH
+    // bootstrap path entirely. Per-request `.timeout()` keeps the short DoH
+    // budget without needing a separate client.
+    let client = crate::api::network::get_shared_client();
 
     let resp = client
         .get(&url)
         .header("accept", "application/dns-json")
+        .timeout(Duration::from_secs(DOH_TIMEOUT_SECS))
         .send()
         .await
         .context("DoH GET")?;
@@ -288,8 +299,12 @@ fn parse_echconfig_from_https_svcb(data: &str) -> Option<Vec<u8>> {
     }
 
     // (2) Presentation format fallback: look for an `ech=<base64>` token.
+    //     DoH JSON servers (e.g. doh.090227.xyz) wrap the base64 value in
+    //     double-quotes: `ech="AEX+DQB..."`.  Strip them before decoding.
     for token in &tokens {
         if let Some(rest) = token.strip_prefix("ech=") {
+            let rest = rest.strip_prefix('"').unwrap_or(rest);
+            let rest = rest.strip_suffix('"').unwrap_or(rest);
             use base64::Engine;
             return base64::engine::general_purpose::STANDARD
                 .decode(rest)
@@ -376,6 +391,19 @@ mod tests {
         let data = r#"1 . alpn="h2,h3" ipv4hint=104.16.0.0 ech=AEX+DQBBDAAgACD2tpX44dE776O1qEe4pBYcf9gV2sYonx2xzeulGUbiNgAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA="#;
         let parsed = parse_echconfig_from_https_svcb(data).unwrap();
         assert!(!parsed.is_empty());
+    }
+
+    #[test]
+    fn parses_doh_090227_presentation_format() {
+        let data = r#"1 . alpn="h3,h2" ipv4hint="104.18.10.118,104.18.11.118" ech="AEX+DQBB+gAgACAsXf9D47eVAyQlFQRZGTLbiq3hjK2ixMlp5qllFb2sDAAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=" ipv6hint="2606:4700::6812:a76,2606:4700::6812:b76""#;
+        let parsed = parse_echconfig_from_https_svcb(data).expect("must parse doh.090227.xyz format");
+        assert_eq!(parsed.len(), 71, "ech value length");
+        assert_eq!(&parsed[0..2], &[0x00, 0x45], "ECHConfig length prefix");
+        assert_eq!(&parsed[2..4], &[0xfe, 0x0d], "ECH version 0x0fe0d");
+        assert!(
+            build_ech_config(&parsed).is_ok(),
+            "rustls rejected the parsed ECHConfig"
+        );
     }
 
     #[test]
