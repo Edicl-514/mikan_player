@@ -192,6 +192,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get networkSettingsSubtitle => 'base URL、请求方式、反代、ECH 与 DoH';
 
   @override
+  String get networkSectionBaseUrl => 'Base URL';
+
+  @override
+  String get networkSectionBangumiMode => 'Bangumi 请求方式';
+
+  @override
+  String get networkSectionAdvanced => '高级设置';
+
+  @override
   String get searchSettings => '搜索设置';
 
   @override
@@ -1160,7 +1169,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get bangumiEchDescription =>
-      '通过 Encrypted Client Hello 加密真实域名，绕过 SNI 黑名单。默认开启；中国大陆推荐。';
+      '通过 Encrypted Client Hello 加密真实域名，绕过 SNI 黑名单。中国大陆推荐。';
 
   @override
   String get bangumiEchRefreshTitle => '刷新 ECH 公钥';
@@ -1182,7 +1191,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get bangumiEchDohListDescription =>
-      '用于查询 Cloudflare 的 HTTPS RR 以获取 ECH 公钥。按顺序尝试，第一个可用的生效。留空使用内置默认值。';
+      '用于查询 Cloudflare 的 HTTPS RR 以获取 ECH 公钥。按顺序尝试，第一个可用的生效。点击「恢复默认」重置为内置列表。';
 
   @override
   String get bangumiEchDohListEmpty => '当前为空，使用内置默认 DoH';

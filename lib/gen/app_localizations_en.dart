@@ -195,6 +195,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Base URLs, request mode, reverse proxy, ECH and DoH';
 
   @override
+  String get networkSectionBaseUrl => 'Base URL';
+
+  @override
+  String get networkSectionBangumiMode => 'Bangumi request mode';
+
+  @override
+  String get networkSectionAdvanced => 'Advanced';
+
+  @override
   String get searchSettings => 'Search Settings';
 
   @override
@@ -1189,7 +1198,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bangumiEchDescription =>
-      'Hide the real hostname via Encrypted Client Hello to bypass SNI blacklists. On by default; recommended in mainland China.';
+      'Hide the real hostname via Encrypted Client Hello to bypass SNI blacklists. Recommended in mainland China.';
 
   @override
   String get bangumiEchRefreshTitle => 'Refresh ECH public key';
@@ -1212,7 +1221,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bangumiEchDohListDescription =>
-      'Used to query Cloudflare\'s HTTPS RR for the ECH public key. Tried in order; the first reachable one wins. Leave empty to use the built-in defaults.';
+      'Used to query Cloudflare\'s HTTPS RR for the ECH public key. Tried in order; the first reachable one wins. Tap \"Reset to defaults\" to restore the built-in list.';
 
   @override
   String get bangumiEchDohListEmpty => 'Empty — using built-in defaults';

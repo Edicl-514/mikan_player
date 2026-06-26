@@ -24,6 +24,15 @@ class BangumiEchService {
   static const String preferenceKey = 'bangumi_use_ech';
   static const String dohListKey = 'bangumi_doh_endpoints';
 
+  /// Compiled-in default DoH endpoints, mirroring `DEFAULT_DOH_ENDPOINTS`
+  /// in `rust/src/api/ech.rs`. Shown in the settings UI when the user has not
+  /// configured a custom list. Keep in sync with the Rust constant.
+  static const List<String> defaultDohEndpoints = <String>[
+    'https://doh.090227.xyz/SB-query',
+    'https://dns.alidns.com/resolve',
+    'https://doh.pub/resolve',
+  ];
+
   static final ValueNotifier<bool> notifier = ValueNotifier<bool>(true);
   static final ValueNotifier<List<String>> dohNotifier =
       ValueNotifier<List<String>>(const []);

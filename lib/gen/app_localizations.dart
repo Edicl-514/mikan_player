@@ -440,6 +440,24 @@ abstract class AppLocalizations {
   /// **'base URL、请求方式、反代、ECH 与 DoH'**
   String get networkSettingsSubtitle;
 
+  /// No description provided for @networkSectionBaseUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'Base URL'**
+  String get networkSectionBaseUrl;
+
+  /// No description provided for @networkSectionBangumiMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'Bangumi 请求方式'**
+  String get networkSectionBangumiMode;
+
+  /// No description provided for @networkSectionAdvanced.
+  ///
+  /// In zh, this message translates to:
+  /// **'高级设置'**
+  String get networkSectionAdvanced;
+
   /// No description provided for @searchSettings.
   ///
   /// In zh, this message translates to:
@@ -2279,7 +2297,7 @@ abstract class AppLocalizations {
   /// No description provided for @bangumiEchDescription.
   ///
   /// In zh, this message translates to:
-  /// **'通过 Encrypted Client Hello 加密真实域名，绕过 SNI 黑名单。默认开启；中国大陆推荐。'**
+  /// **'通过 Encrypted Client Hello 加密真实域名，绕过 SNI 黑名单。中国大陆推荐。'**
   String get bangumiEchDescription;
 
   /// No description provided for @bangumiEchRefreshTitle.
@@ -2315,7 +2333,7 @@ abstract class AppLocalizations {
   /// No description provided for @bangumiEchDohListDescription.
   ///
   /// In zh, this message translates to:
-  /// **'用于查询 Cloudflare 的 HTTPS RR 以获取 ECH 公钥。按顺序尝试，第一个可用的生效。留空使用内置默认值。'**
+  /// **'用于查询 Cloudflare 的 HTTPS RR 以获取 ECH 公钥。按顺序尝试，第一个可用的生效。点击「恢复默认」重置为内置列表。'**
   String get bangumiEchDohListDescription;
 
   /// No description provided for @bangumiEchDohListEmpty.

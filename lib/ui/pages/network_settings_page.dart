@@ -181,6 +181,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
   Future<void> _removeDohEndpoint(String endpoint) async {
     setState(() => _isDohBusy = true);
     try {
+      await _ensureDohListMaterialized();
       final list = await BangumiEchService.removeDohEndpoint(endpoint);
       if (mounted) {
         setState(() => _dohEndpoints = list);
@@ -192,10 +193,19 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     }
   }
 
+  Future<void> _ensureDohListMaterialized() async {
+    if (_dohEndpoints.isNotEmpty) return;
+    final list = await BangumiEchService.setDohEndpoints(
+      BangumiEchService.defaultDohEndpoints,
+    );
+    if (mounted) setState(() => _dohEndpoints = list);
+  }
+
   Future<void> _moveDohEndpoint(int from, int to) async {
     if (from == to) return;
     setState(() => _isDohBusy = true);
     try {
+      await _ensureDohListMaterialized();
       final list = await BangumiEchService.moveDohEndpoint(from, to);
       if (mounted) {
         setState(() => _dohEndpoints = list);
@@ -346,6 +356,9 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final hideBangumiUrl = _bangumiUseEch || _bangumiUseReverseProxy;
+    final dohDisplay = _dohEndpoints.isNotEmpty
+        ? _dohEndpoints
+        : BangumiEchService.defaultDohEndpoints;
 
     return Scaffold(
       appBar: AppBar(
@@ -368,6 +381,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                _sectionTitle(l10n.networkSectionBaseUrl),
                 UrlDropdownField(
                   label: l10n.bgmBaseUrl,
                   hint: 'https://bgmlist.com',
@@ -377,6 +391,33 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                   onSelected: (url) =>
                       setState(() => _selectedBgm = url),
                   onUrlsChanged: () => _reloadKind(BaseUrlKind.bgmlist),
+                ),
+                const SizedBox(height: 16),
+                UrlDropdownField(
+                  label: l10n.mikanBaseUrl,
+                  hint: 'https://mikanani.kas.pub',
+                  kind: BaseUrlKind.mikan,
+                  allUrls: _allMikanUrls,
+                  selectedUrl: _selectedMikan,
+                  onSelected: (url) => setState(() => _selectedMikan = url),
+                  onUrlsChanged: () => _reloadKind(BaseUrlKind.mikan),
+                  trailing: IconButton(
+                    icon: _isAutoSettingMikan
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_fix_high),
+                    tooltip: l10n.autoSelectFastestSource,
+                    onPressed: _isAutoSettingMikan
+                        ? null
+                        : () => _autoSelect(
+                              kind: BaseUrlKind.mikan,
+                              setBusy: (v) => _isAutoSettingMikan = v,
+                              setSelected: (url) => _selectedMikan = url,
+                            ),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 if (hideBangumiUrl)
@@ -409,7 +450,8 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                               ),
                     ),
                   ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
+                _sectionTitle(l10n.networkSectionBangumiMode),
                 DropdownButtonFormField<BangumiRequestMode>(
                   initialValue: _bangumiRequestMode,
                   decoration: const InputDecoration(
@@ -437,7 +479,8 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                     setState(() => _bangumiRequestMode = value);
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
+                _sectionTitle(l10n.networkSectionAdvanced),
                 _buildCard(
                   context,
                   child: SwitchListTile(
@@ -457,6 +500,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
                 _buildCard(
                   context,
                   child: Column(
@@ -477,56 +521,30 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           vertical: 4,
                         ),
                       ),
-                      ListTile(
-                        leading: const Icon(Icons.refresh),
-                        title: Text(l10n.bangumiEchRefreshTitle),
-                        subtitle: Text(
-                          _echRefreshResult ??
-                              l10n.bangumiEchRefreshDescription,
-                          style: const TextStyle(fontSize: 12),
+                      if (_bangumiUseEch)
+                        ListTile(
+                          leading: const Icon(Icons.refresh),
+                          title: Text(l10n.bangumiEchRefreshTitle),
+                          subtitle: Text(
+                            _echRefreshResult ??
+                                l10n.bangumiEchRefreshDescription,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          trailing: _isRefreshingEch
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.chevron_right),
+                          onTap: _isRefreshingEch ? null : _refreshEchConfig,
                         ),
-                        trailing: _isRefreshingEch
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.chevron_right),
-                        onTap: _isRefreshingEch ? null : _refreshEchConfig,
-                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildDohCard(context),
-                const SizedBox(height: 16),
-                UrlDropdownField(
-                  label: l10n.mikanBaseUrl,
-                  hint: 'https://mikanani.kas.pub',
-                  kind: BaseUrlKind.mikan,
-                  allUrls: _allMikanUrls,
-                  selectedUrl: _selectedMikan,
-                  onSelected: (url) => setState(() => _selectedMikan = url),
-                  onUrlsChanged: () => _reloadKind(BaseUrlKind.mikan),
-                  trailing: IconButton(
-                    icon: _isAutoSettingMikan
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.auto_fix_high),
-                    tooltip: l10n.autoSelectFastestSource,
-                    onPressed: _isAutoSettingMikan
-                        ? null
-                        : () => _autoSelect(
-                              kind: BaseUrlKind.mikan,
-                              setBusy: (v) => _isAutoSettingMikan = v,
-                              setSelected: (url) => _selectedMikan = url,
-                            ),
-                  ),
-                ),
+                _buildDohCard(context, dohDisplay),
                 const SizedBox(height: 32),
               ],
             ),
@@ -544,6 +562,21 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
         ),
       ),
       child: child,
+    );
+  }
+
+  Widget _sectionTitle(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+        ),
+      ),
     );
   }
 
@@ -569,7 +602,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     );
   }
 
-  Widget _buildDohCard(BuildContext context) {
+  Widget _buildDohCard(BuildContext context, List<String> displayList) {
     final l10n = AppLocalizations.of(context);
     return _buildCard(
       context,
@@ -606,26 +639,10 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
               style: const TextStyle(fontSize: 12),
             ),
           ),
-          if (_dohEndpoints.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
-              child: Text(
-                l10n.bangumiEchDohListEmpty,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                  color: Theme.of(context).textTheme.bodySmall?.color,
-                ),
-              ),
-            )
-          else
-            ...List.generate(_dohEndpoints.length, (index) {
-              final endpoint = _dohEndpoints[index];
-              return _buildDohRow(index, endpoint);
-            }),
+          ...List.generate(displayList.length, (index) {
+            final endpoint = displayList[index];
+            return _buildDohRow(displayList, index, endpoint);
+          }),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
             child: Row(
@@ -660,10 +677,10 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     );
   }
 
-  Widget _buildDohRow(int index, String endpoint) {
+  Widget _buildDohRow(List<String> displayList, int index, String endpoint) {
     final l10n = AppLocalizations.of(context);
     final isFirst = index == 0;
-    final isLast = index == _dohEndpoints.length - 1;
+    final isLast = index == displayList.length - 1;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
