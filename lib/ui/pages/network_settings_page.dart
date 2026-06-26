@@ -458,20 +458,20 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                     labelText: 'Bangumi 请求方式',
                     border: OutlineInputBorder(),
                     filled: true,
-                    helperText: '混合版推荐：评论优先走 next.bgm.tv，失败时回退旧实现',
+                    // helperText: '评论优先走 next.bgm.tv，失败时回退旧实现',
                   ),
                   items: const [
                     DropdownMenuItem(
                       value: BangumiRequestMode.legacy,
-                      child: Text('旧版（稳定兼容）'),
+                      child: Text('旧版'),
                     ),
                     DropdownMenuItem(
                       value: BangumiRequestMode.hybrid,
-                      child: Text('混合版（推荐）'),
+                      child: Text('混合（推荐）'),
                     ),
                     DropdownMenuItem(
                       value: BangumiRequestMode.modern,
-                      child: Text('新版（逐步迁移）'),
+                      child: Text('新版'),
                     ),
                   ],
                   onChanged: (value) {

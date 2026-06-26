@@ -284,13 +284,29 @@ class _SearchPageState extends State<SearchPage> {
             itemBuilder: (context) => [
               PopupMenuItem(
                 value: SearchMode.keyword,
-                child: Text(
-                  AppLocalizations.of(context).searchKeywordModeLabel,
+                child: Row(
+                  children: [
+                    if (_searchMode == SearchMode.keyword)
+                      Icon(Icons.check, size: 18, color: Theme.of(context).colorScheme.primary)
+                    else
+                      const SizedBox(width: 18),
+                    const SizedBox(width: 12),
+                    Text(AppLocalizations.of(context).searchKeywordModeLabel),
+                  ],
                 ),
               ),
               PopupMenuItem(
                 value: SearchMode.tag,
-                child: Text(AppLocalizations.of(context).searchTagModeLabel),
+                child: Row(
+                  children: [
+                    if (_searchMode == SearchMode.tag)
+                      Icon(Icons.check, size: 18, color: Theme.of(context).colorScheme.primary)
+                    else
+                      const SizedBox(width: 18),
+                    const SizedBox(width: 12),
+                    Text(AppLocalizations.of(context).searchTagModeLabel),
+                  ],
+                ),
               ),
             ],
           ),
@@ -306,7 +322,16 @@ class _SearchPageState extends State<SearchPage> {
                   .map(
                     (option) => PopupMenuItem(
                       value: option.value,
-                      child: Text(option.label),
+                      child: Row(
+                        children: [
+                          if (option.value == effectiveSortType)
+                            Icon(Icons.check, size: 18, color: Theme.of(context).colorScheme.primary)
+                          else
+                            const SizedBox(width: 18),
+                          const SizedBox(width: 12),
+                          Text(option.label),
+                        ],
+                      ),
                     ),
                   )
                   .toList(),
