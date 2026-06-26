@@ -7,6 +7,7 @@ use reqwest::{Client, Proxy};
 use rustls::{ClientConfig, RootCertStore};
 #[cfg(target_os = "windows")]
 use std::process::Command;
+use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
 use std::time::Duration;
@@ -154,6 +155,20 @@ fn build_ech_client() -> anyhow::Result<Client> {
     let ech_cfg = crate::api::ech::current_ech_config()
         .ok_or_else(|| anyhow::anyhow!("ECHConfig not in cache yet"))?;
 
+    // Pin every bangumi host directly to the Cloudflare edge IPs advertised in
+    // the HTTPS RR's `ipv4hint`. The GFW poisons the system resolver for
+    // `*.bgm.tv` / `chii.in` (it returns Facebook sinkhole IPs such as
+    // 31.13.94.41), so without pinning the ECH-encrypted ClientHello still
+    // dials a blocked IP and the handshake times out. Pinning makes reqwest
+    // skip DNS entirely for these hosts and connect to a real Cloudflare anycast
+    // address — mirroring the custom DialContext in the Go ECH demo. Port 0
+    // tells reqwest to use the URL's conventional port (443 for https).
+    let pinned_ips = crate::api::ech::current_ech_resolve_ips();
+    let pinned_addrs: Vec<SocketAddr> = pinned_ips
+        .iter()
+        .map(|ip| SocketAddr::new(*ip, 0))
+        .collect();
+
     let roots = RootCertStore {
         roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
     };
@@ -172,6 +187,23 @@ fn build_ech_client() -> anyhow::Result<Client> {
         .pool_idle_timeout(Duration::from_secs(90))
         .pool_max_idle_per_host(4)
         .tls_backend_preconfigured(tls_config);
+
+    let hosts = crate::api::config::bangumi_canonical_hosts();
+    if !pinned_addrs.is_empty() {
+        for host in &hosts {
+            builder = builder.resolve_to_addrs(host, &pinned_addrs);
+        }
+        log::info!(
+            "ECH client: pinned {} bangumi host(s) to {} Cloudflare edge IP(s)",
+            hosts.len(),
+            pinned_addrs.len()
+        );
+    } else {
+        log::warn!(
+            "ECH client: no ipv4hint available — bangumi hosts will resolve via the system \
+             DNS (likely poisoned in mainland China); the ECH handshake may time out"
+        );
+    }
 
     if let Some(proxy_url) = get_system_proxy() {
         match Proxy::all(&proxy_url) {
@@ -342,4 +374,53 @@ async fn retry_request_inner(
     }
 
     unreachable!()
+}
+
+#[cfg(test)]
+mod net_tests {
+    use super::*;
+    use serde_json::Value;
+
+    /// End-to-end regression: the ECH client must actually reach the bangumi
+    /// JSON API. This is the exact bug that motivated DNS pinning — without
+    /// `resolve_to_addrs` the handshake dials a GFW-poisoned (Facebook) IP and
+    /// times out even though the SNI is encrypted.
+    ///
+    /// Ignored by default (needs live network + a reachable DoH endpoint). Run:
+    ///   cargo test --manifest-path rust/Cargo.toml ech_pinned -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore = "requires live network + a reachable DoH endpoint"]
+    async fn ech_pinned_client_reaches_bangumi_api() {
+        // Prime the ECHConfig cache; this also caches the ipv4hint addresses.
+        let bytes = crate::api::ech::fetch_cloudflare_ech_bytes()
+            .await
+            .expect("ECHConfig fetch failed");
+        assert!(!bytes.is_empty(), "ECHConfig bytes should be non-empty");
+
+        let ips = crate::api::ech::current_ech_resolve_ips();
+        assert!(
+            !ips.is_empty(),
+            "ipv4hint should be cached alongside the ECHConfig"
+        );
+
+        // Force a rebuild so the ECH client picks up the pinning.
+        invalidate_ech_client();
+        let client = get_ech_client();
+
+        let resp = client
+            .get("https://api.bgm.tv/v0/subjects/265")
+            .header("accept", "application/json")
+            .send()
+            .await
+            .expect("request to api.bgm.tv failed (ECH/DNS pinning broken?)");
+
+        assert!(
+            resp.status().is_success(),
+            "expected HTTP 2xx, got {}",
+            resp.status()
+        );
+
+        let v: Value = resp.json().await.expect("body is not JSON");
+        assert_eq!(v["id"].as_i64(), Some(265), "unexpected subject id");
+    }
 }

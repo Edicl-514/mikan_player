@@ -1105,7 +1105,7 @@ let api_page = <i32>::sse_decode(&mut deserializer);deserializer.end(); move |co
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             deserializer.end(); move |context|  {
                     transform_result_sse::<_, ()>((move ||  {
-                         let output_ok = Result::<_,()>::Ok({ crate::api::network::select_client(); })?;   Ok(output_ok)
+                         let output_ok = Result::<_,()>::Ok({ crate::api::network::client_for_bangumi(); })?;   Ok(output_ok)
                     })())
                 } })
             }fn wire__crate__api__config__set_bangumi_doh_endpoints_impl(port_: flutter_rust_bridge::for_generated::MessagePort,ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,rust_vec_len_: i32,data_len_: i32)  {

@@ -445,6 +445,17 @@ pub fn remap_bangumi_host(host: &str, to_mirror: bool) -> Option<String> {
     }
 }
 
+/// The canonical (real) bangumi host names backed by Cloudflare —
+/// `bgm.tv`, `bangumi.tv`, `chii.in`, `api.bgm.tv`, `next.bgm.tv`, `lain.bgm.tv`,
+/// `fast.bgm.tv`, `doujin.bgm.tv`.
+///
+/// Used to pin the ECH client's DNS to Cloudflare edge IPs so GFW DNS poisoning
+/// (the system resolver returns Facebook sinkhole IPs for these hosts) is
+/// bypassed — see `crate::api::network::build_ech_client`.
+pub fn bangumi_canonical_hosts() -> Vec<&'static str> {
+    BANGUMI_HOST_PAIRS.iter().map(|(real, _)| *real).collect()
+}
+
 /// Rewrite all bangumi hosts inside a URL. If `to_mirror` is true the URL is rewritten to
 /// use the reverse-proxy host; if false it is rewritten back to the canonical real host.
 /// Returns the input unchanged when the URL is not parseable or has no known bangumi host.

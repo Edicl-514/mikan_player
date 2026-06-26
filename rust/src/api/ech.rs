@@ -40,6 +40,7 @@ use anyhow::Context;
 use rustls::client::EchConfig;
 use rustls::crypto::aws_lc_rs::hpke::ALL_SUPPORTED_SUITES;
 use rustls::pki_types::EchConfigListBytes;
+use std::net::{IpAddr, Ipv4Addr};
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
 
@@ -73,6 +74,13 @@ const DOH_TIMEOUT_SECS: u64 = 8;
 #[derive(Clone, Debug)]
 struct CachedEch {
     bytes: Vec<u8>,
+    /// Cloudflare edge IPv4 addresses advertised in the same HTTPS RR's
+    /// `ipv4hint` SvcParam. Used to pin bangumi hosts directly to these IPs in
+    /// the ECH client (see `crate::api::network::build_ech_client`) so requests
+    /// bypass GFW DNS poisoning — the system resolver returns Facebook sinkhole
+    /// IPs (e.g. `31.13.94.41`) for `*.bgm.tv` / `chii.in`, which makes the
+    /// ECH-encrypted handshake time out even though the SNI itself is hidden.
+    ips: Vec<IpAddr>,
     fetched_at: Instant,
 }
 
@@ -205,7 +213,10 @@ async fn fetch_from_single_doh(endpoint: &str) -> anyhow::Result<Vec<u8>> {
         .and_then(|d| d.as_str())
         .ok_or_else(|| anyhow::anyhow!("DoH response missing Answer[0].data"))?;
 
-    let bytes = parse_echconfig_from_https_svcb(ech_b64)
+    let params = parse_https_rr(ech_b64)
+        .ok_or_else(|| anyhow::anyhow!("could not parse HTTPS RR data"))?;
+    let bytes = params
+        .ech
         .ok_or_else(|| anyhow::anyhow!("no ech= param in HTTPS RR data"))?;
 
     // Verify rustls can parse it before publishing.
@@ -215,9 +226,15 @@ async fn fetch_from_single_doh(endpoint: &str) -> anyhow::Result<Vec<u8>> {
         let mut guard = ECH_CACHE.write().unwrap();
         *guard = Some(CachedEch {
             bytes: bytes.clone(),
+            ips: params.ipv4hint.clone(),
             fetched_at: Instant::now(),
         });
     }
+
+    log::info!(
+        "ECH: parsed ipv4hint ({} address(es)) alongside ECHConfig",
+        params.ipv4hint.len()
+    );
 
     Ok(bytes)
 }
@@ -262,6 +279,23 @@ pub(crate) fn current_ech_config() -> Option<EchConfig> {
     build_ech_config(&bytes.bytes).ok()
 }
 
+/// Returns the cached Cloudflare edge IPv4 addresses (the `ipv4hint` SvcParam
+/// from the same HTTPS RR that supplied the ECHConfig). Empty when no cache
+/// exists, the cache is stale, or the RR advertised no `ipv4hint`.
+///
+/// `build_ech_client` pins every bangumi host to these IPs so reqwest never
+/// asks the (poisoned) system resolver for them.
+pub(crate) fn current_ech_resolve_ips() -> Vec<IpAddr> {
+    let guard = ECH_CACHE.read().unwrap();
+    let Some(cached) = guard.as_ref() else {
+        return Vec::new();
+    };
+    if !is_cache_entry_fresh(cached) {
+        return Vec::new();
+    }
+    cached.ips.clone()
+}
+
 /// Cheap "is an ECHConfig cached?" check for the routing decision in
 /// [`crate::api::network::client_for_bangumi`]. Does NOT rebuild the rustls
 /// `EchConfig` (which re-runs HPKE suite selection + allocation), so it is
@@ -278,49 +312,76 @@ fn mark_failed() {
     *LAST_FAILED_AT.write().unwrap() = Some(Instant::now());
 }
 
-/// Parse an HTTPS RR `data` field and return the raw `ech` SvcParam value
-/// (a binary ECHConfigList, per RFC 9460).
+/// Parsed SVCB/HTTPS RR parameters relevant to ECH.
+#[derive(Default, Debug)]
+struct HttpsRrParams {
+    /// Raw bytes of the `ech` SvcParam (SvcParamKey = 5): a binary
+    /// ECHConfigList per RFC 9460.
+    ech: Option<Vec<u8>>,
+    /// IPv4 addresses from the `ipv4hint` SvcParam (SvcParamKey = 4).
+    ipv4hint: Vec<IpAddr>,
+}
+
+/// Parse an HTTPS RR `data` field into its `ech` and `ipv4hint` SvcParams.
 ///
 /// Two `data` shapes are handled:
 ///   1. RFC 3597 generic wire format, emitted by Cloudflare/Google DoH JSON:
 ///        `\# <rdlength> <hex byte> <hex byte> ...`
-///      Here the `ech` value is binary (no base64), so we hex-decode the rdata
-///      and walk the SVCB param list. **This is what production receives.**
-///   2. Presentation format some DoH servers emit (kept as a fallback):
-///        `1 . alpn="h2,h3" ipv4hint=... ech=<base64 ECHConfigList>`
-fn parse_echconfig_from_https_svcb(data: &str) -> Option<Vec<u8>> {
+///      The values are binary (no base64), so we hex-decode the rdata and walk
+///      the SVCB param list in a single pass. **This is what production receives.**
+///   2. Presentation format some DoH servers emit (e.g. doh.090227.xyz):
+///        `1 . alpn="h2,h3" ipv4hint="1.2.3.4,5.6.7.8" ech="<base64>"`
+fn parse_https_rr(data: &str) -> Option<HttpsRrParams> {
     let tokens: Vec<&str> = data.split_whitespace().collect();
 
     // (1) RFC 3597 generic wire format: "\# <rdlength> <hex> <hex> ..."
     if tokens.first() == Some(&"\\#") && tokens.len() >= 2 {
         let hex: String = tokens[2..].concat();
         let rdata = hex::decode(&hex).ok()?;
-        return extract_ech_param(&rdata);
+        return extract_svcb_params(&rdata);
     }
 
-    // (2) Presentation format fallback: look for an `ech=<base64>` token.
-    //     DoH JSON servers (e.g. doh.090227.xyz) wrap the base64 value in
-    //     double-quotes: `ech="AEX+DQB..."`.  Strip them before decoding.
+    // (2) Presentation format fallback. DoH JSON servers wrap values in
+    //     double-quotes: `ech="AEX+DQB..."`, `ipv4hint="1.2.3.4,5.6.7.8"`.
+    let mut params = HttpsRrParams::default();
     for token in &tokens {
         if let Some(rest) = token.strip_prefix("ech=") {
             let rest = rest.strip_prefix('"').unwrap_or(rest);
             let rest = rest.strip_suffix('"').unwrap_or(rest);
             use base64::Engine;
-            return base64::engine::general_purpose::STANDARD
-                .decode(rest)
-                .ok();
+            if let Ok(b) = base64::engine::general_purpose::STANDARD.decode(rest) {
+                params.ech = Some(b);
+            }
+        } else if let Some(rest) = token.strip_prefix("ipv4hint=") {
+            let rest = rest.strip_prefix('"').unwrap_or(rest);
+            let rest = rest.strip_suffix('"').unwrap_or(rest);
+            for ip in rest.split(',') {
+                let ip = ip.trim();
+                if let Ok(addr) = ip.parse::<IpAddr>() {
+                    params.ipv4hint.push(addr);
+                }
+            }
         }
     }
-    None
+    Some(params)
 }
 
-/// Walk a parsed SVCB/HTTPS RDATA blob and return the raw bytes of the `ech`
-/// SvcParam (SvcParamKey = 5). Per RFC 9460 the value is already the binary
-/// ECHConfigList — there is no base64 layer to undo.
+/// Backwards-compatible thin wrapper returning only the `ech` bytes. Kept for
+/// tests that only care about the ECHConfig.
+#[cfg(test)]
+fn parse_echconfig_from_https_svcb(data: &str) -> Option<Vec<u8>> {
+    parse_https_rr(data).and_then(|p| p.ech)
+}
+
+/// Walk a parsed SVCB/HTTPS RDATA blob and return the `ech` (SvcParamKey 5) and
+/// `ipv4hint` (SvcParamKey 4) SvcParams. Returns `None` on a structurally
+/// invalid (truncated) record.
 ///
 /// RDATA layout: `SvcPriority(2) | TargetName(labels..0x00) | SvcParams...`
-/// where each SvcParam is `key(2) | len(2) | value(len)`.
-fn extract_ech_param(mut rdata: &[u8]) -> Option<Vec<u8>> {
+/// where each SvcParam is `key(2) | len(2) | value(len)`. The `ech` value is
+/// already the binary ECHConfigList (no base64). The `ipv4hint` value is a
+/// sequence of 4-byte IPv4 addresses.
+fn extract_svcb_params(mut rdata: &[u8]) -> Option<HttpsRrParams> {
     // SvcPriority (2 bytes).
     if rdata.len() < 2 {
         return None;
@@ -341,6 +402,8 @@ fn extract_ech_param(mut rdata: &[u8]) -> Option<Vec<u8>> {
         rdata = &rdata[len..];
     }
 
+    let mut params = HttpsRrParams::default();
+
     // SvcParams: repeated { key: u16, len: u16, value: [u8; len] }.
     while rdata.len() >= 4 {
         let key = u16::from_be_bytes([rdata[0], rdata[1]]);
@@ -349,13 +412,26 @@ fn extract_ech_param(mut rdata: &[u8]) -> Option<Vec<u8>> {
         if rdata.len() < len {
             return None;
         }
-        if key == 5 {
-            // SvcParamKey 5 == `ech`.
-            return Some(rdata[..len].to_vec());
+        let value = &rdata[..len];
+        match key {
+            5 => {
+                // SvcParamKey 5 == `ech`.
+                params.ech = Some(value.to_vec());
+            }
+            4 => {
+                // SvcParamKey 4 == `ipv4hint`: N * 4-byte IPv4 addresses.
+                for chunk in value.chunks_exact(4) {
+                    params
+                        .ipv4hint
+                        .push(IpAddr::V4(Ipv4Addr::new(chunk[0], chunk[1], chunk[2], chunk[3])));
+                }
+            }
+            _ => {}
         }
         rdata = &rdata[len..];
     }
-    None
+
+    Some(params)
 }
 
 #[cfg(test)]
@@ -422,7 +498,32 @@ mod tests {
     #[test]
     fn truncated_rdata_returns_none() {
         // SvcPriority only, no TargetName terminator.
-        assert!(extract_ech_param(&[0x00, 0x01]).is_none());
+        assert!(extract_svcb_params(&[0x00, 0x01]).is_none());
+    }
+
+    #[test]
+    fn extracts_ipv4hint_from_wire_format() {
+        // REAL_DOH_DATA carries ipv4hint (SvcParamKey 4, len 8) =
+        // 104.18.10.118, 104.18.11.118.
+        let params = parse_https_rr(REAL_DOH_DATA).expect("must parse");
+        assert_eq!(
+            params.ipv4hint,
+            vec![
+                "104.18.10.118".parse::<IpAddr>().unwrap(),
+                "104.18.11.118".parse::<IpAddr>().unwrap(),
+            ]
+        );
+        assert!(params.ech.is_some());
+    }
+
+    #[test]
+    fn extracts_ipv4hint_from_presentation_format() {
+        let data = r#"1 . alpn="h3,h2" ipv4hint="104.18.10.118,104.18.11.118" ech="AEX+DQBBogAgACBP0V4z41o3ZTDwVyZZEUvDZgcE9Z/idhVHveCErWO9SAAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=" ipv6hint="2606:4700::6812:a76,2606:4700::6812:b76""#;
+        let params = parse_https_rr(data).expect("must parse");
+        assert_eq!(params.ipv4hint.len(), 2);
+        assert_eq!(params.ipv4hint[0], "104.18.10.118".parse::<IpAddr>().unwrap());
+        assert_eq!(params.ipv4hint[1], "104.18.11.118".parse::<IpAddr>().unwrap());
+        assert!(params.ech.is_some());
     }
 
     #[test]
