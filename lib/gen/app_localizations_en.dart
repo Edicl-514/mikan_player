@@ -181,7 +181,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dataSourceSettings => 'Data Source Settings';
 
   @override
-  String get dataSourceSubtitle => 'Base URLs for bgmlist, bangumi, and mikan';
+  String get dataSourceSubtitle =>
+      'Playback source subscription URL and source toggles';
+
+  @override
+  String get networkSettings => 'Network Settings';
+
+  @override
+  String get networkSettingsTitle => 'Network Settings';
+
+  @override
+  String get networkSettingsSubtitle =>
+      'Base URLs, request mode, reverse proxy, ECH and DoH';
 
   @override
   String get searchSettings => 'Search Settings';
@@ -1247,4 +1258,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String bangumiEchDohPriority(Object index) {
     return 'Priority #$index';
   }
+
+  @override
+  String get manageUrls => 'Manage URLs';
+
+  @override
+  String get manageUrlsTitle => 'Manage selectable URLs';
+
+  @override
+  String get addUrl => 'Add';
+
+  @override
+  String get addUrlHint => 'https://...';
+
+  @override
+  String get builtinUrl => 'Built-in';
+
+  @override
+  String get removeUrl => 'Remove';
+
+  @override
+  String get builtinUrlCannotRemove => 'Built-in URLs cannot be removed';
+
+  @override
+  String get urlAlreadyExists => 'This URL already exists';
+
+  @override
+  String get invalidUrl =>
+      'Enter a valid URL (starting with http:// or https://)';
+
+  @override
+  String get bangumiBaseUrlHidden =>
+      'ECH or reverse proxy is enabled — Bangumi Base URL is hidden';
 }

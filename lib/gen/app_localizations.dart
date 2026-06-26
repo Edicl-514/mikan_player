@@ -419,8 +419,26 @@ abstract class AppLocalizations {
   /// No description provided for @dataSourceSubtitle.
   ///
   /// In zh, this message translates to:
-  /// **'设置 bgmlist, bangumi, 蜜柑计划的 base URL'**
+  /// **'播放源订阅地址与订阅源开关'**
   String get dataSourceSubtitle;
+
+  /// No description provided for @networkSettings.
+  ///
+  /// In zh, this message translates to:
+  /// **'网络设置'**
+  String get networkSettings;
+
+  /// No description provided for @networkSettingsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'网络设置'**
+  String get networkSettingsTitle;
+
+  /// No description provided for @networkSettingsSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'base URL、请求方式、反代、ECH 与 DoH'**
+  String get networkSettingsSubtitle;
 
   /// No description provided for @searchSettings.
   ///
@@ -2377,6 +2395,66 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'优先级 #{index}'**
   String bangumiEchDohPriority(Object index);
+
+  /// No description provided for @manageUrls.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理 URL'**
+  String get manageUrls;
+
+  /// No description provided for @manageUrlsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理可选 URL'**
+  String get manageUrlsTitle;
+
+  /// No description provided for @addUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加'**
+  String get addUrl;
+
+  /// No description provided for @addUrlHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'https://...'**
+  String get addUrlHint;
+
+  /// No description provided for @builtinUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'内置'**
+  String get builtinUrl;
+
+  /// No description provided for @removeUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除'**
+  String get removeUrl;
+
+  /// No description provided for @builtinUrlCannotRemove.
+  ///
+  /// In zh, this message translates to:
+  /// **'内置 URL 不可删除'**
+  String get builtinUrlCannotRemove;
+
+  /// No description provided for @urlAlreadyExists.
+  ///
+  /// In zh, this message translates to:
+  /// **'该 URL 已存在'**
+  String get urlAlreadyExists;
+
+  /// No description provided for @invalidUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入有效的 URL（以 http:// 或 https:// 开头）'**
+  String get invalidUrl;
+
+  /// No description provided for @bangumiBaseUrlHidden.
+  ///
+  /// In zh, this message translates to:
+  /// **'已启用 ECH 或反代，Bangumi Base URL 不生效'**
+  String get bangumiBaseUrlHidden;
 }
 
 class _AppLocalizationsDelegate

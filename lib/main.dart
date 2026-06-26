@@ -23,6 +23,7 @@ import 'dart:convert';
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/services/settings_service.dart';
 import 'package:mikan_player/utils/app_directories.dart';
+import 'package:mikan_player/utils/url_latency.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 
@@ -202,14 +203,14 @@ Future<(String?, String?)> _ensureOptimalInitialBaseUrls(
 
   final bangumiFuture = hasBangumiUrl
       ? Future<String?>.value(null)
-      : _selectFastestUrl([
+      : selectFastestUrl([
           'https://bangumi.tv',
           'https://bgm.tv',
           'https://chii.in',
         ]);
   final mikanFuture = hasMikanUrl
       ? Future<String?>.value(null)
-      : _selectFastestUrl([
+      : selectFastestUrl([
           'https://mikanani.kas.pub',
           'https://mikan2.yujiangqaq.com',
           'https://mikan.makura.cc',
@@ -230,50 +231,6 @@ Future<(String?, String?)> _ensureOptimalInitialBaseUrls(
   }
 
   return (bangumiUrl, mikanUrl);
-}
-
-Future<String?> _selectFastestUrl(List<String> urls) async {
-  if (urls.isEmpty) return null;
-
-  var bestUrl = urls.first;
-  var minLatency = 999999;
-  for (final url in urls) {
-    final latency = await _tcpPing(url);
-    if (latency < minLatency) {
-      minLatency = latency;
-      bestUrl = url;
-    }
-  }
-  return bestUrl;
-}
-
-Future<int> _tcpPing(String url) async {
-  try {
-    final uri = Uri.parse(url);
-    final port = uri.port != 0 ? uri.port : (uri.scheme == 'https' ? 443 : 80);
-    final stopwatch = Stopwatch()..start();
-    if (uri.scheme == 'https') {
-      final socket = await SecureSocket.connect(
-        uri.host,
-        port,
-        timeout: const Duration(seconds: 3),
-        onBadCertificate: (_) => true,
-      );
-      stopwatch.stop();
-      await socket.close();
-    } else {
-      final socket = await Socket.connect(
-        uri.host,
-        port,
-        timeout: const Duration(seconds: 2),
-      );
-      stopwatch.stop();
-      await socket.close();
-    }
-    return stopwatch.elapsedMilliseconds;
-  } catch (_) {
-    return 999999;
-  }
 }
 
 bool? _parseSubscriptionBool(dynamic value) {

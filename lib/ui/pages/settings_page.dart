@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/data_source_settings_page.dart';
 import 'package:mikan_player/ui/pages/download_settings_page.dart';
+import 'package:mikan_player/ui/pages/network_settings_page.dart';
 import 'package:mikan_player/ui/pages/search_settings_page.dart';
 import 'package:mikan_player/ui/pages/subscription_debug_page.dart';
 import 'package:mikan_player/ui/pages/theme_settings_page.dart';
@@ -124,6 +125,20 @@ class _SettingsPageState extends State<SettingsPage> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => const DataSourceSettingsPage(),
+                ),
+              );
+            },
+          ),
+          _buildSettingTile(
+            context,
+            Icons.network_wifi,
+            AppLocalizations.of(context).networkSettings,
+            AppLocalizations.of(context).networkSettingsSubtitle,
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NetworkSettingsPage(),
                 ),
               );
             },

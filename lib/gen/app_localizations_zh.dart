@@ -180,7 +180,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dataSourceSettings => '数据源设置';
 
   @override
-  String get dataSourceSubtitle => '设置 bgmlist, bangumi, 蜜柑计划的 base URL';
+  String get dataSourceSubtitle => '播放源订阅地址与订阅源开关';
+
+  @override
+  String get networkSettings => '网络设置';
+
+  @override
+  String get networkSettingsTitle => '网络设置';
+
+  @override
+  String get networkSettingsSubtitle => 'base URL、请求方式、反代、ECH 与 DoH';
 
   @override
   String get searchSettings => '搜索设置';
@@ -1217,4 +1226,34 @@ class AppLocalizationsZh extends AppLocalizations {
   String bangumiEchDohPriority(Object index) {
     return '优先级 #$index';
   }
+
+  @override
+  String get manageUrls => '管理 URL';
+
+  @override
+  String get manageUrlsTitle => '管理可选 URL';
+
+  @override
+  String get addUrl => '添加';
+
+  @override
+  String get addUrlHint => 'https://...';
+
+  @override
+  String get builtinUrl => '内置';
+
+  @override
+  String get removeUrl => '移除';
+
+  @override
+  String get builtinUrlCannotRemove => '内置 URL 不可删除';
+
+  @override
+  String get urlAlreadyExists => '该 URL 已存在';
+
+  @override
+  String get invalidUrl => '请输入有效的 URL（以 http:// 或 https:// 开头）';
+
+  @override
+  String get bangumiBaseUrlHidden => '已启用 ECH 或反代，Bangumi Base URL 不生效';
 }
