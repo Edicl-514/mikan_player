@@ -8,6 +8,11 @@ pub struct RuntimeConfig {
     pub bangumi_next_url: String,
     pub bangumi_lain_url: String,
     pub bangumi_use_reverse_proxy: bool,
+    pub bangumi_use_ech: bool,
+    /// User-configured DoH endpoint list for fetching Cloudflare's ECHConfig.
+    /// Ordered: index 0 is tried first. Empty means "use the compiled-in
+    /// defaults from `crate::api::ech::DEFAULT_DOH_ENDPOINTS`".
+    pub bangumi_doh_endpoints: Vec<String>,
     pub mikan_url: String,
     pub playback_sub_url: String,
     pub bangumi_request_mode: String,
@@ -25,6 +30,8 @@ lazy_static! {
         bangumi_next_url: "https://next.bgm.tv".to_string(),
         bangumi_lain_url: "https://lain.bgm.tv".to_string(),
         bangumi_use_reverse_proxy: false,
+        bangumi_use_ech: true,
+        bangumi_doh_endpoints: vec![],
         mikan_url: "https://mikanani.kas.pub".to_string(),
         playback_sub_url: "https://gitee.com/edicl/online-subscription/raw/master/online.json"
             .to_string(),
@@ -46,6 +53,26 @@ lazy_static! {
 /// (bgm.tv / bangumi.tv / chii.in / api.bgm.tv / next.bgm.tv / lain.bgm.tv /
 /// fast.bgm.tv / doujin.bgm.tv) and `mirror_host` is the corresponding reverse-proxy
 /// host that fronts the same upstream.
+///
+/// === Interaction with ECH (`bangumi_use_ech`) ===
+/// ECH (`bangumi_use_ech`) and the reverse-proxy toggle (`bangumi_use_reverse_proxy`)
+/// are **independent** runtime flags with no schema-level conflict, but their effective
+/// product is:
+///
+///   * `use_ech=off, use_proxy=off` — direct to `*.bgm.tv` / `chii.in`. Will fail in
+///     mainland China where the firewall RSTs on the SNI.
+///   * `use_ech=on,  use_proxy=off` — direct to `*.bgm.tv` / `chii.in` but with the
+///     inner SNI HPKE-encrypted under Cloudflare's shared `cloudflare-ech.com`
+///     public name. Works when every real bangumi domain is on Cloudflare (true
+///     today; covers `api.bgm.tv`, `next.bgm.tv`, `lain.bgm.tv`, `bgm.tv`,
+///     `bangumi.tv`, `chii.in`).
+///   * `use_ech=off, use_proxy=on`  — direct to the `*.bangumi.lol` mirrors.
+///     Depends on the mirrors being reachable.
+///   * `use_ech=on,  use_proxy=on`  — direct to the `*.bangumi.lol` mirrors with
+///     HPKE encryption. Works only when the mirror is also Cloudflare-fronted
+///     with ECH enabled; not guaranteed for arbitrary mirror operators.
+///
+/// See `crate::api::ech` for the ECH plumbing.
 const BANGUMI_HOST_PAIRS: &[(&str, &str)] = &[
     // Main site
     ("bangumi.tv", "bangumi.lol"),
@@ -127,6 +154,19 @@ pub fn set_bangumi_reverse_proxy(enabled: bool) {
 
 pub fn get_bangumi_reverse_proxy() -> bool {
     CONFIG.read().unwrap().bangumi_use_reverse_proxy
+}
+
+pub fn set_bangumi_use_ech(enabled: bool) {
+    let mut config = CONFIG.write().unwrap();
+    config.bangumi_use_ech = enabled;
+    log::info!(
+        "Bangumi ECH {}",
+        if enabled { "enabled" } else { "disabled" }
+    );
+}
+
+pub fn get_bangumi_use_ech() -> bool {
+    CONFIG.read().unwrap().bangumi_use_ech
 }
 
 pub fn get_bgmlist_url() -> String {
@@ -251,6 +291,118 @@ pub fn set_max_concurrent_searches(limit: u32) {
 
 pub fn get_max_concurrent_searches() -> u32 {
     CONFIG.read().unwrap().max_concurrent_searches
+}
+
+/// Returns the user-configured DoH endpoint list (ordered, first = highest
+/// priority). Empty means "no user override — use the compiled-in defaults".
+pub fn get_bangumi_doh_endpoints() -> Vec<String> {
+    CONFIG.read().unwrap().bangumi_doh_endpoints.clone()
+}
+
+/// Replace the user-configured DoH endpoint list. Invalid entries (empty,
+/// non-https, not a valid URL) are filtered out so we don't store something
+/// we know is unusable. Invalidates the ECH client so the next request
+/// rebuilds its rustls config with the new DoH list.
+pub fn set_bangumi_doh_endpoints(endpoints: Vec<String>) {
+    let cleaned: Vec<String> = endpoints
+        .into_iter()
+        .map(|s| normalize_url(&s))
+        .filter(|s| !s.is_empty() && s.starts_with("https://"))
+        .collect();
+    {
+        let mut config = CONFIG.write().unwrap();
+        config.bangumi_doh_endpoints = cleaned.clone();
+    }
+    log::info!(
+        "Bangumi DoH endpoint list updated: {:?}",
+        cleaned
+    );
+    crate::api::network::invalidate_ech_client();
+}
+
+/// Append `endpoint` to the end of the user DoH list. Returns the new
+/// length of the list. Returns 0 (and does nothing) when the endpoint is
+/// not a valid https URL.
+pub fn add_bangumi_doh_endpoint(endpoint: String) -> usize {
+    let cleaned = normalize_url(&endpoint);
+    if cleaned.is_empty() || !cleaned.starts_with("https://") {
+        log::warn!("Rejecting non-https DoH endpoint: {endpoint}");
+        return 0;
+    }
+    let len;
+    let mut added = false;
+    {
+        let mut config = CONFIG.write().unwrap();
+        if !config.bangumi_doh_endpoints.iter().any(|s| s == &cleaned) {
+            config.bangumi_doh_endpoints.push(cleaned.clone());
+            added = true;
+        }
+        len = config.bangumi_doh_endpoints.len();
+    }
+    if added {
+        crate::api::network::invalidate_ech_client();
+    }
+    log::info!("Added DoH endpoint {} (total {})", cleaned, len);
+    len
+}
+
+/// Remove every occurrence of `endpoint` (exact match after normalisation)
+/// from the user DoH list. Returns the new length of the list.
+pub fn remove_bangumi_doh_endpoint(endpoint: String) -> usize {
+    let target = normalize_url(&endpoint);
+    let (len, removed);
+    {
+        let mut config = CONFIG.write().unwrap();
+        let before = config.bangumi_doh_endpoints.len();
+        config.bangumi_doh_endpoints.retain(|s| s != &target);
+        removed = config.bangumi_doh_endpoints.len() != before;
+        len = config.bangumi_doh_endpoints.len();
+    }
+    if removed {
+        crate::api::network::invalidate_ech_client();
+    }
+    log::info!("Removed DoH endpoint {} (remaining {})", target, len);
+    len
+}
+
+/// Move the entry currently at `from` to position `to`. Out-of-range indices
+/// are clamped silently. No-op when `from == to`. Returns the resulting list
+/// so the caller can echo it back to the UI.
+pub fn move_bangumi_doh_endpoint(from: usize, to: usize) -> Vec<String> {
+    let mut config = CONFIG.write().unwrap();
+    let len = config.bangumi_doh_endpoints.len();
+    if len == 0 || from >= len {
+        return config.bangumi_doh_endpoints.clone();
+    }
+    let from_clamped = from.min(len - 1);
+    let to_clamped = to.min(len.saturating_sub(1));
+    if from_clamped == to_clamped {
+        return config.bangumi_doh_endpoints.clone();
+    }
+    let item = config.bangumi_doh_endpoints.remove(from_clamped);
+    config.bangumi_doh_endpoints.insert(to_clamped, item);
+    let snapshot = config.bangumi_doh_endpoints.clone();
+    drop(config);
+    crate::api::network::invalidate_ech_client();
+    log::info!(
+        "Moved DoH endpoint {} -> {} (now {:?})",
+        from_clamped,
+        to_clamped,
+        snapshot
+    );
+    snapshot
+}
+
+/// Reset the user DoH list back to empty (= "use compiled-in defaults").
+pub fn reset_bangumi_doh_endpoints() {
+    let mut config = CONFIG.write().unwrap();
+    let was_non_empty = !config.bangumi_doh_endpoints.is_empty();
+    config.bangumi_doh_endpoints.clear();
+    drop(config);
+    if was_non_empty {
+        crate::api::network::invalidate_ech_client();
+    }
+    log::info!("Bangumi DoH endpoints reset to defaults");
 }
 
 /// Resolve the canonical real-host for a given bangumi host (i.e. the form the upstream

@@ -1,6 +1,8 @@
+use anyhow::Context;
 use chrono::{Local, TimeZone};
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 // Struct definitions matching the generated bridge code
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,7 +98,7 @@ async fn fetch_bangumi_episodes_rest(subject_id: i64) -> anyhow::Result<Vec<Bang
             offset
         );
 
-        let resp = crate::api::network::retry_request("fetch_bangumi_episodes", |client| {
+        let resp = crate::api::network::retry_request_bangumi("fetch_bangumi_episodes", |client| {
             client.get(&url).header("accept", "application/json")
         })
         .await?;
@@ -185,7 +187,7 @@ async fn fetch_bangumi_episodes_next(subject_id: i64) -> anyhow::Result<Vec<Bang
             offset
         );
 
-        let resp = crate::api::network::retry_request("fetch_bangumi_episodes.next", |client| {
+        let resp = crate::api::network::retry_request_bangumi("fetch_bangumi_episodes.next", |client| {
             client.get(&url).header("accept", "application/json")
         })
         .await?;
@@ -278,7 +280,7 @@ async fn fetch_bangumi_characters_rest(subject_id: i64) -> anyhow::Result<Vec<Ba
         subject_id
     );
 
-    let resp = crate::api::network::retry_request("fetch_bangumi_characters", |client| {
+    let resp = crate::api::network::retry_request_bangumi("fetch_bangumi_characters", |client| {
         client.get(&url).header("accept", "application/json")
     })
     .await?;
@@ -333,7 +335,7 @@ async fn fetch_bangumi_characters_next(subject_id: i64) -> anyhow::Result<Vec<Ba
         subject_id
     );
 
-    let resp = crate::api::network::retry_request("fetch_bangumi_characters.next", |client| {
+    let resp = crate::api::network::retry_request_bangumi("fetch_bangumi_characters.next", |client| {
         client.get(&url).header("accept", "application/json")
     })
     .await?;
@@ -403,7 +405,7 @@ pub async fn fetch_bangumi_relations(
         subject_id
     );
 
-    let resp = crate::api::network::retry_request("fetch_bangumi_relations", |client| {
+    let resp = crate::api::network::retry_request_bangumi("fetch_bangumi_relations", |client| {
         client.get(&url).header("accept", "application/json")
     })
     .await?;
@@ -497,7 +499,7 @@ async fn fetch_bangumi_comments_legacy(
     );
 
     let resp =
-        crate::api::network::retry_request(BANGUMI_SUBJECT_COMMENTS_LEGACY_LABEL, |client| {
+        crate::api::network::retry_request_bangumi(BANGUMI_SUBJECT_COMMENTS_LEGACY_LABEL, |client| {
             client.get(&url)
         })
         .await?;
@@ -650,7 +652,7 @@ pub async fn fetch_bangumi_persons(subject_id: i64) -> anyhow::Result<Vec<Bangum
         subject_id
     );
 
-    let resp = crate::api::network::retry_request("fetch_bangumi_persons", |client| {
+    let resp = crate::api::network::retry_request_bangumi("fetch_bangumi_persons", |client| {
         client.get(&url).header("accept", "application/json")
     })
     .await?;
@@ -748,7 +750,7 @@ async fn fetch_bangumi_episode_comments_legacy(
         episode_id
     );
     let resp =
-        crate::api::network::retry_request(BANGUMI_EPISODE_COMMENTS_LEGACY_LABEL, |client| {
+        crate::api::network::retry_request_bangumi(BANGUMI_EPISODE_COMMENTS_LEGACY_LABEL, |client| {
             client.get(&url)
         })
         .await?;
@@ -988,7 +990,6 @@ fn normalize_avatar_url(value: Option<&str>) -> String {
 }
 
 fn normalize_bangumi_url(value: &str) -> String {
-    use crate::api::config::rewrite_bangumi_url;
 
     if value.is_empty() {
         return value.to_string();
@@ -1340,7 +1341,7 @@ async fn fetch_bangumi_comments_next(
         "/p1/subjects/{subject_id}/comments?limit={BANGUMI_NEXT_COMMENTS_PAGE_SIZE}&offset={offset}"
     ));
 
-    let resp = crate::api::network::retry_request_with_status(
+    let resp = crate::api::network::retry_request_bangumi_with_status(
         BANGUMI_SUBJECT_COMMENTS_NEXT_LABEL,
         |client| client.get(&url).header("accept", "application/json"),
         true,
@@ -1429,7 +1430,7 @@ async fn fetch_bangumi_episode_comments_next(
 ) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
     let url = bangumi_next_url(&format!("/p1/episodes/{episode_id}/comments"));
 
-    let resp = crate::api::network::retry_request_with_status(
+    let resp = crate::api::network::retry_request_bangumi_with_status(
         BANGUMI_EPISODE_COMMENTS_NEXT_LABEL,
         |client| client.get(&url).header("accept", "application/json"),
         true,
@@ -1515,7 +1516,7 @@ pub async fn fetch_character_details(character_id: i64) -> anyhow::Result<Charac
         character_id
     );
 
-    let resp = crate::api::network::retry_request("fetch_character_details", |client| {
+    let resp = crate::api::network::retry_request_bangumi("fetch_character_details", |client| {
         client.get(&url).header("accept", "application/json")
     })
     .await?;
@@ -1648,7 +1649,7 @@ pub async fn fetch_person_details(person_id: i64) -> anyhow::Result<PersonDetail
         person_id
     );
 
-    let resp = crate::api::network::retry_request("fetch_person_details", |client| {
+    let resp = crate::api::network::retry_request_bangumi("fetch_person_details", |client| {
         client.get(&url).header("accept", "application/json")
     })
     .await?;
@@ -1735,7 +1736,7 @@ pub async fn fetch_person_subjects(person_id: i64) -> anyhow::Result<Vec<PersonS
         person_id
     );
 
-    let resp = crate::api::network::retry_request("fetch_person_subjects", |client| {
+    let resp = crate::api::network::retry_request_bangumi("fetch_person_subjects", |client| {
         client.get(&url).header("accept", "application/json")
     })
     .await?;
@@ -1782,7 +1783,7 @@ pub async fn fetch_person_characters(person_id: i64) -> anyhow::Result<Vec<Perso
         person_id
     );
 
-    let resp = crate::api::network::retry_request("fetch_person_characters", |client| {
+    let resp = crate::api::network::retry_request_bangumi("fetch_person_characters", |client| {
         client.get(&url).header("accept", "application/json")
     })
     .await?;
@@ -1849,10 +1850,10 @@ pub async fn fetch_character_subjects(character_id: i64) -> anyhow::Result<Vec<C
     );
 
     let (subjects_resp, persons_resp) = tokio::join!(
-        crate::api::network::retry_request("fetch_character_subjects/subjects", |client| client
+        crate::api::network::retry_request_bangumi("fetch_character_subjects/subjects", |client| client
             .get(&subjects_url)
             .header("accept", "application/json"),),
-        crate::api::network::retry_request("fetch_character_subjects/persons", |client| client
+        crate::api::network::retry_request_bangumi("fetch_character_subjects/persons", |client| client
             .get(&persons_url)
             .header("accept", "application/json"),)
     );
@@ -1944,6 +1945,272 @@ pub async fn fetch_character_subjects(character_id: i64) -> anyhow::Result<Vec<C
     result.sort_by(|a, b| b.id.cmp(&a.id));
 
     Ok(result)
+}
+
+// ============================================================================
+// User info, collections and subject cover image
+// ============================================================================
+//
+// These three endpoints used to be fetched from Dart via `dart:io HttpClient`
+// directly, which doesn't speak ECH. After enabling ECH for SNI cloaking we
+// need bangumi traffic on the Rust side so it goes through the rustls+ECH
+// client. The wire format returned here is the **canonical** bangumi JSON
+// (with the unproxied host); callers on the Dart side apply URL rewriting
+// afterwards via `BangumiUrlRewriter`.
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiUserInfo {
+    pub id: i64,
+    pub username: String,
+    pub nickname: String,
+    pub sign: Option<String>,
+    pub url: Option<String>,
+    pub avatar_large: Option<String>,
+    pub avatar_medium: Option<String>,
+    pub avatar_small: Option<String>,
+}
+
+/// `GET /v0/users/{username}` — public user profile lookup.
+pub async fn fetch_bangumi_user_info(username: String) -> anyhow::Result<BangumiUserInfo> {
+    let url = format!(
+        "{}/v0/users/{}",
+        crate::api::config::get_bangumi_api_url(),
+        urlencoding::encode(&username)
+    );
+    let resp = crate::api::network::retry_request_bangumi("bangumi.user.info", |client| {
+        client
+            .get(&url)
+            .header("accept", "application/json")
+            .header("User-Agent", "MikanPlayer/1.0.0 (flutter)")
+    })
+    .await?;
+    let status = resp.status();
+    let body = resp.text().await?;
+    if !status.is_success() {
+        anyhow::bail!("bangumi.user.info HTTP {status}: {}", truncate(&body, 256));
+    }
+    let json: Value = serde_json::from_str(&body)
+        .with_context(|| format!("bangumi.user.info: invalid JSON: {}", truncate(&body, 256)))?;
+
+    let avatar = json.get("avatar").cloned().unwrap_or(Value::Null);
+    Ok(BangumiUserInfo {
+        id: json.get("id").and_then(|v| v.as_i64()).unwrap_or(0),
+        username: json
+            .get("username")
+            .and_then(|v| v.as_str())
+            .unwrap_or(&username)
+            .to_string(),
+        nickname: json
+            .get("nickname")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        sign: json.get("sign").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        url: json.get("url").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        avatar_large: avatar.get("large").and_then(|v| v.as_str()).map(str::to_string),
+        avatar_medium: avatar.get("medium").and_then(|v| v.as_str()).map(str::to_string),
+        avatar_small: avatar.get("small").and_then(|v| v.as_str()).map(str::to_string),
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiUserCollectionEntry {
+    pub updated_at: String,
+    pub comment: String,
+    pub tags: Vec<String>,
+    pub subject_id: i64,
+    /// 1=想看, 2=看过, 3=在看, 4=搁置, 5=抛弃
+    pub collection_type: i32,
+    pub rate: i32,
+    pub private: bool,
+    pub subject_name: String,
+    pub subject_name_cn: String,
+    pub subject_short_summary: String,
+    pub subject_score: f64,
+    pub subject_eps: i32,
+    pub subject_collection_total: i32,
+    pub image_small: String,
+    pub image_grid: String,
+    pub image_large: String,
+    pub image_medium: String,
+    pub image_common: String,
+}
+
+/// `GET /v0/users/{username}/collections?subject_type=&limit=&offset=`
+pub async fn fetch_bangumi_user_collections(
+    username: String,
+    subject_type: i32,
+    limit: i32,
+    offset: i32,
+) -> anyhow::Result<Vec<BangumiUserCollectionEntry>> {
+    let url = format!(
+        "{}/v0/users/{}/collections?subject_type={}&limit={}&offset={}",
+        crate::api::config::get_bangumi_api_url(),
+        urlencoding::encode(&username),
+        subject_type,
+        limit,
+        offset
+    );
+    let label = "bangumi.user.collections";
+    let resp = crate::api::network::retry_request_bangumi(label, |client| {
+        client
+            .get(&url)
+            .header("accept", "application/json")
+            .header("User-Agent", "MikanPlayer/1.0.0 (flutter)")
+    })
+    .await?;
+    let status = resp.status();
+    let body = resp.text().await?;
+    if !status.is_success() {
+        anyhow::bail!("{label} HTTP {status}: {}", truncate(&body, 256));
+    }
+    let json: Value = serde_json::from_str(&body)
+        .with_context(|| format!("{label}: invalid JSON: {}", truncate(&body, 256)))?;
+
+    let arr = json
+        .get("data")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| anyhow::anyhow!("{label}: response missing data[]"))?;
+
+    let mut out = Vec::with_capacity(arr.len());
+    for item in arr {
+        let subject = item.get("subject").cloned().unwrap_or(Value::Null);
+        let images = subject.get("images").cloned().unwrap_or(Value::Null);
+
+        out.push(BangumiUserCollectionEntry {
+            updated_at: item
+                .get("updated_at")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            comment: item
+                .get("comment")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            tags: item
+                .get("tags")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|t| t.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            subject_id: item.get("subject_id").and_then(|v| v.as_i64()).unwrap_or(0),
+            collection_type: item.get("type").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
+            rate: item.get("rate").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
+            private: item
+                .get("private")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
+            subject_name: subject
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            subject_name_cn: subject
+                .get("name_cn")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            subject_short_summary: subject
+                .get("short_summary")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            subject_score: subject.get("score").and_then(|v| v.as_f64()).unwrap_or(0.0),
+            subject_eps: subject.get("eps").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
+            subject_collection_total: subject
+                .get("collection_total")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0) as i32,
+            image_small: images.get("small").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            image_grid: images.get("grid").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            image_large: images.get("large").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            image_medium: images.get("medium").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            image_common: images.get("common").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        });
+    }
+    Ok(out)
+}
+
+/// `GET /v0/subjects/{subject_id}/image?type={image_type}`
+///
+/// Returns the raw bytes (caller writes them to disk or hands them to an
+/// `Image.memory` widget). Pass-through byte stream — no caching here.
+pub async fn fetch_bangumi_subject_image(
+    subject_id: i64,
+    image_type: String,
+) -> anyhow::Result<Vec<u8>> {
+    let url = format!(
+        "{}/v0/subjects/{}/image?type={}",
+        crate::api::config::get_bangumi_api_url(),
+        subject_id,
+        image_type
+    );
+    let resp = crate::api::network::retry_request_bangumi("bangumi.subject.image", |client| {
+        client
+            .get(&url)
+            .header("accept", "image/*")
+            .header("User-Agent", "MikanPlayer/1.0.0 (flutter)")
+    })
+    .await?;
+    let status = resp.status();
+    if !status.is_success() {
+        anyhow::bail!("bangumi.subject.image HTTP {status}");
+    }
+    let bytes = resp.bytes().await?;
+    Ok(bytes.to_vec())
+}
+
+/// Fetch raw bytes from any bangumi-hosted image URL (avatars on `lain.*`,
+/// subject covers, protocol-relative CDN links, etc.) through the ECH-capable
+/// Rust HTTP client.
+pub async fn fetch_bangumi_image_url(url: String) -> anyhow::Result<Vec<u8>> {
+    let normalized = normalize_bangumi_url(&url);
+    let parsed = reqwest::Url::parse(&normalized)
+        .with_context(|| format!("bangumi.image.url invalid URL: {normalized}"))?;
+    let host = parsed
+        .host_str()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let is_bangumi_host = matches!(
+        host.as_str(),
+        "bgm.tv" | "bangumi.tv" | "chii.in" | "bangumi.lol"
+    ) || host.ends_with(".bgm.tv")
+        || host.ends_with(".bangumi.tv")
+        || host.ends_with(".chii.in")
+        || host.ends_with(".bangumi.lol");
+    if !is_bangumi_host {
+        anyhow::bail!("bangumi.image.url host not allowed: {host}");
+    }
+
+    let resp = crate::api::network::retry_request_bangumi("bangumi.image.url", |client| {
+        client
+            .get(parsed.clone())
+            .header("accept", "image/*")
+            .header("User-Agent", "MikanPlayer/1.0.0 (flutter)")
+    })
+    .await?;
+    let status = resp.status();
+    if !status.is_success() {
+        anyhow::bail!("bangumi.image.url HTTP {status}");
+    }
+    Ok(resp.bytes().await?.to_vec())
+}
+
+fn truncate(s: &str, max: usize) -> &str {
+    if s.len() <= max {
+        s
+    } else {
+        // Find a char boundary near `max` to avoid splitting UTF-8.
+        let mut idx = max;
+        while idx > 0 && !s.is_char_boundary(idx) {
+            idx -= 1;
+        }
+        &s[..idx]
+    }
 }
 
 #[cfg(test)]

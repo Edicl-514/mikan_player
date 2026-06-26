@@ -16,6 +16,7 @@ import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
+import 'package:mikan_player/services/bangumi_ech_service.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
@@ -116,6 +117,7 @@ Future<void> _syncRuntimeSettings() async {
         prefs.getString('playback_sub_url') ??
         'https://gitee.com/edicl/online-subscription/raw/master/online.json';
     final useReverseProxy = await BangumiReverseProxyService.load();
+    final useEch = await BangumiEchService.load();
 
     await rust.updateConfig(
       bgm: bgm,
@@ -124,6 +126,7 @@ Future<void> _syncRuntimeSettings() async {
       playbackSub: playbackSub,
       useReverseProxy: useReverseProxy,
     );
+    await rust.setBangumiUseEch(enabled: useEch);
 
     final disabledSources = prefs.getStringList('disabled_sources') ?? [];
     await rust.setDisabledSources(sources: disabledSources);
@@ -168,6 +171,11 @@ Future<void> _runDeferredStartupTasks() async {
 
     debugPrint('Preloading playback source config after first frame...');
     await rust.preloadPlaybackSourceConfig();
+
+    // Warm up the ECHConfig cache so the first bangumi request can use ECH.
+    // Failures are swallowed inside the Rust side; the HTTP layer will fall
+    // back to plaintext SNI when no ECHConfig is available.
+    await BangumiEchService.warmup();
 
     if (prefs.getStringList('disabled_sources') == null) {
       final initialDisabledSources = await _loadInitialDisabledSourcesFromCache();

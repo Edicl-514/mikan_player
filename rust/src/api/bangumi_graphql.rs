@@ -1,6 +1,12 @@
 use anyhow::Context;
-use serde_json::Value;
 use std::collections::HashMap;
+
+// Re-export so `flutter_rust_bridge_codegen` regenerates `frb_generated.rs`
+// with `Value` in scope. The generated file does
+//   use crate::api::bangumi_graphql::*;
+// and the auto-generated `SseDecode` impls reference the bare name `Value`.
+#[allow(unused_imports)]
+pub use serde_json::Value;
 
 const BANGUMI_SUBJECT_GRAPHQL_BATCH_SIZE: usize = 20;
 const BANGUMI_SUBJECT_GRAPHQL_FRAGMENT: &str = r#"
@@ -71,7 +77,7 @@ pub async fn execute_bangumi_graphql(
     });
     let label = format!("{}.request", action_name);
 
-    let resp = crate::api::network::retry_request(&label, |client| {
+    let resp = crate::api::network::retry_request_bangumi(&label, |client| {
         client
             .post(&url)
             .header("Content-Type", "application/json")

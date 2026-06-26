@@ -2251,6 +2251,132 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'开启后将所有Bangumi请求路由到反代地址。'**
   String get bangumiReverseProxyDescription;
+
+  /// No description provided for @bangumiEchTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用 ECH 加密 SNI'**
+  String get bangumiEchTitle;
+
+  /// No description provided for @bangumiEchDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'通过 Encrypted Client Hello 加密真实域名，绕过 SNI 黑名单。默认开启；中国大陆推荐。'**
+  String get bangumiEchDescription;
+
+  /// No description provided for @bangumiEchRefreshTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新 ECH 公钥'**
+  String get bangumiEchRefreshTitle;
+
+  /// No description provided for @bangumiEchRefreshDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'按优先级从 DoH 列表重新拉取 ECHConfig（缓存约 1 小时）'**
+  String get bangumiEchRefreshDescription;
+
+  /// No description provided for @bangumiEchRefreshSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'已更新（{bytes} 字节）'**
+  String bangumiEchRefreshSuccess(Object bytes);
+
+  /// No description provided for @bangumiEchRefreshFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新失败，将回退到普通模式'**
+  String get bangumiEchRefreshFailed;
+
+  /// No description provided for @bangumiEchDohListTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'DoH 端点列表'**
+  String get bangumiEchDohListTitle;
+
+  /// No description provided for @bangumiEchDohListDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'用于查询 Cloudflare 的 HTTPS RR 以获取 ECH 公钥。按顺序尝试，第一个可用的生效。留空使用内置默认值。'**
+  String get bangumiEchDohListDescription;
+
+  /// No description provided for @bangumiEchDohListEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前为空，使用内置默认 DoH'**
+  String get bangumiEchDohListEmpty;
+
+  /// No description provided for @bangumiEchDohAddTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加 DoH 端点'**
+  String get bangumiEchDohAddTitle;
+
+  /// No description provided for @bangumiEchDohAddHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'https://your-doh.example/dns-query'**
+  String get bangumiEchDohAddHint;
+
+  /// No description provided for @bangumiEchDohAddInvalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入以 https:// 开头的 URL'**
+  String get bangumiEchDohAddInvalid;
+
+  /// No description provided for @bangumiEchDohMoveUp.
+  ///
+  /// In zh, this message translates to:
+  /// **'上移'**
+  String get bangumiEchDohMoveUp;
+
+  /// No description provided for @bangumiEchDohMoveDown.
+  ///
+  /// In zh, this message translates to:
+  /// **'下移'**
+  String get bangumiEchDohMoveDown;
+
+  /// No description provided for @bangumiEchDohRemove.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除'**
+  String get bangumiEchDohRemove;
+
+  /// No description provided for @bangumiEchDohReset.
+  ///
+  /// In zh, this message translates to:
+  /// **'恢复默认'**
+  String get bangumiEchDohReset;
+
+  /// No description provided for @bangumiEchDohResetConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定清空自定义 DoH 列表并使用内置默认值？'**
+  String get bangumiEchDohResetConfirm;
+
+  /// No description provided for @bangumiEchDohTestTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'测试该 DoH'**
+  String get bangumiEchDohTestTitle;
+
+  /// No description provided for @bangumiEchDohTestSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'成功：获取到 {bytes} 字节 ECHConfig'**
+  String bangumiEchDohTestSuccess(Object bytes);
+
+  /// No description provided for @bangumiEchDohTestFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'该 DoH 不可达或返回内容不含 ECHConfig'**
+  String get bangumiEchDohTestFailed;
+
+  /// No description provided for @bangumiEchDohPriority.
+  ///
+  /// In zh, this message translates to:
+  /// **'优先级 #{index}'**
+  String bangumiEchDohPriority(Object index);
 }
 
 class _AppLocalizationsDelegate

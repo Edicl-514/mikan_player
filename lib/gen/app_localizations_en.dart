@@ -1172,4 +1172,79 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get bangumiReverseProxyDescription =>
       'When enabled, all Bangumi requests are routed through the mirror.';
+
+  @override
+  String get bangumiEchTitle => 'Encrypt SNI with ECH';
+
+  @override
+  String get bangumiEchDescription =>
+      'Hide the real hostname via Encrypted Client Hello to bypass SNI blacklists. On by default; recommended in mainland China.';
+
+  @override
+  String get bangumiEchRefreshTitle => 'Refresh ECH public key';
+
+  @override
+  String get bangumiEchRefreshDescription =>
+      'Re-fetch the ECHConfig from the DoH list in priority order (cached for ~1 hour)';
+
+  @override
+  String bangumiEchRefreshSuccess(Object bytes) {
+    return 'Updated ($bytes bytes)';
+  }
+
+  @override
+  String get bangumiEchRefreshFailed =>
+      'Refresh failed — will fall back to plain mode';
+
+  @override
+  String get bangumiEchDohListTitle => 'DoH endpoint list';
+
+  @override
+  String get bangumiEchDohListDescription =>
+      'Used to query Cloudflare\'s HTTPS RR for the ECH public key. Tried in order; the first reachable one wins. Leave empty to use the built-in defaults.';
+
+  @override
+  String get bangumiEchDohListEmpty => 'Empty — using built-in defaults';
+
+  @override
+  String get bangumiEchDohAddTitle => 'Add DoH endpoint';
+
+  @override
+  String get bangumiEchDohAddHint => 'https://your-doh.example/dns-query';
+
+  @override
+  String get bangumiEchDohAddInvalid => 'URL must start with https://';
+
+  @override
+  String get bangumiEchDohMoveUp => 'Move up';
+
+  @override
+  String get bangumiEchDohMoveDown => 'Move down';
+
+  @override
+  String get bangumiEchDohRemove => 'Remove';
+
+  @override
+  String get bangumiEchDohReset => 'Reset to defaults';
+
+  @override
+  String get bangumiEchDohResetConfirm =>
+      'Clear your custom DoH list and fall back to the built-in defaults?';
+
+  @override
+  String get bangumiEchDohTestTitle => 'Test this DoH';
+
+  @override
+  String bangumiEchDohTestSuccess(Object bytes) {
+    return 'OK — received $bytes bytes of ECHConfig';
+  }
+
+  @override
+  String get bangumiEchDohTestFailed =>
+      'Unreachable or response contained no ECHConfig';
+
+  @override
+  String bangumiEchDohPriority(Object index) {
+    return 'Priority #$index';
+  }
 }

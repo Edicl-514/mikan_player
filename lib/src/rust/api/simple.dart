@@ -97,6 +97,61 @@ Future<bool> pauseTorrent({required String infoHash}) =>
 Future<bool> resumeTorrent({required String infoHash}) =>
     RustLib.instance.api.crateApiSimpleResumeTorrent(infoHash: infoHash);
 
+Future<void> setBangumiUseEch({required bool enabled}) =>
+    RustLib.instance.api.crateApiSimpleSetBangumiUseEch(enabled: enabled);
+
+Future<bool> getBangumiUseEch() =>
+    RustLib.instance.api.crateApiSimpleGetBangumiUseEch();
+
+/// Refresh the Cloudflare ECHConfig cache. Returns the byte length of the
+/// newly-cached ECHConfigList, or 0 on failure.
+Future<BigInt> refreshBangumiEchConfig() =>
+    RustLib.instance.api.crateApiSimpleRefreshBangumiEchConfig();
+
+/// Warm up the ECHConfig cache if ECH is enabled and we don't have a fresh one.
+/// Safe to call from `main()` at startup. Errors are swallowed: the HTTP layer
+/// falls back to plaintext SNI when no ECHConfig is available.
+Future<void> warmupBangumiEchConfig() =>
+    RustLib.instance.api.crateApiSimpleWarmupBangumiEchConfig();
+
+/// Return the user-configured DoH endpoint list (first = highest priority).
+/// Empty means "use compiled-in defaults from `crate::api::ech`".
+Future<List<String>> getBangumiDohEndpoints() =>
+    RustLib.instance.api.crateApiSimpleGetBangumiDohEndpoints();
+
+/// Replace the user DoH list wholesale. Invalid entries are filtered out.
+Future<List<String>> setBangumiDohEndpoints({
+  required List<String> endpoints,
+}) => RustLib.instance.api.crateApiSimpleSetBangumiDohEndpoints(
+  endpoints: endpoints,
+);
+
+/// Append a DoH endpoint to the end of the user list. Returns the resulting
+/// list. Rejects non-https URLs.
+Future<List<String>> addBangumiDohEndpoint({required String endpoint}) =>
+    RustLib.instance.api.crateApiSimpleAddBangumiDohEndpoint(
+      endpoint: endpoint,
+    );
+
+/// Remove a DoH endpoint from the user list. Returns the resulting list.
+Future<List<String>> removeBangumiDohEndpoint({required String endpoint}) =>
+    RustLib.instance.api.crateApiSimpleRemoveBangumiDohEndpoint(
+      endpoint: endpoint,
+    );
+
+/// Reorder: move the entry at `from` to `to`. Returns the resulting list.
+Future<List<String>> moveBangumiDohEndpoint({
+  required BigInt from,
+  required BigInt to,
+}) => RustLib.instance.api.crateApiSimpleMoveBangumiDohEndpoint(
+  from: from,
+  to: to,
+);
+
+/// Reset the user DoH list back to empty (= use compiled-in defaults).
+Future<List<String>> resetBangumiDohEndpoints() =>
+    RustLib.instance.api.crateApiSimpleResetBangumiDohEndpoints();
+
 /// Torrent download statistics
 class TorrentStats {
   final String infoHash;

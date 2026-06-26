@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
@@ -13,6 +12,7 @@ import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/src/rust/api/bangumi.dart';
+import 'package:mikan_player/src/rust/api/bangumi.dart' as rust_bangumi;
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/pages/favorites_page.dart';
@@ -230,33 +230,55 @@ class _HomePcPageState extends State<HomePcPage> {
       if (_userManager.isLoggedIn) {
         try {
           final username = _userManager.user!.username;
-          final client = HttpClient()
-            ..connectionTimeout = const Duration(seconds: 10);
+          final raw = await rust_bangumi.fetchBangumiUserCollections(
+            username: username,
+            subjectType: 2,
+            limit: 20,
+            offset: 0,
+          );
           final apiHost = await BangumiUrlRewriter.hostFor('api');
-          final url = BangumiUrlRewriter.rewrite(
-            'https://api.bgm.tv/v0/users/$username/collections?subject_type=2&limit=20&offset=0',
-          ).replaceFirst('api.bgm.tv', apiHost);
-          final request = await client.getUrl(Uri.parse(url));
-          request.headers.add('accept', 'application/json');
-          request.headers.add('User-Agent', 'MikanPlayer/1.0.0 (flutter)');
+          String rewrite(String url) {
+            if (url.isEmpty) return url;
+            return BangumiUrlRewriter.rewrite(url).replaceFirst('api.bgm.tv', apiHost);
+          }
 
-          final response = await request.close().timeout(const Duration(seconds: 15));
-          if (response.statusCode == 200) {
-            final responseBody = await response.transform(utf8.decoder).join();
-            final json = jsonDecode(responseBody);
-            final data = json['data'] as List;
-            final collections = data
-                .map((e) => BangumiUserCollection.fromJson(e))
-                .toList();
+          final collections = raw
+              .map(
+                (e) => BangumiUserCollection(
+                  date: e.updatedAt,
+                  comment: e.comment,
+                  tags: e.tags,
+                  subjectId: e.subjectId,
+                  type: e.collectionType,
+                  rate: e.rate,
+                  private: e.private,
+                  subject: BangumiUserCollectionSubject(
+                    id: e.subjectId,
+                    name: e.subjectName,
+                    nameCn: e.subjectNameCn,
+                    shortSummary: e.subjectShortSummary,
+                    score: e.subjectScore,
+                    eps: e.subjectEps,
+                    collectionTotal: e.subjectCollectionTotal,
+                    images: BangumiImages(
+                      small: rewrite(e.imageSmall),
+                      grid: rewrite(e.imageGrid),
+                      large: rewrite(e.imageLarge),
+                      medium: rewrite(e.imageMedium),
+                      common: rewrite(e.imageCommon),
+                    ),
+                  ),
+                ),
+              )
+              .toList();
 
-            final Set<int> existingIds = localFavs
-                .map((f) => f.bangumiId)
-                .toSet();
-            for (final col in collections) {
-              if (!existingIds.contains(col.subjectId)) {
-                merged.add(col);
-                existingIds.add(col.subjectId);
-              }
+          final Set<int> existingIds = localFavs
+              .map((f) => f.bangumiId)
+              .toSet();
+          for (final col in collections) {
+            if (!existingIds.contains(col.subjectId)) {
+              merged.add(col);
+              existingIds.add(col.subjectId);
             }
           }
         } catch (e) {

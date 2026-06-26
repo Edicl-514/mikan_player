@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_subject_batch_graphql_query`
+// These functions are ignored because they are not marked as `pub`: `build_subject_batch_graphql_query`, `remap_image_field`
 
 Future<Value> executeBangumiGraphql({
   required String actionName,

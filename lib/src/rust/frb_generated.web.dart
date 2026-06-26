@@ -13,6 +13,7 @@ import 'api/config.dart';
 import 'api/crawler.dart';
 import 'api/danmaku.dart';
 import 'api/dmhy.dart';
+import 'api/ech.dart';
 import 'api/generic_scraper.dart';
 import 'api/mikan.dart';
 import 'api/network.dart';
@@ -112,6 +113,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BangumiTvEpisode dco_decode_bangumi_tv_episode(dynamic raw);
+
+  @protected
+  BangumiUserCollectionEntry dco_decode_bangumi_user_collection_entry(
+    dynamic raw,
+  );
+
+  @protected
+  BangumiUserInfo dco_decode_bangumi_user_info(dynamic raw);
 
   @protected
   bool dco_decode_bool(dynamic raw);
@@ -226,6 +235,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiTvEpisode> dco_decode_list_bangumi_tv_episode(dynamic raw);
+
+  @protected
+  List<BangumiUserCollectionEntry>
+  dco_decode_list_bangumi_user_collection_entry(dynamic raw);
 
   @protected
   List<ChannelInfo> dco_decode_list_channel_info(dynamic raw);
@@ -501,6 +514,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiTvEpisode sse_decode_bangumi_tv_episode(SseDeserializer deserializer);
 
   @protected
+  BangumiUserCollectionEntry sse_decode_bangumi_user_collection_entry(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  BangumiUserInfo sse_decode_bangumi_user_info(SseDeserializer deserializer);
+
+  @protected
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
@@ -637,6 +658,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<BangumiTvEpisode> sse_decode_list_bangumi_tv_episode(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<BangumiUserCollectionEntry>
+  sse_decode_list_bangumi_user_collection_entry(SseDeserializer deserializer);
 
   @protected
   List<ChannelInfo> sse_decode_list_channel_info(SseDeserializer deserializer);
@@ -980,6 +1005,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_bangumi_user_collection_entry(
+    BangumiUserCollectionEntry self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_bangumi_user_info(
+    BangumiUserInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
@@ -1141,6 +1178,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_bangumi_tv_episode(
     List<BangumiTvEpisode> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_bangumi_user_collection_entry(
+    List<BangumiUserCollectionEntry> self,
     SseSerializer serializer,
   );
 

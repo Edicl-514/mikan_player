@@ -5,6 +5,7 @@ pub mod config;
 pub mod crawler;
 pub mod danmaku;
 pub mod dmhy;
+pub mod ech;
 pub mod generic_scraper;
 pub mod mikan;
 pub mod network;

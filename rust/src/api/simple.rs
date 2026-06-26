@@ -675,3 +675,76 @@ pub async fn resume_torrent(info_hash: String) -> bool {
         false
     }
 }
+
+// ============================================================================
+// ECH (Encrypted Client Hello) for bangumi SNI cloaking
+// ============================================================================
+
+pub fn set_bangumi_use_ech(enabled: bool) {
+    crate::api::config::set_bangumi_use_ech(enabled);
+}
+
+pub fn get_bangumi_use_ech() -> bool {
+    crate::api::config::get_bangumi_use_ech()
+}
+
+/// Refresh the Cloudflare ECHConfig cache. Returns the byte length of the
+/// newly-cached ECHConfigList, or 0 on failure.
+pub async fn refresh_bangumi_ech_config() -> usize {
+    match crate::api::ech::refresh_bangumi_ech_config().await {
+        Ok(n) => n,
+        Err(e) => {
+            log::warn!("refresh_bangumi_ech_config failed: {e}");
+            0
+        }
+    }
+}
+
+/// Warm up the ECHConfig cache if ECH is enabled and we don't have a fresh one.
+/// Safe to call from `main()` at startup. Errors are swallowed: the HTTP layer
+/// falls back to plaintext SNI when no ECHConfig is available.
+pub async fn warmup_bangumi_ech_config() {
+    if !crate::api::config::get_bangumi_use_ech() {
+        return;
+    }
+    if let Err(e) = crate::api::ech::ensure_fresh_ech_config().await {
+        log::warn!("ECHConfig warmup failed (will fall back to plain SNI): {e}");
+    }
+}
+
+/// Return the user-configured DoH endpoint list (first = highest priority).
+/// Empty means "use compiled-in defaults from `crate::api::ech`".
+pub fn get_bangumi_doh_endpoints() -> Vec<String> {
+    crate::api::config::get_bangumi_doh_endpoints()
+}
+
+/// Replace the user DoH list wholesale. Invalid entries are filtered out.
+pub fn set_bangumi_doh_endpoints(endpoints: Vec<String>) -> Vec<String> {
+    crate::api::config::set_bangumi_doh_endpoints(endpoints);
+    crate::api::config::get_bangumi_doh_endpoints()
+}
+
+/// Append a DoH endpoint to the end of the user list. Returns the resulting
+/// list. Rejects non-https URLs.
+pub fn add_bangumi_doh_endpoint(endpoint: String) -> Vec<String> {
+    crate::api::config::add_bangumi_doh_endpoint(endpoint);
+    crate::api::config::get_bangumi_doh_endpoints()
+}
+
+/// Remove a DoH endpoint from the user list. Returns the resulting list.
+pub fn remove_bangumi_doh_endpoint(endpoint: String) -> Vec<String> {
+    crate::api::config::remove_bangumi_doh_endpoint(endpoint);
+    crate::api::config::get_bangumi_doh_endpoints()
+}
+
+/// Reorder: move the entry at `from` to `to`. Returns the resulting list.
+pub fn move_bangumi_doh_endpoint(from: usize, to: usize) -> Vec<String> {
+    crate::api::config::move_bangumi_doh_endpoint(from, to)
+}
+
+/// Reset the user DoH list back to empty (= use compiled-in defaults).
+pub fn reset_bangumi_doh_endpoints() -> Vec<String> {
+    crate::api::config::reset_bangumi_doh_endpoints();
+    crate::api::config::get_bangumi_doh_endpoints()
+}
+

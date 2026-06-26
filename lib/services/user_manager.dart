@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:mikan_player/models/user.dart';
+import 'package:mikan_player/src/rust/api/bangumi.dart' as rust;
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -23,7 +23,7 @@ class UserManager extends ChangeNotifier {
       try {
         _user = User.fromJson(jsonDecode(userJson));
         notifyListeners();
-        // Auto update in background
+        // Auto update in background (goes through the ECH-capable Rust client)
         login(_user!.username).catchError((e) {
           debugPrint('Failed to auto-update user: $e');
         });
@@ -35,32 +35,27 @@ class UserManager extends ChangeNotifier {
   }
 
   Future<void> login(String username) async {
-    try {
-      final client = HttpClient()
-        ..connectionTimeout = const Duration(seconds: 10);
-      final apiHost = await BangumiUrlRewriter.hostFor('api');
-      final request = await client.getUrl(
-        Uri.parse(BangumiUrlRewriter.rewrite(
-          'https://api.bgm.tv/v0/users/$username',
-        ).replaceFirst('api.bgm.tv', apiHost)),
-      );
-      request.headers.add('accept', 'application/json');
-      // Add User-Agent as good practice for APIs
-      request.headers.add('User-Agent', 'MikanPlayer/1.0.0 (flutter)');
-
-      final response = await request.close().timeout(const Duration(seconds: 15));
-      if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join().timeout(const Duration(seconds: 10));
-        final json = jsonDecode(responseBody);
-        _user = User.fromJson(json);
-        await _saveUser();
-        notifyListeners();
-      } else {
-        throw Exception('Failed to fetch user: ${response.statusCode}');
-      }
-    } catch (e) {
-      rethrow;
+    final info = await rust.fetchBangumiUserInfo(username: username);
+    final host = await BangumiUrlRewriter.hostFor('api');
+    String? rewrite(String? url) {
+      if (url == null) return null;
+      return BangumiUrlRewriter.rewrite(url).replaceFirst('api.bgm.tv', host);
     }
+
+    _user = User(
+      id: info.id,
+      username: info.username,
+      nickname: info.nickname,
+      sign: info.sign,
+      url: rewrite(info.url),
+      avatar: UserAvatar(
+        large: rewrite(info.avatarLarge) ?? '',
+        medium: rewrite(info.avatarMedium) ?? '',
+        small: rewrite(info.avatarSmall) ?? '',
+      ),
+    );
+    await _saveUser();
+    notifyListeners();
   }
 
   Future<void> logout() async {

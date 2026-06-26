@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:mikan_player/services/bangumi_image_bridge.dart';
 import 'package:mikan_player/services/cache/image_cache_service.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
@@ -41,6 +43,7 @@ class CachedNetworkImage extends StatefulWidget {
 
 class _CachedNetworkImageState extends State<CachedNetworkImage> {
   String? _localPath;
+  Uint8List? _memoryBytes;
   bool _isLoading = true;
   bool _hasError = false;
   bool _hasStartedLoading = false;
@@ -95,6 +98,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
         _isLoading = true;
         _hasError = false;
         _localPath = null;
+        _memoryBytes = null;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _maybeStartLoading());
     }
@@ -179,6 +183,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
       _isLoading = true;
       _hasError = false;
       _localPath = null;
+      _memoryBytes = null;
     });
 
     try {
@@ -195,9 +200,22 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
       if (cachedPath != null && mounted && generation == _loadGeneration) {
         setState(() {
           _localPath = cachedPath;
+          _memoryBytes = null;
           _isLoading = false;
         });
         return;
+      }
+
+      final echBytes = await BangumiImageBridge.fetchFromUrl(imageUrl);
+      if (mounted &&
+          generation == _loadGeneration &&
+          echBytes != null &&
+          echBytes.isNotEmpty) {
+        setState(() {
+          _memoryBytes = echBytes;
+          _isLoading = false;
+          _hasError = false;
+        });
       }
 
       // 没有缓存时默认先显示网络图片作为备用；重复出现的小图可以关闭该行为，
@@ -215,6 +233,7 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
         if (mounted && generation == _loadGeneration && path != null) {
           setState(() {
             _localPath = path;
+            _memoryBytes = null;
             _hasError = false;
             _isLoading = false;
           });
@@ -244,6 +263,18 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
       imageWidget = widget.placeholder ?? _buildPlaceholder();
     } else if (_hasError) {
       imageWidget = widget.errorWidget ?? _buildErrorWidget();
+    } else if (_memoryBytes != null) {
+      imageWidget = Image.memory(
+        _memoryBytes!,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit ?? BoxFit.cover,
+        alignment: widget.alignment ?? Alignment.center,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) {
+          return widget.errorWidget ?? _buildErrorWidget();
+        },
+      );
     } else if (_localPath != null) {
       // 从本地缓存加载
       imageWidget = Image.file(

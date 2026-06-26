@@ -6,14 +6,43 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `is_transient_error`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ProxyConfig`
+// These functions are ignored because they are not marked as `pub`: `build_ech_client`, `is_transient_error`, `retry_request_inner`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `EchClientSlot`, `ProxyConfig`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `create_client`
-// These functions have error during generation (see debug logs or enable `stop_on_error: true` for more details): `retry_request_with_status`, `retry_request`
+// These functions have error during generation (see debug logs or enable `stop_on_error: true` for more details): `retry_request_bangumi_with_status`, `retry_request_bangumi`, `retry_request_with_status`, `retry_request`
 
 Future<String?> getSystemProxy() =>
     RustLib.instance.api.crateApiNetworkGetSystemProxy();
 
 Future<void> getSharedClient() =>
     RustLib.instance.api.crateApiNetworkGetSharedClient();
+
+Future<void> invalidateEchClient() =>
+    RustLib.instance.api.crateApiNetworkInvalidateEchClient();
+
+/// Get (or lazily build) the ECH-enabled reqwest client used for bangumi
+/// requests when `bangumi_use_ech` is on. Holds the bytes needed by rustls
+/// for HPKE; the cached `EchConfig` is read from `crate::api::ech`.
+///
+/// Falls back to the plain client when ECH hasn't been fetched yet — caller
+/// paths keep working unchanged. The caller may force a refresh via
+/// `crate::api::ech::refresh_bangumi_ech_config`.
+///
+/// The client is rebuilt when the ECHConfig cache is refreshed (tracked by
+/// `ECH_EPOCH`) so that key rotations take effect without a process restart.
+/// Each rebuilt client is leaked into `'static` — this is acceptable because
+/// there are at most a handful of rebuilds per process lifetime (one per
+/// ECHConfig key rotation, roughly daily).
+Future<void> getEchClient() =>
+    RustLib.instance.api.crateApiNetworkGetEchClient();
+
+/// Returns the ECH client when ECH is enabled and the ECHConfig is cached,
+/// otherwise the plain shared client. The caller **must** only use this for
+/// bangumi-domain requests — the embedded `EchConfig` targets Cloudflare's
+/// shared `cloudflare-ech.com` public name.
+Future<void> clientForBangumi() =>
+    RustLib.instance.api.crateApiNetworkClientForBangumi();
+
+Future<void> selectClient() =>
+    RustLib.instance.api.crateApiNetworkSelectClient();

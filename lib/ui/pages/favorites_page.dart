@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/models/bangumi_user_collection.dart';
@@ -12,6 +9,7 @@ import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
+import 'package:mikan_player/src/rust/api/bangumi.dart' as rust_bangumi;
 import 'package:mikan_player/src/rust/api/crawler.dart' as rust_crawler;
 
 class FavoritesPage extends StatefulWidget {
@@ -73,35 +71,56 @@ class _FavoritesPageState extends State<FavoritesPage>
       _bangumiError = null;
     });
 
-try {
-        final username = _userManager.user!.username;
-        final client = HttpClient()
-          ..connectionTimeout = const Duration(seconds: 10);
-        final apiHost = await BangumiUrlRewriter.hostFor('api');
-        final url = BangumiUrlRewriter.rewrite(
-          'https://api.bgm.tv/v0/users/$username/collections?subject_type=2&limit=30&offset=0',
-        ).replaceFirst('api.bgm.tv', apiHost);
-        final request = await client.getUrl(Uri.parse(url));
-      request.headers.add('accept', 'application/json');
-      request.headers.add('User-Agent', 'MikanPlayer/1.0.0 (flutter)');
+    try {
+      final username = _userManager.user!.username;
+      // Hit Rust so the request goes through the ECH-capable client.
+      final raw = await rust_bangumi.fetchBangumiUserCollections(
+        username: username,
+        subjectType: 2,
+        limit: 30,
+        offset: 0,
+      );
+      final apiHost = await BangumiUrlRewriter.hostFor('api');
+      String rewrite(String url) {
+        if (url.isEmpty) return url;
+        return BangumiUrlRewriter.rewrite(url).replaceFirst('api.bgm.tv', apiHost);
+      }
 
-      final response = await request.close().timeout(const Duration(seconds: 15));
-      if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
-        final json = jsonDecode(responseBody);
-        final data = json['data'] as List;
-        final collections = data
-            .map((e) => BangumiUserCollection.fromJson(e))
-            .toList();
+      final collections = raw
+          .map(
+            (e) => BangumiUserCollection(
+              date: e.updatedAt,
+              comment: e.comment,
+              tags: e.tags,
+              subjectId: e.subjectId,
+              type: e.collectionType,
+              rate: e.rate,
+              private: e.private,
+              subject: BangumiUserCollectionSubject(
+                id: e.subjectId,
+                name: e.subjectName,
+                nameCn: e.subjectNameCn,
+                shortSummary: e.subjectShortSummary,
+                score: e.subjectScore,
+                eps: e.subjectEps,
+                collectionTotal: e.subjectCollectionTotal,
+                images: rust_bangumi.BangumiImages(
+                  small: rewrite(e.imageSmall),
+                  grid: rewrite(e.imageGrid),
+                  large: rewrite(e.imageLarge),
+                  medium: rewrite(e.imageMedium),
+                  common: rewrite(e.imageCommon),
+                ),
+              ),
+            ),
+          )
+          .toList();
 
-        if (mounted) {
-          setState(() {
-            _bangumiCollections = collections;
-            _isLoadingBangumi = false;
-          });
-        }
-      } else {
-        throw Exception('Failed to fetch collections: ${response.statusCode}');
+      if (mounted) {
+        setState(() {
+          _bangumiCollections = collections;
+          _isLoadingBangumi = false;
+        });
       }
     } catch (e) {
       debugPrint('Error fetching collections: $e');

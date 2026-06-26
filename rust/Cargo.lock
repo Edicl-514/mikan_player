@@ -3364,6 +3364,7 @@ dependencies = [
  "flutter_rust_bridge",
  "futures",
  "headers",
+ "hex 0.4.3",
  "image",
  "jni",
  "lazy_static",

@@ -6,19 +6,15 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `bangumi_next_url`, `escape_html`, `fetch_bangumi_comments_legacy`, `fetch_bangumi_comments_next`, `fetch_bangumi_episode_comments_legacy`, `fetch_bangumi_episode_comments_next`, `format_bangumi_timestamp`, `normalize_avatar_url`, `parse_next_episode_comment`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `bangumi_next_url`, `bangumi_smile_html`, `escape_html_attribute`, `escape_html_text`, `extract_avatar_url`, `fetch_bangumi_characters_next`, `fetch_bangumi_characters_rest`, `fetch_bangumi_comments_legacy`, `fetch_bangumi_comments_next`, `fetch_bangumi_episode_comments_legacy`, `fetch_bangumi_episode_comments_next`, `fetch_bangumi_episodes_next`, `fetch_bangumi_episodes_rest`, `find_bangumi_closing_tag`, `format_bangumi_timestamp`, `map_character_role_type`, `normalize_avatar_url`, `normalize_bangumi_url`, `normalize_image_url`, `parse_bangumi_images`, `parse_bangumi_markup_until`, `parse_next_episode_comment`, `render_bangumi_markup`, `render_bangumi_plain_text`, `sanitize_style_value`, `truncate`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
-/// Fetch episodes for a subject
-/// API: GET https://api.bgm.tv/v0/episodes?subject_id={subject_id}&limit=100&offset=0
 Future<List<BangumiEpisode>> fetchBangumiEpisodes({
   required PlatformInt64 subjectId,
 }) => RustLib.instance.api.crateApiBangumiFetchBangumiEpisodes(
   subjectId: subjectId,
 );
 
-/// Fetch characters for a subject
-/// API: GET https://api.bgm.tv/v0/subjects/{subject_id}/characters
 Future<List<BangumiCharacter>> fetchBangumiCharacters({
   required PlatformInt64 subjectId,
 }) => RustLib.instance.api.crateApiBangumiFetchBangumiCharacters(
@@ -98,6 +94,43 @@ Future<List<CharacterSubject>> fetchCharacterSubjects({
 }) => RustLib.instance.api.crateApiBangumiFetchCharacterSubjects(
   characterId: characterId,
 );
+
+/// `GET /v0/users/{username}` — public user profile lookup.
+Future<BangumiUserInfo> fetchBangumiUserInfo({required String username}) =>
+    RustLib.instance.api.crateApiBangumiFetchBangumiUserInfo(
+      username: username,
+    );
+
+/// `GET /v0/users/{username}/collections?subject_type=&limit=&offset=`
+Future<List<BangumiUserCollectionEntry>> fetchBangumiUserCollections({
+  required String username,
+  required int subjectType,
+  required int limit,
+  required int offset,
+}) => RustLib.instance.api.crateApiBangumiFetchBangumiUserCollections(
+  username: username,
+  subjectType: subjectType,
+  limit: limit,
+  offset: offset,
+);
+
+/// `GET /v0/subjects/{subject_id}/image?type={image_type}`
+///
+/// Returns the raw bytes (caller writes them to disk or hands them to an
+/// `Image.memory` widget). Pass-through byte stream — no caching here.
+Future<Uint8List> fetchBangumiSubjectImage({
+  required PlatformInt64 subjectId,
+  required String imageType,
+}) => RustLib.instance.api.crateApiBangumiFetchBangumiSubjectImage(
+  subjectId: subjectId,
+  imageType: imageType,
+);
+
+/// Fetch raw bytes from any bangumi-hosted image URL (avatars on `lain.*`,
+/// subject covers, protocol-relative CDN links, etc.) through the ECH-capable
+/// Rust HTTP client.
+Future<Uint8List> fetchBangumiImageUrl({required String url}) =>
+    RustLib.instance.api.crateApiBangumiFetchBangumiImageUrl(url: url);
 
 class BangumiActor {
   final PlatformInt64 id;
@@ -384,6 +417,142 @@ class BangumiRelatedSubject {
           nameCn == other.nameCn &&
           relation == other.relation &&
           image == other.image;
+}
+
+class BangumiUserCollectionEntry {
+  final String updatedAt;
+  final String comment;
+  final List<String> tags;
+  final PlatformInt64 subjectId;
+
+  /// 1=想看, 2=看过, 3=在看, 4=搁置, 5=抛弃
+  final int collectionType;
+  final int rate;
+  final bool private;
+  final String subjectName;
+  final String subjectNameCn;
+  final String subjectShortSummary;
+  final double subjectScore;
+  final int subjectEps;
+  final int subjectCollectionTotal;
+  final String imageSmall;
+  final String imageGrid;
+  final String imageLarge;
+  final String imageMedium;
+  final String imageCommon;
+
+  const BangumiUserCollectionEntry({
+    required this.updatedAt,
+    required this.comment,
+    required this.tags,
+    required this.subjectId,
+    required this.collectionType,
+    required this.rate,
+    required this.private,
+    required this.subjectName,
+    required this.subjectNameCn,
+    required this.subjectShortSummary,
+    required this.subjectScore,
+    required this.subjectEps,
+    required this.subjectCollectionTotal,
+    required this.imageSmall,
+    required this.imageGrid,
+    required this.imageLarge,
+    required this.imageMedium,
+    required this.imageCommon,
+  });
+
+  @override
+  int get hashCode =>
+      updatedAt.hashCode ^
+      comment.hashCode ^
+      tags.hashCode ^
+      subjectId.hashCode ^
+      collectionType.hashCode ^
+      rate.hashCode ^
+      private.hashCode ^
+      subjectName.hashCode ^
+      subjectNameCn.hashCode ^
+      subjectShortSummary.hashCode ^
+      subjectScore.hashCode ^
+      subjectEps.hashCode ^
+      subjectCollectionTotal.hashCode ^
+      imageSmall.hashCode ^
+      imageGrid.hashCode ^
+      imageLarge.hashCode ^
+      imageMedium.hashCode ^
+      imageCommon.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiUserCollectionEntry &&
+          runtimeType == other.runtimeType &&
+          updatedAt == other.updatedAt &&
+          comment == other.comment &&
+          tags == other.tags &&
+          subjectId == other.subjectId &&
+          collectionType == other.collectionType &&
+          rate == other.rate &&
+          private == other.private &&
+          subjectName == other.subjectName &&
+          subjectNameCn == other.subjectNameCn &&
+          subjectShortSummary == other.subjectShortSummary &&
+          subjectScore == other.subjectScore &&
+          subjectEps == other.subjectEps &&
+          subjectCollectionTotal == other.subjectCollectionTotal &&
+          imageSmall == other.imageSmall &&
+          imageGrid == other.imageGrid &&
+          imageLarge == other.imageLarge &&
+          imageMedium == other.imageMedium &&
+          imageCommon == other.imageCommon;
+}
+
+class BangumiUserInfo {
+  final PlatformInt64 id;
+  final String username;
+  final String nickname;
+  final String? sign;
+  final String? url;
+  final String? avatarLarge;
+  final String? avatarMedium;
+  final String? avatarSmall;
+
+  const BangumiUserInfo({
+    required this.id,
+    required this.username,
+    required this.nickname,
+    this.sign,
+    this.url,
+    this.avatarLarge,
+    this.avatarMedium,
+    this.avatarSmall,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      username.hashCode ^
+      nickname.hashCode ^
+      sign.hashCode ^
+      url.hashCode ^
+      avatarLarge.hashCode ^
+      avatarMedium.hashCode ^
+      avatarSmall.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiUserInfo &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          username == other.username &&
+          nickname == other.nickname &&
+          sign == other.sign &&
+          url == other.url &&
+          avatarLarge == other.avatarLarge &&
+          avatarMedium == other.avatarMedium &&
+          avatarSmall == other.avatarSmall;
 }
 
 /// Character details info from /v0/characters/{character_id}

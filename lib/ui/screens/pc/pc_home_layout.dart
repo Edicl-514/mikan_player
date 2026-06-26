@@ -5,6 +5,7 @@ import 'package:mikan_player/ui/pages/index_page.dart';
 import 'package:mikan_player/ui/pages/my_page.dart';
 import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/services/user_manager.dart';
+import 'package:mikan_player/ui/widgets/network_avatar.dart';
 
 class PcHomeLayout extends StatefulWidget {
   const PcHomeLayout({super.key});
@@ -116,17 +117,15 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
                       ),
                       const SizedBox(width: 8),
                       // User Avatar
-                      CircleAvatar(
+                      NetworkAvatar(
+                        imageUrl: _userManager.isLoggedIn
+                            ? _userManager.user!.avatar.medium
+                            : null,
                         radius: 16,
                         backgroundColor: Theme.of(
                           context,
                         ).colorScheme.surfaceContainerHighest,
-                        backgroundImage: _userManager.isLoggedIn
-                            ? NetworkImage(_userManager.user!.avatar.medium)
-                            : null,
-                        child: !_userManager.isLoggedIn
-                            ? const Icon(Icons.person, size: 20)
-                            : null,
+                        fallback: const Icon(Icons.person, size: 20),
                       ),
                     ],
                   ),

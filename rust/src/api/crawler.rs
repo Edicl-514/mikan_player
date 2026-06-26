@@ -284,7 +284,7 @@ async fn fetch_subject_details_rest_json(id: &str) -> anyhow::Result<serde_json:
         id
     );
     let label = format!("fill_anime_details.subject.{}", id);
-    let resp = crate::api::network::retry_request(&label, |client| {
+    let resp = crate::api::network::retry_request_bangumi(&label, |client| {
         client.get(&api_url).header("accept", "application/json")
     })
     .await?;
@@ -299,7 +299,7 @@ async fn fetch_subject_details_next_p1_json(id: i64) -> anyhow::Result<serde_jso
         id
     );
     let label = format!("fetch_subject_details_next_p1.subject.{}", id);
-    let resp = crate::api::network::retry_request(&label, |client| {
+    let resp = crate::api::network::retry_request_bangumi(&label, |client| {
         client.get(&url).header("accept", "application/json")
     })
     .await?;
@@ -652,7 +652,7 @@ async fn fetch_extra_bangumi_subjects(
     });
 
     let init_resp =
-        match crate::api::network::retry_request("fetch_extra_subjects.init", |client| {
+        match crate::api::network::retry_request_bangumi("fetch_extra_subjects.init", |client| {
             client
                 .post(&url)
                 .query(&[("limit", "1"), ("offset", "0")])
@@ -692,7 +692,7 @@ async fn fetch_extra_bangumi_subjects(
 
         tasks.push(tokio::spawn(async move {
             let label = format!("fetch_extra_subjects.page.offset_{}", offset);
-            match crate::api::network::retry_request(&label, |client| {
+            match crate::api::network::retry_request_bangumi(&label, |client| {
                 client
                     .post(&page_url)
                     .query(&[

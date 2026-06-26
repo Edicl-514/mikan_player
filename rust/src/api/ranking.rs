@@ -80,7 +80,7 @@ async fn fetch_bangumi_browser_html(
 
     let url_str = url.to_string();
     let resp =
-        crate::api::network::retry_request("fetch_bangumi_browser", |client| client.get(&url_str))
+        crate::api::network::retry_request_bangumi("fetch_bangumi_browser", |client| client.get(&url_str))
             .await?
             .error_for_status()?;
     let html = resp.text().await?;
@@ -133,7 +133,7 @@ async fn search_bangumi_subject_html(
     );
 
     let resp =
-        crate::api::network::retry_request("search_bangumi_subject", |client| client.get(&url))
+        crate::api::network::retry_request_bangumi("search_bangumi_subject", |client| client.get(&url))
             .await?
             .error_for_status()?;
     let html = resp.text().await?;
@@ -166,7 +166,7 @@ async fn search_bangumi_tag_html(
         .append_pair("sort", &sort_type)
         .append_pair("page", &page.to_string());
 
-    let resp = crate::api::network::retry_request("bangumi.search.tag.legacy", |client| {
+    let resp = crate::api::network::retry_request_bangumi("bangumi.search.tag.legacy", |client| {
         client.get(url.as_str())
     })
     .await?
@@ -214,7 +214,7 @@ async fn fetch_bangumi_trending_next(page: i32) -> anyhow::Result<Vec<RankingAni
     let base_url = crate::api::config::get_bangumi_next_url();
     let url = format!("{base_url}/p1/trending/subjects?type=2&limit={limit}&offset={offset}");
 
-    let resp = crate::api::network::retry_request("bangumi.trending.next", |client| {
+    let resp = crate::api::network::retry_request_bangumi("bangumi.trending.next", |client| {
         client.get(&url).header("accept", "application/json")
     })
     .await?;
@@ -235,7 +235,7 @@ async fn fetch_bangumi_subjects_v0(
         crate::api::config::get_bangumi_api_url()
     );
 
-    let resp = crate::api::network::retry_request(label, |client| {
+    let resp = crate::api::network::retry_request_bangumi(label, |client| {
         client
             .post(&url)
             .query(&[("limit", limit.as_str()), ("offset", offset.as_str())])

@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `normalize_url`
+// These functions are ignored because they are not marked as `pub`: `apply_reverse_proxy_settings`, `bangumi_url_for_proxy_mode`, `canonical_bangumi_host`, `mirror_for_host`, `normalize_url`, `rewrite_host_in_authority`, `split_scheme`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CONFIG`, `RuntimeConfig`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `initialize`
 
@@ -32,6 +32,18 @@ Future<void> updateConfig({
   useReverseProxy: useReverseProxy,
 );
 
+Future<void> setBangumiReverseProxy({required bool enabled}) =>
+    RustLib.instance.api.crateApiConfigSetBangumiReverseProxy(enabled: enabled);
+
+Future<bool> getBangumiReverseProxy() =>
+    RustLib.instance.api.crateApiConfigGetBangumiReverseProxy();
+
+Future<void> setBangumiUseEch({required bool enabled}) =>
+    RustLib.instance.api.crateApiConfigSetBangumiUseEch(enabled: enabled);
+
+Future<bool> getBangumiUseEch() =>
+    RustLib.instance.api.crateApiConfigGetBangumiUseEch();
+
 Future<String> getBgmlistUrl() =>
     RustLib.instance.api.crateApiConfigGetBgmlistUrl();
 
@@ -41,6 +53,23 @@ Future<String> getBangumiUrl() =>
 Future<String> getBangumiApiUrl() =>
     RustLib.instance.api.crateApiConfigGetBangumiApiUrl();
 
+Future<String> getBangumiNextUrl() =>
+    RustLib.instance.api.crateApiConfigGetBangumiNextUrl();
+
+Future<String> getBangumiLainUrl() =>
+    RustLib.instance.api.crateApiConfigGetBangumiLainUrl();
+
+/// Rewrite a bangumi URL coming back from an API response (cover images, avatars,
+/// share links, etc.) to its mirror host **only when the user has opted into the
+/// reverse proxy**. When proxying is disabled the input is returned unchanged so
+/// the canonical bangumi.tv / bgm.tv / lain.bgm.tv hosts are preserved.
+///
+/// Use this for any value derived from upstream data. The raw [`rewrite_bangumi_url`]
+/// (which always rewrites when `to_mirror` is true) should be reserved for base-URL
+/// construction and for converting mirror hosts back to their canonical form.
+Future<String> rewriteBangumiUrlIfProxied({required String raw}) =>
+    RustLib.instance.api.crateApiConfigRewriteBangumiUrlIfProxied(raw: raw);
+
 Future<String> getMikanUrl() =>
     RustLib.instance.api.crateApiConfigGetMikanUrl();
 
@@ -49,12 +78,6 @@ Future<String> getPlaybackSubUrl() =>
 
 Future<void> setBangumiRequestMode({required String mode}) =>
     RustLib.instance.api.crateApiConfigSetBangumiRequestMode(mode: mode);
-
-Future<void> setBangumiReverseProxy({required bool enabled}) =>
-    RustLib.instance.api.crateApiConfigSetBangumiReverseProxy(enabled: enabled);
-
-Future<bool> getBangumiReverseProxy() =>
-    RustLib.instance.api.crateApiConfigGetBangumiReverseProxy();
 
 Future<String> getBangumiRequestMode() =>
     RustLib.instance.api.crateApiConfigGetBangumiRequestMode();
@@ -79,3 +102,69 @@ Future<void> setMaxConcurrentSearches({required int limit}) =>
 
 Future<int> getMaxConcurrentSearches() =>
     RustLib.instance.api.crateApiConfigGetMaxConcurrentSearches();
+
+/// Returns the user-configured DoH endpoint list (ordered, first = highest
+/// priority). Empty means "no user override — use the compiled-in defaults".
+Future<List<String>> getBangumiDohEndpoints() =>
+    RustLib.instance.api.crateApiConfigGetBangumiDohEndpoints();
+
+/// Replace the user-configured DoH endpoint list. Invalid entries (empty,
+/// non-https, not a valid URL) are filtered out so we don't store something
+/// we know is unusable. Invalidates the ECH client so the next request
+/// rebuilds its rustls config with the new DoH list.
+Future<void> setBangumiDohEndpoints({required List<String> endpoints}) =>
+    RustLib.instance.api.crateApiConfigSetBangumiDohEndpoints(
+      endpoints: endpoints,
+    );
+
+/// Append `endpoint` to the end of the user DoH list. Returns the new
+/// length of the list. Returns 0 (and does nothing) when the endpoint is
+/// not a valid https URL.
+Future<BigInt> addBangumiDohEndpoint({required String endpoint}) => RustLib
+    .instance
+    .api
+    .crateApiConfigAddBangumiDohEndpoint(endpoint: endpoint);
+
+/// Remove every occurrence of `endpoint` (exact match after normalisation)
+/// from the user DoH list. Returns the new length of the list.
+Future<BigInt> removeBangumiDohEndpoint({required String endpoint}) => RustLib
+    .instance
+    .api
+    .crateApiConfigRemoveBangumiDohEndpoint(endpoint: endpoint);
+
+/// Move the entry currently at `from` to position `to`. Out-of-range indices
+/// are clamped silently. No-op when `from == to`. Returns the resulting list
+/// so the caller can echo it back to the UI.
+Future<List<String>> moveBangumiDohEndpoint({
+  required BigInt from,
+  required BigInt to,
+}) => RustLib.instance.api.crateApiConfigMoveBangumiDohEndpoint(
+  from: from,
+  to: to,
+);
+
+/// Reset the user DoH list back to empty (= "use compiled-in defaults").
+Future<void> resetBangumiDohEndpoints() =>
+    RustLib.instance.api.crateApiConfigResetBangumiDohEndpoints();
+
+/// Rewrite a bangumi host from its canonical real form to the mirror form (when reverse
+/// proxying is enabled), or vice-versa. Returns `None` if the host is not a bangumi host
+/// we know about.
+Future<String?> remapBangumiHost({
+  required String host,
+  required bool toMirror,
+}) => RustLib.instance.api.crateApiConfigRemapBangumiHost(
+  host: host,
+  toMirror: toMirror,
+);
+
+/// Rewrite all bangumi hosts inside a URL. If `to_mirror` is true the URL is rewritten to
+/// use the reverse-proxy host; if false it is rewritten back to the canonical real host.
+/// Returns the input unchanged when the URL is not parseable or has no known bangumi host.
+Future<String> rewriteBangumiUrl({
+  required String raw,
+  required bool toMirror,
+}) => RustLib.instance.api.crateApiConfigRewriteBangumiUrl(
+  raw: raw,
+  toMirror: toMirror,
+);

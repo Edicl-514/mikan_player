@@ -1145,4 +1145,76 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get bangumiReverseProxyDescription => '开启后将所有Bangumi请求路由到反代地址。';
+
+  @override
+  String get bangumiEchTitle => '使用 ECH 加密 SNI';
+
+  @override
+  String get bangumiEchDescription =>
+      '通过 Encrypted Client Hello 加密真实域名，绕过 SNI 黑名单。默认开启；中国大陆推荐。';
+
+  @override
+  String get bangumiEchRefreshTitle => '刷新 ECH 公钥';
+
+  @override
+  String get bangumiEchRefreshDescription =>
+      '按优先级从 DoH 列表重新拉取 ECHConfig（缓存约 1 小时）';
+
+  @override
+  String bangumiEchRefreshSuccess(Object bytes) {
+    return '已更新（$bytes 字节）';
+  }
+
+  @override
+  String get bangumiEchRefreshFailed => '刷新失败，将回退到普通模式';
+
+  @override
+  String get bangumiEchDohListTitle => 'DoH 端点列表';
+
+  @override
+  String get bangumiEchDohListDescription =>
+      '用于查询 Cloudflare 的 HTTPS RR 以获取 ECH 公钥。按顺序尝试，第一个可用的生效。留空使用内置默认值。';
+
+  @override
+  String get bangumiEchDohListEmpty => '当前为空，使用内置默认 DoH';
+
+  @override
+  String get bangumiEchDohAddTitle => '添加 DoH 端点';
+
+  @override
+  String get bangumiEchDohAddHint => 'https://your-doh.example/dns-query';
+
+  @override
+  String get bangumiEchDohAddInvalid => '请输入以 https:// 开头的 URL';
+
+  @override
+  String get bangumiEchDohMoveUp => '上移';
+
+  @override
+  String get bangumiEchDohMoveDown => '下移';
+
+  @override
+  String get bangumiEchDohRemove => '移除';
+
+  @override
+  String get bangumiEchDohReset => '恢复默认';
+
+  @override
+  String get bangumiEchDohResetConfirm => '确定清空自定义 DoH 列表并使用内置默认值？';
+
+  @override
+  String get bangumiEchDohTestTitle => '测试该 DoH';
+
+  @override
+  String bangumiEchDohTestSuccess(Object bytes) {
+    return '成功：获取到 $bytes 字节 ECHConfig';
+  }
+
+  @override
+  String get bangumiEchDohTestFailed => '该 DoH 不可达或返回内容不含 ECHConfig';
+
+  @override
+  String bangumiEchDohPriority(Object index) {
+    return '优先级 #$index';
+  }
 }

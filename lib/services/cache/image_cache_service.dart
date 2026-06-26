@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:mikan_player/services/bangumi_image_bridge.dart';
 import 'package:mikan_player/utils/app_directories.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
@@ -220,6 +221,11 @@ class ImageCacheService {
   /// 下载图片
   Future<Uint8List?> _downloadImage(String url) async {
     try {
+      final bangumiBytes = await BangumiImageBridge.fetchFromUrl(url);
+      if (bangumiBytes != null && bangumiBytes.isNotEmpty) {
+        return bangumiBytes;
+      }
+
       final uri = Uri.parse(url);
       final request = await _httpClient.getUrl(uri);
 
