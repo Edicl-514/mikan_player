@@ -2,23 +2,32 @@
 
 [English](./README_en.md) | [简体中文](./README.md)
 
-一个现代的 Flutter + Rust 动漫流媒体应用，集成了 Bangumi。
+一个基于 Flutter + Rust 的动漫流媒体应用
 
 ## 功能
 
-- **Torrent 流媒体**：无需等待完整下载即可即时播放磁力链接（基于 `rqbit`）。
+
 - **Bangumi 集成**：
-  - 查看每周番剧放送表。
-  - 浏览排行榜和季度番剧。
-  - 管理您的观看进度和收藏。
-  - 在通用 BT 源上自动匹配和搜索剧集。
+  - 放送表
+  - 排行榜
+  - 评论
+  - 番剧、角色、人物详情
+  - 搜索与筛选
+  - 从 Bangumi 账号同步收藏番剧
+  - 在 BT 源和在线源上自动匹配和搜索播放源
+- **Torrent 流媒体**：
+  - 下载、串流、做种（双后端，可选 `rqbit` 和 `libtorrent`）
 - **媒体播放器**：
-  - 使用 `media_kit`（支持 MPV）的高性能播放。
-  - 支持弹幕。
+  - 弹幕与字幕设置
+  - 倍速播放、快进快退，支持手势操作
+  - 下载
+  - 历史记录
 - **跨平台**：
   - Windows
   - Android
-- **离线功能**：使用 Drift 数据库进行智能缓存。
+- **便利功能**：
+  - 自动过验证码和 WAF
+  - 使用 ECH 或反代来实现免代理访问 Bangumi
 
 ## 数据来源
 
@@ -27,6 +36,7 @@
 - **蜜柑计划**：资源与磁力链接
 - **动漫花园**：资源与磁力链接
 - **弹弹play**：弹幕数据
+- **自定义数据源**：可配置 Web 搜索/解析源
 
 ## 技术栈
 
@@ -36,12 +46,12 @@
 
 ## 开发前提
 
-- Flutter SDK 3.10+ (当前运行 3.38.7)
+- Flutter SDK 3.10+ (当前运行 3.44.4)
 - Rust 1.80+ (当前运行 1.92.0)
 - Visual Studio (Windows) 需包含 C++ 桌面开发工作负载
-- Android Studio / NDK (用于 Android 构建)
+- Android Studio / NDK r29(用于 Android 构建)
 
-## 设置
+## 运行与编译
 
 1. **安装依赖**：
    ```bash
@@ -62,12 +72,15 @@
       ```bash
       flutter run -d android
       ```
-      Android Gradle 构建现在会在打包前自动编译 Rust 动态库，因此不需要再手动先跑额外的 Rust 构建脚本。
 
-## 项目架构
 
-- `lib/main.dart`: 应用程序入口。
-- `lib/ui/`: Flutter UI 页面（时间表、播放器、设置等）。
-- `lib/src/rust/`: 生成的 Rust 绑定。
-- `rust/src/`: Rust 后端逻辑（`rqbit` 集成）。
-- `windows/CMakeLists.txt`: 已配置为自动构建 Rust 代码。
+4. **编译**
+   - **Windows**：
+     ```bash
+     build_windows.ps1
+     ```
+   - **Android**：
+      ```bash
+     build_apk.ps1
+      ```
+

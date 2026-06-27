@@ -1,54 +1,64 @@
 # Mikan Player
 
-English | [简体中文](./README_zh.md)
+[English](./README_en.md) | [简体中文](./README.md)
 
-A modern Flutter + Rust application for streaming anime, with Bangumi integration.
+A Flutter + Rust anime streaming application.
 
 ## Features
 
-- **Torrent Streaming**: Instant playback of torrent magnets without waiting for full downloads (powered by `rqbit`).
-- **Bangumi Integration**:
-  - View weekly broadcast timetable.
-  - Browse rankings and seasonal anime.
-  - Manage your watch progress and collection.
-  - Auto-match and search for episodes on generic BT sources.
-- **Media Player**:
-  - High-performance playback using `media_kit` (MPV based).
-  - Danmaku (commentary overlay) support.
-- **Cross-Platform**:
+- **Bangumi integration**:
+  - Schedule
+  - Rankings
+  - Comments
+  - Anime, character, and person details
+  - Search and filters
+  - Sync favorite anime from your Bangumi account
+  - Automatic matching and search across BT and online sources
+- **Torrent streaming**:
+  - Download, stream, and seed (dual backends: `rqbit` and `libtorrent`, switchable)
+- **Media player**:
+  - Danmaku and subtitle settings
+  - Playback speed control, seek forward/backward with gesture support
+  - Download
+  - History
+- **Cross-platform**:
   - Windows
   - Android
-- **Offline Capabilities**: Intelligent caching with Drift database.
+- **Convenience**:
+  - Automatic captcha and WAF bypass
+  - Proxy-free access to Bangumi via ECH or reverse proxy
 
-## Data Sources
 
-- **Bangumi**: Anime metadata
-- **bgmlist**: Broadcast timetable
-- **Mikan Project**: Resources and magnet links
-- **Anime Garden**: Resources and magnet links
-- **DanDanPlay**: Danmaku data
+## Data sources
 
-## Stack
+- **Bangumi**: anime metadata
+- **bgmlist**: broadcast schedule
+- **Mikan Project (蜜柑计划)**: resources and magnet links
+- **DMHY (动漫花园)**: resources and magnet links
+- **DanDanPlay (弹弹play)**: danmaku data
+- **Custom data sources**: add web search/scraping sources via `Data Source Configuration`, with optional captcha handling and subtitle-language tagging
 
-- **Flutter**: UI, Media Player (`media_kit`), Danmaku (`canvas_danmaku`).
-- **Rust**: Application Logic and Torrent Engine (`rqbit` via `flutter_rust_bridge`).
-- **Drift**: Local database.
+## Tech stack
+
+- **Flutter**: UI, media player (`media_kit`), danmaku (`canvas_danmaku`).
+- **Rust**: app logic and torrent engine (called via `flutter_rust_bridge`, using `rqbit`).
+- **Drift**: local database.
 
 ## Prerequisites
 
-- Flutter SDK 3.10+ (Running 3.38.7)
-- Rust 1.80+ (Running 1.92.0)
-- Visual Studio (Windows) with C++ Desktop development workload
-- Android Studio / NDK (for Android build)
+- Flutter SDK 3.10+ (currently running 3.44.4)
+- Rust 1.80+ (currently running 1.92.0)
+- Visual Studio (Windows) with the C++ desktop development workload
+- Android Studio / NDK r29 (for Android builds)
 
-## Setup
+## Run and build
 
-1. **Install Dependencies**:
+1. **Install dependencies**:
    ```bash
    flutter pub get
    ```
 
-2. **Generate Rust Bindings** (Needed if you modify Rust code):
+2. **Generate Rust bindings** (if you modified Rust code):
    ```bash
    flutter_rust_bridge_codegen generate
    ```
@@ -62,13 +72,14 @@ A modern Flutter + Rust application for streaming anime, with Bangumi integratio
       ```bash
       flutter run -d android
       ```
-      The Android Gradle build now compiles the Rust shared library automatically before packaging, so no separate manual Rust build step is required.
 
-## Architecture
 
-- `lib/main.dart`: Entry point.
-- `lib/ui/`: Flutter UI pages (Timetable, Player, Settings, etc.).
-- `lib/src/rust/`: Generated Rust bindings.
-- `rust/src/`: Rust backend logic (`rqbit` integration).
-- `windows/CMakeLists.txt`: Configured to build Rust code automatically.
-
+4. **Build**
+   - **Windows**:
+     ```bash
+     build_windows.ps1
+     ```
+   - **Android**:
+      ```bash
+     build_apk.ps1
+     ```
