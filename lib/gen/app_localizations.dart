@@ -1328,6 +1328,18 @@ abstract class AppLocalizations {
   /// **'不限时间范围'**
   String get indexDateRangeUnset;
 
+  /// No description provided for @indexTimeModePoint.
+  ///
+  /// In zh, this message translates to:
+  /// **'点选'**
+  String get indexTimeModePoint;
+
+  /// No description provided for @indexTimeModeRange.
+  ///
+  /// In zh, this message translates to:
+  /// **'区间'**
+  String get indexTimeModeRange;
+
   /// No description provided for @loadFailed.
   ///
   /// In zh, this message translates to:

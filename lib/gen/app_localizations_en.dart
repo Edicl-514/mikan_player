@@ -672,6 +672,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get indexDateRangeUnset => 'No date range';
 
   @override
+  String get indexTimeModePoint => 'Point';
+
+  @override
+  String get indexTimeModeRange => 'Range';
+
+  @override
   String loadFailed(Object error) {
     return 'Load failed: $error';
   }

@@ -23,16 +23,18 @@ class _IndexPageState extends State<IndexPage> {
     '来源': '全部',
     '类型': '全部',
     '地区': '全部',
-    '时间': '不限',
-    '月份': '全部',
     '排序': '排名',
   };
   final Set<String> _selectedTypeTags = <String>{};
+  String _selectedYear = '不限';
+  String _selectedMonth = '全部';
   _YearMonthFilterValue? _rangeStart;
   _YearMonthFilterValue? _rangeEnd;
+  bool _timePanelOpen = false;
+  _TimePanelMode _timePanelMode = _TimePanelMode.point;
 
   final Map<String, List<String>> _filterData = {
-    '分类': ['全部', 'TV', 'WEB', 'OVA', '剧场版', '动态漫画', '其他'],
+    '分类': ['全部', 'TV', 'WEB', 'OVA', '剧场版', '其他'],
     '来源': ['全部', '原创', '漫画改', '游戏改', '小说改', '影视改'],
     '类型': [
       '全部',
@@ -81,53 +83,22 @@ class _IndexPageState extends State<IndexPage> {
       '中国台湾',
       '马来西亚',
     ],
-    '时间': [
-      '不限',
-      '2026',
-      '2025',
-      '2024',
-      '2023',
-      '2022',
-      '2021',
-      '2020',
-      '2019',
-      '2018',
-      '2017',
-      '2016',
-      '2015',
-      '2014',
-      '2013',
-      '2012',
-      '2011',
-      '2010',
-      '2009',
-      '2008',
-      '2007',
-      '2006',
-      '2005',
-      '2004',
-      '2003',
-      '2002',
-      '2001',
-      '2000',
-    ],
-    '月份': [
-      '全部',
-      '1月',
-      '2月',
-      '3月',
-      '4月',
-      '5月',
-      '6月',
-      '7月',
-      '8月',
-      '9月',
-      '10月',
-      '11月',
-      '12月',
-    ],
     '排序': ['排名', '相关度', '收藏数'],
   };
+
+  static const List<String> _yearOptions = [
+    '不限',
+    '2026', '2025', '2024', '2023', '2022', '2021', '2020',
+    '2019', '2018', '2017', '2016', '2015', '2014', '2013',
+    '2012', '2011', '2010', '2009', '2008', '2007', '2006',
+    '2005', '2004', '2003', '2002', '2001', '2000',
+  ];
+
+  static const List<String> _monthOptions = [
+    '全部',
+    '1月', '2月', '3月', '4月', '5月', '6月',
+    '7月', '8月', '9月', '10月', '11月', '12月',
+  ];
 
   List<RankingAnime> _animes = [];
   bool _isLoading = false;
@@ -227,12 +198,7 @@ class _IndexPageState extends State<IndexPage> {
 
       final List<String> tags = <String>[];
       _selections.forEach((key, value) {
-        if (key != '时间' &&
-            key != '月份' &&
-            key != '类型' &&
-            key != '排序' &&
-            value != '全部' &&
-            value != '不限') {
+        if (key != '类型' && key != '排序' && value != '全部' && value != '不限') {
           if (key == '分类') {
             if (value == 'TV') {
               _addUniqueTag(tags, 'tv');
@@ -342,8 +308,8 @@ class _IndexPageState extends State<IndexPage> {
           selectedType != null && selectedType != '全部' ? [selectedType] : const [],
         );
 
-      final legacyYear = _selections['时间'] ?? '不限';
-      final legacyMonth = _normalizeMonthValue(_selections['月份'] ?? '全部');
+      final legacyYear = _selectedYear;
+      final legacyMonth = _normalizeMonthValue(_selectedMonth);
       if (legacyYear != '不限') {
         final yearValue = int.tryParse(legacyYear);
         if (yearValue != null) {
@@ -369,29 +335,29 @@ class _IndexPageState extends State<IndexPage> {
       final orderedTags = _orderedSelectedTypeTags();
       _selections['类型'] = orderedTags.isEmpty ? '全部' : orderedTags.first;
 
+      _timePanelOpen = false;
+      _timePanelMode = _TimePanelMode.point;
       if (_rangeStart != null &&
           _rangeEnd != null &&
           _rangeStart!.year == _rangeEnd!.year) {
-        _selections['时间'] = _rangeStart!.year.toString();
-        _selections['月份'] = _rangeStart == _rangeEnd
+        _selectedYear = _rangeStart!.year.toString();
+        _selectedMonth = _rangeStart == _rangeEnd
             ? '${_rangeStart!.month}月'
             : '全部';
       } else {
-        _selections['时间'] = '不限';
-        _selections['月份'] = '全部';
+        _selectedYear = '不限';
+        _selectedMonth = '全部';
       }
     }
   }
 
   String _encodeLegacyYearFilter() {
-    final String selectedYear = _selections['时间'] ?? '不限';
-    final String selectedMonth = _selections['月份'] ?? '全部';
-    final String? normalizedMonth = _normalizeMonthValue(selectedMonth);
-    return selectedYear == '不限'
+    final String? normalizedMonth = _normalizeMonthValue(_selectedMonth);
+    return _selectedYear == '不限'
         ? ''
         : normalizedMonth == null
-        ? selectedYear
-        : '$selectedYear-$normalizedMonth';
+        ? _selectedYear
+        : '$_selectedYear-$normalizedMonth';
   }
 
   String _encodeSelectedRange() {
@@ -433,34 +399,23 @@ class _IndexPageState extends State<IndexPage> {
   }
 
   void _onSelectionChanged(String label, String value) {
-    if (_supportsAdvancedBrowserFilters && label == '时间') {
-      _onAdvancedYearSelection(value);
-      return;
-    }
-
-    if (_supportsAdvancedBrowserFilters && label == '月份') {
-      _onAdvancedMonthSelection(value);
-      return;
-    }
-
     if (_selections[label] == value) return;
     setState(() {
       _selections[label] = value;
-      if (label == '时间') {
-        _selections['月份'] = '全部';
-      }
       _prepareForRefresh();
     });
     _fetchAnimes();
   }
 
-  void _onAdvancedYearSelection(String value) {
-    if ((_selections['时间'] ?? '不限') == value) return;
+  void _onTimePanelYearSelected(String value) {
+    if (_selectedYear == value) {
+      return;
+    }
 
     if (value == '不限') {
       setState(() {
-        _selections['时间'] = '不限';
-        _selections['月份'] = '全部';
+        _selectedYear = '不限';
+        _selectedMonth = '全部';
         _rangeStart = null;
         _rangeEnd = null;
         _prepareForRefresh();
@@ -469,40 +424,106 @@ class _IndexPageState extends State<IndexPage> {
       return;
     }
 
+    if (_timePanelMode == _TimePanelMode.range && _supportsAdvancedBrowserFilters) {
+      setState(() {
+        _selectedYear = value;
+        _selectedMonth = '全部';
+        final year = int.tryParse(value);
+        if (year != null) {
+          _applyAdvancedTimePoint(_YearMonthFilterValue(year, 1));
+          _prepareForRefresh();
+        }
+      });
+      _fetchAnimes();
+      return;
+    }
+
     setState(() {
-      _selections['时间'] = value;
-      _selections['月份'] = '全部';
+      _selectedYear = value;
+      _selectedMonth = '全部';
+      _syncRangeFromPointSelection();
+      _prepareForRefresh();
     });
+    _fetchAnimes();
   }
 
-  void _onAdvancedMonthSelection(String value) {
-    final selectedYear = _selections['时间'] ?? '不限';
-    if (value != '全部' && selectedYear == '不限') {
+  void _onTimePanelMonthSelected(String value) {
+    if (_selectedYear == '不限' && value != '全部') {
+      return;
+    }
+
+    if (_timePanelMode == _TimePanelMode.range && _supportsAdvancedBrowserFilters) {
+      if (value == '全部') {
+        if (_selectedYear != '不限') {
+          _onTimePanelYearSelected(_selectedYear);
+        }
+        return;
+      }
+
+      final year = int.tryParse(_selectedYear);
+      final month = int.tryParse(_normalizeMonthValue(value) ?? '');
+      if (year == null || month == null) return;
+
+      setState(() {
+        _selectedMonth = value;
+        _applyAdvancedTimePoint(_YearMonthFilterValue(year, month));
+        _prepareForRefresh();
+      });
+      _fetchAnimes();
       return;
     }
 
     if (value == '全部') {
+      if (_selectedMonth == '全部') return;
       setState(() {
-        _selections['时间'] = '不限';
-        _selections['月份'] = '全部';
-        _rangeStart = null;
-        _rangeEnd = null;
+        _selectedMonth = '全部';
+        _syncRangeFromPointSelection();
         _prepareForRefresh();
       });
       _fetchAnimes();
       return;
     }
 
-    final year = int.tryParse(selectedYear);
+    final year = int.tryParse(_selectedYear);
     final month = int.tryParse(_normalizeMonthValue(value) ?? '');
     if (year == null || month == null) return;
 
     setState(() {
-      _selections['月份'] = value;
-      _applyAdvancedTimePoint(_YearMonthFilterValue(year, month));
+      _selectedMonth = value;
+      _syncRangeFromPointSelection();
       _prepareForRefresh();
     });
     _fetchAnimes();
+  }
+
+  void _syncRangeFromPointSelection() {
+    if (!_supportsAdvancedBrowserFilters) return;
+
+    if (_selectedYear == '不限') {
+      _rangeStart = null;
+      _rangeEnd = null;
+      return;
+    }
+
+    final year = int.tryParse(_selectedYear);
+    if (year == null) {
+      _rangeStart = null;
+      _rangeEnd = null;
+      return;
+    }
+
+    final normalizedMonth = _normalizeMonthValue(_selectedMonth);
+    if (normalizedMonth != null) {
+      final month = int.tryParse(normalizedMonth);
+      if (month != null) {
+        _rangeStart = _YearMonthFilterValue(year, month);
+        _rangeEnd = _YearMonthFilterValue(year, month);
+        return;
+      }
+    }
+
+    _rangeStart = _YearMonthFilterValue(year, 1);
+    _rangeEnd = _YearMonthFilterValue(year, 12);
   }
 
   void _applyAdvancedTimePoint(_YearMonthFilterValue point) {
@@ -569,7 +590,11 @@ class _IndexPageState extends State<IndexPage> {
     bool isInRange,
     bool isBoundary,
   }) _chipHighlightState(String label, String option) {
-    final isSelected = _selections[label] == option;
+    final isSelected = label == '时间'
+        ? _selectedYear == option
+        : label == '月份'
+            ? _selectedMonth == option
+            : _selections[label] == option;
 
     if (!_supportsAdvancedBrowserFilters ||
         (_rangeStart == null && _rangeEnd == null)) {
@@ -598,7 +623,7 @@ class _IndexPageState extends State<IndexPage> {
     }
 
     if (label == '月份') {
-      final selectedYear = int.tryParse(_selections['时间'] ?? '');
+      final selectedYear = int.tryParse(_selectedYear);
       final month = int.tryParse(_normalizeMonthValue(option) ?? '');
       if (selectedYear == null || month == null) {
         return (isSelected: isSelected, isInRange: false, isBoundary: false);
@@ -640,10 +665,29 @@ class _IndexPageState extends State<IndexPage> {
     return (isSelected: isSelected, isInRange: false, isBoundary: false);
   }
 
+  String _timeDisplayText(AppLocalizations l10n) {
+    if (_selectedYear == '不限') {
+      return l10n.indexDateRangeUnset;
+    }
+
+    if (_supportsAdvancedBrowserFilters &&
+        _rangeStart != null &&
+        _rangeEnd != null &&
+        _rangeStart != _rangeEnd) {
+      return '${_rangeStart!.displayLabel} - ${_rangeEnd!.displayLabel}';
+    }
+
+    final normalizedMonth = _normalizeMonthValue(_selectedMonth);
+    if (normalizedMonth != null) {
+      return '$_selectedYear.$normalizedMonth';
+    }
+    return _selectedYear;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
-    final bool showMonthFilter = (_selections['时间'] ?? '不限') != '不限';
+    final bool showMonthFilter = _selectedYear != '不限';
 
     Widget body = CustomScrollView(
       controller: _scrollController,
@@ -658,23 +702,23 @@ class _IndexPageState extends State<IndexPage> {
                   if (_supportsAdvancedBrowserFilters && entry.key == '类型')
                     _buildMultiSelectTypeRow(context)
                   else
-                  if (entry.key != '月份')
                     _buildFilterRow(
                       context,
                       entry.key,
                       entry.key == '排序' ? _sortOptions() : entry.value,
                     ),
-                  if (entry.key == '时间' && showMonthFilter)
-                    _buildFilterRow(
-                      context,
-                      '月份',
-                      _filterData['月份'] ?? const ['全部'],
-                    ),
+                ],
+                _buildTimeButtonRow(context),
+                if (_timePanelOpen) ...[
+                  _buildTimePanelYearRow(context),
+                  if (showMonthFilter)
+                    _buildTimePanelMonthRow(context),
                   if (_supportsAdvancedBrowserFilters &&
-                      entry.key == '时间' &&
                       _rangeStart != null &&
                       _rangeEnd != null)
                     _buildTimeRangeSummaryRow(context),
+                  if (_supportsAdvancedBrowserFilters)
+                    _buildTimePanelModeToggle(context),
                 ],
               ],
             ),
@@ -789,10 +833,7 @@ class _IndexPageState extends State<IndexPage> {
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     final chips = options.map((option) {
-      final state = _chipHighlightState(label, option);
-      final isSelected = state.isSelected;
-      final isInRange = state.isInRange;
-      final isBoundary = state.isBoundary;
+      final isSelected = _selections[label] == option;
       final colorScheme = Theme.of(context).colorScheme;
       final chip = FilterChip(
         showCheckmark: false,
@@ -801,6 +842,170 @@ class _IndexPageState extends State<IndexPage> {
         onSelected: (bool value) {
           if (value) {
             _onSelectionChanged(label, option);
+          }
+        },
+        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+        padding: EdgeInsets.zero,
+        labelStyle: TextStyle(
+          fontSize: 11,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? colorScheme.onSecondaryContainer : null,
+        ),
+        selectedColor: colorScheme.secondaryContainer,
+        side: BorderSide.none,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      );
+
+      if (isMobile) {
+        return Padding(padding: const EdgeInsets.only(right: 4.0), child: chip);
+      }
+      return chip;
+    }).toList();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2.0),
+      child: Row(
+        crossAxisAlignment: isMobile
+            ? CrossAxisAlignment.center
+            : CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 50,
+            height: 32,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+          Expanded(
+            child: isMobile
+                ? SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(children: chips),
+                  )
+                : Wrap(
+                    spacing: 4.0,
+                    runSpacing: 4.0,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: chips,
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimeButtonRow(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final displayText = _timeDisplayText(l10n);
+    final hasTimeFilter = _selectedYear != '不限';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2.0),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 32,
+            alignment: Alignment.centerLeft,
+            child: const Text(
+              '时间',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+          const SizedBox(width: 4),
+          InkWell(
+            onTap: () {
+              setState(() {
+                _timePanelOpen = !_timePanelOpen;
+              });
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: hasTimeFilter
+                    ? colorScheme.secondaryContainer
+                    : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+                border: _timePanelOpen
+                    ? Border.all(
+                        color: colorScheme.primary.withValues(alpha: 0.6),
+                        width: 1,
+                      )
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    displayText,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: hasTimeFilter ? FontWeight.bold : FontWeight.normal,
+                      color: hasTimeFilter
+                          ? colorScheme.onSecondaryContainer
+                          : colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _timePanelOpen ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                    color: colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (hasTimeFilter) ...[
+            const SizedBox(width: 4),
+            InkWell(
+              onTap: () {
+                setState(() {
+                  _selectedYear = '不限';
+                  _selectedMonth = '全部';
+                  _rangeStart = null;
+                  _rangeEnd = null;
+                  _prepareForRefresh();
+                });
+                _fetchAnimes();
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Icon(
+                Icons.close,
+                size: 16,
+                color: colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimePanelYearRow(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    final chips = _yearOptions.map((option) {
+      final isSelected = _selectedYear == option;
+      final highlightState = _timePanelMode == _TimePanelMode.range && _supportsAdvancedBrowserFilters
+          ? _chipHighlightState('时间', option)
+          : (isSelected: isSelected, isInRange: false, isBoundary: false);
+      final isInRange = highlightState.isInRange;
+      final isBoundary = highlightState.isBoundary;
+      final colorScheme = Theme.of(context).colorScheme;
+      final chip = FilterChip(
+        showCheckmark: false,
+        label: Text(option),
+        selected: isSelected,
+        onSelected: (bool value) {
+          if (value) {
+            _onTimePanelYearSelected(option);
           }
         },
         visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
@@ -846,15 +1051,7 @@ class _IndexPageState extends State<IndexPage> {
             ? CrossAxisAlignment.center
             : CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 50,
-            height: 32,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-          ),
+          const SizedBox(width: 50),
           Expanded(
             child: isMobile
                 ? SingleChildScrollView(
@@ -867,6 +1064,137 @@ class _IndexPageState extends State<IndexPage> {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: chips,
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimePanelMonthRow(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    final chips = _monthOptions.map((option) {
+      final isSelected = _selectedMonth == option;
+      final highlightState = _timePanelMode == _TimePanelMode.range && _supportsAdvancedBrowserFilters
+          ? _chipHighlightState('月份', option)
+          : (isSelected: isSelected, isInRange: false, isBoundary: false);
+      final isInRange = highlightState.isInRange;
+      final isBoundary = highlightState.isBoundary;
+      final colorScheme = Theme.of(context).colorScheme;
+      final chip = FilterChip(
+        showCheckmark: false,
+        label: Text(option),
+        selected: isSelected,
+        onSelected: (bool value) {
+          if (value) {
+            _onTimePanelMonthSelected(option);
+          }
+        },
+        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+        padding: EdgeInsets.zero,
+        backgroundColor: !isSelected && isInRange
+            ? colorScheme.secondaryContainer.withValues(
+                alpha: isBoundary ? 0.6 : 0.32,
+              )
+            : null,
+        labelStyle: TextStyle(
+          fontSize: 11,
+          fontWeight: isSelected || isBoundary
+              ? FontWeight.bold
+              : FontWeight.normal,
+          color: isSelected
+              ? colorScheme.onSecondaryContainer
+              : isInRange
+              ? colorScheme.onSurface
+              : null,
+        ),
+        selectedColor: colorScheme.secondaryContainer,
+        side: isBoundary
+            ? BorderSide(
+                color: colorScheme.primary.withValues(alpha: 0.85),
+                width: 1,
+              )
+            : BorderSide.none,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      );
+
+      if (isMobile) {
+        return Padding(padding: const EdgeInsets.only(right: 4.0), child: chip);
+      }
+      return chip;
+    }).toList();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2.0),
+      child: Row(
+        crossAxisAlignment: isMobile
+            ? CrossAxisAlignment.center
+            : CrossAxisAlignment.start,
+        children: [
+          const SizedBox(width: 50),
+          Expanded(
+            child: isMobile
+                ? SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(children: chips),
+                  )
+                : Wrap(
+                    spacing: 4.0,
+                    runSpacing: 4.0,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: chips,
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimePanelModeToggle(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isPoint = _timePanelMode == _TimePanelMode.point;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4.0, top: 2.0),
+      child: Row(
+        children: [
+          const SizedBox(width: 50),
+          ToggleButtons(
+            isSelected: [isPoint, !isPoint],
+            onPressed: (index) {
+              setState(() {
+                _timePanelMode = index == 0
+                    ? _TimePanelMode.point
+                    : _TimePanelMode.range;
+              });
+            },
+            borderRadius: BorderRadius.circular(8),
+            constraints: const BoxConstraints(minHeight: 28, minWidth: 48),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text(
+                  l10n.indexTimeModePoint,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: isPoint ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text(
+                  l10n.indexTimeModeRange,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: !isPoint ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -989,4 +1317,9 @@ class _YearMonthFilterValue implements Comparable<_YearMonthFilterValue> {
 
   @override
   int get hashCode => Object.hash(year, month);
+}
+
+enum _TimePanelMode {
+  point,
+  range,
 }

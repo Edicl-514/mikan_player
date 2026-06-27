@@ -205,6 +205,8 @@
   "rankingRanking": "排行榜",
   "indexDateRangeSelected": "区间",
   "indexDateRangeUnset": "不限时间范围",
+  "indexTimeModePoint": "点选",
+  "indexTimeModeRange": "区间",
   "loadFailed": "加载失败: {error}",
   "noRelatedAnime": "没有找到「{tag}」相关的动画",
   "pageRetry": "重试",

@@ -652,6 +652,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get indexDateRangeUnset => '不限时间范围';
 
   @override
+  String get indexTimeModePoint => '点选';
+
+  @override
+  String get indexTimeModeRange => '区间';
+
+  @override
   String loadFailed(Object error) {
     return '加载失败: $error';
   }

@@ -205,6 +205,8 @@
   "rankingRanking": "Ranking",
   "indexDateRangeSelected": "Range",
   "indexDateRangeUnset": "No date range",
+  "indexTimeModePoint": "Point",
+  "indexTimeModeRange": "Range",
   "loadFailed": "Load failed: {error}",
   "noRelatedAnime": "No anime related to \"{tag}\" was found",
   "pageRetry": "Retry",
