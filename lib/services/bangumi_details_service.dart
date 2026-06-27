@@ -209,6 +209,7 @@ class BangumiDetailsService {
     if (episodes is! List) return const [];
 
     final parsed = <BangumiEpisode>[];
+    final seenSortWithNames = <double>{};
     for (final item in episodes) {
       if (item is! Map) continue;
 
@@ -227,6 +228,11 @@ class BangumiDetailsService {
       final airdate = item['airdate']?.toString() ?? '';
       final duration = item['duration']?.toString() ?? '';
       final sort = _readDouble(item['sort']) ?? 0.0;
+
+      final hasName = name.isNotEmpty || nameCn.isNotEmpty;
+      if (!hasName && seenSortWithNames.contains(sort)) continue;
+
+      if (hasName) seenSortWithNames.add(sort);
 
       parsed.add(
         BangumiEpisode(
