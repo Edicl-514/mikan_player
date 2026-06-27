@@ -67,7 +67,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get favoritesTitle => '我的收藏';
 
   @override
-  String get favoritesSubtitle => '你收藏的番剧';
+  String get favoritesSubtitle => '已收藏的番剧';
 
   @override
   String get downloadTitle => '下载管理';

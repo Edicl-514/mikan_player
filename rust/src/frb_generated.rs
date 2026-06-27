@@ -2105,7 +2105,9 @@ let mut var_headers = <Option<std::collections::HashMap<String, String>>>::sse_d
 let mut var_channelName = <Option<String>>::sse_decode(deserializer);
 let mut var_channelIndex = <Option<usize>>::sse_decode(deserializer);
 let mut var_captchaConfigJson = <Option<String>>::sse_decode(deserializer);
-return crate::api::generic_scraper::SearchPlayResult{source_name: var_sourceName, play_page_url: var_playPageUrl, video_regex: var_videoRegex, direct_video_url: var_directVideoUrl, cookies: var_cookies, headers: var_headers, channel_name: var_channelName, channel_index: var_channelIndex, captcha_config_json: var_captchaConfigJson};}
+let mut var_enableNestedUrl = <bool>::sse_decode(deserializer);
+let mut var_matchNestedUrl = <Option<String>>::sse_decode(deserializer);
+return crate::api::generic_scraper::SearchPlayResult{source_name: var_sourceName, play_page_url: var_playPageUrl, video_regex: var_videoRegex, direct_video_url: var_directVideoUrl, cookies: var_cookies, headers: var_headers, channel_name: var_channelName, channel_index: var_channelIndex, captcha_config_json: var_captchaConfigJson, enable_nested_url: var_enableNestedUrl, match_nested_url: var_matchNestedUrl};}
                 }
                 
                 impl SseDecode for crate::api::generic_scraper::SearchResultWithChannels {
@@ -2179,7 +2181,9 @@ let mut var_channelName = <Option<String>>::sse_decode(deserializer);
 let mut var_channelIndex = <Option<usize>>::sse_decode(deserializer);
 let mut var_allChannels = <Option<Vec<crate::api::generic_scraper::ChannelInfo>>>::sse_decode(deserializer);
 let mut var_captchaConfigJson = <Option<String>>::sse_decode(deserializer);
-return crate::api::generic_scraper::SourceSearchProgress{source_name: var_sourceName, step: var_step, error: var_error, play_page_url: var_playPageUrl, video_regex: var_videoRegex, direct_video_url: var_directVideoUrl, cookies: var_cookies, headers: var_headers, channel_name: var_channelName, channel_index: var_channelIndex, all_channels: var_allChannels, captcha_config_json: var_captchaConfigJson};}
+let mut var_enableNestedUrl = <bool>::sse_decode(deserializer);
+let mut var_matchNestedUrl = <Option<String>>::sse_decode(deserializer);
+return crate::api::generic_scraper::SourceSearchProgress{source_name: var_sourceName, step: var_step, error: var_error, play_page_url: var_playPageUrl, video_regex: var_videoRegex, direct_video_url: var_directVideoUrl, cookies: var_cookies, headers: var_headers, channel_name: var_channelName, channel_index: var_channelIndex, all_channels: var_allChannels, captcha_config_json: var_captchaConfigJson, enable_nested_url: var_enableNestedUrl, match_nested_url: var_matchNestedUrl};}
                 }
                 
                 impl SseDecode for crate::api::generic_scraper::SourceState {
@@ -3024,7 +3028,9 @@ self.cookies.into_into_dart().into_dart(),
 self.headers.into_into_dart().into_dart(),
 self.channel_name.into_into_dart().into_dart(),
 self.channel_index.into_into_dart().into_dart(),
-self.captcha_config_json.into_into_dart().into_dart()
+                    self.captcha_config_json.into_into_dart().into_dart(),
+self.enable_nested_url.into_into_dart().into_dart(),
+self.match_nested_url.into_into_dart().into_dart()
                 ].into_dart()
                 }
             }
@@ -3136,7 +3142,9 @@ self.headers.into_into_dart().into_dart(),
 self.channel_name.into_into_dart().into_dart(),
 self.channel_index.into_into_dart().into_dart(),
 self.all_channels.into_into_dart().into_dart(),
-self.captcha_config_json.into_into_dart().into_dart()
+                    self.captcha_config_json.into_into_dart().into_dart(),
+self.enable_nested_url.into_into_dart().into_dart(),
+self.match_nested_url.into_into_dart().into_dart()
                 ].into_dart()
                 }
             }
@@ -3894,7 +3902,9 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::simple::TrackerInfo> for crat
 <Option<std::collections::HashMap<String, String>>>::sse_encode(self.headers, serializer);
 <Option<String>>::sse_encode(self.channel_name, serializer);
 <Option<usize>>::sse_encode(self.channel_index, serializer);
-<Option<String>>::sse_encode(self.captcha_config_json, serializer);}
+<Option<String>>::sse_encode(self.captcha_config_json, serializer);
+<bool>::sse_encode(self.enable_nested_url, serializer);
+<Option<String>>::sse_encode(self.match_nested_url, serializer);}
                 }
                 
                 impl SseEncode for crate::api::generic_scraper::SearchResultWithChannels {
@@ -3961,7 +3971,9 @@ crate::api::generic_scraper::SearchStep::Failed => { 6 }
 <Option<String>>::sse_encode(self.channel_name, serializer);
 <Option<usize>>::sse_encode(self.channel_index, serializer);
 <Option<Vec<crate::api::generic_scraper::ChannelInfo>>>::sse_encode(self.all_channels, serializer);
-<Option<String>>::sse_encode(self.captcha_config_json, serializer);}
+<Option<String>>::sse_encode(self.captcha_config_json, serializer);
+<bool>::sse_encode(self.enable_nested_url, serializer);
+<Option<String>>::sse_encode(self.match_nested_url, serializer);}
                 }
                 
                 impl SseEncode for crate::api::generic_scraper::SourceState {

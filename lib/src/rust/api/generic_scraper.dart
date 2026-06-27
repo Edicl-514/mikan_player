@@ -276,6 +276,12 @@ class SearchPlayResult {
   /// 验证码配置JSON（如果该源启用了captcha绕过）
   final String? captchaConfigJson;
 
+  /// 是否启用嵌套URL匹配
+  final bool enableNestedUrl;
+
+  /// 嵌套URL匹配正则
+  final String? matchNestedUrl;
+
   const SearchPlayResult({
     required this.sourceName,
     required this.playPageUrl,
@@ -286,6 +292,8 @@ class SearchPlayResult {
     this.channelName,
     this.channelIndex,
     this.captchaConfigJson,
+    this.enableNestedUrl = false,
+    this.matchNestedUrl,
   });
 
   @override
@@ -298,7 +306,9 @@ class SearchPlayResult {
       headers.hashCode ^
       channelName.hashCode ^
       channelIndex.hashCode ^
-      captchaConfigJson.hashCode;
+      captchaConfigJson.hashCode ^
+      enableNestedUrl.hashCode ^
+      matchNestedUrl.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -313,7 +323,9 @@ class SearchPlayResult {
           headers == other.headers &&
           channelName == other.channelName &&
           channelIndex == other.channelIndex &&
-          captchaConfigJson == other.captchaConfigJson;
+          captchaConfigJson == other.captchaConfigJson &&
+          enableNestedUrl == other.enableNestedUrl &&
+          matchNestedUrl == other.matchNestedUrl;
 }
 
 /// 包含多channel信息的搜索结果
@@ -551,6 +563,12 @@ class SourceSearchProgress {
   /// 验证码配置JSON（如果该源启用了captcha绕过）
   final String? captchaConfigJson;
 
+  /// 是否启用嵌套URL匹配
+  final bool enableNestedUrl;
+
+  /// 嵌套URL匹配正则
+  final String? matchNestedUrl;
+
   const SourceSearchProgress({
     required this.sourceName,
     required this.step,
@@ -564,6 +582,8 @@ class SourceSearchProgress {
     this.channelIndex,
     this.allChannels,
     this.captchaConfigJson,
+    this.enableNestedUrl = false,
+    this.matchNestedUrl,
   });
 
   @override
@@ -579,7 +599,9 @@ class SourceSearchProgress {
       channelName.hashCode ^
       channelIndex.hashCode ^
       allChannels.hashCode ^
-      captchaConfigJson.hashCode;
+      captchaConfigJson.hashCode ^
+      enableNestedUrl.hashCode ^
+      matchNestedUrl.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -597,7 +619,9 @@ class SourceSearchProgress {
           channelName == other.channelName &&
           channelIndex == other.channelIndex &&
           allChannels == other.allChannels &&
-          captchaConfigJson == other.captchaConfigJson;
+          captchaConfigJson == other.captchaConfigJson &&
+          enableNestedUrl == other.enableNestedUrl &&
+          matchNestedUrl == other.matchNestedUrl;
 }
 
 class SourceState {

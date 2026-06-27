@@ -1512,6 +1512,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             channelName: channel.name,
             channelIndex: channel.index,
             captchaConfigJson: progress.captchaConfigJson,
+            enableNestedUrl: progress.enableNestedUrl,
+            matchNestedUrl: progress.matchNestedUrl,
           );
 
           // 避免重复添加（使用sourceName + channelIndex作为唯一标识）
@@ -1556,6 +1558,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           channelName: progress.channelName,
           channelIndex: progress.channelIndex,
           captchaConfigJson: progress.captchaConfigJson,
+          enableNestedUrl: progress.enableNestedUrl,
+          matchNestedUrl: progress.matchNestedUrl,
         );
 
         // 避免重复添加
@@ -2248,6 +2252,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           channelName: channelName,
           channelIndex: channelIndex,
           captchaConfigJson: resolved.captchaConfigJson,
+          enableNestedUrl: resolved.enableNestedUrl,
+          matchNestedUrl: resolved.matchNestedUrl,
         );
 
         final existingIndex = _samplePlayPages.indexWhere(
@@ -2403,6 +2409,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               headers: resultHeaders,
               channelName: page.channelName,
               channelIndex: page.channelIndex,
+              enableNestedUrl: page.enableNestedUrl,
+              matchNestedUrl: page.matchNestedUrl,
             );
 
             unawaited(
@@ -4998,6 +5006,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           url: matchedPage.playPageUrl,
           customVideoRegex: matchedPage.videoRegex != r'$^'
               ? matchedPage.videoRegex
+              : null,
+          enableNestedUrl: matchedPage.enableNestedUrl,
+          matchNestedUrl: matchedPage.matchNestedUrl != r'$^'
+              ? matchedPage.matchNestedUrl
               : null,
           headers: matchedPage.headers,
           cookies: matchedPage.cookies,

@@ -209,7 +209,7 @@ abstract class AppLocalizations {
   /// No description provided for @favoritesSubtitle.
   ///
   /// In zh, this message translates to:
-  /// **'你收藏的番剧'**
+  /// **'已收藏的番剧'**
   String get favoritesSubtitle;
 
   /// No description provided for @downloadTitle.

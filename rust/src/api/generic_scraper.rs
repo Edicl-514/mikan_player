@@ -1106,6 +1106,10 @@ pub struct SearchPlayResult {
     pub channel_index: Option<usize>,
     /// 验证码配置JSON（如果该源启用了captcha绕过）
     pub captcha_config_json: Option<String>,
+    /// 是否启用嵌套URL匹配
+    pub enable_nested_url: bool,
+    /// 嵌套URL匹配正则
+    pub match_nested_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1178,6 +1182,10 @@ pub struct SourceSearchProgress {
     pub all_channels: Option<Vec<ChannelInfo>>,
     /// 验证码配置JSON（如果该源启用了captcha绕过）
     pub captcha_config_json: Option<String>,
+    /// 是否启用嵌套URL匹配
+    pub enable_nested_url: bool,
+    /// 嵌套URL匹配正则
+    pub match_nested_url: Option<String>,
 }
 
 /// 获取播放源配置缓存文件路径
@@ -2095,6 +2103,9 @@ pub async fn generic_search_with_progress_runtime(
                     channel_index: None,
                     all_channels: None,
                     captcha_config_json: None,
+                    enable_nested_url: false,
+
+                    match_nested_url: None,
                 })
                 .ok();
 
@@ -2115,6 +2126,9 @@ pub async fn generic_search_with_progress_runtime(
                         channel_index: None,
                         all_channels: None,
                         captcha_config_json: None,
+                        enable_nested_url: false,
+
+                        match_nested_url: None,
                     })
                     .ok();
                     return Ok(());
@@ -2256,6 +2270,9 @@ pub async fn debug_search_with_local_json_runtime(
                     channel_index: None,
                     all_channels: None,
                     captcha_config_json: None,
+                    enable_nested_url: false,
+
+                    match_nested_url: None,
                 })
                 .ok();
 
@@ -2276,6 +2293,9 @@ pub async fn debug_search_with_local_json_runtime(
                         channel_index: None,
                         all_channels: None,
                         captcha_config_json: None,
+                        enable_nested_url: false,
+
+                        match_nested_url: None,
                     })
                     .ok();
                     return Ok(());
@@ -2377,6 +2397,18 @@ async fn search_single_source_with_progress(
                     channel_index: selected_channel_index,
                     all_channels: all_channels.clone(),
                     captcha_config_json: captcha_config_json.clone(),
+                    enable_nested_url: source
+                        .arguments
+                        .search_config
+                        .match_video
+                        .enable_nested_url
+                        .unwrap_or(false),
+                    match_nested_url: source
+                        .arguments
+                        .search_config
+                        .match_video
+                        .match_nested_url
+                        .clone(),
                 })
                 .ok();
 
@@ -2393,6 +2425,18 @@ async fn search_single_source_with_progress(
                     channel_index: selected_channel_index,
                     all_channels: all_channels.clone(),
                     captcha_config_json: captcha_config_json.clone(),
+                    enable_nested_url: source
+                        .arguments
+                        .search_config
+                        .match_video
+                        .enable_nested_url
+                        .unwrap_or(false),
+                    match_nested_url: source
+                        .arguments
+                        .search_config
+                        .match_video
+                        .match_nested_url
+                        .clone(),
                 })
                 .ok();
 
@@ -2409,6 +2453,18 @@ async fn search_single_source_with_progress(
                     channel_index: selected_channel_index,
                     all_channels,
                     captcha_config_json,
+                    enable_nested_url: source
+                        .arguments
+                        .search_config
+                        .match_video
+                        .enable_nested_url
+                        .unwrap_or(false),
+                    match_nested_url: source
+                        .arguments
+                        .search_config
+                        .match_video
+                        .match_nested_url
+                        .clone(),
                 })
                 .ok();
                 return Ok(());
@@ -2471,6 +2527,9 @@ async fn search_single_source_with_progress(
                                 channel_index: None,
                                 all_channels: None,
                                 captcha_config_json: None,
+                                enable_nested_url: false,
+
+                                match_nested_url: None,
                             })
                             .ok();
                             return Err(anyhow::anyhow!("Search request failed"));
@@ -2490,6 +2549,9 @@ async fn search_single_source_with_progress(
                             channel_index: None,
                             all_channels: None,
                             captcha_config_json: None,
+                            enable_nested_url: false,
+
+                            match_nested_url: None,
                         })
                         .ok();
                         return Err(anyhow::anyhow!("Network error"));
@@ -2521,6 +2583,9 @@ async fn search_single_source_with_progress(
                             channel_index: None,
                             all_channels: None,
                             captcha_config_json: None,
+                            enable_nested_url: false,
+
+                            match_nested_url: None,
                         })
                         .ok();
                         return Err(anyhow::anyhow!("Search request failed"));
@@ -2540,6 +2605,9 @@ async fn search_single_source_with_progress(
                         channel_index: None,
                         all_channels: None,
                         captcha_config_json: None,
+                        enable_nested_url: false,
+
+                        match_nested_url: None,
                     })
                     .ok();
                     return Err(anyhow::anyhow!("Network error"));
@@ -2776,6 +2844,9 @@ async fn search_single_source_with_progress(
             channel_index: None,
             all_channels: None,
             captcha_config_json: None,
+            enable_nested_url: false,
+
+            match_nested_url: None,
         })
         .ok();
         return Err(anyhow::anyhow!("No matching anime found"));
@@ -2795,6 +2866,9 @@ async fn search_single_source_with_progress(
         channel_index: None,
         all_channels: None,
         captcha_config_json: None,
+        enable_nested_url: false,
+
+        match_nested_url: None,
     })
     .ok();
 
@@ -2831,6 +2905,9 @@ async fn search_single_source_with_progress(
                         channel_index: None,
                         all_channels: None,
                         captcha_config_json: None,
+                        enable_nested_url: false,
+
+                        match_nested_url: None,
                     })
                     .ok();
                     return Err(anyhow::anyhow!("Detail fetch failed"));
@@ -2850,6 +2927,9 @@ async fn search_single_source_with_progress(
                     channel_index: None,
                     all_channels: None,
                     captcha_config_json: None,
+                    enable_nested_url: false,
+
+                    match_nested_url: None,
                 })
                 .ok();
                 return Err(anyhow::anyhow!("Detail network error"));
@@ -2871,6 +2951,9 @@ async fn search_single_source_with_progress(
         channel_index: None,
         all_channels: None,
         captcha_config_json: None,
+        enable_nested_url: false,
+
+        match_nested_url: None,
     })
     .ok();
 
@@ -3100,6 +3183,9 @@ async fn search_single_source_with_progress(
                 Some(channels)
             },
             captcha_config_json: captcha_config_json.clone(),
+            enable_nested_url: false,
+
+            match_nested_url: None,
         })
         .ok();
         return Err(anyhow::anyhow!("No episodes found"));
@@ -3125,6 +3211,18 @@ async fn search_single_source_with_progress(
         channel_index: selected_channel_index,
         all_channels: all_channels.clone(),
         captcha_config_json: captcha_config_json.clone(),
+        enable_nested_url: source
+            .arguments
+            .search_config
+            .match_video
+            .enable_nested_url
+            .unwrap_or(false),
+        match_nested_url: source
+            .arguments
+            .search_config
+            .match_video
+            .match_nested_url
+            .clone(),
     })
     .ok();
 
@@ -3146,6 +3244,18 @@ async fn search_single_source_with_progress(
         channel_index: selected_channel_index,
         all_channels,
         captcha_config_json,
+        enable_nested_url: source
+            .arguments
+            .search_config
+            .match_video
+            .enable_nested_url
+            .unwrap_or(false),
+        match_nested_url: source
+            .arguments
+            .search_config
+            .match_video
+            .match_nested_url
+            .clone(),
     })
     .ok();
 
@@ -3519,6 +3629,18 @@ async fn search_single_source(
         channel_name: None,
         channel_index: None,
         captcha_config_json: None,
+        enable_nested_url: source
+            .arguments
+            .search_config
+            .match_video
+            .enable_nested_url
+            .unwrap_or(false),
+        match_nested_url: source
+            .arguments
+            .search_config
+            .match_video
+            .match_nested_url
+            .clone(),
     })
 }
 
@@ -4476,6 +4598,18 @@ pub async fn get_episode_play_url(
             channel_name,
             channel_index: Some(target_episode.channel_index),
             captcha_config_json: None,
+            enable_nested_url: source
+                .arguments
+                .search_config
+                .match_video
+                .enable_nested_url
+                .unwrap_or(false),
+            match_nested_url: source
+                .arguments
+                .search_config
+                .match_video
+                .match_nested_url
+                .clone(),
         });
     }
 
@@ -4526,5 +4660,17 @@ pub async fn get_episode_play_url(
         channel_name,
         channel_index: Some(channel_index),
         captcha_config_json: None,
+        enable_nested_url: source
+            .arguments
+            .search_config
+            .match_video
+            .enable_nested_url
+            .unwrap_or(false),
+        match_nested_url: source
+            .arguments
+            .search_config
+            .match_video
+            .match_nested_url
+            .clone(),
     })
 }

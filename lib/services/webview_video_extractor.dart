@@ -195,6 +195,8 @@ class WebViewVideoExtractor {
 class WebViewVideoExtractorWidget extends StatefulWidget {
   final String url;
   final String? customVideoRegex;
+  final bool enableNestedUrl;
+  final String? matchNestedUrl;
   final Map<String, String>? headers;
   final String? cookies;
   final Duration timeout;
@@ -206,6 +208,8 @@ class WebViewVideoExtractorWidget extends StatefulWidget {
     super.key,
     required this.url,
     this.customVideoRegex,
+    this.enableNestedUrl = false,
+    this.matchNestedUrl,
     this.headers,
     this.cookies,
     this.timeout = const Duration(seconds: 30),
@@ -401,6 +405,59 @@ class _WebViewVideoExtractorWidgetState
         !url.contains(widget.url);
 
     final skipParserNavigation = _shouldSkipParserNavigation();
+
+    // 当 enableNestedUrl 且 matchNestedUrl 有效时，使用配置的正则检测嵌套URL
+    final effectiveMatchNestedUrl =
+        widget.enableNestedUrl &&
+                widget.matchNestedUrl != null &&
+                widget.matchNestedUrl!.isNotEmpty &&
+                widget.matchNestedUrl != r'$^'
+            ? widget.matchNestedUrl
+            : null;
+
+    if (effectiveMatchNestedUrl != null &&
+        extractor._matchesCustomRegex(url, effectiveMatchNestedUrl)) {
+      if (skipParserNavigation) {
+        _log('⏭️ 已按源配置跳过嵌套URL导航: $url');
+        return false;
+      }
+      if (_navigationCount >= 3) {
+        _log('⚠️ 已达到最大跳转尝试次数 ($_navigationCount)，忽略此嵌套URL: $url');
+        return false;
+      }
+
+      final extractedNestedUrl = extractor._extractUrlWithCustomRegex(
+        url,
+        effectiveMatchNestedUrl,
+      );
+      final navigationUrl = extractedNestedUrl ?? url;
+
+      _navigationCount++;
+      _log('🎬 matchNestedUrl匹配到嵌套URL (第$_navigationCount次跳转): $url');
+      _log('   提取的嵌套URL: $navigationUrl');
+      _log('   将导航到此URL以拦截内部视频请求...');
+      _webViewController?.loadUrl(
+        urlRequest: URLRequest(
+          url: WebUri(navigationUrl),
+          headers: finalHeaders.isEmpty ? null : finalHeaders,
+        ),
+      );
+      return false;
+    }
+
+    // 当URL命中播放器解析接口时，先尝试用自定义正则直接提取视频URL
+    // 这对于 url=(?<v>...) 这种能直接从参数中提取真实视频地址的场景特别重要
+    if (isPlayerParser && widget.customVideoRegex != null && widget.customVideoRegex!.isNotEmpty) {
+      final matched = extractor._matchesCustomRegex(url, widget.customVideoRegex);
+      if (matched) {
+        final extractedUrl = extractor._extractUrlWithCustomRegex(url, widget.customVideoRegex);
+        if (extractedUrl != null && extractedUrl.isNotEmpty && extractedUrl != url) {
+          _log('🎯 播放器接口中通过自定义正则直接提取到视频URL: $extractedUrl');
+          _complete(VideoExtractResult(videoUrl: extractedUrl, headers: finalHeaders));
+          return true;
+        }
+      }
+    }
 
     if (isPlayerParser) {
       if (skipParserNavigation) {
@@ -713,6 +770,8 @@ class GlobalSearchManager {
   Widget extractVideoFromPage({
     required String pageUrl,
     String? customVideoRegex,
+    bool enableNestedUrl = false,
+    String? matchNestedUrl,
     Duration timeout = const Duration(seconds: 30),
     required void Function(VideoExtractResult result) onResult,
     void Function(String message)? onLog,
@@ -721,6 +780,8 @@ class GlobalSearchManager {
     return WebViewVideoExtractorWidget(
       url: pageUrl,
       customVideoRegex: customVideoRegex,
+      enableNestedUrl: enableNestedUrl,
+      matchNestedUrl: matchNestedUrl,
       timeout: timeout,
       onResult: onResult,
       onLog: onLog,

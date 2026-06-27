@@ -67,7 +67,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get favoritesTitle => 'Favorites';
 
   @override
-  String get favoritesSubtitle => 'Your collected anime';
+  String get favoritesSubtitle => 'Collected anime';
 
   @override
   String get downloadTitle => 'Downloads';

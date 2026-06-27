@@ -5790,8 +5790,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   SearchPlayResult dco_decode_search_play_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
     return SearchPlayResult(
       sourceName: dco_decode_String(arr[0]),
       playPageUrl: dco_decode_String(arr[1]),
@@ -5802,6 +5802,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       channelName: dco_decode_opt_String(arr[6]),
       channelIndex: dco_decode_opt_box_autoadd_usize(arr[7]),
       captchaConfigJson: dco_decode_opt_String(arr[8]),
+      enableNestedUrl: dco_decode_bool(arr[9]),
+      matchNestedUrl: dco_decode_opt_String(arr[10]),
     );
   }
 
@@ -5872,8 +5874,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   SourceSearchProgress dco_decode_source_search_progress(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12)
-      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 14)
+      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
     return SourceSearchProgress(
       sourceName: dco_decode_String(arr[0]),
       step: dco_decode_search_step(arr[1]),
@@ -5887,6 +5889,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       channelIndex: dco_decode_opt_box_autoadd_usize(arr[9]),
       allChannels: dco_decode_opt_list_channel_info(arr[10]),
       captchaConfigJson: dco_decode_opt_String(arr[11]),
+      enableNestedUrl: dco_decode_bool(arr[12]),
+      matchNestedUrl: dco_decode_opt_String(arr[13]),
     );
   }
 
@@ -7364,6 +7368,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_channelName = sse_decode_opt_String(deserializer);
     var var_channelIndex = sse_decode_opt_box_autoadd_usize(deserializer);
     var var_captchaConfigJson = sse_decode_opt_String(deserializer);
+    var var_enableNestedUrl = sse_decode_bool(deserializer);
+    var var_matchNestedUrl = sse_decode_opt_String(deserializer);
     return SearchPlayResult(
       sourceName: var_sourceName,
       playPageUrl: var_playPageUrl,
@@ -7374,6 +7380,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       channelName: var_channelName,
       channelIndex: var_channelIndex,
       captchaConfigJson: var_captchaConfigJson,
+      enableNestedUrl: var_enableNestedUrl,
+      matchNestedUrl: var_matchNestedUrl,
     );
   }
 
@@ -7482,6 +7490,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_channelIndex = sse_decode_opt_box_autoadd_usize(deserializer);
     var var_allChannels = sse_decode_opt_list_channel_info(deserializer);
     var var_captchaConfigJson = sse_decode_opt_String(deserializer);
+    var var_enableNestedUrl = sse_decode_bool(deserializer);
+    var var_matchNestedUrl = sse_decode_opt_String(deserializer);
     return SourceSearchProgress(
       sourceName: var_sourceName,
       step: var_step,
@@ -7495,6 +7505,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       channelIndex: var_channelIndex,
       allChannels: var_allChannels,
       captchaConfigJson: var_captchaConfigJson,
+      enableNestedUrl: var_enableNestedUrl,
+      matchNestedUrl: var_matchNestedUrl,
     );
   }
 
@@ -8782,6 +8794,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.channelName, serializer);
     sse_encode_opt_box_autoadd_usize(self.channelIndex, serializer);
     sse_encode_opt_String(self.captchaConfigJson, serializer);
+    sse_encode_bool(self.enableNestedUrl, serializer);
+    sse_encode_opt_String(self.matchNestedUrl, serializer);
   }
 
   @protected
@@ -8859,6 +8873,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_usize(self.channelIndex, serializer);
     sse_encode_opt_list_channel_info(self.allChannels, serializer);
     sse_encode_opt_String(self.captchaConfigJson, serializer);
+    sse_encode_bool(self.enableNestedUrl, serializer);
+    sse_encode_opt_String(self.matchNestedUrl, serializer);
   }
 
   @protected

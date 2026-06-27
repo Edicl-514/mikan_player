@@ -135,6 +135,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       channelName: progress.channelName,
       channelIndex: progress.channelIndex,
       captchaConfigJson: progress.captchaConfigJson,
+      enableNestedUrl: progress.enableNestedUrl,
+      matchNestedUrl: progress.matchNestedUrl,
     );
     unawaited(_probeVideoUrl(source, logPrefix: '搜索直链 Probe'));
   }
@@ -620,6 +622,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       headers: progress.headers,
       channelName: progress.channelName,
       channelIndex: progress.channelIndex,
+      enableNestedUrl: progress.enableNestedUrl,
+      matchNestedUrl: progress.matchNestedUrl,
     );
 
     setState(() {
@@ -924,6 +928,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                               channelName: result.channelName,
                               channelIndex: result.channelIndex,
                               captchaConfigJson: result.captchaConfigJson,
+                              enableNestedUrl: result.enableNestedUrl,
+                              matchNestedUrl: result.matchNestedUrl,
                             );
                             unawaited(
                               _probeVideoUrl(source, logPrefix: '手动 Probe'),
@@ -1031,6 +1037,10 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                 customVideoRegex: _extractTarget!.videoRegex != r'$^'
                     ? _extractTarget!.videoRegex
                     : null,
+                enableNestedUrl: _extractTarget!.enableNestedUrl,
+                matchNestedUrl: _extractTarget!.matchNestedUrl != r'$^'
+                    ? _extractTarget!.matchNestedUrl
+                    : null,
                 headers: _extractTarget!.headers,
                 cookies: _extractTarget!.cookies,
                 timeout: const Duration(seconds: 25),
@@ -1082,6 +1092,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                       channelName: target.channelName,
                       channelIndex: target.channelIndex,
                       captchaConfigJson: target.captchaConfigJson,
+                      enableNestedUrl: target.enableNestedUrl,
+                      matchNestedUrl: target.matchNestedUrl,
                     );
                     unawaited(
                       _probeVideoUrl(
