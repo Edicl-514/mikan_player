@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `apply_subject_details`, `atomic_write_bytes`, `bangumi_data_failure_marker_path`, `bgmlist_item_to_anime_info`, `build_light_subject_from_json`, `clear_failure_marker`, `datetime_to_cst_day_time`, `download_bangumi_data_json`, `fetch_archive_list_api`, `fetch_archive_list_html`, `fetch_extra_bangumi_subjects`, `fetch_schedule_basic_api_from_url`, `fetch_schedule_basic_api`, `fetch_schedule_basic_from_local_data_json`, `fetch_schedule_basic_html`, `fetch_subject_details_next_p1_json`, `fetch_subject_details_rest_json`, `filter_items_by_quarter`, `is_legacy_mode`, `last_failure_age_secs`, `load_data_json_and_filter`, `normalize_next_subject_json`, `parse_begin_utc`, `parse_broadcast_from_rfc`, `parse_broadcast_parts`, `quarter_to_title`, `replace_atomic`, `verify_bangumi_data_payload`, `write_failure_marker`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ArchiveResponse`, `BangumiDataJson`, `BgmlistItem`, `BgmlistSite`, `BgmlistTitleTranslate`, `SeasonListResponse`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`, `default`
 
 Future<List<ArchiveQuarter>> fetchArchiveList() =>
@@ -35,6 +35,9 @@ Future<List<AnimeInfo>> fetchExtraSubjects({
   yearQuarter: yearQuarter,
   existingIds: existingIds,
 );
+
+Future<BangumiDataCacheStatus> getBangumiDataCacheStatus() =>
+    RustLib.instance.api.crateApiCrawlerGetBangumiDataCacheStatus();
 
 Future<bool> refreshBangumiDataCache() =>
     RustLib.instance.api.crateApiCrawlerRefreshBangumiDataCache();
@@ -140,4 +143,39 @@ class ArchiveQuarter {
           year == other.year &&
           quarter == other.quarter &&
           title == other.title;
+}
+
+class BangumiDataCacheStatus {
+  final bool cached;
+  final BigInt fileSize;
+  final BigInt? lastModifiedSecs;
+  final String version;
+  final BigInt? lastFailedSecs;
+
+  const BangumiDataCacheStatus({
+    required this.cached,
+    required this.fileSize,
+    this.lastModifiedSecs,
+    required this.version,
+    this.lastFailedSecs,
+  });
+
+  @override
+  int get hashCode =>
+      cached.hashCode ^
+      fileSize.hashCode ^
+      lastModifiedSecs.hashCode ^
+      version.hashCode ^
+      lastFailedSecs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiDataCacheStatus &&
+          runtimeType == other.runtimeType &&
+          cached == other.cached &&
+          fileSize == other.fileSize &&
+          lastModifiedSecs == other.lastModifiedSecs &&
+          version == other.version &&
+          lastFailedSecs == other.lastFailedSecs;
 }

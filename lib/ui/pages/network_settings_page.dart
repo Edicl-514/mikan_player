@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
 import 'package:mikan_player/services/bangumi_ech_service.dart';
+import 'package:intl/intl.dart';
+import 'package:mikan_player/src/rust/api/crawler.dart' show BangumiDataCacheStatus;
 import 'package:mikan_player/services/bangumi_data_service.dart';
 import 'package:mikan_player/services/base_url_list_service.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
@@ -40,6 +42,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
 
   bool _isRefreshingBangumiData = false;
   String? _bangumiDataRefreshResult;
+  BangumiDataCacheStatus? _bangumiDataStatus;
 
   List<String> _dohEndpoints = const <String>[];
   bool _isDohBusy = false;
@@ -58,22 +61,42 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
   }
 
   Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
+    final results = await Future.wait([
+      SharedPreferences.getInstance(),
+      BangumiEchService.getDohEndpoints().catchError(
+          (_) => <String>[], test: (_) => true),
+      _reloadKindQuiet(BaseUrlKind.bgmlist),
+      _reloadKindQuiet(BaseUrlKind.bangumi),
+      _reloadKindQuiet(BaseUrlKind.mikan),
+      BangumiDataService.getStatus().catchError(
+          (_) => BangumiDataCacheStatus(
+                cached: false, fileSize: BigInt.zero, version: '',
+              ),
+          test: (_) => true),
+    ]);
 
-    List<String> dohList = const <String>[];
-    try {
-      dohList = await BangumiEchService.getDohEndpoints();
-    } catch (e) {
-      debugPrint('Failed to load DoH endpoint list: $e');
-    }
-
-    await _reloadKind(BaseUrlKind.bgmlist);
-    await _reloadKind(BaseUrlKind.bangumi);
-    await _reloadKind(BaseUrlKind.mikan);
+    final prefs = results[0] as SharedPreferences;
+    final dohList = results[1] as List<String>;
+    final bgmState = results[2] as _UrlKindState?;
+    final bangumiState = results[3] as _UrlKindState?;
+    final mikanState = results[4] as _UrlKindState?;
+    final status = results[5] as BangumiDataCacheStatus?;
 
     if (!mounted) return;
 
     setState(() {
+      if (bgmState != null) {
+        _allBgmUrls = bgmState.all;
+        _selectedBgm = bgmState.selected;
+      }
+      if (bangumiState != null) {
+        _allBangumiUrls = bangumiState.all;
+        _selectedBangumi = bangumiState.selected;
+      }
+      if (mikanState != null) {
+        _allMikanUrls = mikanState.all;
+        _selectedMikan = mikanState.selected;
+      }
       _bangumiRequestMode = BangumiRequestMode.fromValue(
         prefs.getString(BangumiRequestModeService.preferenceKey),
       );
@@ -82,29 +105,31 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
       _bangumiUseEch =
           prefs.getBool(BangumiEchService.preferenceKey) ?? true;
       _dohEndpoints = dohList;
+      _bangumiDataStatus = status;
       _isLoading = false;
     });
   }
 
   Future<void> _reloadKind(BaseUrlKind kind) async {
+    final state = await _reloadKindQuiet(kind);
+    if (state != null && mounted) {
+      setState(() => _applyKindState(kind, state.all, state.selected));
+    }
+  }
+
+  Future<_UrlKindState?> _reloadKindQuiet(BaseUrlKind kind) async {
     final all = await BaseUrlListService.getAllUrls(kind);
     var selected = await BaseUrlListService.getSelected(kind);
 
-    // Migration: if the persisted selection is neither builtin nor in the
-    // custom list (e.g. a URL typed in the old text field), fold it into the
-    // custom list so it shows up in the dropdown.
     if (!all.contains(selected) &&
         !BaseUrlListService.isBuiltin(kind, selected)) {
       await BaseUrlListService.addCustomUrl(kind, selected);
       selected = await BaseUrlListService.getSelected(kind);
       final merged = await BaseUrlListService.getAllUrls(kind);
-      if (!mounted) return;
-      setState(() => _applyKindState(kind, merged, selected));
-      return;
+      return _UrlKindState(all: merged, selected: selected);
     }
 
-    if (!mounted) return;
-    setState(() => _applyKindState(kind, all, selected));
+    return _UrlKindState(all: all, selected: selected);
   }
 
   void _applyKindState(BaseUrlKind kind, List<String> all, String selected) {
@@ -161,9 +186,15 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     });
     try {
       final ok = await BangumiDataService.refresh();
+      BangumiDataCacheStatus? status;
+      try {
+        status = await BangumiDataService.getStatus();
+      } catch (_) {}
       if (mounted) {
         setState(() {
-          _bangumiDataRefreshResult = ok ? '已更新离线放送数据' : '更新失败，请检查网络';
+          _bangumiDataRefreshResult =
+              ok ? '已更新离线放送数据' : '更新失败，请检查网络';
+          _bangumiDataStatus = status;
         });
       }
     } finally {
@@ -378,6 +409,39 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     });
   }
 
+  String _bangumiDataStatusSubtitle() {
+    final status = _bangumiDataStatus;
+    if (status == null) {
+      return '加载中…';
+    }
+    if (!status.cached) {
+      return '未缓存 · 点击下载离线兜底数据';
+    }
+    final sizeMB = (status.fileSize.toInt()) / (1024 * 1024);
+    final sizeStr = sizeMB >= 1
+        ? '${sizeMB.toStringAsFixed(1)} MB'
+        : '${(status.fileSize.toInt() / 1024).toStringAsFixed(0)} KB';
+    final parts = <String>['已缓存 $sizeStr'];
+    if (status.lastModifiedSecs != null) {
+      final mtime = DateTime.fromMillisecondsSinceEpoch(
+        status.lastModifiedSecs!.toInt() * 1000,
+        isUtc: true,
+      ).toLocal();
+      parts.add('同步于 ${DateFormat('yyyy-MM-dd HH:mm').format(mtime)}');
+    }
+    parts.add('v${status.version}');
+    if (status.lastFailedSecs != null) {
+      final ageMins = status.lastFailedSecs!.toInt() / 60;
+      if (ageMins < 60) {
+        parts.add('${ageMins.round()}分钟前同步失败');
+      } else {
+        final ageHours = ageMins / 60;
+        parts.add('${ageHours.round()}小时前同步失败');
+      }
+    }
+    return parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -573,11 +637,15 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                 _buildCard(
                   context,
                   child: ListTile(
-                    leading: const Icon(Icons.cloud_download_outlined),
+                    leading: Icon(
+                      _bangumiDataStatus?.cached ?? false
+                          ? Icons.cloud_done_outlined
+                          : Icons.cloud_download_outlined,
+                    ),
                     title: const Text('离线放送数据'),
                     subtitle: Text(
                       _bangumiDataRefreshResult ??
-                          '更新 bgmlist 离线兜底数据（约 7MB）',
+                          _bangumiDataStatusSubtitle(),
                       style: const TextStyle(fontSize: 12),
                     ),
                     trailing: _isRefreshingBangumiData
@@ -794,4 +862,10 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
       ),
     );
   }
+}
+
+class _UrlKindState {
+  final List<String> all;
+  final String selected;
+  const _UrlKindState({required this.all, required this.selected});
 }

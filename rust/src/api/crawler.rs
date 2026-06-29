@@ -445,6 +445,39 @@ fn clear_failure_marker(cache_dir: &str) {
     let _ = std::fs::remove_file(bangumi_data_failure_marker_path(cache_dir));
 }
 
+fn bangumi_data_version_marker_path(cache_dir: &str) -> std::path::PathBuf {
+    std::path::Path::new(cache_dir).join("bangumi-data.version")
+}
+
+fn write_version_marker(cache_dir: &str, version: &str) {
+    let path = bangumi_data_version_marker_path(cache_dir);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(&path, version);
+}
+
+fn read_version_marker(cache_dir: &str) -> Option<String> {
+    let path = bangumi_data_version_marker_path(cache_dir);
+    let raw = std::fs::read_to_string(&path).ok()?;
+    let trimmed = raw.trim().to_string();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
+fn read_bangumi_data_version_from_json(_path: &Path) -> Option<String> {
+    None
+}
+
+fn extract_bangumi_data_version_from_url(url: &str) -> Option<String> {
+    let re = regex::Regex::new(r"bangumi-data@([\d.]+)/").ok()?;
+    let caps = re.captures(url)?;
+    caps.get(1).map(|m| m.as_str().to_string())
+}
+
 fn last_failure_age_secs(cache_dir: &str) -> Option<u64> {
     let path = bangumi_data_failure_marker_path(cache_dir);
     let raw = std::fs::read_to_string(&path).ok()?;
@@ -508,6 +541,9 @@ async fn download_bangumi_data_json(path: &Path) -> anyhow::Result<()> {
             }
         };
 
+        let resolved_url = resp.url().to_string();
+        let resolved_version = extract_bangumi_data_version_from_url(&resolved_url);
+
         let bytes = match resp.bytes().await {
             Ok(b) => b,
             Err(e) => {
@@ -530,7 +566,7 @@ async fn download_bangumi_data_json(path: &Path) -> anyhow::Result<()> {
             );
             last_err = Some(e);
             continue;
-        }
+        };
 
         // Atomic write: stage to "<name>.tmp" in the same directory, fsync,
         // then rename. A crash mid-write leaves the previous (good) cache in
@@ -541,10 +577,15 @@ async fn download_bangumi_data_json(path: &Path) -> anyhow::Result<()> {
             continue;
         }
 
+        if let Some(ref ver) = resolved_version {
+            write_version_marker(&cache_dir, ver);
+        }
+
         log::info!(
-            "bangumi-data downloaded from {} ({} bytes, ok)",
+            "bangumi-data downloaded from {} ({} bytes, version={:?}, ok)",
             url,
-            bytes.len()
+            bytes.len(),
+            resolved_version
         );
         clear_failure_marker(&cache_dir);
         return Ok(());
@@ -1192,6 +1233,43 @@ pub async fn fetch_extra_subjects(
     let existing_set: HashSet<String> = existing_ids.into_iter().collect();
 
     fetch_extra_bangumi_subjects(&year_quarter, &existing_set).await
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiDataCacheStatus {
+    pub cached: bool,
+    pub file_size: u64,
+    pub last_modified_secs: Option<u64>,
+    pub version: String,
+    pub last_failed_secs: Option<u64>,
+}
+
+pub fn get_bangumi_data_cache_status() -> BangumiDataCacheStatus {
+    let cache_dir = crate::api::config::get_cache_dir();
+    let local_path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
+
+    let metadata = std::fs::metadata(&local_path).ok();
+    let cached = metadata.is_some();
+    let file_size = metadata
+        .as_ref()
+        .map(|m| m.len())
+        .unwrap_or(0);
+    let last_modified_secs = metadata
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs());
+    let version = read_version_marker(&cache_dir)
+        .or_else(|| read_bangumi_data_version_from_json(&local_path))
+        .unwrap_or_else(|| crate::api::config::BANGUMI_DATA_VERSION.to_string());
+    let last_failed_secs = last_failure_age_secs(&cache_dir);
+
+    BangumiDataCacheStatus {
+        cached,
+        file_size,
+        last_modified_secs,
+        version,
+        last_failed_secs,
+    }
 }
 
 pub async fn refresh_bangumi_data_cache() -> anyhow::Result<bool> {
