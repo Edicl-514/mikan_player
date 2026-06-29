@@ -1419,6 +1419,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           cookies: runtimeOverride.cookies,
           headers: null,
           captchaConfigJson: task.source.captchaConfigJson,
+          enableNestedUrl: false,
         );
       });
     } else {
@@ -1433,6 +1434,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           cookies: runtimeOverride.cookies,
           headers: null,
           captchaConfigJson: task.source.captchaConfigJson,
+          enableNestedUrl: false,
         );
       });
     }
@@ -1676,6 +1678,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   directVideoUrl: null,
                   cookies: null,
                   headers: null,
+                  enableNestedUrl: false,
                 );
               }
             });
@@ -1897,6 +1900,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             directVideoUrl: null,
             cookies: null,
             headers: null,
+            enableNestedUrl: false,
           );
         }
         _sampleStatusMessageNotifier.value = captchaSources.isEmpty
@@ -1917,6 +1921,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               cookies: null,
               headers: null,
               captchaConfigJson: source.captchaConfigJson,
+              enableNestedUrl: false,
             );
           }
         });

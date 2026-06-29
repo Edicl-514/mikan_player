@@ -314,6 +314,7 @@ fn mark_failed() {
 
 /// Parsed SVCB/HTTPS RR parameters relevant to ECH.
 #[derive(Default, Debug)]
+#[flutter_rust_bridge::frb(ignore)]
 struct HttpsRrParams {
     /// Raw bytes of the `ech` SvcParam (SvcParamKey = 5): a binary
     /// ECHConfigList per RFC 9460.

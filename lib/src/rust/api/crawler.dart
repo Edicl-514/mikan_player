@@ -6,8 +6,10 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_subject_details`, `build_light_subject_from_json`, `fetch_extra_bangumi_subjects`, `fetch_subject_details_next_p1_json`, `fetch_subject_details_rest_json`, `normalize_next_subject_json`, `parse_broadcast_parts`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `apply_subject_details`, `atomic_write_bytes`, `bangumi_data_failure_marker_path`, `bgmlist_item_to_anime_info`, `build_light_subject_from_json`, `clear_failure_marker`, `datetime_to_cst_day_time`, `download_bangumi_data_json`, `fetch_archive_list_api`, `fetch_archive_list_html`, `fetch_extra_bangumi_subjects`, `fetch_schedule_basic_api_from_url`, `fetch_schedule_basic_api`, `fetch_schedule_basic_from_local_data_json`, `fetch_schedule_basic_html`, `fetch_subject_details_next_p1_json`, `fetch_subject_details_rest_json`, `filter_items_by_quarter`, `is_legacy_mode`, `last_failure_age_secs`, `load_data_json_and_filter`, `normalize_next_subject_json`, `parse_begin_utc`, `parse_broadcast_from_rfc`, `parse_broadcast_parts`, `quarter_to_title`, `replace_atomic`, `verify_bangumi_data_payload`, `write_failure_marker`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ArchiveResponse`, `BangumiDataJson`, `BgmlistItem`, `BgmlistSite`, `BgmlistTitleTranslate`, `SeasonListResponse`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`, `default`
 
 Future<List<ArchiveQuarter>> fetchArchiveList() =>
     RustLib.instance.api.crateApiCrawlerFetchArchiveList();
@@ -33,6 +35,25 @@ Future<List<AnimeInfo>> fetchExtraSubjects({
   yearQuarter: yearQuarter,
   existingIds: existingIds,
 );
+
+Future<bool> refreshBangumiDataCache() =>
+    RustLib.instance.api.crateApiCrawlerRefreshBangumiDataCache();
+
+/// Ensure the offline `bangumi-data.json` cache is present and fresh. Downloads
+/// only when the file is missing or its mtime is older than `max_age_secs`, so
+/// the ~7 MB payload is not re-fetched on every startup. Returns `true` when a
+/// download actually happened. Safe to call from app startup.
+///
+/// Transient CDN failure handling: when the last warmup attempt failed we
+/// drop a sidecar file with the failure timestamp. While that marker is
+/// fresher than `BANGUMI_DATA_RETRY_AFTER_SECS` AND the on-disk cache still
+/// exists (even if stale), we skip the download so we don't hammer the CDN
+/// every startup. As soon as `BANGUMI_DATA_RETRY_AFTER_SECS` has elapsed
+/// — *or* the cache is missing — the next call retries.
+Future<bool> ensureBangumiDataCache({required BigInt maxAgeSecs}) => RustLib
+    .instance
+    .api
+    .crateApiCrawlerEnsureBangumiDataCache(maxAgeSecs: maxAgeSecs);
 
 class AnimeInfo {
   final String title;

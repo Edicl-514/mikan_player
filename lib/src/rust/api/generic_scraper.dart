@@ -292,7 +292,7 @@ class SearchPlayResult {
     this.channelName,
     this.channelIndex,
     this.captchaConfigJson,
-    this.enableNestedUrl = false,
+    required this.enableNestedUrl,
     this.matchNestedUrl,
   });
 
@@ -582,7 +582,7 @@ class SourceSearchProgress {
     this.channelIndex,
     this.allChannels,
     this.captchaConfigJson,
-    this.enableNestedUrl = false,
+    required this.enableNestedUrl,
     this.matchNestedUrl,
   });
 

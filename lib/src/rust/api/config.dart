@@ -9,6 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These functions are ignored because they are not marked as `pub`: `apply_reverse_proxy_settings`, `bangumi_url_for_proxy_mode`, `canonical_bangumi_host`, `mirror_for_host`, `normalize_url`, `rewrite_host_in_authority`, `split_scheme`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CONFIG`, `RuntimeConfig`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `initialize`
+// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `bangumi_canonical_hosts`, `get_bangumi_data_cdn_urls`, `get_bangumi_data_sha512_hex`
 
 Future<void> initConfig({
   required String cacheDir,
@@ -46,6 +47,9 @@ Future<bool> getBangumiUseEch() =>
 
 Future<String> getBgmlistUrl() =>
     RustLib.instance.api.crateApiConfigGetBgmlistUrl();
+
+Future<String> getBgmlistApiUrl() =>
+    RustLib.instance.api.crateApiConfigGetBgmlistApiUrl();
 
 Future<String> getBangumiUrl() =>
     RustLib.instance.api.crateApiConfigGetBangumiUrl();

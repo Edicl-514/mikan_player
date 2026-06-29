@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
 import 'package:mikan_player/services/bangumi_ech_service.dart';
+import 'package:mikan_player/services/bangumi_data_service.dart';
 import 'package:mikan_player/services/base_url_list_service.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/utils/url_latency.dart';
@@ -36,6 +37,9 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
   bool _bangumiUseEch = true;
   bool _isRefreshingEch = false;
   String? _echRefreshResult;
+
+  bool _isRefreshingBangumiData = false;
+  String? _bangumiDataRefreshResult;
 
   List<String> _dohEndpoints = const <String>[];
   bool _isDohBusy = false;
@@ -145,6 +149,27 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
       if (mounted) {
         setState(() {
           _isRefreshingEch = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshBangumiDataCache() async {
+    setState(() {
+      _isRefreshingBangumiData = true;
+      _bangumiDataRefreshResult = null;
+    });
+    try {
+      final ok = await BangumiDataService.refresh();
+      if (mounted) {
+        setState(() {
+          _bangumiDataRefreshResult = ok ? '已更新离线放送数据' : '更新失败，请检查网络';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshingBangumiData = false;
         });
       }
     }
@@ -349,6 +374,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
       _bangumiUseReverseProxy = false;
       _bangumiUseEch = true;
       _echRefreshResult = null;
+      _bangumiDataRefreshResult = null;
     });
   }
 
@@ -541,6 +567,29 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           onTap: _isRefreshingEch ? null : _refreshEchConfig,
                         ),
                     ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildCard(
+                  context,
+                  child: ListTile(
+                    leading: const Icon(Icons.cloud_download_outlined),
+                    title: const Text('离线放送数据'),
+                    subtitle: Text(
+                      _bangumiDataRefreshResult ??
+                          '更新 bgmlist 离线兜底数据（约 7MB）',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: _isRefreshingBangumiData
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.chevron_right),
+                    onTap: _isRefreshingBangumiData
+                        ? null
+                        : _refreshBangumiDataCache,
                   ),
                 ),
                 const SizedBox(height: 16),

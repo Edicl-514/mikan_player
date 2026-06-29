@@ -173,6 +173,59 @@ pub fn get_bgmlist_url() -> String {
     CONFIG.read().unwrap().bgmlist_url.clone()
 }
 
+pub fn get_bgmlist_api_url() -> String {
+    format!("{}/api/v1", CONFIG.read().unwrap().bgmlist_url.clone())
+}
+
+/// The `bangumi-data` major/minor version we track. We pin to the `0.3`
+/// line **without** a patch number so that unpkg and jsDelivr automatically
+/// resolve to the latest `0.3.x` release. This way the offline cache stays
+/// current without requiring a manual version+hash bump on every upstream
+/// release (the package updates several times per week).
+///
+/// Integrity: we forgo a hard-coded SHA-512 in favour of JSON-structure
+/// validation at download time (see `verify_bangumi_data_payload` in
+/// `crawler.rs`). A full hash pin is impractical for a package that
+/// updates this frequently; structural validation still catches truncated
+/// or malformed CDN responses.
+#[flutter_rust_bridge::frb(ignore)]
+pub const BANGUMI_DATA_VERSION: &str = "0.3";
+
+/// Ordered CDN URL candidates for the offline `bangumi-data` fallback. The
+/// caller iterates the list top-to-bottom and uses the first one that returns
+/// a usable, integrity-verified payload.
+///
+/// Order rationale:
+///   1. unpkg (Cloudflare-fronted; quick for non-CN users; reaches CN via the
+///      HK edge per CF-Ray observations).
+///   2. jsDelivr (also Cloudflare-fronted, served from many POPs worldwide;
+///      often more reliable from mainland China when unpkg is rate-limited).
+///   3. npm registry tarball (the source of truth; tarball download has the
+///      auth baked-in via `integrity`, but extracting on the fly adds
+///      complexity, so we stop before that).
+#[flutter_rust_bridge::frb(ignore)]
+pub fn get_bangumi_data_cdn_urls() -> Vec<String> {
+    vec![
+        format!(
+            "https://unpkg.com/bangumi-data@{}/dist/data.json",
+            BANGUMI_DATA_VERSION
+        ),
+        format!(
+            "https://cdn.jsdelivr.net/npm/bangumi-data@{}/dist/data.json",
+            BANGUMI_DATA_VERSION
+        ),
+    ]
+}
+
+/// Returns the expected SHA-512 hex digest of the canonical `bangumi-data`
+/// payload. Since we now float on `@0.3` there is no single pinned hash;
+/// this function returns `""` so that the legacy caller in `verify_bangumi_data_payload`
+/// can skip the hash check while still performing structural validation.
+#[flutter_rust_bridge::frb(ignore)]
+pub fn get_bangumi_data_sha512_hex() -> &'static str {
+    ""
+}
+
 pub fn get_bangumi_url() -> String {
     let config = CONFIG.read().unwrap();
     bangumi_url_for_proxy_mode(&config.bangumi_url, config.bangumi_use_reverse_proxy)
@@ -452,6 +505,7 @@ pub fn remap_bangumi_host(host: &str, to_mirror: bool) -> Option<String> {
 /// Used to pin the ECH client's DNS to Cloudflare edge IPs so GFW DNS poisoning
 /// (the system resolver returns Facebook sinkhole IPs for these hosts) is
 /// bypassed — see `crate::api::network::build_ech_client`.
+#[flutter_rust_bridge::frb(ignore)]
 pub fn bangumi_canonical_hosts() -> Vec<&'static str> {
     BANGUMI_HOST_PAIRS.iter().map(|(real, _)| *real).collect()
 }

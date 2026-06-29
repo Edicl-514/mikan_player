@@ -17,6 +17,7 @@ import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
 import 'package:mikan_player/services/bangumi_ech_service.dart';
+import 'package:mikan_player/services/bangumi_data_service.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
@@ -177,6 +178,11 @@ Future<void> _runDeferredStartupTasks() async {
     // Failures are swallowed inside the Rust side; the HTTP layer will fall
     // back to plaintext SNI when no ECHConfig is available.
     await BangumiEchService.warmup();
+
+    // Warm the offline bangumi-data cache (fallback for the schedule API).
+    // Fire-and-forget — the ~7 MB download must not block the UI, and the live
+    // API remains the primary path.
+    unawaited(BangumiDataService.warmup());
 
     if (prefs.getStringList('disabled_sources') == null) {
       final initialDisabledSources = await _loadInitialDisabledSourcesFromCache();

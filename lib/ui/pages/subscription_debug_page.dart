@@ -569,6 +569,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             cookies: null,
             headers: null,
             captchaConfigJson: source.captchaConfigJson,
+            enableNestedUrl: false,
           );
           _appendLog(
             _searchLogs,
@@ -597,6 +598,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             cookies: runtimeOverride.cookies,
             headers: null,
             captchaConfigJson: source.captchaConfigJson,
+            enableNestedUrl: false,
           );
         });
       }
