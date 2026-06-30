@@ -62,6 +62,8 @@ const Map<String, String> _kSiteIconMap = {
   'mal': 'mal.png',
   'anidb': 'anidb.png',
   'aniList': 'anilist.png',
+  'crunchyroll': 'crunchyroll.png',
+  'youtube': 'youtube.png',
 };
 
 class BangumiDetailsPage extends StatefulWidget {
@@ -110,6 +112,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   // Pre-sorted characters to avoid sorting in build
   List<BangumiCharacter>? _sortedCharacters;
+
+  // Pre-sorted sites: info → onair → resource
+  List<BangumiDataSiteEntry>? _sortedSites;
 
   // Pagination State
   int _commentPage = 1;
@@ -309,6 +314,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       }
       if (result.sites.isNotEmpty) {
         _sites = result.sites;
+        _sortSites();
       }
       _mergePersonIdMap(result.personIdMap);
       _isLoadingEpisodes = false;
@@ -357,6 +363,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       }
       if (result.sites.isNotEmpty) {
         _sites = result.sites;
+        _sortSites();
       }
       _mergePersonIdMap(result.personIdMap);
     });
@@ -2853,11 +2860,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (var index = 0; index < _sites!.length; index++) ...[
+                    for (var index = 0; index < _sortedSites!.length; index++) ...[
                       if (index > 0) const SizedBox(width: 12),
                       _buildSiteCard(
                         context,
-                        _sites![index],
+                        _sortedSites![index],
                         textColor: textColor,
                         cardColor: cardColor!,
                         borderColor: borderColor,
@@ -2874,6 +2881,84 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     );
   }
 
+  int _siteKindPriority(String kind) {
+    switch (kind) {
+      case 'info':
+        return 0;
+      case 'onair':
+        return 1;
+      case 'resource':
+        return 2;
+      default:
+        return 3;
+    }
+  }
+
+  void _sortSites() {
+    if (_sites == null || _sites!.isEmpty) {
+      _sortedSites = _sites;
+      return;
+    }
+    _sortedSites = [..._sites!]
+      ..sort((a, b) => _siteKindPriority(a.kind)
+          .compareTo(_siteKindPriority(b.kind)));
+  }
+
+  String _siteKindLabel(String kind) {
+    switch (kind) {
+      case 'onair':
+        return '放送';
+      case 'info':
+        return '资料';
+      case 'resource':
+        return '资源';
+      default:
+        return kind;
+    }
+  }
+
+  Color _siteKindColor(String kind) {
+    switch (kind) {
+      case 'onair':
+        return Colors.green;
+      case 'info':
+        return Colors.blue;
+      case 'resource':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Widget _buildSiteKindBadge(String kind, {required bool isDarkBg}) {
+    final label = _siteKindLabel(kind);
+    final badgeColor = _siteKindColor(kind);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 9,
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   Widget _buildSiteCard(
     BuildContext context,
     BangumiDataSiteEntry site, {
@@ -2887,20 +2972,36 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return GestureDetector(
       onTap: () => _launchSiteUrl(site.url),
       child: SizedBox(
-        width: 96,
+        width: 100,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 64,
-              height: 64,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: borderColor),
+            SizedBox(
+              width: 80,
+              height: 80,
+              child: Stack(
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: _buildSiteIcon(site.site, fallbackColor),
+                  ),
+                  Positioned(
+                    right: 4,
+                    top: 4,
+                    child: _buildSiteKindBadge(
+                      site.kind,
+                      isDarkBg: isDarkBg,
+                    ),
+                  ),
+                ],
               ),
-              child: _buildSiteIcon(site.site, fallbackColor),
             ),
             const SizedBox(height: 8),
             Text(
@@ -2924,15 +3025,15 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   Widget _buildSiteIcon(String siteKey, Color fallbackColor) {
     final assetPath = _siteIconAssetPath(siteKey);
     if (assetPath == null) {
-      return Icon(Icons.public, color: fallbackColor, size: 28);
+      return Icon(Icons.public, color: fallbackColor, size: 36);
     }
     return Image.asset(
       assetPath,
-      width: 64,
-      height: 64,
+      width: 80,
+      height: 80,
       fit: BoxFit.contain,
       errorBuilder: (_, _, _) =>
-          Icon(Icons.public, color: fallbackColor, size: 28),
+          Icon(Icons.public, color: fallbackColor, size: 36),
     );
   }
 
