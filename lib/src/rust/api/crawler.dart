@@ -47,6 +47,12 @@ Future<List<BangumiDataSiteEntry>> fetchBangumiDataSitesByMikan({
   mikanId: mikanId,
 );
 
+/// Look up the mikan id for a given bangumi.tv subject id from the
+/// cached bangumi-data index. Returns `None` when the index has not been
+/// built yet or when the bangumi id has no mikan mapping.
+Future<PlatformInt64?> lookupMikanId({required PlatformInt64 bangumiId}) =>
+    RustLib.instance.api.crateApiCrawlerLookupMikanId(bangumiId: bangumiId);
+
 Future<List<AnimeInfo>> fillAnimeDetails({required List<AnimeInfo> animes}) =>
     RustLib.instance.api.crateApiCrawlerFillAnimeDetails(animes: animes);
 

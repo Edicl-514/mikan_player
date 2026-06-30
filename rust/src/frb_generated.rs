@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -177846967;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1536240674;
 
 // Section: executor
 
@@ -3462,6 +3462,44 @@ fn wire__crate__api__config__is_source_enabled_impl(
         },
     )
 }
+fn wire__crate__api__crawler__lookup_mikan_id_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "lookup_mikan_id",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_bangumi_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::crawler::lookup_mikan_id(api_bangumi_id).await,
+                        )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__config__move_bangumi_doh_endpoint_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -6397,6 +6435,17 @@ impl SseDecode for Option<i32> {
     }
 }
 
+impl SseDecode for Option<i64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<i64>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::mikan::MikanSearchResult> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -7217,193 +7266,194 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         91 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
-        92 => wire__crate__api__config__move_bangumi_doh_endpoint_impl(
+        92 => wire__crate__api__crawler__lookup_mikan_id_impl(port, ptr, rust_vec_len, data_len),
+        93 => wire__crate__api__config__move_bangumi_doh_endpoint_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        93 => wire__crate__api__simple__move_bangumi_doh_endpoint_impl(
+        94 => wire__crate__api__simple__move_bangumi_doh_endpoint_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        94 => wire__crate__api__bangumi_graphql__normalize_graphql_subject_json_impl(
+        95 => wire__crate__api__bangumi_graphql__normalize_graphql_subject_json_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        95 => wire__crate__api__bangumi_graphql__normalize_light_subject_graphql_json_impl(
+        96 => wire__crate__api__bangumi_graphql__normalize_light_subject_graphql_json_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        96 => wire__crate__api__simple__pause_torrent_impl(port, ptr, rust_vec_len, data_len),
-        97 => wire__crate__api__simple__preload_playback_source_config_impl(
+        97 => wire__crate__api__simple__pause_torrent_impl(port, ptr, rust_vec_len, data_len),
+        98 => wire__crate__api__simple__preload_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        98 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
+        99 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        99 => wire__crate__api__captcha__recognize_captcha_impl(port, ptr, rust_vec_len, data_len),
-        100 => wire__crate__api__captcha__recognize_captcha_with_constraints_impl(
+        100 => wire__crate__api__captcha__recognize_captcha_impl(port, ptr, rust_vec_len, data_len),
+        101 => wire__crate__api__captcha__recognize_captcha_with_constraints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        101 => wire__crate__api__crawler__refresh_bangumi_data_cache_impl(
+        102 => wire__crate__api__crawler__refresh_bangumi_data_cache_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        102 => wire__crate__api__ech__refresh_bangumi_ech_config_impl(
+        103 => wire__crate__api__ech__refresh_bangumi_ech_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        103 => wire__crate__api__simple__refresh_bangumi_ech_config_impl(
+        104 => wire__crate__api__simple__refresh_bangumi_ech_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        104 => wire__crate__api__generic_scraper__refresh_playback_source_config_impl(
+        105 => wire__crate__api__generic_scraper__refresh_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        105 => wire__crate__api__simple__refresh_playback_source_config_impl(
+        106 => wire__crate__api__simple__refresh_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        106 => wire__crate__api__config__remap_bangumi_host_impl(port, ptr, rust_vec_len, data_len),
-        107 => wire__crate__api__config__remove_bangumi_doh_endpoint_impl(
+        107 => wire__crate__api__config__remap_bangumi_host_impl(port, ptr, rust_vec_len, data_len),
+        108 => wire__crate__api__config__remove_bangumi_doh_endpoint_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        108 => wire__crate__api__simple__remove_bangumi_doh_endpoint_impl(
+        109 => wire__crate__api__simple__remove_bangumi_doh_endpoint_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        109 => wire__crate__api__config__reset_bangumi_doh_endpoints_impl(
+        110 => wire__crate__api__config__reset_bangumi_doh_endpoints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        110 => wire__crate__api__simple__reset_bangumi_doh_endpoints_impl(
+        111 => wire__crate__api__simple__reset_bangumi_doh_endpoints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        111 => wire__crate__api__simple__resume_torrent_impl(port, ptr, rust_vec_len, data_len),
-        112 => {
+        112 => wire__crate__api__simple__resume_torrent_impl(port, ptr, rust_vec_len, data_len),
+        113 => {
             wire__crate__api__config__rewrite_bangumi_url_impl(port, ptr, rust_vec_len, data_len)
         }
-        113 => wire__crate__api__config__rewrite_bangumi_url_if_proxied_impl(
+        114 => wire__crate__api__config__rewrite_bangumi_url_if_proxied_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        114 => wire__crate__api__ranking__search_bangumi_subject_impl(
+        115 => wire__crate__api__ranking__search_bangumi_subject_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        115 => {
+        116 => {
             wire__crate__api__ranking__search_bangumi_tag_impl(port, ptr, rust_vec_len, data_len)
         }
-        116 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
-        117 => wire__crate__api__network__select_client_impl(port, ptr, rust_vec_len, data_len),
-        118 => wire__crate__api__config__set_bangumi_doh_endpoints_impl(
+        117 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
+        118 => wire__crate__api__network__select_client_impl(port, ptr, rust_vec_len, data_len),
+        119 => wire__crate__api__config__set_bangumi_doh_endpoints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        119 => wire__crate__api__simple__set_bangumi_doh_endpoints_impl(
+        120 => wire__crate__api__simple__set_bangumi_doh_endpoints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        120 => wire__crate__api__config__set_bangumi_request_mode_impl(
+        121 => wire__crate__api__config__set_bangumi_request_mode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        121 => wire__crate__api__config__set_bangumi_reverse_proxy_impl(
+        122 => wire__crate__api__config__set_bangumi_reverse_proxy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        122 => wire__crate__api__simple__set_bangumi_reverse_proxy_impl(
+        123 => wire__crate__api__simple__set_bangumi_reverse_proxy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        123 => {
+        124 => {
             wire__crate__api__config__set_bangumi_use_ech_impl(port, ptr, rust_vec_len, data_len)
         }
-        124 => {
+        125 => {
             wire__crate__api__simple__set_bangumi_use_ech_impl(port, ptr, rust_vec_len, data_len)
         }
-        125 => {
+        126 => {
             wire__crate__api__config__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        126 => {
+        127 => {
             wire__crate__api__simple__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        127 => wire__crate__api__config__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
-        128 => wire__crate__api__simple__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
-        129 => wire__crate__api__config__set_max_concurrent_searches_impl(
+        128 => wire__crate__api__config__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
+        129 => wire__crate__api__simple__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
+        130 => wire__crate__api__config__set_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        130 => wire__crate__api__simple__set_max_concurrent_searches_impl(
+        131 => wire__crate__api__simple__set_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        131 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
-        132 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
-        133 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
-        134 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
-        135 => wire__crate__api__generic_scraper__update_single_source_config_impl(
+        132 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
+        133 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
+        134 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
+        135 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
+        136 => wire__crate__api__generic_scraper__update_single_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        136 => wire__crate__api__simple__warmup_bangumi_ech_config_impl(
+        137 => wire__crate__api__simple__warmup_bangumi_ech_config_impl(
             port,
             ptr,
             rust_vec_len,
@@ -9396,6 +9446,16 @@ impl SseEncode for Option<i32> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <i32>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<i64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <i64>::sse_encode(value, serializer);
         }
     }
 }

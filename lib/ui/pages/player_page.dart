@@ -26,6 +26,7 @@ import 'package:mikan_player/ui/widgets/video_player_controls.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
+import 'package:mikan_player/services/bangumi_data_service.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
@@ -856,6 +857,77 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     });
 
     try {
+      // ── Fast path: use bangumi-data index to skip web search ──
+      // In hybrid/modern mode, try to resolve mikan id directly from the
+      // cached bangumi-data JSON.  If the anime already carries a mikanId
+      // (populated from bangumi-data on the schedule page) or if
+      // BangumiDataService can look one up by bangumi id, we jump straight
+      // to getMikanResources — no HTTP search request needed.
+      final isNonLegacy =
+          BangumiRequestModeService.notifier.value != BangumiRequestMode.legacy;
+
+      String? resolvedMikanId;
+
+      if (isNonLegacy) {
+        // Prefer the mikanId that came with the AnimeInfo (it was derived
+        // from bangumi-data already on the schedule/details page).
+        if (widget.anime.mikanId != null &&
+            widget.anime.mikanId!.isNotEmpty) {
+          resolvedMikanId = widget.anime.mikanId;
+          debugPrint(
+            "[Mikan] Fast path: using mikanId from AnimeInfo: $resolvedMikanId",
+          );
+        } else if (widget.anime.bangumiId != null &&
+            widget.anime.bangumiId!.isNotEmpty) {
+          resolvedMikanId = await BangumiDataService.getMikanId(
+            widget.anime.bangumiId,
+          );
+          if (resolvedMikanId != null) {
+            debugPrint(
+              "[Mikan] Fast path: resolved mikanId=$resolvedMikanId from bangumiId=${widget.anime.bangumiId}",
+            );
+          }
+        }
+      }
+
+      if (resolvedMikanId != null) {
+        final result = MikanSearchResult(
+          id: resolvedMikanId,
+          name: widget.anime.title,
+          imageUrl: '',
+        );
+
+        if (mounted) {
+          setState(() {
+            _mikanAnime = result;
+          });
+        }
+
+        if (_currentEpisode.id != 0) {
+          final resources = await getMikanResources(
+            mikanId: resolvedMikanId,
+            currentEpisodeSort: _currentEpisode.sort.toInt(),
+          );
+          debugPrint(
+            "[Mikan] Fast path: Found ${resources.length} resources for EP ${_currentEpisode.sort.toInt()}",
+          );
+          if (mounted) {
+            setState(() {
+              _mikanResources = resources;
+              _isLoadingMikan = false;
+            });
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              _isLoadingMikan = false;
+            });
+          }
+        }
+        return; // fast path done
+      }
+
+      // ── Fallback: web search on Mikan ──
       final result = await searchMikanAnime(nameCn: widget.anime.title);
 
       if (result == null) {
@@ -4081,7 +4153,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final borderColor = isDark
         ? Colors.white10
         : Colors.grey.withValues(alpha: 0.3);
-    final btCount = _mikanResources.length + _dmhyResources.length;
+    final btCount = _dedupBtResources([
+      ..._mikanResources,
+      ..._dmhyResources,
+    ]).length;
     final onlineCount = _sampleSuccessfulSources.length;
     final currentLabel = _playingSourceLabel;
 
@@ -4229,7 +4304,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (id == 'bt') {
       isLoading = _isLoadingMikan || _isLoadingDmhy;
       hasError = _mikanError != null || _dmhyError != null;
-      count = _mikanResources.length + _dmhyResources.length;
+      count = _dedupBtResources([
+        ..._mikanResources,
+        ..._dmhyResources,
+      ]).length;
     } else if (id == 'sample') {
       isLoading = _isLoadingSample;
       hasError = _sampleError != null;
@@ -5076,7 +5154,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ? Colors.white24
         : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7);
 
-    final btCount = _mikanResources.length + _dmhyResources.length;
+    final dedupedBtResources = _dedupBtResources(
+      [..._mikanResources, ..._dmhyResources],
+    );
+    final btCount = dedupedBtResources.length;
     final btHasError = _mikanError != null || _dmhyError != null;
 
     final btStatusBar = Padding(
@@ -5119,7 +5200,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     List<dynamic> resources = [];
     if (_activeSource == 'bt') {
-      resources = [..._mikanResources, ..._dmhyResources];
+      resources = dedupedBtResources;
     } else if (_activeSource == 'sample') {
       return _buildSampleSourceContent();
     }
@@ -5541,6 +5622,47 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       'subType': subType,
       'codec': codec,
     };
+  }
+
+  static final RegExp _btihRegex =
+      RegExp(r'urn:btih:([a-fA-F0-9]{40}|[2-7A-Z]{32})');
+
+  String _magnetOf(dynamic r) => r is MikanEpisodeResource
+      ? r.magnet
+      : r is DmhyResource
+          ? r.magnet
+          : '';
+
+  String _titleOf(dynamic r) => r is MikanEpisodeResource
+      ? r.title
+      : r is DmhyResource
+          ? r.title
+          : '';
+
+  String _sizeOf(dynamic r) => r is MikanEpisodeResource
+      ? r.size
+      : r is DmhyResource
+          ? r.size
+          : '';
+
+  List<dynamic> _dedupBtResources(List<dynamic> resources) {
+    final seenHashes = <String>{};
+    final seenFallback = <String>{};
+    final result = <dynamic>[];
+    for (final r in resources) {
+      final magnet = _magnetOf(r);
+      final hash = magnet.isNotEmpty
+          ? (_btihRegex.firstMatch(magnet)?.group(1)?.toLowerCase() ?? '')
+          : '';
+      if (hash.isNotEmpty) {
+        if (!seenHashes.add(hash)) continue;
+      } else {
+        final key = '${_titleOf(r)}|${_sizeOf(r)}';
+        if (!seenFallback.add(key)) continue;
+      }
+      result.add(r);
+    }
+    return result;
   }
 
   Widget _buildBtTag(String label, Color bgColor, Color textColor) {

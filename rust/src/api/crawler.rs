@@ -729,6 +729,8 @@ struct SitesIndex {
     by_bangumi_id: HashMap<i64, Vec<BangumiDataSiteEntry>>,
     /// Keyed by `mikan` id; lets mikan-origin entries resolve sites too.
     by_mikan_id: HashMap<i64, i64>,
+    /// Reverse map: bangumi.tv subject id → mikan id.
+    by_bangumi_to_mikan: HashMap<i64, i64>,
 }
 
 static SITES_INDEX: OnceLock<RwLock<Option<Arc<SitesIndex>>>> = OnceLock::new();
@@ -754,6 +756,7 @@ pub async fn build_sites_index() -> anyhow::Result<usize> {
     let mut by_bangumi: HashMap<i64, Vec<BangumiDataSiteEntry>> =
         HashMap::with_capacity(data.items.len());
     let mut by_mikan: HashMap<i64, i64> = HashMap::new();
+    let mut by_bangumi_to_mikan: HashMap<i64, i64> = HashMap::new();
 
     for item in &data.items {
         let entries: Vec<BangumiDataSiteEntry> = item
@@ -794,6 +797,7 @@ pub async fn build_sites_index() -> anyhow::Result<usize> {
             by_bangumi.insert(bid, entries);
             if let Some(mid) = mikan_id {
                 by_mikan.insert(mid, bid);
+                by_bangumi_to_mikan.insert(bid, mid);
             }
         }
     }
@@ -802,6 +806,7 @@ pub async fn build_sites_index() -> anyhow::Result<usize> {
     let index = Arc::new(SitesIndex {
         by_bangumi_id: by_bangumi,
         by_mikan_id: by_mikan,
+        by_bangumi_to_mikan,
     });
     *sites_index_slot().write().await = Some(index);
     Ok(count)
@@ -840,6 +845,17 @@ pub async fn fetch_bangumi_data_sites_by_mikan(mikan_id: i64) -> Vec<BangumiData
         return idx.by_bangumi_id.get(&bid).cloned().unwrap_or_default();
     }
     Vec::new()
+}
+
+/// Look up the mikan id for a given bangumi.tv subject id from the
+/// cached bangumi-data index. Returns `None` when the index has not been
+/// built yet or when the bangumi id has no mikan mapping.
+pub async fn lookup_mikan_id(bangumi_id: i64) -> Option<i64> {
+    let guard = sites_index_slot().read().await;
+    let Some(idx) = guard.as_ref() else {
+        return None;
+    };
+    idx.by_bangumi_to_mikan.get(&bangumi_id).copied()
 }
 
 fn filter_items_by_quarter<'a>(items: &'a [BgmlistItem], year_quarter: &str) -> Vec<&'a BgmlistItem> {

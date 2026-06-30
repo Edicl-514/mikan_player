@@ -69,4 +69,20 @@ class BangumiDataService {
       return const [];
     }
   }
+
+  /// Look up the mikan id for a given bangumi.tv subject id from the cached
+  /// bangumi-data index. Returns `null` when the index has not been built,
+  /// the bangumi id is missing/unparseable, or there is no mikan mapping.
+  static Future<String?> getMikanId(String? bangumiId) async {
+    if (bangumiId == null || bangumiId.isEmpty) return null;
+    final id = int.tryParse(bangumiId);
+    if (id == null) return null;
+    try {
+      final result = await crawler.lookupMikanId(bangumiId: id);
+      return result?.toString();
+    } catch (e) {
+      debugPrint('bangumi-data mikan id lookup failed (non-fatal): $e');
+      return null;
+    }
+  }
 }
