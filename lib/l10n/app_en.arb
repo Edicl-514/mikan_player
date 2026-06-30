@@ -364,6 +364,7 @@
   "bangumiDetailsEpisodes": "Episodes",
   "bangumiDetailsStory": "Story",
   "bangumiDetailsRelatedItems": "Related Items",
+  "bangumiDetailsRelatedSites": "Related Sites",
   "bangumiDetailsTags": "Tags",
   "bangumiReverseProxyTitle": "Use Bangumi reverse proxy",
   "bangumiReverseProxyDescription": "When enabled, all Bangumi requests are routed through the mirror.",

@@ -2282,6 +2282,12 @@ abstract class AppLocalizations {
   /// **'相关作品'**
   String get bangumiDetailsRelatedItems;
 
+  /// No description provided for @bangumiDetailsRelatedSites.
+  ///
+  /// In zh, this message translates to:
+  /// **'关联站点'**
+  String get bangumiDetailsRelatedSites;
+
   /// No description provided for @bangumiDetailsTags.
   ///
   /// In zh, this message translates to:

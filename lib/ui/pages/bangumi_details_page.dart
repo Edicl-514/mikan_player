@@ -17,10 +17,52 @@ import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'player_page.dart';
 import 'tag_browse_page.dart';
 import 'character_detail_page.dart';
 import 'person_detail_page.dart';
+
+/// Bangumi-data `site` key → asset filename under `assets/images/sites/`.
+/// Adding a new entry here is enough to make the icon show up; missing
+/// entries fall back to a generic globe icon.
+const Map<String, String> _kSiteIconMap = {
+  'bangumi': 'bangumi.png',
+  'bangumi_moe': 'bangumi_moe.png',
+  'bilibili': 'bilibili.png',
+  'bilibili_hk_mo': 'bilibili.png',
+  'bilibili_hk_mo_tw': 'bilibili.png',
+  'bilibili_tw': 'bilibili.png',
+  'acfun': 'acfun.png',
+  'youku': 'youku.png',
+  'qq': 'qq.png',
+  'iqiyi': 'iqiyi.png',
+  'letv': 'letv.png',
+  'mgtv': 'mgtv.png',
+  'nicovideo': 'nicovideo.png',
+  'netflix': 'netflix.png',
+  'gamer': 'gamer.png',
+  'gamer_hk': 'gamer.png',
+  'gamer_tw': 'gamer.png',
+  'muse_hk': 'muse.png',
+  'muse_tw': 'muse.png',
+  'ani_one': 'ani_one.png',
+  'ani_one_asia': 'ani_one.png',
+  'viu': 'viu.png',
+  'mytv': 'mytv.png',
+  'disneyplus': 'disneyplus.png',
+  'abema': 'abema.png',
+  'unext': 'unext.png',
+  'tropics': 'tropics.png',
+  'prime': 'prime.png',
+  'danime': 'danime.png',
+  'dmhy': 'dmhy.png',
+  'mikan': 'mikan.png',
+  'tmdb': 'tmdb.png',
+  'mal': 'mal.png',
+  'anidb': 'anidb.png',
+  'aniList': 'anilist.png',
+};
 
 class BangumiDetailsPage extends StatefulWidget {
   final AnimeInfo anime;
@@ -50,6 +92,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   List<BangumiCharacter>? _characters;
   List<BangumiRelatedSubject>? _relations;
   List<BangumiComment>? _comments;
+  List<BangumiDataSiteEntry>? _sites;
 
   // Person name → id mapping (built from persons API + character actors)
   final Map<String, int> _personIdMap = {};
@@ -75,6 +118,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   late ScrollController _episodesScrollController;
   late ScrollController _charactersScrollController;
   late ScrollController _relationsScrollController;
+  late ScrollController _sitesScrollController;
 
   @override
   void initState() {
@@ -86,6 +130,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _episodesScrollController = createPlatformScrollController();
     _charactersScrollController = createPlatformScrollController();
     _relationsScrollController = createPlatformScrollController();
+    _sitesScrollController = createPlatformScrollController();
     _parseData();
     _checkFavoriteStatus();
     _primeInitialDataFromCache();
@@ -262,6 +307,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
           _relations!.isEmpty) {
         _relations = result.relations;
       }
+      if (result.sites.isNotEmpty) {
+        _sites = result.sites;
+      }
       _mergePersonIdMap(result.personIdMap);
       _isLoadingEpisodes = false;
       _isLoadingCharacters = false;
@@ -306,6 +354,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       if (result.relations.isNotEmpty) {
         _relations = result.relations;
         _isLoadingRelations = false;
+      }
+      if (result.sites.isNotEmpty) {
+        _sites = result.sites;
       }
       _mergePersonIdMap(result.personIdMap);
     });
@@ -459,6 +510,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _episodesScrollController.dispose();
     _charactersScrollController.dispose();
     _relationsScrollController.dispose();
+    _sitesScrollController.dispose();
     super.dispose();
   }
 
@@ -1026,6 +1078,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
             // Related Items (Associated entries)
             _buildRelationsSection(context, isDarkBg: isDark),
           ],
+          if (_sites != null && _sites!.isNotEmpty) ...[
+            const SizedBox(height: 32),
+            _buildSitesSection(context, isDarkBg: isDark),
+          ],
           const SizedBox(height: 24),
         ],
       ),
@@ -1386,8 +1442,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                             const SizedBox(height: 32),
                             // RELATED ITEMS
                             _buildRelationsSection(context, isDarkBg: true),
+                          ],
+                          if (_sites != null && _sites!.isNotEmpty) ...[
                             const SizedBox(height: 32),
-                          ] else ...[
+                            _buildSitesSection(context, isDarkBg: true),
+                          ] else if (_relations == null || _relations!.isEmpty) ...[
                             const SizedBox(height: 32),
                           ],
 
@@ -2759,6 +2818,151 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         ),
       ],
     );
+  }
+
+  Widget _buildSitesSection(BuildContext context, {bool isDarkBg = false}) {
+    if (_sites == null || _sites!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final textColor = isDarkBg ? Colors.white : Colors.black87;
+    final cardColor = isDarkBg
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.grey[100];
+    final borderColor = isDarkBg ? Colors.white10 : Colors.grey[300]!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(
+          context,
+          AppLocalizations.of(context).bangumiDetailsRelatedSites,
+          isDarkBg: isDarkBg,
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Scrollbar(
+            controller: _sitesScrollController,
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              controller: _sitesScrollController,
+              scrollDirection: Axis.horizontal,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var index = 0; index < _sites!.length; index++) ...[
+                      if (index > 0) const SizedBox(width: 12),
+                      _buildSiteCard(
+                        context,
+                        _sites![index],
+                        textColor: textColor,
+                        cardColor: cardColor!,
+                        borderColor: borderColor,
+                        isDarkBg: isDarkBg,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSiteCard(
+    BuildContext context,
+    BangumiDataSiteEntry site, {
+    required Color textColor,
+    required Color cardColor,
+    required Color borderColor,
+    required bool isDarkBg,
+  }) {
+    final fallbackColor =
+        isDarkBg ? Colors.white24 : Colors.grey[400]!;
+    return GestureDetector(
+      onTap: () => _launchSiteUrl(site.url),
+      child: SizedBox(
+        width: 96,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: borderColor),
+              ),
+              child: _buildSiteIcon(site.site, fallbackColor),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              site.title,
+              style: TextStyle(
+                fontSize: 12,
+                color: textColor.withValues(alpha: 0.9),
+                fontWeight: FontWeight.w500,
+                height: 1.3,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSiteIcon(String siteKey, Color fallbackColor) {
+    final assetPath = _siteIconAssetPath(siteKey);
+    if (assetPath == null) {
+      return Icon(Icons.public, color: fallbackColor, size: 28);
+    }
+    return Image.asset(
+      assetPath,
+      width: 64,
+      height: 64,
+      fit: BoxFit.contain,
+      errorBuilder: (_, _, _) =>
+          Icon(Icons.public, color: fallbackColor, size: 28),
+    );
+  }
+
+  /// Maps a bangumi-data `site` key to an asset path under
+  /// `assets/images/sites/`. Returns null when no bundled icon exists,
+  /// letting the caller fall back to a generic placeholder icon.
+  String? _siteIconAssetPath(String siteKey) {
+    final entry = _kSiteIconMap[siteKey];
+    if (entry == null) return null;
+    return 'assets/images/sites/$entry';
+  }
+
+  Future<void> _launchSiteUrl(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (!uri.hasScheme ||
+          (!uri.scheme.startsWith('http'))) {
+        debugPrint('Refusing to launch non-HTTP URL: $url');
+        return;
+      }
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        debugPrint('launchUrl returned false for $url');
+      }
+    } catch (e) {
+      debugPrint('Failed to launch $url: $e');
+    }
   }
 
   Widget _buildCommentsSection(BuildContext context, {bool isDarkBg = false}) {

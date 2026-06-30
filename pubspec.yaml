@@ -91,6 +91,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/sites/
     - assets/ocr/
 
   # An image asset can refer to one or more resolution-specific "variants", see

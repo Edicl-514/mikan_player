@@ -1162,6 +1162,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bangumiDetailsRelatedItems => '相关作品';
 
   @override
+  String get bangumiDetailsRelatedSites => '关联站点';
+
+  @override
   String get bangumiDetailsTags => '标签';
 
   @override

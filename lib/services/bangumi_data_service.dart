@@ -36,4 +36,37 @@ class BangumiDataService {
   static Future<crawler.BangumiDataCacheStatus> getStatus() async {
     return crawler.getBangumiDataCacheStatus();
   }
+
+  /// Look up all sites listed under `bangumiId` in the cached bangumi-data.
+  /// Returns an empty list when the bangumi id is missing, unparseable, or
+  /// not present in the cached payload — the UI should hide the section
+  /// rather than show an error in that case.
+  static Future<List<crawler.BangumiDataSiteEntry>> getSites(
+    String? bangumiId,
+  ) async {
+    if (bangumiId == null || bangumiId.isEmpty) return const [];
+    final id = int.tryParse(bangumiId);
+    if (id == null) return const [];
+    try {
+      return await crawler.fetchBangumiDataSites(bangumiId: id);
+    } catch (e) {
+      debugPrint('bangumi-data sites lookup failed (non-fatal): $e');
+      return const [];
+    }
+  }
+
+  /// Mikan-origin lookup. Returns empty when mikan has no bangumi mapping.
+  static Future<List<crawler.BangumiDataSiteEntry>> getSitesByMikan(
+    String? mikanId,
+  ) async {
+    if (mikanId == null || mikanId.isEmpty) return const [];
+    final id = int.tryParse(mikanId);
+    if (id == null) return const [];
+    try {
+      return await crawler.fetchBangumiDataSitesByMikan(mikanId: id);
+    } catch (e) {
+      debugPrint('bangumi-data sites lookup by mikan failed: $e');
+      return const [];
+    }
+  }
 }

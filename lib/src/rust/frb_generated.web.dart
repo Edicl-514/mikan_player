@@ -100,6 +100,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiDataCacheStatus dco_decode_bangumi_data_cache_status(dynamic raw);
 
   @protected
+  BangumiDataSiteEntry dco_decode_bangumi_data_site_entry(dynamic raw);
+
+  @protected
   BangumiEpisode dco_decode_bangumi_episode(dynamic raw);
 
   @protected
@@ -222,6 +225,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiComment> dco_decode_list_bangumi_comment(dynamic raw);
+
+  @protected
+  List<BangumiDataSiteEntry> dco_decode_list_bangumi_data_site_entry(
+    dynamic raw,
+  );
 
   @protected
   List<BangumiEpisode> dco_decode_list_bangumi_episode(dynamic raw);
@@ -506,6 +514,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  BangumiDataSiteEntry sse_decode_bangumi_data_site_entry(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   BangumiEpisode sse_decode_bangumi_episode(SseDeserializer deserializer);
 
   @protected
@@ -648,6 +661,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiComment> sse_decode_list_bangumi_comment(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<BangumiDataSiteEntry> sse_decode_list_bangumi_data_site_entry(
     SseDeserializer deserializer,
   );
 
@@ -1001,6 +1019,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_bangumi_data_site_entry(
+    BangumiDataSiteEntry self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_bangumi_episode(
     BangumiEpisode self,
     SseSerializer serializer,
@@ -1177,6 +1201,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_bangumi_comment(
     List<BangumiComment> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_bangumi_data_site_entry(
+    List<BangumiDataSiteEntry> self,
     SseSerializer serializer,
   );
 

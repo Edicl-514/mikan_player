@@ -1190,6 +1190,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bangumiDetailsRelatedItems => 'Related Items';
 
   @override
+  String get bangumiDetailsRelatedSites => 'Related Sites';
+
+  @override
   String get bangumiDetailsTags => 'Tags';
 
   @override

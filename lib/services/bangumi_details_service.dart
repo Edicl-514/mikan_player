@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:mikan_player/services/bangumi_data_service.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -12,6 +13,7 @@ class BangumiDetailsLoadResult {
   final List<BangumiCharacter> characters;
   final List<BangumiRelatedSubject> relations;
   final Map<String, int> personIdMap;
+  final List<BangumiDataSiteEntry> sites;
 
   const BangumiDetailsLoadResult({
     required this.subjectData,
@@ -19,6 +21,7 @@ class BangumiDetailsLoadResult {
     required this.characters,
     required this.relations,
     required this.personIdMap,
+    required this.sites,
   });
 }
 
@@ -60,6 +63,7 @@ class BangumiDetailsService {
       final charactersFuture = _cache.getCachedCharacters(subjectId);
       final relationsFuture = _cache.getCachedRelations(subjectId);
       final personsFuture = _cache.getCachedPersons(subjectId);
+      final sitesFuture = BangumiDataService.getSites(anime.bangumiId);
 
       final results = await Future.wait<Object?>([
         subjectFuture,
@@ -67,6 +71,7 @@ class BangumiDetailsService {
         charactersFuture,
         relationsFuture,
         personsFuture,
+        sitesFuture,
       ]);
 
       final subjectData = results[0] as Map<String, dynamic>?;
@@ -77,12 +82,14 @@ class BangumiDetailsService {
       final characters = results[2] as List<BangumiCharacter>;
       final relations = results[3] as List<BangumiRelatedSubject>;
       final persons = results[4] as List<BangumiPerson>;
+      final sites = results[5] as List<BangumiDataSiteEntry>;
 
       if (subjectData == null &&
           episodes.isEmpty &&
           characters.isEmpty &&
           relations.isEmpty &&
-          persons.isEmpty) {
+          persons.isEmpty &&
+          sites.isEmpty) {
         return null;
       }
 
@@ -95,6 +102,7 @@ class BangumiDetailsService {
           characters: characters,
           persons: persons,
         ),
+        sites: sites,
       );
     } catch (e) {
       debugPrint('Error loading cached initial data: $e');
@@ -114,6 +122,7 @@ class BangumiDetailsService {
         characters: [],
         relations: [],
         personIdMap: {},
+        sites: [],
       );
     }
 
@@ -123,18 +132,21 @@ class BangumiDetailsService {
     final charactersFuture = _loadCharacters(subjectId);
     final relationsFuture = _loadRelations(subjectId);
     final personsFuture = _loadPersons(subjectId);
+    final sitesFuture = BangumiDataService.getSites(anime.bangumiId);
 
     final results = await Future.wait<Object?>([
       subjectFuture,
       charactersFuture,
       relationsFuture,
       personsFuture,
+      sitesFuture,
     ]);
 
     final subjectData = results[0] as Map<String, dynamic>?;
     final characters = results[1] as List<BangumiCharacter>;
     final relations = results[2] as List<BangumiRelatedSubject>;
     final persons = results[3] as List<BangumiPerson>;
+    final sites = results[4] as List<BangumiDataSiteEntry>;
 
     final episodes = includeSubjectDetails
         ? (_parseEpisodesFromSubjectData(subjectData).isNotEmpty
@@ -148,6 +160,7 @@ class BangumiDetailsService {
       characters: characters,
       relations: relations,
       personIdMap: _buildPersonIdMap(characters: characters, persons: persons),
+      sites: sites,
     );
   }
 

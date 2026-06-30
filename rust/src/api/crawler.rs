@@ -1,10 +1,13 @@
 use chrono::Datelike;
+use memmap2::Mmap;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
+use tokio::sync::RwLock;
 
 const QUARTER_NAMES: [&str; 4] = ["1月", "4月", "7月", "10月"];
 const CST_OFFSET: chrono::FixedOffset = chrono::FixedOffset::east_opt(8 * 3600).unwrap();
@@ -80,22 +83,54 @@ struct BgmlistTitleTranslate {
 #[flutter_rust_bridge::frb(ignore)]
 struct BgmlistSite {
     site: String,
+    #[serde(default)]
     id: String,
     #[serde(default)]
-    url: String,
+    url: Option<String>,
     #[serde(default)]
-    begin: String,
+    begin: Option<String>,
     #[serde(default)]
-    broadcast: String,
+    broadcast: Option<String>,
     #[serde(default)]
-    comment: String,
+    comment: Option<String>,
+    #[serde(default)]
+    regions: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[flutter_rust_bridge::frb(ignore)]
+#[serde(rename_all = "camelCase")]
+struct BangumiDataSiteMeta {
+    title: String,
+    url_template: String,
+    #[serde(rename = "type")]
+    kind: String,
+    #[serde(default)]
+    #[allow(dead_code)]
+    regions: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[flutter_rust_bridge::frb(ignore)]
+#[serde(rename_all = "camelCase")]
 struct BangumiDataJson {
     #[serde(default)]
+    site_meta: HashMap<String, BangumiDataSiteMeta>,
+    #[serde(default)]
     items: Vec<BgmlistItem>,
+}
+
+/// One site of a bangumi-data entry, resolved (URL template filled in) and
+/// safe to expose to Dart via flutter_rust_bridge.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BangumiDataSiteEntry {
+    pub site: String,
+    pub title: String,
+    pub url: String,
+    pub kind: String,
+    #[serde(default)]
+    pub comment: Option<String>,
 }
 
 impl Default for BgmlistItem {
@@ -662,10 +697,149 @@ fn load_data_json_and_filter(
     path: &Path,
     year_quarter: &str,
 ) -> anyhow::Result<Vec<AnimeInfo>> {
-    let file = std::fs::File::open(path)?;
-    let data: BangumiDataJson = serde_json::from_reader(file)?;
+    let data = read_bangumi_data_json_mmap(path)?;
     let items = filter_items_by_quarter(&data.items, year_quarter);
     Ok(items.iter().map(|item| bgmlist_item_to_anime_info(item)).filter_map(|opt| opt).collect())
+}
+
+/// Read and parse the cached `bangumi-data.json` via `memmap2`. The 7 MB file
+/// is read once by the page cache; subsequent calls within the same process
+/// (or after the file has been touched) skip the `read()` syscall cost and
+/// only pay the ~20 ms serde_json parse.
+fn read_bangumi_data_json_mmap(path: &Path) -> anyhow::Result<BangumiDataJson> {
+    let file = std::fs::File::open(path)?;
+    let mmap = unsafe { Mmap::map(&file)? };
+    let data: BangumiDataJson = serde_json::from_slice(&mmap)?;
+    Ok(data)
+}
+
+// =====================================================================
+// bangumi-data sites index
+//
+// Holds a `bangumi.tv id -> Vec<BangumiDataSiteEntry>` map plus a
+// `mikan id -> bangumi.tv id` map, both built once from the cached
+// `bangumi-data.json`. The map is kept in process memory (no on-disk
+// cache): the 7 MB JSON parses in ~370 ms on first call, then every
+// lookup is O(1). The `OnceLock`+`RwLock` pair makes the read path
+// lock-free after the first write.
+// =====================================================================
+
+struct SitesIndex {
+    /// Keyed by `bangumi.tv` subject id.
+    by_bangumi_id: HashMap<i64, Vec<BangumiDataSiteEntry>>,
+    /// Keyed by `mikan` id; lets mikan-origin entries resolve sites too.
+    by_mikan_id: HashMap<i64, i64>,
+}
+
+static SITES_INDEX: OnceLock<RwLock<Option<Arc<SitesIndex>>>> = OnceLock::new();
+
+fn sites_index_slot() -> &'static RwLock<Option<Arc<SitesIndex>>> {
+    SITES_INDEX.get_or_init(|| RwLock::new(None))
+}
+
+/// Build the sites index from the cached JSON. Called on app startup and
+/// whenever the JSON cache is refreshed. Parsing happens on a blocking
+/// thread (mmap + serde_json are synchronous).
+pub async fn build_sites_index() -> anyhow::Result<usize> {
+    let cache_dir = crate::api::config::get_cache_dir();
+    let path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
+    if !path.exists() {
+        anyhow::bail!("bangumi-data.json not cached at {}", path.display());
+    }
+
+    let path_clone = path.clone();
+    let data = tokio::task::spawn_blocking(move || read_bangumi_data_json_mmap(&path_clone))
+        .await??;
+
+    let mut by_bangumi: HashMap<i64, Vec<BangumiDataSiteEntry>> =
+        HashMap::with_capacity(data.items.len());
+    let mut by_mikan: HashMap<i64, i64> = HashMap::new();
+
+    for item in &data.items {
+        let entries: Vec<BangumiDataSiteEntry> = item
+            .sites
+            .iter()
+            .filter_map(|s| {
+                let meta = data.site_meta.get(&s.site)?;
+                let url = s
+                    .url
+                    .clone()
+                    .filter(|u| !u.is_empty())
+                    .unwrap_or_else(|| meta.url_template.replace("{{id}}", &s.id));
+                Some(BangumiDataSiteEntry {
+                    site: s.site.clone(),
+                    title: meta.title.clone(),
+                    url,
+                    kind: meta.kind.clone(),
+                    comment: s.comment.clone().filter(|c| !c.is_empty()),
+                })
+            })
+            .collect();
+        if entries.is_empty() {
+            continue;
+        }
+
+        let bgm_id = item
+            .sites
+            .iter()
+            .find(|s| s.site == "bangumi")
+            .and_then(|s| s.id.parse::<i64>().ok());
+        let mikan_id = item
+            .sites
+            .iter()
+            .find(|s| s.site == "mikan")
+            .and_then(|s| s.id.parse::<i64>().ok());
+
+        if let Some(bid) = bgm_id {
+            by_bangumi.insert(bid, entries);
+            if let Some(mid) = mikan_id {
+                by_mikan.insert(mid, bid);
+            }
+        }
+    }
+
+    let count = by_bangumi.len();
+    let index = Arc::new(SitesIndex {
+        by_bangumi_id: by_bangumi,
+        by_mikan_id: by_mikan,
+    });
+    *sites_index_slot().write().await = Some(index);
+    Ok(count)
+}
+
+/// Drop the in-memory index. Used when `bangumi-data.json` is replaced so
+/// the next `build_sites_index` call rebuilds against the new payload.
+pub async fn invalidate_sites_index() {
+    let mut guard = sites_index_slot().write().await;
+    *guard = None;
+}
+
+/// FRB-exposed lookup. Returns an empty list when the index has not been
+/// built yet (cold start, before warmup finishes) or when the bangumi id
+/// is not present in bangumi-data — the Dart side renders nothing in
+/// either case so callers don't have to distinguish.
+pub async fn fetch_bangumi_data_sites(bangumi_id: i64) -> Vec<BangumiDataSiteEntry> {
+    let guard = sites_index_slot().read().await;
+    match guard.as_ref() {
+        Some(idx) => idx
+            .by_bangumi_id
+            .get(&bangumi_id)
+            .cloned()
+            .unwrap_or_default(),
+        None => Vec::new(),
+    }
+}
+
+/// Optional helper for mikan-origin entries that don't carry a bangumi id.
+pub async fn fetch_bangumi_data_sites_by_mikan(mikan_id: i64) -> Vec<BangumiDataSiteEntry> {
+    let guard = sites_index_slot().read().await;
+    let Some(idx) = guard.as_ref() else {
+        return Vec::new();
+    };
+    if let Some(bid) = idx.by_mikan_id.get(&mikan_id).copied() {
+        return idx.by_bangumi_id.get(&bid).cloned().unwrap_or_default();
+    }
+    Vec::new()
 }
 
 fn filter_items_by_quarter<'a>(items: &'a [BgmlistItem], year_quarter: &str) -> Vec<&'a BgmlistItem> {
@@ -1275,7 +1449,13 @@ pub fn get_bangumi_data_cache_status() -> BangumiDataCacheStatus {
 pub async fn refresh_bangumi_data_cache() -> anyhow::Result<bool> {
     let cache_dir = crate::api::config::get_cache_dir();
     let local_path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
-    download_bangumi_data_json(&local_path).await.map(|_| true)
+    download_bangumi_data_json(&local_path).await?;
+    clear_failure_marker(&cache_dir);
+    invalidate_sites_index().await;
+    if let Err(e) = build_sites_index().await {
+        log::warn!("bangumi-data sites index build failed after refresh: {e:#}");
+    }
+    Ok(true)
 }
 
 /// Ensure the offline `bangumi-data.json` cache is present and fresh. Downloads
@@ -1313,6 +1493,10 @@ pub async fn ensure_bangumi_data_cache(max_age_secs: u64) -> anyhow::Result<bool
         if recently_failed {
             clear_failure_marker(&cache_dir);
         }
+        // Sites index may be empty after a process restart that didn't
+        // observe a download. Ensure it's populated so the details page
+        // can look up sites immediately.
+        ensure_sites_index_built().await;
         return Ok(false);
     }
 
@@ -1322,10 +1506,36 @@ pub async fn ensure_bangumi_data_cache(max_age_secs: u64) -> anyhow::Result<bool
              skipping retry until cooldown elapses",
             last_failure_age_secs(&cache_dir).unwrap_or(0)
         );
+        // Stale cache can still be served — just rebuild the index so the
+        // details page works until a fresh download succeeds.
+        ensure_sites_index_built().await;
         return Ok(false);
     }
 
-    download_bangumi_data_json(&local_path).await.map(|_| true)
+    download_bangumi_data_json(&local_path).await?;
+    // Cache contents changed — the previous in-memory index is stale.
+    invalidate_sites_index().await;
+    if let Err(e) = build_sites_index().await {
+        log::warn!("bangumi-data sites index build failed after refresh: {e:#}");
+    }
+    Ok(true)
+}
+
+/// Build the in-memory sites index if it has not been built yet (or was
+/// invalidated). Failures are logged and swallowed so warmup stays
+/// best-effort.
+async fn ensure_sites_index_built() {
+    let already = {
+        let guard = sites_index_slot().read().await;
+        guard.is_some()
+    };
+    if already {
+        return;
+    }
+    match build_sites_index().await {
+        Ok(n) => log::info!("bangumi-data sites index built: {n} entries"),
+        Err(e) => log::warn!("bangumi-data sites index build failed: {e:#}"),
+    }
 }
 
 async fn fetch_extra_bangumi_subjects(
@@ -1584,18 +1794,20 @@ mod tests {
                 BgmlistSite {
                     site: "bangumi".to_string(),
                     id: "505258".to_string(),
-                    url: String::new(),
-                    begin: String::new(),
-                    broadcast: String::new(),
-                    comment: String::new(),
+                    url: None,
+                    begin: None,
+                    broadcast: None,
+                    comment: None,
+                    regions: None,
                 },
                 BgmlistSite {
                     site: "mikan".to_string(),
                     id: "3886".to_string(),
-                    url: String::new(),
-                    begin: String::new(),
-                    broadcast: String::new(),
-                    comment: String::new(),
+                    url: None,
+                    begin: None,
+                    broadcast: None,
+                    comment: None,
+                    regions: None,
                 },
             ],
             id: None,
