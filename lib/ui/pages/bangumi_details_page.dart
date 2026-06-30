@@ -14,57 +14,16 @@ import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
+import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:mikan_player/ui/widgets/site_icon_map.dart';
 import 'player_page.dart';
 import 'tag_browse_page.dart';
 import 'character_detail_page.dart';
 import 'person_detail_page.dart';
 
-/// Bangumi-data `site` key → asset filename under `assets/images/sites/`.
-/// Adding a new entry here is enough to make the icon show up; missing
-/// entries fall back to a generic globe icon.
-const Map<String, String> _kSiteIconMap = {
-  'bangumi': 'bangumi.png',
-  'bangumi_moe': 'bangumi_moe.png',
-  'bilibili': 'bilibili.png',
-  'bilibili_hk_mo': 'bilibili.png',
-  'bilibili_hk_mo_tw': 'bilibili.png',
-  'bilibili_tw': 'bilibili.png',
-  'acfun': 'acfun.png',
-  'youku': 'youku.png',
-  'qq': 'qq.png',
-  'iqiyi': 'iqiyi.png',
-  'letv': 'letv.png',
-  'mgtv': 'mgtv.png',
-  'nicovideo': 'nicovideo.png',
-  'netflix': 'netflix.png',
-  'gamer': 'gamer.png',
-  'gamer_hk': 'gamer.png',
-  'gamer_tw': 'gamer.png',
-  'muse_hk': 'muse.png',
-  'muse_tw': 'muse.png',
-  'ani_one': 'ani_one.png',
-  'ani_one_asia': 'ani_one.png',
-  'viu': 'viu.png',
-  'mytv': 'mytv.png',
-  'disneyplus': 'disneyplus.png',
-  'abema': 'abema.png',
-  'unext': 'unext.png',
-  'tropics': 'tropics.png',
-  'prime': 'prime.png',
-  'danime': 'danime.png',
-  'dmhy': 'dmhy.png',
-  'mikan': 'mikan.png',
-  'tmdb': 'tmdb.png',
-  'mal': 'mal.png',
-  'anidb': 'anidb.png',
-  'aniList': 'anilist.png',
-  'crunchyroll': 'crunchyroll.png',
-  'youtube': 'youtube.png',
-};
 
 class BangumiDetailsPage extends StatefulWidget {
   final AnimeInfo anime;
@@ -2970,7 +2929,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     final fallbackColor =
         isDarkBg ? Colors.white24 : Colors.grey[400]!;
     return GestureDetector(
-      onTap: () => _launchSiteUrl(site.url),
+      onTap: () => launchBangumiSiteUrl(site.url),
       child: SizedBox(
         width: 100,
         child: Column(
@@ -3023,7 +2982,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   }
 
   Widget _buildSiteIcon(String siteKey, Color fallbackColor) {
-    final assetPath = _siteIconAssetPath(siteKey);
+    final assetPath = siteIconAssetPath(siteKey);
     if (assetPath == null) {
       return Icon(Icons.public, color: fallbackColor, size: 36);
     }
@@ -3035,35 +2994,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       errorBuilder: (_, _, _) =>
           Icon(Icons.public, color: fallbackColor, size: 36),
     );
-  }
-
-  /// Maps a bangumi-data `site` key to an asset path under
-  /// `assets/images/sites/`. Returns null when no bundled icon exists,
-  /// letting the caller fall back to a generic placeholder icon.
-  String? _siteIconAssetPath(String siteKey) {
-    final entry = _kSiteIconMap[siteKey];
-    if (entry == null) return null;
-    return 'assets/images/sites/$entry';
-  }
-
-  Future<void> _launchSiteUrl(String url) async {
-    try {
-      final uri = Uri.parse(url);
-      if (!uri.hasScheme ||
-          (!uri.scheme.startsWith('http'))) {
-        debugPrint('Refusing to launch non-HTTP URL: $url');
-        return;
-      }
-      final launched = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
-      if (!launched) {
-        debugPrint('launchUrl returned false for $url');
-      }
-    } catch (e) {
-      debugPrint('Failed to launch $url: $e');
-    }
   }
 
   Widget _buildCommentsSection(BuildContext context, {bool isDarkBg = false}) {

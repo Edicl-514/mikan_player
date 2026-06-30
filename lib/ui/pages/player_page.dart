@@ -28,6 +28,8 @@ import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_data_service.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
+import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
+import 'package:mikan_player/ui/widgets/site_icon_map.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
@@ -104,6 +106,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   List<RankingAnime> _recommendations = [];
   bool _isLoadingRecommendations = false;
+
+  List<BangumiDataSiteEntry> _onairSites = [];
 
   // Mikan Source
   bool _isLoadingMikan = false;
@@ -326,6 +330,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     _loadComments();
     _loadRecommendations();
+    _loadOnairSites();
 
     _loadDanmaku();
     unawaited(_initializePlaybackAndSourceLoading());
@@ -669,6 +674,28 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _comments.sort((a, b) => a.id.compareTo(b.id));
     } else {
       _comments.sort((a, b) => b.time.compareTo(a.time));
+    }
+  }
+
+  Future<void> _loadOnairSites() async {
+    try {
+      final bangumiId = widget.anime.bangumiId;
+      final mikanId = widget.anime.mikanId;
+      List<BangumiDataSiteEntry> sites = [];
+      if (bangumiId != null && bangumiId.isNotEmpty) {
+        sites = await BangumiDataService.getSites(bangumiId);
+      }
+      if (sites.isEmpty && mikanId != null && mikanId.isNotEmpty) {
+        sites = await BangumiDataService.getSitesByMikan(mikanId);
+      }
+      final onair = sites.where((s) => s.kind == 'onair').toList();
+      if (mounted && onair.isNotEmpty) {
+        setState(() {
+          _onairSites = onair;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load onair sites: $e');
     }
   }
 
@@ -2551,7 +2578,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _loadComments();
     }
     if (oldWidget.anime.bangumiId != widget.anime.bangumiId) {
+      setState(() {
+        _onairSites = [];
+      });
       _loadRecommendations();
+      _loadOnairSites();
       if (!_disableAutoSourceSearchForCurrentEpisode) {
         _loadMikanSource(); // Anime changed, reload search
         _loadDmhySource();
@@ -3098,6 +3129,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _buildResourceList(),
           const SizedBox(height: 24),
 
+          if (_onairSites.isNotEmpty) ...[
+            _buildSectionHeader("官方播放源"),
+            const SizedBox(height: 12),
+            _buildOnairSitesList(),
+            const SizedBox(height: 24),
+          ],
+
           // Recommendations
           _buildSectionHeader("相关推荐"),
           const SizedBox(height: 12),
@@ -3338,18 +3376,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 const SizedBox(height: 24),
 
                                 // Play Source
-                                Text(
-                                  "播放源",
-                                  style: TextStyle(
-                                    color: textColor,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                _buildSectionHeader("播放源"),
                                 const SizedBox(height: 12),
                                 _buildPlaySourceSelector(isMobile: false),
                                 const SizedBox(height: 12),
                                 _buildResourceList(),
+                                if (_onairSites.isNotEmpty) ...[
+                                  const SizedBox(height: 24),
+                                  _buildSectionHeader("官方播放源"),
+                                  const SizedBox(height: 12),
+                                  _buildOnairSitesList(),
+                                ],
                               ],
                             ),
                           ),
@@ -6105,6 +6142,75 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildOnairSitesList() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final fallbackColor = isDark ? Colors.white24 : Colors.grey[400]!;
+    final cardColor = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey[100];
+    final borderColor = isDark ? Colors.white10 : Colors.grey[300]!;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var i = 0; i < _onairSites.length; i++) ...[
+            if (i > 0) const SizedBox(width: 12),
+            GestureDetector(
+              onTap: () => launchBangumiSiteUrl(_onairSites[i].url),
+              child: SizedBox(
+                width: 112,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: _buildOnairSiteIcon(_onairSites[i].site, fallbackColor),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _onairSites[i].title,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.9),
+                        fontWeight: FontWeight.w500,
+                        height: 1.3,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOnairSiteIcon(String siteKey, Color fallbackColor) {
+    final assetPath = siteIconAssetPath(siteKey);
+    if (assetPath == null) {
+      return Icon(Icons.public, color: fallbackColor, size: 36);
+    }
+    return Image.asset(
+      assetPath,
+      width: 80,
+      height: 80,
+      fit: BoxFit.contain,
+      errorBuilder: (_, _, _) =>
+          Icon(Icons.public, color: fallbackColor, size: 36),
     );
   }
 
