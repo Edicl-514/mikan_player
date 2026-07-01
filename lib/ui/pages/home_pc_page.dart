@@ -120,8 +120,6 @@ class _HomePcPageState extends State<HomePcPage> {
 
       final animes = await CacheManager.instance.getTimetable(
         quarter: currentQuarter,
-        fetchFromNetwork: () =>
-            crawler.fetchScheduleBasic(yearQuarter: currentQuarter),
       );
 
       final weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];

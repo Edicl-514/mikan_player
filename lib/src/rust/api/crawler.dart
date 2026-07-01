@@ -19,6 +19,32 @@ Future<List<AnimeInfo>> fetchScheduleBasic({required String yearQuarter}) =>
       yearQuarter: yearQuarter,
     );
 
+/// Public wrapper for `fetch_schedule_basic_from_local_data_json` so that the
+/// Dart side can invoke the local-JSON path directly (instead of waiting for
+/// the bgmlist API to fail first). Semantics are identical: if the cached file
+/// is missing this function will attempt one download, and if the file is
+/// corrupt it will re-download once before giving up.
+Future<List<AnimeInfo>> fetchScheduleBasicFromLocalJson({
+  required String yearQuarter,
+}) => RustLib.instance.api.crateApiCrawlerFetchScheduleBasicFromLocalJson(
+  yearQuarter: yearQuarter,
+);
+
+/// Try to load the schedule from the local `bangumi-data.json` cache **without
+/// downloading**. Returns `Ok(empty vec)` when the file is absent or contains
+/// zero matches for the requested quarter — the caller can then decide to
+/// start a background download or fall back to the API.
+///
+/// This is the "Level 2" path in the three-tier loading strategy:
+///   1. SQLite timetable cache  (fastest, ~ms)
+///   2. This function           (mmap read, ~22ms)
+///   3. Concurrent API + download (slowest, seconds)
+Future<List<AnimeInfo>> fetchScheduleBasicFromLocalJsonNodl({
+  required String yearQuarter,
+}) => RustLib.instance.api.crateApiCrawlerFetchScheduleBasicFromLocalJsonNodl(
+  yearQuarter: yearQuarter,
+);
+
 /// Build the sites index from the cached JSON. Called on app startup and
 /// whenever the JSON cache is refreshed. Parsing happens on a blocking
 /// thread (mmap + serde_json are synchronous).

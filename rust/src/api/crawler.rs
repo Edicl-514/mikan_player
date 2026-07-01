@@ -427,12 +427,25 @@ async fn fetch_schedule_basic_from_local_data_json(
 
     if !local_path.exists() {
         let _ = download_bangumi_data_json(&local_path).await;
+        // The file may have just appeared (or been replaced by a fresh
+        // download); the in-memory cache + sites index are stale. Drop
+        // both so the next read reparses and the next lookup rebuilds.
+        invalidate_bangumi_data_cache();
+        invalidate_sites_index().await;
+        if let Err(e) = build_sites_index().await {
+            log::warn!("sites index rebuild after local-data download failed: {e:#}");
+        }
     }
 
     if local_path.exists() {
-        match load_data_json_and_filter(&local_path, year_quarter) {
-            Ok(animes) if !animes.is_empty() => return Ok(animes),
-            Ok(_) => log::info!("data.json had 0 items for {}", year_quarter),
+        match get_or_load_bangumi_data_blocking() {
+            Ok(data) => {
+                let animes = load_data_json_and_filter(&data, year_quarter);
+                if !animes.is_empty() {
+                    return Ok(animes);
+                }
+                log::info!("data.json had 0 items for {}", year_quarter);
+            }
             Err(e) => {
                 // The cached file is corrupt or tampered (mtime OK, hash wrong,
                 // JSON malformed). Treat it like the file is missing — try one
@@ -443,8 +456,11 @@ async fn fetch_schedule_basic_from_local_data_json(
                     e
                 );
                 let _ = download_bangumi_data_json(&local_path).await;
+                invalidate_bangumi_data_cache();
+                invalidate_sites_index().await;
                 if local_path.exists() {
-                    if let Ok(animes) = load_data_json_and_filter(&local_path, year_quarter) {
+                    if let Ok(data) = get_or_load_bangumi_data_blocking() {
+                        let animes = load_data_json_and_filter(&data, year_quarter);
                         if !animes.is_empty() {
                             return Ok(animes);
                         }
@@ -455,6 +471,33 @@ async fn fetch_schedule_basic_from_local_data_json(
     }
 
     Ok(vec![])
+}
+
+/// Public wrapper for `fetch_schedule_basic_from_local_data_json` so that the
+/// Dart side can invoke the local-JSON path directly (instead of waiting for
+/// the bgmlist API to fail first). Semantics are identical: if the cached file
+/// is missing this function will attempt one download, and if the file is
+/// corrupt it will re-download once before giving up.
+pub async fn fetch_schedule_basic_from_local_json(
+    year_quarter: String,
+) -> anyhow::Result<Vec<AnimeInfo>> {
+    fetch_schedule_basic_from_local_data_json(&year_quarter).await
+}
+
+/// Try to load the schedule from the local `bangumi-data.json` cache **without
+/// downloading**. Returns `Ok(empty vec)` when the file is absent or contains
+/// zero matches for the requested quarter — the caller can then decide to
+/// start a background download or fall back to the API.
+///
+/// This is the "Level 2" path in the three-tier loading strategy:
+///   1. SQLite timetable cache  (fastest, ~ms)
+///   2. This function           (mmap read, ~22ms)
+///   3. Concurrent API + download (slowest, seconds)
+pub fn fetch_schedule_basic_from_local_json_nodl(
+    year_quarter: String,
+) -> anyhow::Result<Vec<AnimeInfo>> {
+    let data = get_or_load_bangumi_data_blocking()?;
+    Ok(load_data_json_and_filter(&data, &year_quarter))
 }
 
 /// Sidecar file that records the last (Unix-epoch-second) failed warmup
@@ -694,12 +737,14 @@ fn replace_atomic(src: &Path, dst: &Path) -> anyhow::Result<()> {
 }
 
 fn load_data_json_and_filter(
-    path: &Path,
+    data: &BangumiDataJson,
     year_quarter: &str,
-) -> anyhow::Result<Vec<AnimeInfo>> {
-    let data = read_bangumi_data_json_mmap(path)?;
+) -> Vec<AnimeInfo> {
     let items = filter_items_by_quarter(&data.items, year_quarter);
-    Ok(items.iter().map(|item| bgmlist_item_to_anime_info(item)).filter_map(|opt| opt).collect())
+    items
+        .iter()
+        .filter_map(|item| bgmlist_item_to_anime_info(item))
+        .collect()
 }
 
 /// Read and parse the cached `bangumi-data.json` via `memmap2`. The 7 MB file
@@ -711,6 +756,71 @@ fn read_bangumi_data_json_mmap(path: &Path) -> anyhow::Result<BangumiDataJson> {
     let mmap = unsafe { Mmap::map(&file)? };
     let data: BangumiDataJson = serde_json::from_slice(&mmap)?;
     Ok(data)
+}
+
+// =====================================================================
+// Shared parsed `bangumi-data.json` payload
+//
+// Both the schedule path (`load_data_json_and_filter` -> which animes
+// aired in quarter X?) and the sites-index path (`build_sites_index` ->
+// bangumi.tv id -> Vec<RSS site>) walk the same ~7 MB JSON. Without
+// sharing, each path re-`mmap`s and re-parses the file. We keep a
+// process-wide `Arc<BangumiDataJson>` in a `OnceLock<RwLock<...>>` slot;
+// the first caller pays the parse cost, subsequent callers clone the
+// `Arc` and operate on the already-parsed data.
+//
+// The slot is dropped by `invalidate_bangumi_data_cache` whenever the
+// underlying file is replaced (download, refresh) so the next caller
+// reparses the new payload.
+// =====================================================================
+
+static BANGUMI_DATA: OnceLock<std::sync::RwLock<Option<Arc<BangumiDataJson>>>> =
+    OnceLock::new();
+
+fn bangumi_data_slot() -> &'static std::sync::RwLock<Option<Arc<BangumiDataJson>>> {
+    BANGUMI_DATA.get_or_init(|| std::sync::RwLock::new(None))
+}
+
+/// Drop the cached parsed payload. Called whenever `bangumi-data.json`
+/// is replaced on disk so the next call reparses the new file.
+fn invalidate_bangumi_data_cache() {
+    if let Ok(mut guard) = bangumi_data_slot().write() {
+        *guard = None;
+    }
+}
+
+/// Return a clone of the cached parsed payload, parsing + caching the
+/// on-disk file on first call. Returns `Err` when the file is missing or
+/// malformed.
+///
+/// Safe to call from both sync and async contexts: the read path is a
+/// non-blocking `try_read` (clones an `Arc`), the write path is a
+/// blocking `write` on a `std::sync::RwLock`. The actual `mmap` +
+/// `serde_json::from_slice` runs on the calling thread; callers in
+/// async contexts should wrap this in `tokio::task::spawn_blocking`
+/// when they expect the cold path to be taken.
+fn get_or_load_bangumi_data_blocking() -> anyhow::Result<Arc<BangumiDataJson>> {
+    {
+        let guard = bangumi_data_slot().read().unwrap();
+        if let Some(arc) = guard.as_ref() {
+            return Ok(Arc::clone(arc));
+        }
+    }
+    let cache_dir = crate::api::config::get_cache_dir();
+    let path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
+    if !path.exists() {
+        anyhow::bail!("bangumi-data.json not cached at {}", path.display());
+    }
+    let data = read_bangumi_data_json_mmap(&path)?;
+    let arc = Arc::new(data);
+    let mut guard = bangumi_data_slot().write().unwrap();
+    // Another caller may have raced us to install the value; prefer the
+    // existing one so two parallel parses can't fight.
+    if let Some(existing) = guard.as_ref() {
+        return Ok(Arc::clone(existing));
+    }
+    *guard = Some(Arc::clone(&arc));
+    Ok(arc)
 }
 
 // =====================================================================
@@ -740,75 +850,84 @@ fn sites_index_slot() -> &'static RwLock<Option<Arc<SitesIndex>>> {
 }
 
 /// Build the sites index from the cached JSON. Called on app startup and
-/// whenever the JSON cache is refreshed. Parsing happens on a blocking
-/// thread (mmap + serde_json are synchronous).
+/// whenever the JSON cache is refreshed. The underlying 7 MB JSON is
+/// mmap'd + parsed at most once per process; both this and the schedule
+/// path (`load_data_json_and_filter`) read from a shared
+/// `Arc<BangumiDataJson>` slot. The remaining work — walking ~6000
+/// items to assemble the three hash maps — runs on a blocking thread.
 pub async fn build_sites_index() -> anyhow::Result<usize> {
-    let cache_dir = crate::api::config::get_cache_dir();
-    let path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
-    if !path.exists() {
-        anyhow::bail!("bangumi-data.json not cached at {}", path.display());
-    }
+    // Compute the new index on a worker thread. The thread both reads
+    // from (or populates) the shared `Arc<BangumiDataJson>` slot and
+    // returns the assembled hash maps so the async lock is only held
+    // for the final `Arc` swap, never across the CPU-bound loop.
+    type SitesIndexMaps = (
+        HashMap<i64, Vec<BangumiDataSiteEntry>>,
+        HashMap<i64, i64>,
+        HashMap<i64, i64>,
+    );
 
-    let path_clone = path.clone();
-    let data = tokio::task::spawn_blocking(move || read_bangumi_data_json_mmap(&path_clone))
-        .await??;
+    let (by_bangumi, by_mikan, by_bangumi_to_mikan) = tokio::task::spawn_blocking(|| -> anyhow::Result<SitesIndexMaps> {
+            let data = get_or_load_bangumi_data_blocking()?;
+            let mut by_bangumi: HashMap<i64, Vec<BangumiDataSiteEntry>> =
+                HashMap::with_capacity(data.items.len());
+            let mut by_mikan: HashMap<i64, i64> = HashMap::new();
+            let mut by_bangumi_to_mikan: HashMap<i64, i64> = HashMap::new();
 
-    let mut by_bangumi: HashMap<i64, Vec<BangumiDataSiteEntry>> =
-        HashMap::with_capacity(data.items.len());
-    let mut by_mikan: HashMap<i64, i64> = HashMap::new();
-    let mut by_bangumi_to_mikan: HashMap<i64, i64> = HashMap::new();
+            for item in &data.items {
+                let entries: Vec<BangumiDataSiteEntry> = item
+                    .sites
+                    .iter()
+                    .filter_map(|s| {
+                        let meta = data.site_meta.get(&s.site)?;
+                        let url = s
+                            .url
+                            .clone()
+                            .filter(|u| !u.is_empty())
+                            .unwrap_or_else(|| meta.url_template.replace("{{id}}", &s.id));
+                        Some(BangumiDataSiteEntry {
+                            site: s.site.clone(),
+                            title: meta.title.clone(),
+                            url,
+                            kind: meta.kind.clone(),
+                            comment: s.comment.clone().filter(|c| !c.is_empty()),
+                        })
+                    })
+                    .collect();
+                if entries.is_empty() {
+                    continue;
+                }
 
-    for item in &data.items {
-        let entries: Vec<BangumiDataSiteEntry> = item
-            .sites
-            .iter()
-            .filter_map(|s| {
-                let meta = data.site_meta.get(&s.site)?;
-                let url = s
-                    .url
-                    .clone()
-                    .filter(|u| !u.is_empty())
-                    .unwrap_or_else(|| meta.url_template.replace("{{id}}", &s.id));
-                Some(BangumiDataSiteEntry {
-                    site: s.site.clone(),
-                    title: meta.title.clone(),
-                    url,
-                    kind: meta.kind.clone(),
-                    comment: s.comment.clone().filter(|c| !c.is_empty()),
-                })
-            })
-            .collect();
-        if entries.is_empty() {
-            continue;
-        }
+                let bgm_id = item
+                    .sites
+                    .iter()
+                    .find(|s| s.site == "bangumi")
+                    .and_then(|s| s.id.parse::<i64>().ok());
+                let mikan_id = item
+                    .sites
+                    .iter()
+                    .find(|s| s.site == "mikan")
+                    .and_then(|s| s.id.parse::<i64>().ok());
 
-        let bgm_id = item
-            .sites
-            .iter()
-            .find(|s| s.site == "bangumi")
-            .and_then(|s| s.id.parse::<i64>().ok());
-        let mikan_id = item
-            .sites
-            .iter()
-            .find(|s| s.site == "mikan")
-            .and_then(|s| s.id.parse::<i64>().ok());
-
-        if let Some(bid) = bgm_id {
-            by_bangumi.insert(bid, entries);
-            if let Some(mid) = mikan_id {
-                by_mikan.insert(mid, bid);
-                by_bangumi_to_mikan.insert(bid, mid);
+                if let Some(bid) = bgm_id {
+                    by_bangumi.insert(bid, entries);
+                    if let Some(mid) = mikan_id {
+                        by_mikan.insert(mid, bid);
+                        by_bangumi_to_mikan.insert(bid, mid);
+                    }
+                }
             }
-        }
-    }
+
+            Ok((by_bangumi, by_mikan, by_bangumi_to_mikan))
+        },
+    )
+    .await??;
 
     let count = by_bangumi.len();
-    let index = Arc::new(SitesIndex {
+    *sites_index_slot().write().await = Some(Arc::new(SitesIndex {
         by_bangumi_id: by_bangumi,
         by_mikan_id: by_mikan,
         by_bangumi_to_mikan,
-    });
-    *sites_index_slot().write().await = Some(index);
+    }));
     Ok(count)
 }
 
@@ -1467,6 +1586,9 @@ pub async fn refresh_bangumi_data_cache() -> anyhow::Result<bool> {
     let local_path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
     download_bangumi_data_json(&local_path).await?;
     clear_failure_marker(&cache_dir);
+    // Both the parsed payload and the sites index are stale once the
+    // on-disk file changes; drop them so the next caller reparses.
+    invalidate_bangumi_data_cache();
     invalidate_sites_index().await;
     if let Err(e) = build_sites_index().await {
         log::warn!("bangumi-data sites index build failed after refresh: {e:#}");
@@ -1529,7 +1651,11 @@ pub async fn ensure_bangumi_data_cache(max_age_secs: u64) -> anyhow::Result<bool
     }
 
     download_bangumi_data_json(&local_path).await?;
-    // Cache contents changed — the previous in-memory index is stale.
+    // Cache contents changed — both the parsed payload and the previous
+    // in-memory sites index are stale. `build_sites_index` (called
+    // below) will lazily repopulate the shared `Arc<BangumiDataJson>`
+    // slot as a side effect.
+    invalidate_bangumi_data_cache();
     invalidate_sites_index().await;
     if let Err(e) = build_sites_index().await {
         log::warn!("bangumi-data sites index build failed after refresh: {e:#}");
@@ -1745,6 +1871,13 @@ async fn fetch_extra_bangumi_subjects(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Serializes tests that mutate the process-global
+    /// `crate::api::config::CONFIG` cache_dir (via `init_config`) so
+    /// they don't clobber each other when cargo runs tests in
+    /// parallel. Acquire at the start of any test that calls
+    /// `init_config`.
+    static TEST_CONFIG_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     #[test]
     fn parse_broadcast_parts_supports_legacy_and_current_bgmlist_text() {
@@ -1983,5 +2116,73 @@ mod tests {
         // Garbage in the marker must NOT cause a panic; the helper should
         // treat it as "unknown" (None) and let the retry proceed.
         assert!(last_failure_age_secs(&cache_dir).is_none());
+    }
+
+    /// `get_or_load_bangumi_data_blocking` parses the on-disk file once
+    /// and reuses the `Arc` for every subsequent call. `invalidate_bangumi_data_cache`
+    /// forces a re-parse on the next call. This is the property the
+    /// schedule + sites-index unification relies on.
+    ///
+    /// Serialized via a `Mutex` because the function reads from a
+    /// process-global config slot, which cargo's parallel test runner
+    /// would otherwise have other tests clobber mid-run.
+    #[test]
+    fn get_or_load_bangumi_data_caches_arc_and_respects_invalidate() {
+        use crate::api::config::init_config;
+        use std::sync::Arc as StdArc;
+
+        let _guard = TEST_CONFIG_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        let dir = tempfile::tempdir().unwrap();
+        init_config(
+            dir.path().to_string_lossy().to_string(),
+            dir.path().to_string_lossy().to_string(),
+        );
+        let json_path = dir.path().join("bangumi-data.json");
+        std::fs::write(
+            &json_path,
+            br#"{"items":[{"title":"A","titleTranslate":{"zh-Hans":[],"zh-Hant":[]},"type":"tv","officialSite":"","begin":"2026-04-04T16:00:00.000Z","broadcast":"","sites":[],"id":null}]}"#,
+        )
+        .unwrap();
+
+        invalidate_bangumi_data_cache();
+        let first: StdArc<BangumiDataJson> =
+            get_or_load_bangumi_data_blocking().expect("first load should succeed");
+        assert_eq!(first.items.len(), 1);
+
+        // Second call must return the same `Arc` (pointer identity) —
+        // the kernel page cache and serde_json parse are reused.
+        let second: StdArc<BangumiDataJson> = get_or_load_bangumi_data_blocking().unwrap();
+        assert!(StdArc::ptr_eq(&first, &second));
+
+        // After invalidation the next call reparses. The contents are
+        // identical but the `Arc` is fresh.
+        invalidate_bangumi_data_cache();
+        let third: StdArc<BangumiDataJson> = get_or_load_bangumi_data_blocking().unwrap();
+        assert!(!StdArc::ptr_eq(&first, &third));
+        assert_eq!(third.items.len(), 1);
+    }
+
+    /// `get_or_load_bangumi_data_blocking` returns `Err` when the cache
+    /// file is absent — callers fall through to download/retry instead
+    /// of panicking. See the `caches_arc_*` test for the lock rationale.
+    #[test]
+    fn get_or_load_bangumi_data_errors_when_file_missing() {
+        use crate::api::config::init_config;
+
+        let _guard = TEST_CONFIG_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        let dir = tempfile::tempdir().unwrap();
+        init_config(
+            dir.path().to_string_lossy().to_string(),
+            dir.path().to_string_lossy().to_string(),
+        );
+        // No bangumi-data.json in the temp dir.
+        invalidate_bangumi_data_cache();
+        let err = get_or_load_bangumi_data_blocking().unwrap_err();
+        assert!(
+            err.to_string().contains("bangumi-data.json not cached"),
+            "unexpected error: {err}"
+        );
     }
 }

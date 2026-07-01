@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import 'models/bangumi_subject_cache.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
+import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/src/rust/api/ranking.dart';
 
 /// 统一缓存管理器
@@ -51,66 +53,183 @@ class CacheManager {
 
   // ==================== 时间表相关 ====================
 
-  /// 获取时间表数据（优先从缓存）
+  /// 获取时间表数据（三级优先策略）
+  ///
+  /// 1. SQLite 缓存 → 命中直接返回 (~ms)
+  /// 2. 本地 bangumi-data.json → mmap 读取 (~22ms)
+  /// 3. 并发: [下载+构建] vs [API请求] → 哪个先完成用哪个
+  ///
   /// [quarter] 季度标识，如 "2024q1"
-  /// [fetchFromNetwork] 网络获取函数
   Future<List<AnimeInfo>> getTimetable({
     required String quarter,
-    required Future<List<AnimeInfo>> Function() fetchFromNetwork,
   }) async {
-    // 尝试从缓存获取
+    // ---- Level 1: SQLite 缓存 ----
     final cache = await _dbCache.getTimetable(quarter);
     if (cache != null) {
-      debugPrint('Timetable loaded from cache: $quarter');
       final cachedAnimes = _dbCache.animesFromTimetableCache(cache);
       if (cachedAnimes.isNotEmpty &&
           cachedAnimes.any(
             (anime) =>
                 anime.broadcastDay != null && anime.broadcastDay!.isNotEmpty,
           )) {
+        debugPrint('Timetable loaded from SQLite cache: $quarter');
         return cachedAnimes;
       }
-      debugPrint(
-        'Timetable cache is empty or incomplete; refreshing: $quarter',
-      );
+      debugPrint('Timetable SQLite cache incomplete; trying Level 2');
     }
 
-    // 从网络获取
-    debugPrint('Fetching timetable from network: $quarter');
+    // ---- Level 2: 本地 bangumi-data.json (不下载, 只 mmap 读) ----
     try {
-      final animes = await fetchFromNetwork();
-
-      if (animes.isEmpty) {
-        debugPrint(
-          'Timetable network returned empty; keeping cache untouched: $quarter',
-        );
-        final expiredCache = await _dbCache.getTimetableIncludingExpired(
-          quarter,
-        );
-        if (expiredCache != null) {
-          return _dbCache.animesFromTimetableCache(expiredCache);
-        }
-        return animes;
+      final localAnimes =
+          await crawler.fetchScheduleBasicFromLocalJsonNodl(
+        yearQuarter: quarter,
+      );
+      if (localAnimes.isNotEmpty) {
+        debugPrint('Timetable loaded from local bangumi-data.json: $quarter');
+        await _dbCache.saveTimetable(quarter, localAnimes);
+        _cacheAnimeCovers(localAnimes);
+        _refreshTimetableInBackground(quarter);
+        return localAnimes;
       }
+    } catch (e) {
+      debugPrint('Local JSON read failed (non-fatal): $e');
+    }
 
-      // 保存到缓存
-      await _dbCache.saveTimetable(quarter, animes);
-
-      // 后台缓存封面图片
-      _cacheAnimeCovers(animes);
-
+    // ---- Level 3: 并发 — API 请求 vs 下载+构建 ----
+    debugPrint('Timetable: Level 3 — racing API vs download for $quarter');
+    try {
+      final animes = await _raceApiAndDownload(quarter);
+      if (animes.isNotEmpty) {
+        await _dbCache.saveTimetable(quarter, animes);
+        _cacheAnimeCovers(animes);
+      }
       return animes;
     } catch (e) {
-      // 网络失败，尝试返回过期的缓存
-      debugPrint('Network failed, trying expired cache: $e');
-      final expiredCache = await _dbCache.getTimetableIncludingExpired(quarter);
+      debugPrint('Timetable Level 3 failed, trying expired cache: $e');
+      final expiredCache = await _dbCache.getTimetableIncludingExpired(
+        quarter,
+      );
       if (expiredCache != null) {
         debugPrint('Using expired cache for $quarter');
         return _dbCache.animesFromTimetableCache(expiredCache);
       }
-      // 没有任何缓存，重新抛出异常
       rethrow;
     }
+  }
+
+  /// 并发执行 API 请求和下载 bangumi-data.json 构建，哪个先完成用哪个。
+  /// 后完成的那个仍然会保存缓存（供下次使用）。
+  Future<List<AnimeInfo>> _raceApiAndDownload(String quarter) async {
+    final apiFuture = _fetchFromApiWithTimeout(quarter);
+    final downloadFuture = _fetchFromDownloadedJson(quarter);
+
+    List<AnimeInfo>? apiResult;
+    Object? apiError;
+    List<AnimeInfo>? downloadResult;
+    Object? downloadError;
+    int completed = 0;
+
+    final completer = Completer<List<AnimeInfo>>();
+
+    void tryComplete() {
+      // 第一个成功的直接返回
+      if (!completer.isCompleted && apiResult != null) {
+        completer.complete(apiResult!);
+        return;
+      }
+      if (!completer.isCompleted && downloadResult != null && downloadResult!.isNotEmpty) {
+        completer.complete(downloadResult!);
+        return;
+      }
+      // 两个都完成了，都没有有效结果
+      if (completed == 2 && !completer.isCompleted) {
+        completer.completeError(
+          apiError ?? downloadError ?? Exception('No data source available'),
+        );
+      }
+    }
+
+    apiFuture.then((animes) {
+      apiResult = animes;
+      completed++;
+      tryComplete();
+    }).catchError((e) {
+      apiError = e;
+      completed++;
+      tryComplete();
+    });
+
+    downloadFuture.then((animes) {
+      downloadResult = animes;
+      completed++;
+      tryComplete();
+    }).catchError((e) {
+      downloadError = e;
+      completed++;
+      tryComplete();
+    });
+
+    final animes = await completer.future;
+
+    _saveLateResult(quarter, apiResult, downloadResult);
+
+    return animes;
+  }
+
+  /// API 请求 (带较短超时, 因为有本地数据兜底)
+  Future<List<AnimeInfo>> _fetchFromApiWithTimeout(String quarter) async {
+    try {
+      return await crawler.fetchScheduleBasic(
+        yearQuarter: quarter,
+      ).timeout(const Duration(seconds: 15));
+    } catch (e) {
+      debugPrint('Timetable API request failed/timed out: $e');
+      rethrow;
+    }
+  }
+
+  /// 下载 bangumi-data.json + 构建 + 过滤
+  Future<List<AnimeInfo>> _fetchFromDownloadedJson(String quarter) async {
+    try {
+      return await crawler.fetchScheduleBasicFromLocalJson(
+        yearQuarter: quarter,
+      );
+    } catch (e) {
+      debugPrint('Timetable download+build failed: $e');
+      rethrow;
+    }
+  }
+
+  /// 后完成的路径把结果也存入缓存, 供下次 Level 1 直接命中
+  void _saveLateResult(
+    String quarter,
+    List<AnimeInfo>? apiResult,
+    List<AnimeInfo>? downloadResult,
+  ) {
+    // API 结果通常更新更全, 优先保存
+    if (apiResult != null && apiResult.isNotEmpty) {
+      _dbCache.saveTimetable(quarter, apiResult).catchError((e) {
+        debugPrint('Late-saving API result failed: $e');
+      });
+    } else if (downloadResult != null && downloadResult.isNotEmpty) {
+      _dbCache.saveTimetable(quarter, downloadResult).catchError((e) {
+        debugPrint('Late-saving download result failed: $e');
+      });
+    }
+  }
+
+  /// Level 2 命中本地 JSON 后, 后台用 API 数据刷新缓存,
+  /// 确保下次启动 SQLite 缓存是最新的。
+  void _refreshTimetableInBackground(String quarter) {
+    crawler.fetchScheduleBasic(yearQuarter: quarter).then((animes) {
+      if (animes.isNotEmpty) {
+        _dbCache.saveTimetable(quarter, animes).catchError((e) {
+          debugPrint('Background timetable refresh save failed: $e');
+        });
+      }
+    }).catchError((e) {
+      debugPrint('Background timetable refresh failed (non-fatal): $e');
+    });
   }
 
   /// 更新时间表缓存

@@ -196,10 +196,10 @@ pub const BANGUMI_DATA_VERSION: &str = "0.3";
 /// a usable, integrity-verified payload.
 ///
 /// Order rationale:
-///   1. unpkg (Cloudflare-fronted; quick for non-CN users; reaches CN via the
-///      HK edge per CF-Ray observations).
-///   2. jsDelivr (also Cloudflare-fronted, served from many POPs worldwide;
-///      often more reliable from mainland China when unpkg is rate-limited).
+///   1. jsDelivr (Cloudflare-fronted, served from many POPs worldwide;
+///      often more reliable from mainland China; faster in benchmarks).
+///   2. unpkg (also Cloudflare-fronted; quick for non-CN users; reaches CN via the
+///      HK edge per CF-Ray observations; sometimes rate-limited from CN).
 ///   3. npm registry tarball (the source of truth; tarball download has the
 ///      auth baked-in via `integrity`, but extracting on the fly adds
 ///      complexity, so we stop before that).
@@ -207,11 +207,11 @@ pub const BANGUMI_DATA_VERSION: &str = "0.3";
 pub fn get_bangumi_data_cdn_urls() -> Vec<String> {
     vec![
         format!(
-            "https://unpkg.com/bangumi-data@{}/dist/data.json",
+            "https://cdn.jsdelivr.net/npm/bangumi-data@{}/dist/data.json",
             BANGUMI_DATA_VERSION
         ),
         format!(
-            "https://cdn.jsdelivr.net/npm/bangumi-data@{}/dist/data.json",
+            "https://unpkg.com/bangumi-data@{}/dist/data.json",
             BANGUMI_DATA_VERSION
         ),
     ]

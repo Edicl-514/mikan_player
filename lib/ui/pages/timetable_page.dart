@@ -134,12 +134,10 @@ class _TimeTablePageState extends State<TimeTablePage>
       _errorMessage = null;
     });
     try {
-      // 1. 尝试从缓存获取基础时间表数据
+      // 1. 获取基础时间表数据（三级优先策略）
       final cache = CacheManager.instance;
       final cachedData = await cache.getTimetable(
         quarter: yearQuarter,
-        fetchFromNetwork: () =>
-            crawler.fetchScheduleBasic(yearQuarter: yearQuarter),
       );
 
       if (!mounted) return;

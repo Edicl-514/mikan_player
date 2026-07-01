@@ -123,11 +123,9 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           : 4;
       final currentQuarter = '${currentYear}q$quarterNum';
 
-      // 2. Get timetable（优先从缓存）
+      // 2. Get timetable（三级优先策略：SQLite缓存 → 本地JSON → 并发API+下载）
       final animes = await CacheManager.instance.getTimetable(
         quarter: currentQuarter,
-        fetchFromNetwork: () =>
-            crawler.fetchScheduleBasic(yearQuarter: currentQuarter),
       );
 
       // 3. Filter for today
