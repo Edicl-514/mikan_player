@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_subject_details`, `atomic_write_bytes`, `bangumi_data_failure_marker_path`, `bangumi_data_version_marker_path`, `bgmlist_item_to_anime_info`, `build_light_subject_from_json`, `clear_failure_marker`, `datetime_to_cst_day_time`, `download_bangumi_data_json`, `ensure_sites_index_built`, `extract_bangumi_data_version_from_url`, `fetch_archive_list_api`, `fetch_archive_list_html`, `fetch_extra_bangumi_subjects`, `fetch_schedule_basic_api_from_url`, `fetch_schedule_basic_api`, `fetch_schedule_basic_from_local_data_json`, `fetch_schedule_basic_html`, `fetch_subject_details_next_p1_json`, `fetch_subject_details_rest_json`, `filter_items_by_quarter`, `is_legacy_mode`, `last_failure_age_secs`, `load_data_json_and_filter`, `normalize_next_subject_json`, `parse_begin_utc`, `parse_broadcast_from_rfc`, `parse_broadcast_parts`, `quarter_to_title`, `read_bangumi_data_json_mmap`, `read_bangumi_data_version_from_json`, `read_version_marker`, `replace_atomic`, `sites_index_slot`, `verify_bangumi_data_payload`, `write_failure_marker`, `write_version_marker`
+// These functions are ignored because they are not marked as `pub`: `apply_subject_details`, `atomic_write_bytes`, `bangumi_data_failure_marker_path`, `bangumi_data_generation`, `bangumi_data_slot`, `bangumi_data_version_marker_path`, `bgmlist_item_to_anime_info`, `build_light_subject_from_json`, `build_sites_index_core`, `build_sites_index_singleflight`, `clear_failure_marker`, `datetime_to_cst_day_time`, `download_bangumi_data_json_single_flight`, `download_bangumi_data_json`, `download_single_flight`, `ensure_sites_index_built`, `extract_bangumi_data_version_from_url`, `fetch_archive_list_api`, `fetch_archive_list_html`, `fetch_extra_bangumi_subjects`, `fetch_schedule_basic_api_from_url`, `fetch_schedule_basic_api`, `fetch_schedule_basic_from_local_data_json`, `fetch_schedule_basic_html`, `fetch_subject_details_next_p1_json`, `fetch_subject_details_rest_json`, `file_signature`, `filter_items_by_quarter`, `get_or_load_bangumi_data_blocking`, `invalidate_bangumi_data_cache`, `is_legacy_mode`, `last_failure_age_secs`, `load_data_json_and_filter`, `normalize_next_subject_json`, `parse_begin_utc`, `parse_broadcast_from_rfc`, `parse_broadcast_parts`, `quarter_to_title`, `read_bangumi_data_json_mmap`, `read_bangumi_data_version_from_json`, `read_version_marker`, `replace_atomic`, `sites_index_build_single_flight`, `sites_index_slot`, `spawn_build_sites_index_background`, `verify_bangumi_data_payload`, `write_failure_marker`, `write_version_marker`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ArchiveResponse`, `BangumiDataJson`, `BangumiDataSiteMeta`, `BgmlistItem`, `BgmlistSite`, `BgmlistTitleTranslate`, `SeasonListResponse`, `SitesIndex`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`, `default`
@@ -18,6 +18,15 @@ Future<List<AnimeInfo>> fetchScheduleBasic({required String yearQuarter}) =>
     RustLib.instance.api.crateApiCrawlerFetchScheduleBasic(
       yearQuarter: yearQuarter,
     );
+
+/// API-only schedule fetch — no local-JSON fallback.
+/// Returns the API result directly; caller decides how to handle
+/// failure (e.g. a Dart-side racer can weight download/local separately).
+Future<List<AnimeInfo>> fetchScheduleBasicApiOnly({
+  required String yearQuarter,
+}) => RustLib.instance.api.crateApiCrawlerFetchScheduleBasicApiOnly(
+  yearQuarter: yearQuarter,
+);
 
 /// Public wrapper for `fetch_schedule_basic_from_local_data_json` so that the
 /// Dart side can invoke the local-JSON path directly (instead of waiting for
@@ -45,9 +54,16 @@ Future<List<AnimeInfo>> fetchScheduleBasicFromLocalJsonNodl({
   yearQuarter: yearQuarter,
 );
 
-/// Build the sites index from the cached JSON. Called on app startup and
-/// whenever the JSON cache is refreshed. Parsing happens on a blocking
-/// thread (mmap + serde_json are synchronous).
+/// FRB-exposed wrapper around `spawn_build_sites_index_background` so the
+/// Dart side can warm the sites index without blocking the calling future
+/// (e.g. after a Level 2 timetable hit). Safe to call repeatedly — single-
+/// flight inside the Rust layer ensures at most one in-flight build.
+Future<void> spawnSitesIndexBackground() =>
+    RustLib.instance.api.crateApiCrawlerSpawnSitesIndexBackground();
+
+/// Build the sites index from the cached JSON. Uses single-flight so
+/// concurrent callers share one build (acquire permit, re-check, build
+/// core). Delegates to `build_sites_index_singleflight`.
 Future<BigInt> buildSitesIndex() =>
     RustLib.instance.api.crateApiCrawlerBuildSitesIndex();
 
@@ -56,10 +72,12 @@ Future<BigInt> buildSitesIndex() =>
 Future<void> invalidateSitesIndex() =>
     RustLib.instance.api.crateApiCrawlerInvalidateSitesIndex();
 
-/// FRB-exposed lookup. Returns an empty list when the index has not been
-/// built yet (cold start, before warmup finishes) or when the bangumi id
-/// is not present in bangumi-data — the Dart side renders nothing in
-/// either case so callers don't have to distinguish.
+/// FRB-exposed lookup. When the index has not been built yet and the local
+/// `bangumi-data.json` exists, kicks off a non-blocking background rebuild
+/// and returns the current (possibly empty) result. The details page should
+/// treat an empty result as "data not ready yet" and re-query on the next
+/// user action / stream tick. Synchronously waiting here would block the UI
+/// on a ~370 ms parse+build on the first lookup in a process.
 Future<List<BangumiDataSiteEntry>> fetchBangumiDataSites({
   required PlatformInt64 bangumiId,
 }) => RustLib.instance.api.crateApiCrawlerFetchBangumiDataSites(
@@ -67,6 +85,7 @@ Future<List<BangumiDataSiteEntry>> fetchBangumiDataSites({
 );
 
 /// Optional helper for mikan-origin entries that don't carry a bangumi id.
+/// Self-heals like `fetch_bangumi_data_sites`.
 Future<List<BangumiDataSiteEntry>> fetchBangumiDataSitesByMikan({
   required PlatformInt64 mikanId,
 }) => RustLib.instance.api.crateApiCrawlerFetchBangumiDataSitesByMikan(
@@ -74,8 +93,7 @@ Future<List<BangumiDataSiteEntry>> fetchBangumiDataSitesByMikan({
 );
 
 /// Look up the mikan id for a given bangumi.tv subject id from the
-/// cached bangumi-data index. Returns `None` when the index has not been
-/// built yet or when the bangumi id has no mikan mapping.
+/// cached bangumi-data index. Self-heals like the site lookups.
 Future<PlatformInt64?> lookupMikanId({required PlatformInt64 bangumiId}) =>
     RustLib.instance.api.crateApiCrawlerLookupMikanId(bangumiId: bangumiId);
 

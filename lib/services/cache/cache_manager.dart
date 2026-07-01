@@ -28,6 +28,38 @@ class CacheManager {
 
   bool _isInitialized = false;
 
+  /// Per-quarter chain of in-flight `saveTimetable` operations. Serializes
+  /// the winner-save and the late-save from the API/download racer so the
+  /// late result deterministically lands after the winner result. Without
+  /// this, two concurrent `InsertMode.insertOrReplace` calls on the same
+  /// quarter key race in SQLite and the final state depends on which
+  /// commit lands last.
+  final Map<String, Future<void>> _timetableSaveQueue = <String, Future<void>>{};
+
+  /// Chain a save onto the per-quarter queue. Returns the chained future
+  /// so callers can await or fire-and-forget it.
+  Future<void> _enqueueTimetableSave(
+    String quarter,
+    List<AnimeInfo> animes,
+  ) {
+    final previous = _timetableSaveQueue[quarter] ?? Future<void>.value();
+    final next = previous
+        .then((_) => _dbCache.saveTimetable(quarter, animes))
+        .catchError((e) {
+      debugPrint('Timetable save failed for $quarter: $e');
+    });
+    _timetableSaveQueue[quarter] = next;
+    // Self-cleaning: when the chain drains, drop the slot so the map
+    // doesn't grow unbounded for long-lived processes browsing many
+    // quarters.
+    next.whenComplete(() {
+      if (identical(_timetableSaveQueue[quarter], next)) {
+        _timetableSaveQueue.remove(quarter);
+      }
+    });
+    return next;
+  }
+
   /// 检查是否已初始化
   bool get isInitialized => _isInitialized;
 
@@ -67,15 +99,25 @@ class CacheManager {
     final cache = await _dbCache.getTimetable(quarter);
     if (cache != null) {
       final cachedAnimes = _dbCache.animesFromTimetableCache(cache);
-      if (cachedAnimes.isNotEmpty &&
-          cachedAnimes.any(
-            (anime) =>
-                anime.broadcastDay != null && anime.broadcastDay!.isNotEmpty,
-          )) {
-        debugPrint('Timetable loaded from SQLite cache: $quarter');
-        return cachedAnimes;
+      if (cachedAnimes.isNotEmpty) {
+        final withTitle = cachedAnimes.where((a) => a.title.isNotEmpty);
+        final withBroadcast = cachedAnimes.where(
+          (a) => (a.broadcastDay != null && a.broadcastDay!.isNotEmpty) ||
+              (a.broadcastTime != null && a.broadcastTime!.isNotEmpty),
+        );
+        // Require both a non-trivial sample size and a quality bar. Without
+        // the `>= 3` floor, a single-row cache (write corruption / unit
+        // test residue) would pass `length ~/ 2 == 0` and be shown as the
+        // entire quarter.
+        const minSample = 3;
+        if (withTitle.length >= minSample &&
+            withTitle.length >= cachedAnimes.length ~/ 2 &&
+            withBroadcast.isNotEmpty) {
+          debugPrint('Timetable loaded from SQLite cache: $quarter');
+          return cachedAnimes;
+        }
+        debugPrint('Timetable SQLite cache incomplete; trying Level 2');
       }
-      debugPrint('Timetable SQLite cache incomplete; trying Level 2');
     }
 
     // ---- Level 2: 本地 bangumi-data.json (不下载, 只 mmap 读) ----
@@ -86,8 +128,13 @@ class CacheManager {
       );
       if (localAnimes.isNotEmpty) {
         debugPrint('Timetable loaded from local bangumi-data.json: $quarter');
-        await _dbCache.saveTimetable(quarter, localAnimes);
+        _enqueueTimetableSave(quarter, localAnimes);
         _cacheAnimeCovers(localAnimes);
+        // Warm the sites index in the background so the first details
+        // page lookup after a Level 2 hit doesn't trigger a synchronous
+        // build. Single-flight inside Rust ensures the warmup and any
+        // other path that already kicked off a build won't duplicate.
+        crawler.spawnSitesIndexBackground();
         _refreshTimetableInBackground(quarter);
         return localAnimes;
       }
@@ -100,7 +147,11 @@ class CacheManager {
     try {
       final animes = await _raceApiAndDownload(quarter);
       if (animes.isNotEmpty) {
-        await _dbCache.saveTimetable(quarter, animes);
+        // Winner-save goes through the per-quarter queue so the late-save
+        // (API result) deterministically lands after this one. The
+        // future is fire-and-forget; Level 1 on the next cold start
+        // reads whatever the queue's last writer left.
+        _enqueueTimetableSave(quarter, animes);
         _cacheAnimeCovers(animes);
       }
       return animes;
@@ -118,7 +169,7 @@ class CacheManager {
   }
 
   /// 并发执行 API 请求和下载 bangumi-data.json 构建，哪个先完成用哪个。
-  /// 后完成的那个仍然会保存缓存（供下次使用）。
+  /// 两路完成后，非空的慢结果也会保存进缓存（供下次 Level 1 命中）。
   Future<List<AnimeInfo>> _raceApiAndDownload(String quarter) async {
     final apiFuture = _fetchFromApiWithTimeout(quarter);
     final downloadFuture = _fetchFromDownloadedJson(quarter);
@@ -132,17 +183,16 @@ class CacheManager {
     final completer = Completer<List<AnimeInfo>>();
 
     void tryComplete() {
-      // 第一个成功的直接返回
-      if (!completer.isCompleted && apiResult != null) {
+      if (completer.isCompleted) return;
+      if (apiResult != null && apiResult!.isNotEmpty) {
         completer.complete(apiResult!);
         return;
       }
-      if (!completer.isCompleted && downloadResult != null && downloadResult!.isNotEmpty) {
+      if (downloadResult != null && downloadResult!.isNotEmpty) {
         completer.complete(downloadResult!);
         return;
       }
-      // 两个都完成了，都没有有效结果
-      if (completed == 2 && !completer.isCompleted) {
+      if (completed == 2) {
         completer.completeError(
           apiError ?? downloadError ?? Exception('No data source available'),
         );
@@ -171,15 +221,23 @@ class CacheManager {
 
     final animes = await completer.future;
 
-    _saveLateResult(quarter, apiResult, downloadResult);
+    // Fire-and-forget: wait for both futures to settle, then save the
+    // non-empty late result into SQLite so the next cold start hits
+    // Level 1. API result is saved preferentially (usually more complete).
+    _saveLateResultAfterBothSettle(
+      quarter,
+      apiFuture,
+      downloadFuture,
+    );
 
     return animes;
   }
 
-  /// API 请求 (带较短超时, 因为有本地数据兜底)
+  /// API-only 请求 (带较短超时, 因为有本地数据兜底)。
+  /// 不带 Rust 侧的 local-JSON fallback，失败就直接抛异常。
   Future<List<AnimeInfo>> _fetchFromApiWithTimeout(String quarter) async {
     try {
-      return await crawler.fetchScheduleBasic(
+      return await crawler.fetchScheduleBasicApiOnly(
         yearQuarter: quarter,
       ).timeout(const Duration(seconds: 15));
     } catch (e) {
@@ -189,43 +247,67 @@ class CacheManager {
   }
 
   /// 下载 bangumi-data.json + 构建 + 过滤
+  ///
+  /// `downloadMaxWait` 兜底：Rust 内部下载有 120s `reqwest` timeout 加上
+  /// `retry_request` 的重试，单次下载极端情况可能跑几分钟；这里给个
+  /// 总竞速上限，超时后让 `tryComplete` 走 "两路都失败" 分支，最终
+  /// fallback 到 expired cache。
+  static const Duration _downloadOverallTimeout = Duration(seconds: 60);
+
   Future<List<AnimeInfo>> _fetchFromDownloadedJson(String quarter) async {
     try {
       return await crawler.fetchScheduleBasicFromLocalJson(
         yearQuarter: quarter,
-      );
+      ).timeout(_downloadOverallTimeout);
+    } on TimeoutException {
+      debugPrint('Timetable download+build overall timeout');
+      rethrow;
     } catch (e) {
       debugPrint('Timetable download+build failed: $e');
       rethrow;
     }
   }
 
-  /// 后完成的路径把结果也存入缓存, 供下次 Level 1 直接命中
-  void _saveLateResult(
+  /// Wait for both API and download futures to settle, then save the
+  /// non-empty late result. API result is preferred (usually more
+  /// up-to-date). Called fire-and-forget after the first result wins.
+  ///
+  /// The save is enqueued on the per-quarter chain so it lands **after**
+  /// the winner-save enqueued in `getTimetable`. This deterministically
+  /// upgrades the cache from the winner to the API result when download
+  /// won the race but API finished later — without the queue, two
+  /// concurrent `insertOrReplace` calls on the same key race in SQLite
+  /// and the final state is whichever commit lands last.
+  void _saveLateResultAfterBothSettle(
     String quarter,
-    List<AnimeInfo>? apiResult,
-    List<AnimeInfo>? downloadResult,
+    Future<List<AnimeInfo>> apiFuture,
+    Future<List<AnimeInfo>> downloadFuture,
   ) {
-    // API 结果通常更新更全, 优先保存
-    if (apiResult != null && apiResult.isNotEmpty) {
-      _dbCache.saveTimetable(quarter, apiResult).catchError((e) {
-        debugPrint('Late-saving API result failed: $e');
-      });
-    } else if (downloadResult != null && downloadResult.isNotEmpty) {
-      _dbCache.saveTimetable(quarter, downloadResult).catchError((e) {
-        debugPrint('Late-saving download result failed: $e');
-      });
-    }
+    Future.wait([
+      apiFuture.catchError((_) => <AnimeInfo>[]),
+      downloadFuture.catchError((_) => <AnimeInfo>[]),
+    ]).then((results) {
+      final api = results[0];
+      final dl = results[1];
+      if (api.isNotEmpty) {
+        _enqueueTimetableSave(quarter, api);
+      } else if (dl.isNotEmpty) {
+        _enqueueTimetableSave(quarter, dl);
+      }
+    });
   }
 
-  /// Level 2 命中本地 JSON 后, 后台用 API 数据刷新缓存,
-  /// 确保下次启动 SQLite 缓存是最新的。
+  /// Level 2 命中本地 JSON 后, 后台用 API-only 数据刷新缓存,
+  /// 确保下次启动 SQLite 缓存是最新的。API 失败就结束，不隐式下载。
+  ///
+  /// Routed through `_enqueueTimetableSave` so this background save
+  /// serializes with the in-flight Level 2 winner-save chain (the user
+  /// may have triggered another `getTimetable` for the same quarter by
+  /// the time this API request finishes).
   void _refreshTimetableInBackground(String quarter) {
-    crawler.fetchScheduleBasic(yearQuarter: quarter).then((animes) {
+    crawler.fetchScheduleBasicApiOnly(yearQuarter: quarter).then((animes) {
       if (animes.isNotEmpty) {
-        _dbCache.saveTimetable(quarter, animes).catchError((e) {
-          debugPrint('Background timetable refresh save failed: $e');
-        });
+        _enqueueTimetableSave(quarter, animes);
       }
     }).catchError((e) {
       debugPrint('Background timetable refresh failed (non-fatal): $e');

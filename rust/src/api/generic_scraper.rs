@@ -764,7 +764,11 @@ fn select_best_subject_candidate(
                     all_scored.push((title.clone(), score, href.clone()));
                     if score > best_score && score >= MATCH_THRESHOLD {
                         best_score = score;
-                        best = Some(SubjectCandidate { title, url: href, score });
+                        best = Some(SubjectCandidate {
+                            title,
+                            url: href,
+                            score,
+                        });
                     }
                 }
             }
@@ -788,7 +792,11 @@ fn select_best_subject_candidate(
                     all_scored.push((title.clone(), score, href.clone()));
                     if score > best_score && score >= MATCH_THRESHOLD {
                         best_score = score;
-                        best = Some(SubjectCandidate { title, url: href, score });
+                        best = Some(SubjectCandidate {
+                            title,
+                            url: href,
+                            score,
+                        });
                     }
                 }
             }
@@ -840,7 +848,11 @@ fn log_subject_selection(
             .filter(|(_, score, _)| *score >= MATCH_THRESHOLD)
             .collect();
         if !top_matches.is_empty() {
-            log::info!("[{}] ✓ 符合条件的结果 (分数≥{}):", source_name, MATCH_THRESHOLD);
+            log::info!(
+                "[{}] ✓ 符合条件的结果 (分数≥{}):",
+                source_name,
+                MATCH_THRESHOLD
+            );
             for (title, score, _) in top_matches {
                 log::info!("[{}]   - '{}' (分数: {})", source_name, title, score);
             }
@@ -2176,10 +2188,7 @@ pub async fn generic_search_play_pages_stream(
 /// 获取所有已启用源的列表（用于初始化UI显示）
 pub async fn get_enabled_source_names() -> anyhow::Result<Vec<String>> {
     let sources = load_enabled_sources().await?;
-    let names: Vec<String> = sources
-        .iter()
-        .map(|s| s.arguments.name.clone())
-        .collect();
+    let names: Vec<String> = sources.iter().map(|s| s.arguments.name.clone()).collect();
     Ok(names)
 }
 
@@ -2789,19 +2798,9 @@ async fn search_single_source_with_progress(
                 .as_deref()
                 .unwrap_or("indexed");
 
-            let sel_result = select_best_subject_candidate(
-                &document,
-                source,
-                query_name,
-                &core_name,
-            );
-            log_subject_selection(
-                &source_name,
-                format_id,
-                query_name,
-                &core_name,
-                &sel_result,
-            );
+            let sel_result =
+                select_best_subject_candidate(&document, source, query_name, &core_name);
+            log_subject_selection(&source_name, format_id, query_name, &core_name, &sel_result);
 
             sel_result
                 .best
@@ -3316,19 +3315,9 @@ async fn search_single_source(
                 .as_deref()
                 .unwrap_or("indexed");
 
-            let sel_result = select_best_subject_candidate(
-                &document,
-                source,
-                query_name,
-                &core_name,
-            );
-            log_subject_selection(
-                &source_name,
-                format_id,
-                query_name,
-                &core_name,
-                &sel_result,
-            );
+            let sel_result =
+                select_best_subject_candidate(&document, source, query_name, &core_name);
+            log_subject_selection(&source_name, format_id, query_name, &core_name, &sel_result);
 
             sel_result
                 .best
@@ -3949,13 +3938,18 @@ async fn search_single_source_with_channels(
         } else {
             let request = client.get(&search_url);
             let request = apply_cookie_header(request, cookies.as_deref());
-            let request = apply_browser_page_headers(request, &search_url, initial_search_page_url.as_deref().or(Some(&search_url)));
+            let request = apply_browser_page_headers(
+                request,
+                &search_url,
+                initial_search_page_url.as_deref().or(Some(&search_url)),
+            );
             request.send().await?.text().await?
         };
 
         let (current_detail_url, current_title) = {
             let document = Html::parse_document(&resp_text);
-            let sel_result = select_best_subject_candidate(&document, source, query_name, &core_name);
+            let sel_result =
+                select_best_subject_candidate(&document, source, query_name, &core_name);
             if let Some(candidate) = sel_result.best {
                 let absolute_url = absolutize_url(&search_url, &candidate.url);
                 (absolute_url, candidate.title)
@@ -4301,13 +4295,16 @@ pub async fn generic_search_with_channels_stream(
 
     use futures::stream::StreamExt;
 
-    let stream = futures::stream::iter(sources)
-        .map(|source| {
-            let client = client.clone();
-            let anime_name = anime_name.clone();
-            async move { search_single_source_with_channels(&client, &source, &anime_name, None).await }
-        })
-        .buffer_unordered(limit);
+    let stream =
+        futures::stream::iter(sources)
+            .map(|source| {
+                let client = client.clone();
+                let anime_name = anime_name.clone();
+                async move {
+                    search_single_source_with_channels(&client, &source, &anime_name, None).await
+                }
+            })
+            .buffer_unordered(limit);
 
     let mut stream = Box::pin(stream);
     while let Some(result) = stream.next().await {
@@ -4391,7 +4388,9 @@ pub async fn get_episode_play_url(
     }
 
     // 获取完整的channel和episode信息
-    let result = search_single_source_with_channels(&client, source, &anime_name, runtime_override.as_ref()).await?;
+    let result =
+        search_single_source_with_channels(&client, source, &anime_name, runtime_override.as_ref())
+            .await?;
 
     // 根据channel_index和episode_number找到目标episode
     let target_episode = if let Some(ep_num) = episode_number {

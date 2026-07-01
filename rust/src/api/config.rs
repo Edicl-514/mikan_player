@@ -369,10 +369,7 @@ pub fn set_bangumi_doh_endpoints(endpoints: Vec<String>) {
         let mut config = CONFIG.write().unwrap();
         config.bangumi_doh_endpoints = cleaned.clone();
     }
-    log::info!(
-        "Bangumi DoH endpoint list updated: {:?}",
-        cleaned
-    );
+    log::info!("Bangumi DoH endpoint list updated: {:?}", cleaned);
     crate::api::network::invalidate_ech_client();
 }
 

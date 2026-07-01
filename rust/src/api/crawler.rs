@@ -5,9 +5,12 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::sync::{Arc, OnceLock};
+use std::sync::{
+    Arc, OnceLock,
+    atomic::{AtomicU64, Ordering},
+};
 use std::time::Duration;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, Semaphore};
 
 const QUARTER_NAMES: [&str; 4] = ["1月", "4月", "7月", "10月"];
 const CST_OFFSET: chrono::FixedOffset = chrono::FixedOffset::east_opt(8 * 3600).unwrap();
@@ -376,6 +379,22 @@ pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<An
     }
 }
 
+/// API-only schedule fetch — no local-JSON fallback.
+/// Returns the API result directly; caller decides how to handle
+/// failure (e.g. a Dart-side racer can weight download/local separately).
+pub async fn fetch_schedule_basic_api_only(year_quarter: String) -> anyhow::Result<Vec<AnimeInfo>> {
+    if is_legacy_mode() {
+        fetch_schedule_basic_html(year_quarter).await
+    } else {
+        fetch_schedule_basic_api_from_url(&format!(
+            "{}/bangumi/archive/{}",
+            crate::api::config::get_bgmlist_api_url(),
+            year_quarter
+        ))
+        .await
+    }
+}
+
 async fn fetch_schedule_basic_api(year_quarter: &str) -> anyhow::Result<Vec<AnimeInfo>> {
     let url = format!(
         "{}/bangumi/archive/{}",
@@ -403,10 +422,9 @@ async fn fetch_schedule_basic_api(year_quarter: &str) -> anyhow::Result<Vec<Anim
 }
 
 async fn fetch_schedule_basic_api_from_url(url: &str) -> anyhow::Result<Vec<AnimeInfo>> {
-    let resp = crate::api::network::retry_request(
-        "fetch_schedule_basic_api",
-        |client| client.get(url).header("accept", "application/json"),
-    )
+    let resp = crate::api::network::retry_request("fetch_schedule_basic_api", |client| {
+        client.get(url).header("accept", "application/json")
+    })
     .await?;
 
     let data: ArchiveResponse = resp.json().await?;
@@ -425,52 +443,71 @@ async fn fetch_schedule_basic_from_local_data_json(
     let cache_dir = crate::api::config::get_cache_dir();
     let local_path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
 
+    // Download if missing; sites index rebuild is deferred to background.
+    // force=false: if a concurrent download (warmup) produced the file
+    // while we waited for the permit, skip the redundant fetch.
     if !local_path.exists() {
-        let _ = download_bangumi_data_json(&local_path).await;
-        // The file may have just appeared (or been replaced by a fresh
-        // download); the in-memory cache + sites index are stale. Drop
-        // both so the next read reparses and the next lookup rebuilds.
+        let _ = download_bangumi_data_json_single_flight(&local_path, false).await;
         invalidate_bangumi_data_cache();
         invalidate_sites_index().await;
-        if let Err(e) = build_sites_index().await {
-            log::warn!("sites index rebuild after local-data download failed: {e:#}");
-        }
+        spawn_build_sites_index_background();
     }
 
-    if local_path.exists() {
+    // Primary parse — wrapped in spawn_blocking to avoid blocking a
+    // Tokio worker on the cold mmap+serde_json path.
+    let local_path_clone = local_path.clone();
+    let year_quarter_owned = year_quarter.to_string();
+    let parse_ok = tokio::task::spawn_blocking(move || -> (bool, Vec<AnimeInfo>) {
+        if !local_path_clone.exists() {
+            return (true, vec![]);
+        }
         match get_or_load_bangumi_data_blocking() {
             Ok(data) => {
-                let animes = load_data_json_and_filter(&data, year_quarter);
-                if !animes.is_empty() {
-                    return Ok(animes);
+                let a = load_data_json_and_filter(&data, &year_quarter_owned);
+                if !a.is_empty() {
+                    return (true, a);
                 }
-                log::info!("data.json had 0 items for {}", year_quarter);
+                log::info!("data.json had 0 items for quarter");
+                (true, vec![])
             }
             Err(e) => {
-                // The cached file is corrupt or tampered (mtime OK, hash wrong,
-                // JSON malformed). Treat it like the file is missing — try one
-                // fresh download so a stale / partial-payload cache doesn't
-                // silently shadow a working API path.
                 log::warn!(
-                    "Local data.json was unusable ({}); re-downloading",
+                    "Local data.json was unusable ({}); marking for re-download",
                     e
                 );
-                let _ = download_bangumi_data_json(&local_path).await;
-                invalidate_bangumi_data_cache();
-                invalidate_sites_index().await;
-                if local_path.exists() {
-                    if let Ok(data) = get_or_load_bangumi_data_blocking() {
-                        let animes = load_data_json_and_filter(&data, year_quarter);
-                        if !animes.is_empty() {
-                            return Ok(animes);
-                        }
-                    }
-                }
+                (false, vec![])
             }
         }
+    })
+    .await?;
+
+    if parse_ok.0 {
+        return Ok(parse_ok.1);
     }
 
-    Ok(vec![])
+    // get_or_load_bangumi_data_blocking failed — file is corrupt. Re-download.
+    // force=true: the corrupt file already exists, so the skip-if-exists
+    // shortcut must be bypassed to actually overwrite it.
+    let _ = download_bangumi_data_json_single_flight(&local_path, true).await;
+    invalidate_bangumi_data_cache();
+    invalidate_sites_index().await;
+    spawn_build_sites_index_background();
+
+    let year_quarter_owned = year_quarter.to_string();
+    let retry = tokio::task::spawn_blocking(move || -> Vec<AnimeInfo> {
+        if !local_path.exists() {
+            return vec![];
+        }
+        if let Ok(data) = get_or_load_bangumi_data_blocking() {
+            let a = load_data_json_and_filter(&data, &year_quarter_owned);
+            if !a.is_empty() {
+                return a;
+            }
+        }
+        vec![]
+    })
+    .await?;
+    Ok(retry)
 }
 
 /// Public wrapper for `fetch_schedule_basic_from_local_data_json` so that the
@@ -581,13 +618,10 @@ const BANGUMI_DATA_RETRY_AFTER_SECS: u64 = 60 * 60;
 /// catches truncated responses, CDN error pages, and other malformed
 /// payloads while allowing the version to advance automatically.
 fn verify_bangumi_data_payload(bytes: &[u8]) -> anyhow::Result<()> {
-    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(|e| {
-        anyhow::anyhow!("bangumi-data payload is not valid JSON: {}", e)
-    })?;
+    let value: serde_json::Value = serde_json::from_slice(bytes)
+        .map_err(|e| anyhow::anyhow!("bangumi-data payload is not valid JSON: {}", e))?;
     if !value.get("items").map_or(false, |v| v.is_array()) {
-        anyhow::bail!(
-            "bangumi-data payload JSON is missing a top-level \"items\" array"
-        );
+        anyhow::bail!("bangumi-data payload JSON is missing a top-level \"items\" array");
     }
     Ok(())
 }
@@ -736,10 +770,7 @@ fn replace_atomic(src: &Path, dst: &Path) -> anyhow::Result<()> {
     }
 }
 
-fn load_data_json_and_filter(
-    data: &BangumiDataJson,
-    year_quarter: &str,
-) -> Vec<AnimeInfo> {
+fn load_data_json_and_filter(data: &BangumiDataJson, year_quarter: &str) -> Vec<AnimeInfo> {
     let items = filter_items_by_quarter(&data.items, year_quarter);
     items
         .iter()
@@ -774,11 +805,16 @@ fn read_bangumi_data_json_mmap(path: &Path) -> anyhow::Result<BangumiDataJson> {
 // reparses the new payload.
 // =====================================================================
 
-static BANGUMI_DATA: OnceLock<std::sync::RwLock<Option<Arc<BangumiDataJson>>>> =
-    OnceLock::new();
+static BANGUMI_DATA: OnceLock<std::sync::RwLock<Option<Arc<BangumiDataJson>>>> = OnceLock::new();
 
 fn bangumi_data_slot() -> &'static std::sync::RwLock<Option<Arc<BangumiDataJson>>> {
     BANGUMI_DATA.get_or_init(|| std::sync::RwLock::new(None))
+}
+
+static BANGUMI_DATA_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+fn bangumi_data_generation() -> u64 {
+    BANGUMI_DATA_GENERATION.load(Ordering::SeqCst)
 }
 
 /// Drop the cached parsed payload. Called whenever `bangumi-data.json`
@@ -787,6 +823,7 @@ fn invalidate_bangumi_data_cache() {
     if let Ok(mut guard) = bangumi_data_slot().write() {
         *guard = None;
     }
+    BANGUMI_DATA_GENERATION.fetch_add(1, Ordering::SeqCst);
 }
 
 /// Return a clone of the cached parsed payload, parsing + caching the
@@ -824,49 +861,85 @@ fn get_or_load_bangumi_data_blocking() -> anyhow::Result<Arc<BangumiDataJson>> {
 }
 
 // =====================================================================
-// bangumi-data sites index
+// Single-flight guards for download & sites-index build
 //
-// Holds a `bangumi.tv id -> Vec<BangumiDataSiteEntry>` map plus a
-// `mikan id -> bangumi.tv id` map, both built once from the cached
-// `bangumi-data.json`. The map is kept in process memory (no on-disk
-// cache): the 7 MB JSON parses in ~370 ms on first call, then every
-// lookup is O(1). The `OnceLock`+`RwLock` pair makes the read path
-// lock-free after the first write.
+// Prevent warmup, Level 3 download, API fallback, and manual refresh
+// from concurrently downloading the same 7 MB file or building the
+// sites index in parallel. Each guard is a process-wide semaphore=1;
+// second callers wait for the first to finish rather than redoing work.
 // =====================================================================
 
-struct SitesIndex {
-    /// Keyed by `bangumi.tv` subject id.
-    by_bangumi_id: HashMap<i64, Vec<BangumiDataSiteEntry>>,
-    /// Keyed by `mikan` id; lets mikan-origin entries resolve sites too.
-    by_mikan_id: HashMap<i64, i64>,
-    /// Reverse map: bangumi.tv subject id → mikan id.
-    by_bangumi_to_mikan: HashMap<i64, i64>,
+static DOWNLOAD_SINGLE_FLIGHT: OnceLock<Semaphore> = OnceLock::new();
+
+fn download_single_flight() -> &'static Semaphore {
+    DOWNLOAD_SINGLE_FLIGHT.get_or_init(|| Semaphore::new(1))
 }
 
-static SITES_INDEX: OnceLock<RwLock<Option<Arc<SitesIndex>>>> = OnceLock::new();
+static SITES_INDEX_BUILD_SINGLE_FLIGHT: OnceLock<Semaphore> = OnceLock::new();
 
-fn sites_index_slot() -> &'static RwLock<Option<Arc<SitesIndex>>> {
-    SITES_INDEX.get_or_init(|| RwLock::new(None))
+fn sites_index_build_single_flight() -> &'static Semaphore {
+    SITES_INDEX_BUILD_SINGLE_FLIGHT.get_or_init(|| Semaphore::new(1))
 }
 
-/// Build the sites index from the cached JSON. Called on app startup and
-/// whenever the JSON cache is refreshed. The underlying 7 MB JSON is
-/// mmap'd + parsed at most once per process; both this and the schedule
-/// path (`load_data_json_and_filter`) read from a shared
-/// `Arc<BangumiDataJson>` slot. The remaining work — walking ~6000
-/// items to assemble the three hash maps — runs on a blocking thread.
-pub async fn build_sites_index() -> anyhow::Result<usize> {
-    // Compute the new index on a worker thread. The thread both reads
-    // from (or populates) the shared `Arc<BangumiDataJson>` slot and
-    // returns the assembled hash maps so the async lock is only held
-    // for the final `Arc` swap, never across the CPU-bound loop.
+fn file_signature(path: &Path) -> Option<(std::time::SystemTime, u64)> {
+    let metadata = std::fs::metadata(path).ok()?;
+    Some((metadata.modified().ok()?, metadata.len()))
+}
+
+/// Fire-and-forget: rebuild the sites index in the background so the
+/// timetable hot path does not block on it. Uses single-flight so
+/// concurrent callers don't start duplicate builds.
+///
+/// The permit is acquired *here* (not inside the build core) so the
+/// spawned task does not re-acquire the same guard and deadlock. The task
+/// re-checks whether the index was already built after acquiring the
+/// permit, then runs the pure build core.
+fn spawn_build_sites_index_background() {
+    let permit = sites_index_build_single_flight().try_acquire();
+    if permit.is_err() {
+        log::debug!("sites index build already in flight, skipping background spawn");
+        return;
+    }
+    let permit = permit.unwrap();
+    tokio::spawn(async move {
+        let _permit = permit;
+        // Re-check: another path may have built the index between our
+        // try_acquire check and now.
+        {
+            let guard = sites_index_slot().read().await;
+            if guard.is_some() {
+                return;
+            }
+        }
+        match build_sites_index_core().await {
+            Ok(n) => log::info!("background sites index build: {n} entries"),
+            Err(e) => log::warn!("background sites index build failed: {e:#}"),
+        }
+    });
+}
+
+/// FRB-exposed wrapper around `spawn_build_sites_index_background` so the
+/// Dart side can warm the sites index without blocking the calling future
+/// (e.g. after a Level 2 timetable hit). Safe to call repeatedly — single-
+/// flight inside the Rust layer ensures at most one in-flight build.
+pub fn spawn_sites_index_background() {
+    spawn_build_sites_index_background();
+}
+
+/// Pure sites-index build logic — no single-flight guard. The caller must
+/// hold the `sites_index_build_single_flight()` permit (or otherwise be the
+/// sole builder) to avoid duplicate concurrent builds.
+async fn build_sites_index_core() -> anyhow::Result<usize> {
     type SitesIndexMaps = (
         HashMap<i64, Vec<BangumiDataSiteEntry>>,
         HashMap<i64, i64>,
         HashMap<i64, i64>,
     );
 
-    let (by_bangumi, by_mikan, by_bangumi_to_mikan) = tokio::task::spawn_blocking(|| -> anyhow::Result<SitesIndexMaps> {
+    let started_generation = bangumi_data_generation();
+
+    let (by_bangumi, by_mikan, by_bangumi_to_mikan) =
+        tokio::task::spawn_blocking(|| -> anyhow::Result<SitesIndexMaps> {
             let data = get_or_load_bangumi_data_blocking()?;
             let mut by_bangumi: HashMap<i64, Vec<BangumiDataSiteEntry>> =
                 HashMap::with_capacity(data.items.len());
@@ -918,9 +991,12 @@ pub async fn build_sites_index() -> anyhow::Result<usize> {
             }
 
             Ok((by_bangumi, by_mikan, by_bangumi_to_mikan))
-        },
-    )
-    .await??;
+        })
+        .await??;
+
+    if bangumi_data_generation() != started_generation {
+        anyhow::bail!("bangumi-data changed while building sites index; discarding stale index");
+    }
 
     let count = by_bangumi.len();
     *sites_index_slot().write().await = Some(Arc::new(SitesIndex {
@@ -931,6 +1007,87 @@ pub async fn build_sites_index() -> anyhow::Result<usize> {
     Ok(count)
 }
 
+/// Single-flight wrapper: acquire the permit, then re-check whether the
+/// index was already built while we waited (a previous permit holder may
+/// have produced it). If still empty, run the build core. Used by the pub
+/// `build_sites_index` and `ensure_sites_index_built` so neither acquires
+/// the guard twice.
+async fn build_sites_index_singleflight() -> anyhow::Result<usize> {
+    let _permit = sites_index_build_single_flight().acquire().await;
+    // Re-check after acquiring the permit: a previous holder may have
+    // finished building the index while we were waiting. This also avoids
+    // a redundant rebuild when several callers queued up behind the first.
+    {
+        let guard = sites_index_slot().read().await;
+        if let Some(idx) = guard.as_ref() {
+            return Ok(idx.by_bangumi_id.len());
+        }
+    }
+    build_sites_index_core().await
+}
+
+/// Download `bangumi-data.json` with single-flight protection.
+///
+/// - `force=false`: "fetch when missing" path (timetable Level 3). After
+///   waiting for the permit, skip the download if another caller produced
+///   the file in the meantime, so warmup and Level 3 don't both fetch 7 MB.
+/// - `force=true`: manual refresh / stale warmup. The first caller performs
+///   the refresh; queued forced callers skip their duplicate download when
+///   the file changed while they were waiting.
+async fn download_bangumi_data_json_single_flight(path: &Path, force: bool) -> anyhow::Result<()> {
+    let previous_signature = file_signature(path);
+    let _permit = download_single_flight().acquire().await;
+    // Another caller may have just finished downloading while we waited.
+    let current_signature = file_signature(path);
+    if !force {
+        if current_signature.is_some() {
+            log::debug!(
+                "bangumi-data.json already present after single-flight wait, skipping download"
+            );
+            return Ok(());
+        }
+    } else if current_signature.is_some() && current_signature != previous_signature {
+        log::debug!(
+            "bangumi-data.json refreshed by another caller while waiting, skipping duplicate forced download"
+        );
+        return Ok(());
+    }
+    download_bangumi_data_json(path).await
+}
+
+// =====================================================================
+// bangumi-data sites index
+//
+// Holds a `bangumi.tv id -> Vec<BangumiDataSiteEntry>` map plus a
+// `mikan id -> bangumi.tv id` map, both built once from the cached
+// `bangumi-data.json`. The map is kept in process memory (no on-disk
+// cache): the 7 MB JSON parses in ~370 ms on first call, then every
+// lookup is O(1). The `OnceLock`+`RwLock` pair makes the read path
+// lock-free after the first write.
+// =====================================================================
+
+struct SitesIndex {
+    /// Keyed by `bangumi.tv` subject id.
+    by_bangumi_id: HashMap<i64, Vec<BangumiDataSiteEntry>>,
+    /// Keyed by `mikan` id; lets mikan-origin entries resolve sites too.
+    by_mikan_id: HashMap<i64, i64>,
+    /// Reverse map: bangumi.tv subject id → mikan id.
+    by_bangumi_to_mikan: HashMap<i64, i64>,
+}
+
+static SITES_INDEX: OnceLock<RwLock<Option<Arc<SitesIndex>>>> = OnceLock::new();
+
+fn sites_index_slot() -> &'static RwLock<Option<Arc<SitesIndex>>> {
+    SITES_INDEX.get_or_init(|| RwLock::new(None))
+}
+
+/// Build the sites index from the cached JSON. Uses single-flight so
+/// concurrent callers share one build (acquire permit, re-check, build
+/// core). Delegates to `build_sites_index_singleflight`.
+pub async fn build_sites_index() -> anyhow::Result<usize> {
+    build_sites_index_singleflight().await
+}
+
 /// Drop the in-memory index. Used when `bangumi-data.json` is replaced so
 /// the next `build_sites_index` call rebuilds against the new payload.
 pub async fn invalidate_sites_index() {
@@ -938,46 +1095,62 @@ pub async fn invalidate_sites_index() {
     *guard = None;
 }
 
-/// FRB-exposed lookup. Returns an empty list when the index has not been
-/// built yet (cold start, before warmup finishes) or when the bangumi id
-/// is not present in bangumi-data — the Dart side renders nothing in
-/// either case so callers don't have to distinguish.
+/// FRB-exposed lookup. When the index has not been built yet and the local
+/// `bangumi-data.json` exists, kicks off a non-blocking background rebuild
+/// and returns the current (possibly empty) result. The details page should
+/// treat an empty result as "data not ready yet" and re-query on the next
+/// user action / stream tick. Synchronously waiting here would block the UI
+/// on a ~370 ms parse+build on the first lookup in a process.
 pub async fn fetch_bangumi_data_sites(bangumi_id: i64) -> Vec<BangumiDataSiteEntry> {
-    let guard = sites_index_slot().read().await;
-    match guard.as_ref() {
-        Some(idx) => idx
-            .by_bangumi_id
-            .get(&bangumi_id)
-            .cloned()
-            .unwrap_or_default(),
-        None => Vec::new(),
+    {
+        let guard = sites_index_slot().read().await;
+        if let Some(idx) = guard.as_ref() {
+            return idx
+                .by_bangumi_id
+                .get(&bangumi_id)
+                .cloned()
+                .unwrap_or_default();
+        }
     }
+    // Index empty — fire-and-forget background build; return current
+    // (empty) result so the UI call is non-blocking.
+    spawn_build_sites_index_background();
+    Vec::new()
 }
 
 /// Optional helper for mikan-origin entries that don't carry a bangumi id.
+/// Self-heals like `fetch_bangumi_data_sites`.
 pub async fn fetch_bangumi_data_sites_by_mikan(mikan_id: i64) -> Vec<BangumiDataSiteEntry> {
-    let guard = sites_index_slot().read().await;
-    let Some(idx) = guard.as_ref() else {
-        return Vec::new();
-    };
-    if let Some(bid) = idx.by_mikan_id.get(&mikan_id).copied() {
-        return idx.by_bangumi_id.get(&bid).cloned().unwrap_or_default();
+    {
+        let guard = sites_index_slot().read().await;
+        if let Some(idx) = guard.as_ref() {
+            if let Some(bid) = idx.by_mikan_id.get(&mikan_id).copied() {
+                return idx.by_bangumi_id.get(&bid).cloned().unwrap_or_default();
+            }
+            return Vec::new();
+        }
     }
+    spawn_build_sites_index_background();
     Vec::new()
 }
 
 /// Look up the mikan id for a given bangumi.tv subject id from the
-/// cached bangumi-data index. Returns `None` when the index has not been
-/// built yet or when the bangumi id has no mikan mapping.
+/// cached bangumi-data index. Self-heals like the site lookups.
 pub async fn lookup_mikan_id(bangumi_id: i64) -> Option<i64> {
-    let guard = sites_index_slot().read().await;
-    let Some(idx) = guard.as_ref() else {
-        return None;
-    };
-    idx.by_bangumi_to_mikan.get(&bangumi_id).copied()
+    {
+        let guard = sites_index_slot().read().await;
+        if let Some(idx) = guard.as_ref() {
+            return idx.by_bangumi_to_mikan.get(&bangumi_id).copied();
+        }
+    }
+    spawn_build_sites_index_background();
+    None
 }
 
-fn filter_items_by_quarter<'a>(items: &'a [BgmlistItem], year_quarter: &str) -> Vec<&'a BgmlistItem> {
+fn filter_items_by_quarter<'a>(
+    items: &'a [BgmlistItem],
+    year_quarter: &str,
+) -> Vec<&'a BgmlistItem> {
     let re = regex::Regex::new(r"^(\d{4})q([1-4])$").unwrap();
     let caps = match re.captures(year_quarter) {
         Some(c) => c,
@@ -1355,7 +1528,9 @@ fn apply_subject_details(anime: &mut AnimeInfo, json: &serde_json::Value) {
                 .filter(|url| !url.is_empty())
         });
     if let Some(image_url) = image_url {
-        anime.cover_url = Some(crate::api::config::rewrite_bangumi_url_if_proxied(image_url));
+        anime.cover_url = Some(crate::api::config::rewrite_bangumi_url_if_proxied(
+            image_url,
+        ));
     }
 
     if let Some(score) = json["rating"]["score"].as_f64() {
@@ -1559,10 +1734,7 @@ pub fn get_bangumi_data_cache_status() -> BangumiDataCacheStatus {
 
     let metadata = std::fs::metadata(&local_path).ok();
     let cached = metadata.is_some();
-    let file_size = metadata
-        .as_ref()
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let file_size = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
     let last_modified_secs = metadata
         .and_then(|m| m.modified().ok())
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
@@ -1584,10 +1756,10 @@ pub fn get_bangumi_data_cache_status() -> BangumiDataCacheStatus {
 pub async fn refresh_bangumi_data_cache() -> anyhow::Result<bool> {
     let cache_dir = crate::api::config::get_cache_dir();
     let local_path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
-    download_bangumi_data_json(&local_path).await?;
+    // force=true: this is a user-initiated refresh — always re-download
+    // even when the file already exists.
+    download_bangumi_data_json_single_flight(&local_path, true).await?;
     clear_failure_marker(&cache_dir);
-    // Both the parsed payload and the sites index are stale once the
-    // on-disk file changes; drop them so the next caller reparses.
     invalidate_bangumi_data_cache();
     invalidate_sites_index().await;
     if let Err(e) = build_sites_index().await {
@@ -1650,11 +1822,9 @@ pub async fn ensure_bangumi_data_cache(max_age_secs: u64) -> anyhow::Result<bool
         return Ok(false);
     }
 
-    download_bangumi_data_json(&local_path).await?;
-    // Cache contents changed — both the parsed payload and the previous
-    // in-memory sites index are stale. `build_sites_index` (called
-    // below) will lazily repopulate the shared `Arc<BangumiDataJson>`
-    // slot as a side effect.
+    // force=true: we only reach this branch when the cache is stale
+    // (older than max_age_secs), so the existing file must be replaced.
+    download_bangumi_data_json_single_flight(&local_path, true).await?;
     invalidate_bangumi_data_cache();
     invalidate_sites_index().await;
     if let Err(e) = build_sites_index().await {
@@ -1664,8 +1834,10 @@ pub async fn ensure_bangumi_data_cache(max_age_secs: u64) -> anyhow::Result<bool
 }
 
 /// Build the in-memory sites index if it has not been built yet (or was
-/// invalidated). Failures are logged and swallowed so warmup stays
-/// best-effort.
+/// invalidated) AND the local `bangumi-data.json` file exists. Uses
+/// single-flight via `build_sites_index_singleflight`, which re-checks
+/// the index after acquiring the permit so queued callers don't rebuild.
+/// Failures are logged and swallowed so callers stay best-effort.
 async fn ensure_sites_index_built() {
     let already = {
         let guard = sites_index_slot().read().await;
@@ -1674,7 +1846,12 @@ async fn ensure_sites_index_built() {
     if already {
         return;
     }
-    match build_sites_index().await {
+    let cache_dir = crate::api::config::get_cache_dir();
+    let local_path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
+    if !local_path.exists() {
+        return;
+    }
+    match build_sites_index_singleflight().await {
         Ok(n) => log::info!("bangumi-data sites index built: {n} entries"),
         Err(e) => log::warn!("bangumi-data sites index build failed: {e:#}"),
     }
@@ -2108,11 +2285,7 @@ mod tests {
     fn failure_marker_tolerates_garbage() {
         let dir = tempfile::tempdir().unwrap();
         let cache_dir = dir.path().to_string_lossy().to_string();
-        std::fs::write(
-            bangumi_data_failure_marker_path(&cache_dir),
-            "not-an-epoch",
-        )
-        .unwrap();
+        std::fs::write(bangumi_data_failure_marker_path(&cache_dir), "not-an-epoch").unwrap();
         // Garbage in the marker must NOT cause a panic; the helper should
         // treat it as "unknown" (None) and let the retry proceed.
         assert!(last_failure_age_secs(&cache_dir).is_none());
