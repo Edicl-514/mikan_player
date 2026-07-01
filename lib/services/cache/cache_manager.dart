@@ -34,20 +34,45 @@ class CacheManager {
   /// this, two concurrent `InsertMode.insertOrReplace` calls on the same
   /// quarter key race in SQLite and the final state depends on which
   /// commit lands last.
-  final Map<String, Future<void>> _timetableSaveQueue = <String, Future<void>>{};
+  final Map<String, Future<void>> _timetableSaveQueue =
+      <String, Future<void>>{};
+
+  void _runDetached(
+    String label,
+    Future<void> Function() task, {
+    Duration delay = Duration.zero,
+  }) {
+    Future<void> runner() async {
+      if (delay != Duration.zero) {
+        debugPrint('$label scheduled after ${delay.inMilliseconds}ms');
+        await Future<void>.delayed(delay);
+      }
+      debugPrint('$label started');
+      await task();
+      debugPrint('$label finished');
+    }
+
+    unawaited(
+      runner().catchError((Object e, StackTrace stackTrace) {
+        debugPrint('$label failed (non-fatal): $e');
+        debugPrint('$stackTrace');
+      }),
+    );
+  }
 
   /// Chain a save onto the per-quarter queue. Returns the chained future
   /// so callers can await or fire-and-forget it.
-  Future<void> _enqueueTimetableSave(
-    String quarter,
-    List<AnimeInfo> animes,
-  ) {
+  Future<void> _enqueueTimetableSave(String quarter, List<AnimeInfo> animes) {
     final previous = _timetableSaveQueue[quarter] ?? Future<void>.value();
+    debugPrint(
+      '[Timetable] Queue save $quarter count=${animes.length} '
+      'previousPending=${_timetableSaveQueue.containsKey(quarter)}',
+    );
     final next = previous
         .then((_) => _dbCache.saveTimetable(quarter, animes))
         .catchError((e) {
-      debugPrint('Timetable save failed for $quarter: $e');
-    });
+          debugPrint('Timetable save failed for $quarter: $e');
+        });
     _timetableSaveQueue[quarter] = next;
     // Self-cleaning: when the chain drains, drop the slot so the map
     // doesn't grow unbounded for long-lived processes browsing many
@@ -55,6 +80,7 @@ class CacheManager {
     next.whenComplete(() {
       if (identical(_timetableSaveQueue[quarter], next)) {
         _timetableSaveQueue.remove(quarter);
+        debugPrint('[Timetable] Save queue drained for $quarter');
       }
     });
     return next;
@@ -92,9 +118,7 @@ class CacheManager {
   /// 3. 并发: [下载+构建] vs [API请求] → 哪个先完成用哪个
   ///
   /// [quarter] 季度标识，如 "2024q1"
-  Future<List<AnimeInfo>> getTimetable({
-    required String quarter,
-  }) async {
+  Future<List<AnimeInfo>> getTimetable({required String quarter}) async {
     // ---- Level 1: SQLite 缓存 ----
     final cache = await _dbCache.getTimetable(quarter);
     if (cache != null) {
@@ -102,7 +126,8 @@ class CacheManager {
       if (cachedAnimes.isNotEmpty) {
         final withTitle = cachedAnimes.where((a) => a.title.isNotEmpty);
         final withBroadcast = cachedAnimes.where(
-          (a) => (a.broadcastDay != null && a.broadcastDay!.isNotEmpty) ||
+          (a) =>
+              (a.broadcastDay != null && a.broadcastDay!.isNotEmpty) ||
               (a.broadcastTime != null && a.broadcastTime!.isNotEmpty),
         );
         // Require both a non-trivial sample size and a quality bar. Without
@@ -122,19 +147,22 @@ class CacheManager {
 
     // ---- Level 2: 本地 bangumi-data.json (不下载, 只 mmap 读) ----
     try {
-      final localAnimes =
-          await crawler.fetchScheduleBasicFromLocalJsonNodl(
+      final localAnimes = await crawler.fetchScheduleBasicFromLocalJsonNodl(
         yearQuarter: quarter,
       );
       if (localAnimes.isNotEmpty) {
-        debugPrint('Timetable loaded from local bangumi-data.json: $quarter');
-        _enqueueTimetableSave(quarter, localAnimes);
+        debugPrint(
+          'Timetable loaded from local bangumi-data.json: $quarter '
+          'count=${localAnimes.length}',
+        );
+        unawaited(_enqueueTimetableSave(quarter, localAnimes));
         _cacheAnimeCovers(localAnimes);
-        // Warm the sites index in the background so the first details
-        // page lookup after a Level 2 hit doesn't trigger a synchronous
-        // build. Single-flight inside Rust ensures the warmup and any
-        // other path that already kicked off a build won't duplicate.
-        crawler.spawnSitesIndexBackground();
+        // Do not call crawler.spawnSitesIndexBackground() from Dart here.
+        // That Rust API is synchronous and uses tokio::spawn internally;
+        // when invoked through the sync FRB path on Android it can run
+        // outside a Tokio runtime, panic, and abort the process in release.
+        // Site lookups still self-heal lazily, and startup warmup uses the
+        // async ensureBangumiDataCache path instead.
         _refreshTimetableInBackground(quarter);
         return localAnimes;
       }
@@ -151,15 +179,13 @@ class CacheManager {
         // (API result) deterministically lands after this one. The
         // future is fire-and-forget; Level 1 on the next cold start
         // reads whatever the queue's last writer left.
-        _enqueueTimetableSave(quarter, animes);
+        unawaited(_enqueueTimetableSave(quarter, animes));
         _cacheAnimeCovers(animes);
       }
       return animes;
     } catch (e) {
       debugPrint('Timetable Level 3 failed, trying expired cache: $e');
-      final expiredCache = await _dbCache.getTimetableIncludingExpired(
-        quarter,
-      );
+      final expiredCache = await _dbCache.getTimetableIncludingExpired(quarter);
       if (expiredCache != null) {
         debugPrint('Using expired cache for $quarter');
         return _dbCache.animesFromTimetableCache(expiredCache);
@@ -199,36 +225,36 @@ class CacheManager {
       }
     }
 
-    apiFuture.then((animes) {
-      apiResult = animes;
-      completed++;
-      tryComplete();
-    }).catchError((e) {
-      apiError = e;
-      completed++;
-      tryComplete();
-    });
+    apiFuture
+        .then((animes) {
+          apiResult = animes;
+          completed++;
+          tryComplete();
+        })
+        .catchError((e) {
+          apiError = e;
+          completed++;
+          tryComplete();
+        });
 
-    downloadFuture.then((animes) {
-      downloadResult = animes;
-      completed++;
-      tryComplete();
-    }).catchError((e) {
-      downloadError = e;
-      completed++;
-      tryComplete();
-    });
+    downloadFuture
+        .then((animes) {
+          downloadResult = animes;
+          completed++;
+          tryComplete();
+        })
+        .catchError((e) {
+          downloadError = e;
+          completed++;
+          tryComplete();
+        });
 
     final animes = await completer.future;
 
     // Fire-and-forget: wait for both futures to settle, then save the
     // non-empty late result into SQLite so the next cold start hits
     // Level 1. API result is saved preferentially (usually more complete).
-    _saveLateResultAfterBothSettle(
-      quarter,
-      apiFuture,
-      downloadFuture,
-    );
+    _saveLateResultAfterBothSettle(quarter, apiFuture, downloadFuture);
 
     return animes;
   }
@@ -237,9 +263,9 @@ class CacheManager {
   /// 不带 Rust 侧的 local-JSON fallback，失败就直接抛异常。
   Future<List<AnimeInfo>> _fetchFromApiWithTimeout(String quarter) async {
     try {
-      return await crawler.fetchScheduleBasicApiOnly(
-        yearQuarter: quarter,
-      ).timeout(const Duration(seconds: 15));
+      return await crawler
+          .fetchScheduleBasicApiOnly(yearQuarter: quarter)
+          .timeout(const Duration(seconds: 15));
     } catch (e) {
       debugPrint('Timetable API request failed/timed out: $e');
       rethrow;
@@ -256,9 +282,9 @@ class CacheManager {
 
   Future<List<AnimeInfo>> _fetchFromDownloadedJson(String quarter) async {
     try {
-      return await crawler.fetchScheduleBasicFromLocalJson(
-        yearQuarter: quarter,
-      ).timeout(_downloadOverallTimeout);
+      return await crawler
+          .fetchScheduleBasicFromLocalJson(yearQuarter: quarter)
+          .timeout(_downloadOverallTimeout);
     } on TimeoutException {
       debugPrint('Timetable download+build overall timeout');
       rethrow;
@@ -284,17 +310,22 @@ class CacheManager {
     Future<List<AnimeInfo>> downloadFuture,
   ) {
     Future.wait([
-      apiFuture.catchError((_) => <AnimeInfo>[]),
-      downloadFuture.catchError((_) => <AnimeInfo>[]),
-    ]).then((results) {
-      final api = results[0];
-      final dl = results[1];
-      if (api.isNotEmpty) {
-        _enqueueTimetableSave(quarter, api);
-      } else if (dl.isNotEmpty) {
-        _enqueueTimetableSave(quarter, dl);
-      }
-    });
+          apiFuture.catchError((_) => <AnimeInfo>[]),
+          downloadFuture.catchError((_) => <AnimeInfo>[]),
+        ])
+        .then((results) {
+          final api = results[0];
+          final dl = results[1];
+          if (api.isNotEmpty) {
+            unawaited(_enqueueTimetableSave(quarter, api));
+          } else if (dl.isNotEmpty) {
+            unawaited(_enqueueTimetableSave(quarter, dl));
+          }
+        })
+        .catchError((Object e, StackTrace stackTrace) {
+          debugPrint('Late timetable save coordination failed: $e');
+          debugPrint('$stackTrace');
+        });
   }
 
   /// Level 2 命中本地 JSON 后, 后台用 API-only 数据刷新缓存,
@@ -305,17 +336,27 @@ class CacheManager {
   /// may have triggered another `getTimetable` for the same quarter by
   /// the time this API request finishes).
   void _refreshTimetableInBackground(String quarter) {
-    crawler.fetchScheduleBasicApiOnly(yearQuarter: quarter).then((animes) {
-      if (animes.isNotEmpty) {
-        _enqueueTimetableSave(quarter, animes);
-      }
-    }).catchError((e) {
-      debugPrint('Background timetable refresh failed (non-fatal): $e');
-    });
+    crawler
+        .fetchScheduleBasicApiOnly(yearQuarter: quarter)
+        .then((animes) {
+          debugPrint(
+            'Background timetable refresh finished for $quarter '
+            'count=${animes.length}',
+          );
+          if (animes.isNotEmpty) {
+            unawaited(_enqueueTimetableSave(quarter, animes));
+          }
+        })
+        .catchError((Object e) {
+          debugPrint('Background timetable refresh failed (non-fatal): $e');
+        });
   }
 
   /// 更新时间表缓存
   Future<void> updateTimetable(String quarter, List<AnimeInfo> animes) async {
+    debugPrint(
+      '[Timetable] updateTimetable requested $quarter count=${animes.length}',
+    );
     await _dbCache.saveTimetable(quarter, animes);
   }
 
@@ -694,12 +735,14 @@ class CacheManager {
 
   /// 批量缓存 AnimeInfo 条目
   Future<void> cacheAnimeInfos(List<AnimeInfo> animes) async {
+    debugPrint('[Timetable] cacheAnimeInfos start count=${animes.length}');
     for (final anime in animes) {
       await _dbCache.cacheFromAnimeInfo(anime);
     }
 
     // 后台缓存封面图片
     _cacheAnimeCovers(animes);
+    debugPrint('[Timetable] cacheAnimeInfos done count=${animes.length}');
   }
 
   // ==================== 图片相关 ====================
@@ -722,10 +765,10 @@ class CacheManager {
         .toList();
 
     if (urls.isNotEmpty) {
-      // 异步执行，不阻塞主流程
-      Future.microtask(() async {
-        await _imageCache.cacheImages(urls);
-      });
+      _runDetached(
+        'Anime cover cache count=${urls.length}',
+        () => _imageCache.cacheImages(urls),
+      );
     }
   }
 
@@ -737,9 +780,10 @@ class CacheManager {
         .toList();
 
     if (urls.isNotEmpty) {
-      Future.microtask(() async {
-        await _imageCache.cacheImages(urls);
-      });
+      _runDetached(
+        'Ranking cover cache count=${urls.length}',
+        () => _imageCache.cacheImages(urls),
+      );
     }
   }
 
@@ -751,9 +795,10 @@ class CacheManager {
         .toList();
 
     if (urls.isNotEmpty) {
-      Future.microtask(() async {
-        await _imageCache.cacheImages(urls);
-      });
+      _runDetached(
+        'Character image cache',
+        () => _imageCache.cacheImages(urls),
+      );
     }
   }
 
@@ -765,9 +810,7 @@ class CacheManager {
         .toList();
 
     if (urls.isNotEmpty) {
-      Future.microtask(() async {
-        await _imageCache.cacheImages(urls);
-      });
+      _runDetached('Relation image cache', () => _imageCache.cacheImages(urls));
     }
   }
 

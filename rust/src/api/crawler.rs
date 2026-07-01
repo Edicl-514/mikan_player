@@ -15,6 +15,11 @@ use tokio::sync::{RwLock, Semaphore};
 const QUARTER_NAMES: [&str; 4] = ["1月", "4月", "7月", "10月"];
 const CST_OFFSET: chrono::FixedOffset = chrono::FixedOffset::east_opt(8 * 3600).unwrap();
 
+fn bangumi_data_trace(message: &str) {
+    log::info!("[RustBangumiData] {}", message);
+    println!("[RustBangumiData] {}", message);
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnimeInfo {
     pub title: String,
@@ -533,8 +538,16 @@ pub async fn fetch_schedule_basic_from_local_json(
 pub fn fetch_schedule_basic_from_local_json_nodl(
     year_quarter: String,
 ) -> anyhow::Result<Vec<AnimeInfo>> {
+    bangumi_data_trace(&format!(
+        "fetch_schedule_basic_from_local_json_nodl start quarter={year_quarter}"
+    ));
     let data = get_or_load_bangumi_data_blocking()?;
-    Ok(load_data_json_and_filter(&data, &year_quarter))
+    let result = load_data_json_and_filter(&data, &year_quarter);
+    bangumi_data_trace(&format!(
+        "fetch_schedule_basic_from_local_json_nodl done quarter={year_quarter} count={}",
+        result.len()
+    ));
+    Ok(result)
 }
 
 /// Sidecar file that records the last (Unix-epoch-second) failed warmup
@@ -895,25 +908,36 @@ fn file_signature(path: &Path) -> Option<(std::time::SystemTime, u64)> {
 /// re-checks whether the index was already built after acquiring the
 /// permit, then runs the pure build core.
 fn spawn_build_sites_index_background() {
+    bangumi_data_trace("spawn sites index background requested");
     let permit = sites_index_build_single_flight().try_acquire();
     if permit.is_err() {
+        bangumi_data_trace("sites index build already in flight");
         log::debug!("sites index build already in flight, skipping background spawn");
         return;
     }
     let permit = permit.unwrap();
+    bangumi_data_trace("sites index background task spawned");
     tokio::spawn(async move {
         let _permit = permit;
+        bangumi_data_trace("sites index background task started");
         // Re-check: another path may have built the index between our
         // try_acquire check and now.
         {
             let guard = sites_index_slot().read().await;
             if guard.is_some() {
+                bangumi_data_trace("sites index already built; background task exits");
                 return;
             }
         }
         match build_sites_index_core().await {
-            Ok(n) => log::info!("background sites index build: {n} entries"),
-            Err(e) => log::warn!("background sites index build failed: {e:#}"),
+            Ok(n) => {
+                bangumi_data_trace(&format!("background sites index build done: {n} entries"));
+                log::info!("background sites index build: {n} entries");
+            }
+            Err(e) => {
+                bangumi_data_trace(&format!("background sites index build failed: {e:#}"));
+                log::warn!("background sites index build failed: {e:#}");
+            }
         }
     });
 }
@@ -937,10 +961,18 @@ async fn build_sites_index_core() -> anyhow::Result<usize> {
     );
 
     let started_generation = bangumi_data_generation();
+    bangumi_data_trace(&format!(
+        "build_sites_index_core start generation={started_generation}"
+    ));
 
     let (by_bangumi, by_mikan, by_bangumi_to_mikan) =
         tokio::task::spawn_blocking(|| -> anyhow::Result<SitesIndexMaps> {
+            bangumi_data_trace("build_sites_index_core spawn_blocking start");
             let data = get_or_load_bangumi_data_blocking()?;
+            bangumi_data_trace(&format!(
+                "build_sites_index_core data loaded items={}",
+                data.items.len()
+            ));
             let mut by_bangumi: HashMap<i64, Vec<BangumiDataSiteEntry>> =
                 HashMap::with_capacity(data.items.len());
             let mut by_mikan: HashMap<i64, i64> = HashMap::new();
@@ -990,6 +1022,11 @@ async fn build_sites_index_core() -> anyhow::Result<usize> {
                 }
             }
 
+            bangumi_data_trace(&format!(
+                "build_sites_index_core maps built bangumi={} mikan={}",
+                by_bangumi.len(),
+                by_mikan.len()
+            ));
             Ok((by_bangumi, by_mikan, by_bangumi_to_mikan))
         })
         .await??;
@@ -1004,6 +1041,7 @@ async fn build_sites_index_core() -> anyhow::Result<usize> {
         by_mikan_id: by_mikan,
         by_bangumi_to_mikan,
     }));
+    bangumi_data_trace(&format!("build_sites_index_core stored count={count}"));
     Ok(count)
 }
 
@@ -1803,10 +1841,9 @@ pub async fn ensure_bangumi_data_cache(max_age_secs: u64) -> anyhow::Result<bool
         if recently_failed {
             clear_failure_marker(&cache_dir);
         }
-        // Sites index may be empty after a process restart that didn't
-        // observe a download. Ensure it's populated so the details page
-        // can look up sites immediately.
-        ensure_sites_index_built().await;
+        // Startup warmup should stay light: it only keeps the JSON cache
+        // available/fresh. Sites-index construction can be memory-heavy on
+        // Android and details lookups self-heal lazily when needed.
         return Ok(false);
     }
 
@@ -1816,9 +1853,8 @@ pub async fn ensure_bangumi_data_cache(max_age_secs: u64) -> anyhow::Result<bool
              skipping retry until cooldown elapses",
             last_failure_age_secs(&cache_dir).unwrap_or(0)
         );
-        // Stale cache can still be served — just rebuild the index so the
-        // details page works until a fresh download succeeds.
-        ensure_sites_index_built().await;
+        // Stale cache can still be served. Do not build the sites index during
+        // startup warmup; details lookups self-heal lazily when needed.
         return Ok(false);
     }
 
@@ -1827,9 +1863,8 @@ pub async fn ensure_bangumi_data_cache(max_age_secs: u64) -> anyhow::Result<bool
     download_bangumi_data_json_single_flight(&local_path, true).await?;
     invalidate_bangumi_data_cache();
     invalidate_sites_index().await;
-    if let Err(e) = build_sites_index().await {
-        log::warn!("bangumi-data sites index build failed after refresh: {e:#}");
-    }
+    // Keep startup warmup focused on refreshing the JSON file. Avoid building
+    // the sites index here; it can be rebuilt lazily by details-page lookups.
     Ok(true)
 }
 
@@ -1838,6 +1873,7 @@ pub async fn ensure_bangumi_data_cache(max_age_secs: u64) -> anyhow::Result<bool
 /// single-flight via `build_sites_index_singleflight`, which re-checks
 /// the index after acquiring the permit so queued callers don't rebuild.
 /// Failures are logged and swallowed so callers stay best-effort.
+#[allow(dead_code)]
 async fn ensure_sites_index_built() {
     let already = {
         let guard = sites_index_slot().read().await;

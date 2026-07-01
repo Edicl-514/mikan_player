@@ -6,6 +6,29 @@ class BangumiDataService {
   BangumiDataService._();
 
   static const int warmupMaxAgeSecs = 7 * 24 * 60 * 60;
+  static Future<bool>? _sitesIndexReady;
+
+  static Future<bool> _ensureSitesIndexReady() {
+    final existing = _sitesIndexReady;
+    if (existing != null) return existing;
+
+    late final Future<bool> future;
+    future = (() async {
+      try {
+        final count = await crawler.buildSitesIndex();
+        debugPrint('bangumi-data sites index ready: $count entries');
+        return true;
+      } catch (e) {
+        debugPrint('bangumi-data sites index build failed (non-fatal): $e');
+        if (identical(_sitesIndexReady, future)) {
+          _sitesIndexReady = null;
+        }
+        return false;
+      }
+    })();
+    _sitesIndexReady = future;
+    return future;
+  }
 
   static Future<void> warmup() async {
     try {
@@ -26,7 +49,12 @@ class BangumiDataService {
 
   static Future<bool> refresh() async {
     try {
-      return await crawler.refreshBangumiDataCache();
+      final refreshed = await crawler.refreshBangumiDataCache();
+      if (refreshed) {
+        _sitesIndexReady = null;
+        _ensureSitesIndexReady(); // fire-and-forget rebuild
+      }
+      return refreshed;
     } catch (e) {
       debugPrint('bangumi-data refresh failed: $e');
       return false;
@@ -48,6 +76,8 @@ class BangumiDataService {
     final id = int.tryParse(bangumiId);
     if (id == null) return const [];
     try {
+      final ready = await _ensureSitesIndexReady();
+      if (!ready) return const [];
       return await crawler.fetchBangumiDataSites(bangumiId: id);
     } catch (e) {
       debugPrint('bangumi-data sites lookup failed (non-fatal): $e');
@@ -63,6 +93,8 @@ class BangumiDataService {
     final id = int.tryParse(mikanId);
     if (id == null) return const [];
     try {
+      final ready = await _ensureSitesIndexReady();
+      if (!ready) return const [];
       return await crawler.fetchBangumiDataSitesByMikan(mikanId: id);
     } catch (e) {
       debugPrint('bangumi-data sites lookup by mikan failed: $e');
@@ -78,6 +110,8 @@ class BangumiDataService {
     final id = int.tryParse(bangumiId);
     if (id == null) return null;
     try {
+      final ready = await _ensureSitesIndexReady();
+      if (!ready) return null;
       final result = await crawler.lookupMikanId(bangumiId: id);
       return result?.toString();
     } catch (e) {

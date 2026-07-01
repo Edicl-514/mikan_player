@@ -98,6 +98,7 @@ class _HomePcPageState extends State<HomePcPage> {
   }
 
   Future<void> _loadAllData() async {
+    debugPrint('[HomePc] loadAllData start');
     _loadTodayAnimes();
     _loadRanking();
     _loadHistory();
@@ -106,6 +107,7 @@ class _HomePcPageState extends State<HomePcPage> {
 
   Future<void> _loadTodayAnimes() async {
     try {
+      debugPrint('[HomePc] loadTodayAnimes start');
       final now = DateTime.now();
       final currentYear = now.year;
       final currentMonth = now.month;
@@ -121,11 +123,18 @@ class _HomePcPageState extends State<HomePcPage> {
       final animes = await CacheManager.instance.getTimetable(
         quarter: currentQuarter,
       );
+      debugPrint(
+        '[HomePc] timetable loaded quarter=$currentQuarter '
+        'count=${animes.length}',
+      );
 
       final weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
       final todayStr = weekDays[now.weekday - 1];
 
       var todayList = animes.where((a) => a.broadcastDay == todayStr).toList();
+      debugPrint(
+        '[HomePc] today filter day=$todayStr count=${todayList.length}',
+      );
 
       if (mounted) {
         setState(() {
@@ -146,9 +155,13 @@ class _HomePcPageState extends State<HomePcPage> {
           .toList();
       if (missingCovers.isNotEmpty) {
         try {
+          debugPrint(
+            '[HomePc] fillAnimeDetails start count=${missingCovers.length}',
+          );
           final enriched = await crawler.fillAnimeDetails(
             animes: missingCovers,
           );
+          debugPrint('[HomePc] fillAnimeDetails done count=${enriched.length}');
           await CacheManager.instance.cacheAnimeInfos(enriched);
 
           for (final item in enriched) {
@@ -168,6 +181,7 @@ class _HomePcPageState extends State<HomePcPage> {
           }
           // Update timetable cache so next load has coverUrl
           await CacheManager.instance.updateTimetable(currentQuarter, animes);
+          debugPrint('[HomePc] enriched timetable saved');
           if (mounted) {
             setState(() {
               _todayAnimes = List.from(todayList);
@@ -177,6 +191,7 @@ class _HomePcPageState extends State<HomePcPage> {
           debugPrint('Failed to enrich today animes: $e');
         }
       }
+      debugPrint('[HomePc] loadTodayAnimes done');
     } catch (e) {
       debugPrint('Error loading today animes: $e');
       if (mounted) setState(() => _isLoadingToday = false);
@@ -185,6 +200,7 @@ class _HomePcPageState extends State<HomePcPage> {
 
   Future<void> _loadRanking() async {
     try {
+      debugPrint('[HomePc] loadRanking start');
       final results = await CacheManager.instance.getRanking(
         sortType: 'trends',
         page: 1,
@@ -197,6 +213,7 @@ class _HomePcPageState extends State<HomePcPage> {
           _isLoadingRanking = false;
         });
       }
+      debugPrint('[HomePc] loadRanking done count=${results.length}');
     } catch (e) {
       debugPrint('Error loading ranking: $e');
       if (mounted) setState(() => _isLoadingRanking = false);
@@ -205,6 +222,7 @@ class _HomePcPageState extends State<HomePcPage> {
 
   Future<void> _loadHistory() async {
     try {
+      debugPrint('[HomePc] loadHistory start');
       final history = await _historyManager.getHistory();
       if (mounted) {
         setState(() {
@@ -212,6 +230,7 @@ class _HomePcPageState extends State<HomePcPage> {
           _isLoadingHistory = false;
         });
       }
+      debugPrint('[HomePc] loadHistory done count=${history.length}');
     } catch (e) {
       debugPrint('Error loading history: $e');
       if (mounted) setState(() => _isLoadingHistory = false);
@@ -220,6 +239,7 @@ class _HomePcPageState extends State<HomePcPage> {
 
   Future<void> _loadFavorites() async {
     try {
+      debugPrint('[HomePc] loadFavorites start');
       await _favoritesManager.init();
       final localFavs = await _favoritesManager.getAllFavorites();
 
@@ -237,7 +257,9 @@ class _HomePcPageState extends State<HomePcPage> {
           final apiHost = await BangumiUrlRewriter.hostFor('api');
           String rewrite(String url) {
             if (url.isEmpty) return url;
-            return BangumiUrlRewriter.rewrite(url).replaceFirst('api.bgm.tv', apiHost);
+            return BangumiUrlRewriter.rewrite(
+              url,
+            ).replaceFirst('api.bgm.tv', apiHost);
           }
 
           final collections = raw
@@ -290,6 +312,7 @@ class _HomePcPageState extends State<HomePcPage> {
           _isLoadingFavorites = false;
         });
       }
+      debugPrint('[HomePc] loadFavorites done count=${merged.length}');
     } catch (e) {
       debugPrint('Error loading favorites: $e');
       if (mounted) setState(() => _isLoadingFavorites = false);
@@ -313,10 +336,10 @@ class _HomePcPageState extends State<HomePcPage> {
     final playableEpisodes = episodes.releasedEpisodes();
     if (playableEpisodes.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).cannotLoadEpisodes)),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).cannotLoadEpisodes),
+          ),
         );
       }
       return;
@@ -327,7 +350,9 @@ class _HomePcPageState extends State<HomePcPage> {
     if (byId.isNotEmpty) {
       currentEpisode = byId.first;
     } else {
-      final bySort = playableEpisodes.where((e) => e.sort == item.episodeSort).toList();
+      final bySort = playableEpisodes
+          .where((e) => e.sort == item.episodeSort)
+          .toList();
       if (bySort.isNotEmpty) {
         currentEpisode = bySort.first;
       }
@@ -568,7 +593,8 @@ class _HomePcPageState extends State<HomePcPage> {
                       MaterialPageRoute(
                         builder: (context) => BangumiDetailsPage(
                           anime: anime,
-                          heroTag: 'home_pc_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
+                          heroTag:
+                              'home_pc_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
                         ),
                       ),
                     ).then((_) => _startTodayTimer());
@@ -597,7 +623,8 @@ class _HomePcPageState extends State<HomePcPage> {
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
                                     child: Hero(
-                                      tag: 'home_pc_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
+                                      tag:
+                                          'home_pc_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
                                       child: CachedNetworkImage(
                                         imageUrl: anime.coverUrl ?? '',
                                         fit: BoxFit.cover,
@@ -766,7 +793,8 @@ class _HomePcPageState extends State<HomePcPage> {
                     MaterialPageRoute(
                       builder: (context) => BangumiDetailsPage(
                         anime: info,
-                        heroTag: 'home_pc_rank_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
+                        heroTag:
+                            'home_pc_rank_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
                       ),
                     ),
                   );
@@ -948,7 +976,8 @@ class _HomePcPageState extends State<HomePcPage> {
                     MaterialPageRoute(
                       builder: (context) => BangumiDetailsPage(
                         anime: info,
-                        heroTag: 'home_pc_fav_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
+                        heroTag:
+                            'home_pc_fav_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
                       ),
                     ),
                   );

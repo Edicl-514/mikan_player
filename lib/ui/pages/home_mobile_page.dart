@@ -102,6 +102,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
   }
 
   Future<void> _loadAllData() async {
+    debugPrint('[HomeMobile] loadAllData start');
     _loadTodayAnimes();
     _loadRanking();
     _loadHistory();
@@ -110,6 +111,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
 
   Future<void> _loadTodayAnimes() async {
     try {
+      debugPrint('[HomeMobile] loadTodayAnimes start');
       // 1. 直接计算当前季度，无需等待网络请求
       final now = DateTime.now();
       final currentYear = now.year;
@@ -127,12 +129,19 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       final animes = await CacheManager.instance.getTimetable(
         quarter: currentQuarter,
       );
+      debugPrint(
+        '[HomeMobile] timetable loaded quarter=$currentQuarter '
+        'count=${animes.length}',
+      );
 
       // 3. Filter for today
       final weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
       final todayStr = weekDays[now.weekday - 1];
 
       var todayList = animes.where((a) => a.broadcastDay == todayStr).toList();
+      debugPrint(
+        '[HomeMobile] today filter day=$todayStr count=${todayList.length}',
+      );
 
       if (mounted) {
         setState(() {
@@ -154,8 +163,14 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           .toList();
       if (missingCovers.isNotEmpty) {
         try {
+          debugPrint(
+            '[HomeMobile] fillAnimeDetails start count=${missingCovers.length}',
+          );
           final enriched = await crawler.fillAnimeDetails(
             animes: missingCovers,
+          );
+          debugPrint(
+            '[HomeMobile] fillAnimeDetails done count=${enriched.length}',
           );
           // ✅ 保存到缓存，加速后续加载
           await CacheManager.instance.cacheAnimeInfos(enriched);
@@ -178,6 +193,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           }
           // Update timetable cache so next load has coverUrl
           await CacheManager.instance.updateTimetable(currentQuarter, animes);
+          debugPrint('[HomeMobile] enriched timetable saved');
           if (mounted) {
             setState(() {
               _todayAnimes = List.from(todayList);
@@ -187,6 +203,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           debugPrint('Failed to enrich today animes: $e');
         }
       }
+      debugPrint('[HomeMobile] loadTodayAnimes done');
     } catch (e) {
       debugPrint('Error loading today animes: $e');
       if (mounted) setState(() => _isLoadingToday = false);
@@ -195,6 +212,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
 
   Future<void> _loadRanking() async {
     try {
+      debugPrint('[HomeMobile] loadRanking start');
       final results = await CacheManager.instance.getRanking(
         sortType: 'trends',
         page: 1,
@@ -207,6 +225,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           _isLoadingRanking = false;
         });
       }
+      debugPrint('[HomeMobile] loadRanking done count=${results.length}');
     } catch (e) {
       debugPrint('Error loading ranking: $e');
       if (mounted) setState(() => _isLoadingRanking = false);
@@ -215,6 +234,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
 
   Future<void> _loadHistory() async {
     try {
+      debugPrint('[HomeMobile] loadHistory start');
       final history = await _historyManager.getHistory();
       if (mounted) {
         setState(() {
@@ -222,6 +242,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           _isLoadingHistory = false;
         });
       }
+      debugPrint('[HomeMobile] loadHistory done count=${history.length}');
     } catch (e) {
       debugPrint('Error loading history: $e');
       if (mounted) setState(() => _isLoadingHistory = false);
@@ -230,6 +251,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
 
   Future<void> _loadFavorites() async {
     try {
+      debugPrint('[HomeMobile] loadFavorites start');
       await _favoritesManager.init();
       final localFavs = await _favoritesManager.getAllFavorites();
 
@@ -247,7 +269,9 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           final apiHost = await BangumiUrlRewriter.hostFor('api');
           String rewrite(String url) {
             if (url.isEmpty) return url;
-            return BangumiUrlRewriter.rewrite(url).replaceFirst('api.bgm.tv', apiHost);
+            return BangumiUrlRewriter.rewrite(
+              url,
+            ).replaceFirst('api.bgm.tv', apiHost);
           }
 
           final collections = raw
@@ -301,6 +325,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           _isLoadingFavorites = false;
         });
       }
+      debugPrint('[HomeMobile] loadFavorites done count=${merged.length}');
     } catch (e) {
       debugPrint('Error loading favorites: $e');
       if (mounted) setState(() => _isLoadingFavorites = false);
@@ -324,10 +349,10 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
     final playableEpisodes = episodes.releasedEpisodes();
     if (playableEpisodes.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).cannotLoadEpisodes)),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).cannotLoadEpisodes),
+          ),
         );
       }
       return;
@@ -338,7 +363,9 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
     if (byId.isNotEmpty) {
       currentEpisode = byId.first;
     } else {
-      final bySort = playableEpisodes.where((e) => e.sort == item.episodeSort).toList();
+      final bySort = playableEpisodes
+          .where((e) => e.sort == item.episodeSort)
+          .toList();
       if (bySort.isNotEmpty) {
         currentEpisode = bySort.first;
       }
@@ -410,12 +437,17 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
             SliverToBoxAdapter(child: _buildTodaySection()),
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
             SliverToBoxAdapter(
-              child: _buildSectionHeader(AppLocalizations.of(context).recentHot, () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const RankingPage()),
-                );
-              }),
+              child: _buildSectionHeader(
+                AppLocalizations.of(context).recentHot,
+                () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RankingPage(),
+                    ),
+                  );
+                },
+              ),
             ),
             SliverToBoxAdapter(child: _buildRankingList()),
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -600,7 +632,8 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                     MaterialPageRoute(
                       builder: (context) => BangumiDetailsPage(
                         anime: anime,
-                        heroTag: 'home_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
+                        heroTag:
+                            'home_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
                       ),
                     ),
                   ).then((_) => _startTodayTimer());
@@ -629,7 +662,8 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
                                   child: Hero(
-                                    tag: 'home_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
+                                    tag:
+                                        'home_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
                                     child: CachedNetworkImage(
                                       imageUrl: anime.coverUrl ?? '',
                                       fit: BoxFit.cover,
@@ -783,7 +817,8 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                   MaterialPageRoute(
                     builder: (context) => BangumiDetailsPage(
                       anime: info,
-                      heroTag: 'home_rank_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
+                      heroTag:
+                          'home_rank_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
                     ),
                   ),
                 );
@@ -942,7 +977,8 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                   MaterialPageRoute(
                     builder: (context) => BangumiDetailsPage(
                       anime: info,
-                      heroTag: 'home_fav_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
+                      heroTag:
+                          'home_fav_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
                     ),
                   ),
                 );

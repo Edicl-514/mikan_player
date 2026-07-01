@@ -675,6 +675,10 @@ class BangumiCacheService {
 
   /// 保存时间表缓存
   Future<void> saveTimetable(String quarter, List<AnimeInfo> animes) async {
+    final startedAt = DateTime.now();
+    debugPrint(
+      'Drift Cache: Save Timetable start $quarter count=${animes.length}',
+    );
     final animesJson = jsonEncode(
       animes
           .map(
@@ -704,7 +708,11 @@ class BangumiCacheService {
     await db
         .into(db.dbTimetableCaches)
         .insert(_timetableToCompanion(cache), mode: InsertMode.insertOrReplace);
-    debugPrint('Drift Cache: Save Timetable $quarter');
+    debugPrint(
+      'Drift Cache: Save Timetable $quarter count=${animes.length} '
+      'jsonBytes=${utf8.encode(animesJson).length} '
+      'elapsedMs=${DateTime.now().difference(startedAt).inMilliseconds}',
+    );
   }
 
   /// 将缓存转换为 AnimeInfo 列表

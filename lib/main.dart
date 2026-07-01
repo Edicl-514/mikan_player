@@ -21,6 +21,7 @@ import 'package:mikan_player/services/bangumi_data_service.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/services/settings_service.dart';
 import 'package:mikan_player/utils/app_directories.dart';
@@ -32,89 +33,121 @@ import 'package:mikan_player/gen/app_localizations.dart';
 WebViewEnvironment? webViewEnvironment;
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  await runZonedGuarded<Future<void>>(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      _installGlobalErrorLogging();
 
-  // Initialize Rust Logic with platform-specific paths
-  // IMPORTANT: On Windows, use a unified app data directory to avoid debug/release path conflicts
-  final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
-  final cacheDir = Directory('${appSupportDir.path}/cache');
+      // Initialize Rust Logic with platform-specific paths
+      // IMPORTANT: On Windows, use a unified app data directory to avoid debug/release path conflicts
+      final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
+      final cacheDir = Directory('${appSupportDir.path}/cache');
 
-  // Check for custom download directory setting
-  final prefs = await SharedPreferences.getInstance();
-  final customDownloadDir = prefs.getString('download_dir_custom');
-  final downloadDirPath =
-      customDownloadDir ?? '${appSupportDir.path}/downloads';
-  final downloadDir = Directory(downloadDirPath);
+      // Check for custom download directory setting
+      final prefs = await SharedPreferences.getInstance();
+      final customDownloadDir = prefs.getString('download_dir_custom');
+      final downloadDirPath =
+          customDownloadDir ?? '${appSupportDir.path}/downloads';
+      final downloadDir = Directory(downloadDirPath);
 
-  if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
-  if (!await downloadDir.exists()) await downloadDir.create(recursive: true);
+      if (!await cacheDir.exists()) {
+        await cacheDir.create(recursive: true);
+      }
+      if (!await downloadDir.exists()) {
+        await downloadDir.create(recursive: true);
+      }
 
-  debugPrint('App data directory: ${appSupportDir.path}');
-  debugPrint('Cache directory: ${cacheDir.path}');
-  debugPrint('Download directory: ${downloadDir.path}');
+      debugPrint('App data directory: ${appSupportDir.path}');
+      debugPrint('Cache directory: ${cacheDir.path}');
+      debugPrint('Download directory: ${downloadDir.path}');
 
-  await initRustLib();
-  await rust.initEngine(cacheDir: cacheDir.path, downloadDir: downloadDir.path);
-
-  // Initialize Bangumi Cache Database
-  await CacheManager.instance.initialize();
-
-  // Initialize UserManager
-  await UserManager().init();
-
-  // Initialize SettingsService
-  await SettingsService().init();
-
-  // Initialize DownloadManager (load saved BT tasks)
-  await DownloadManager().initialize();
-
-  // Initialize MediaKit
-  MediaKit.ensureInitialized();
-
-  // Initialize WebView2 on Windows
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
-    final availableVersion = await WebViewEnvironment.getAvailableVersion();
-    if (availableVersion != null) {
-      // 使用统一的应用数据目录存储 WebView2 数据
-      final webViewDataPath = '${appSupportDir.path}\\WebView2';
-
-      webViewEnvironment = await WebViewEnvironment.create(
-        settings: WebViewEnvironmentSettings(userDataFolder: webViewDataPath),
+      await initRustLib();
+      await rust.initEngine(
+        cacheDir: cacheDir.path,
+        downloadDir: downloadDir.path,
       );
-      debugPrint('WebView2 initialized: $availableVersion');
-    } else {
-      debugPrint(
-        'WARNING: WebView2 Runtime not found. Some features may not work.',
-      );
+
+      // Initialize Bangumi Cache Database
+      await CacheManager.instance.initialize();
+
+      // Initialize UserManager
+      await UserManager().init();
+
+      // Initialize SettingsService
+      await SettingsService().init();
+
+      // Initialize DownloadManager (load saved BT tasks)
+      await DownloadManager().initialize();
+
+      // Initialize MediaKit
+      MediaKit.ensureInitialized();
+
+      // Initialize WebView2 on Windows
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+        final availableVersion = await WebViewEnvironment.getAvailableVersion();
+        if (availableVersion != null) {
+          // 使用统一的应用数据目录存储 WebView2 数据
+          final webViewDataPath = '${appSupportDir.path}\\WebView2';
+
+          webViewEnvironment = await WebViewEnvironment.create(
+            settings: WebViewEnvironmentSettings(
+              userDataFolder: webViewDataPath,
+            ),
+          );
+          debugPrint('WebView2 initialized: $availableVersion');
+        } else {
+          debugPrint(
+            'WARNING: WebView2 Runtime not found. Some features may not work.',
+          );
+        }
+      }
+
+      // Apply local settings needed by the runtime before the first screen renders.
+      // Network-bound warm-up is deferred until after the first frame.
+      await _syncRuntimeSettings();
+
+      // Setup Proxy
+      final proxy = await network.getSystemProxy();
+      if (proxy != null) {
+        debugPrint('Setting global proxy: $proxy');
+        HttpOverrides.global = MyHttpOverrides(proxy);
+      }
+
+      runApp(const MyApp());
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_runDeferredStartupTasks());
+      });
+    },
+    (Object error, StackTrace stackTrace) {
+      debugPrint('[Startup] Uncaught zone error: $error');
+      debugPrint('$stackTrace');
+    },
+  );
+}
+
+void _installGlobalErrorLogging() {
+  FlutterError.onError = (FlutterErrorDetails details) {
+    debugPrint('[Startup] FlutterError: ${details.exceptionAsString()}');
+    if (details.stack != null) {
+      debugPrint('${details.stack}');
     }
-  }
-
-  // Apply local settings needed by the runtime before the first screen renders.
-  // Network-bound warm-up is deferred until after the first frame.
-  await _syncRuntimeSettings();
-
-  // Setup Proxy
-  final proxy = await network.getSystemProxy();
-  if (proxy != null) {
-    debugPrint('Setting global proxy: $proxy');
-    HttpOverrides.global = MyHttpOverrides(proxy);
-  }
-
-  runApp(const MyApp());
-
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    unawaited(_runDeferredStartupTasks());
-  });
+    FlutterError.presentError(details);
+  };
+  ui.PlatformDispatcher.instance.onError =
+      (Object error, StackTrace stackTrace) {
+        debugPrint('[Startup] PlatformDispatcher error: $error');
+        debugPrint('$stackTrace');
+        return true;
+      };
 }
 
 Future<void> _syncRuntimeSettings() async {
   try {
     final prefs = await SharedPreferences.getInstance();
     final bgm = prefs.getString('bgmlist_url') ?? 'https://bgmlist.com';
-    final bangumi =
-        prefs.getString('bangumi_url') ?? 'https://bangumi.tv';
-    final mikan =
-        prefs.getString('mikan_url') ?? 'https://mikanani.kas.pub';
+    final bangumi = prefs.getString('bangumi_url') ?? 'https://bangumi.tv';
+    final mikan = prefs.getString('mikan_url') ?? 'https://mikanani.kas.pub';
     final playbackSub =
         prefs.getString('playback_sub_url') ??
         'https://gitee.com/edicl/online-subscription/raw/master/online.json';
@@ -144,6 +177,7 @@ Future<void> _syncRuntimeSettings() async {
 
 Future<void> _runDeferredStartupTasks() async {
   try {
+    debugPrint('[Startup] Deferred startup tasks start');
     final prefs = await SharedPreferences.getInstance();
     final initialUrls = await _ensureOptimalInitialBaseUrls(prefs);
 
@@ -173,19 +207,23 @@ Future<void> _runDeferredStartupTasks() async {
 
     debugPrint('Preloading playback source config after first frame...');
     await rust.preloadPlaybackSourceConfig();
+    debugPrint('[Startup] Playback source preload done');
 
     // Warm up the ECHConfig cache so the first bangumi request can use ECH.
     // Failures are swallowed inside the Rust side; the HTTP layer will fall
     // back to plaintext SNI when no ECHConfig is available.
     await BangumiEchService.warmup();
+    debugPrint('[Startup] ECH warmup done');
 
     // Warm the offline bangumi-data cache (fallback for the schedule API).
     // Fire-and-forget — the ~7 MB download must not block the UI, and the live
     // API remains the primary path.
+    debugPrint('[Startup] bangumi-data warmup scheduled');
     unawaited(BangumiDataService.warmup());
 
     if (prefs.getStringList('disabled_sources') == null) {
-      final initialDisabledSources = await _loadInitialDisabledSourcesFromCache();
+      final initialDisabledSources =
+          await _loadInitialDisabledSourcesFromCache();
       await prefs.setStringList('disabled_sources', initialDisabledSources);
       await rust.setDisabledSources(sources: initialDisabledSources);
       debugPrint(
@@ -193,6 +231,7 @@ Future<void> _runDeferredStartupTasks() async {
         '${initialDisabledSources.length} disabled',
       );
     }
+    debugPrint('[Startup] Deferred startup tasks done');
   } catch (e) {
     debugPrint('Deferred startup tasks failed: $e');
   }
