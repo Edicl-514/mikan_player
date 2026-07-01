@@ -41,12 +41,20 @@ pub struct SourceRuntimeOverride {
     pub skip_search_error: Option<String>,
 }
 
+struct CachedSourceConfig {
+    sources: Vec<MediaSource>,
+    loaded_at_ms: u64,
+}
+
+const SOURCE_CONFIG_CACHE_TTL_MS: u64 = 30_000;
+
 lazy_static::lazy_static! {
     /// 匹配季数相关的关键词
     static ref SEASON_RE: Regex = Regex::new(r"(?i)第[一二三四五六七八九十\d]+季|Part\s*\d+|\d+(st|nd|rd|th)\s*Season|Season\s*\d+").unwrap();
     static ref CURRENT_REGION: RwLock<Option<String>> = RwLock::new(None);
     static ref REGION_DETECTION_MUTEX: TokioMutex<()> = TokioMutex::new(());
     static ref REGION_DETECTION_ATTEMPTED: AtomicBool = AtomicBool::new(false);
+    static ref CACHED_SOURCE_CONFIG: RwLock<Option<CachedSourceConfig>> = RwLock::new(None);
 }
 
 /// 预处理搜索词，提取核心动画名称
@@ -1566,6 +1574,70 @@ async fn load_playback_source_config(_client: &reqwest::Client) -> anyhow::Resul
     load_from_cache()
 }
 
+/// Load, parse, filter, and sort enabled sources — with in-memory caching.
+/// Avoids re-reading / re-parsing / re-detecting-region when multiple search
+/// streams are started in quick succession (e.g. captcha-sourceI searches).
+async fn load_enabled_sources() -> anyhow::Result<Vec<MediaSource>> {
+    let now = current_timestamp_ms();
+
+    {
+        let guard = CACHED_SOURCE_CONFIG.read().unwrap();
+        if let Some(cached) = guard.as_ref() {
+            if now.saturating_sub(cached.loaded_at_ms) < SOURCE_CONFIG_CACHE_TTL_MS {
+                log::info!(
+                    "Reusing cached source config ({} sources, age={}ms)",
+                    cached.sources.len(),
+                    now.saturating_sub(cached.loaded_at_ms),
+                );
+                return Ok(cached.sources.clone());
+            }
+        }
+    }
+
+    let client = crate::api::network::get_shared_client().clone();
+    let content = load_playback_source_config(&client).await?;
+    let root: SampleRoot = serde_json::from_str(&content)?;
+    let root = detect_and_filter_root(root).await;
+
+    let mut sources: Vec<_> = root
+        .exported_media_source_data_list
+        .media_sources
+        .into_iter()
+        .filter(|source| {
+            if !crate::api::config::is_source_enabled(&source.arguments.name) {
+                log::info!("Skipping disabled source: {}", source.arguments.name);
+                false
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    sources.sort_by_key(|s| s.arguments.tier.unwrap_or(1));
+
+    {
+        let mut guard = CACHED_SOURCE_CONFIG.write().unwrap();
+        *guard = Some(CachedSourceConfig {
+            sources: sources.clone(),
+            loaded_at_ms: now,
+        });
+    }
+
+    log::info!(
+        "Loaded and cached source config ({} enabled sources)",
+        sources.len()
+    );
+    Ok(sources)
+}
+
+/// Invalidate the in-memory source config cache so the next
+/// `load_enabled_sources` call will re-read from disk.
+pub fn invalidate_source_config_cache() {
+    let mut guard = CACHED_SOURCE_CONFIG.write().unwrap();
+    *guard = None;
+    log::info!("Source config cache invalidated");
+}
+
 /// 从订阅地址刷新播放源配置并保存到本地缓存
 pub async fn refresh_playback_source_config() -> anyhow::Result<String> {
     let sub_url = crate::api::config::get_playback_sub_url();
@@ -1584,6 +1656,7 @@ pub async fn refresh_playback_source_config() -> anyhow::Result<String> {
 
     // 保存到本地缓存
     save_to_cache(&content)?;
+    invalidate_source_config_cache();
 
     Ok(content)
 }
@@ -1744,6 +1817,7 @@ pub async fn update_single_source_config(update: SourceConfigUpdate) -> anyhow::
     if found {
         let new_content = serde_json::to_string_pretty(&root)?;
         save_to_cache(&new_content)?;
+        invalidate_source_config_cache();
         Ok(())
     } else {
         Err(anyhow::anyhow!("Source not found: {}", update.name))
@@ -1846,6 +1920,7 @@ pub async fn add_source_config(new_config: SourceConfigUpdate) -> anyhow::Result
 
     let new_content = serde_json::to_string_pretty(&root)?;
     save_to_cache(&new_content)?;
+    invalidate_source_config_cache();
 
     Ok(())
 }
@@ -1863,30 +1938,9 @@ pub async fn generic_search_play_pages(
     relative_episode: Option<u32>,
 ) -> anyhow::Result<Vec<SearchPlayResult>> {
     let client = crate::api::network::get_shared_client().clone();
-    let content = load_playback_source_config(&client).await?;
 
-    let root: SampleRoot = serde_json::from_str(&content)?;
-    let root = detect_and_filter_root(root).await;
+    let sources = load_enabled_sources().await?;
 
-    // 1. Filter enabled sources and sort by tier
-    let mut sources: Vec<_> = root
-        .exported_media_source_data_list
-        .media_sources
-        .into_iter()
-        .filter(|source| {
-            if !crate::api::config::is_source_enabled(&source.arguments.name) {
-                log::info!("Skipping disabled source: {}", source.arguments.name);
-                false
-            } else {
-                true
-            }
-        })
-        .collect();
-
-    // Sort by tier (ascending, smaller is higher priority)
-    sources.sort_by_key(|s| s.arguments.tier.unwrap_or(1));
-
-    // 2. Prepare stream
     let limit = crate::api::config::get_max_concurrent_searches();
     let limit = if limit == 0 {
         usize::MAX
@@ -1913,10 +1967,8 @@ pub async fn generic_search_play_pages(
         }
     });
 
-    // 3. Execute with concurrency limit
     let all_results: Vec<_> = stream.buffer_unordered(limit).collect().await;
 
-    // 过滤出成功的结果
     let results: Vec<SearchPlayResult> = all_results.into_iter().filter_map(|r| r.ok()).collect();
 
     Ok(results)
@@ -1931,30 +1983,9 @@ pub async fn generic_search_play_pages_stream(
     sink: crate::frb_generated::StreamSink<SearchPlayResult>,
 ) -> anyhow::Result<()> {
     let client = crate::api::network::get_shared_client().clone();
-    let content = load_playback_source_config(&client).await?;
 
-    let root: SampleRoot = serde_json::from_str(&content)?;
-    let root = detect_and_filter_root(root).await;
+    let sources = load_enabled_sources().await?;
 
-    // 1. Filter enabled sources and sort by tier
-    let mut sources: Vec<_> = root
-        .exported_media_source_data_list
-        .media_sources
-        .into_iter()
-        .filter(|source| {
-            if !crate::api::config::is_source_enabled(&source.arguments.name) {
-                log::info!("Skipping disabled source: {}", source.arguments.name);
-                false
-            } else {
-                true
-            }
-        })
-        .collect();
-
-    // Sort by tier (ascending)
-    sources.sort_by_key(|s| s.arguments.tier.unwrap_or(1));
-
-    // 2. Prepare stream
     let limit = crate::api::config::get_max_concurrent_searches();
     let limit = if limit == 0 {
         usize::MAX
@@ -2003,19 +2034,11 @@ pub async fn generic_search_play_pages_stream(
 
 /// 获取所有已启用源的列表（用于初始化UI显示）
 pub async fn get_enabled_source_names() -> anyhow::Result<Vec<String>> {
-    let client = crate::api::network::get_shared_client().clone();
-    let content = load_playback_source_config(&client).await?;
-    let root: SampleRoot = serde_json::from_str(&content)?;
-    let root = detect_and_filter_root(root).await;
-
-    let names: Vec<String> = root
-        .exported_media_source_data_list
-        .media_sources
+    let sources = load_enabled_sources().await?;
+    let names: Vec<String> = sources
         .iter()
-        .filter(|s| crate::api::config::is_source_enabled(&s.arguments.name))
         .map(|s| s.arguments.name.clone())
         .collect();
-
     Ok(names)
 }
 
@@ -2030,45 +2053,48 @@ pub async fn generic_search_with_progress(
         anime_name,
         absolute_episode,
         relative_episode,
+        None,
         Vec::new(),
         sink,
     )
     .await
 }
 
+/// 搜索指定源，以流的形式返回详细进度
+///
+/// # 参数
+/// * `target_source_names` - 目标源名称列表。为 None 或空时搜索所有已启用源；
+///   非空时只搜索列表中列出的源，跳过不在列表中的源（不创建 skip 异步任务）。
+/// * `runtime_overrides` - 运行时覆盖，仅对列表中的源生效。
 pub async fn generic_search_with_progress_runtime(
     anime_name: String,
     absolute_episode: Option<u32>,
     relative_episode: Option<u32>,
+    target_source_names: Option<Vec<String>>,
     runtime_overrides: Vec<SourceRuntimeOverride>,
     sink: crate::frb_generated::StreamSink<SourceSearchProgress>,
 ) -> anyhow::Result<()> {
     let client = crate::api::network::get_shared_client().clone();
-    let content = load_playback_source_config(&client).await?;
-    let root: SampleRoot = serde_json::from_str(&content)?;
-    let root = detect_and_filter_root(root).await;
+
     let runtime_override_map: std::collections::HashMap<_, _> = runtime_overrides
         .into_iter()
         .map(|item| (item.source_name.clone(), item))
         .collect();
 
-    // 1. Filter enabled sources and sort by tier
-    let mut sources: Vec<_> = root
-        .exported_media_source_data_list
-        .media_sources
-        .into_iter()
-        .filter(|source| {
-            if !crate::api::config::is_source_enabled(&source.arguments.name) {
-                log::info!("Skipping disabled source: {}", source.arguments.name);
-                false
-            } else {
-                true
-            }
-        })
-        .collect();
+    let target_set: Option<std::collections::HashSet<_>> =
+        target_source_names.map(|names| names.into_iter().collect());
 
-    // Sort by tier (ascending)
-    sources.sort_by_key(|s| s.arguments.tier.unwrap_or(1));
+    // 1. Load enabled sources (with in-memory cache)
+    let mut sources = load_enabled_sources().await?;
+
+    // If target_source_names is specified, filter to only those sources
+    if let Some(ref ts) = target_set {
+        sources.retain(|source| ts.contains(&source.arguments.name));
+        log::info!(
+            "Filtered to {} target sources out of enabled sources",
+            sources.len()
+        );
+    }
 
     // 2. Prepare stream
     let limit = crate::api::config::get_max_concurrent_searches();
@@ -2089,7 +2115,6 @@ pub async fn generic_search_with_progress_runtime(
             async move {
                 let source_name = source.arguments.name.clone();
 
-                // 发送初始状态
                 sink.add(SourceSearchProgress {
                     source_name: source_name.clone(),
                     step: SearchStep::Searching,
@@ -2134,7 +2159,6 @@ pub async fn generic_search_with_progress_runtime(
                     return Ok(());
                 }
 
-                // 执行搜索并返回带进度的结果
                 search_single_source_with_progress(
                     &client,
                     &source,
@@ -4464,12 +4488,9 @@ pub async fn generic_search_with_channels(
     anime_name: String,
 ) -> anyhow::Result<Vec<SearchResultWithChannels>> {
     let client = crate::api::network::get_shared_client().clone();
-    let content = load_playback_source_config(&client).await?;
 
-    let root: SampleRoot = serde_json::from_str(&content)?;
-    let root = detect_and_filter_root(root).await;
+    let sources = load_enabled_sources().await?;
 
-    // 并发搜索所有源（每个源占用一个并发槽位）
     let limit = crate::api::config::get_max_concurrent_searches();
     let limit = if limit == 0 {
         usize::MAX
@@ -4479,21 +4500,16 @@ pub async fn generic_search_with_channels(
 
     use futures::stream::StreamExt;
 
-    let stream = futures::stream::iter(
-        root.exported_media_source_data_list
-            .media_sources
-            .into_iter()
-            .filter(|source| crate::api::config::is_source_enabled(&source.arguments.name)),
-    )
-    .map(|source| {
-        let client = client.clone();
-        let anime_name = anime_name.clone();
-        async move {
-            log::info!("Searching source with channels: {}", source.arguments.name);
-            search_single_source_with_channels(&client, &source, &anime_name).await
-        }
-    })
-    .buffer_unordered(limit);
+    let stream = futures::stream::iter(sources)
+        .map(|source| {
+            let client = client.clone();
+            let anime_name = anime_name.clone();
+            async move {
+                log::info!("Searching source with channels: {}", source.arguments.name);
+                search_single_source_with_channels(&client, &source, &anime_name).await
+            }
+        })
+        .buffer_unordered(limit);
 
     let all_results: Vec<_> = stream.collect().await;
 
@@ -4509,10 +4525,8 @@ pub async fn generic_search_with_channels_stream(
     sink: crate::frb_generated::StreamSink<SearchResultWithChannels>,
 ) -> anyhow::Result<()> {
     let client = crate::api::network::get_shared_client().clone();
-    let content = load_playback_source_config(&client).await?;
 
-    let root: SampleRoot = serde_json::from_str(&content)?;
-    let root = detect_and_filter_root(root).await;
+    let sources = load_enabled_sources().await?;
 
     let limit = crate::api::config::get_max_concurrent_searches();
     let limit = if limit == 0 {
@@ -4523,18 +4537,13 @@ pub async fn generic_search_with_channels_stream(
 
     use futures::stream::StreamExt;
 
-    let stream = futures::stream::iter(
-        root.exported_media_source_data_list
-            .media_sources
-            .into_iter()
-            .filter(|source| crate::api::config::is_source_enabled(&source.arguments.name)),
-    )
-    .map(|source| {
-        let client = client.clone();
-        let anime_name = anime_name.clone();
-        async move { search_single_source_with_channels(&client, &source, &anime_name).await }
-    })
-    .buffer_unordered(limit);
+    let stream = futures::stream::iter(sources)
+        .map(|source| {
+            let client = client.clone();
+            let anime_name = anime_name.clone();
+            async move { search_single_source_with_channels(&client, &source, &anime_name).await }
+        })
+        .buffer_unordered(limit);
 
     let mut stream = Box::pin(stream);
     while let Some(result) = stream.next().await {

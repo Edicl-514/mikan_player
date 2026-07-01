@@ -1242,35 +1242,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-  List<SourceRuntimeOverride> _buildSkipOverridesForSources(
-    Iterable<SourceState> sources, {
-    required String reason,
-  }) {
-    return sources
-        .map(
-          (source) => SourceRuntimeOverride(
-            sourceName: source.name,
-            skipSearchError: reason,
-          ),
-        )
-        .toList();
-  }
-
-  List<SourceRuntimeOverride> _buildSingleSourceRuntimeOverrides({
-    required List<SourceState> enabledSources,
-    required String targetSourceName,
-    required SourceRuntimeOverride targetOverride,
-  }) {
-    return enabledSources.map((source) {
-      if (source.name == targetSourceName) {
-        return targetOverride;
-      }
-      return SourceRuntimeOverride(
-        sourceName: source.name,
-        skipSearchError: 'Skipped for single-source retry',
-      );
-    }).toList();
-  }
 
   void _queueCaptchaPreflightTask({
     required String taskKey,
@@ -1807,6 +1778,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           animeName: searchName,
           absoluteEpisode: currentEpNumber,
           relativeEpisode: relativeEpNumber,
+          targetSourceNames: targetSources.toList(),
           runtimeOverrides: runtimeOverrides,
         ).listen(
           (progress) {
@@ -1875,23 +1847,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   void _startCaptchaSourceSearch({
     required SourceState source,
     required SourceRuntimeOverride runtimeOverride,
-    required List<SourceState> enabledSources,
     required String searchName,
     required int currentEpNumber,
     required int relativeEpNumber,
     required int loadToken,
   }) {
-    final runtimeOverrides = _buildSingleSourceRuntimeOverrides(
-      enabledSources: enabledSources,
-      targetSourceName: source.name,
-      targetOverride: runtimeOverride,
-    );
-
     _launchSearchStream(
       searchName: searchName,
       currentEpNumber: currentEpNumber,
       relativeEpNumber: relativeEpNumber,
-      runtimeOverrides: runtimeOverrides,
+      runtimeOverrides: [runtimeOverride],
       targetSources: {source.name},
       loadToken: loadToken,
       streamTag: 'captcha-${source.name}',
@@ -2102,16 +2067,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
 
       if (nonCaptchaSources.isNotEmpty) {
-        final runtimeOverrides = _buildSkipOverridesForSources(
-          captchaSources,
-          reason: '等待验证码预处理完成',
-        );
-
         _launchSearchStream(
           searchName: searchName,
           currentEpNumber: currentEpNumber,
           relativeEpNumber: relativeEpNumber,
-          runtimeOverrides: runtimeOverrides,
+          runtimeOverrides: [],
           targetSources: nonCaptchaSources.map((source) => source.name).toSet(),
           loadToken: loadToken,
           streamTag: 'non-captcha',
@@ -2134,7 +2094,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             _startCaptchaSourceSearch(
               source: source,
               runtimeOverride: runtimeOverride,
-              enabledSources: enabledSources,
               searchName: searchName,
               currentEpNumber: currentEpNumber,
               relativeEpNumber: relativeEpNumber,
