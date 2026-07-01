@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:mikan_player/ui/pages/player_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mikan_player/src/rust/api/simple.dart' as simple;
@@ -37,7 +38,7 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _concurrencyController.text =
-          (prefs.getInt('max_concurrent_webviews') ?? 3).toString();
+          (prefs.getInt('max_concurrent_webviews') ?? PlayerPage.kDefaultMaxConcurrentWebViews).toString();
       _intervalController.text =
           (prefs.getInt('webview_launch_interval') ?? 200).toString();
       _searchConcurrencyController.text =
@@ -49,7 +50,7 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
 
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    final concurrency = int.tryParse(_concurrencyController.text) ?? 1;
+    final concurrency = int.tryParse(_concurrencyController.text) ?? PlayerPage.kDefaultMaxConcurrentWebViews;
     final interval = int.tryParse(_intervalController.text) ?? 200;
     final searchConcurrency =
         int.tryParse(_searchConcurrencyController.text) ?? 3;

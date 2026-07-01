@@ -61,6 +61,8 @@ class _CaptchaPreflightTask {
 }
 
 class PlayerPage extends StatefulWidget {
+  static const int kDefaultMaxConcurrentWebViews = 3;
+
   final AnimeInfo anime;
   final BangumiEpisode currentEpisode;
   final List<BangumiEpisode> allEpisodes;
@@ -141,8 +143,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   final List<StreamSubscription<SourceSearchProgress>> _searchSubscriptions =
       <StreamSubscription<SourceSearchProgress>>[];
   int _maxConcurrentWebViews =
-      3; // 最大并发WebView数量 (Reduced from 3 to prevent lag)
-  int _webViewLaunchInterval = 200; // WebView启动间隔 (毫秒)
+      PlayerPage.kDefaultMaxConcurrentWebViews;
+  int _webViewLaunchInterval = 200;
   int _sampleLoadToken = 0;
   bool _webViewPoolPumpScheduled = false;
   bool _showWebView = false; // 是否显示 WebView（调试用）
@@ -548,7 +550,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         setState(() {
           _isAutoPlayNextEnabled = prefs.getBool('auto_play_next') ?? true;
           _autoSearchOnline = prefs.getBool('auto_search_online') ?? true;
-          _maxConcurrentWebViews = prefs.getInt('max_concurrent_webviews') ?? 1;
+          _maxConcurrentWebViews = prefs.getInt('max_concurrent_webviews') ?? PlayerPage.kDefaultMaxConcurrentWebViews;
           _webViewLaunchInterval =
               prefs.getInt('webview_launch_interval') ?? 200;
           _playbackSpeed = savedPlaybackSpeed;
@@ -1442,60 +1444,133 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return true;
   }
 
-  void _scheduleWebViewPoolPump() {
+  bool _pumpWebViewPoolNow() {
+    var startedAny = false;
+    while (_activeWebViewTaskCount < _maxConcurrentWebViews) {
+      final slotsRemaining =
+          _maxConcurrentWebViews - _activeWebViewTaskCount;
+      final hasPendingExtraction = _hasPendingWebViewExtractionTasks();
+      final hasActiveExtraction = _activeWebViews.isNotEmpty;
+
+      final canStartCaptcha = !hasPendingExtraction ||
+          hasActiveExtraction ||
+          slotsRemaining > 1;
+
+      if (canStartCaptcha && _startOneCaptchaTask()) {
+        startedAny = true;
+        continue;
+      }
+      if (_startOneWebViewExtractionTask()) {
+        startedAny = true;
+        continue;
+      }
+      break;
+    }
+    return startedAny;
+  }
+
+  void _updatePoolStatusMessage() {
+    final completedCount = _sourceProgressMap.values
+        .where((p) => _isSearchStepFinished(p.step))
+        .length;
+    _sampleStatusMessageNotifier.value =
+        '搜索进度: $completedCount/${_enabledSourceNames.length}，'
+        '验证码进行中 ${_activeCaptchaTasks.length}，'
+        '提取并发 ${_activeWebViews.length}/$_maxConcurrentWebViews';
+  }
+
+  void _scheduleWebViewPoolPump({bool immediate = false}) {
     if (!mounted || _webViewPoolPumpScheduled) {
       return;
     }
 
+    if (immediate) {
+      final startedAny = _pumpWebViewPoolNow();
+      if (startedAny && mounted) {
+        setState(() {});
+        _updatePoolStatusMessage();
+      }
+      _maybeFinishSampleSearch();
+      return;
+    }
+
     _webViewPoolPumpScheduled = true;
-    Future.delayed(Duration(milliseconds: _webViewLaunchInterval), () {
-      _webViewPoolPumpScheduled = false;
-      if (!mounted) {
-        return;
+    // Stagger WebView creation: start one immediately, then chain the rest
+    // with small intervals between consecutive launches.
+    _pumpWebViewPoolStaggered();
+  }
+
+  Future<void> _pumpWebViewPoolStaggered() async {
+    var startedAny = false;
+    var isFirst = true;
+
+    while (_activeWebViewTaskCount < _maxConcurrentWebViews) {
+      if (!mounted) break;
+
+      // Only delay between consecutive launches, not before the first one
+      if (!isFirst && _webViewLaunchInterval > 0) {
+        await Future.delayed(
+          Duration(milliseconds: _webViewLaunchInterval),
+        );
+        if (!mounted) break;
+      }
+      isFirst = false;
+
+      final slotsRemaining =
+          _maxConcurrentWebViews - _activeWebViewTaskCount;
+      final hasPendingExtraction = _hasPendingWebViewExtractionTasks();
+      final hasActiveExtraction = _activeWebViews.isNotEmpty;
+
+      final canStartCaptcha = !hasPendingExtraction ||
+          hasActiveExtraction ||
+          slotsRemaining > 1;
+
+      var didStart = false;
+      if (canStartCaptcha && _startOneCaptchaTask()) {
+        didStart = true;
+      } else if (_startOneWebViewExtractionTask()) {
+        didStart = true;
       }
 
-      var startedAny = false;
-      while (_activeWebViewTaskCount < _maxConcurrentWebViews) {
-        if (_startOneCaptchaTask()) {
-          startedAny = true;
-          continue;
+      if (didStart) {
+        startedAny = true;
+        if (mounted) {
+          setState(() {});
         }
-        if (_startOneWebViewExtractionTask()) {
-          startedAny = true;
-          continue;
-        }
+      } else {
         break;
       }
+    }
 
-      if (startedAny && mounted) {
-        final completedCount = _sourceProgressMap.values
-            .where((p) => _isSearchStepFinished(p.step))
-            .length;
-        _sampleStatusMessageNotifier.value =
-            '搜索进度: $completedCount/${_enabledSourceNames.length}，'
-            '验证码进行中 ${_activeCaptchaTasks.length}，'
-            '提取并发 ${_activeWebViews.length}/$_maxConcurrentWebViews';
-      }
+    _webViewPoolPumpScheduled = false;
 
+    if (startedAny && mounted) {
+      _updatePoolStatusMessage();
+    }
+    if (mounted) {
       _maybeFinishSampleSearch();
-    });
+    }
   }
 
   void _onCaptchaPreflightResult(String taskKey, CaptchaBypassResult result) {
     final task = _activeCaptchaTasks.remove(taskKey);
     _webViewStatus.remove(taskKey);
+
     if (task == null) {
-      _scheduleWebViewPoolPump();
+      if (mounted) setState(() {});
+      _scheduleWebViewPoolPump(immediate: true);
       return;
     }
 
     if (!mounted || task.loadToken != _sampleLoadToken) {
-      _scheduleWebViewPoolPump();
+      if (mounted) setState(() {});
+      _scheduleWebViewPoolPump(immediate: true);
       return;
     }
 
     task.onResult(task, result);
-    _scheduleWebViewPoolPump();
+    if (mounted) setState(() {});
+    _scheduleWebViewPoolPump(immediate: true);
     _maybeFinishSampleSearch();
   }
 
@@ -1693,7 +1768,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           final tierB = _sourceTiers[b.sourceName] ?? 999;
           return tierA.compareTo(tierB);
         });
-        _scheduleWebViewPoolPump();
+        _scheduleWebViewPoolPump(immediate: true);
       }
     }
 
@@ -1750,7 +1825,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               );
             });
 
-            _scheduleWebViewPoolPump();
+            _scheduleWebViewPoolPump(immediate: true);
             _maybeFinishSampleSearch();
           },
           onError: (error, _) {
@@ -2568,7 +2643,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 启动下一个WebView提取任务
   /// 启动下一个WebView提取任务
   void _startNextWebViewExtraction() {
-    _scheduleWebViewPoolPump();
+    _scheduleWebViewPoolPump(immediate: true);
   }
 
   @override
