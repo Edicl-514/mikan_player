@@ -150,6 +150,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   int _webViewLaunchInterval = 200;
   int _sampleLoadToken = 0;
   bool _webViewPoolPumpScheduled = false;
+  int _webViewPumpToken = 0;
   bool _showWebView = false; // 是否显示 WebView（调试用）
 
   // Auto Play Logic
@@ -1455,11 +1456,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _scheduleWebViewPoolPump({bool immediate = false}) {
-    if (!mounted || _webViewPoolPumpScheduled) {
-      return;
-    }
+    if (!mounted) return;
 
     if (immediate) {
+      if (_webViewPoolPumpScheduled) {
+        _webViewPumpToken++;
+        _webViewPoolPumpScheduled = false;
+      }
       final startedAny = _pumpWebViewPoolNow();
       if (startedAny && mounted) {
         setState(() {});
@@ -1469,25 +1472,25 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return;
     }
 
+    if (_webViewPoolPumpScheduled) return;
+
     _webViewPoolPumpScheduled = true;
-    // Stagger WebView creation: start one immediately, then chain the rest
-    // with small intervals between consecutive launches.
-    _pumpWebViewPoolStaggered();
+    _webViewPumpToken++;
+    _pumpWebViewPoolStaggered(_webViewPumpToken);
   }
 
-  Future<void> _pumpWebViewPoolStaggered() async {
+  Future<void> _pumpWebViewPoolStaggered(int token) async {
     var startedAny = false;
     var isFirst = true;
 
     while (_activeWebViewTaskCount < _maxConcurrentWebViews) {
-      if (!mounted) break;
+      if (!mounted || token != _webViewPumpToken) break;
 
-      // Only delay between consecutive launches, not before the first one
       if (!isFirst && _webViewLaunchInterval > 0) {
         await Future.delayed(
           Duration(milliseconds: _webViewLaunchInterval),
         );
-        if (!mounted) break;
+        if (!mounted || token != _webViewPumpToken) break;
       }
       isFirst = false;
 
@@ -1517,7 +1520,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
     }
 
-    _webViewPoolPumpScheduled = false;
+    if (token == _webViewPumpToken) {
+      _webViewPoolPumpScheduled = false;
+    }
 
     if (startedAny && mounted) {
       _updatePoolStatusMessage();
@@ -1977,6 +1982,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _sourceTiers = {};
       _hasAutoPlayed = false;
       _webViewPoolPumpScheduled = false;
+      _webViewPumpToken++;
       _clearPlaybackStartupWatchdog();
     });
     _publishPlayerControlSourceState();
@@ -2373,7 +2379,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     final hasAnyCaptchaContext = cookies != null ||
         searchPageHtml != null ||
-        detailPageHtml != null;
+        searchPageUrl != null ||
+        detailPageHtml != null ||
+        detailPageUrl != null;
     final runtimeOverride = hasAnyCaptchaContext
         ? SourceRuntimeOverride(
             sourceName: sourceName,
@@ -3770,6 +3778,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _sourceTiers = {};
       _hasAutoPlayed = false;
       _webViewPoolPumpScheduled = false;
+      _webViewPumpToken++;
 
       // Reset comments
       _comments = [];

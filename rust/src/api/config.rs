@@ -323,9 +323,12 @@ pub fn set_download_dir(dir: String) {
 }
 
 pub fn set_disabled_sources(sources: Vec<String>) {
-    let mut config = CONFIG.write().unwrap();
-    config.disabled_sources = sources;
-    log::info!("Disabled sources updated: {:?}", config.disabled_sources);
+    {
+        let mut config = CONFIG.write().unwrap();
+        config.disabled_sources = sources;
+        log::info!("Disabled sources updated: {:?}", config.disabled_sources);
+    }
+    crate::api::generic_scraper::invalidate_source_config_cache();
 }
 
 pub fn is_source_enabled(name: &str) -> bool {
