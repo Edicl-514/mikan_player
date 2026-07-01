@@ -232,7 +232,8 @@ class _WebViewVideoExtractorWidgetState
   Timer? _timeoutTimer;
   bool _isCompleted = false;
   int _totalUrlsChecked = 0;
-  int _navigationCount = 0; // 记录主动导航到解析接口的次数
+  int _navigationCount = 0;
+  final List<({String name, String domain, String path})> _cookiesWrittenToJar = [];
 
   @override
   void initState() {
@@ -292,6 +293,54 @@ class _WebViewVideoExtractorWidgetState
       normalized.putIfAbsent('Cookie', () => cookies);
     }
     return normalized;
+  }
+
+  Future<void> _setTaskCookiesInCookieManager() async {
+    final cookies = widget.cookies?.trim();
+    if (cookies == null || cookies.isEmpty) return;
+    final uri = Uri.tryParse(widget.url);
+    if (uri == null || uri.host.isEmpty) return;
+    try {
+      final cookieManager = CookieManager();
+      for (final part in cookies.split(';')) {
+        final trimmed = part.trim();
+        if (trimmed.isEmpty) continue;
+        final eqIndex = trimmed.indexOf('=');
+        if (eqIndex < 0) continue;
+        final name = trimmed.substring(0, eqIndex).trim();
+        final value = trimmed.substring(eqIndex + 1).trim();
+        if (name.isEmpty) continue;
+        cookieManager.setCookie(
+          url: WebUri('${uri.scheme}://${uri.host}'),
+          name: name,
+          value: value,
+          domain: uri.host,
+          path: '/',
+        );
+        _cookiesWrittenToJar.add((name: name, domain: uri.host, path: '/'));
+      }
+    } catch (e) {
+      _log('Failed to set cookies in CookieManager: $e');
+    }
+  }
+
+  Future<void> _clearTaskCookiesFromCookieManager() async {
+    if (_cookiesWrittenToJar.isEmpty) return;
+    try {
+      final cookieManager = CookieManager();
+      for (final entry in _cookiesWrittenToJar) {
+        await cookieManager.deleteCookie(
+          url: WebUri('https://${entry.domain}'),
+          name: entry.name,
+          domain: entry.domain,
+          path: entry.path,
+        );
+      }
+      _log('Cleared ${_cookiesWrittenToJar.length} task cookies from CookieManager');
+      _cookiesWrittenToJar.clear();
+    } catch (e) {
+      _log('Failed to clear task cookies from CookieManager: $e');
+    }
   }
 
   bool _shouldSkipParserNavigation() {
@@ -586,6 +635,7 @@ class _WebViewVideoExtractorWidgetState
   @override
   void dispose() {
     _timeoutTimer?.cancel();
+    unawaited(_clearTaskCookiesFromCookieManager());
     super.dispose();
   }
 
@@ -618,10 +668,10 @@ class _WebViewVideoExtractorWidgetState
             configuredUserAgent ??
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       ),
-      onWebViewCreated: (controller) {
+      onWebViewCreated: (controller) async {
         _webViewController = controller;
         _log('WebView 创建完成，开始加载: ${widget.url}');
-        // 立即注入JS来静音所有媒体元素
+        await _setTaskCookiesInCookieManager();
         _injectMuteScript(controller);
       },
       onLoadStart: (controller, url) {

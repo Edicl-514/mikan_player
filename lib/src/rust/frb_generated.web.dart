@@ -155,6 +155,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SourceConfigUpdate dco_decode_box_autoadd_source_config_update(dynamic raw);
 
   @protected
+  SourceRuntimeOverride dco_decode_box_autoadd_source_runtime_override(
+    dynamic raw,
+  );
+
+  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
@@ -373,6 +378,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  SourceRuntimeOverride? dco_decode_opt_box_autoadd_source_runtime_override(
+    dynamic raw,
+  );
+
+  @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
 
   @protected
@@ -586,6 +596,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SourceConfigUpdate sse_decode_box_autoadd_source_config_update(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SourceRuntimeOverride sse_decode_box_autoadd_source_runtime_override(
     SseDeserializer deserializer,
   );
 
@@ -856,6 +871,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  SourceRuntimeOverride? sse_decode_opt_box_autoadd_source_runtime_override(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
@@ -1120,6 +1140,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_source_config_update(
     SourceConfigUpdate self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_source_runtime_override(
+    SourceRuntimeOverride self,
     SseSerializer serializer,
   );
 
@@ -1457,6 +1483,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_mikan_search_result(
     MikanSearchResult? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_source_runtime_override(
+    SourceRuntimeOverride? self,
     SseSerializer serializer,
   );
 

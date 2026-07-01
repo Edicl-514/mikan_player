@@ -11,6 +11,7 @@ import 'package:mikan_player/src/rust/api/config.dart' as rust_config;
 import 'package:mikan_player/src/rust/api/generic_scraper.dart'
     as generic_scraper;
 import 'package:mikan_player/utils/feature_flags.dart';
+import 'package:mikan_player/utils/source_channel_key.dart';
 
 class SubscriptionDebugPage extends StatefulWidget {
   const SubscriptionDebugPage({super.key});
@@ -48,7 +49,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
   Map<String, String> _extractHeaders = const {};
 
   String _buildSourceChannelKey(String sourceName, BigInt? channelIndex) {
-    return '${sourceName}_${channelIndex ?? BigInt.from(-1)}';
+    return SourceChannelKey(sourceName: sourceName, channelIndex: channelIndex).toPageKey();
   }
 
   Map<String, String> _buildProbeHeaders(

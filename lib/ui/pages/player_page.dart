@@ -28,6 +28,7 @@ import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_data_service.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
+import 'package:mikan_player/utils/source_channel_key.dart';
 import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
 import 'package:mikan_player/ui/widgets/site_icon_map.dart';
 
@@ -42,6 +43,7 @@ class _CaptchaPreflightTask {
   final String? searchKeyword;
   final String? initialUrl;
   final String? referer;
+  final String? initialCookies;
   final CaptchaConfig captchaConfig;
   final int loadToken;
   final void Function(_CaptchaPreflightTask task, CaptchaBypassResult result)
@@ -54,6 +56,7 @@ class _CaptchaPreflightTask {
     this.searchKeyword,
     this.initialUrl,
     this.referer,
+    this.initialCookies,
     required this.captchaConfig,
     required this.loadToken,
     required this.onResult,
@@ -159,6 +162,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   // 每个源的搜索进度状态
   Map<String, SourceSearchProgress> _sourceProgressMap = {};
+  Map<String, SourceRuntimeOverride> _captchaRuntimeOverrides = {};
   List<String> _enabledSourceNames = []; // 所有已启用的源名称
 
   // Active Source
@@ -1250,6 +1254,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     String? searchKeyword,
     String? initialUrl,
     String? referer,
+    String? initialCookies,
     required int loadToken,
     required void Function(
       _CaptchaPreflightTask task,
@@ -1277,6 +1282,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         searchKeyword: searchKeyword,
         initialUrl: initialUrl,
         referer: referer,
+        initialCookies: initialCookies,
         captchaConfig: captchaConfig,
         loadToken: loadToken,
         onResult: onResult,
@@ -1338,9 +1344,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   String _sourceNameFromPageKey(String pageKey) {
-    final parts = pageKey.split('_');
-    if (parts.length <= 1) return pageKey;
-    return parts.sublist(0, parts.length - 1).join('_');
+    return SourceChannelKey.fromPageKey(pageKey).sourceName;
   }
 
   List<SearchPlayResult> _collectPendingWebViewExtractionTasks() {
@@ -1568,6 +1572,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         );
       });
     } else {
+      _captchaRuntimeOverrides[sourceName] = runtimeOverride;
       setState(() {
         _sourceProgressMap[sourceName] = SourceSearchProgress(
           sourceName: sourceName,
@@ -1634,6 +1639,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               i == 0 || selectedChannelIndex == channel.index;
 
           if (!isSelectedChannel) {
+            final savedOverride = _captchaRuntimeOverrides[progress.sourceName];
             unawaited(
               _resolveChannelPlayPageUrl(
                 sourceName: progress.sourceName,
@@ -1642,8 +1648,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 episodeNumber: currentEpNumber,
                 channelName: channel.name,
                 videoRegex: progress.videoRegex ?? '',
-                cookies: progress.cookies,
+                cookies: progress.cookies ?? savedOverride?.cookies,
                 headers: progress.headers,
+                searchPageHtml: savedOverride?.searchPageHtml,
+                searchPageUrl: savedOverride?.searchPageUrl,
+                detailPageHtml: savedOverride?.detailPageHtml,
+                detailPageUrl: savedOverride?.detailPageUrl,
               ),
             );
             continue;
@@ -1962,6 +1972,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _resolvingChannelPlayPageKeys.clear();
       _sampleStatusMessageNotifier.value = '正在获取播放源列表...';
       _sourceProgressMap = {};
+      _captchaRuntimeOverrides = {};
       _enabledSourceNames = [];
       _sourceTiers = {};
       _hasAutoPlayed = false;
@@ -2117,7 +2128,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   String _buildSourceChannelKey(String sourceName, BigInt? channelIndex) {
-    return '${sourceName}_${channelIndex ?? BigInt.from(-1)}';
+    return SourceChannelKey(sourceName: sourceName, channelIndex: channelIndex).toPageKey();
   }
 
   Map<String, String> _buildPlaybackHeaders(SearchPlayResult source) {
@@ -2350,11 +2361,29 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     required String videoRegex,
     String? cookies,
     Map<String, String>? headers,
+    String? searchPageHtml,
+    String? searchPageUrl,
+    String? detailPageHtml,
+    String? detailPageUrl,
   }) async {
     final pageKey = _buildSourceChannelKey(sourceName, channelIndex);
     if (_resolvingChannelPlayPageKeys.contains(pageKey)) {
       return;
     }
+
+    final hasAnyCaptchaContext = cookies != null ||
+        searchPageHtml != null ||
+        detailPageHtml != null;
+    final runtimeOverride = hasAnyCaptchaContext
+        ? SourceRuntimeOverride(
+            sourceName: sourceName,
+            cookies: cookies,
+            searchPageHtml: searchPageHtml,
+            searchPageUrl: searchPageUrl,
+            detailPageHtml: detailPageHtml,
+            detailPageUrl: detailPageUrl,
+          )
+        : null;
 
     _resolvingChannelPlayPageKeys.add(pageKey);
     try {
@@ -2363,6 +2392,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         animeName: animeName,
         channelIndex: channelIndex,
         episodeNumber: episodeNumber,
+        runtimeOverride: runtimeOverride,
       );
 
       if (!mounted) {
@@ -2505,84 +2535,78 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
 
       if (result.success) {
-        // 从pageKey解析出sourceName和channelIndex
-        final parts = pageKey.split('_');
-        if (parts.length >= 2) {
-          final sourceName = parts.sublist(0, parts.length - 1).join('_');
-          final channelIndexStr = parts.last;
-          final channelIndex = channelIndexStr == '-1'
-              ? null
-              : int.tryParse(channelIndexStr);
+        final key = SourceChannelKey.fromPageKey(pageKey);
+        final sourceName = key.sourceName;
+        final channelIndex = key.channelIndex?.toInt();
 
-          // 找到对应的播放页并更新
-          final pageIndex = _samplePlayPages.indexWhere((p) {
-            final pIdx = p.channelIndex?.toInt();
-            return p.sourceName == sourceName && (pIdx == channelIndex);
-          });
+        // 找到对应的播放页并更新
+        final pageIndex = _samplePlayPages.indexWhere((p) {
+          final pIdx = p.channelIndex?.toInt();
+          return p.sourceName == sourceName && (pIdx == channelIndex);
+        });
 
+        debugPrint(
+          '[_onWebViewResult] resolved pageIndex=$pageIndex for sourceName=$sourceName channelIndex=$channelIndex',
+        );
+
+        if (pageIndex >= 0) {
+          final page = _samplePlayPages[pageIndex];
           debugPrint(
-            '[_onWebViewResult] resolved pageIndex=$pageIndex for sourceName=$sourceName channelIndex=$channelIndex',
+            '[_onWebViewResult] matched page: playPageUrl=${page.playPageUrl} channelName=${page.channelName}',
           );
 
-          if (pageIndex >= 0) {
-            final page = _samplePlayPages[pageIndex];
+          final resultHeaders = <String, String>{};
+          if (page.headers != null) resultHeaders.addAll(page.headers!);
+          resultHeaders.addAll(result.headers);
+
+          debugPrint(
+            '[_onWebViewResult] Captured headers: ${resultHeaders.keys.join(", ")}',
+          );
+
+          final updatedPage = SearchPlayResult(
+            sourceName: page.sourceName,
+            playPageUrl: page.playPageUrl,
+            videoRegex: page.videoRegex,
+            directVideoUrl: result.videoUrl,
+            cookies: page.cookies,
+            headers: resultHeaders,
+            channelName: page.channelName,
+            channelIndex: page.channelIndex,
+            enableNestedUrl: page.enableNestedUrl,
+            matchNestedUrl: page.matchNestedUrl,
+          );
+
+          unawaited(
+            _probeAndRegisterPlayableSource(
+              updatedPage,
+              autoPlayAfterProbe: true,
+            ),
+          );
+
+          // 如果这是第一个成功提取且没有其他源在播放
+          debugPrint(
+            '[_onWebViewResult] _sampleVideoUrl currently=$_sampleVideoUrl',
+          );
+        } else {
+          debugPrint(
+            '[_onWebViewResult] No matching page found for pageKey=$pageKey',
+          );
+          // 打印当前的 sample play pages 简要信息，帮助调试匹配失败原因
+          try {
+            final summary = _samplePlayPages
+                .map(
+                  (p) =>
+                      '${p.sourceName}#${p.channelIndex ?? -1}:${p.playPageUrl}',
+                )
+                .take(20)
+                .join(' | ');
             debugPrint(
-              '[_onWebViewResult] matched page: playPageUrl=${page.playPageUrl} channelName=${page.channelName}',
+              '[_onWebViewResult] _samplePlayPages summary: $summary',
             );
-
-            final resultHeaders = <String, String>{};
-            if (page.headers != null) resultHeaders.addAll(page.headers!);
-            resultHeaders.addAll(result.headers);
-
+          } catch (e) {
             debugPrint(
-              '[_onWebViewResult] Captured headers: ${resultHeaders.keys.join(", ")}',
+              '[_onWebViewResult] Failed to summarize _samplePlayPages: $e',
             );
-
-            final updatedPage = SearchPlayResult(
-              sourceName: page.sourceName,
-              playPageUrl: page.playPageUrl,
-              videoRegex: page.videoRegex,
-              directVideoUrl: result.videoUrl,
-              cookies: page.cookies,
-              headers: resultHeaders,
-              channelName: page.channelName,
-              channelIndex: page.channelIndex,
-              enableNestedUrl: page.enableNestedUrl,
-              matchNestedUrl: page.matchNestedUrl,
-            );
-
-            unawaited(
-              _probeAndRegisterPlayableSource(
-                updatedPage,
-                autoPlayAfterProbe: true,
-              ),
-            );
-
-            // 如果这是第一个成功提取且没有其他源在播放
-            debugPrint(
-              '[_onWebViewResult] _sampleVideoUrl currently=$_sampleVideoUrl',
-            );
-          } else {
-            debugPrint(
-              '[_onWebViewResult] No matching page found for pageKey=$pageKey',
-            );
-            // 打印当前的 sample play pages 简要信息，帮助调试匹配失败原因
-            try {
-              final summary = _samplePlayPages
-                  .map(
-                    (p) =>
-                        '${p.sourceName}#${p.channelIndex ?? -1}:${p.playPageUrl}',
-                  )
-                  .take(20)
-                  .join(' | ');
-              debugPrint(
-                '[_onWebViewResult] _samplePlayPages summary: $summary',
-              );
-            } catch (e) {
-              debugPrint(
-                '[_onWebViewResult] Failed to summarize _samplePlayPages: $e',
-              );
-            }
           }
         }
       }
@@ -3741,6 +3765,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _resolvingChannelPlayPageKeys.clear();
       _sampleStatusMessageNotifier.value = '';
       _sourceProgressMap = {};
+      _captchaRuntimeOverrides = {};
       _enabledSourceNames = [];
       _sourceTiers = {};
       _hasAutoPlayed = false;
@@ -4639,13 +4664,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 }),
                 // 显示所有活动视频提取任务的状态
                 ..._activeWebViews.keys.map((pageKey) {
-                  // 从pageKey解析出sourceName和channelIndex
-                  final sourceName = _sourceNameFromPageKey(pageKey);
-                  final parts = pageKey.split('_');
-                  final channelIndexStr = parts.isNotEmpty ? parts.last : '-1';
-                  final channelIndex = channelIndexStr == '-1'
-                      ? null
-                      : int.tryParse(channelIndexStr);
+                  final key = SourceChannelKey.fromPageKey(pageKey);
+                  final sourceName = key.sourceName;
+                  final channelIndex = key.channelIndex?.toInt();
 
                   SearchPlayResult? page;
                   for (final item in _samplePlayPages) {
@@ -5131,15 +5152,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     // 构建活动的视频提取 WebView
     for (final pageKey in _activeWebViews.keys) {
-      // 从pageKey解析出sourceName和channelIndex
-      final parts = pageKey.split('_');
-      final sourceName = parts.length > 1
-          ? parts.sublist(0, parts.length - 1).join('_')
-          : pageKey;
-      final channelIndexStr = parts.isNotEmpty ? parts.last : '-1';
-      final channelIndex = channelIndexStr == '-1'
-          ? null
-          : int.tryParse(channelIndexStr);
+      final key = SourceChannelKey.fromPageKey(pageKey);
+      final sourceName = key.sourceName;
+      final channelIndex = key.channelIndex?.toInt();
 
       SearchPlayResult? matchedPage;
       for (final page in _samplePlayPages) {
@@ -5184,6 +5199,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           searchKeyword: task.searchKeyword,
           initialUrl: task.initialUrl,
           referer: task.referer,
+          initialCookies: task.initialCookies,
           captchaConfig: task.captchaConfig,
           timeout: const Duration(seconds: 45),
           onResult: (result) => _onCaptchaPreflightResult(task.taskKey, result),

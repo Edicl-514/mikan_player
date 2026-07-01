@@ -723,6 +723,147 @@ fn calculate_match_score(title: &str, full_name: &str, core_name: &str) -> i32 {
     weighted_score as i32
 }
 
+const MATCH_THRESHOLD: i32 = 36;
+
+#[derive(Clone)]
+struct SubjectCandidate {
+    title: String,
+    url: String,
+    score: i32,
+}
+
+struct SubjectSelectionResult {
+    best: Option<SubjectCandidate>,
+    all_scored: Vec<(String, i32, String)>,
+}
+
+fn select_best_subject_candidate(
+    document: &Html,
+    source: &MediaSource,
+    query_name: &str,
+    core_name: &str,
+) -> SubjectSelectionResult {
+    let format_id = source
+        .arguments
+        .search_config
+        .subject_format_id
+        .as_deref()
+        .unwrap_or("indexed");
+
+    let mut all_scored: Vec<(String, i32, String)> = Vec::new();
+    let mut best: Option<SubjectCandidate> = None;
+    let mut best_score = 0;
+
+    if format_id == "a" {
+        if let Some(ref format) = source.arguments.search_config.selector_subject_format_a {
+            if let Ok(list_sel) = Selector::parse(&format.select_lists) {
+                for link_el in document.select(&list_sel) {
+                    let title = link_el.text().collect::<String>().trim().to_string();
+                    let href = link_el.value().attr("href").unwrap_or("").to_string();
+                    let score = calculate_match_score(&title, query_name, core_name);
+                    all_scored.push((title.clone(), score, href.clone()));
+                    if score > best_score && score >= MATCH_THRESHOLD {
+                        best_score = score;
+                        best = Some(SubjectCandidate { title, url: href, score });
+                    }
+                }
+            }
+        }
+    } else {
+        if let Some(ref format) = source
+            .arguments
+            .search_config
+            .selector_subject_format_indexed
+        {
+            if let (Ok(name_sel), Ok(link_sel)) = (
+                Selector::parse(&format.select_names),
+                Selector::parse(&format.select_links),
+            ) {
+                let names: Vec<_> = document.select(&name_sel).collect();
+                let links: Vec<_> = document.select(&link_sel).collect();
+                for (name_el, link_el) in names.iter().zip(links.iter()) {
+                    let title = name_el.text().collect::<String>().trim().to_string();
+                    let href = link_el.value().attr("href").unwrap_or("").to_string();
+                    let score = calculate_match_score(&title, query_name, core_name);
+                    all_scored.push((title.clone(), score, href.clone()));
+                    if score > best_score && score >= MATCH_THRESHOLD {
+                        best_score = score;
+                        best = Some(SubjectCandidate { title, url: href, score });
+                    }
+                }
+            }
+        }
+    }
+
+    SubjectSelectionResult { best, all_scored }
+}
+
+fn log_subject_selection(
+    source_name: &str,
+    format_id: &str,
+    query_name: &str,
+    core_name: &str,
+    result: &SubjectSelectionResult,
+) {
+    let all_results = &result.all_scored;
+    log::info!(
+        "[{}] === 搜索结果列表 (Format {}) ===",
+        source_name,
+        if format_id == "a" { "A" } else { "Indexed" }
+    );
+    log::info!(
+        "[{}] 目标: '{}' | 核心名: '{}'",
+        source_name,
+        query_name,
+        core_name
+    );
+    log::info!("[{}] 总共找到 {} 个结果", source_name, all_results.len());
+
+    for (i, (title, score, href)) in all_results.iter().enumerate() {
+        log::info!(
+            "[{}] 结果 #{}: '{}' | 分数: {} | URL: {}",
+            source_name,
+            i + 1,
+            title,
+            score,
+            if href.len() > 100 {
+                format!("{}...", &href[..100])
+            } else {
+                href.clone()
+            }
+        );
+    }
+
+    if !all_results.is_empty() {
+        let top_matches: Vec<_> = all_results
+            .iter()
+            .filter(|(_, score, _)| *score >= MATCH_THRESHOLD)
+            .collect();
+        if !top_matches.is_empty() {
+            log::info!("[{}] ✓ 符合条件的结果 (分数≥{}):", source_name, MATCH_THRESHOLD);
+            for (title, score, _) in top_matches {
+                log::info!("[{}]   - '{}' (分数: {})", source_name, title, score);
+            }
+        } else {
+            log::warn!(
+                "[{}] ✗ 没有符合条件的结果 (所有结果分数都<{})",
+                source_name,
+                MATCH_THRESHOLD
+            );
+            if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max() {
+                log::warn!("[{}] 最高分: {}", source_name, max_score);
+            }
+        }
+        if result.best.is_some() {
+            log::info!(
+                "[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})",
+                source_name,
+                result.best.as_ref().unwrap().score
+            );
+        }
+    }
+}
+
 /// 从集数列表中选择指定集号的链接
 /// absolute_ep: 绝对集号（如第15集）
 /// relative_ep: 相对集号（如当季第3集）
@@ -2639,13 +2780,8 @@ async fn search_single_source_with_progress(
             }
         };
 
-        // 解析搜索结果
         let current_detail_url = {
             let document = Html::parse_document(&resp_text);
-            let mut found_url = String::new();
-            let mut best_match_score = 0;
-
-            // 根据 subjectFormatId 选择使用哪个 selector
             let format_id = source
                 .arguments
                 .search_config
@@ -2653,196 +2789,24 @@ async fn search_single_source_with_progress(
                 .as_deref()
                 .unwrap_or("indexed");
 
-            if format_id == "a" {
-                // 使用 selectorSubjectFormatA
-                if let Some(ref format) = source.arguments.search_config.selector_subject_format_a {
-                    if let Ok(list_sel) = Selector::parse(&format.select_lists) {
-                        let links: Vec<_> = document.select(&list_sel).collect();
-                        let mut all_results = Vec::new();
+            let sel_result = select_best_subject_candidate(
+                &document,
+                source,
+                query_name,
+                &core_name,
+            );
+            log_subject_selection(
+                &source_name,
+                format_id,
+                query_name,
+                &core_name,
+                &sel_result,
+            );
 
-                        log::info!("[{}] === 搜索结果列表 (Format A) ===", source_name);
-                        log::info!(
-                            "[{}] 目标: '{}' | 核心名: '{}'",
-                            source_name,
-                            query_name,
-                            core_name
-                        );
-                        log::info!("[{}] 总共找到 {} 个结果", source_name, links.len());
-
-                        for link_el in links.iter() {
-                            let title = link_el.text().collect::<String>().trim().to_string();
-                            let href = link_el.value().attr("href").unwrap_or("").to_string();
-
-                            let score = calculate_match_score(&title, query_name, &core_name);
-                            all_results.push((title.clone(), score, href.clone()));
-
-                            log::info!(
-                                "[{}] 结果 #{}: '{}' | 分数: {} | URL: {}",
-                                source_name,
-                                all_results.len(),
-                                title,
-                                score,
-                                if href.len() > 100 {
-                                    format!("{}...", &href[..100])
-                                } else {
-                                    href.clone()
-                                }
-                            );
-
-                            if score > best_match_score && score >= 36 {
-                                best_match_score = score;
-                                if href.starts_with("http") {
-                                    found_url = href;
-                                } else {
-                                    let base_url = if let Ok(u) =
-                                        url::Url::parse(&response_search_url)
-                                    {
-                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                    } else {
-                                        "".to_string()
-                                    };
-                                    found_url = format!("{}{}", base_url, href);
-                                }
-                            }
-                        }
-
-                        if !all_results.is_empty() {
-                            let top_matches: Vec<_> = all_results
-                                .iter()
-                                .filter(|(_, score, _)| *score >= 36)
-                                .collect();
-                            if !top_matches.is_empty() {
-                                log::info!("[{}] ✓ 符合条件的结果 (分数≥36):", source_name);
-                                for (title, score, _) in top_matches {
-                                    log::info!(
-                                        "[{}]   - '{}' (分数: {})",
-                                        source_name,
-                                        title,
-                                        score
-                                    );
-                                }
-                            } else {
-                                log::warn!(
-                                    "[{}] ✗ 没有符合条件的结果 (所有结果分数都<36)",
-                                    source_name
-                                );
-                                if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max()
-                                {
-                                    log::warn!("[{}] 最高分: {}", source_name, max_score);
-                                }
-                            }
-                            if best_match_score >= 36 {
-                                log::info!(
-                                    "[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})",
-                                    source_name,
-                                    best_match_score
-                                );
-                            }
-                        }
-                    }
-                }
-            } else {
-                // 使用 selectorSubjectFormatIndexed (默认)
-                if let Some(ref format) = source
-                    .arguments
-                    .search_config
-                    .selector_subject_format_indexed
-                {
-                    if let (Ok(name_sel), Ok(link_sel)) = (
-                        Selector::parse(&format.select_names),
-                        Selector::parse(&format.select_links),
-                    ) {
-                        let names: Vec<_> = document.select(&name_sel).collect();
-                        let links: Vec<_> = document.select(&link_sel).collect();
-                        let mut all_results = Vec::new();
-
-                        log::info!("[{}] === 搜索结果列表 (Format Indexed) ===", source_name);
-                        log::info!(
-                            "[{}] 目标: '{}' | 核心名: '{}'",
-                            source_name,
-                            query_name,
-                            core_name
-                        );
-                        log::info!(
-                            "[{}] 总共找到 {} 个结果",
-                            source_name,
-                            names.len().min(links.len())
-                        );
-
-                        for (name_el, link_el) in names.iter().zip(links.iter()) {
-                            let title = name_el.text().collect::<String>().trim().to_string();
-                            let href = link_el.value().attr("href").unwrap_or("").to_string();
-
-                            let score = calculate_match_score(&title, query_name, &core_name);
-                            all_results.push((title.clone(), score, href.clone()));
-
-                            log::info!(
-                                "[{}] 结果 #{}: '{}' | 分数: {} | URL: {}",
-                                source_name,
-                                all_results.len(),
-                                title,
-                                score,
-                                if href.len() > 100 {
-                                    format!("{}...", &href[..100])
-                                } else {
-                                    href.clone()
-                                }
-                            );
-
-                            if score > best_match_score && score >= 36 {
-                                best_match_score = score;
-                                if href.starts_with("http") {
-                                    found_url = href;
-                                } else {
-                                    let base_url = if let Ok(u) =
-                                        url::Url::parse(&response_search_url)
-                                    {
-                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                    } else {
-                                        "".to_string()
-                                    };
-                                    found_url = format!("{}{}", base_url, href);
-                                }
-                            }
-                        }
-
-                        if !all_results.is_empty() {
-                            let top_matches: Vec<_> = all_results
-                                .iter()
-                                .filter(|(_, score, _)| *score >= 36)
-                                .collect();
-                            if !top_matches.is_empty() {
-                                log::info!("[{}] ✓ 符合条件的结果 (分数≥36):", source_name);
-                                for (title, score, _) in top_matches {
-                                    log::info!(
-                                        "[{}]   - '{}' (分数: {})",
-                                        source_name,
-                                        title,
-                                        score
-                                    );
-                                }
-                            } else {
-                                log::warn!(
-                                    "[{}] ✗ 没有符合条件的结果 (所有结果分数都<36)",
-                                    source_name
-                                );
-                                if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max()
-                                {
-                                    log::warn!("[{}] 最高分: {}", source_name, max_score);
-                                }
-                            }
-                            if best_match_score >= 36 {
-                                log::info!(
-                                    "[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})",
-                                    source_name,
-                                    best_match_score
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            found_url
+            sel_result
+                .best
+                .map(|c| absolutize_url(&response_search_url, &c.url))
+                .unwrap_or_default()
         };
 
         if !current_detail_url.is_empty() {
@@ -3345,10 +3309,6 @@ async fn search_single_source(
 
         let current_detail_url = {
             let document = Html::parse_document(&resp_text);
-            let mut found_url = String::new();
-            let mut best_match_score = 0;
-
-            // 根据 subjectFormatId 选择使用哪个 selector
             let format_id = source
                 .arguments
                 .search_config
@@ -3356,194 +3316,24 @@ async fn search_single_source(
                 .as_deref()
                 .unwrap_or("indexed");
 
-            if format_id == "a" {
-                // 使用 selectorSubjectFormatA
-                if let Some(ref format) = source.arguments.search_config.selector_subject_format_a {
-                    if let Ok(list_sel) = Selector::parse(&format.select_lists) {
-                        let links: Vec<_> = document.select(&list_sel).collect();
-                        let mut all_results = Vec::new();
+            let sel_result = select_best_subject_candidate(
+                &document,
+                source,
+                query_name,
+                &core_name,
+            );
+            log_subject_selection(
+                &source_name,
+                format_id,
+                query_name,
+                &core_name,
+                &sel_result,
+            );
 
-                        log::info!("[{}] === 搜索结果列表 (Format A) ===", source_name);
-                        log::info!(
-                            "[{}] 目标: '{}' | 核心名: '{}'",
-                            source_name,
-                            query_name,
-                            core_name
-                        );
-                        log::info!("[{}] 总共找到 {} 个结果", source_name, links.len());
-
-                        for link_el in links.iter() {
-                            let title = link_el.text().collect::<String>().trim().to_string();
-                            let href = link_el.value().attr("href").unwrap_or("").to_string();
-
-                            // 计算匹配分数
-                            let score = calculate_match_score(&title, query_name, &core_name);
-                            all_results.push((title.clone(), score, href.clone()));
-
-                            log::info!(
-                                "[{}] 结果 #{}: '{}' | 分数: {} | URL: {}",
-                                source_name,
-                                all_results.len(),
-                                title,
-                                score,
-                                if href.len() > 100 {
-                                    format!("{}...", &href[..100])
-                                } else {
-                                    href.clone()
-                                }
-                            );
-
-                            if score > best_match_score && score >= 36 {
-                                best_match_score = score;
-                                if href.starts_with("http") {
-                                    found_url = href;
-                                } else {
-                                    let base_url = if let Ok(u) = url::Url::parse(&search_url) {
-                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                    } else {
-                                        "".to_string()
-                                    };
-                                    found_url = format!("{}{}", base_url, href);
-                                }
-                            }
-                        }
-
-                        if !all_results.is_empty() {
-                            let top_matches: Vec<_> = all_results
-                                .iter()
-                                .filter(|(_, score, _)| *score >= 36)
-                                .collect();
-                            if !top_matches.is_empty() {
-                                log::info!("[{}] ✓ 符合条件的结果 (分数≥36):", source_name);
-                                for (title, score, _) in top_matches {
-                                    log::info!(
-                                        "[{}]   - '{}' (分数: {})",
-                                        source_name,
-                                        title,
-                                        score
-                                    );
-                                }
-                            } else {
-                                log::warn!(
-                                    "[{}] ✗ 没有符合条件的结果 (所有结果分数都<36)",
-                                    source_name
-                                );
-                                if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max()
-                                {
-                                    log::warn!("[{}] 最高分: {}", source_name, max_score);
-                                }
-                            }
-                            if best_match_score >= 36 {
-                                log::info!(
-                                    "[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})",
-                                    source_name,
-                                    best_match_score
-                                );
-                            }
-                        }
-                    }
-                }
-            } else {
-                // 使用 selectorSubjectFormatIndexed (默认)
-                if let Some(ref format) = source
-                    .arguments
-                    .search_config
-                    .selector_subject_format_indexed
-                {
-                    if let (Ok(name_sel), Ok(link_sel)) = (
-                        Selector::parse(&format.select_names),
-                        Selector::parse(&format.select_links),
-                    ) {
-                        let names: Vec<_> = document.select(&name_sel).collect();
-                        let links: Vec<_> = document.select(&link_sel).collect();
-                        let mut all_results = Vec::new();
-
-                        log::info!("[{}] === 搜索结果列表 (Format Indexed) ===", source_name);
-                        log::info!(
-                            "[{}] 目标: '{}' | 核心名: '{}'",
-                            source_name,
-                            query_name,
-                            core_name
-                        );
-                        log::info!(
-                            "[{}] 总共找到 {} 个结果",
-                            source_name,
-                            names.len().min(links.len())
-                        );
-
-                        for (name_el, link_el) in names.iter().zip(links.iter()) {
-                            let title = name_el.text().collect::<String>().trim().to_string();
-                            let href = link_el.value().attr("href").unwrap_or("").to_string();
-
-                            // 计算匹配分数
-                            let score = calculate_match_score(&title, query_name, &core_name);
-                            all_results.push((title.clone(), score, href.clone()));
-
-                            log::info!(
-                                "[{}] 结果 #{}: '{}' | 分数: {} | URL: {}",
-                                source_name,
-                                all_results.len(),
-                                title,
-                                score,
-                                if href.len() > 100 {
-                                    format!("{}...", &href[..100])
-                                } else {
-                                    href.clone()
-                                }
-                            );
-
-                            if score > best_match_score && score >= 36 {
-                                best_match_score = score;
-                                if href.starts_with("http") {
-                                    found_url = href;
-                                } else {
-                                    let base_url = if let Ok(u) = url::Url::parse(&search_url) {
-                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                    } else {
-                                        "".to_string()
-                                    };
-                                    found_url = format!("{}{}", base_url, href);
-                                }
-                            }
-                        }
-
-                        if !all_results.is_empty() {
-                            let top_matches: Vec<_> = all_results
-                                .iter()
-                                .filter(|(_, score, _)| *score >= 36)
-                                .collect();
-                            if !top_matches.is_empty() {
-                                log::info!("[{}] ✓ 符合条件的结果 (分数≥36):", source_name);
-                                for (title, score, _) in top_matches {
-                                    log::info!(
-                                        "[{}]   - '{}' (分数: {})",
-                                        source_name,
-                                        title,
-                                        score
-                                    );
-                                }
-                            } else {
-                                log::warn!(
-                                    "[{}] ✗ 没有符合条件的结果 (所有结果分数都<36)",
-                                    source_name
-                                );
-                                if let Some(max_score) = all_results.iter().map(|(_, s, _)| s).max()
-                                {
-                                    log::warn!("[{}] 最高分: {}", source_name, max_score);
-                                }
-                            }
-                            if best_match_score >= 36 {
-                                log::info!(
-                                    "[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})",
-                                    source_name,
-                                    best_match_score
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            found_url
+            sel_result
+                .best
+                .map(|c| absolutize_url(&search_url, &c.url))
+                .unwrap_or_default()
         };
 
         if !current_detail_url.is_empty() {
@@ -4084,6 +3874,7 @@ async fn search_single_source_with_channels(
     client: &reqwest::Client,
     source: &MediaSource,
     anime_name: &str,
+    runtime_override: Option<&SourceRuntimeOverride>,
 ) -> anyhow::Result<SearchResultWithChannels> {
     let source_name = source.arguments.name.clone();
     let video_regex = source
@@ -4092,7 +3883,9 @@ async fn search_single_source_with_channels(
         .match_video
         .match_video_url
         .clone();
-    let cookies = source.arguments.search_config.match_video.cookies.clone();
+    let configured_cookies = source.arguments.search_config.match_video.cookies.clone();
+    let runtime_cookies = runtime_override.and_then(|o| o.cookies.as_deref());
+    let cookies = merge_cookie_strings(configured_cookies.as_deref(), runtime_cookies);
     let headers = source
         .arguments
         .search_config
@@ -4106,9 +3899,17 @@ async fn search_single_source_with_channels(
         .clone();
     let default_resolution = source.arguments.search_config.default_resolution.clone();
 
+    let initial_search_page_html = runtime_override
+        .and_then(|o| o.search_page_html.clone())
+        .filter(|s| !s.is_empty());
+    let initial_search_page_url = runtime_override
+        .and_then(|o| o.search_page_url.clone())
+        .filter(|s| !s.is_empty());
+
     let search_candidates = build_search_candidates(anime_name);
     let mut detail_url = String::new();
     let mut matched_title = String::new();
+    let mut last_search_url = String::new();
 
     for (idx, query_name) in search_candidates.iter().enumerate() {
         if idx > 0 {
@@ -4136,85 +3937,31 @@ async fn search_single_source_with_channels(
             .search_url
             .replace("{keyword}", &search_term);
         log::info!("[{}] Searching: {}", source_name, search_url);
+        last_search_url = search_url.clone();
 
-        let resp_text = client.get(&search_url).send().await?.text().await?;
+        let resp_text = if idx == 0 && initial_search_page_html.is_some() {
+            log::info!(
+                "[{}] Using runtime override search page HTML ({} bytes)",
+                source_name,
+                initial_search_page_html.as_ref().unwrap().len()
+            );
+            initial_search_page_html.clone().unwrap()
+        } else {
+            let request = client.get(&search_url);
+            let request = apply_cookie_header(request, cookies.as_deref());
+            let request = apply_browser_page_headers(request, &search_url, initial_search_page_url.as_deref().or(Some(&search_url)));
+            request.send().await?.text().await?
+        };
 
-        // 解析搜索结果
         let (current_detail_url, current_title) = {
             let document = Html::parse_document(&resp_text);
-            let mut found_url = String::new();
-            let mut found_title = String::new();
-            let mut best_match_score = 0;
-
-            let format_id = source
-                .arguments
-                .search_config
-                .subject_format_id
-                .as_deref()
-                .unwrap_or("indexed");
-
-            if format_id == "a" {
-                if let Some(ref format) = source.arguments.search_config.selector_subject_format_a {
-                    if let Ok(list_sel) = Selector::parse(&format.select_lists) {
-                        for link_el in document.select(&list_sel) {
-                            let title = link_el.text().collect::<String>().trim().to_string();
-                            let href = link_el.value().attr("href").unwrap_or("").to_string();
-                            let score = calculate_match_score(&title, query_name, &core_name);
-
-                            if score > best_match_score && score >= 36 {
-                                best_match_score = score;
-                                found_title = title;
-                                found_url = if href.starts_with("http") {
-                                    href
-                                } else {
-                                    let base_url = if let Ok(u) = url::Url::parse(&search_url) {
-                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                    } else {
-                                        "".to_string()
-                                    };
-                                    format!("{}{}", base_url, href)
-                                };
-                            }
-                        }
-                    }
-                }
+            let sel_result = select_best_subject_candidate(&document, source, query_name, &core_name);
+            if let Some(candidate) = sel_result.best {
+                let absolute_url = absolutize_url(&search_url, &candidate.url);
+                (absolute_url, candidate.title)
             } else {
-                if let Some(ref format) = source
-                    .arguments
-                    .search_config
-                    .selector_subject_format_indexed
-                {
-                    if let (Ok(name_sel), Ok(link_sel)) = (
-                        Selector::parse(&format.select_names),
-                        Selector::parse(&format.select_links),
-                    ) {
-                        let names: Vec<_> = document.select(&name_sel).collect();
-                        let links: Vec<_> = document.select(&link_sel).collect();
-
-                        for (name_el, link_el) in names.iter().zip(links.iter()) {
-                            let title = name_el.text().collect::<String>().trim().to_string();
-                            let href = link_el.value().attr("href").unwrap_or("").to_string();
-                            let score = calculate_match_score(&title, query_name, &core_name);
-
-                            if score > best_match_score && score >= 50 {
-                                best_match_score = score;
-                                found_title = title;
-                                found_url = if href.starts_with("http") {
-                                    href
-                                } else {
-                                    let base_url = if let Ok(u) = url::Url::parse(&search_url) {
-                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                    } else {
-                                        "".to_string()
-                                    };
-                                    format!("{}{}", base_url, href)
-                                };
-                            }
-                        }
-                    }
-                }
+                (String::new(), String::new())
             }
-            (found_url, found_title)
         };
 
         if !current_detail_url.is_empty() {
@@ -4236,7 +3983,24 @@ async fn search_single_source_with_channels(
     );
 
     // Step 2: 获取详情页并解析channels和episodes
-    let detail_resp_text = client.get(&detail_url).send().await?.text().await?;
+    let detail_resp_text = {
+        let initial_detail_page_html = runtime_override
+            .and_then(|o| o.detail_page_html.clone())
+            .filter(|s| !s.is_empty());
+        if let Some(html) = initial_detail_page_html {
+            log::info!(
+                "[{}] Using runtime override detail page HTML ({} bytes)",
+                source_name,
+                html.len()
+            );
+            html
+        } else {
+            let request = client.get(&detail_url);
+            let request = apply_cookie_header(request, cookies.as_deref());
+            let request = apply_browser_page_headers(request, &detail_url, Some(&last_search_url));
+            request.send().await?.text().await?
+        }
+    };
     let detail_doc = Html::parse_document(&detail_resp_text);
 
     let mut channels: Vec<ChannelInfo> = Vec::new();
@@ -4506,7 +4270,7 @@ pub async fn generic_search_with_channels(
             let anime_name = anime_name.clone();
             async move {
                 log::info!("Searching source with channels: {}", source.arguments.name);
-                search_single_source_with_channels(&client, &source, &anime_name).await
+                search_single_source_with_channels(&client, &source, &anime_name, None).await
             }
         })
         .buffer_unordered(limit);
@@ -4541,7 +4305,7 @@ pub async fn generic_search_with_channels_stream(
         .map(|source| {
             let client = client.clone();
             let anime_name = anime_name.clone();
-            async move { search_single_source_with_channels(&client, &source, &anime_name).await }
+            async move { search_single_source_with_channels(&client, &source, &anime_name, None).await }
         })
         .buffer_unordered(limit);
 
@@ -4567,6 +4331,7 @@ pub async fn get_episode_play_url(
     anime_name: String,
     channel_index: usize,
     episode_number: Option<u32>,
+    runtime_override: Option<SourceRuntimeOverride>,
 ) -> anyhow::Result<SearchPlayResult> {
     let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
@@ -4597,12 +4362,15 @@ pub async fn get_episode_play_url(
             .find(|channel| channel.index == target_episode.channel_index)
             .map(|channel| channel.name.clone());
 
+        let runtime_cookies = runtime_override.as_ref().and_then(|o| o.cookies.as_deref());
+        let merged_cookies = merge_cookie_strings(cache.cookies.as_deref(), runtime_cookies);
+
         return Ok(SearchPlayResult {
             source_name,
             play_page_url: target_episode.url.clone(),
             video_regex: cache.video_regex,
             direct_video_url: None,
-            cookies: cache.cookies,
+            cookies: merged_cookies,
             headers: cache.headers,
             channel_name,
             channel_index: Some(target_episode.channel_index),
@@ -4623,7 +4391,7 @@ pub async fn get_episode_play_url(
     }
 
     // 获取完整的channel和episode信息
-    let result = search_single_source_with_channels(&client, source, &anime_name).await?;
+    let result = search_single_source_with_channels(&client, source, &anime_name, runtime_override.as_ref()).await?;
 
     // 根据channel_index和episode_number找到目标episode
     let target_episode = if let Some(ep_num) = episode_number {

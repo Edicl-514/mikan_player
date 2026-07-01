@@ -247,6 +247,7 @@ class CaptchaWebViewBypassWidget extends StatefulWidget {
   final String? searchKeyword;
   final String? initialUrl;
   final String? referer;
+  final String? initialCookies;
   final CaptchaConfig captchaConfig;
   final Duration timeout;
   final void Function(CaptchaBypassResult result) onResult;
@@ -259,6 +260,7 @@ class CaptchaWebViewBypassWidget extends StatefulWidget {
     this.searchKeyword,
     this.initialUrl,
     this.referer,
+    this.initialCookies,
     required this.captchaConfig,
     this.timeout = const Duration(seconds: 45),
     required this.onResult,
@@ -567,6 +569,7 @@ class _CaptchaWebViewBypassWidgetState
   bool _isCaptchaFlowRunning = false;
   int _captchaRetryCount = 0;
   static const _maxCaptchaRetries = 3;
+  static const int _matchScoreThreshold = 36;
   int _loadEventToken = 0;
   _WebViewFlowStage _flowStage = _WebViewFlowStage.search;
   String? _initialUrl;
@@ -574,6 +577,7 @@ class _CaptchaWebViewBypassWidgetState
   bool _isSearchEntryFlow = true;
   String? _searchPageHtml;
   String? _searchPageUrl;
+  final Set<String> _visitedHosts = {};
 
   @override
   void initState() {
@@ -634,6 +638,33 @@ class _CaptchaWebViewBypassWidgetState
     } catch (_) {}
   }
 
+  Future<void> _clearVisitedHostCookies() async {
+    if (_visitedHosts.isEmpty) return;
+    try {
+      final cookieManager = CookieManager();
+      var cleared = 0;
+      for (final host in _visitedHosts) {
+        try {
+          final cookies = await cookieManager.getCookies(
+            url: WebUri('https://$host'),
+          );
+          for (final cookie in cookies) {
+            await cookieManager.deleteCookie(
+              url: WebUri('https://$host'),
+              name: cookie.name,
+              domain: host,
+            );
+            cleared++;
+          }
+        } catch (_) {}
+      }
+      _log('Cleared $cleared cookies for ${_visitedHosts.length} visited hosts');
+      _visitedHosts.clear();
+    } catch (e) {
+      _log('Failed to clear visited host cookies: $e');
+    }
+  }
+
   @override
   void dispose() {
     _timeoutTimer?.cancel();
@@ -642,6 +673,7 @@ class _CaptchaWebViewBypassWidgetState
     if (controller != null) {
       unawaited(_teardownWebView(controller));
     }
+    unawaited(_clearVisitedHostCookies());
     super.dispose();
   }
 
@@ -708,6 +740,12 @@ class _CaptchaWebViewBypassWidgetState
       },
       onLoadStop: (ctrl, url) async {
         _log('Page loaded: $url');
+        if (url != null) {
+          final host = Uri.tryParse(url.toString())?.host;
+          if (host != null && host.isNotEmpty) {
+            _visitedHosts.add(host);
+          }
+        }
         final loadEventToken = ++_loadEventToken;
 
         if (_isCompleted) return;
@@ -1014,9 +1052,12 @@ class _CaptchaWebViewBypassWidgetState
       final pageHtml = await _captureCurrentHtml(ctrl);
       final finalHtml = pageHtml?.toString();
 
-      final cookies = await _getCookiesForUrl(
+      final jarCookies = await _getCookiesForUrl(
         effectiveUrl ?? _initialUrl ?? widget.source.searchUrl,
       );
+
+      final initialCookies = widget.initialCookies?.trim();
+      final cookies = _mergeCookieStrings(initialCookies, jarCookies);
 
       if (_isSearchEntryFlow &&
           widget.captchaConfig.useWebViewForDetail &&
@@ -1129,9 +1170,17 @@ class _CaptchaWebViewBypassWidgetState
     _SearchCandidate? best;
     for (final item in candidates) {
       final score = _calculateMatchScore(item.title, query, core);
-      if (best == null || score > best.score) {
+      if (score >= _matchScoreThreshold &&
+          (best == null || score > best.score)) {
         best = _SearchCandidate(title: item.title, url: item.url, score: score);
       }
+    }
+
+    if (best == null && candidates.isNotEmpty) {
+      _log(
+        'No candidate meets score≥$_matchScoreThreshold '
+        '(best was ${candidates.map((c) => _calculateMatchScore(c.title, query, core)).reduce(math.max)})',
+      );
     }
 
     return best;
@@ -1615,6 +1664,26 @@ class _CaptchaWebViewBypassWidgetState
 ''',
       );
     }
+  }
+
+  static String? _mergeCookieStrings(String? a, String? b) {
+    final aTrimmed = a?.trim();
+    final bTrimmed = b?.trim();
+    if (aTrimmed == null || aTrimmed.isEmpty) return bTrimmed;
+    if (bTrimmed == null || bTrimmed.isEmpty) return aTrimmed;
+
+    final map = <String, String>{};
+    for (final part in '$aTrimmed; $bTrimmed'.split(';')) {
+      final trimmed = part.trim();
+      if (trimmed.isEmpty) continue;
+      final eq = trimmed.indexOf('=');
+      if (eq < 0) continue;
+      final name = trimmed.substring(0, eq).trim();
+      final value = trimmed.substring(eq + 1).trim();
+      if (name.isNotEmpty) map[name] = value;
+    }
+    if (map.isEmpty) return null;
+    return map.entries.map((e) => '${e.key}=${e.value}').join('; ');
   }
 
   static Future<String?> _getCookiesForUrl(String url) async {

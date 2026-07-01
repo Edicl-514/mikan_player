@@ -374,6 +374,7 @@ abstract class RustLibApi extends BaseApi {
     required String animeName,
     required BigInt channelIndex,
     int? episodeNumber,
+    SourceRuntimeOverride? runtimeOverride,
   });
 
   Future<int> crateApiConfigGetMaxConcurrentSearches();
@@ -3033,6 +3034,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String animeName,
     required BigInt channelIndex,
     int? episodeNumber,
+    SourceRuntimeOverride? runtimeOverride,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -3042,6 +3044,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(animeName, serializer);
           sse_encode_usize(channelIndex, serializer);
           sse_encode_opt_box_autoadd_u_32(episodeNumber, serializer);
+          sse_encode_opt_box_autoadd_source_runtime_override(
+            runtimeOverride,
+            serializer,
+          );
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -3054,7 +3060,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiGenericScraperGetEpisodePlayUrlConstMeta,
-        argValues: [sourceName, animeName, channelIndex, episodeNumber],
+        argValues: [
+          sourceName,
+          animeName,
+          channelIndex,
+          episodeNumber,
+          runtimeOverride,
+        ],
         apiImpl: this,
       ),
     );
@@ -3063,7 +3075,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiGenericScraperGetEpisodePlayUrlConstMeta =>
       const TaskConstMeta(
         debugName: "get_episode_play_url",
-        argNames: ["sourceName", "animeName", "channelIndex", "episodeNumber"],
+        argNames: [
+          "sourceName",
+          "animeName",
+          "channelIndex",
+          "episodeNumber",
+          "runtimeOverride",
+        ],
       );
 
   @override
@@ -5509,6 +5527,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SourceRuntimeOverride dco_decode_box_autoadd_source_runtime_override(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_source_runtime_override(raw);
+  }
+
+  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -6064,6 +6090,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_mikan_search_result(raw);
+  }
+
+  @protected
+  SourceRuntimeOverride? dco_decode_opt_box_autoadd_source_runtime_override(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_source_runtime_override(raw);
   }
 
   @protected
@@ -6845,6 +6881,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_source_config_update(deserializer));
+  }
+
+  @protected
+  SourceRuntimeOverride sse_decode_box_autoadd_source_runtime_override(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_source_runtime_override(deserializer));
   }
 
   @protected
@@ -7694,6 +7738,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SourceRuntimeOverride? sse_decode_opt_box_autoadd_source_runtime_override(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_source_runtime_override(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -8512,6 +8569,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_source_runtime_override(
+    SourceRuntimeOverride self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_source_runtime_override(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self, serializer);
@@ -9234,6 +9300,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_mikan_search_result(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_source_runtime_override(
+    SourceRuntimeOverride? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_source_runtime_override(self, serializer);
     }
   }
 
