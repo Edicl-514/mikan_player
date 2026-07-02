@@ -158,35 +158,46 @@ class WebViewVideoExtractor {
       final regex = RegExp(regexStr);
       final match = regex.firstMatch(url);
       if (match != null) {
+        String? candidate;
         // 尝试提取命名捕获组 'v'
         try {
           final capturedUrl = match.namedGroup('v');
           if (capturedUrl != null && capturedUrl.isNotEmpty) {
-            return capturedUrl;
+            candidate = capturedUrl;
           }
         } catch (e) {
           // 如果没有命名捕获组，使用第一个捕获组或整个匹配
         }
         // 如果没有命名捕获组 'v'，尝试使用第一个普通捕获组
-        if (match.groupCount > 0) {
+        if (candidate == null && match.groupCount > 0) {
           final group1 = match.group(1);
           if (group1 != null && group1.isNotEmpty) {
-            // 启发式判断：只有当捕获组看起来像是一个完整的 URL 时才使用它
-            // 否则可能是误捕获了扩展名（如 (m3u8|mp4)）
-            if (group1.contains('://') ||
-                group1.startsWith('/') ||
-                group1.startsWith('//')) {
-              return group1;
-            }
+            candidate = group1;
           }
         }
         // 最后才使用整个匹配
-        return match.group(0);
+        candidate ??= match.group(0);
+        if (candidate == null || candidate.isEmpty) {
+          return null;
+        }
+        // 当提取到的候选值不是绝对 URL 时（例如正则只匹配到了路径/域名片段，
+        // 如 "/video/tos/alisg/" 或 "bilivideo.com"），说明该自定义正则只是用来
+        // 「判定」拦截到的请求 URL 是否为视频地址，真正的视频地址就是被拦截的完整
+        // 请求 URL 本身。直接返回片段会导致后续探测因缺少 host 而失败，且若该片段
+        // 被当作提取结果，会污染并发提取状态。此时应回退为完整的拦截 URL。
+        if (_isAbsoluteUrl(candidate)) {
+          return candidate;
+        }
+        return _isAbsoluteUrl(url) ? url : candidate;
       }
     } catch (e) {
       debugPrint('Error extracting with regex: $regexStr, error: $e');
     }
     return null;
+  }
+
+  bool _isAbsoluteUrl(String s) {
+    return s.startsWith('http://') || s.startsWith('https://');
   }
 }
 

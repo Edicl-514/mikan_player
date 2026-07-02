@@ -1344,15 +1344,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return true;
   }
 
-  String _sourceNameFromPageKey(String pageKey) {
-    return SourceChannelKey.fromPageKey(pageKey).sourceName;
-  }
-
   List<SearchPlayResult> _collectPendingWebViewExtractionTasks() {
-    final activeSourceNames = _activeWebViews.keys
-        .map(_sourceNameFromPageKey)
-        .toSet();
-
     final pending = _samplePlayPages.where((page) {
       final pageKey = _buildSourceChannelKey(
         page.sourceName,
@@ -1364,12 +1356,29 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       );
       final alreadyActive = _activeWebViews.containsKey(pageKey);
       final alreadyFailed = _failedWebViewPageKeys.contains(pageKey);
-      final sourceHasActive = activeSourceNames.contains(page.sourceName);
+      // A source whose WebView extraction just finished is being probed
+      // asynchronously (_probingSourceKeys) or has already been registered as
+      // playable (_playableSourceKeys). It MUST be excluded here, otherwise
+      // _onWebViewResult removes it from _activeWebViews and the pool pump
+      // (running synchronously in the same setState) re-queues it before the
+      // probe completes. Because the WebViewVideoExtractorWidget is reused with
+      // the same ValueKey, its State keeps _isCompleted=true and a cancelled
+      // timeout, so it never fires onResult again and never times out — a
+      // zombie that permanently occupies a concurrency slot.
+      final isProbing = _probingSourceKeys.contains(pageKey);
+      final alreadyPlayable = _playableSourceKeys.contains(pageKey);
+      // Note: extraction eligibility is keyed on the full source+channel
+      // pageKey, NOT on sourceName alone. Each channel of a source has its own
+      // distinct play page URL, so multiple channels of the same source may be
+      // extracted concurrently. Guarding by sourceName here previously caused
+      // only one channel per source to ever be extracted (and a stuck/zombie
+      // WebView would block its siblings forever).
       return hasPlayPageUrl &&
           !alreadySuccessful &&
           !alreadyActive &&
           !alreadyFailed &&
-          !sourceHasActive;
+          !isProbing &&
+          !alreadyPlayable;
     }).toList();
 
     pending.sort((a, b) {
@@ -1890,6 +1899,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
     if (_activeWebViews.isNotEmpty ||
         _resolvingChannelPlayPageKeys.isNotEmpty) {
+      return;
+    }
+    // Probes run asynchronously after a WebView extraction completes. The
+    // search is not truly finished until every in-flight probe has resolved
+    // (accepted -> registered as playable, or rejected -> marked failed),
+    // otherwise the UI could briefly report "所有源都无法提取" right before a
+    // late probe accepts a source.
+    if (_probingSourceKeys.isNotEmpty) {
       return;
     }
     if (_hasPendingWebViewExtractionTasks()) {
@@ -5158,6 +5175,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     final children = <Widget>[];
+    final orphanPageKeys = <String>[];
 
     // 构建活动的视频提取 WebView
     for (final pageKey in _activeWebViews.keys) {
@@ -5175,6 +5193,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
 
       if (matchedPage == null) {
+        // 活动任务找不到对应的播放页（例如列表被重建/重排后不匹配），
+        // 这会导致没有 WebView 被创建、onResult 永远不会触发，
+        // 于是该任务在“并发提取”面板里卡住不消失。收集这些孤儿任务，
+        // 在本帧结束后清理并重新调度任务池。
+        orphanPageKeys.add(pageKey);
         continue;
       }
 
@@ -5197,6 +5220,33 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           onLog: (msg) => debugPrint('[WebView][$pageKey] $msg'),
         ),
       );
+    }
+
+    // 清理孤儿提取任务：这些任务被标记为活动，但在 _samplePlayPages 中已经
+    // 找不到对应的播放页，因此不会有 WebView 被创建来驱动 onResult。如果放任
+    // 不管，它们会一直占用并发槽位并停留在“正在提取”状态。build 阶段不能直接
+    // setState，所以推迟到本帧渲染完成后清理并重新泵送任务池。
+    if (orphanPageKeys.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        var changed = false;
+        for (final pageKey in orphanPageKeys) {
+          if (_activeWebViews.remove(pageKey) != null) {
+            _webViewStatus.remove(pageKey);
+            _failedWebViewPageKeys.add(pageKey);
+            changed = true;
+            debugPrint(
+              '[_buildWebViewExtractors] Cleared orphan extraction task: $pageKey',
+            );
+          }
+        }
+        if (changed) {
+          setState(() {});
+          _updatePoolStatusMessage();
+          _scheduleWebViewPoolPump(immediate: true);
+          _maybeFinishSampleSearch();
+        }
+      });
     }
 
     // 构建活动的验证码预处理 WebView（与提取任务共用池子）
