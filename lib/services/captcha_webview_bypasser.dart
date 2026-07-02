@@ -565,6 +565,66 @@ class _CaptchaWebViewBypassWidgetState
 })();
 ''';
 
+  /// Third-party hosts that stall the `load` event without contributing
+  /// anything the captcha or search flow needs.
+  ///
+  /// The girigiri search page hangs for ~30s because it injects a script from
+  /// `polyfill-js.cn`, which never responds (the HAR shows status 0 after 35s),
+  /// and then waits on analytics/telemetry beacons. The captcha image, input,
+  /// submit button and all search results live on the site's own origin, so the
+  /// page is fully interactable long before `load` fires — but Android WebView
+  /// refuses to run `evaluateJavascript` against a main frame that is still in
+  /// the loading state, which is why the eager (抢跑) JS poll could never win the
+  /// race: every probe during the stall returns nothing. Blocking these dead
+  /// resources lets `load` fire in ~2s, after which the normal onLoadStop path
+  /// detects and solves the captcha immediately.
+  ///
+  /// Only cross-site trackers/polyfills are listed. Nothing on the anime site's
+  /// own origin (including Cloudflare's `cdn-cgi/challenge-platform`, which real
+  /// captchas depend on) is blocked.
+  static const List<String> _blockedResourceHosts = [
+    'polyfill-js\\.cn',
+    'polyfill\\.io',
+    'googletagmanager\\.com',
+    'google-analytics\\.com',
+    'analytics\\.google\\.com',
+    'static\\.cloudflareinsights\\.com',
+  ];
+
+  /// URL substrings (path fragments) that identify beacon/telemetry endpoints
+  /// served from otherwise-needed origins. These are safe to drop and would
+  /// otherwise keep the load event pending.
+  static const List<String> _blockedResourcePaths = [
+    '/cdn-cgi/speculation',
+    '/cdn-cgi/rum',
+    '/cdn-cgi/trace',
+  ];
+
+  static List<ContentBlocker> _buildContentBlockers() {
+    final blockers = <ContentBlocker>[];
+    for (final host in _blockedResourceHosts) {
+      blockers.add(
+        ContentBlocker(
+          trigger: ContentBlockerTrigger(
+            urlFilter: '.*$host.*',
+          ),
+          action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
+        ),
+      );
+    }
+    for (final path in _blockedResourcePaths) {
+      blockers.add(
+        ContentBlocker(
+          trigger: ContentBlockerTrigger(
+            urlFilter: '.*${RegExp.escape(path)}.*',
+          ),
+          action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
+        ),
+      );
+    }
+    return blockers;
+  }
+
   Timer? _timeoutTimer;
   InAppWebViewController? _webViewController;
   bool _isCompleted = false;
@@ -606,16 +666,32 @@ class _CaptchaWebViewBypassWidgetState
     _startTimeout();
   }
 
-  void _startTimeout() {
-    _timeoutTimer = Timer(widget.timeout, () {
+  void _startTimeout() => _refreshTimeout();
+
+  /// Restart the preflight timeout with a fresh budget.
+  ///
+  /// The timer started in [initState] bounds the initial page load. A page
+  /// behind heavy anti-bot can burn most of that budget just reaching 100%
+  /// (girigiri愛動漫 sat at 80% for ~37s and only fired its load event at
+  /// ~43s). By the time the captcha is finally injected into the DOM, almost
+  /// nothing was left of the original window, so even the 3s pacing delay
+  /// never completed before the global timeout fired and the solve never ran.
+  ///
+  /// Calling this when the page has finished loading (or when an eager solve
+  /// commits) gives the captcha-solving phase a budget that is independent of
+  /// how long the page took to load.
+  void _refreshTimeout() {
+    if (_isCompleted) return;
+    _timeoutTimer?.cancel();
+    final budget = widget.timeout;
+    _timeoutTimer = Timer(budget, () {
       if (_isCompleted) return;
       _log('Captcha preflight timed out');
       _complete(
         CaptchaBypassResult(
           sourceName: widget.source.name,
           success: false,
-          error:
-              'Captcha preflight timed out after ${widget.timeout.inSeconds}s',
+          error: 'Captcha preflight timed out after ${budget.inSeconds}s',
         ),
       );
     });
@@ -738,6 +814,7 @@ class _CaptchaWebViewBypassWidgetState
             '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         applicationNameForUserAgent: "", // remove InAppWebView info
         useHybridComposition: true,
+        contentBlockers: _buildContentBlockers(),
       ),
       onWebViewCreated: (controller) {
         _webViewController = controller;
@@ -781,6 +858,13 @@ class _CaptchaWebViewBypassWidgetState
         }
 
         final loadEventToken = ++_loadEventToken;
+
+        // The page just finished loading. A slow load (girigiri reached 100%
+        // only after ~43s) can consume nearly the whole original preflight
+        // budget before the captcha is even in the DOM. Restart the timer so
+        // the readiness gate + pacing + solving that follow get a full window
+        // regardless of how long the load took.
+        _refreshTimeout();
 
         await _logEnvironmentSnapshot(ctrl);
 
@@ -1059,6 +1143,7 @@ class _CaptchaWebViewBypassWidgetState
     );
 
     _isCaptchaFlowRunning = true;
+    _refreshTimeout();
     try {
       await Future.delayed(
         Duration(milliseconds: _effectiveInitialDelayMs),
@@ -1099,17 +1184,12 @@ class _CaptchaWebViewBypassWidgetState
     // already fully rendered and interactable. Waiting for readyState here was
     // exactly why eager detection kept losing the race to onLoadStop. Probe the
     // captcha/success elements directly; their presence is the real signal.
-    final bool readyStateResolved;
-    try {
-      final readyState = await ctrl.evaluateJavascript(
-        source:
-            '(function(){ try { return document.readyState; } catch (_) { return "loading"; } })()',
-      );
-      readyStateResolved =
-          readyState == 'interactive' || readyState == 'complete';
-    } catch (_) {
-      return _EagerReadiness.notReady;
-    }
+    final readyState = await _evalJs(
+      ctrl,
+      '(function(){ try { return document.readyState; } catch (_) { return "loading"; } })()',
+    );
+    final readyStateResolved =
+        readyState == 'interactive' || readyState == 'complete';
 
     final hasCaptcha = await _detectCaptcha(ctrl, config);
     if (!hasCaptcha) {
@@ -1167,12 +1247,8 @@ class _CaptchaWebViewBypassWidgetState
   }
 })()
 ''';
-    try {
-      final result = await ctrl.evaluateJavascript(source: script);
-      return result == true;
-    } catch (_) {
-      return false;
-    }
+    final result = await _evalJs(ctrl, script);
+    return result == true;
   }
 
   Future<bool> _selectorExists(
@@ -1180,14 +1256,8 @@ class _CaptchaWebViewBypassWidgetState
     String? selector,
   ) async {
     if (selector == null || selector.trim().isEmpty) return true;
-    try {
-      final exists = await ctrl.evaluateJavascript(
-        source: _buildSelectorExistsScript(selector),
-      );
-      return exists == true;
-    } catch (_) {
-      return false;
-    }
+    final exists = await _evalJs(ctrl, _buildSelectorExistsScript(selector));
+    return exists == true;
   }
 
   Future<void> _handleCaptcha(InAppWebViewController ctrl) async {
@@ -1361,6 +1431,10 @@ class _CaptchaWebViewBypassWidgetState
             'Using WebView for detail page: "${detailCandidate.title}" '
             '(score=${detailCandidate.score}) -> ${detailCandidate.url}',
           );
+          // The detail page is a fresh navigation that needs its own load
+          // budget; restart the timer so a slow detail load does not bleed
+          // into the search-solve window.
+          _refreshTimeout();
           await ctrl.loadUrl(
             urlRequest: URLRequest(
               url: WebUri(detailCandidate.url),
@@ -1626,6 +1700,30 @@ class _CaptchaWebViewBypassWidgetState
 ''';
   }
 
+  /// Run [source] against the page, but never block longer than [timeout].
+  ///
+  /// Android's WebView silently drops a pending `evaluateJavascript` callback
+  /// when the document it was issued against is torn down by a navigation. The
+  /// bridge future then never completes, and any `await` on it hangs forever.
+  /// The eager poll issues these calls against a still-loading (and sometimes
+  /// about-to-be-replaced) document, so an unbounded await there wedges the
+  /// entire poll for the full preflight window — which is exactly the failure
+  /// the eager path was built to avoid. Bounding each call lets the loop retry
+  /// against the live document on the next tick instead of dying on a dead one.
+  static Future<dynamic> _evalJs(
+    InAppWebViewController ctrl,
+    String source, {
+    Duration timeout = const Duration(seconds: 3),
+  }) async {
+    try {
+      return await ctrl
+          .evaluateJavascript(source: source)
+          .timeout(timeout, onTimeout: () => null);
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<bool> _detectCaptcha(
     InAppWebViewController ctrl,
     CaptchaConfig config,
@@ -1639,12 +1737,11 @@ class _CaptchaWebViewBypassWidgetState
         .where((s) => s.isNotEmpty);
 
     for (final selector in selectors) {
-      try {
-        final exists = await ctrl.evaluateJavascript(
-          source: _buildSelectorExistsScript(selector),
-        );
-        if (exists == true) return true;
-      } catch (_) {}
+      final exists = await _evalJs(
+        ctrl,
+        _buildSelectorExistsScript(selector),
+      );
+      if (exists == true) return true;
     }
     return false;
   }
@@ -1656,14 +1753,8 @@ class _CaptchaWebViewBypassWidgetState
   }) async {
     final selector = config.successSelector;
     if (selector == null || selector.isEmpty) return allowEmptySelector;
-    try {
-      final exists = await ctrl.evaluateJavascript(
-        source: _buildSelectorExistsScript(selector),
-      );
-      return exists == true;
-    } catch (_) {
-      return false;
-    }
+    final exists = await _evalJs(ctrl, _buildSelectorExistsScript(selector));
+    return exists == true;
   }
 
   Future<_CaptchaPageSignal> _waitForCaptchaOrSuccessSignal(
@@ -1735,14 +1826,11 @@ class _CaptchaWebViewBypassWidgetState
   }
 
   static Future<bool> _isDocumentReady(InAppWebViewController ctrl) async {
-    try {
-      final ready = await ctrl.evaluateJavascript(
-        source: '(function(){ return document.readyState === "complete"; })()',
-      );
-      return ready == true;
-    } catch (_) {
-      return false;
-    }
+    final ready = await _evalJs(
+      ctrl,
+      '(function(){ return document.readyState === "complete"; })()',
+    );
+    return ready == true;
   }
 
   Future<void> _logEnvironmentSnapshot(InAppWebViewController ctrl) async {
