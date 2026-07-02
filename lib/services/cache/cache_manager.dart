@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'bangumi_cache_service.dart';
 import 'image_cache_service.dart';
@@ -820,6 +821,30 @@ class CacheManager {
   Future<void> clearAll() async {
     await _dbCache.clearAll();
     await _imageCache.clearAll();
+    await clearWebViewCookies();
+  }
+
+  /// 清除 WebView 的 Cookie 存储
+  ///
+  /// 调用 `flutter_inappwebview` 的 [CookieManager.deleteAllCookies],
+  /// 把内置 WebView 的 cookie jar 整个清空。这样下次重新打开
+  /// 验证/Captcha bypass 页面时，不会再携带上次的登录态或令牌。
+  ///
+  /// 平台支持度（来自 plugin 文档）：
+  /// - Android: 支持
+  /// - iOS: 支持
+  /// - macOS: 支持
+  /// - Windows: 支持
+  /// - Linux / Web: plugin 在该平台不支持 CookieManager，会抛异常，
+  ///   这里捕获后忽略即可。
+  Future<void> clearWebViewCookies() async {
+    try {
+      final ok = await CookieManager().deleteAllCookies();
+      debugPrint('WebView cookies cleared: $ok');
+    } catch (e, stackTrace) {
+      debugPrint('Failed to clear webview cookies (non-fatal): $e');
+      debugPrint('$stackTrace');
+    }
   }
 
   /// 清除过期缓存

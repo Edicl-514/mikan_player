@@ -83,7 +83,7 @@
   "cacheManagement": "缓存管理",
   "clearCache": "清除全部缓存",
   "confirmClearCache": "确认清除缓存",
-  "clearCacheMessage": "这将删除所有缓存数据，包括番剧信息和图片缓存。确定要继续吗？",
+  "clearCacheMessage": "这将删除所有缓存数据，包括番剧信息、图片缓存和 WebView 的 Cookie。确定要继续吗？",
   "cacheCleared": "缓存已清除",
   "cacheClearedFailed": "清除缓存失败: {error}",
   "refresh": "刷新",

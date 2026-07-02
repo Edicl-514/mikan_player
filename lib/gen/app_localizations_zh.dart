@@ -270,7 +270,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get confirmClearCache => '确认清除缓存';
 
   @override
-  String get clearCacheMessage => '这将删除所有缓存数据，包括番剧信息和图片缓存。确定要继续吗？';
+  String get clearCacheMessage =>
+      '这将删除所有缓存数据，包括番剧信息、图片缓存和 WebView 的 Cookie。确定要继续吗？';
 
   @override
   String get cacheCleared => '缓存已清除';

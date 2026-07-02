@@ -599,7 +599,7 @@ abstract class AppLocalizations {
   /// No description provided for @clearCacheMessage.
   ///
   /// In zh, this message translates to:
-  /// **'这将删除所有缓存数据，包括番剧信息和图片缓存。确定要继续吗？'**
+  /// **'这将删除所有缓存数据，包括番剧信息、图片缓存和 WebView 的 Cookie。确定要继续吗？'**
   String get clearCacheMessage;
 
   /// No description provided for @cacheCleared.

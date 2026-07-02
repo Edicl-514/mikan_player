@@ -83,7 +83,7 @@
   "cacheManagement": "Cache Management",
   "clearCache": "Clear All Cache",
   "confirmClearCache": "Confirm cache clear",
-  "clearCacheMessage": "This will delete all cached data, including anime info and images. Continue?",
+  "clearCacheMessage": "This will delete all cached data, including anime info, images, and WebView cookies. Continue?",
   "cacheCleared": "Cache cleared",
   "cacheClearedFailed": "Failed to clear cache: {error}",
   "refresh": "Refresh",

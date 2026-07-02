@@ -279,7 +279,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get clearCacheMessage =>
-      'This will delete all cached data, including anime info and images. Continue?';
+      'This will delete all cached data, including anime info, images, and WebView cookies. Continue?';
 
   @override
   String get cacheCleared => 'Cache cleared';
