@@ -584,7 +584,18 @@ class _CaptchaWebViewBypassWidgetState
   bool _eagerPollActive = false;
   static const int _eagerProgressThreshold = 10;
   static const Duration _eagerPollInterval = Duration(milliseconds: 350);
-  static const Duration _eagerPollTimeout = Duration(seconds: 30);
+
+  /// (C) Detail-stage loads reuse the anti-bot session and cookies established
+  /// during the search stage, so they do not need the full initial pacing
+  /// delay. Cap it low for the detail stage; the search stage keeps the
+  /// configured value.
+  int get _effectiveInitialDelayMs {
+    final configured = widget.captchaConfig.initialDelayMs;
+    if (_flowStage == _WebViewFlowStage.detail) {
+      return math.min(configured, 500);
+    }
+    return configured;
+  }
 
   @override
   void initState() {
@@ -756,15 +767,20 @@ class _CaptchaWebViewBypassWidgetState
             _visitedHosts.add(host);
           }
         }
-        final loadEventToken = ++_loadEventToken;
-
         if (_isCompleted) return;
+        // (E) Guard BEFORE bumping the load token. A committed eager solve sets
+        // this flag; if we incremented the token here we would invalidate its
+        // token check while also skipping the handler below — leaving nobody to
+        // finish the captcha until the 45s timeout. Skipping without touching
+        // the token lets the eager path complete on its own.
         if (_isCaptchaFlowRunning) {
           _log(
             'Page loaded while captcha flow is active, skipping duplicate handler',
           );
           return;
         }
+
+        final loadEventToken = ++_loadEventToken;
 
         await _logEnvironmentSnapshot(ctrl);
 
@@ -773,11 +789,12 @@ class _CaptchaWebViewBypassWidgetState
         final shouldGateForChallenge =
             widget.captchaConfig.successSelector?.trim().isNotEmpty ?? false;
 
+        _CaptchaPageSignal? preDelaySignal;
         if (shouldGateForChallenge) {
           _log(
             'Waiting for captcha/success selector before starting initial delay...',
           );
-          final preDelaySignal = await _waitForCaptchaOrSuccessSignal(
+          preDelaySignal = await _waitForCaptchaOrSuccessSignal(
             ctrl,
             widget.captchaConfig,
             loadEventToken: loadEventToken,
@@ -797,12 +814,35 @@ class _CaptchaWebViewBypassWidgetState
 
         if (_isCompleted || loadEventToken != _loadEventToken) return;
 
+        // (B) The readiness gate already told us the outcome — act on it
+        // directly instead of blindly sleeping the full initial delay.
+        if (preDelaySignal == _CaptchaPageSignal.success) {
+          _log('Success detected by readiness gate, completing without delay');
+          final currentUrl =
+              (await ctrl.getUrl())?.toString() ?? url?.toString();
+          await _completeSuccess(ctrl, currentUrl);
+          return;
+        }
+
+        if (preDelaySignal == _CaptchaPageSignal.captcha) {
+          _log(
+            'Captcha detected by readiness gate, pacing submit by '
+            '${_effectiveInitialDelayMs}ms before solving',
+          );
+          await Future.delayed(
+            Duration(milliseconds: _effectiveInitialDelayMs),
+          );
+          if (_isCompleted || loadEventToken != _loadEventToken) return;
+          await _handleCaptcha(ctrl);
+          return;
+        }
+
         _log(
-          'Starting initial delay (${widget.captchaConfig.initialDelayMs}ms) after readiness gate',
+          'Starting initial delay (${_effectiveInitialDelayMs}ms) after readiness gate',
         );
 
         await Future.delayed(
-          Duration(milliseconds: widget.captchaConfig.initialDelayMs),
+          Duration(milliseconds: _effectiveInitialDelayMs),
         );
 
         if (_isCompleted || loadEventToken != _loadEventToken) return;
@@ -936,7 +976,17 @@ class _CaptchaWebViewBypassWidgetState
     InAppWebViewController ctrl, {
     required int token,
   }) async {
-    final deadline = DateTime.now().add(_eagerPollTimeout);
+    // Align the eager deadline with the global timeout (minus a small buffer so
+    // the eager path can still finish before the timeout timer fires) instead
+    // of a shorter fixed window. A short fixed window made eager give up while
+    // the page's load event was still stalled on a slow sub-resource, right
+    // before onLoadStop would have fired — so eager never won the race it was
+    // designed to win.
+    final buffer = const Duration(seconds: 3);
+    final eagerBudget = widget.timeout > buffer
+        ? widget.timeout - buffer
+        : widget.timeout;
+    final deadline = DateTime.now().add(eagerBudget);
     var tick = 0;
     try {
       while (!_isCompleted &&
@@ -1005,13 +1055,13 @@ class _CaptchaWebViewBypassWidgetState
     _log(
       'Essential captcha elements ready before page fully loaded, '
       'pacing submit by initialDelayMs '
-      '(${widget.captchaConfig.initialDelayMs}ms) to avoid anti-bot rejection',
+      '(${_effectiveInitialDelayMs}ms) to avoid anti-bot rejection',
     );
 
     _isCaptchaFlowRunning = true;
     try {
       await Future.delayed(
-        Duration(milliseconds: widget.captchaConfig.initialDelayMs),
+        Duration(milliseconds: _effectiveInitialDelayMs),
       );
       if (_isCompleted ||
           token != _loadEventToken ||
@@ -1043,14 +1093,20 @@ class _CaptchaWebViewBypassWidgetState
     InAppWebViewController ctrl,
     CaptchaConfig config,
   ) async {
+    // Do NOT gate captcha detection on document.readyState. A page whose load
+    // event is stalled on a slow sub-resource (tracker, cdn beacon, speculation
+    // rules) can sit in "loading" for tens of seconds while the captcha DOM is
+    // already fully rendered and interactable. Waiting for readyState here was
+    // exactly why eager detection kept losing the race to onLoadStop. Probe the
+    // captcha/success elements directly; their presence is the real signal.
+    final bool readyStateResolved;
     try {
       final readyState = await ctrl.evaluateJavascript(
         source:
             '(function(){ try { return document.readyState; } catch (_) { return "loading"; } })()',
       );
-      if (readyState != 'interactive' && readyState != 'complete') {
-        return _EagerReadiness.loading;
-      }
+      readyStateResolved =
+          readyState == 'interactive' || readyState == 'complete';
     } catch (_) {
       return _EagerReadiness.notReady;
     }
@@ -1063,7 +1119,12 @@ class _CaptchaWebViewBypassWidgetState
           return _EagerReadiness.successReady;
         }
       }
-      return _EagerReadiness.notReady;
+      // Neither captcha nor success visible yet. If the document itself has not
+      // reached interactive, report loading so the caller keeps polling quietly
+      // rather than treating this as a settled "not ready" state.
+      return readyStateResolved
+          ? _EagerReadiness.notReady
+          : _EagerReadiness.loading;
     }
 
     if (config.isImageOcr) {
@@ -1165,7 +1226,7 @@ class _CaptchaWebViewBypassWidgetState
         );
 
         await Future.delayed(
-          Duration(milliseconds: widget.captchaConfig.initialDelayMs),
+          Duration(milliseconds: _effectiveInitialDelayMs),
         );
         if (_isCompleted) return;
 
@@ -1212,7 +1273,7 @@ class _CaptchaWebViewBypassWidgetState
         if (_isCompleted) return;
 
         await Future.delayed(
-          Duration(milliseconds: widget.captchaConfig.initialDelayMs),
+          Duration(milliseconds: _effectiveInitialDelayMs),
         );
         if (_isCompleted) return;
 
