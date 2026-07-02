@@ -242,6 +242,8 @@ enum _WebViewFlowStage { search, detail }
 
 enum _CaptchaPageSignal { captcha, success, timedOut, superseded, cancelled }
 
+enum _EagerReadiness { loading, notReady, captchaReady, successReady }
+
 class CaptchaWebViewBypassWidget extends StatefulWidget {
   final SourceState source;
   final String? searchKeyword;
@@ -578,6 +580,11 @@ class _CaptchaWebViewBypassWidgetState
   String? _searchPageHtml;
   String? _searchPageUrl;
   final Set<String> _visitedHosts = {};
+  int? _eagerStartedForToken;
+  bool _eagerPollActive = false;
+  static const int _eagerProgressThreshold = 10;
+  static const Duration _eagerPollInterval = Duration(milliseconds: 350);
+  static const Duration _eagerPollTimeout = Duration(seconds: 30);
 
   @override
   void initState() {
@@ -729,13 +736,16 @@ class _CaptchaWebViewBypassWidgetState
       onLoadStart: (_, url) {
         _log('Page load started: $url');
       },
-      onProgressChanged: (_, progress) {
+      onProgressChanged: (ctrl, progress) {
         if (progress == 10 ||
             progress == 30 ||
             progress == 50 ||
             progress == 80 ||
             progress == 100) {
           _log('Page progress: $progress%');
+        }
+        if (progress >= _eagerProgressThreshold) {
+          _maybeStartEagerCaptcha(ctrl);
         }
       },
       onLoadStop: (ctrl, url) async {
@@ -908,6 +918,217 @@ class _CaptchaWebViewBypassWidgetState
     );
   }
 
+  void _maybeStartEagerCaptcha(InAppWebViewController? ctrl) {
+    if (ctrl == null) return;
+    if (_isCompleted || _isCaptchaFlowRunning || _eagerPollActive) return;
+    if (_eagerStartedForToken == _loadEventToken) return;
+    _eagerStartedForToken = _loadEventToken;
+    _eagerPollActive = true;
+    final token = _loadEventToken;
+    _log(
+      'Eager captcha detection armed at progress>=$_eagerProgressThreshold% '
+      '(token=$token), polling for essential elements before full load',
+    );
+    unawaited(_runEagerCaptchaPoll(ctrl, token: token));
+  }
+
+  Future<void> _runEagerCaptchaPoll(
+    InAppWebViewController ctrl, {
+    required int token,
+  }) async {
+    final deadline = DateTime.now().add(_eagerPollTimeout);
+    var tick = 0;
+    try {
+      while (!_isCompleted &&
+          !_isCaptchaFlowRunning &&
+          token == _loadEventToken &&
+          _isControllerAlive(ctrl) &&
+          DateTime.now().isBefore(deadline)) {
+        final readiness = await _checkEagerReadiness(ctrl, widget.captchaConfig);
+        if (_isCompleted ||
+            _isCaptchaFlowRunning ||
+            token != _loadEventToken ||
+            !_isControllerAlive(ctrl)) {
+          return;
+        }
+        if (readiness == _EagerReadiness.captchaReady) {
+          await _startEagerCaptchaSolving(ctrl, token: token);
+          return;
+        }
+        if (readiness == _EagerReadiness.successReady) {
+          _log(
+            'Success marker detected before page fully loaded, '
+            'completing early (no captcha, cookie likely reused)',
+          );
+          _isCaptchaFlowRunning = true;
+          try {
+            final currentUrl = (await ctrl.getUrl())?.toString();
+            if (_isCompleted ||
+                token != _loadEventToken ||
+                !_isControllerAlive(ctrl)) {
+              return;
+            }
+            await _completeSuccess(ctrl, currentUrl);
+          } catch (e) {
+            _log('Eager success completion failed: $e');
+            if (!_isCompleted) {
+              _complete(
+                CaptchaBypassResult(
+                  sourceName: widget.source.name,
+                  success: false,
+                  error: 'Eager success completion failed: $e',
+                ),
+              );
+            }
+          } finally {
+            _isCaptchaFlowRunning = false;
+          }
+          return;
+        }
+        tick += 1;
+        if (tick % 8 == 0) {
+          _log('Eagerly waiting for captcha elements to be ready...');
+        }
+        await Future.delayed(_eagerPollInterval);
+      }
+    } catch (e) {
+      _log('Eager captcha poll aborted: $e');
+    } finally {
+      _eagerPollActive = false;
+    }
+  }
+
+  Future<void> _startEagerCaptchaSolving(
+    InAppWebViewController ctrl, {
+    required int token,
+  }) async {
+    _log(
+      'Essential captcha elements ready before page fully loaded, '
+      'pacing submit by initialDelayMs '
+      '(${widget.captchaConfig.initialDelayMs}ms) to avoid anti-bot rejection',
+    );
+
+    _isCaptchaFlowRunning = true;
+    try {
+      await Future.delayed(
+        Duration(milliseconds: widget.captchaConfig.initialDelayMs),
+      );
+      if (_isCompleted ||
+          token != _loadEventToken ||
+          !_isControllerAlive(ctrl)) {
+        return;
+      }
+      await _runCaptchaSolving(ctrl);
+    } catch (e) {
+      _log('Eager captcha solving failed: $e');
+      if (!_isCompleted) {
+        _complete(
+          CaptchaBypassResult(
+            sourceName: widget.source.name,
+            success: false,
+            error: 'Eager captcha solving failed: $e',
+          ),
+        );
+      }
+    } finally {
+      _isCaptchaFlowRunning = false;
+    }
+  }
+
+  bool _isControllerAlive(InAppWebViewController ctrl) {
+    return identical(_webViewController, ctrl) && !_isCompleted;
+  }
+
+  Future<_EagerReadiness> _checkEagerReadiness(
+    InAppWebViewController ctrl,
+    CaptchaConfig config,
+  ) async {
+    try {
+      final readyState = await ctrl.evaluateJavascript(
+        source:
+            '(function(){ try { return document.readyState; } catch (_) { return "loading"; } })()',
+      );
+      if (readyState != 'interactive' && readyState != 'complete') {
+        return _EagerReadiness.loading;
+      }
+    } catch (_) {
+      return _EagerReadiness.notReady;
+    }
+
+    final hasCaptcha = await _detectCaptcha(ctrl, config);
+    if (!hasCaptcha) {
+      final successSelector = config.successSelector;
+      if (successSelector != null && successSelector.trim().isNotEmpty) {
+        if (await _selectorExists(ctrl, successSelector)) {
+          return _EagerReadiness.successReady;
+        }
+      }
+      return _EagerReadiness.notReady;
+    }
+
+    if (config.isImageOcr) {
+      if (!await _isCaptchaImageReady(ctrl, config)) {
+        return _EagerReadiness.notReady;
+      }
+      if (!await _selectorExists(ctrl, config.inputSelector)) {
+        return _EagerReadiness.notReady;
+      }
+      if (!await _selectorExists(ctrl, config.submitSelector)) {
+        return _EagerReadiness.notReady;
+      }
+    } else if (config.isSimpleClick) {
+      if (!await _selectorExists(ctrl, config.submitSelector)) {
+        return _EagerReadiness.notReady;
+      }
+    }
+
+    return _EagerReadiness.captchaReady;
+  }
+
+  Future<bool> _isCaptchaImageReady(
+    InAppWebViewController ctrl,
+    CaptchaConfig config,
+  ) async {
+    final imageSelector = config.imageSelector;
+    if (imageSelector == null || imageSelector.trim().isEmpty) return true;
+    final selectorLiteral = jsonEncode(imageSelector);
+    final script = '''
+(function() {
+  try {
+    var el = document.querySelector($selectorLiteral);
+    if (!el) return false;
+    if (el.tagName === 'IMG') {
+      return !!(el.complete && el.naturalWidth && el.naturalWidth > 0);
+    }
+    return true;
+  } catch (_) {
+    return false;
+  }
+})()
+''';
+    try {
+      final result = await ctrl.evaluateJavascript(source: script);
+      return result == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _selectorExists(
+    InAppWebViewController ctrl,
+    String? selector,
+  ) async {
+    if (selector == null || selector.trim().isEmpty) return true;
+    try {
+      final exists = await ctrl.evaluateJavascript(
+        source: _buildSelectorExistsScript(selector),
+      );
+      return exists == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _handleCaptcha(InAppWebViewController ctrl) async {
     if (_isCaptchaFlowRunning) {
       _log('Captcha flow is already running, ignoring duplicate trigger');
@@ -916,101 +1137,39 @@ class _CaptchaWebViewBypassWidgetState
     _isCaptchaFlowRunning = true;
 
     try {
-      if (!widget.captchaConfig.isImageOcr &&
-          !widget.captchaConfig.isSimpleClick) {
-        _complete(
-          CaptchaBypassResult(
-            sourceName: widget.source.name,
-            success: false,
-            error: 'Captcha type "${widget.captchaConfig.type}" not supported',
-          ),
-        );
-        return;
-      }
+      await _runCaptchaSolving(ctrl);
+    } finally {
+      _isCaptchaFlowRunning = false;
+    }
+  }
 
-      if (widget.captchaConfig.isSimpleClick) {
-        while (_captchaRetryCount < _maxCaptchaRetries && !_isCompleted) {
-          _captchaRetryCount++;
-          final currentAttempt = _captchaRetryCount;
-          _log(
-            'Simple click captcha detected (attempt $currentAttempt/$_maxCaptchaRetries)',
-          );
+  Future<void> _runCaptchaSolving(InAppWebViewController ctrl) async {
+    if (!widget.captchaConfig.isImageOcr &&
+        !widget.captchaConfig.isSimpleClick) {
+      _complete(
+        CaptchaBypassResult(
+          sourceName: widget.source.name,
+          success: false,
+          error: 'Captcha type "${widget.captchaConfig.type}" not supported',
+        ),
+      );
+      return;
+    }
 
-          await Future.delayed(
-            Duration(milliseconds: widget.captchaConfig.initialDelayMs),
-          );
-          if (_isCompleted) return;
-
-          await _fillInputAndSubmit(ctrl, widget.captchaConfig, '');
-
-          final submitSuccess = await _waitForSubmitResult(
-            ctrl,
-            widget.captchaConfig,
-          );
-
-          if (_isCompleted) return;
-
-          if (submitSuccess) {
-            _log('Simple click bypassed successfully');
-            final currentUrl = (await ctrl.getUrl())?.toString();
-            await _completeSuccess(ctrl, currentUrl);
-            return;
-          }
-
-          _log(
-            'Simple click failed, still present (attempt $currentAttempt/$_maxCaptchaRetries)',
-          );
-        }
-
-        _complete(
-          CaptchaBypassResult(
-            sourceName: widget.source.name,
-            success: false,
-            error:
-                'Simple click bypass failed after $_maxCaptchaRetries retries.',
-          ),
-        );
-        return;
-      }
-
+    if (widget.captchaConfig.isSimpleClick) {
       while (_captchaRetryCount < _maxCaptchaRetries && !_isCompleted) {
         _captchaRetryCount++;
         final currentAttempt = _captchaRetryCount;
-        _log('Captcha detected (attempt $currentAttempt/$_maxCaptchaRetries)');
-
-        if (currentAttempt > 1) {
-          _log('Refreshing captcha image before retry...');
-          await _refreshCaptchaImage(ctrl, widget.captchaConfig);
-          if (_isCompleted) return;
-
-          await Future.delayed(
-            Duration(milliseconds: widget.captchaConfig.initialDelayMs),
-          );
-          if (_isCompleted) return;
-
-          final stillHasCaptcha = await _detectCaptcha(
-            ctrl,
-            widget.captchaConfig,
-          );
-          if (!stillHasCaptcha) {
-            _log('Captcha no longer present after refresh, proceeding...');
-            final currentUrl = (await ctrl.getUrl())?.toString();
-            await _completeSuccess(ctrl, currentUrl);
-            return;
-          }
-        }
-
-        final ocrResult = await _solveImageOcrCaptcha(
-          ctrl,
-          widget.captchaConfig,
+        _log(
+          'Simple click captcha detected (attempt $currentAttempt/$_maxCaptchaRetries)',
         );
-        if (ocrResult == null) {
-          _log('OCR failed (attempt $currentAttempt/$_maxCaptchaRetries)');
-          continue;
-        }
 
-        _log('OCR result: $ocrResult, submitting...');
-        await _fillInputAndSubmit(ctrl, widget.captchaConfig, ocrResult);
+        await Future.delayed(
+          Duration(milliseconds: widget.captchaConfig.initialDelayMs),
+        );
+        if (_isCompleted) return;
+
+        await _fillInputAndSubmit(ctrl, widget.captchaConfig, '');
 
         final submitSuccess = await _waitForSubmitResult(
           ctrl,
@@ -1020,14 +1179,14 @@ class _CaptchaWebViewBypassWidgetState
         if (_isCompleted) return;
 
         if (submitSuccess) {
-          _log('Captcha bypassed');
+          _log('Simple click bypassed successfully');
           final currentUrl = (await ctrl.getUrl())?.toString();
           await _completeSuccess(ctrl, currentUrl);
           return;
         }
 
         _log(
-          'Captcha still present after submit (attempt $currentAttempt/$_maxCaptchaRetries)',
+          'Simple click failed, still present (attempt $currentAttempt/$_maxCaptchaRetries)',
         );
       }
 
@@ -1035,12 +1194,78 @@ class _CaptchaWebViewBypassWidgetState
         CaptchaBypassResult(
           sourceName: widget.source.name,
           success: false,
-          error: 'Captcha bypass failed after $_maxCaptchaRetries retries',
+          error:
+              'Simple click bypass failed after $_maxCaptchaRetries retries.',
         ),
       );
-    } finally {
-      _isCaptchaFlowRunning = false;
+      return;
     }
+
+    while (_captchaRetryCount < _maxCaptchaRetries && !_isCompleted) {
+      _captchaRetryCount++;
+      final currentAttempt = _captchaRetryCount;
+      _log('Captcha detected (attempt $currentAttempt/$_maxCaptchaRetries)');
+
+      if (currentAttempt > 1) {
+        _log('Refreshing captcha image before retry...');
+        await _refreshCaptchaImage(ctrl, widget.captchaConfig);
+        if (_isCompleted) return;
+
+        await Future.delayed(
+          Duration(milliseconds: widget.captchaConfig.initialDelayMs),
+        );
+        if (_isCompleted) return;
+
+        final stillHasCaptcha = await _detectCaptcha(
+          ctrl,
+          widget.captchaConfig,
+        );
+        if (!stillHasCaptcha) {
+          _log('Captcha no longer present after refresh, proceeding...');
+          final currentUrl = (await ctrl.getUrl())?.toString();
+          await _completeSuccess(ctrl, currentUrl);
+          return;
+        }
+      }
+
+      final ocrResult = await _solveImageOcrCaptcha(
+        ctrl,
+        widget.captchaConfig,
+      );
+      if (ocrResult == null) {
+        _log('OCR failed (attempt $currentAttempt/$_maxCaptchaRetries)');
+        continue;
+      }
+
+      _log('OCR result: $ocrResult, submitting...');
+      await _fillInputAndSubmit(ctrl, widget.captchaConfig, ocrResult);
+
+      final submitSuccess = await _waitForSubmitResult(
+        ctrl,
+        widget.captchaConfig,
+      );
+
+      if (_isCompleted) return;
+
+      if (submitSuccess) {
+        _log('Captcha bypassed');
+        final currentUrl = (await ctrl.getUrl())?.toString();
+        await _completeSuccess(ctrl, currentUrl);
+        return;
+      }
+
+      _log(
+        'Captcha still present after submit (attempt $currentAttempt/$_maxCaptchaRetries)',
+      );
+    }
+
+    _complete(
+      CaptchaBypassResult(
+        sourceName: widget.source.name,
+        success: false,
+        error: 'Captcha bypass failed after $_maxCaptchaRetries retries',
+      ),
+    );
   }
 
   Future<void> _completeSuccess(
