@@ -63,9 +63,6 @@ class CustomVideoControls extends StatelessWidget {
   final String? videoTitle;
   final ValueListenable<String>? videoTitleListenable;
 
-  // 下载当前在线源
-  final VoidCallback? onDownloadCurrentSource;
-
   const CustomVideoControls({
     super.key,
     required this.state,
@@ -90,7 +87,6 @@ class CustomVideoControls extends StatelessWidget {
     required this.mobilePlayerLockNotifier,
     this.videoTitle,
     this.videoTitleListenable,
-    this.onDownloadCurrentSource,
     required this.isAutoPlayNextEnabled,
     required this.onToggleAutoPlayNext,
     required this.playbackSpeed,
@@ -175,15 +171,6 @@ class CustomVideoControls extends StatelessWidget {
         },
       ),
       const SizedBox(width: 8),
-      if (onDownloadCurrentSource != null)
-        Builder(
-          builder: (ctx) => _buildIntegratedButton(
-            context: context,
-            icon: Icons.download,
-            onPressed: onDownloadCurrentSource!,
-          ),
-        ),
-      const SizedBox(width: 8),
       Builder(
         builder: (ctx) => _buildIntegratedButton(
           context: context,
@@ -219,14 +206,6 @@ class CustomVideoControls extends StatelessWidget {
         },
       ),
       const SizedBox(width: 4),
-      if (onDownloadCurrentSource != null)
-        Builder(
-          builder: (ctx) => _buildIntegratedButton(
-            context: context,
-            icon: Icons.download,
-            onPressed: onDownloadCurrentSource!,
-          ),
-        ),
       Builder(
         builder: (ctx) => _buildIntegratedButton(
           context: context,
@@ -414,14 +393,6 @@ class CustomVideoControls extends StatelessWidget {
                   icon: Icons.settings,
                   onPressed: () => _showSettingsMenu(context),
                 ),
-                if (onDownloadCurrentSource != null) ...[
-                  const SizedBox(width: 8),
-                  _buildIntegratedButton(
-                    context: context,
-                    icon: Icons.download,
-                    onPressed: onDownloadCurrentSource!,
-                  ),
-                ],
                 const SizedBox(width: 8),
                 const MaterialDesktopFullscreenButton(),
                 const SizedBox(width: 8),
@@ -493,14 +464,6 @@ class CustomVideoControls extends StatelessWidget {
                   icon: Icons.settings,
                   onPressed: () => _showSettingsMenu(context),
                 ),
-                if (onDownloadCurrentSource != null) ...[
-                  const SizedBox(width: 8),
-                  _buildIntegratedButton(
-                    context: context,
-                    icon: Icons.download,
-                    onPressed: onDownloadCurrentSource!,
-                  ),
-                ],
                 const SizedBox(width: 8),
                 const MaterialDesktopFullscreenButton(),
                 const SizedBox(width: 16),

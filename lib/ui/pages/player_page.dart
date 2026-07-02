@@ -435,6 +435,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     setState(() {
       _currentStreamUrl = streamUrl;
       _sampleVideoUrl = streamUrl; // Prevent online sources from auto-playing
+      _currentOnlineSource = null;
       _hasAutoPlayed = true; // Mark as already auto-played
       _playingSourceLabel = 'BT下载';
       _isLoadingVideo = false;
@@ -521,6 +522,92 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         context,
       ).showSnackBar(const SnackBar(content: Text('已添加到下载任务')));
     }
+  }
+
+  void _onCopyCurrentSourceUrl() {
+    final url = _currentOnlineSource?.directVideoUrl;
+    if (url == null || url.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('没有可复制的下载链接')));
+      }
+      return;
+    }
+    Clipboard.setData(ClipboardData(text: url));
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('下载链接已复制')));
+    }
+  }
+
+  Widget _buildCurrentSourceActionButtons({bool compact = false}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final canAct =
+        _currentOnlineSource != null &&
+        _currentOnlineSource!.directVideoUrl != null;
+    final iconColor = isDark ? Colors.white : theme.colorScheme.onSurface;
+    final bg = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : theme.colorScheme.surfaceContainerHigh;
+    final border = isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.3);
+    final fontSize = compact ? 12.0 : 13.0;
+    final iconSize = compact ? 14.0 : 16.0;
+    final pad = compact
+        ? const EdgeInsets.symmetric(horizontal: 10, vertical: 6)
+        : const EdgeInsets.symmetric(horizontal: 12, vertical: 8);
+
+    Widget btn({required IconData icon, required String label, required VoidCallback? onTap}) {
+      return Opacity(
+        opacity: canAct ? 1.0 : 0.4,
+        child: InkWell(
+          onTap: canAct ? onTap : null,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: pad,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: iconSize, color: iconColor),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: iconColor,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        btn(
+          icon: Icons.download,
+          label: "下载",
+          onTap: _onDownloadCurrentSource,
+        ),
+        const SizedBox(width: 8),
+        btn(
+          icon: Icons.link,
+          label: "复制下载链接",
+          onTap: _onCopyCurrentSourceUrl,
+        ),
+      ],
+    );
   }
 
   Future<void> _applyPendingStartPosition() async {
@@ -2946,6 +3033,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
               const Spacer(),
+              _buildCurrentSourceActionButtons(compact: true),
             ],
           ),
           const SizedBox(height: 16),
@@ -3310,6 +3398,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                             ],
                           ),
                         ),
+                        const SizedBox(width: 16),
+                        _buildCurrentSourceActionButtons(),
                       ],
                     ),
                   ],
@@ -3763,6 +3853,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // Reset video playback state
       _currentStreamUrl = null;
       _sampleVideoUrl = null;
+      _currentOnlineSource = null;
       _videoError = null;
       _isLoadingVideo = false;
       _loadingMagnet = null;
@@ -4008,11 +4099,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 mobilePlayerLockNotifier: _mobilePlayerLockNotifier,
                 videoTitle: _videoTitleNotifier.value,
                 videoTitleListenable: _videoTitleNotifier,
-                onDownloadCurrentSource:
-                    _currentOnlineSource != null &&
-                        _currentOnlineSource!.directVideoUrl != null
-                    ? _onDownloadCurrentSource
-                    : null,
               ),
             ),
           );
@@ -5300,8 +5386,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ? Colors.white24
         : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7);
 
-    final dedupedBtResources = _dedupBtResources(
-      [..._mikanResources, ..._dmhyResources],
+    final dedupedBtResources = _sortBtResourcesByTitle(
+      _dedupBtResources([..._mikanResources, ..._dmhyResources]),
     );
     final btCount = dedupedBtResources.length;
     final btHasError = _mikanError != null || _dmhyError != null;
@@ -5809,6 +5895,20 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       result.add(r);
     }
     return result;
+  }
+
+  List<dynamic> _sortBtResourcesByTitle(List<dynamic> resources) {
+    final sorted = List<dynamic>.from(resources);
+    sorted.sort((a, b) {
+      final ta = _titleOf(a).trim();
+      final tb = _titleOf(b).trim();
+      final c = ta.compareTo(tb);
+      if (c != 0) return c;
+      final sa = _sizeOf(a);
+      final sb = _sizeOf(b);
+      return sa.compareTo(sb);
+    });
+    return sorted;
   }
 
   Widget _buildBtTag(String label, Color bgColor, Color textColor) {
