@@ -18,6 +18,7 @@ import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
 import 'package:mikan_player/services/bangumi_ech_service.dart';
 import 'package:mikan_player/services/bangumi_data_service.dart';
+import 'package:mikan_player/services/captcha_ocr_service.dart';
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
@@ -220,6 +221,11 @@ Future<void> _runDeferredStartupTasks() async {
     // API remains the primary path.
     debugPrint('[Startup] bangumi-data warmup scheduled');
     unawaited(BangumiDataService.warmup());
+
+    // Pre-warm the OCR model so it's ready before the first captcha is needed.
+    // Cold start takes ~10s; inference is only ~20ms once loaded.
+    unawaited(CaptchaOcrService.instance.ensureInitialized());
+    debugPrint('[Startup] Captcha OCR warmup scheduled');
 
     if (prefs.getStringList('disabled_sources') == null) {
       final initialDisabledSources =
