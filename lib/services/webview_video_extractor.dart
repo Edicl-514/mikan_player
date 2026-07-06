@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/main.dart' show webViewEnvironment;
 import 'package:mikan_player/services/webview_cookie_janitor.dart';
+import 'package:mikan_player/services/webview_scheduler_stats.dart';
 
 /// 视频源信息
 class VideoSourceInfo {
@@ -73,7 +74,19 @@ class VideoExtractResult {
   final String? error;
   final Map<String, String> headers;
 
-  VideoExtractResult({this.videoUrl, this.error, this.headers = const {}});
+  /// True when this result was produced by the extraction timeout timer,
+  /// as opposed to a genuine success/failure. Carrying this signal on the
+  /// result lets the scheduler distinguish a timed-out job from a failed one
+  /// purely from the callback — it does not change any existing logic and
+  /// stays false for every legacy call site.
+  final bool timedOut;
+
+  VideoExtractResult({
+    this.videoUrl,
+    this.error,
+    this.headers = const {},
+    this.timedOut = false,
+  });
 
   bool get success => videoUrl != null && videoUrl!.isNotEmpty;
 }
@@ -202,9 +215,16 @@ class WebViewVideoExtractor {
   }
 }
 
-/// WebView 视频提取 Widget
-/// 这是一个隐藏的 WebView，用于加载播放页面并拦截视频URL
-class WebViewVideoExtractorWidget extends StatefulWidget {
+/// 一个视频 URL 提取作业。
+///
+/// player_page 的 `_activeWebViews` 以 `source+channel` 的 pageKey 为记账键，
+/// 因此本类的 [jobKey] 通常就是这个 pageKey（由 `SourceChannelKey.toPageKey`
+/// 生成）。worker 通过 jobKey 与调度器对齐，并在连续执行多个 job 时复用
+/// 同一个 `InAppWebView` 实例。
+@immutable
+class VideoExtractionJob {
+  /// 调度器记账 key（通常为 `sourceName\x00channelIndex`）。
+  final String jobKey;
   final String url;
   final String? customVideoRegex;
   final bool enableNestedUrl;
@@ -212,12 +232,9 @@ class WebViewVideoExtractorWidget extends StatefulWidget {
   final Map<String, String>? headers;
   final String? cookies;
   final Duration timeout;
-  final void Function(VideoExtractResult result) onResult;
-  final void Function(String message)? onLog;
-  final bool showWebView; // 是否显示 WebView（调试用）
 
-  const WebViewVideoExtractorWidget({
-    super.key,
+  const VideoExtractionJob({
+    required this.jobKey,
     required this.url,
     this.customVideoRegex,
     this.enableNestedUrl = false,
@@ -225,45 +242,174 @@ class WebViewVideoExtractorWidget extends StatefulWidget {
     this.headers,
     this.cookies,
     this.timeout = const Duration(seconds: 30),
-    required this.onResult,
+  });
+}
+
+/// 可复用的 WebView 视频提取 worker。
+///
+/// 与一次性 [WebViewVideoExtractorWidget] 不同，本 worker 的 [InAppWebView]
+/// 不会随 job 切换而销毁/重建：当 [job] 变化时通过 [didUpdateWidget] 触发
+/// `_acceptJob`，重置 job 级状态（`_capturedUrls`/`_isCompleted`/
+/// `_navigationCount`/`_timeoutTimer` 等）并通过 `controller.loadUrl()` 导航
+/// 到新 URL。
+///
+/// 所有异步回调（`onLoadStop` 的 `getHtml()`、`shouldInterceptRequest`、
+/// `onLoadResource` 等）都以 `_currentJobToken` 绑定当前 job，跨 job 迟到的
+/// 异步结果会被丢弃，避免污染下一个 job 的状态。
+///
+/// 对外回调：
+/// - [onResult]：每次 job 结束（成功/失败/超时）触发一次，附带 jobKey。
+/// - [onIdle]：每次 job 结束（含被 [cancelCurrentJob] 取消）后触发一次，
+///   让调度器重新分配本 worker 槽。
+///
+/// 调度器可通过持有 `GlobalKey<_ReusableWebViewVideoExtractorState>`
+/// 调用 [cancelCurrentJob] 提前停止当前 job 而不卸载 WebView。
+class ReusableWebViewVideoExtractor extends StatefulWidget {
+  final int workerId;
+  final VideoExtractionJob? job;
+  final void Function(String pageKey, VideoExtractResult result)? onResult;
+  final void Function(int workerId)? onIdle;
+  final void Function(String message)? onLog;
+  final bool showWebView;
+  final WebViewSchedulerStats? stats;
+
+  const ReusableWebViewVideoExtractor({
+    super.key,
+    required this.workerId,
+    this.job,
+    this.onResult,
+    this.onIdle,
     this.onLog,
     this.showWebView = false,
+    this.stats,
   });
 
   @override
-  State<WebViewVideoExtractorWidget> createState() =>
-      _WebViewVideoExtractorWidgetState();
+  State<ReusableWebViewVideoExtractor> createState() =>
+      _ReusableWebViewVideoExtractorState();
 }
 
-class _WebViewVideoExtractorWidgetState
-    extends State<WebViewVideoExtractorWidget> {
+class _ReusableWebViewVideoExtractorState
+    extends State<ReusableWebViewVideoExtractor> {
   static const String _skipParserNavigationHeader =
       'x-opencode-skip-parser-navigation';
+
   InAppWebViewController? _webViewController;
-  final Set<String> _capturedUrls = {};
-  Timer? _timeoutTimer;
+  VideoExtractionJob? _currentJob;
+
+  /// 单调递增的 job token。`_acceptJob` 与 `_cancelCurrentJob` 都会 ++，
+  /// 所有异步回调在 emit 前验证 token，丢弃跨 job 的迟到结果，从而保护
+  /// 慢源 onLoadStop 的 `getHtml()` 不污染下一 job 的 `_capturedUrls`
+  /// 等状态。
+  int _currentJobToken = 0;
   bool _isCompleted = false;
-  int _totalUrlsChecked = 0;
+  Timer? _timeoutTimer;
   int _navigationCount = 0;
-  final List<({String name, String domain, String path})> _cookiesWrittenToJar = [];
+  int _totalUrlsChecked = 0;
+  final Set<String> _capturedUrls = {};
+  final List<({String name, String domain, String path})> _cookiesWrittenToJar =
+      [];
+  final WebViewVideoExtractor _extractor = WebViewVideoExtractor();
 
   @override
   void initState() {
     super.initState();
-    _startTimeout();
+    widget.stats?.onVideoWidgetCreated('worker_${widget.workerId}');
+    if (widget.job != null) {
+      _acceptJob(widget.job!, fromInit: true);
+    }
   }
 
-  void _startTimeout() {
-    _timeoutTimer = Timer(widget.timeout, () {
-      if (!_isCompleted) {
-        _log('⏱️ 超时！共拦截 $_totalUrlsChecked 个URL，但未找到匹配的视频URL');
-        _complete(
-          VideoExtractResult(
-            error:
-                '提取超时，未能在 ${widget.timeout.inSeconds} 秒内找到视频链接（共检查了 $_totalUrlsChecked 个URL）',
-          ),
-        );
-      }
+  @override
+  void didUpdateWidget(covariant ReusableWebViewVideoExtractor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_sameJobConfig(oldWidget.job, widget.job)) return;
+    if (widget.job == null) {
+      // Job 被调度器清空 —— 视作对当前 running job 的取消，不卸载 WebView。
+      _transitionToIdle();
+      return;
+    }
+    // 调度器派发了一个不同 jobKey 的新作业。
+    _acceptJob(widget.job!);
+  }
+
+  bool _sameJobConfig(VideoExtractionJob? a, VideoExtractionJob? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return false;
+    return a.jobKey == b.jobKey &&
+        a.url == b.url &&
+        a.customVideoRegex == b.customVideoRegex &&
+        a.enableNestedUrl == b.enableNestedUrl &&
+        a.matchNestedUrl == b.matchNestedUrl &&
+        a.cookies == b.cookies &&
+        a.timeout == b.timeout &&
+        _sameStringMap(a.headers, b.headers);
+  }
+
+  bool _sameStringMap(Map<String, String>? a, Map<String, String>? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return false;
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) return false;
+    }
+    return true;
+  }
+
+  void _transitionToIdle() {
+    if (_currentJob == null) return;
+    if (!_isCompleted) {
+      _cancelCurrentJob(silent: true);
+      return;
+    }
+
+    _timeoutTimer?.cancel();
+    _currentJob = null;
+    _capturedUrls.clear();
+    _navigationCount = 0;
+    _totalUrlsChecked = 0;
+  }
+
+  /// 接收一个新 job：重置所有 job-级一次性状态、启动 timeout，并在 WebView
+  /// 已存在时通过 `controller.loadUrl()` 导航到新 URL。WebView 尚未创建时
+  /// 本次 `build()` 的 `initialUrlRequest` 会用本 job 的 URL。
+  void _acceptJob(VideoExtractionJob job, {bool fromInit = false}) {
+    final token = ++_currentJobToken;
+
+    // 重置每一个 job 级状态，避免上个 job 的残留污染新 job。
+    _currentJob = job;
+    _isCompleted = false;
+    _navigationCount = 0;
+    _totalUrlsChecked = 0;
+    _capturedUrls.clear();
+    _timeoutTimer?.cancel();
+    _cookiesWrittenToJar.clear();
+
+    _log('Worker ${widget.workerId} accept job ${job.jobKey} url=${job.url}');
+
+    _startTimeout(job, token);
+
+    // 若 WebView controller 已存在（worker 被复用），主动导航；否则等首帧
+    // build 用 initialUrlRequest 装载初始 URL。
+    final controller = _webViewController;
+    if (controller != null) {
+      _loadJobUrl(controller, job, token);
+    }
+  }
+
+  void _startTimeout(VideoExtractionJob job, int token) {
+    _timeoutTimer = Timer(job.timeout, () {
+      if (token != _currentJobToken) return;
+      if (_isCompleted) return;
+      _log('⏱️ 超时！共拦截 $_totalUrlsChecked 个URL，但未找到匹配的视频URL');
+      _complete(
+        token,
+        VideoExtractResult(
+          error:
+              '提取超时，未能在 ${job.timeout.inSeconds} 秒内找到视频链接（共检查了 $_totalUrlsChecked 个URL）',
+          timedOut: true,
+        ),
+      );
     });
   }
 
@@ -272,48 +418,106 @@ class _WebViewVideoExtractorWidgetState
     widget.onLog?.call(message);
   }
 
-  void _complete(VideoExtractResult result) {
+  /// 标记当前 job 完成，恰好触发一次 [onResult] + [onIdle]。token 不匹配
+  /// 或已 `_isCompleted` 时是 no-op，因此迟到的异步回调安全。
+  void _complete(int token, VideoExtractResult result) {
+    if (token != _currentJobToken) return;
     if (_isCompleted) return;
+    final job = _currentJob;
+    if (job == null) return;
     _isCompleted = true;
     _timeoutTimer?.cancel();
     _log('🎉 提取完成！videoUrl=${result.videoUrl}, error=${result.error}');
-    widget.onResult(result);
+    widget.onResult?.call(job.jobKey, result);
+    widget.onIdle?.call(widget.workerId);
   }
 
-  /// Idempotent, externally-safe cancellation. Marks this worker as completed
-  /// so any in-flight async op will no longer fire `widget.onResult`, cancels
-  /// the timeout, and best-effort stops any ongoing WebView load.
-  ///
-  /// NOTE: 在当前步骤里 `_PlayerPageState._cancelLowerPriorityExtraction`
-  /// 并不直接调用本方法 —— 它只能拿到 pageKey 而无法拿到这里的 State 句柄。
-  /// 真正的拆解靠 (a) `_activeWebViews` 记账移除 + (b) `_onWebViewResult`
-  /// late-callback 守卫 + (c) 下次 build 因子节点不在列表触发的
-  /// dispose-on-unmount。本方法为未来可拿到句柄时预留，且在 dispose 路径
-  /// 之外提供显式停止能力。
-  void cancel() {
+  /// 调度器入口：在不卸载 WebView 的前提下停止当前 job —— `stopLoading()`、
+  /// bump token（丢弃迟到回调）、触发 [onIdle]。`silent=true`（默认）不发
+  /// [onResult]，由调度器自行记账；`silent=false` 显式投递一个 cancelled
+  /// 结果，沿用旧 `WebViewVideoExtractorWidget.cancel` 的可观察语义。
+  void cancelCurrentJob({bool silent = true}) {
+    _cancelCurrentJob(silent: silent);
+  }
+
+  void _cancelCurrentJob({required bool silent}) {
+    final job = _currentJob;
+    if (job == null) return;
     if (_isCompleted) return;
+    final controller = _webViewController;
+
     _isCompleted = true;
     _timeoutTimer?.cancel();
-    final controller = _webViewController;
+
+    if (!silent) {
+      widget.onResult?.call(
+        job.jobKey,
+        VideoExtractResult(error: 'cancelled', timedOut: false),
+      );
+    }
+
     if (controller != null) {
       try {
         unawaited(controller.stopLoading());
       } catch (e) {
-        debugPrint('[WebViewExtractor] cancel() stopLoading error: $e');
+        debugPrint(
+          '[WebViewExtractor] cancelCurrentJob stopLoading error: $e',
+        );
       }
+    }
+    _log('Worker ${widget.workerId} cancelled job ${job.jobKey}');
+
+    // bump token，使上一 job 的所有 in-flight 异步回调确定性丢弃。
+    _currentJobToken++;
+    _currentJob = null;
+    _capturedUrls.clear();
+    _navigationCount = 0;
+    _totalUrlsChecked = 0;
+
+    widget.onIdle?.call(widget.workerId);
+  }
+
+  void _loadJobUrl(
+    InAppWebViewController controller,
+    VideoExtractionJob job,
+    int token,
+  ) {
+    if (token != _currentJobToken) return;
+    final headers = _buildInitialHeaders(job);
+    try {
+      unawaited(
+        controller.loadUrl(
+          urlRequest: URLRequest(
+            url: WebUri(job.url),
+            headers: headers.isEmpty ? null : headers,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[WebViewExtractor] loadUrl error: $e');
     }
   }
 
-  Map<String, String> _normalizedConfiguredHeaders() {
+  Map<String, String> _buildInitialHeaders(VideoExtractionJob job) {
+    final merged = _normalizedConfiguredHeaders(job);
+    if (!merged.containsKey('Referer') && !merged.containsKey('referer')) {
+      final uri = Uri.tryParse(job.url);
+      if (uri != null && uri.scheme.isNotEmpty && uri.host.isNotEmpty) {
+        merged['Referer'] =
+            uri.origin.endsWith('/') ? uri.origin : '${uri.origin}/';
+      }
+    }
+    return merged;
+  }
+
+  Map<String, String> _normalizedConfiguredHeaders(VideoExtractionJob job) {
     final normalized = <String, String>{};
-    final sourceHeaders = widget.headers;
+    final sourceHeaders = job.headers;
     if (sourceHeaders != null) {
       for (final entry in sourceHeaders.entries) {
         final rawKey = entry.key.trim();
         final value = entry.value.trim();
-        if (rawKey.isEmpty || value.isEmpty) {
-          continue;
-        }
+        if (rawKey.isEmpty || value.isEmpty) continue;
         final lowerKey = rawKey.toLowerCase();
         final normalizedKey = switch (lowerKey) {
           'useragent' => 'User-Agent',
@@ -324,7 +528,7 @@ class _WebViewVideoExtractorWidgetState
         normalized[normalizedKey] = value;
       }
     }
-    final cookies = widget.cookies?.trim();
+    final cookies = job.cookies?.trim();
     if (cookies != null && cookies.isNotEmpty) {
       normalized.putIfAbsent('Cookie', () => cookies);
     }
@@ -336,27 +540,22 @@ class _WebViewVideoExtractorWidgetState
   /// which [_normalizedConfiguredHeaders] already handles via the `Cookie`
   /// header).
   ///
-  /// The STEP 1.0 audit confirmed that every [WebViewVideoExtractorWidget]
-  /// call site (`player_page.dart` and `subscription_debug_page.dart`) passes
-  /// `cookies` that originate from `MatchVideo.cookies` and are attached
-  /// purely as outbound `Cookie` headers by the Rust side. No source config
-  /// or play-page JS documented in the audit reads `document.cookie`, and no
-  /// bundled source JSON sets non-empty cookies. The only confirmed
-  /// jar-dependent WebView flow in this codebase lives in
-  /// [CaptchaWebViewBypassWidget] (a different widget), which reads cookies
-  /// back out of the jar via `_getCookiesForUrl`. We therefore default this
-  /// extraction widget to header-only and skip the jar write/delete entirely.
-  /// confirmed (e.g. a source whose play-page JS reads `document.cookie`),
-  /// introduce a widget flag/field that identifies it and return `true` here
-  /// for that case. Do NOT hardcode source URLs/hostnames without evidence.
-  bool _needsCookieJarInjection() {
+  /// The STEP 1.0 audit confirmed every player_page/subscription_debug_page
+  /// call site passes `cookies` that originate from `MatchVideo.cookies` and
+  /// are attached purely as outbound `Cookie` headers by the Rust side. No
+  /// source config or play-page JS documented in the audit reads
+  /// `document.cookie`, and no bundled source JSON sets non-empty cookies. We
+  /// therefore default to header-only and skip the jar write/delete entirely.
+  /// If jar-dependent sources are later identified, return `true` here for
+  /// those jobs.
+  bool _needsCookieJarInjection(VideoExtractionJob job) {
     return false;
   }
 
-  Future<void> _setTaskCookiesInCookieManager() async {
-    final cookies = widget.cookies?.trim();
+  Future<void> _setTaskCookiesInCookieManager(VideoExtractionJob job) async {
+    final cookies = job.cookies?.trim();
     if (cookies == null || cookies.isEmpty) return;
-    final uri = Uri.tryParse(widget.url);
+    final uri = Uri.tryParse(job.url);
     if (uri == null || uri.host.isEmpty) return;
     try {
       final cookieManager = CookieManager();
@@ -383,14 +582,14 @@ class _WebViewVideoExtractorWidgetState
     }
   }
 
-  bool _shouldSkipParserNavigation() {
-    final headers = _normalizedConfiguredHeaders();
+  bool _shouldSkipParserNavigation(VideoExtractionJob job) {
+    final headers = _normalizedConfiguredHeaders(job);
     final value = headers[_skipParserNavigationHeader]?.trim().toLowerCase();
     return value == '1' || value == 'true' || value == 'yes' || value == 'on';
   }
 
-  String _defaultRefererFor(String url) {
-    final sourcePage = Uri.tryParse(widget.url);
+  String _defaultRefererFor(VideoExtractionJob job, String url) {
+    final sourcePage = Uri.tryParse(job.url);
     if (sourcePage != null &&
         sourcePage.scheme.isNotEmpty &&
         sourcePage.host.isNotEmpty) {
@@ -402,21 +601,20 @@ class _WebViewVideoExtractorWidgetState
     if (parsed != null && parsed.scheme.isNotEmpty && parsed.host.isNotEmpty) {
       return parsed.origin.endsWith('/') ? parsed.origin : '${parsed.origin}/';
     }
-    return widget.url;
+    return job.url;
   }
 
   Map<String, String> _mergeRequestHeaders(
+    VideoExtractionJob job,
     String url, {
     Map<String, String>? requestHeaders,
   }) {
-    final merged = _normalizedConfiguredHeaders();
+    final merged = _normalizedConfiguredHeaders(job);
     if (requestHeaders != null) {
       for (final entry in requestHeaders.entries) {
         final key = entry.key.trim();
         final value = entry.value.trim();
-        if (key.isEmpty || value.isEmpty) {
-          continue;
-        }
+        if (key.isEmpty || value.isEmpty) continue;
         final lowerKey = key.toLowerCase();
         final normalizedKey = switch (lowerKey) {
           'useragent' => 'User-Agent',
@@ -429,17 +627,26 @@ class _WebViewVideoExtractorWidgetState
     }
 
     if (!merged.containsKey('Referer') && !merged.containsKey('referer')) {
-      merged['Referer'] = _defaultRefererFor(url);
+      merged['Referer'] = _defaultRefererFor(job, url);
     }
     return merged;
   }
 
-  bool _checkAndCaptureUrl(String url, {Map<String, String>? headers}) {
+  /// 同步检查 `url` 是否是 / 指向视频目标，必要时导航 WebView 到嵌套 /
+  /// 播放器解析 URL。若本次调用让 job 完成，返回 true；token 与当前不匹配
+  /// 时直接 short-circuit，保护跨 job 迟到回调。
+  bool _checkAndCaptureUrl(
+    String url, {
+    Map<String, String>? headers,
+    required int token,
+  }) {
+    if (token != _currentJobToken) return false;
+    final job = _currentJob;
+    if (job == null || _isCompleted) return false;
+
     if (_capturedUrls.contains(url)) return false;
     _capturedUrls.add(url);
     _totalUrlsChecked++;
-
-    final extractor = WebViewVideoExtractor();
 
     // 检查是否看起来像视频URL（用于调试）
     final looksLikeVideo =
@@ -457,7 +664,7 @@ class _WebViewVideoExtractorWidgetState
     }
 
     // 确保 headers 包含 Referer，如果没有则使用初始页面URL
-    final finalHeaders = _mergeRequestHeaders(url, requestHeaders: headers);
+    final finalHeaders = _mergeRequestHeaders(job, url, requestHeaders: headers);
 
     if (looksLikeVideo) {
       _log('   Headers provided: ${headers?.keys.join(", ")}');
@@ -491,21 +698,21 @@ class _WebViewVideoExtractorWidgetState
                 hasParserParams)) &&
         !url.contains('loading.html') &&
         !url.contains('/static/') &&
-        !url.contains(widget.url);
+        !url.contains(job.url);
 
-    final skipParserNavigation = _shouldSkipParserNavigation();
+    final skipParserNavigation = _shouldSkipParserNavigation(job);
 
     // 当 enableNestedUrl 且 matchNestedUrl 有效时，使用配置的正则检测嵌套URL
     final effectiveMatchNestedUrl =
-        widget.enableNestedUrl &&
-                widget.matchNestedUrl != null &&
-                widget.matchNestedUrl!.isNotEmpty &&
-                widget.matchNestedUrl != r'$^'
-            ? widget.matchNestedUrl
+        job.enableNestedUrl &&
+                job.matchNestedUrl != null &&
+                job.matchNestedUrl!.isNotEmpty &&
+                job.matchNestedUrl != r'$^'
+            ? job.matchNestedUrl
             : null;
 
     if (effectiveMatchNestedUrl != null &&
-        extractor._matchesCustomRegex(url, effectiveMatchNestedUrl)) {
+        _extractor._matchesCustomRegex(url, effectiveMatchNestedUrl)) {
       if (skipParserNavigation) {
         _log('⏭️ 已按源配置跳过嵌套URL导航: $url');
         return false;
@@ -515,7 +722,7 @@ class _WebViewVideoExtractorWidgetState
         return false;
       }
 
-      final extractedNestedUrl = extractor._extractUrlWithCustomRegex(
+      final extractedNestedUrl = _extractor._extractUrlWithCustomRegex(
         url,
         effectiveMatchNestedUrl,
       );
@@ -525,24 +732,40 @@ class _WebViewVideoExtractorWidgetState
       _log('🎬 matchNestedUrl匹配到嵌套URL (第$_navigationCount次跳转): $url');
       _log('   提取的嵌套URL: $navigationUrl');
       _log('   将导航到此URL以拦截内部视频请求...');
-      _webViewController?.loadUrl(
-        urlRequest: URLRequest(
-          url: WebUri(navigationUrl),
-          headers: finalHeaders.isEmpty ? null : finalHeaders,
-        ),
-      );
+      final controller = _webViewController;
+      if (controller != null && token == _currentJobToken) {
+        unawaited(
+          controller.loadUrl(
+            urlRequest: URLRequest(
+              url: WebUri(navigationUrl),
+              headers: finalHeaders.isEmpty ? null : finalHeaders,
+            ),
+          ),
+        );
+      }
       return false;
     }
 
     // 当URL命中播放器解析接口时，先尝试用自定义正则直接提取视频URL
     // 这对于 url=(?<v>...) 这种能直接从参数中提取真实视频地址的场景特别重要
-    if (isPlayerParser && widget.customVideoRegex != null && widget.customVideoRegex!.isNotEmpty) {
-      final matched = extractor._matchesCustomRegex(url, widget.customVideoRegex);
+    if (isPlayerParser &&
+        job.customVideoRegex != null &&
+        job.customVideoRegex!.isNotEmpty) {
+      final matched =
+          _extractor._matchesCustomRegex(url, job.customVideoRegex);
       if (matched) {
-        final extractedUrl = extractor._extractUrlWithCustomRegex(url, widget.customVideoRegex);
-        if (extractedUrl != null && extractedUrl.isNotEmpty && extractedUrl != url) {
+        final extractedUrl = _extractor._extractUrlWithCustomRegex(
+          url,
+          job.customVideoRegex,
+        );
+        if (extractedUrl != null &&
+            extractedUrl.isNotEmpty &&
+            extractedUrl != url) {
           _log('🎯 播放器接口中通过自定义正则直接提取到视频URL: $extractedUrl');
-          _complete(VideoExtractResult(videoUrl: extractedUrl, headers: finalHeaders));
+          _complete(
+            token,
+            VideoExtractResult(videoUrl: extractedUrl, headers: finalHeaders),
+          );
           return true;
         }
       }
@@ -559,14 +782,19 @@ class _WebViewVideoExtractorWidgetState
       }
       _navigationCount++;
       _log('🎬 检测到播放器解析接口 (第$_navigationCount次跳转): $url');
-      _log('   将导航到此URL以拦截内部视频请求...');
+      _log('   将导航到此URL以拦截内部网络请求...');
       // 导航到播放器解析页面，这样可以拦截其内部的网络请求
-      _webViewController?.loadUrl(
-        urlRequest: URLRequest(
-          url: WebUri(url),
-          headers: finalHeaders.isEmpty ? null : finalHeaders,
-        ),
-      );
+      final controller = _webViewController;
+      if (controller != null && token == _currentJobToken) {
+        unawaited(
+          controller.loadUrl(
+            urlRequest: URLRequest(
+              url: WebUri(url),
+              headers: finalHeaders.isEmpty ? null : finalHeaders,
+            ),
+          ),
+        );
+      }
       return false; // 不标记为完成，继续等待视频URL
     }
 
@@ -576,30 +804,31 @@ class _WebViewVideoExtractorWidgetState
     }
 
     // 首先用自定义正则检查
-    if (widget.customVideoRegex != null &&
-        widget.customVideoRegex!.isNotEmpty) {
-      final matched = extractor._matchesCustomRegex(
-        url,
-        widget.customVideoRegex,
-      );
+    if (job.customVideoRegex != null && job.customVideoRegex!.isNotEmpty) {
+      final matched =
+          _extractor._matchesCustomRegex(url, job.customVideoRegex);
       if (looksLikeVideo) {
-        _log('   自定义正则 "${widget.customVideoRegex}" 匹配结果: $matched');
+        _log('   自定义正则 "${job.customVideoRegex}" 匹配结果: $matched');
       }
       if (matched) {
         // 优先提取捕获组 'v' 的值，如果没有则使用整个URL
-        final extractedUrl = extractor._extractUrlWithCustomRegex(
+        final extractedUrl = _extractor._extractUrlWithCustomRegex(
           url,
-          widget.customVideoRegex,
+          job.customVideoRegex,
         );
         if (extractedUrl != null && extractedUrl.isNotEmpty) {
           _log('✓ 匹配自定义正则并提取捕获组: $extractedUrl');
           _complete(
+            token,
             VideoExtractResult(videoUrl: extractedUrl, headers: finalHeaders),
           );
           return true;
         } else {
           _log('✓ 匹配自定义正则（无捕获组）: $url');
-          _complete(VideoExtractResult(videoUrl: url, headers: finalHeaders));
+          _complete(
+            token,
+            VideoExtractResult(videoUrl: url, headers: finalHeaders),
+          );
           return true;
         }
       }
@@ -608,13 +837,16 @@ class _WebViewVideoExtractorWidgetState
     }
 
     // 只有在没有自定义正则时，才用内置模式检查
-    final builtInMatched = extractor._isVideoUrl(url);
+    final builtInMatched = _extractor._isVideoUrl(url);
     if (looksLikeVideo) {
       _log('   内置模式匹配结果: $builtInMatched');
     }
     if (builtInMatched) {
       _log('✓ 匹配内置模式: $url');
-      _complete(VideoExtractResult(videoUrl: url, headers: finalHeaders));
+      _complete(
+        token,
+        VideoExtractResult(videoUrl: url, headers: finalHeaders),
+      );
       return true;
     }
 
@@ -672,8 +904,46 @@ class _WebViewVideoExtractorWidgetState
     );
   }
 
+  /// 尝试从HTML内容中提取视频URL
+  Future<void> _tryExtractFromHtml(String html, int token) async {
+    if (token != _currentJobToken) return;
+    _log('开始从HTML提取视频URL...');
+
+    // 尝试直接匹配视频URL（更宽松的模式）
+    // 匹配 .mp4（包括 .f0.mp4 这样的变体）
+    final urlRegex = RegExp(
+      r'''https?://[^\s"<>'\\]+\.(?:mp4|image)(\?[^\s"<>'\\]*)?''',
+      caseSensitive: false,
+    );
+    final urlMatches = urlRegex.allMatches(html);
+    for (final urlMatch in urlMatches) {
+      if (token != _currentJobToken) return;
+      final url = urlMatch.group(0)!;
+      _log('从HTML提取到URL: $url');
+      if (_checkAndCaptureUrl(url, token: token)) {
+        return;
+      }
+    }
+
+    // 也尝试匹配 m3u8
+    final m3u8Regex = RegExp(
+      r'''https?://[^\s"<>'\\]+\.m3u8[^\s"<>'\\]*''',
+      caseSensitive: false,
+    );
+    final m3u8Matches = m3u8Regex.allMatches(html);
+    for (final m3u8Match in m3u8Matches) {
+      if (token != _currentJobToken) return;
+      final url = m3u8Match.group(0)!;
+      _log('从HTML提取到URL: $url');
+      if (_checkAndCaptureUrl(url, token: token)) {
+        return;
+      }
+    }
+  }
+
   @override
   void dispose() {
+    widget.stats?.onVideoWidgetDisposed('worker_${widget.workerId}');
     _timeoutTimer?.cancel();
     if (_cookiesWrittenToJar.isNotEmpty) {
       final janitor = WebViewCookieJanitor();
@@ -691,16 +961,24 @@ class _WebViewVideoExtractorWidgetState
 
   @override
   Widget build(BuildContext context) {
-    final configuredHeaders = _normalizedConfiguredHeaders();
+    final job = _currentJob;
+    final configuredHeaders =
+        job != null ? _normalizedConfiguredHeaders(job) : <String, String>{};
     final configuredUserAgent =
         configuredHeaders['User-Agent'] ?? configuredHeaders['userAgent'];
+    final initialHeaders = job != null
+        ? _mergeRequestHeaders(job, job.url, requestHeaders: configuredHeaders)
+        : <String, String>{};
+
     final webView = InAppWebView(
-      initialUrlRequest: URLRequest(
-        url: WebUri(widget.url),
-        headers: configuredHeaders.isEmpty
-            ? null
-            : _mergeRequestHeaders(widget.url, requestHeaders: configuredHeaders),
-      ),
+      // 固定 key：job 切换不会重建 InAppWebView —— 这是 worker 复用前提。
+      key: ValueKey('reusable_webview_${widget.workerId}'),
+      initialUrlRequest: job != null
+          ? URLRequest(
+              url: WebUri(job.url),
+              headers: initialHeaders.isEmpty ? null : initialHeaders,
+            )
+          : URLRequest(url: WebUri('about:blank')),
       webViewEnvironment: webViewEnvironment, // 使用全局 WebView 环境（Windows 需要）
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
@@ -720,9 +998,14 @@ class _WebViewVideoExtractorWidgetState
       ),
       onWebViewCreated: (controller) async {
         _webViewController = controller;
-        _log('WebView 创建完成，开始加载: ${widget.url}');
-        if (_needsCookieJarInjection()) {
-          await _setTaskCookiesInCookieManager();
+        final current = _currentJob;
+        if (current != null) {
+          _log('WebView 创建完成，开始加载: ${current.url}');
+          if (_needsCookieJarInjection(current)) {
+            await _setTaskCookiesInCookieManager(current);
+          }
+        } else {
+          _log('WebView 创建完成，worker 当前空闲');
         }
         _injectMuteScript(controller);
       },
@@ -732,11 +1015,14 @@ class _WebViewVideoExtractorWidgetState
         _injectMuteScript(controller);
       },
       onLoadStop: (controller, url) async {
+        final token = _currentJobToken;
         _log('页面加载完成: $url');
         _log('已拦截 $_totalUrlsChecked 个URL');
 
         // 页面加载完成后再次注入静音脚本，确保所有动态创建的媒体元素都被静音
         _injectMuteScript(controller);
+
+        if (token != _currentJobToken) return;
 
         // 如果已经找到视频URL，就不需要从HTML提取了
         if (_isCompleted) {
@@ -748,8 +1034,9 @@ class _WebViewVideoExtractorWidgetState
         // 有些网站的视频URL是通过JS动态生成的
         try {
           final html = await controller.getHtml();
+          if (token != _currentJobToken) return;
           if (html != null) {
-            await _tryExtractFromHtml(html);
+            await _tryExtractFromHtml(html, token);
           }
         } catch (e) {
           _log('获取页面HTML失败: $e');
@@ -766,16 +1053,19 @@ class _WebViewVideoExtractorWidgetState
         }
       },
       shouldInterceptRequest: (controller, request) async {
+        final token = _currentJobToken;
         final url = request.url.toString();
-        _checkAndCaptureUrl(url, headers: request.headers);
+        _checkAndCaptureUrl(url, headers: request.headers, token: token);
         return null; // 继续正常请求
       },
       onLoadResource: (controller, resource) {
+        final token = _currentJobToken;
         final url = resource.url.toString();
-        _checkAndCaptureUrl(url);
+        _checkAndCaptureUrl(url, token: token);
       },
       onConsoleMessage: (controller, consoleMessage) {
         // 监听控制台消息，有些网站会在控制台输出视频URL
+        final token = _currentJobToken;
         final message = consoleMessage.message;
         if (message.contains('m3u8') ||
             message.contains('mp4') ||
@@ -786,7 +1076,7 @@ class _WebViewVideoExtractorWidgetState
           final urlRegex = RegExp(r'https?://[^\s"<>]+');
           final matches = urlRegex.allMatches(message);
           for (final match in matches) {
-            _checkAndCaptureUrl(match.group(0)!);
+            _checkAndCaptureUrl(match.group(0)!, token: token);
           }
         }
       },
@@ -825,39 +1115,89 @@ class _WebViewVideoExtractorWidgetState
       child: Opacity(opacity: 0, child: webView),
     );
   }
+}
 
-  /// 尝试从HTML内容中提取视频URL
-  Future<void> _tryExtractFromHtml(String html) async {
-    _log('开始从HTML提取视频URL...');
+/// WebView 视频提取 Widget（一次性兼容包装）。
+///
+/// 旧调用方（`subscription_debug_page.dart`、`GlobalSearchManager` 等）按字段
+/// 风格调用一次性提取；本 widget 在内部将字段打包成 [VideoExtractionJob]
+/// 委托给 [ReusableWebViewVideoExtractor]（workerId 固定为 0）执行一次。
+/// 行为与旧实现等价：job 完成后 worker 不会自行卸载 WebView，widget 离开
+/// widget 树后才会触发 `dispose()`。
+///
+/// 播放页调度应当迁移到 worker slot 池 + 长期 worker；本 widget 仅在调试
+/// 页等一次性入口继续使用。
+class WebViewVideoExtractorWidget extends StatefulWidget {
+  final String url;
+  final String? customVideoRegex;
+  final bool enableNestedUrl;
+  final String? matchNestedUrl;
+  final Map<String, String>? headers;
+  final String? cookies;
+  final Duration timeout;
+  final void Function(VideoExtractResult result) onResult;
+  final void Function(String message)? onLog;
+  final bool showWebView; // 是否显示 WebView（调试用）
 
-    // 尝试直接匹配视频URL（更宽松的模式）
-    // 匹配 .mp4（包括 .f0.mp4 这样的变体）
-    final urlRegex = RegExp(
-      r'''https?://[^\s"<>'\\]+\.(?:mp4|image)(\?[^\s"<>'\\]*)?''',
-      caseSensitive: false,
+  /// Phase 0 调试埋点句柄。非 null 时 worker 会把 WebView widget
+  /// 创建/销毁事件上报给这个统计对象。传 null 保持静默、无额外日志。
+  final WebViewSchedulerStats? stats;
+
+  /// 关联键（通常就是 player page 的 pageKey），仅供 stats 日志对齐，
+  /// 不参与任何调度或 keying 逻辑。调试页可传 null（此时 fallback 为 url）。
+  final String? jobKey;
+
+  const WebViewVideoExtractorWidget({
+    super.key,
+    required this.url,
+    this.customVideoRegex,
+    this.enableNestedUrl = false,
+    this.matchNestedUrl,
+    this.headers,
+    this.cookies,
+    this.timeout = const Duration(seconds: 30),
+    required this.onResult,
+    this.onLog,
+    this.showWebView = false,
+    this.stats,
+    this.jobKey,
+  });
+
+  @override
+  State<WebViewVideoExtractorWidget> createState() =>
+      _WebViewVideoExtractorWidgetState();
+}
+
+class _WebViewVideoExtractorWidgetState
+    extends State<WebViewVideoExtractorWidget> {
+  late final VideoExtractionJob _job;
+
+  @override
+  void initState() {
+    super.initState();
+    _job = VideoExtractionJob(
+      jobKey: widget.jobKey ?? widget.url,
+      url: widget.url,
+      customVideoRegex: widget.customVideoRegex,
+      enableNestedUrl: widget.enableNestedUrl,
+      matchNestedUrl: widget.matchNestedUrl,
+      headers: widget.headers,
+      cookies: widget.cookies,
+      timeout: widget.timeout,
     );
-    final urlMatches = urlRegex.allMatches(html);
-    for (final urlMatch in urlMatches) {
-      final url = urlMatch.group(0)!;
-      _log('从HTML提取到URL: $url');
-      if (_checkAndCaptureUrl(url)) {
-        return;
-      }
-    }
+  }
 
-    // 也尝试匹配 m3u8
-    final m3u8Regex = RegExp(
-      r'''https?://[^\s"<>'\\]+\.m3u8[^\s"<>'\\]*''',
-      caseSensitive: false,
+  @override
+  Widget build(BuildContext context) {
+    return ReusableWebViewVideoExtractor(
+      key: const ValueKey('one_shot_video_extractor'),
+      workerId: 0,
+      job: _job,
+      onResult: (_, result) => widget.onResult(result),
+      onLog: widget.onLog,
+      showWebView: widget.showWebView,
+      stats: widget.stats,
     );
-    final m3u8Matches = m3u8Regex.allMatches(html);
-    for (final m3u8Match in m3u8Matches) {
-      final url = m3u8Match.group(0)!;
-      _log('从HTML提取到URL: $url');
-      if (_checkAndCaptureUrl(url)) {
-        return;
-      }
-    }
   }
 }
 

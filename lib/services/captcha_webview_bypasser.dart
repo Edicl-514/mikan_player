@@ -9,6 +9,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/main.dart' show webViewEnvironment;
 import 'package:mikan_player/services/captcha_ocr_service.dart';
 import 'package:mikan_player/services/webview_cookie_janitor.dart';
+import 'package:mikan_player/services/webview_scheduler_stats.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 
 class OcrConstraints {
@@ -99,6 +100,12 @@ class CaptchaBypassResult {
   final String? detailPageHtml;
   final String? detailPageUrl;
 
+  /// True when this result was produced by the captcha preflight timeout
+  /// timer, so the scheduler can book it under the timed-out branch instead
+  /// of the generic failed branch. Purely diagnostic, defaults to false and
+  /// every legacy call site keeps its current semantics.
+  final bool timedOut;
+
   const CaptchaBypassResult({
     required this.sourceName,
     required this.success,
@@ -110,6 +117,7 @@ class CaptchaBypassResult {
     this.searchPageUrl,
     this.detailPageHtml,
     this.detailPageUrl,
+    this.timedOut = false,
   });
 
   @Deprecated('Use searchPageHtml instead.')
@@ -257,6 +265,13 @@ class CaptchaWebViewBypassWidget extends StatefulWidget {
   final void Function(String message)? onLog;
   final bool showWebView;
 
+  /// Phase 0 调试埋点句柄，详见 [WebViewSchedulerStats]。传 null 时该 widget
+  /// 不产生任何额外日志，行为与旧行为完全一致。
+  final WebViewSchedulerStats? stats;
+
+  /// 关联键（通常即 captcha taskKey），仅供 stats 日志对齐使用。
+  final String? jobKey;
+
   const CaptchaWebViewBypassWidget({
     super.key,
     required this.source,
@@ -269,6 +284,8 @@ class CaptchaWebViewBypassWidget extends StatefulWidget {
     required this.onResult,
     this.onLog,
     this.showWebView = false,
+    this.stats,
+    this.jobKey,
   });
 
   @override
@@ -661,6 +678,7 @@ class _CaptchaWebViewBypassWidgetState
   @override
   void initState() {
     super.initState();
+    widget.stats?.onCaptchaWidgetCreated(widget.jobKey);
     _initialUrl = _resolveInitialUrl();
     _initialReferer = widget.referer?.trim();
     _isSearchEntryFlow = widget.initialUrl?.trim().isEmpty ?? true;
@@ -693,6 +711,7 @@ class _CaptchaWebViewBypassWidgetState
           sourceName: widget.source.name,
           success: false,
           error: 'Captcha preflight timed out after ${budget.inSeconds}s',
+          timedOut: true,
         ),
       );
     });
@@ -735,6 +754,7 @@ class _CaptchaWebViewBypassWidgetState
 
   @override
   void dispose() {
+    widget.stats?.onCaptchaWidgetDisposed(widget.jobKey);
     _timeoutTimer?.cancel();
     final controller = _webViewController;
     _webViewController = null;
