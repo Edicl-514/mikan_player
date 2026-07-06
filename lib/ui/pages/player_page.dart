@@ -64,7 +64,8 @@ class _CaptchaPreflightTask {
 }
 
 class PlayerPage extends StatefulWidget {
-  static const int kDefaultMaxConcurrentWebViews = 3;
+  static int get kDefaultMaxConcurrentWebViews =>
+      Platform.isAndroid ? 2 : 3;
 
   final AnimeInfo anime;
   final BangumiEpisode currentEpisode;
@@ -147,11 +148,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       <StreamSubscription<SourceSearchProgress>>[];
   int _maxConcurrentWebViews =
       PlayerPage.kDefaultMaxConcurrentWebViews;
+  bool _cancelLowPrioritySourcesOnPlay = true;
   int _webViewLaunchInterval = 200;
   int _sampleLoadToken = 0;
   bool _webViewPoolPumpScheduled = false;
   int _webViewPumpToken = 0;
   bool _showWebView = false; // 是否显示 WebView（调试用）
+  // 一旦某 Tier-0 源被接受并开始播放，记录其 pageKey。用于在其后取消其他低优先级
+  // 提取任务，并在它们的迟到 onResult 回调里跳过 probe/autoplay，避免劫持播放。
+  // 在新搜索/新剧集开始时重置为 null（与 _hasAutoPlayed 同步）。
+  String? _acceptedSourcePageKey;
 
   // Auto Play Logic
   bool _hasAutoPlayed = false;
@@ -643,6 +649,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _isAutoPlayNextEnabled = prefs.getBool('auto_play_next') ?? true;
           _autoSearchOnline = prefs.getBool('auto_search_online') ?? true;
           _maxConcurrentWebViews = prefs.getInt('max_concurrent_webviews') ?? PlayerPage.kDefaultMaxConcurrentWebViews;
+          _cancelLowPrioritySourcesOnPlay = prefs.getBool('cancel_low_priority_sources_on_play') ?? true;
           _webViewLaunchInterval =
               prefs.getInt('webview_launch_interval') ?? 200;
           _playbackSpeed = savedPlaybackSpeed;
@@ -2085,6 +2092,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _enabledSourceNames = [];
       _sourceTiers = {};
       _hasAutoPlayed = false;
+      _acceptedSourcePageKey = null;
       _webViewPoolPumpScheduled = false;
       _webViewPumpToken++;
       _clearPlaybackStartupWatchdog();
@@ -2606,12 +2614,83 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
+  /// 一旦某 Tier-0 源被接受并开始播放，取消其他低优先级（仍在运行或在队列中）
+  /// 提取任务以释放并发槽位，并阻止它们的迟到 onResult 触发 probe/autoplay。
+  /// 已完成的发现结果（`_samplePlayPages`/`_sampleSuccessfulSources`）保持不变。
+  ///
+  /// 取消策略（tiers-aware）：只取消非 Tier-0 源的任务。Tier-0 源是用户配置的
+  /// 高优先级源，其提取应跑完以便在源选择器里保留为后备候选。`except` 指向的
+  /// 已接受 pageKey 永远不会被取消。与已接受源同名的 channel（即便 Tier 检查
+  /// 不变）也会因 Tier 仍为 0 而继续，从而保证同源其他 channel 的迟到结果能
+  /// 正常流过 `_onWebViewResult` 注册到源列表。
+  ///
+  /// 拆解机制说明：`WebViewVideoExtractorWidget` 由 `_buildWebViewExtractors`
+  /// 构建并以子节点形式存活在 widget 树里。从这里只能拿到 pageKey 而无法直接
+  /// 拿到它们的 State 句柄，因此真正的拆解靠三件事：(a) 下面从 `_activeWebViews`
+  /// 等记账中移除，(b) `_onWebViewResult` 里的 late-callback 守卫跳过 probe，以及
+  /// (c) 下次 build 因为子节点不在列表里触发的 dispose-on-unmount（会进入
+  /// `State.dispose` 取消 `_timeoutTimer` 并清理 cookie）。worker 上新增的
+  /// `cancel()` 方法为未来可拿到句柄时预留，本步骤不调用。
+  void _cancelLowerPriorityExtraction({required String except}) {
+    // 按 sourceName 查 tier 决定是否取消。Tier-0 源（包括 accepted 同源其他 channel
+    // 和其他 Tier-0 源）永不取消，仅取消 tier >= 1 的非 Tier-0 源。
+    bool isCancellableBySourceName(String sourceName) {
+      if (sourceName == SourceChannelKey.fromPageKey(except).sourceName) {
+        return false;
+      }
+      return (_sourceTiers[sourceName] ?? 999) != 0;
+    }
+
+    // (a) 清理待处理 captcha 任务。captcha taskKey 是 'search:源名' 格式，与
+    //     WebView pageKey 命名空间不同，不能用 fromPageKey 反解；直接用
+    //     task.source.name 查 tier。
+    _pendingCaptchaTasks.removeWhere(
+      (task) => isCancellableBySourceName(task.source.name),
+    );
+
+    // (b) 取消活动 captcha 任务：从记账中移除，后续 onResult 因 task == null
+    //     提前返回。仅取消非 Tier-0 源的任务。
+    final captchaKeys = _activeCaptchaTasks.entries
+        .where((e) => isCancellableBySourceName(e.value.source.name))
+        .map((e) => e.key)
+        .toList();
+    for (final key in captchaKeys) {
+      _activeCaptchaTasks.remove(key);
+      _webViewStatus.remove(key);
+    }
+
+    // (c) 取消活动 WebView 提取任务：从记账中移除并标记为失败键，防止
+    //     `_collectPendingWebViewExtractionTasks` 通过 `alreadyFailed` 检查
+    //     重新排队。WebView key 是 pageKey 格式，用 fromPageKey 反解 sourceName。
+    bool isCancellableWebViewKey(String pageKey) {
+      if (pageKey == except) return false;
+      final srcName = SourceChannelKey.fromPageKey(pageKey).sourceName;
+      return (_sourceTiers[srcName] ?? 999) != 0;
+    }
+
+    final webViewKeys = _activeWebViews.keys
+        .where(isCancellableWebViewKey)
+        .toList();
+    for (final key in webViewKeys) {
+      _activeWebViews.remove(key);
+      _webViewStatus.remove(key);
+      _failedWebViewPageKeys.add(key);
+    }
+  }
+
   void _playSource(SearchPlayResult source) {
     debugPrint(
       "Auto-playing source: ${source.sourceName} (Tier ${_sourceTiers[source.sourceName]})",
     );
 
+    final acceptedKey =
+        _buildSourceChannelKey(source.sourceName, source.channelIndex);
+
     setState(() {
+      if (_cancelLowPrioritySourcesOnPlay) {
+        _acceptedSourcePageKey = acceptedKey;
+        _cancelLowerPriorityExtraction(except: acceptedKey);
+      }
       _hasAutoPlayed = true;
       // Ensure index is correct in the display list
       _selectedSourceIndex = _sampleSuccessfulSources.indexOf(source);
@@ -2621,6 +2700,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
       _selectedSourceIndexNotifier.value = _selectedSourceIndex;
     });
+
+    // freed slots can be reused (or stay empty — either way the pump must run
+    // to avoid stale entries).
+    _scheduleWebViewPoolPump(immediate: true);
 
     _isAutoPlayFallbackInProgress = true;
     unawaited(
@@ -2641,6 +2724,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // 移除活动WebView
       _activeWebViews.remove(pageKey);
       _webViewStatus.remove(pageKey);
+
+      // Late-callback no-op guard: 一旦某 Tier-0 源被接受并开始播放，任何其他
+      // （刚被 `_cancelLowerPriorityExtraction` 取消的）非 Tier-0 提取任务的迟到
+      // 结果都不得触发 probe/register/auto-play，否则会劫持当前播放。Tier-0 源
+      // （含已接受源的其他 channel 与其他 Tier-0 源的 channel）的迟到结果仍按正常
+      // 流程走 probe/register 以填充源列表作为后备。这里仍然清理上面的记账以释放
+      // 并发槽位，然后只需更新状态、泵送任务池并提前返回。
+      if (_acceptedSourcePageKey != null) {
+        final srcName = SourceChannelKey.fromPageKey(pageKey).sourceName;
+        final tier = _sourceTiers[srcName] ?? 999;
+        if (tier != 0) {
+          _failedWebViewPageKeys.add(pageKey);
+          final total = _samplePlayPages.length;
+          final completed = _sampleSuccessfulSources.length;
+          final active = _activeWebViews.length;
+          _sampleStatusMessageNotifier.value =
+              '提取中: $completed/$total 完成，$active 并发运行';
+          _startNextWebViewExtraction();
+          return;
+        }
+      }
 
       if (!result.success) {
         _failedWebViewPageKeys.add(pageKey);
@@ -3885,6 +3989,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _enabledSourceNames = [];
       _sourceTiers = {};
       _hasAutoPlayed = false;
+      _acceptedSourcePageKey = null;
       _webViewPoolPumpScheduled = false;
       _webViewPumpToken++;
 

@@ -19,6 +19,7 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
       TextEditingController();
   bool _isLoading = true;
   bool _autoSearchOnline = true;
+  bool _cancelLowPrioritySourcesOnPlay = true;
 
   @override
   void initState() {
@@ -44,6 +45,8 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
       _searchConcurrencyController.text =
           (prefs.getInt('max_concurrent_searches') ?? 3).toString();
       _autoSearchOnline = prefs.getBool('auto_search_online') ?? true;
+      _cancelLowPrioritySourcesOnPlay =
+          prefs.getBool('cancel_low_priority_sources_on_play') ?? true;
       _isLoading = false;
     });
   }
@@ -59,6 +62,8 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
     await prefs.setInt('webview_launch_interval', interval);
     await prefs.setInt('max_concurrent_searches', searchConcurrency);
     await prefs.setBool('auto_search_online', _autoSearchOnline);
+    await prefs.setBool(
+        'cancel_low_priority_sources_on_play', _cancelLowPrioritySourcesOnPlay);
 
     // Update Rust runtime config
     await simple.setMaxConcurrentSearches(limit: searchConcurrency);
@@ -127,6 +132,16 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
                   onChanged: (bool value) {
                     setState(() {
                       _autoSearchOnline = value;
+                    });
+                  },
+                ),
+                SwitchListTile(
+                  title: Text(l10n.cancelLowPrioritySourcesTitle),
+                  subtitle: Text(l10n.cancelLowPrioritySourcesSubtitle),
+                  value: _cancelLowPrioritySourcesOnPlay,
+                  onChanged: (bool value) {
+                    setState(() {
+                      _cancelLowPrioritySourcesOnPlay = value;
                     });
                   },
                 ),

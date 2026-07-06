@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/main.dart' show webViewEnvironment;
 import 'package:mikan_player/services/captcha_ocr_service.dart';
+import 'package:mikan_player/services/webview_cookie_janitor.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 
 class OcrConstraints {
@@ -732,33 +733,6 @@ class _CaptchaWebViewBypassWidgetState
     } catch (_) {}
   }
 
-  Future<void> _clearVisitedHostCookies() async {
-    if (_visitedHosts.isEmpty) return;
-    try {
-      final cookieManager = CookieManager();
-      var cleared = 0;
-      for (final host in _visitedHosts) {
-        try {
-          final cookies = await cookieManager.getCookies(
-            url: WebUri('https://$host'),
-          );
-          for (final cookie in cookies) {
-            await cookieManager.deleteCookie(
-              url: WebUri('https://$host'),
-              name: cookie.name,
-              domain: host,
-            );
-            cleared++;
-          }
-        } catch (_) {}
-      }
-      _log('Cleared $cleared cookies for ${_visitedHosts.length} visited hosts');
-      _visitedHosts.clear();
-    } catch (e) {
-      _log('Failed to clear visited host cookies: $e');
-    }
-  }
-
   @override
   void dispose() {
     _timeoutTimer?.cancel();
@@ -767,7 +741,13 @@ class _CaptchaWebViewBypassWidgetState
     if (controller != null) {
       unawaited(_teardownWebView(controller));
     }
-    unawaited(_clearVisitedHostCookies());
+    if (_visitedHosts.isNotEmpty) {
+      final janitor = WebViewCookieJanitor();
+      for (final host in _visitedHosts) {
+        janitor.requestHostCleanup(host: host);
+      }
+      _visitedHosts.clear();
+    }
     super.dispose();
   }
 

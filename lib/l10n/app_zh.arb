@@ -224,6 +224,8 @@
   "webviewLaunchIntervalHint": "建议值: 200-1000",
   "autoSearchOnlineTitle": "自动搜索在线源",
   "autoSearchOnlineSubtitle": "关闭后，播放页将只自动搜索BT源",
+  "cancelLowPrioritySourcesTitle": "播放后取消低优先级源提取",
+  "cancelLowPrioritySourcesSubtitle": "开始播放后取消Tier≥1的源的提取，保留Tier 0源以备切换",
   "localJsonPathLabel": "本地 JSON 路径（留空使用缓存）",
   "animeNameLabel": "动漫名称",
   "animeNameHint": "例如：机动战士高达GQuuuuuuX",

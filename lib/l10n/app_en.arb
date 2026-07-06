@@ -224,6 +224,8 @@
   "webviewLaunchIntervalHint": "Recommended: 200-1000",
   "autoSearchOnlineTitle": "Auto search online sources",
   "autoSearchOnlineSubtitle": "When disabled, the player page will only auto-search BT sources",
+  "cancelLowPrioritySourcesTitle": "Cancel low-priority source extraction after playback",
+  "cancelLowPrioritySourcesSubtitle": "After playback starts, cancel extraction of Tier≥1 sources; keep Tier 0 sources as alternates",
   "localJsonPathLabel": "Local JSON path (leave empty to use cache)",
   "animeNameLabel": "Anime name",
   "animeNameHint": "For example: Mobile Suit Gundam GQuuuuuuX",

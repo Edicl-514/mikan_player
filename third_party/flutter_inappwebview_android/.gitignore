@@ -1,0 +1,28 @@
+# Dart/Flutter (already covered by root .gitignore, kept for standalone use)
+.dart_tool/
+build/
+coverage/
+.flutter-plugins
+.flutter-plugins-dependencies
+**/GeneratedPluginRegistrant.*
+**/generated_plugin_registrant.*
+
+# Android Gradle (root .gitignore only anchors /android/.gradle/, not nested)
+**/.gradle/
+**/local.properties
+**/.cxx/
+**/captures/
+**/key.properties
+*.keystore
+*.jks
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# OS
+.DS_Store
+*.log

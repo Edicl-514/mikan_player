@@ -736,6 +736,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'When disabled, the player page will only auto-search BT sources';
 
   @override
+  String get cancelLowPrioritySourcesTitle =>
+      'Cancel low-priority source extraction after playback';
+
+  @override
+  String get cancelLowPrioritySourcesSubtitle =>
+      'After playback starts, cancel extraction of Tier≥1 sources; keep Tier 0 sources as alternates';
+
+  @override
   String get localJsonPathLabel => 'Local JSON path (leave empty to use cache)';
 
   @override

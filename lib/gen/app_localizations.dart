@@ -1442,6 +1442,18 @@ abstract class AppLocalizations {
   /// **'关闭后，播放页将只自动搜索BT源'**
   String get autoSearchOnlineSubtitle;
 
+  /// No description provided for @cancelLowPrioritySourcesTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放后取消低优先级源提取'**
+  String get cancelLowPrioritySourcesTitle;
+
+  /// No description provided for @cancelLowPrioritySourcesSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始播放后取消Tier≥1的源的提取，保留Tier 0源以备切换'**
+  String get cancelLowPrioritySourcesSubtitle;
+
   /// No description provided for @localJsonPathLabel.
   ///
   /// In zh, this message translates to:

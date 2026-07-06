@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/main.dart' show webViewEnvironment;
+import 'package:mikan_player/services/webview_cookie_janitor.dart';
 
 /// 视频源信息
 class VideoSourceInfo {
@@ -279,6 +280,30 @@ class _WebViewVideoExtractorWidgetState
     widget.onResult(result);
   }
 
+  /// Idempotent, externally-safe cancellation. Marks this worker as completed
+  /// so any in-flight async op will no longer fire `widget.onResult`, cancels
+  /// the timeout, and best-effort stops any ongoing WebView load.
+  ///
+  /// NOTE: 在当前步骤里 `_PlayerPageState._cancelLowerPriorityExtraction`
+  /// 并不直接调用本方法 —— 它只能拿到 pageKey 而无法拿到这里的 State 句柄。
+  /// 真正的拆解靠 (a) `_activeWebViews` 记账移除 + (b) `_onWebViewResult`
+  /// late-callback 守卫 + (c) 下次 build 因子节点不在列表触发的
+  /// dispose-on-unmount。本方法为未来可拿到句柄时预留，且在 dispose 路径
+  /// 之外提供显式停止能力。
+  void cancel() {
+    if (_isCompleted) return;
+    _isCompleted = true;
+    _timeoutTimer?.cancel();
+    final controller = _webViewController;
+    if (controller != null) {
+      try {
+        unawaited(controller.stopLoading());
+      } catch (e) {
+        debugPrint('[WebViewExtractor] cancel() stopLoading error: $e');
+      }
+    }
+  }
+
   Map<String, String> _normalizedConfiguredHeaders() {
     final normalized = <String, String>{};
     final sourceHeaders = widget.headers;
@@ -306,6 +331,30 @@ class _WebViewVideoExtractorWidgetState
     return normalized;
   }
 
+  /// Whether this extraction task needs its cookies injected into the WebView
+  /// [CookieManager] jar (versus merely echoed on outbound request headers,
+  /// which [_normalizedConfiguredHeaders] already handles via the `Cookie`
+  /// header).
+  ///
+  /// The STEP 1.0 audit confirmed that every [WebViewVideoExtractorWidget]
+  /// call site (`player_page.dart` and `subscription_debug_page.dart`) passes
+  /// `cookies` that originate from `MatchVideo.cookies` and are attached
+  /// purely as outbound `Cookie` headers by the Rust side. No source config
+  /// or play-page JS documented in the audit reads `document.cookie`, and no
+  /// bundled source JSON sets non-empty cookies. The only confirmed
+  /// jar-dependent WebView flow in this codebase lives in
+  /// [CaptchaWebViewBypassWidget] (a different widget), which reads cookies
+  /// back out of the jar via `_getCookiesForUrl`. We therefore default this
+  /// extraction widget to header-only and skip the jar write/delete entirely.
+  ///
+  /// TODO(STEP-1.0-audit): If a jar-dependent extraction source is ever
+  /// confirmed (e.g. a source whose play-page JS reads `document.cookie`),
+  /// introduce a widget flag/field that identifies it and return `true` here
+  /// for that case. Do NOT hardcode source URLs/hostnames without evidence.
+  bool _needsCookieJarInjection() {
+    return false;
+  }
+
   Future<void> _setTaskCookiesInCookieManager() async {
     final cookies = widget.cookies?.trim();
     if (cookies == null || cookies.isEmpty) return;
@@ -313,6 +362,7 @@ class _WebViewVideoExtractorWidgetState
     if (uri == null || uri.host.isEmpty) return;
     try {
       final cookieManager = CookieManager();
+      _log('Injecting task cookies into CookieManager (jar-dependent source)');
       for (final part in cookies.split(';')) {
         final trimmed = part.trim();
         if (trimmed.isEmpty) continue;
@@ -332,25 +382,6 @@ class _WebViewVideoExtractorWidgetState
       }
     } catch (e) {
       _log('Failed to set cookies in CookieManager: $e');
-    }
-  }
-
-  Future<void> _clearTaskCookiesFromCookieManager() async {
-    if (_cookiesWrittenToJar.isEmpty) return;
-    try {
-      final cookieManager = CookieManager();
-      for (final entry in _cookiesWrittenToJar) {
-        await cookieManager.deleteCookie(
-          url: WebUri('https://${entry.domain}'),
-          name: entry.name,
-          domain: entry.domain,
-          path: entry.path,
-        );
-      }
-      _log('Cleared ${_cookiesWrittenToJar.length} task cookies from CookieManager');
-      _cookiesWrittenToJar.clear();
-    } catch (e) {
-      _log('Failed to clear task cookies from CookieManager: $e');
     }
   }
 
@@ -646,7 +677,17 @@ class _WebViewVideoExtractorWidgetState
   @override
   void dispose() {
     _timeoutTimer?.cancel();
-    unawaited(_clearTaskCookiesFromCookieManager());
+    if (_cookiesWrittenToJar.isNotEmpty) {
+      final janitor = WebViewCookieJanitor();
+      for (final entry in _cookiesWrittenToJar) {
+        janitor.requestCleanup(
+          host: entry.domain,
+          cookieName: entry.name,
+          path: entry.path,
+        );
+      }
+      _cookiesWrittenToJar.clear();
+    }
     super.dispose();
   }
 
@@ -682,7 +723,9 @@ class _WebViewVideoExtractorWidgetState
       onWebViewCreated: (controller) async {
         _webViewController = controller;
         _log('WebView 创建完成，开始加载: ${widget.url}');
-        await _setTaskCookiesInCookieManager();
+        if (_needsCookieJarInjection()) {
+          await _setTaskCookiesInCookieManager();
+        }
         _injectMuteScript(controller);
       },
       onLoadStart: (controller, url) {

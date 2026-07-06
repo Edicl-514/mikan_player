@@ -715,6 +715,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get autoSearchOnlineSubtitle => '关闭后，播放页将只自动搜索BT源';
 
   @override
+  String get cancelLowPrioritySourcesTitle => '播放后取消低优先级源提取';
+
+  @override
+  String get cancelLowPrioritySourcesSubtitle =>
+      '开始播放后取消Tier≥1的源的提取，保留Tier 0源以备切换';
+
+  @override
   String get localJsonPathLabel => '本地 JSON 路径（留空使用缓存）';
 
   @override
