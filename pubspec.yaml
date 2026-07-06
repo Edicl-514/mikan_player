@@ -75,6 +75,8 @@ dev_dependencies:
 dependency_overrides:
   native_toolchain_c:
     path: third_party/native_toolchain_c
+  flutter_inappwebview_android:
+    path: third_party/flutter_inappwebview_android
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

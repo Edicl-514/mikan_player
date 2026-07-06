@@ -346,8 +346,6 @@ class _WebViewVideoExtractorWidgetState
   /// [CaptchaWebViewBypassWidget] (a different widget), which reads cookies
   /// back out of the jar via `_getCookiesForUrl`. We therefore default this
   /// extraction widget to header-only and skip the jar write/delete entirely.
-  ///
-  /// TODO(STEP-1.0-audit): If a jar-dependent extraction source is ever
   /// confirmed (e.g. a source whose play-page JS reads `document.cookie`),
   /// introduce a widget flag/field that identifies it and return `true` here
   /// for that case. Do NOT hardcode source URLs/hostnames without evidence.

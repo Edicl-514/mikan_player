@@ -1857,7 +1857,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           final tierB = _sourceTiers[b.sourceName] ?? 999;
           return tierA.compareTo(tierB);
         });
-        _scheduleWebViewPoolPump(immediate: true);
+        _scheduleWebViewPoolPump();
       }
     }
 
@@ -1946,7 +1946,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 );
               }
             });
-
+            _scheduleWebViewPoolPump();
             _maybeFinishSampleSearch();
           },
           onDone: () {
