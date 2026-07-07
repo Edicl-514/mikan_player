@@ -298,17 +298,78 @@ async fn detect_current_region() -> Option<String> {
     region
 }
 
-async fn detect_current_region_once() -> Option<String> {
-    let _client = crate::api::network::get_shared_client();
+/// Per-request timeout for any single region-detection endpoint. Kept short so
+/// a slow endpoint can't drag the whole race — the goal is "first responder
+/// wins".
+const REGION_ENDPOINT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
-    let response = match crate::api::network::retry_request("detect_current_region", |cl| {
-        cl.get("https://ipapi.co/json/")
-    })
+/// Geolocation endpoints raced concurrently during region detection. Each entry
+/// is `(label, json_field)` where `json_field` is the JSON key holding the
+/// ISO-3166 alpha-2 country code (case-insensitive). Ordered by typical
+/// reliability / latency; the first successful response wins.
+const REGION_DETECTION_ENDPOINTS: &[(&str, &str)] = &[
+    ("https://ipapi.co/json/", "country_code"),
+    ("https://ipwho.is/", "country_code"),
+    ("https://ipinfo.io/json", "country"),
+    ("https://ifconfig.co/json", "country_iso"),
+    ("https://api.myip.com/", "country_code"),
+];
+
+async fn detect_current_region_once() -> Option<String> {
+    let mut tasks = Vec::with_capacity(REGION_DETECTION_ENDPOINTS.len());
+    for (url, field) in REGION_DETECTION_ENDPOINTS {
+        let url = *url;
+        let field = *field;
+        tasks.push(tokio::spawn(async move {
+            fetch_region_from_endpoint(&url, &field).await
+        }));
+    }
+
+    // Poll the spawned tasks. We don't use `select_all` because the futures
+    // would be polled in lockstep; a manual loop lets us return as soon as the
+    // first task resolves and ignore the rest. The inner timeout guarantees
+    // every task completes within `REGION_ENDPOINT_TIMEOUT` even if the
+    // underlying TCP connect hangs.
+    let total = tasks.len();
+    for _ in 0..total {
+        let (result, _idx, remaining) = futures::future::select_all(tasks).await;
+        tasks = remaining;
+        match result {
+            Ok(Some(region)) => {
+                if let Ok(mut guard) = CURRENT_REGION.write() {
+                    *guard = Some(region.clone());
+                }
+                tasks.clear();
+                return Some(region);
+            }
+            Ok(None) => continue,
+            Err(e) => {
+                log::warn!("Region detection task join error: {}", e);
+                continue;
+            }
+        }
+    }
+
+    log::warn!("All region detection endpoints failed");
+    None
+}
+
+async fn fetch_region_from_endpoint(url: &str, field: &str) -> Option<String> {
+    let response = match tokio::time::timeout(
+        REGION_ENDPOINT_TIMEOUT,
+        crate::api::network::retry_request("detect_current_region", |cl| {
+            cl.get(url).timeout(REGION_ENDPOINT_TIMEOUT)
+        }),
+    )
     .await
     {
-        Ok(resp) => resp,
-        Err(e) => {
-            log::warn!("Failed to request region detection endpoint: {}", e);
+        Ok(Ok(resp)) => resp,
+        Ok(Err(e)) => {
+            log::warn!("Failed to request region endpoint {}: {}", url, e);
+            return None;
+        }
+        Err(_) => {
+            log::warn!("Region endpoint {} timed out after {:?}", url, REGION_ENDPOINT_TIMEOUT);
             return None;
         }
     };
@@ -316,25 +377,28 @@ async fn detect_current_region_once() -> Option<String> {
     let payload: serde_json::Value = match response.json().await {
         Ok(json) => json,
         Err(e) => {
-            log::warn!("Failed to parse region detection response: {}", e);
+            log::warn!("Failed to parse region response from {}: {}", url, e);
             return None;
         }
     };
 
-    let region = payload
-        .get("country_code")
-        .or_else(|| payload.get("country"))
-        .and_then(|value| value.as_str())
-        .map(|value| value.trim().to_uppercase())
-        .filter(|value| !value.is_empty());
-
-    if let Some(region) = &region {
-        if let Ok(mut guard) = CURRENT_REGION.write() {
-            *guard = Some(region.clone());
+    // ip-api.com wraps its payload in a `status` field; treat any non-success
+    // status as a failed response so we fall through to the next endpoint.
+    if let Some(status) = payload.get("status").and_then(|v| v.as_str()) {
+        if !status.eq_ignore_ascii_case("success") {
+            log::warn!("Region endpoint {} returned status={}", url, status);
+            return None;
         }
     }
 
-    region
+    payload
+        .get(field)
+        .or_else(|| payload.get("country"))
+        .or_else(|| payload.get("country_code"))
+        .or_else(|| payload.get("country_iso"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim().to_uppercase())
+        .filter(|value| !value.is_empty() && value.len() == 2)
 }
 
 async fn detect_current_region_with_retry(max_attempts: usize) -> Option<String> {
