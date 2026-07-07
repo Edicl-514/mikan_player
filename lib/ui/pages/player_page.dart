@@ -22,6 +22,7 @@ import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/services/header_injection_proxy.dart';
 import 'package:mikan_player/services/captcha_webview_bypasser.dart';
+import 'package:mikan_player/services/reusable_browser_worker.dart';
 import 'package:mikan_player/services/webview_scheduler_stats.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls.dart';
 import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
@@ -64,43 +65,85 @@ class _CaptchaPreflightTask {
   });
 }
 
-/// Round 3 Stage 2：单个长期视频提取 worker 的调度状态。
+/// 5B step 3：统一的长期 WebView worker 调度状态（captcha + video 合并）。
 ///
-/// 每个 slot 长期持有 [`ReusableWebViewVideoExtractor`]（widget key 由调度
-/// 器直接给到 `[_PlayerPageState._buildWebViewExtractors]`），由调度器通
-/// 过 [`VideoExtractionJob`] 派发任务。`pageKey` 即当前 job 的
-/// 源+channel 页键；`null` 表示 slot 处于 idle 状态，等待下一个 job 派发
-/// 或重建 InAppWebView 复用。
+/// 每个 slot 长期持有 [ReusableBrowserWorker]（widget key 为
+/// `worker_$workerId`），由调度器通过 sealed [WebViewJob] 派发任务：
 ///
-/// `pageKey` 与 [`_PlayerPageState._activeVideoJobs`]（pageKey→workerId）
-/// 双向同步：一旦 [pageKey] 设为非 null，对应的
-/// `_activeVideoJobs[pageKey] == workerId`；反之亦然。任何调度器修改
-/// 二者必须保证一致性，否则 build 阶段 `_buildWebViewExtractors` 的反查
-/// 会失配。
+/// - `kind == null` 且 `jobKey == null` 时 slot idle，等待下次派活或被
+///   trimIdleWebViewWorkerSlotsToBudget 移除。
+/// - `kind == _WebViewWorkerKind.video` 时 [pageKey] 指向
+///   `_activeVideoJobs[pageKey] == workerId`；[jobKey] 等于 [pageKey]，
+///   [taskKey] 为 null。
+/// - `kind == _WebViewWorkerKind.captcha` 时 [taskKey] 指向
+///   `_activeCaptchaJobs[taskKey] == workerId`；[jobKey] 等于 [taskKey]，
+///   [pageKey] 为 null。
 ///
-/// Round 4 Stage 3：新增 [`lastSourceName`] —— 上一任 job 的源名，在 job
-/// 完成/取消后保留，用于 source-affinity 调度：同源多 channel 优先复用同
-/// 一个 worker，复用站点 session/cookie/反爬状态。跨搜索不解锁（slot
-/// 实例随搜索重置时仍保留），仅作软偏好，无 pending 同源 job 时自动回退
-/// 到全局优先级选取。
-class _VideoWorkerSlot {
+/// 一旦 slot 处于 idle → video 派活路径，调度器只把 `kind` 改成 video、
+/// 设置 [pageKey]，不需要重建 slot 实例，也不会从
+/// [`_webViewWorkerSlots`] 移除再插入 → widget 树的
+/// `ValueKey('worker_$workerId')` 不变，Flutter 不销毁 [InAppWebView]，
+/// 上一任 captcha job 通过后同源 video 提取能真正复用同一个浏览器实例
+///（job kind 切换的细节见 [ReusableBrowserWorker] / runner 的
+/// `_lastAcceptedKind` 统计）。
+///
+/// 双向反查表（`_activeVideoJobs` / `_activeCaptchaJobs`）与
+/// [pageKey] / [taskKey] 必须保持一致：任何 slot 字段修改都要同步更新
+/// 对应反查表，否则 build 阶段 `_buildWebViewExtractorsPool` 与
+/// `_handleSearchCaptchaPreflightResult` 等会失配。
+///
+/// 上一任 job 的源名缓存在 [lastSourceName]（job 完成/取消后保留），供
+/// source-affinity 调度在空闲 worker 选取时优先命中同源 warm WebView。
+class _WebViewWorkerSlot {
   final int workerId;
 
-  /// 当前 job 的 pageKey，null 表示 slot 处于 idle 状态。
+  /// 当前 job 的 pageKey（kind==video 时非空，kind==captcha 时为 null）。
   String? pageKey;
+
+  /// 当前 captcha job 的 taskKey（kind==captcha 时非空，kind==video 时为
+  /// null）。两个字段并存的二选一，由 [kind] 决定。
+  String? taskKey;
 
   /// 上一任 job 的 sourceName。job 完成/取消后不清空，供下一轮 affinity
   /// 选取使用。worker 首次创建时为 null。
   String? lastSourceName;
+  _WebViewWorkerHealth health = _WebViewWorkerHealth.idle;
+  int consecutiveFailures = 0;
 
-  _VideoWorkerSlot({required this.workerId});
+  /// 当前 job 的类型，null 表示 slot idle。build 阶段会以此决定渲染哪个
+  /// runner 的 job payload（CaptchaJob / VideoJob / null）。
+  _WebViewWorkerKind? kind;
 
-  bool get isIdle => pageKey == null;
+  /// 新建 slot 时一律 [kind] = null（idle），由调度器派活时再设置。
+  _WebViewWorkerSlot({required this.workerId});
+
+  /// 调度器记账 key（pageKey 或 taskKey，取决于 kind）。为空 ↔ idle。
+  String? get jobKey => pageKey ?? taskKey;
+
+  bool get isIdle => kind == null;
+  bool get canAcceptJob => isIdle && health == _WebViewWorkerHealth.idle;
+  bool get canDisposeWhenIdle =>
+      isIdle &&
+      health != _WebViewWorkerHealth.running &&
+      health != _WebViewWorkerHealth.cancelling;
+
+  /// 重置为 idle 状态（保留 lastSourceName / health / consecutiveFailures，
+  /// 仅清空当前 job 字段与 kind）。调度器收回 slot 时使用。
+  void clearCurrentJob() {
+    pageKey = null;
+    taskKey = null;
+    kind = null;
+  }
 }
 
+/// 5B step 3：worker slot 当前承载的 job 类型。`null` 用 [`_WebViewWorkerSlot.kind`]
+/// 直接表达 idle，这里只声明两种业务 job 类型。
+enum _WebViewWorkerKind { video, captcha }
+
+enum _WebViewWorkerHealth { idle, running, cancelling, unhealthy }
+
 class PlayerPage extends StatefulWidget {
-  static int get kDefaultMaxConcurrentWebViews =>
-      Platform.isAndroid ? 2 : 3;
+  static int get kDefaultMaxConcurrentWebViews => Platform.isAndroid ? 2 : 3;
 
   final AnimeInfo anime;
   final BangumiEpisode currentEpisode;
@@ -181,8 +224,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       <String, _CaptchaPreflightTask>{};
   final List<StreamSubscription<SourceSearchProgress>> _searchSubscriptions =
       <StreamSubscription<SourceSearchProgress>>[];
-  int _maxConcurrentWebViews =
-      PlayerPage.kDefaultMaxConcurrentWebViews;
+  int _maxConcurrentWebViews = PlayerPage.kDefaultMaxConcurrentWebViews;
   bool _cancelLowPrioritySourcesOnPlay = true;
   int _webViewLaunchInterval = 200;
   int _sampleLoadToken = 0;
@@ -190,26 +232,32 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   int _webViewPumpToken = 0;
   bool _showWebView = false; // 是否显示 WebView（调试用）
 
-  // ── Round 3 Stage 2：视频提取 worker slot 池（与 _activeWebViews 互斥） ──
+  // ── 5B step 3：统一的长期 WebView worker slot 池 ──
   //
-  // 当 [_useWorkerPool] 为 true（默认）时，播放页不再把每个 pending pageKey
-  // 当成一次性 [WebViewVideoExtractorWidget] 实例，而是用最多
-  // [_maxConcurrentWebViews] 数量的长期 [ReusableWebViewVideoExtractor] 来
-  // 接 job，跨 job 复用同一 InAppWebView 实例 — 把多 channel 提取的 WebView
-  // 重建/启动成本显著降低。
+  // 取代原来 Round 3/5 的 `_videoWorkerSlots` + `_captchaWorkerSlots` 双
+  // 表结构。单一表 [`_webViewWorkerSlots`] 持有 captcha / video 两类 job
+  // 共用的 [ReusableBrowserWorker]（widget key 固定为
+  // `ValueKey('worker_$workerId')`）。同源验证码通过后视频提取只需把
+  // slot.kind 从 captcha 改成 video，slot 实例本身不重建，InAppWebView 真
+  // 正复用。
   //
-  // [`_activeWebViews`] 仅在 fallback 路径（pool 关闭）下使用；pool 模式下
-  // 保持空，不影响 [_activeWebViewTaskCount] / 调度逻辑。
-  final Map<int, _VideoWorkerSlot> _videoWorkerSlots = {};
+  // 调度时通过 `slot.kind` 决定派发 CaptchaJob / VideoJob；空闲 worker
+  // 由 `slot.kind == null` 表达。
+  final Map<int, _WebViewWorkerSlot> _webViewWorkerSlots = {};
 
-  /// `pageKey → workerId` 反查表，与 [`_videoWorkerSlots`].[pageKey] 双向
-  /// 同步。调度器据此快速定位可控 job 所在 slot（如取消、状态展示、build
-  /// 阶段处理 orphan 等）。
+  /// `pageKey → workerId` 反查表，与
+  /// [`_webViewWorkerSlots`].[pageKey]（kind==video 时）双向同步。调度
+  /// 器据此快速定位可控 video job 所在 slot（取消、状态展示、build 阶
+  /// 段反查 orphan 等）。
   final Map<String, int> _activeVideoJobs = {};
 
-  /// 单调递增的 workerId 计数。新 slot 取唯一 id，避免与刚 dispose 的 slot
-  /// 冲突（即使 widget 复用同 key，也会由于父子关系 walk 推迟到下一帧）。
-  int _nextVideoWorkerId = 0;
+  /// `taskKey → workerId` 反查表，与
+  /// [`_webViewWorkerSlots`].[taskKey]（kind==captcha 时）双向同步。
+  final Map<String, int> _activeCaptchaJobs = {};
+
+  /// `_activeVideoJobs` / `_activeCaptchaJobs` 共用的单调 workerId 命名空间。
+  /// 即使 job kind 不同，workerId 也不会重复。
+  int _nextWebViewWorkerId = 0;
 
   /// Round 4 Stage 3：pageKey → 入队序号。`_samplePlayPages` 每次新增播放页
   /// 后都会按 tier 重新 `sort()`，原始 `List` 下标不再稳定反映 arrival 顺序。
@@ -639,7 +687,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ? const EdgeInsets.symmetric(horizontal: 10, vertical: 6)
         : const EdgeInsets.symmetric(horizontal: 12, vertical: 8);
 
-    Widget btn({required IconData icon, required String label, required VoidCallback? onTap}) {
+    Widget btn({
+      required IconData icon,
+      required String label,
+      required VoidCallback? onTap,
+    }) {
       return Opacity(
         opacity: canAct ? 1.0 : 0.4,
         child: InkWell(
@@ -675,17 +727,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        btn(
-          icon: Icons.download,
-          label: "下载",
-          onTap: _onDownloadCurrentSource,
-        ),
+        btn(icon: Icons.download, label: "下载", onTap: _onDownloadCurrentSource),
         const SizedBox(width: 8),
-        btn(
-          icon: Icons.link,
-          label: "复制下载链接",
-          onTap: _onCopyCurrentSourceUrl,
-        ),
+        btn(icon: Icons.link, label: "复制下载链接", onTap: _onCopyCurrentSourceUrl),
       ],
     );
   }
@@ -722,8 +766,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         setState(() {
           _isAutoPlayNextEnabled = prefs.getBool('auto_play_next') ?? true;
           _autoSearchOnline = prefs.getBool('auto_search_online') ?? true;
-          _maxConcurrentWebViews = prefs.getInt('max_concurrent_webviews') ?? PlayerPage.kDefaultMaxConcurrentWebViews;
-          _cancelLowPrioritySourcesOnPlay = prefs.getBool('cancel_low_priority_sources_on_play') ?? true;
+          _maxConcurrentWebViews =
+              prefs.getInt('max_concurrent_webviews') ??
+              PlayerPage.kDefaultMaxConcurrentWebViews;
+          _trimIdleWebViewWorkerSlotsToBudget();
+          _cancelLowPrioritySourcesOnPlay =
+              prefs.getBool('cancel_low_priority_sources_on_play') ?? true;
           _webViewLaunchInterval =
               prefs.getInt('webview_launch_interval') ?? 200;
           _playbackSpeed = savedPlaybackSpeed;
@@ -1073,8 +1121,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (isNonLegacy) {
         // Prefer the mikanId that came with the AnimeInfo (it was derived
         // from bangumi-data already on the schedule/details page).
-        if (widget.anime.mikanId != null &&
-            widget.anime.mikanId!.isNotEmpty) {
+        if (widget.anime.mikanId != null && widget.anime.mikanId!.isNotEmpty) {
           resolvedMikanId = widget.anime.mikanId;
           debugPrint(
             "[Mikan] Fast path: using mikanId from AnimeInfo: $resolvedMikanId",
@@ -1415,7 +1462,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-
   void _queueCaptchaPreflightTask({
     required String taskKey,
     required String label,
@@ -1523,6 +1569,24 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _samplePlayPages.add(page);
     final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
     _pageEnqueueSeq[pageKey] = _nextPageEnqueueSeq++;
+    // 5B step 3：warm 同源 worker 候选已不再局限于 captcha slot —— 统一
+    // 表中所有 idle（kind == null）且 lastSourceName 命中的 slot 都能
+    // 在下次 pump 接到该 pageKey，affinity 选取会优先命中。这里日志沿用
+    // 旧文案便于回归对比。
+    final warmWorkerIds =
+        _webViewWorkerSlots.values
+            .where(
+              (slot) => slot.isIdle && slot.lastSourceName == page.sourceName,
+            )
+            .map((slot) => slot.workerId)
+            .toList()
+          ..sort();
+    if (warmWorkerIds.isNotEmpty) {
+      debugPrint(
+        '[WebViewScheduler] pending video $pageKey can reuse warm '
+        'worker=${warmWorkerIds.first}',
+      );
+    }
   }
 
   /// Per-page extraction-eligibility predicate.
@@ -1591,6 +1655,171 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return _activeWebViews.length + _activeCaptchaTasks.length;
   }
 
+  int get _webViewWorkerSlotCount => _webViewWorkerSlots.length;
+
+  static const int _webViewWorkerFailureThreshold = 3;
+
+  bool get _hasRoomForNewWebViewWorkerSlot =>
+      !_useWorkerPool || _webViewWorkerSlotCount < _maxConcurrentWebViews;
+
+  String _webViewWorkerPoolLabel() {
+    if (!_useWorkerPool) {
+      return 'legacy';
+    }
+    final videoCount = _webViewWorkerSlots.values
+        .where((slot) => slot.kind == _WebViewWorkerKind.video)
+        .length;
+    final captchaCount = _webViewWorkerSlots.values
+        .where((slot) => slot.kind == _WebViewWorkerKind.captcha)
+        .length;
+    return 'slots $_webViewWorkerSlotCount/$_maxConcurrentWebViews '
+        '(video $videoCount, captcha $captchaCount)';
+  }
+
+  String _workerHealthLabel(_WebViewWorkerHealth health) {
+    return switch (health) {
+      _WebViewWorkerHealth.idle => 'idle',
+      _WebViewWorkerHealth.running => 'running',
+      _WebViewWorkerHealth.cancelling => 'cancelling',
+      _WebViewWorkerHealth.unhealthy => 'unhealthy',
+    };
+  }
+
+  void _recordVideoWorkerResult(String pageKey, VideoExtractResult result) {
+    final workerId = _activeVideoJobs[pageKey];
+    if (workerId == null) return;
+    final slot = _webViewWorkerSlots[workerId];
+    if (slot == null) return;
+
+    final failed = !result.success || result.timedOut;
+    if (!failed) {
+      slot.consecutiveFailures = 0;
+      return;
+    }
+
+    slot.consecutiveFailures++;
+    if (slot.consecutiveFailures >= _webViewWorkerFailureThreshold) {
+      slot.health = _WebViewWorkerHealth.unhealthy;
+      debugPrint(
+        '[WebViewScheduler] video worker=$workerId marked unhealthy '
+        'after ${slot.consecutiveFailures} consecutive failures',
+      );
+    }
+  }
+
+  void _recordCaptchaWorkerResult(String taskKey, CaptchaBypassResult result) {
+    final workerId = _activeCaptchaJobs[taskKey];
+    if (workerId == null) return;
+    final slot = _webViewWorkerSlots[workerId];
+    if (slot == null) return;
+
+    if (result.success) {
+      slot.consecutiveFailures = 0;
+      return;
+    }
+
+    slot.consecutiveFailures++;
+    if (slot.consecutiveFailures >= _webViewWorkerFailureThreshold) {
+      slot.health = _WebViewWorkerHealth.unhealthy;
+      debugPrint(
+        '[WebViewScheduler] captcha worker=$workerId marked unhealthy '
+        'after ${slot.consecutiveFailures} consecutive failures',
+      );
+    }
+  }
+
+  /// 移除一个 idle slot（[canDisposeWhenIdle] 为 true）以腾出总 slot 预算。
+  /// 优先按 [kind] 选择（保持与之前的行为兼容），无匹配时回退到任意 kind。
+  bool _removeIdleWorkerSlot(_WebViewWorkerKind? kindFilter) {
+    Iterable<_WebViewWorkerSlot> candidates = _webViewWorkerSlots.values;
+    if (kindFilter != null) {
+      candidates = candidates.where((slot) => slot.kind == kindFilter);
+    }
+    final idleSlots =
+        candidates.where((slot) => slot.canDisposeWhenIdle).toList()
+          ..sort((a, b) {
+            final aBad = a.health == _WebViewWorkerHealth.unhealthy ? 0 : 1;
+            final bBad = b.health == _WebViewWorkerHealth.unhealthy ? 0 : 1;
+            if (aBad != bBad) return aBad.compareTo(bBad);
+            // 同 kind 同 health 时优先保留 warm（lastSourceName 非空）slot
+            // 让 affinity 调度在 trim 之后仍能命中 warm worker。
+            final aWarm = a.lastSourceName == null ? 0 : 1;
+            final bWarm = b.lastSourceName == null ? 0 : 1;
+            if (aWarm != bWarm) return aWarm.compareTo(bWarm);
+            return b.workerId.compareTo(a.workerId);
+          });
+    if (idleSlots.isEmpty) return false;
+    final slot = idleSlots.first;
+    _webViewWorkerSlots.remove(slot.workerId);
+    final kindLabel = switch (slot.kind) {
+      _WebViewWorkerKind.video => 'video',
+      _WebViewWorkerKind.captcha => 'captcha',
+      null => 'idle',
+    };
+    debugPrint(
+      '[WebViewScheduler] disposed idle $kindLabel worker=${slot.workerId} '
+      'to keep unified slot budget',
+    );
+    return true;
+  }
+
+  bool _trimIdleWebViewWorkerSlotsToBudget({_WebViewWorkerKind? preferKeep}) {
+    if (!_useWorkerPool) return false;
+
+    final removalOrder = switch (preferKeep) {
+      _WebViewWorkerKind.video => const [
+        _WebViewWorkerKind.captcha,
+        _WebViewWorkerKind.video,
+      ],
+      _WebViewWorkerKind.captcha => const [
+        _WebViewWorkerKind.video,
+        _WebViewWorkerKind.captcha,
+      ],
+      null => const [_WebViewWorkerKind.captcha, _WebViewWorkerKind.video],
+    };
+
+    var changed = false;
+    while (_webViewWorkerSlotCount > _maxConcurrentWebViews) {
+      var removed = false;
+      for (final kind in removalOrder) {
+        if (_removeIdleWorkerSlot(kind)) {
+          changed = true;
+          removed = true;
+          break;
+        }
+      }
+      if (!removed) break;
+    }
+    // In the unified pool an idle slot has `kind == null`, so the legacy
+    // video/captcha preference filters above may not match anything. Fall back
+    // to any disposable idle slot to actually enforce the slot budget.
+    while (_webViewWorkerSlotCount > _maxConcurrentWebViews) {
+      if (_removeIdleWorkerSlot(null)) {
+        changed = true;
+      } else {
+        break;
+      }
+    }
+    return changed;
+  }
+
+  bool _releaseIdleSlotForWorkerType(_WebViewWorkerKind desired) {
+    if (_hasRoomForNewWebViewWorkerSlot) {
+      return true;
+    }
+
+    final opposite = desired == _WebViewWorkerKind.video
+        ? _WebViewWorkerKind.captcha
+        : _WebViewWorkerKind.video;
+    if (_removeIdleWorkerSlot(opposite)) {
+      return _hasRoomForNewWebViewWorkerSlot;
+    }
+    if (_removeIdleWorkerSlot(null)) {
+      return _hasRoomForNewWebViewWorkerSlot;
+    }
+    return false;
+  }
+
   bool _startOneCaptchaTask() {
     if (_pendingCaptchaTasks.isEmpty) {
       return false;
@@ -1600,10 +1829,87 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     final task = _pendingCaptchaTasks.removeFirst();
+    if (_useWorkerPool) {
+      final slot = _acquireIdleCaptchaWorkerSlot();
+      if (slot == null) {
+        _pendingCaptchaTasks.addFirst(task);
+        return false;
+      }
+      slot.taskKey = task.taskKey;
+      slot.kind = _WebViewWorkerKind.captcha;
+      slot.lastSourceName = task.source.name;
+      slot.health = _WebViewWorkerHealth.running;
+      _activeCaptchaJobs[task.taskKey] = slot.workerId;
+    }
     _activeCaptchaTasks[task.taskKey] = task;
     _webViewStatus[task.taskKey] = '正在跳过验证码...';
     _webviewStats.onCaptchaJobStarted(task.taskKey, task.source.name);
     return true;
+  }
+
+  /// 5B step 3：取一个 idle（kind == null）slot 用来跑 captcha job。
+  /// 不区分原来 captcha/video 两条路径 —— 统一 slot 表里 kind == null
+  /// 即空闲 worker，可被任意 kind 复用。
+  _WebViewWorkerSlot? _acquireIdleCaptchaWorkerSlot() {
+    _trimIdleWebViewWorkerSlotsToBudget(preferKeep: _WebViewWorkerKind.captcha);
+
+    final idleSlots =
+        _webViewWorkerSlots.values.where((slot) => slot.canAcceptJob).toList()
+          ..sort((a, b) => a.workerId.compareTo(b.workerId));
+    if (idleSlots.isNotEmpty) {
+      return idleSlots.first;
+    }
+
+    if (!_releaseIdleSlotForWorkerType(_WebViewWorkerKind.captcha)) {
+      return null;
+    }
+
+    final workerId = _nextWebViewWorkerId++;
+    final slot = _WebViewWorkerSlot(workerId: workerId);
+    _webViewWorkerSlots[workerId] = slot;
+    debugPrint(
+      '[CaptchaScheduler] created worker=$workerId for captcha '
+      '(${_webViewWorkerPoolLabel()})',
+    );
+    return slot;
+  }
+
+  /// 5B step 3：找一个 idle 同源 slot 用于 video job。
+  ///
+  /// 与旧 `_adoptIdleCaptchaWorkerForVideoSource` 行为兼容：5B 之前
+  /// 调度器在两个表里查找 idle captcha slot 用于同源 video 提取；
+  /// 5B 之后单一表里任何 idle slot 都能匹配，只是 `lastSourceName`
+  /// 必须命中 pending 源集才返回（否则由 [`_acquireIdleVideoWorkerSlotForAffinity`]
+  /// 走任意 idle 路径）。
+  ///
+  /// 与旧实现的关键差异：不再从统一 [`_webViewWorkerSlots`] 中移除再
+  /// 插入一个新实例，而是直接返回原 slot —— slot 实例本身保留，调
+  /// 用方（[`_startOneWebViewExtractionTask`]）会把 [kind] 从 null 切
+  /// 到 [_WebViewWorkerKind.video] 并设置 [pageKey]。slot 仍留在
+  /// [`_webViewWorkerSlots`]，对应的 `ValueKey('worker_$workerId')`
+  /// widget 不会被 Flutter 销毁，InAppWebView 真正跨 kind 复用。
+  _WebViewWorkerSlot? _adoptIdleWorkerForSameSource(
+    Set<String> pendingSourceNames,
+  ) {
+    final candidates =
+        _webViewWorkerSlots.values
+            .where(
+              (slot) =>
+                  slot.canAcceptJob &&
+                  slot.lastSourceName != null &&
+                  pendingSourceNames.contains(slot.lastSourceName),
+            )
+            .toList()
+          ..sort((a, b) => a.workerId.compareTo(b.workerId));
+    if (candidates.isEmpty) return null;
+
+    final slot = candidates.first;
+    debugPrint(
+      '[WebViewScheduler] worker=${slot.workerId} promoted '
+      'idle->video (same source) for source=${slot.lastSourceName} '
+      '(${_webViewWorkerPoolLabel()})',
+    );
+    return slot;
   }
 
   bool _startOneWebViewExtractionTask() {
@@ -1632,9 +1938,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (page == null) {
         return false;
       }
-      final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
+      final pageKey = _buildSourceChannelKey(
+        page.sourceName,
+        page.channelIndex,
+      );
       slot.pageKey = pageKey;
+      slot.kind = _WebViewWorkerKind.video;
       slot.lastSourceName = page.sourceName;
+      slot.health = _WebViewWorkerHealth.running;
       _activeVideoJobs[pageKey] = slot.workerId;
       _webViewStatus[pageKey] = '正在提取...';
       _webviewStats.onVideoJobStarted(
@@ -1693,7 +2004,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 环里串行调用本方法并逐个 commit 到 `_activeVideoJobs`，因此 soft limit
   /// 能正确反映本轮已派出的 job。
   SearchPlayResult? _selectNextVideoJobForWorker(
-    _VideoWorkerSlot slot,
+    _WebViewWorkerSlot slot,
     List<SearchPlayResult> pending,
   ) {
     if (pending.isEmpty) return null;
@@ -1708,11 +2019,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           .where((p) => p.sourceName == affinitySource)
           .toList();
       if (sameSource.isNotEmpty) {
-        final otherSourcesPending =
-            pending.any((p) => p.sourceName != affinitySource);
+        final otherSourcesPending = pending.any(
+          (p) => p.sourceName != affinitySource,
+        );
         final currentActive = activeSourceWorkers[affinitySource] ?? 0;
-        final limited =
-            otherSourcesPending && currentActive >= softLimit;
+        final limited = otherSourcesPending && currentActive >= softLimit;
         if (!limited) {
           final picked = _pickBestPending(sameSource);
           _logAffinityPick(
@@ -1768,11 +2079,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final tierA = _sourceTiers[a.sourceName] ?? 999;
       final tierB = _sourceTiers[b.sourceName] ?? 999;
       if (tierA != tierB) return tierA.compareTo(tierB);
-      final seqA = _pageEnqueueSeq[
-              _buildSourceChannelKey(a.sourceName, a.channelIndex)] ??
+      final seqA =
+          _pageEnqueueSeq[_buildSourceChannelKey(
+            a.sourceName,
+            a.channelIndex,
+          )] ??
           0;
-      final seqB = _pageEnqueueSeq[
-              _buildSourceChannelKey(b.sourceName, b.channelIndex)] ??
+      final seqB =
+          _pageEnqueueSeq[_buildSourceChannelKey(
+            b.sourceName,
+            b.channelIndex,
+          )] ??
           0;
       return seqA.compareTo(seqB);
     });
@@ -1800,7 +2117,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       );
       return;
     }
-    final from = (lastSource == null || lastSource.isEmpty) ? '<new>' : lastSource;
+    final from = (lastSource == null || lastSource.isEmpty)
+        ? '<new>'
+        : lastSource;
     if (lastSource == null || lastSource.isEmpty) {
       debugPrint(
         '[WebViewScheduler] worker=$workerId taking job '
@@ -1826,18 +2145,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 4. 全满则返回 null（理论由 `_activeWebViewTaskCount` guard 避免）。
   ///
   /// Pool 模式专用。
-  _VideoWorkerSlot? _acquireIdleVideoWorkerSlotForAffinity(
+  /// 5B step 3：取一个 idle slot（[canAcceptJob]）用来跑 video job。
+  ///
+  /// 选取规则保持 Round 4 Stage 3 不变（先看 affinity 同源，再看任意 idle，
+  /// 再看 captcha 升 video，最后新创建）；底层数据源改为统一
+  /// [`_webViewWorkerSlots`]。新创建的 slot 初始 `kind == null`（idle），
+  /// 派活时由 [`_startOneWebViewExtractionTask`] 切到
+  /// [_WebViewWorkerKind.video]。
+  _WebViewWorkerSlot? _acquireIdleVideoWorkerSlotForAffinity(
     List<SearchPlayResult> pending,
   ) {
+    _trimIdleWebViewWorkerSlotsToBudget(preferKeep: _WebViewWorkerKind.video);
+
     final pendingSourceNames = <String>{};
     for (final p in pending) {
       pendingSourceNames.add(p.sourceName);
     }
 
-    _VideoWorkerSlot? idleMatch;
-    _VideoWorkerSlot? idleAny;
-    for (final slot in _videoWorkerSlots.values) {
-      if (!slot.isIdle) continue;
+    _WebViewWorkerSlot? idleMatch;
+    _WebViewWorkerSlot? idleAny;
+    for (final slot in _webViewWorkerSlots.values) {
+      if (!slot.canAcceptJob) continue;
       idleAny ??= slot;
       if (slot.lastSourceName != null &&
           pendingSourceNames.contains(slot.lastSourceName!)) {
@@ -1845,30 +2173,34 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
     }
     if (idleMatch != null) return idleMatch;
+    final adoptedIdleSlot = _adoptIdleWorkerForSameSource(pendingSourceNames);
+    if (adoptedIdleSlot != null) return adoptedIdleSlot;
     if (idleAny != null) return idleAny;
 
-    if (_videoWorkerSlots.length >= _maxConcurrentWebViews) {
+    if (!_releaseIdleSlotForWorkerType(_WebViewWorkerKind.video)) {
       return null;
     }
-    final workerId = _nextVideoWorkerId++;
-    final slot = _VideoWorkerSlot(workerId: workerId);
-    _videoWorkerSlots[workerId] = slot;
+    final workerId = _nextWebViewWorkerId++;
+    final slot = _WebViewWorkerSlot(workerId: workerId);
+    _webViewWorkerSlots[workerId] = slot;
+    debugPrint(
+      '[WebViewScheduler] created worker=$workerId for video '
+      '(${_webViewWorkerPoolLabel()})',
+    );
     return slot;
   }
 
   bool _pumpWebViewPoolNow() {
     var startedAny = false;
     while (_activeWebViewTaskCount < _maxConcurrentWebViews) {
-      final slotsRemaining =
-          _maxConcurrentWebViews - _activeWebViewTaskCount;
+      final slotsRemaining = _maxConcurrentWebViews - _activeWebViewTaskCount;
       final hasPendingExtraction = _hasPendingWebViewExtractionTasks();
       final hasActiveExtraction = _useWorkerPool
           ? _activeVideoJobs.isNotEmpty
           : _activeWebViews.isNotEmpty;
 
-      final canStartCaptcha = !hasPendingExtraction ||
-          hasActiveExtraction ||
-          slotsRemaining > 1;
+      final canStartCaptcha =
+          !hasPendingExtraction || hasActiveExtraction || slotsRemaining > 1;
 
       if (canStartCaptcha && _startOneCaptchaTask()) {
         startedAny = true;
@@ -1940,8 +2272,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       ...pending.keys,
       ...active.keys,
       ...completed.keys,
-    }.toList()
-      ..sort();
+    }.toList()..sort();
     if (names.isEmpty) return 'no sources yet';
     final parts = <String>[];
     for (final name in names) {
@@ -1966,7 +2297,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 仍 pending 的待提取数。仅在有内容（`lastSourceName != null` 或 `n>0`）
   /// 时显示，`n>0` 时用 primary 色高亮，提示该 worker 已有可接的同源 job，
   /// 直观观察 source-affinity 复用与慢源分流效果。
-  List<Widget> _buildVideoWorkerStatusRows() {
+  /// Round 4 Stage 3 / 5B step 3：pool 模式调试面板的 worker slot 行。
+  ///
+  /// 5B step 3 之后视频/验证码共享 [`_webViewWorkerSlots`]，渲染统一为
+  /// 单一列表（按 workerId 升序），不再分两段。空闲 slot（`kind == null`）
+  /// 显示 `w$id · idle`；video busy slot 显示当前 source + channel + URL，
+  /// captcha busy slot 显示 `正在跳过验证码`。
+  ///
+  /// 末尾追加 affinity 子文本 `warm: $lastSourceName · same-src pending: $n`：
+  /// `lastSourceName` 是 worker 上一任 job 的源名（warm 度），`n` 是该源当前
+  /// 仍 pending 的待提取数。仅在有内容（`lastSourceName != null` 或 `n>0`）
+  /// 时显示，`n>0` 时用 primary 色高亮，提示该 worker 已有可接的同源 job，
+  /// 直观观察 source-affinity 复用与慢源分流效果。
+  List<Widget> _buildWebViewWorkerStatusRows() {
     final pendingBySource = <String, int>{};
     for (final page in _samplePlayPages) {
       if (_pageIsPendingForExtraction(page)) {
@@ -1975,27 +2318,35 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
     }
 
-    final slots = _videoWorkerSlots.values.toList()
+    final slots = _webViewWorkerSlots.values.toList()
       ..sort((a, b) => a.workerId.compareTo(b.workerId));
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final labelColor = isDark
         ? Colors.white54
         : Theme.of(context).colorScheme.onSurfaceVariant;
-    final mutedColor = isDark ? Colors.white24 : Theme.of(context).colorScheme.outline;
+    final mutedColor = isDark
+        ? Colors.white24
+        : Theme.of(context).colorScheme.outline;
 
     return slots.map((slot) {
       final lastSource = slot.lastSourceName;
-      final sameSrcPending =
-          lastSource == null ? 0 : (pendingBySource[lastSource] ?? 0);
+      final sameSrcPending = lastSource == null
+          ? 0
+          : (pendingBySource[lastSource] ?? 0);
       final showAffinity = lastSource != null || sameSrcPending > 0;
 
-      final pageKey = slot.pageKey;
-      final isBusy = pageKey != null;
+      final healthLabel = _workerHealthLabel(slot.health);
+      final kind = slot.kind;
+      final isVideoBusy = kind == _WebViewWorkerKind.video;
+      final isCaptchaBusy = kind == _WebViewWorkerKind.captcha;
+      final isBusy = isVideoBusy || isCaptchaBusy;
+
       var sourceName = '';
       String? channelName;
       var urlLine = '等待匹配播放页...';
-      if (isBusy) {
+      if (isVideoBusy) {
+        final pageKey = slot.pageKey!;
         final key = SourceChannelKey.fromPageKey(pageKey);
         sourceName = key.sourceName;
         final channelIndex = key.channelIndex?.toInt();
@@ -2007,7 +2358,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             break;
           }
         }
+      } else if (isCaptchaBusy) {
+        final task = _activeCaptchaTasks[slot.taskKey];
+        sourceName = task?.source.name ?? '';
+        urlLine = '正在跳过验证码';
       }
+
+      final busyLabel = isVideoBusy
+          ? '$sourceName (w${slot.workerId} · $healthLabel)'
+          : isCaptchaBusy
+          ? '$sourceName (c${slot.workerId} · $healthLabel)'
+          : 'w${slot.workerId} · $healthLabel';
 
       return Padding(
         padding: const EdgeInsets.only(bottom: 6),
@@ -2041,9 +2402,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     children: [
                       Expanded(
                         child: Text(
-                          isBusy
-                              ? '$sourceName (w${slot.workerId})'
-                              : 'w${slot.workerId} · idle',
+                          busyLabel,
                           style: TextStyle(
                             color: isBusy ? labelColor : mutedColor,
                             fontSize: 10,
@@ -2051,7 +2410,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-                      if (isBusy && (channelName ?? '').isNotEmpty)
+                      if (isVideoBusy && (channelName ?? '').isNotEmpty)
                         Text(
                           ' - $channelName',
                           style: TextStyle(
@@ -2093,6 +2452,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     debugPrint(
       '[WebViewScheduler] state ($reason): '
       '${_extractionActiveLabel()} · ${_captchaActiveLabel()} · '
+      '${_webViewWorkerPoolLabel()} · '
       'per-source: ${_perSourceStatusLabel()} · '
       'workers: ${_workerAffinitySummary()} · '
       'stats: ${_webviewStatsLabel()}',
@@ -2104,8 +2464,21 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 每项含义：`w$workerId` 后方括号内依次为 busy 时 `源#channel`（idle 时
   /// 空）、该源 active 数、`warm$lastSourceName`、`ss#$sameSrcPending`。
   /// 仅用于日志，不参与调度。
+  /// Round 4 Stage 3 / 5B step 3：worker pool affinity 调度快照字符串。
+  ///
+  /// 5B step 3 之后渲染统一遍历 [`_webViewWorkerSlots`]，按 workerId 升序输
+  /// 出形如 `w0[V#S#a,warmS,ss#3] w1[C#taskKey,warmS,ss#0] w2[idle,warm-,ss#0]`。
+  /// 每项含义：`w$workerId` 后方括号内依次为：
+  /// - 视频 busy：`V#源#channel`；空闲或非视频：`idle`
+  /// - 验证码 busy：`C#taskKey`
+  /// - `warm$lastSourceName`
+  /// - `ss#$sameSrcPending`
+  /// - `h$health`
+  /// 仅用于日志，不参与调度。
   String _workerAffinitySummary() {
-    if (_videoWorkerSlots.isEmpty) return 'none';
+    if (_webViewWorkerSlots.isEmpty) {
+      return 'none';
+    }
     final pendingBySource = <String, int>{};
     for (final page in _samplePlayPages) {
       if (_pageIsPendingForExtraction(page)) {
@@ -2114,21 +2487,29 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
     }
     final activeBySource = _activeSourceWorkerCounts();
-    final slots = _videoWorkerSlots.values.toList()
+    final slots = _webViewWorkerSlots.values.toList()
       ..sort((a, b) => a.workerId.compareTo(b.workerId));
     final parts = <String>[];
     for (final slot in slots) {
       final last = slot.lastSourceName ?? '-';
-      final pageKey = slot.pageKey;
       final ss = slot.lastSourceName == null ? 0 : (pendingBySource[last] ?? 0);
+      final health = _workerHealthLabel(slot.health);
       String cur;
-      if (pageKey == null) {
-        cur = 'idle,jobs${activeBySource[last] ?? 0}';
-      } else {
-        final k = SourceChannelKey.fromPageKey(pageKey);
-        cur = '${k.sourceName}#${k.channelIndex ?? '-'}';
+      switch (slot.kind) {
+        case _WebViewWorkerKind.video:
+          final pageKey = slot.pageKey;
+          if (pageKey == null) {
+            cur = 'idle,jobs${activeBySource[last] ?? 0}';
+          } else {
+            final k = SourceChannelKey.fromPageKey(pageKey);
+            cur = 'V#${k.sourceName}#${k.channelIndex ?? '-'}';
+          }
+        case _WebViewWorkerKind.captcha:
+          cur = 'C#${slot.taskKey ?? '-'}';
+        case null:
+          cur = 'idle,jobs${activeBySource[last] ?? 0}';
       }
-      parts.add('w${slot.workerId}[$cur,warm$last,ss#$ss]');
+      parts.add('w${slot.workerId}[$cur,warm$last,ss#$ss,h$health]');
     }
     return parts.join(' ');
   }
@@ -2173,23 +2554,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (!mounted || token != _webViewPumpToken) break;
 
       if (!isFirst && _webViewLaunchInterval > 0) {
-        await Future.delayed(
-          Duration(milliseconds: _webViewLaunchInterval),
-        );
+        await Future.delayed(Duration(milliseconds: _webViewLaunchInterval));
         if (!mounted || token != _webViewPumpToken) break;
       }
       isFirst = false;
 
-      final slotsRemaining =
-          _maxConcurrentWebViews - _activeWebViewTaskCount;
+      final slotsRemaining = _maxConcurrentWebViews - _activeWebViewTaskCount;
       final hasPendingExtraction = _hasPendingWebViewExtractionTasks();
       final hasActiveExtraction = _useWorkerPool
           ? _activeVideoJobs.isNotEmpty
           : _activeWebViews.isNotEmpty;
 
-      final canStartCaptcha = !hasPendingExtraction ||
-          hasActiveExtraction ||
-          slotsRemaining > 1;
+      final canStartCaptcha =
+          !hasPendingExtraction || hasActiveExtraction || slotsRemaining > 1;
 
       var didStart = false;
       if (canStartCaptcha && _startOneCaptchaTask()) {
@@ -2225,6 +2602,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _webViewStatus.remove(taskKey);
 
     if (task == null) {
+      _releaseCaptchaSlotForTask(taskKey);
       _webviewStats.onCaptchaJobLateAfterCancel(taskKey);
       if (mounted) setState(() {});
       _scheduleWebViewPoolPump(immediate: true);
@@ -2232,12 +2610,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     if (!mounted || task.loadToken != _sampleLoadToken) {
+      _releaseCaptchaSlotForTask(taskKey);
       _webviewStats.onCaptchaJobStaleResult(taskKey);
       if (mounted) setState(() {});
       _scheduleWebViewPoolPump(immediate: true);
       return;
     }
 
+    _recordCaptchaWorkerResult(taskKey, result);
+    _releaseCaptchaSlotForTask(taskKey);
     _webviewStats.onCaptchaJobCompleted(
       success: result.success,
       timedOut: result.timedOut,
@@ -2249,6 +2630,45 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _scheduleWebViewPoolPump(immediate: true);
     _maybeFinishSampleSearch();
     _logSchedulerState('captchaResult');
+  }
+
+  void _releaseCaptchaSlotForTask(String taskKey) {
+    final workerId = _activeCaptchaJobs.remove(taskKey);
+    if (workerId == null) return;
+    final slot = _webViewWorkerSlots[workerId];
+    if (slot?.taskKey == taskKey) {
+      slot?.taskKey = null;
+      slot?.kind = null;
+    }
+  }
+
+  void _onCaptchaWorkerIdle(int workerId) {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final slot = _webViewWorkerSlots[workerId];
+      if (slot == null) return;
+      final taskKey = slot.taskKey;
+      if (taskKey != null && !_activeCaptchaTasks.containsKey(taskKey)) {
+        slot.taskKey = null;
+        slot.kind = null;
+        _activeCaptchaJobs.remove(taskKey);
+      }
+      if (slot.health == _WebViewWorkerHealth.unhealthy) {
+        _webViewWorkerSlots.remove(workerId);
+        debugPrint(
+          '[WebViewScheduler] rebuilt captcha worker=$workerId by removing '
+          'unhealthy idle slot',
+        );
+      } else {
+        slot.health = _WebViewWorkerHealth.idle;
+      }
+      _trimIdleWebViewWorkerSlotsToBudget();
+      setState(() {});
+      _updatePoolStatusMessage();
+      _scheduleWebViewPoolPump(immediate: true);
+      _maybeFinishSampleSearch();
+    });
   }
 
   void _handleSearchCaptchaPreflightResult({
@@ -2588,8 +3008,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final activeExtraction = _useWorkerPool
         ? _activeVideoJobs.isNotEmpty
         : _activeWebViews.isNotEmpty;
-    if (activeExtraction ||
-        _resolvingChannelPlayPageKeys.isNotEmpty) {
+    if (activeExtraction || _resolvingChannelPlayPageKeys.isNotEmpty) {
       return;
     }
     // Probes run asynchronously after a WebView extraction completes. The
@@ -2679,17 +3098,24 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _failedPlaybackSourceKeys.clear();
       _selectedSourceIndex = 0;
       _activeWebViews.clear();
-      // Round 3：pool 状态清理。把每个 slot 的 pageKey 置 null 让 build 把
-      // 它们的 job 转为 null（didUpdateWidget 触发 _cancelCurrentJob(silent)
-      // -> onIdle -> _onWorkerIdlePostFrame 走 no-op），并清空 active 反查。
-      // `_videoWorkerSlots` 本身保留以便跨搜索复用 InAppWebView；下一个搜索
-      // 开始后 `_acquireIdleVideoWorkerSlotForAffinity` 直接命中这些 idle
-      // slot。`lastSourceName` 也保留，便于跨搜索复用同源 warm WebView。
+      // 5B step 3：pool 状态清理。把每个 slot 的 pageKey/taskKind 置 null 让
+      // build 把它们的 job 转为 null（didUpdateWidget 触发
+      // _cancelCurrentJob(silent) -> onIdle -> _onWorkerIdlePostFrame 走
+      // no-op），并清空 active 反查。
+      // [`_webViewWorkerSlots`] 本身保留以便跨搜索复用 InAppWebView；下
+      // 一个搜索开始后 `_acquireIdleVideoWorkerSlotForAffinity` 直接命中
+      // 这些 idle slot。`lastSourceName` 也保留，便于跨搜索复用同源 warm
+      // WebView。
       _activeVideoJobs.clear();
-      for (final slot in _videoWorkerSlots.values) {
-        slot.pageKey = null;
-      }
       _activeCaptchaTasks.clear();
+      _activeCaptchaJobs.clear();
+      for (final slot in _webViewWorkerSlots.values) {
+        final wasIdle = slot.kind == null;
+        slot.health = wasIdle
+            ? _WebViewWorkerHealth.idle
+            : _WebViewWorkerHealth.cancelling;
+        slot.clearCurrentJob();
+      }
       _pendingCaptchaTasks.clear();
       _searchSubscriptions.clear();
       _webViewStatus.clear();
@@ -2856,7 +3282,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   String _buildSourceChannelKey(String sourceName, BigInt? channelIndex) {
-    return SourceChannelKey(sourceName: sourceName, channelIndex: channelIndex).toPageKey();
+    return SourceChannelKey(
+      sourceName: sourceName,
+      channelIndex: channelIndex,
+    ).toPageKey();
   }
 
   Map<String, String> _buildPlaybackHeaders(SearchPlayResult source) {
@@ -3099,7 +3528,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return;
     }
 
-    final hasAnyCaptchaContext = cookies != null ||
+    final hasAnyCaptchaContext =
+        cookies != null ||
         searchPageHtml != null ||
         searchPageUrl != null ||
         detailPageHtml != null ||
@@ -3278,6 +3708,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (task != null) {
         _webviewStats.onCaptchaJobCancelled(key, task.source.name);
       }
+      final workerId = _activeCaptchaJobs[key];
+      final slot = workerId == null ? null : _webViewWorkerSlots[workerId];
+      if (slot != null) {
+        slot.health = _WebViewWorkerHealth.cancelling;
+        // 5B step 3：把 kind 同步清掉，否则 build 阶段 buildWebViewExtractorsPool
+        // 还会按 captcha kind 派发 runner，而 task 已从 _activeCaptchaTasks
+        // 移除，runner 找不到 task 就会立即回 idle，浪费一次 cancel 路径。
+        slot.taskKey = null;
+        slot.kind = null;
+      }
+      _releaseCaptchaSlotForTask(key);
       _webViewStatus.remove(key);
     }
 
@@ -3303,9 +3744,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           .toList();
       for (final pageKey in videoPageKeys) {
         final workerId = _activeVideoJobs.remove(pageKey);
-        final slot = workerId == null ? null : _videoWorkerSlots[workerId];
+        final slot = workerId == null ? null : _webViewWorkerSlots[workerId];
         if (slot != null) {
+          slot.health = _WebViewWorkerHealth.cancelling;
+          // 5B step 3：清空 pageKey 与 kind 同步，确保 build 阶段不会再派发
+          // 任何 runner。
           slot.pageKey = null;
+          slot.kind = null;
         }
         _webViewStatus.remove(pageKey);
         _failedWebViewPageKeys.add(pageKey);
@@ -3334,8 +3779,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       "Auto-playing source: ${source.sourceName} (Tier ${_sourceTiers[source.sourceName]})",
     );
 
-    final acceptedKey =
-        _buildSourceChannelKey(source.sourceName, source.channelIndex);
+    final acceptedKey = _buildSourceChannelKey(
+      source.sourceName,
+      source.channelIndex,
+    );
 
     setState(() {
       if (_cancelLowPrioritySourcesOnPlay) {
@@ -3376,6 +3823,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final sourceNameForKey = SourceChannelKey.fromPageKey(pageKey).sourceName;
 
     setState(() {
+      _recordVideoWorkerResult(pageKey, result);
       // 旧 [per-task] 路径在收到 result 时立即从 `_activeWebViews` 释放槽位；
       // pool 模式下由 [`_onWorkerIdle`] 在 worker 完成（或被取消）后统一释放
       // `_activeVideoJobs` + slot 记账，避免在此处提前释放导致 build 阶段
@@ -3490,9 +3938,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 )
                 .take(20)
                 .join(' | ');
-            debugPrint(
-              '[_onWebViewResult] _samplePlayPages summary: $summary',
-            );
+            debugPrint('[_onWebViewResult] _samplePlayPages summary: $summary');
           } catch (e) {
             debugPrint(
               '[_onWebViewResult] Failed to summarize _samplePlayPages: $e',
@@ -3519,17 +3965,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _logSchedulerState('videoResult');
   }
 
-  /// Pool 模式下 worker 自报 idle 的入口。可能源自两种路径：
+  /// Pool 模式下 video runner 自报 idle 的入口（与 captcha 的
+  /// [`_onCaptchaWorkerIdle`] 分开）。可能源自两种路径：
   ///
-  /// 1. **Worker 完成/超时/失败**：在 [`ReusableWebViewVideoExtractor._complete`]
-  ///    里同步先调用 `widget.onResult` -> [`_onWebViewResult`]（处理 result 业务
-  ///    逻辑），再调用本函数 onIdle。这里只需要释放 slot 记账并 pump 下一个 job。
+  /// 1. **Worker 完成/超时/失败**：在
+  ///    [`VideoExtractionJobRunner._complete`] 里同步先调用
+  ///    `sink.onResult` -> [`_onWebViewResult`]（处理 result 业务逻辑），
+  ///    再调用本函数 onIdle（5B step 3 之后由 [`ReusableBrowserWorker`]
+  ///    的 `onVideoIdle` 转发）。这里只需要释放 slot 记账并 pump 下一
+  ///    个 job。
   /// 2. **Worker 被取消**：当前 job 通过 `didUpdateWidget`（job 从 non-null 变
   ///    null，例如搜索重置、`_cancelLowerPriorityExtraction`、`_useWorkerPool`
-  ///    实时切换）触发 `_cancelCurrentJob(silent: true)`，进而同步调用本函数。
-  ///    调度器侧的取消（[`_cancelLowerPriorityExtraction`] / `_loadSampleSource`）
-  ///    通常已经在修改 `_videoWorkerSlots` 时同步清空了 pageKey，本函数此时仅做
-  ///    pump。
+  ///    实时切换）触发 `_cancelCurrentJob(silent: true)`，进而同步调用
+  ///    [`VideoExtractionJobRunner.cancelCurrentJob`]。本函数仅做 pump。
   ///
   /// 因为路径 2 可能发生在 **build 阶段**（`didUpdateWidget` 内同步），直接
   /// `setState` 会触发 "setState() called during build" 异常。所以统一用
@@ -3543,24 +3991,48 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   void _onWorkerIdlePostFrame(int workerId) {
     if (!mounted) return;
-    final slot = _videoWorkerSlots[workerId];
+    final slot = _webViewWorkerSlots[workerId];
     if (slot == null) return;
 
-    // 释放 slot 记账（pageKey 通常还没被移除：因为 _onWebViewResult 在 pool
-    // 模式下不动它；_cancelLowerPriorityExtraction 已在 setState 内同步删除
-    // 但走第 (b) 路径时 onIdle 也是 post-frame 到来，绝不冲突）。已经清空的
-    // pageKey 也安全（null = no-op）。
+    // 释放 slot 记账（pageKey/taskKey 通常还没被移除：因为 _onWebViewResult
+    // 在 pool 模式下不动它；_cancelLowerPriorityExtraction 已在 setState 内
+    // 同步删除但走第 (b) 路径时 onIdle 也是 post-frame 到来，绝不冲突）。已
+    // 经清空的字段也安全（null = no-op）。
     final prevPageKey = slot.pageKey;
+    var needsSetState = false;
     if (prevPageKey != null) {
       slot.pageKey = null;
       _activeVideoJobs.remove(prevPageKey);
       _webViewStatus.remove(prevPageKey);
+      needsSetState = true;
+    }
+    // 5B step 3：worker onIdle 唯一可能源自视频完成路径，因此这里只清理
+    // kind 到 null（防止 kind 残留为 video 让 build 再次派活）。captcha
+    // 走 _onCaptchaWorkerIdle，不进本函数。
+    if (slot.kind != null) {
+      slot.kind = null;
+      needsSetState = true;
+    }
+
+    if (slot.health == _WebViewWorkerHealth.unhealthy) {
+      _webViewWorkerSlots.remove(workerId);
+      debugPrint(
+        '[WebViewScheduler] rebuilt video worker=$workerId by removing '
+        'unhealthy idle slot',
+      );
+      needsSetState = true;
+    } else {
+      slot.health = _WebViewWorkerHealth.idle;
+    }
+
+    if (_trimIdleWebViewWorkerSlotsToBudget()) {
+      needsSetState = true;
     }
 
     // 让 build 把 worker 切到 idle 状态（emit null job，触发 didUpdateWidget
     // 进入`_cancelCurrentJob` 早返回路径——worker 内部 `_isCompleted=true` 守
     // 卫会直接 short-circuit）。
-    if (prevPageKey != null) {
+    if (needsSetState) {
       setState(() {});
     }
 
@@ -3574,7 +4046,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   ///
   /// 切换时清空两条路径的活跃记账 + 丢掉 pool slot 实例，避免旧路径下的
   /// `_activeWebViews` 残留或 pool 模式下 slot 与 widget 树不对齐。下一帧
-  /// 起重按新路径调度；captcha 任务不被切换影响。
+  /// 起重按新路径调度；captcha active task 保留，但 slot 反查按目标路径重建。
   void _setUseWorkerPool(bool next) {
     setState(() {
       _useWorkerPool = next;
@@ -3582,7 +4054,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _activeVideoJobs.clear();
       // 把 pool slot 整体丢弃：worker widget 在下次 build 不被 emit → 框架
       // 负责 dispose；scheduler 侧不再引用已 dispose 的 state。
-      _videoWorkerSlots.clear();
+      _webViewWorkerSlots.clear();
+      _activeCaptchaJobs.clear();
+      if (next) {
+        for (final task in _activeCaptchaTasks.values) {
+          final slot = _acquireIdleCaptchaWorkerSlot();
+          if (slot == null) continue;
+          slot.taskKey = task.taskKey;
+          slot.kind = _WebViewWorkerKind.captcha;
+          slot.lastSourceName = task.source.name;
+          slot.health = _WebViewWorkerHealth.running;
+          _activeCaptchaJobs[task.taskKey] = slot.workerId;
+        }
+      }
       _webViewStatus.clear();
     });
     _scheduleWebViewPoolPump(immediate: true);
@@ -3696,12 +4180,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
     _searchSubscriptions.clear();
     _activeCaptchaTasks.clear();
+    _activeCaptchaJobs.clear();
     _pendingCaptchaTasks.clear();
-    // Round 3：清理 pool 调度记账。worker widget 在 widget 树卸载时由框架
-    // 负责 dispose（含 InAppWebView），scheduler 侧只需清空记账 Map 以避免
-    // 后续 post-frame 回调进来时引用已 dispose 的 slot。
+    // 5B step 3：清理统一 pool 调度记账。worker widget 在 widget 树卸载时
+    // 由框架负责 dispose（含 InAppWebView），scheduler 侧只需清空记账 Map
+    // 以避免后续 post-frame 回调进来时引用已 dispose 的 slot。
     _activeVideoJobs.clear();
-    _videoWorkerSlots.clear();
+    _activeCaptchaJobs.clear();
+    _webViewWorkerSlots.clear();
     _clearPlaybackStartupWatchdog();
 
     // 通知下载管理器BT流不再活跃
@@ -4734,13 +5220,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _nextPageEnqueueSeq = 0;
       _selectedSourceIndex = 0;
       _activeWebViews.clear();
-      // Round 3：与 `_loadSampleSource` 对齐，清除 pool 记账并保留 slot 实例
-      // 以便 InAppWebView 跨搜索复用。
+      // 5B step 3：与 `_loadSampleSource` 对齐，清除统一 pool 记账并保留
+      // slot 实例以便 InAppWebView 跨搜索复用。
       _activeVideoJobs.clear();
-      for (final slot in _videoWorkerSlots.values) {
-        slot.pageKey = null;
-      }
       _activeCaptchaTasks.clear();
+      _activeCaptchaJobs.clear();
+      for (final slot in _webViewWorkerSlots.values) {
+        final wasIdle = slot.kind == null;
+        slot.health = wasIdle
+            ? _WebViewWorkerHealth.idle
+            : _WebViewWorkerHealth.cancelling;
+        slot.clearCurrentJob();
+      }
       _pendingCaptchaTasks.clear();
       _webViewStatus.clear();
       _failedWebViewPageKeys.clear();
@@ -5380,10 +5871,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (id == 'bt') {
       isLoading = _isLoadingMikan || _isLoadingDmhy;
       hasError = _mikanError != null || _dmhyError != null;
-      count = _dedupBtResources([
-        ..._mikanResources,
-        ..._dmhyResources,
-      ]).length;
+      count = _dedupBtResources([..._mikanResources, ..._dmhyResources]).length;
     } else if (id == 'sample') {
       isLoading = _isLoadingSample;
       hasError = _sampleError != null;
@@ -5578,7 +6066,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ],
 
         // 如果正在使用 WebView 任务池，显示所有活动任务
-        if ((_useWorkerPool ? _activeVideoJobs.isNotEmpty : _activeWebViews.isNotEmpty) ||
+        if ((_useWorkerPool
+                ? _activeVideoJobs.isNotEmpty
+                : _activeWebViews.isNotEmpty) ||
             _activeCaptchaTasks.isNotEmpty) ...[
           Divider(
             color: Theme.of(context).brightness == Brightness.dark
@@ -5599,7 +6089,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               children: [
                 Text(
                   _useWorkerPool
-                      ? '并发WebView任务 ($_activeWebViewTaskCount/$_maxConcurrentWebViews) · pool: ${_videoWorkerSlots.length} slots'
+                      ? '并发WebView任务 ($_activeWebViewTaskCount/$_maxConcurrentWebViews) · ${_webViewWorkerPoolLabel()}'
                       : '并发WebView任务 ($_activeWebViewTaskCount/$_maxConcurrentWebViews)',
                   style: TextStyle(
                     color: Theme.of(context).brightness == Brightness.dark
@@ -5617,9 +6107,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     style: TextStyle(
                       color: Theme.of(context).brightness == Brightness.dark
                           ? Colors.white38
-                          : Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 8,
                       height: 1.2,
                     ),
@@ -5635,9 +6123,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     style: TextStyle(
                       color: Theme.of(context).brightness == Brightness.dark
                           ? Colors.white38
-                          : Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 8,
                       height: 1.2,
                     ),
@@ -5646,47 +6132,48 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(height: 8),
-                ..._activeCaptchaTasks.values.map((task) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 10,
-                          height: 10,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${task.label} - 正在跳过验证码',
-                            style: TextStyle(
-                              color:
-                                  Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? Colors.white54
-                                  : Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                              fontSize: 10,
+                if (!_useWorkerPool)
+                  ..._activeCaptchaTasks.values.map((task) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 10,
+                            height: 10,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: Theme.of(context).colorScheme.primary,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${task.label} - 正在跳过验证码',
+                              style: TextStyle(
+                                color:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? Colors.white54
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                fontSize: 10,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
                 // 显示所有活动视频提取任务的状态
                 // Round 4 Stage 3：pool 模式下按 worker slot 渲染（含 idle），展示
                 // workerId / 当前 source/channel / lastSourceName / 同源 pending 数，
                 // 方便观察 source-affinity 调度；legacy 模式仍按 pageKey 渲染。
                 if (_useWorkerPool)
-                  ..._buildVideoWorkerStatusRows()
+                  ..._buildWebViewWorkerStatusRows()
                 else
                   ..._activeWebViews.keys.map((pageKey) {
                     final key = SourceChannelKey.fromPageKey(pageKey);
@@ -5696,7 +6183,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     SearchPlayResult? page;
                     for (final item in _samplePlayPages) {
                       final pIdx = item.channelIndex?.toInt();
-                      if (item.sourceName == sourceName && pIdx == channelIndex) {
+                      if (item.sourceName == sourceName &&
+                          pIdx == channelIndex) {
                         page = item;
                         break;
                       }
@@ -5797,7 +6285,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(width: 4),
                 const Text(
-                  "Worker pool 调度 (Round 3)",
+                  "统一 Worker 调度 (Round 7)",
                   style: TextStyle(fontSize: 10),
                 ),
               ],
@@ -6185,11 +6673,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   /// 构建所有活动的 WebView 提取器（并发）。
   ///
-  /// - **Pool 模式**（`_useWorkerPool=true`，默认）：每个 `_videoWorkerSlots[i]`
-  ///   对应一个长期 [`ReusableWebViewVideoExtractor`]，slot.pageKey 非空时把
-  ///   该 pageKey 反查的播放页打包成 [`VideoExtractionJob`] 派给 worker；为
-  ///   空时仍 emit 一个 idle worker，worker 内部保持当前页/`about:blank` 等
-  ///   待下一 job，避免重建 InAppWebView 实例。
+  /// - **Pool 模式**（`_useWorkerPool=true`，默认）：5B step 3 之后，调度
+  ///   器只有一份 [`_webViewWorkerSlots`]，每个 slot 对应一个长期
+  ///   [`ReusableBrowserWorker`]（key 固定为
+  ///   `ValueKey('worker_$workerId')`）。slot 的 [kind] 决定 build 时把
+  ///   pageKey 反查的播放页打包成 [`VideoJob`] 还是把 taskKey 反查的
+  ///   [_CaptchaPreflightTask] 打包成 [`CaptchaJob`] 派给 worker；为空时
+  ///   emit `null` job，worker 内部保持当前页/`about:blank` 等下一 job，
+  ///   避免重建 InAppWebView 实例。
   /// - **Legacy 模式**：把每个 `_activeWebViews` 的 pageKey 作为独立的一次性
   ///   [`WebViewVideoExtractorWidget`] 实例，行为等价于 Round 2 之前。
   Widget _buildWebViewExtractors() {
@@ -6206,6 +6697,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }) {
     return VideoExtractionJob(
       jobKey: pageKey,
+      sourceName: page.sourceName,
       url: page.playPageUrl,
       customVideoRegex: page.videoRegex != r'$^' ? page.videoRegex : null,
       enableNestedUrl: page.enableNestedUrl,
@@ -6216,68 +6708,89 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
   }
 
+  CaptchaPreflightJob _buildCaptchaPreflightJob(_CaptchaPreflightTask task) {
+    return CaptchaPreflightJob(
+      jobKey: task.taskKey,
+      source: task.source,
+      searchKeyword: task.searchKeyword,
+      initialUrl: task.initialUrl,
+      referer: task.referer,
+      initialCookies: task.initialCookies,
+      captchaConfig: task.captchaConfig,
+      timeout: const Duration(seconds: 45),
+    );
+  }
+
   Widget _buildWebViewExtractorsPool() {
     final children = <Widget>[];
 
-    // 每个 slot 都被 emit 一份 worker widget：pageKey 非空时把播放页打包成
-    // VideoExtractionJob 派给 worker，pageKey 为空时 job=null 让 worker 保持
-    // idle（之前完成/取消的页面留在页端，等下一 job 用同 InAppWebView 复用）。
-    // 反查失败（matchedPage=null）也传 null job，由 worker 在 didUpdateWidget
-    // 触发 _cancelCurrentJob + onIdle -> _onWorkerIdlePostFrame 中清理孤儿。
-    for (final slot in _videoWorkerSlots.values) {
-      final pageKey = slot.pageKey;
-      SearchPlayResult? matchedPage;
-      if (pageKey != null) {
-        final parsedKey = SourceChannelKey.fromPageKey(pageKey);
-        final sourceName = parsedKey.sourceName;
-        final channelIndex = parsedKey.channelIndex?.toInt();
-        for (final page in _samplePlayPages) {
-          final pIdx = page.channelIndex?.toInt();
-          if (page.sourceName == sourceName && pIdx == channelIndex) {
-            matchedPage = page;
-            break;
+    // 5B step 3：调度器统一为单表 [`_webViewWorkerSlots`]，按 workerId
+    // 升序遍历。同一 workerId 在 build 内只 emit 一次
+    // [`ReusableBrowserWorker`]（widget key 固定为
+    // `ValueKey('worker_$workerId')`），job 切换仅通过 didUpdateWidget
+    // 路由到对应 runner（captcha runner 或 video runner），不会因
+    // widget key 不同被 Flutter 销毁 → InAppWebView 实例与站点
+    // session/cookie 真正跨 kind 复用。
+    final workerIds = _webViewWorkerSlots.keys.toList()..sort();
+    for (final workerId in workerIds) {
+      final slot = _webViewWorkerSlots[workerId]!;
+      WebViewJob? job;
+      void Function(String, CaptchaBypassResult)? onCaptchaResult;
+      void Function(int)? onCaptchaIdle;
+      void Function(String, VideoExtractResult)? onVideoResult;
+      void Function(int)? onVideoIdle;
+
+      switch (slot.kind) {
+        case _WebViewWorkerKind.captcha:
+          final taskKey = slot.taskKey;
+          final task = taskKey == null ? null : _activeCaptchaTasks[taskKey];
+          if (task != null) {
+            job = CaptchaJob(_buildCaptchaPreflightJob(task));
           }
-        }
+          onCaptchaResult = (key, result) =>
+              _onCaptchaPreflightResult(key, result);
+          onCaptchaIdle = (id) => _onCaptchaWorkerIdle(id);
+        case _WebViewWorkerKind.video:
+          final pageKey = slot.pageKey;
+          SearchPlayResult? matchedPage;
+          if (pageKey != null) {
+            final parsedKey = SourceChannelKey.fromPageKey(pageKey);
+            final sourceName = parsedKey.sourceName;
+            final channelIndex = parsedKey.channelIndex?.toInt();
+            for (final page in _samplePlayPages) {
+              final pIdx = page.channelIndex?.toInt();
+              if (page.sourceName == sourceName && pIdx == channelIndex) {
+                matchedPage = page;
+                break;
+              }
+            }
+          }
+          if (matchedPage != null && pageKey != null) {
+            job = VideoJob(
+              _buildVideoExtractionJob(matchedPage, pageKey: pageKey),
+            );
+          }
+          onVideoResult = (key, result) => _onWebViewResult(key, result);
+          onVideoIdle = (id) => _onWorkerIdle(id);
+        case null:
+          // slot idle：emit null job，worker 内部保持当前页等下一 job。
+          break;
       }
 
-      final job = (matchedPage != null && pageKey != null)
-          ? _buildVideoExtractionJob(matchedPage, pageKey: pageKey)
-          : null;
-
       children.add(
-        ReusableWebViewVideoExtractor(
-          key: ValueKey('video_worker_${slot.workerId}'),
-          workerId: slot.workerId,
+        ReusableBrowserWorker(
+          key: ValueKey('worker_$workerId'),
+          workerId: workerId,
           job: job,
-          onResult: (key, result) => _onWebViewResult(key, result),
-          onIdle: (workerId) => _onWorkerIdle(workerId),
-          onLog: (msg) => debugPrint('[WebView][worker_${slot.workerId}] $msg'),
-          showWebView: _showWebView,
-          stats: _webviewStats,
-        ),
-      );
-    }
-
-    // 验证码 widget 与视频 worker 共享总体并发预算，仍走原有 per-task widget
-    // 路径；Round 5 才会被 worker 化。
-    for (final task in _activeCaptchaTasks.values) {
-      children.add(
-        CaptchaWebViewBypassWidget(
-          key: ValueKey('captcha_pool_${task.taskKey}_${task.loadToken}'),
-          source: task.source,
-          searchKeyword: task.searchKeyword,
-          initialUrl: task.initialUrl,
-          referer: task.referer,
-          initialCookies: task.initialCookies,
-          captchaConfig: task.captchaConfig,
-          timeout: const Duration(seconds: 45),
-          onResult: (result) => _onCaptchaPreflightResult(task.taskKey, result),
+          onCaptchaResult: onCaptchaResult,
+          onCaptchaIdle: onCaptchaIdle,
+          onVideoResult: onVideoResult,
+          onVideoIdle: onVideoIdle,
           onLog: (message) {
-            debugPrint('[CaptchaBypass][${task.taskKey}] $message');
+            debugPrint('[WebView][worker_$workerId] $message');
           },
           showWebView: _showWebView,
           stats: _webviewStats,
-          jobKey: task.taskKey,
         ),
       );
     }
@@ -6899,26 +7412,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     };
   }
 
-  static final RegExp _btihRegex =
-      RegExp(r'urn:btih:([a-fA-F0-9]{40}|[2-7A-Z]{32})');
+  static final RegExp _btihRegex = RegExp(
+    r'urn:btih:([a-fA-F0-9]{40}|[2-7A-Z]{32})',
+  );
 
   String _magnetOf(dynamic r) => r is MikanEpisodeResource
       ? r.magnet
       : r is DmhyResource
-          ? r.magnet
-          : '';
+      ? r.magnet
+      : '';
 
   String _titleOf(dynamic r) => r is MikanEpisodeResource
       ? r.title
       : r is DmhyResource
-          ? r.title
-          : '';
+      ? r.title
+      : '';
 
   String _sizeOf(dynamic r) => r is MikanEpisodeResource
       ? r.size
       : r is DmhyResource
-          ? r.size
-          : '';
+      ? r.size
+      : '';
 
   List<dynamic> _dedupBtResources(List<dynamic> resources) {
     final seenHashes = <String>{};
@@ -7401,7 +7915,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final fallbackColor = isDark ? Colors.white24 : Colors.grey[400]!;
-    final cardColor = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey[100];
+    final cardColor = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.grey[100];
     final borderColor = isDark ? Colors.white10 : Colors.grey[300]!;
 
     return SingleChildScrollView(
@@ -7426,14 +7942,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: borderColor),
                       ),
-                      child: _buildOnairSiteIcon(_onairSites[i].site, fallbackColor),
+                      child: _buildOnairSiteIcon(
+                        _onairSites[i].site,
+                        fallbackColor,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       _onairSites[i].title,
                       style: TextStyle(
                         fontSize: 12,
-                        color: (isDark ? Colors.white : Colors.black87).withValues(alpha: 0.9),
+                        color: (isDark ? Colors.white : Colors.black87)
+                            .withValues(alpha: 0.9),
                         fontWeight: FontWeight.w500,
                         height: 1.3,
                       ),

@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:mikan_player/services/reusable_browser_worker.dart';
+
 /// Phase 0 of `docs/tasks/webview-reuse-extraction-plan.md`.
 ///
 /// 纯调试埋点：统计 WebView widget 创建/销毁次数、视频/验证码提取任务的
@@ -18,6 +20,10 @@ class WebViewSchedulerStats {
   int videoWidgetDisposals = 0;
   int captchaWidgetCreations = 0;
   int captchaWidgetDisposals = 0;
+  int browserWorkerCreations = 0;
+  int browserWorkerDisposals = 0;
+  int browserWorkerKindSwitches = 0;
+  int browserWorkerSameWorkerCrossKindReuse = 0;
 
   // 视频提取 job 生命周期
   int videoJobStarted = 0;
@@ -46,6 +52,10 @@ class WebViewSchedulerStats {
     videoWidgetDisposals = 0;
     captchaWidgetCreations = 0;
     captchaWidgetDisposals = 0;
+    browserWorkerCreations = 0;
+    browserWorkerDisposals = 0;
+    browserWorkerKindSwitches = 0;
+    browserWorkerSameWorkerCrossKindReuse = 0;
     videoJobStarted = 0;
     videoJobCompletedTotal = 0;
     videoJobSucceeded = 0;
@@ -141,6 +151,39 @@ class WebViewSchedulerStats {
     );
   }
 
+  // ---------------- 统一 Browser worker (5B step 2) ----------------
+  void onBrowserWorkerCreated(String workerKey) {
+    browserWorkerCreations++;
+    _log(
+      'BROWSER worker created (#$browserWorkerCreations) key=$workerKey',
+    );
+  }
+
+  void onBrowserWorkerDisposed(String workerKey) {
+    browserWorkerDisposals++;
+    _log(
+      'BROWSER worker disposed (#$browserWorkerDisposals) key=$workerKey '
+      'created=$browserWorkerCreations',
+    );
+  }
+
+  void onBrowserWorkerKindSwitched(int workerId, WebViewJobKind kind) {
+    browserWorkerKindSwitches++;
+    _log(
+      'BROWSER worker=$workerId accepted $kind job '
+      '(#$browserWorkerKindSwitches switches, '
+      'cross-kind reuse #$browserWorkerSameWorkerCrossKindReuse)',
+    );
+  }
+
+  void onBrowserWorkerSameWorkerCrossKindReuse(int workerId) {
+    browserWorkerSameWorkerCrossKindReuse++;
+    _log(
+      'BROWSER worker=$workerId reused across job kinds (no InAppWebView '
+      'rebuild) total=$browserWorkerSameWorkerCrossKindReuse',
+    );
+  }
+
   // ---------------- 验证码 job 生命周期 ----------------
   void onCaptchaJobStarted(String jobKey, String sourceName) {
     captchaJobStarted++;
@@ -207,6 +250,9 @@ class WebViewSchedulerStats {
   /// 单行简短汇总，供调试面板与日志使用。
   String shortSummary() {
     return 'WV created=$videoWidgetCreations disposed=$videoWidgetDisposals | '
+        'BR created=$browserWorkerCreations disposed=$browserWorkerDisposals '
+        'switches=$browserWorkerKindSwitches '
+        'crossKindReuse=$browserWorkerSameWorkerCrossKindReuse | '
         'video started=$videoJobStarted ok=$videoJobSucceeded '
         'fail=$videoJobFailed tmout=$videoJobTimedOut cxl=$videoJobCancelled | '
         'captcha started=$captchaJobStarted ok=$captchaJobSucceeded '

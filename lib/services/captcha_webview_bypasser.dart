@@ -1,14 +1,10 @@
-import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/main.dart' show webViewEnvironment;
-import 'package:mikan_player/services/captcha_ocr_service.dart';
-import 'package:mikan_player/services/webview_cookie_janitor.dart';
+import 'package:mikan_player/services/webview_captcha_job_runner.dart';
 import 'package:mikan_player/services/webview_scheduler_stats.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 
@@ -127,133 +123,89 @@ class CaptchaBypassResult {
   String? get pageUrl => searchPageUrl;
 }
 
-class _SearchCandidate {
-  final String title;
-  final String url;
-  final int score;
+class CaptchaPreflightJob {
+  final String jobKey;
+  final SourceState source;
+  final String? searchKeyword;
+  final String? initialUrl;
+  final String? referer;
+  final String? initialCookies;
+  final CaptchaConfig captchaConfig;
+  final Duration timeout;
 
-  const _SearchCandidate({
-    required this.title,
-    required this.url,
-    required this.score,
+  const CaptchaPreflightJob({
+    required this.jobKey,
+    required this.source,
+    this.searchKeyword,
+    this.initialUrl,
+    this.referer,
+    this.initialCookies,
+    required this.captchaConfig,
+    this.timeout = const Duration(seconds: 45),
   });
 }
 
-class _ExtractedCandidate {
-  final String title;
-  final String url;
+/// 可复用的 WebView 验证码预处理 worker（5B 之后的容器 widget）。
+///
+/// 与一次性 [CaptchaWebViewBypassWidget] 不同，本 worker 的 [InAppWebView]
+/// 不会随 job 切换而销毁/重建：当 [job] 变化时通过 [didUpdateWidget] 触发
+/// runner 的 [CaptchaJobRunner.acceptJob]，重置 job 级状态并通过
+/// `controller.loadUrl()` 导航到新 URL。
+///
+/// 所有 job 级状态（job token、load event token、flow stage、visited hosts、
+/// captcha retry count、跨源治理用的 lastJobSourceName 等）都委托给
+/// [CaptchaJobRunner]，本 widget 本身只承担：
+///
+/// - 长期持有 [InAppWebView] 实例（key 固定为
+///   `reusable_captcha_webview_$workerId`）。
+/// - 在 `initState` 通知 runner stats 创建；在 `dispose` 调用
+///   `runner.dispose`。
+/// - 把 InAppWebView 的所有回调原样转发到 runner。
+/// - 在 `didUpdateWidget` 把 widget.job 的变化通过
+///   [CaptchaJobRunner.acceptJob] / `transitionToIdle` 派发下去。
+///
+/// 对外回调：
+/// - [onResult]：每次 job 结束（成功/失败/超时）触发一次，附带 jobKey。
+/// - [onIdle]：每次 job 结束（含被 [cancelCurrentJob] 取消）后触发一次，
+///   让调度器重新分配本 worker 槽。
+///
+/// 调度器可通过持有 `GlobalKey<_ReusableCaptchaWebViewBypasserState>`
+/// 调用 [cancelCurrentJob] 提前停止当前 job 而不卸载 WebView。
+class ReusableCaptchaWebViewBypasser extends StatefulWidget {
+  final int workerId;
+  final CaptchaPreflightJob? job;
+  final void Function(String taskKey, CaptchaBypassResult result)? onResult;
+  final void Function(int workerId)? onIdle;
+  final void Function(String message)? onLog;
+  final bool showWebView;
+  final WebViewSchedulerStats? stats;
 
-  const _ExtractedCandidate({required this.title, required this.url});
-}
-
-class _SearchExtractionConfig {
-  final String formatId;
-  final String? selectLists;
-  final String? selectNames;
-  final String? selectLinks;
-
-  const _SearchExtractionConfig({
-    required this.formatId,
-    this.selectLists,
-    this.selectNames,
-    this.selectLinks,
+  const ReusableCaptchaWebViewBypasser({
+    super.key,
+    required this.workerId,
+    this.job,
+    this.onResult,
+    this.onIdle,
+    this.onLog,
+    this.showWebView = false,
+    this.stats,
   });
 
-  static _SearchExtractionConfig? tryParse(String? jsonStr) {
-    if (jsonStr == null || jsonStr.isEmpty) return null;
-    try {
-      final root = jsonDecode(jsonStr) as Map<String, dynamic>;
-      final formatId = (root['subjectFormatId'] as String?) ?? 'indexed';
-      final formatA = root['selectorSubjectFormatA'] as Map<String, dynamic>?;
-      final formatIndexed =
-          root['selectorSubjectFormatIndexed'] as Map<String, dynamic>?;
-      return _SearchExtractionConfig(
-        formatId: formatId,
-        selectLists: formatA?['selectLists'] as String?,
-        selectNames: formatIndexed?['selectNames'] as String?,
-        selectLinks: formatIndexed?['selectLinks'] as String?,
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  String buildExtractScript({required String? baseUrl}) {
-    final baseUrlLiteral = jsonEncode(baseUrl ?? '');
-    if (formatId == 'a' &&
-        selectLists != null &&
-        selectLists!.trim().isNotEmpty) {
-      final listSelectorLiteral = jsonEncode(selectLists);
-      return '''
-(function() {
-  var baseUrl = $baseUrlLiteral;
-  var selector = $listSelectorLiteral;
-  try {
-    var nodes = Array.prototype.slice.call(document.querySelectorAll(selector));
-    var results = nodes.map(function(node) {
-      var href = node.getAttribute('href') || '';
-      try {
-        if (href && baseUrl) {
-          href = new URL(href, baseUrl).toString();
-        }
-      } catch (_) {}
-      return {
-        title: (node.textContent || '').trim(),
-        url: href
-      };
-    }).filter(function(item) {
-      return item.title && item.url;
-    });
-    return JSON.stringify(results);
-  } catch (_) {
-    return '[]';
-  }
-})()
-''';
-    }
-
-    final nameSelectorLiteral = jsonEncode(selectNames ?? '');
-    final linkSelectorLiteral = jsonEncode(selectLinks ?? '');
-    return '''
-(function() {
-  var baseUrl = $baseUrlLiteral;
-  var nameSelector = $nameSelectorLiteral;
-  var linkSelector = $linkSelectorLiteral;
-  try {
-    var names = Array.prototype.slice.call(document.querySelectorAll(nameSelector));
-    var links = Array.prototype.slice.call(document.querySelectorAll(linkSelector));
-    var length = Math.min(names.length, links.length);
-    var results = [];
-    for (var i = 0; i < length; i++) {
-      var href = links[i].getAttribute('href') || '';
-      try {
-        if (href && baseUrl) {
-          href = new URL(href, baseUrl).toString();
-        }
-      } catch (_) {}
-      results.push({
-        title: (names[i].textContent || '').trim(),
-        url: href
-      });
-    }
-    return JSON.stringify(results.filter(function(item) {
-      return item.title && item.url;
-    }));
-  } catch (_) {
-    return '[]';
-  }
-})()
-''';
-  }
+  @override
+  State<ReusableCaptchaWebViewBypasser> createState() =>
+      _ReusableCaptchaWebViewBypasserState();
 }
 
-enum _WebViewFlowStage { search, detail }
-
-enum _CaptchaPageSignal { captcha, success, timedOut, superseded, cancelled }
-
-enum _EagerReadiness { loading, notReady, captchaReady, successReady }
-
-class CaptchaWebViewBypassWidget extends StatefulWidget {
+/// 一次性兼容包装。
+///
+/// 旧调用方按字段风格调用一次性 captcha bypass；本 widget 在内部将字段打
+/// 包成 [CaptchaPreflightJob] 委托给 [ReusableCaptchaWebViewBypasser]
+///（workerId 固定为 -1）执行一次。行为与旧实现等价：job 完成后 worker
+/// 不会自行卸载 WebView，widget 离开 widget 树后才会触发 `dispose()`。
+///
+/// 播放页调度应当迁移到 worker slot 池 + 长期 worker；本 widget 仅在调试
+/// 页等一次性入口继续使用。
+class CaptchaWebViewBypassWidget extends StatelessWidget {
   final SourceState source;
   final String? searchKeyword;
   final String? initialUrl;
@@ -289,12 +241,31 @@ class CaptchaWebViewBypassWidget extends StatefulWidget {
   });
 
   @override
-  State<CaptchaWebViewBypassWidget> createState() =>
-      _CaptchaWebViewBypassWidgetState();
+  Widget build(BuildContext context) {
+    final effectiveJobKey =
+        jobKey ?? 'captcha_once_${identityHashCode(this)}';
+    return ReusableCaptchaWebViewBypasser(
+      workerId: -1,
+      job: CaptchaPreflightJob(
+        jobKey: effectiveJobKey,
+        source: source,
+        searchKeyword: searchKeyword,
+        initialUrl: initialUrl,
+        referer: referer,
+        initialCookies: initialCookies,
+        captchaConfig: captchaConfig,
+        timeout: timeout,
+      ),
+      onResult: (_, result) => onResult(result),
+      onLog: onLog,
+      showWebView: showWebView,
+      stats: stats,
+    );
+  }
 }
 
-class _CaptchaWebViewBypassWidgetState
-    extends State<CaptchaWebViewBypassWidget> {
+class _ReusableCaptchaWebViewBypasserState
+    extends State<ReusableCaptchaWebViewBypasser> {
   static const String _minimalStealthScript = r'''
 (function() {
   if (window.__mikanCaptchaStealthInstalled) {
@@ -643,161 +614,78 @@ class _CaptchaWebViewBypassWidgetState
     return blockers;
   }
 
-  Timer? _timeoutTimer;
-  InAppWebViewController? _webViewController;
-  bool _isCompleted = false;
-  bool _isCaptchaFlowRunning = false;
-  int _captchaRetryCount = 0;
-  static const _maxCaptchaRetries = 3;
-  static const int _matchScoreThreshold = 36;
-  int _loadEventToken = 0;
-  _WebViewFlowStage _flowStage = _WebViewFlowStage.search;
-  String? _initialUrl;
-  String? _initialReferer;
-  bool _isSearchEntryFlow = true;
-  String? _searchPageHtml;
-  String? _searchPageUrl;
-  final Set<String> _visitedHosts = {};
-  int? _eagerStartedForToken;
-  bool _eagerPollActive = false;
-  static const int _eagerProgressThreshold = 10;
-  static const Duration _eagerPollInterval = Duration(milliseconds: 350);
-
-  /// (C) Detail-stage loads reuse the anti-bot session and cookies established
-  /// during the search stage, so they do not need the full initial pacing
-  /// delay. Cap it low for the detail stage; the search stage keeps the
-  /// configured value.
-  int get _effectiveInitialDelayMs {
-    final configured = widget.captchaConfig.initialDelayMs;
-    if (_flowStage == _WebViewFlowStage.detail) {
-      return math.min(configured, 500);
-    }
-    return configured;
-  }
+  late final CaptchaJobRunner _runner;
+  late final CaptchaJobRunnerSink _sink;
 
   @override
   void initState() {
     super.initState();
-    widget.stats?.onCaptchaWidgetCreated(widget.jobKey);
-    _initialUrl = _resolveInitialUrl();
-    _initialReferer = widget.referer?.trim();
-    _isSearchEntryFlow = widget.initialUrl?.trim().isEmpty ?? true;
-    _startTimeout();
-  }
-
-  void _startTimeout() => _refreshTimeout();
-
-  /// Restart the preflight timeout with a fresh budget.
-  ///
-  /// The timer started in [initState] bounds the initial page load. A page
-  /// behind heavy anti-bot can burn most of that budget just reaching 100%
-  /// (girigiri愛動漫 sat at 80% for ~37s and only fired its load event at
-  /// ~43s). By the time the captcha is finally injected into the DOM, almost
-  /// nothing was left of the original window, so even the 3s pacing delay
-  /// never completed before the global timeout fired and the solve never ran.
-  ///
-  /// Calling this when the page has finished loading (or when an eager solve
-  /// commits) gives the captcha-solving phase a budget that is independent of
-  /// how long the page took to load.
-  void _refreshTimeout() {
-    if (_isCompleted) return;
-    _timeoutTimer?.cancel();
-    final budget = widget.timeout;
-    _timeoutTimer = Timer(budget, () {
-      if (_isCompleted) return;
-      _log('Captcha preflight timed out');
-      _complete(
-        CaptchaBypassResult(
-          sourceName: widget.source.name,
-          success: false,
-          error: 'Captcha preflight timed out after ${budget.inSeconds}s',
-          timedOut: true,
-        ),
-      );
-    });
-  }
-
-  void _log(String message) {
-    debugPrint('[CaptchaBypass][${widget.source.name}] $message');
-    widget.onLog?.call(message);
-  }
-
-  void _complete(CaptchaBypassResult result) {
-    if (_isCompleted) return;
-    _isCompleted = true;
-    _timeoutTimer?.cancel();
-    final controller = _webViewController;
-    _webViewController = null;
-    if (controller != null) {
-      unawaited(_teardownWebView(controller));
+    widget.stats?.onCaptchaWidgetCreated('captcha_worker_${widget.workerId}');
+    _sink = CaptchaJobRunnerSink(
+      onResult: widget.onResult,
+      onIdle: widget.onIdle,
+      onLog: widget.onLog,
+    );
+    _runner = CaptchaJobRunner(
+      workerId: widget.workerId,
+      sink: _sink,
+      stats: widget.stats,
+    );
+    final job = widget.job;
+    if (job != null) {
+      _runner.acceptJob(job);
     }
-    _log('Completed: success=${result.success}, error=${result.error}');
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        widget.onResult(result);
-        return;
-      }
-      widget.onResult(result);
-    });
   }
 
-  Future<void> _teardownWebView(InAppWebViewController controller) async {
-    try {
-      await controller.stopLoading();
-    } catch (_) {}
-    try {
-      await controller.loadUrl(
-        urlRequest: URLRequest(url: WebUri('about:blank')),
-      );
-    } catch (_) {}
+  @override
+  void didUpdateWidget(covariant ReusableCaptchaWebViewBypasser oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_sameJobConfig(oldWidget.job, widget.job)) return;
+    if (widget.job == null) {
+      _runner.transitionToIdle();
+      return;
+    }
+    _runner.acceptJob(widget.job!);
+  }
+
+  bool _sameJobConfig(CaptchaPreflightJob? a, CaptchaPreflightJob? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return false;
+    return a.jobKey == b.jobKey &&
+        a.source.name == b.source.name &&
+        a.searchKeyword == b.searchKeyword &&
+        a.initialUrl == b.initialUrl &&
+        a.referer == b.referer &&
+        a.initialCookies == b.initialCookies &&
+        a.captchaConfig == b.captchaConfig &&
+        a.timeout == b.timeout;
+  }
+
+  /// 调度器入口：在不卸载 WebView 的前提下停止当前 job。语义与旧的
+  /// `_ReusableCaptchaWebViewBypasserState.cancelCurrentJob` 兼容。
+  void cancelCurrentJob() {
+    _runner.cancelCurrentJob();
   }
 
   @override
   void dispose() {
-    widget.stats?.onCaptchaWidgetDisposed(widget.jobKey);
-    _timeoutTimer?.cancel();
-    final controller = _webViewController;
-    _webViewController = null;
-    if (controller != null) {
-      unawaited(_teardownWebView(controller));
-    }
-    if (_visitedHosts.isNotEmpty) {
-      final janitor = WebViewCookieJanitor();
-      for (final host in _visitedHosts) {
-        janitor.requestHostCleanup(host: host);
-      }
-      _visitedHosts.clear();
-    }
+    widget.stats?.onCaptchaWidgetDisposed('captcha_worker_${widget.workerId}');
+    _runner.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final entryUrl = _initialUrl;
-    if (entryUrl == null || entryUrl.isEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_isCompleted) return;
-        _complete(
-          CaptchaBypassResult(
-            sourceName: widget.source.name,
-            success: false,
-            error:
-                'Captcha bypass requires initialUrl or a non-empty searchKeyword',
-          ),
-        );
-      });
-      return const SizedBox.shrink();
-    }
-
-    final navigationHeaders = _buildNavigationHeaders(
-      entryUrl,
-      referer: _initialReferer,
-    );
+    final entryUrl = _runner.initialUrl;
+    final navigationHeaders = _runner.buildNavigationHeaders();
 
     final webView = InAppWebView(
+      key: ValueKey('reusable_captcha_webview_${widget.workerId}'),
       initialUrlRequest: URLRequest(
-        url: WebUri(entryUrl),
-        headers: navigationHeaders,
+        url: WebUri(
+          entryUrl == null || entryUrl.isEmpty ? 'about:blank' : entryUrl,
+        ),
+        headers: navigationHeaders.isEmpty ? null : navigationHeaders,
       ),
       webViewEnvironment: webViewEnvironment,
       initialUserScripts: UnmodifiableListView<UserScript>([
@@ -817,195 +705,25 @@ class _CaptchaWebViewBypassWidgetState
         contentBlockers: _buildContentBlockers(),
       ),
       onWebViewCreated: (controller) {
-        _webViewController = controller;
-        _log('WebView created, loading entry: $entryUrl');
-        _log('Navigation headers: $navigationHeaders');
+        _runner.attachController(controller);
       },
       onLoadStart: (_, url) {
-        _log('Page load started: $url');
+        _runner.onLoadStart(url);
       },
       onProgressChanged: (ctrl, progress) {
-        if (progress == 10 ||
-            progress == 30 ||
-            progress == 50 ||
-            progress == 80 ||
-            progress == 100) {
-          _log('Page progress: $progress%');
-        }
-        if (progress >= _eagerProgressThreshold) {
-          _maybeStartEagerCaptcha(ctrl);
-        }
+        _runner.onProgressChanged(ctrl, progress);
       },
       onLoadStop: (ctrl, url) async {
-        _log('Page loaded: $url');
-        if (url != null) {
-          final host = Uri.tryParse(url.toString())?.host;
-          if (host != null && host.isNotEmpty) {
-            _visitedHosts.add(host);
-          }
-        }
-        if (_isCompleted) return;
-        // (E) Guard BEFORE bumping the load token. A committed eager solve sets
-        // this flag; if we incremented the token here we would invalidate its
-        // token check while also skipping the handler below — leaving nobody to
-        // finish the captcha until the 45s timeout. Skipping without touching
-        // the token lets the eager path complete on its own.
-        if (_isCaptchaFlowRunning) {
-          _log(
-            'Page loaded while captcha flow is active, skipping duplicate handler',
-          );
-          return;
-        }
-
-        final loadEventToken = ++_loadEventToken;
-
-        // The page just finished loading. A slow load (girigiri reached 100%
-        // only after ~43s) can consume nearly the whole original preflight
-        // budget before the captcha is even in the DOM. Restart the timer so
-        // the readiness gate + pacing + solving that follow get a full window
-        // regardless of how long the load took.
-        _refreshTimeout();
-
-        await _logEnvironmentSnapshot(ctrl);
-
-        if (_isCompleted || loadEventToken != _loadEventToken) return;
-
-        final shouldGateForChallenge =
-            widget.captchaConfig.successSelector?.trim().isNotEmpty ?? false;
-
-        _CaptchaPageSignal? preDelaySignal;
-        if (shouldGateForChallenge) {
-          _log(
-            'Waiting for captcha/success selector before starting initial delay...',
-          );
-          preDelaySignal = await _waitForCaptchaOrSuccessSignal(
-            ctrl,
-            widget.captchaConfig,
-            loadEventToken: loadEventToken,
-            stageLabel: 'pre-delay',
-            timeout: const Duration(seconds: 20),
-          );
-          if (preDelaySignal == _CaptchaPageSignal.cancelled ||
-              preDelaySignal == _CaptchaPageSignal.superseded) {
-            return;
-          }
-          if (preDelaySignal == _CaptchaPageSignal.timedOut) {
-            _log(
-              'Readiness gate timed out before delay, falling back to legacy detection',
-            );
-          }
-        }
-
-        if (_isCompleted || loadEventToken != _loadEventToken) return;
-
-        // (B) The readiness gate already told us the outcome — act on it
-        // directly instead of blindly sleeping the full initial delay.
-        if (preDelaySignal == _CaptchaPageSignal.success) {
-          _log('Success detected by readiness gate, completing without delay');
-          final currentUrl =
-              (await ctrl.getUrl())?.toString() ?? url?.toString();
-          await _completeSuccess(ctrl, currentUrl);
-          return;
-        }
-
-        if (preDelaySignal == _CaptchaPageSignal.captcha) {
-          _log(
-            'Captcha detected by readiness gate, pacing submit by '
-            '${_effectiveInitialDelayMs}ms before solving',
-          );
-          await Future.delayed(
-            Duration(milliseconds: _effectiveInitialDelayMs),
-          );
-          if (_isCompleted || loadEventToken != _loadEventToken) return;
-          await _handleCaptcha(ctrl);
-          return;
-        }
-
-        _log(
-          'Starting initial delay (${_effectiveInitialDelayMs}ms) after readiness gate',
-        );
-
-        await Future.delayed(
-          Duration(milliseconds: _effectiveInitialDelayMs),
-        );
-
-        if (_isCompleted || loadEventToken != _loadEventToken) return;
-
-        final hasCaptcha = await _detectCaptcha(ctrl, widget.captchaConfig);
-
-        if (_isCompleted || loadEventToken != _loadEventToken) return;
-
-        if (hasCaptcha) {
-          await _handleCaptcha(ctrl);
-          return;
-        }
-
-        var hasSuccess = await _checkSuccess(
-          ctrl,
-          widget.captchaConfig,
-          allowEmptySelector: !shouldGateForChallenge,
-        );
-
-        if (_isCompleted || loadEventToken != _loadEventToken) return;
-
-        if (!hasSuccess && shouldGateForChallenge) {
-          _log(
-            'Success selector not found after delay, waiting for post-challenge render...',
-          );
-          final postDelaySignal = await _waitForCaptchaOrSuccessSignal(
-            ctrl,
-            widget.captchaConfig,
-            loadEventToken: loadEventToken,
-            stageLabel: 'post-delay',
-            timeout: const Duration(seconds: 12),
-          );
-
-          if (postDelaySignal == _CaptchaPageSignal.cancelled ||
-              postDelaySignal == _CaptchaPageSignal.superseded) {
-            return;
-          }
-
-          if (postDelaySignal == _CaptchaPageSignal.captcha) {
-            await _handleCaptcha(ctrl);
-            return;
-          }
-
-          hasSuccess = postDelaySignal == _CaptchaPageSignal.success;
-        }
-
-        if (_isCompleted || loadEventToken != _loadEventToken) return;
-
-        if (hasSuccess) {
-          final currentUrl =
-              (await ctrl.getUrl())?.toString() ?? url?.toString();
-          await _completeSuccess(ctrl, currentUrl);
-          return;
-        }
-
-        await _completeSuccess(ctrl, url?.toString());
+        await _runner.onLoadStop(ctrl, url);
       },
       onReceivedError: (_, request, error) {
-        if (request.isForMainFrame ?? false) {
-          _log('Page error: ${error.description}');
-        }
+        _runner.onReceivedError(request, error);
       },
       onReceivedHttpError: (_, request, response) {
-        if (request.isForMainFrame ?? false) {
-          _log(
-            'Page HTTP error: ${response.statusCode} ${response.reasonPhrase}',
-          );
-        }
+        _runner.onReceivedHttpError(request, response);
       },
       onConsoleMessage: (_, consoleMessage) {
-        final message = consoleMessage.message.trim();
-        if (message.isEmpty) return;
-        if (consoleMessage.messageLevel == ConsoleMessageLevel.ERROR ||
-            consoleMessage.messageLevel == ConsoleMessageLevel.WARNING ||
-            message.contains('sl-') ||
-            message.contains('challenge') ||
-            message.contains('captcha')) {
-          _log('Console[${consoleMessage.messageLevel.toString()}]: $message');
-        }
+        _runner.onConsoleMessage(consoleMessage);
       },
     );
 
@@ -1016,7 +734,9 @@ class _CaptchaWebViewBypassWidgetState
           final availableWidth = constraints.maxWidth.isFinite
               ? constraints.maxWidth
               : maxWidth;
-          final width = math.min(availableWidth, maxWidth);
+          final width = constraints.maxWidth < maxWidth
+              ? availableWidth
+              : maxWidth;
           final height = width * 9 / 16;
 
           return Center(
@@ -1040,1069 +760,5 @@ class _CaptchaWebViewBypassWidgetState
       height: 1,
       child: Opacity(opacity: 0, child: webView),
     );
-  }
-
-  void _maybeStartEagerCaptcha(InAppWebViewController? ctrl) {
-    if (ctrl == null) return;
-    if (_isCompleted || _isCaptchaFlowRunning || _eagerPollActive) return;
-    if (_eagerStartedForToken == _loadEventToken) return;
-    _eagerStartedForToken = _loadEventToken;
-    _eagerPollActive = true;
-    final token = _loadEventToken;
-    _log(
-      'Eager captcha detection armed at progress>=$_eagerProgressThreshold% '
-      '(token=$token), polling for essential elements before full load',
-    );
-    unawaited(_runEagerCaptchaPoll(ctrl, token: token));
-  }
-
-  Future<void> _runEagerCaptchaPoll(
-    InAppWebViewController ctrl, {
-    required int token,
-  }) async {
-    // Align the eager deadline with the global timeout (minus a small buffer so
-    // the eager path can still finish before the timeout timer fires) instead
-    // of a shorter fixed window. A short fixed window made eager give up while
-    // the page's load event was still stalled on a slow sub-resource, right
-    // before onLoadStop would have fired — so eager never won the race it was
-    // designed to win.
-    final buffer = const Duration(seconds: 3);
-    final eagerBudget = widget.timeout > buffer
-        ? widget.timeout - buffer
-        : widget.timeout;
-    final deadline = DateTime.now().add(eagerBudget);
-    var tick = 0;
-    try {
-      while (!_isCompleted &&
-          !_isCaptchaFlowRunning &&
-          token == _loadEventToken &&
-          _isControllerAlive(ctrl) &&
-          DateTime.now().isBefore(deadline)) {
-        final readiness = await _checkEagerReadiness(ctrl, widget.captchaConfig);
-        if (_isCompleted ||
-            _isCaptchaFlowRunning ||
-            token != _loadEventToken ||
-            !_isControllerAlive(ctrl)) {
-          return;
-        }
-        if (readiness == _EagerReadiness.captchaReady) {
-          await _startEagerCaptchaSolving(ctrl, token: token);
-          return;
-        }
-        if (readiness == _EagerReadiness.successReady) {
-          _log(
-            'Success marker detected before page fully loaded, '
-            'completing early (no captcha, cookie likely reused)',
-          );
-          _isCaptchaFlowRunning = true;
-          try {
-            final currentUrl = (await ctrl.getUrl())?.toString();
-            if (_isCompleted ||
-                token != _loadEventToken ||
-                !_isControllerAlive(ctrl)) {
-              return;
-            }
-            await _completeSuccess(ctrl, currentUrl);
-          } catch (e) {
-            _log('Eager success completion failed: $e');
-            if (!_isCompleted) {
-              _complete(
-                CaptchaBypassResult(
-                  sourceName: widget.source.name,
-                  success: false,
-                  error: 'Eager success completion failed: $e',
-                ),
-              );
-            }
-          } finally {
-            _isCaptchaFlowRunning = false;
-          }
-          return;
-        }
-        tick += 1;
-        if (tick % 8 == 0) {
-          _log('Eagerly waiting for captcha elements to be ready...');
-        }
-        await Future.delayed(_eagerPollInterval);
-      }
-    } catch (e) {
-      _log('Eager captcha poll aborted: $e');
-    } finally {
-      _eagerPollActive = false;
-    }
-  }
-
-  Future<void> _startEagerCaptchaSolving(
-    InAppWebViewController ctrl, {
-    required int token,
-  }) async {
-    _log(
-      'Essential captcha elements ready before page fully loaded, '
-      'pacing submit by initialDelayMs '
-      '(${_effectiveInitialDelayMs}ms) to avoid anti-bot rejection',
-    );
-
-    _isCaptchaFlowRunning = true;
-    _refreshTimeout();
-    try {
-      await Future.delayed(
-        Duration(milliseconds: _effectiveInitialDelayMs),
-      );
-      if (_isCompleted ||
-          token != _loadEventToken ||
-          !_isControllerAlive(ctrl)) {
-        return;
-      }
-      await _runCaptchaSolving(ctrl);
-    } catch (e) {
-      _log('Eager captcha solving failed: $e');
-      if (!_isCompleted) {
-        _complete(
-          CaptchaBypassResult(
-            sourceName: widget.source.name,
-            success: false,
-            error: 'Eager captcha solving failed: $e',
-          ),
-        );
-      }
-    } finally {
-      _isCaptchaFlowRunning = false;
-    }
-  }
-
-  bool _isControllerAlive(InAppWebViewController ctrl) {
-    return identical(_webViewController, ctrl) && !_isCompleted;
-  }
-
-  Future<_EagerReadiness> _checkEagerReadiness(
-    InAppWebViewController ctrl,
-    CaptchaConfig config,
-  ) async {
-    // Do NOT gate captcha detection on document.readyState. A page whose load
-    // event is stalled on a slow sub-resource (tracker, cdn beacon, speculation
-    // rules) can sit in "loading" for tens of seconds while the captcha DOM is
-    // already fully rendered and interactable. Waiting for readyState here was
-    // exactly why eager detection kept losing the race to onLoadStop. Probe the
-    // captcha/success elements directly; their presence is the real signal.
-    final readyState = await _evalJs(
-      ctrl,
-      '(function(){ try { return document.readyState; } catch (_) { return "loading"; } })()',
-    );
-    final readyStateResolved =
-        readyState == 'interactive' || readyState == 'complete';
-
-    final hasCaptcha = await _detectCaptcha(ctrl, config);
-    if (!hasCaptcha) {
-      final successSelector = config.successSelector;
-      if (successSelector != null && successSelector.trim().isNotEmpty) {
-        if (await _selectorExists(ctrl, successSelector)) {
-          return _EagerReadiness.successReady;
-        }
-      }
-      // Neither captcha nor success visible yet. If the document itself has not
-      // reached interactive, report loading so the caller keeps polling quietly
-      // rather than treating this as a settled "not ready" state.
-      return readyStateResolved
-          ? _EagerReadiness.notReady
-          : _EagerReadiness.loading;
-    }
-
-    if (config.isImageOcr) {
-      if (!await _isCaptchaImageReady(ctrl, config)) {
-        return _EagerReadiness.notReady;
-      }
-      if (!await _selectorExists(ctrl, config.inputSelector)) {
-        return _EagerReadiness.notReady;
-      }
-      if (!await _selectorExists(ctrl, config.submitSelector)) {
-        return _EagerReadiness.notReady;
-      }
-    } else if (config.isSimpleClick) {
-      if (!await _selectorExists(ctrl, config.submitSelector)) {
-        return _EagerReadiness.notReady;
-      }
-    }
-
-    return _EagerReadiness.captchaReady;
-  }
-
-  Future<bool> _isCaptchaImageReady(
-    InAppWebViewController ctrl,
-    CaptchaConfig config,
-  ) async {
-    final imageSelector = config.imageSelector;
-    if (imageSelector == null || imageSelector.trim().isEmpty) return true;
-    final selectorLiteral = jsonEncode(imageSelector);
-    final script = '''
-(function() {
-  try {
-    var el = document.querySelector($selectorLiteral);
-    if (!el) return false;
-    if (el.tagName === 'IMG') {
-      return !!(el.complete && el.naturalWidth && el.naturalWidth > 0);
-    }
-    return true;
-  } catch (_) {
-    return false;
-  }
-})()
-''';
-    final result = await _evalJs(ctrl, script);
-    return result == true;
-  }
-
-  Future<bool> _selectorExists(
-    InAppWebViewController ctrl,
-    String? selector,
-  ) async {
-    if (selector == null || selector.trim().isEmpty) return true;
-    final exists = await _evalJs(ctrl, _buildSelectorExistsScript(selector));
-    return exists == true;
-  }
-
-  Future<void> _handleCaptcha(InAppWebViewController ctrl) async {
-    if (_isCaptchaFlowRunning) {
-      _log('Captcha flow is already running, ignoring duplicate trigger');
-      return;
-    }
-    _isCaptchaFlowRunning = true;
-
-    try {
-      await _runCaptchaSolving(ctrl);
-    } finally {
-      _isCaptchaFlowRunning = false;
-    }
-  }
-
-  Future<void> _runCaptchaSolving(InAppWebViewController ctrl) async {
-    if (!widget.captchaConfig.isImageOcr &&
-        !widget.captchaConfig.isSimpleClick) {
-      _complete(
-        CaptchaBypassResult(
-          sourceName: widget.source.name,
-          success: false,
-          error: 'Captcha type "${widget.captchaConfig.type}" not supported',
-        ),
-      );
-      return;
-    }
-
-    if (widget.captchaConfig.isSimpleClick) {
-      while (_captchaRetryCount < _maxCaptchaRetries && !_isCompleted) {
-        _captchaRetryCount++;
-        final currentAttempt = _captchaRetryCount;
-        _log(
-          'Simple click captcha detected (attempt $currentAttempt/$_maxCaptchaRetries)',
-        );
-
-        await Future.delayed(
-          Duration(milliseconds: _effectiveInitialDelayMs),
-        );
-        if (_isCompleted) return;
-
-        await _fillInputAndSubmit(ctrl, widget.captchaConfig, '');
-
-        final submitSuccess = await _waitForSubmitResult(
-          ctrl,
-          widget.captchaConfig,
-        );
-
-        if (_isCompleted) return;
-
-        if (submitSuccess) {
-          _log('Simple click bypassed successfully');
-          final currentUrl = (await ctrl.getUrl())?.toString();
-          await _completeSuccess(ctrl, currentUrl);
-          return;
-        }
-
-        _log(
-          'Simple click failed, still present (attempt $currentAttempt/$_maxCaptchaRetries)',
-        );
-      }
-
-      _complete(
-        CaptchaBypassResult(
-          sourceName: widget.source.name,
-          success: false,
-          error:
-              'Simple click bypass failed after $_maxCaptchaRetries retries.',
-        ),
-      );
-      return;
-    }
-
-    while (_captchaRetryCount < _maxCaptchaRetries && !_isCompleted) {
-      _captchaRetryCount++;
-      final currentAttempt = _captchaRetryCount;
-      _log('Captcha detected (attempt $currentAttempt/$_maxCaptchaRetries)');
-
-      if (currentAttempt > 1) {
-        _log('Refreshing captcha image before retry...');
-        await _refreshCaptchaImage(ctrl, widget.captchaConfig);
-        if (_isCompleted) return;
-
-        await Future.delayed(
-          Duration(milliseconds: _effectiveInitialDelayMs),
-        );
-        if (_isCompleted) return;
-
-        final stillHasCaptcha = await _detectCaptcha(
-          ctrl,
-          widget.captchaConfig,
-        );
-        if (!stillHasCaptcha) {
-          _log('Captcha no longer present after refresh, proceeding...');
-          final currentUrl = (await ctrl.getUrl())?.toString();
-          await _completeSuccess(ctrl, currentUrl);
-          return;
-        }
-      }
-
-      final ocrResult = await _solveImageOcrCaptcha(
-        ctrl,
-        widget.captchaConfig,
-      );
-      if (ocrResult == null) {
-        _log('OCR failed (attempt $currentAttempt/$_maxCaptchaRetries)');
-        continue;
-      }
-
-      _log('OCR result: $ocrResult, submitting...');
-      await _fillInputAndSubmit(ctrl, widget.captchaConfig, ocrResult);
-
-      final submitSuccess = await _waitForSubmitResult(
-        ctrl,
-        widget.captchaConfig,
-      );
-
-      if (_isCompleted) return;
-
-      if (submitSuccess) {
-        _log('Captcha bypassed');
-        final currentUrl = (await ctrl.getUrl())?.toString();
-        await _completeSuccess(ctrl, currentUrl);
-        return;
-      }
-
-      _log(
-        'Captcha still present after submit (attempt $currentAttempt/$_maxCaptchaRetries)',
-      );
-    }
-
-    _complete(
-      CaptchaBypassResult(
-        sourceName: widget.source.name,
-        success: false,
-        error: 'Captcha bypass failed after $_maxCaptchaRetries retries',
-      ),
-    );
-  }
-
-  Future<void> _completeSuccess(
-    InAppWebViewController ctrl,
-    String? currentUrl,
-  ) async {
-    try {
-      final effectiveUrl = currentUrl ?? (await ctrl.getUrl())?.toString();
-      final pageHtml = await _captureCurrentHtml(ctrl);
-      final finalHtml = pageHtml?.toString();
-
-      final jarCookies = await _getCookiesForUrl(
-        effectiveUrl ?? _initialUrl ?? widget.source.searchUrl,
-      );
-
-      final initialCookies = widget.initialCookies?.trim();
-      final cookies = _mergeCookieStrings(initialCookies, jarCookies);
-
-      if (_isSearchEntryFlow &&
-          widget.captchaConfig.useWebViewForDetail &&
-          _flowStage == _WebViewFlowStage.search) {
-        _searchPageHtml = finalHtml;
-        _searchPageUrl = effectiveUrl;
-
-        final detailCandidate = await _selectBestSearchCandidate(
-          ctrl,
-          effectiveUrl,
-        );
-        if (detailCandidate != null) {
-          _flowStage = _WebViewFlowStage.detail;
-          _log(
-            'Using WebView for detail page: "${detailCandidate.title}" '
-            '(score=${detailCandidate.score}) -> ${detailCandidate.url}',
-          );
-          // The detail page is a fresh navigation that needs its own load
-          // budget; restart the timer so a slow detail load does not bleed
-          // into the search-solve window.
-          _refreshTimeout();
-          await ctrl.loadUrl(
-            urlRequest: URLRequest(
-              url: WebUri(detailCandidate.url),
-              headers: _buildNavigationHeaders(
-                detailCandidate.url,
-                referer: effectiveUrl,
-              ),
-            ),
-          );
-          return;
-        }
-
-        _log('WebView detail mode enabled, but no detail candidate was found');
-      }
-
-      final detailPageHtml = _flowStage == _WebViewFlowStage.detail
-          ? finalHtml
-          : null;
-      final detailPageUrl = _flowStage == _WebViewFlowStage.detail
-          ? effectiveUrl
-          : null;
-
-      final searchPageHtml = _isSearchEntryFlow
-          ? (_searchPageHtml ??
-                (_flowStage == _WebViewFlowStage.search ? finalHtml : null))
-          : null;
-      final searchPageUrl = _isSearchEntryFlow
-          ? (_searchPageUrl ??
-                (_flowStage == _WebViewFlowStage.search ? effectiveUrl : null))
-          : null;
-
-      _complete(
-        CaptchaBypassResult(
-          sourceName: widget.source.name,
-          success: true,
-          cookies: cookies,
-          finalHtml: finalHtml,
-          finalUrl: effectiveUrl,
-          searchPageHtml: searchPageHtml,
-          searchPageUrl: searchPageUrl,
-          detailPageHtml: detailPageHtml,
-          detailPageUrl: detailPageUrl,
-        ),
-      );
-    } catch (e) {
-      _complete(
-        CaptchaBypassResult(
-          sourceName: widget.source.name,
-          success: false,
-          error: 'Failed to capture page context: $e',
-        ),
-      );
-    }
-  }
-
-  Future<String?> _captureCurrentHtml(InAppWebViewController ctrl) async {
-    final pageHtml = await ctrl.evaluateJavascript(
-      source:
-          '(function(){ return document.documentElement ? document.documentElement.outerHTML : null; })()',
-    );
-    return pageHtml?.toString();
-  }
-
-  Future<_SearchCandidate?> _selectBestSearchCandidate(
-    InAppWebViewController ctrl,
-    String? currentUrl,
-  ) async {
-    final config = _SearchExtractionConfig.tryParse(
-      widget.source.searchConfigJson,
-    );
-    if (config == null) {
-      _log('Unable to parse searchConfigJson for WebView detail mode');
-      return null;
-    }
-
-    final candidates = await _extractSearchCandidates(
-      ctrl,
-      config: config,
-      currentUrl: currentUrl,
-    );
-    if (candidates.isEmpty) {
-      _log('No search candidates extracted from WebView search page');
-      return null;
-    }
-
-    final query = _preprocessSearchKeyword(widget.searchKeyword) ?? '';
-    if (query.isEmpty) {
-      final first = candidates.first;
-      return _SearchCandidate(title: first.title, url: first.url, score: 0);
-    }
-    final core = _extractCoreName(query);
-
-    _SearchCandidate? best;
-    for (final item in candidates) {
-      final score = _calculateMatchScore(item.title, query, core);
-      if (score >= _matchScoreThreshold &&
-          (best == null || score > best.score)) {
-        best = _SearchCandidate(title: item.title, url: item.url, score: score);
-      }
-    }
-
-    if (best == null && candidates.isNotEmpty) {
-      _log(
-        'No candidate meets score≥$_matchScoreThreshold '
-        '(best was ${candidates.map((c) => _calculateMatchScore(c.title, query, core)).reduce(math.max)})',
-      );
-    }
-
-    return best;
-  }
-
-  String? _resolveInitialUrl() {
-    final customInitial = widget.initialUrl?.trim();
-    if (customInitial != null && customInitial.isNotEmpty) {
-      return customInitial;
-    }
-
-    final searchTemplate = widget.source.searchUrl.trim();
-    if (searchTemplate.isEmpty) {
-      return null;
-    }
-
-    final keyword = _preprocessSearchKeyword(widget.searchKeyword);
-    if (keyword != null && keyword.isNotEmpty) {
-      return searchTemplate.replaceAll('{keyword}', keyword);
-    }
-
-    if (!searchTemplate.contains('{keyword}')) {
-      return searchTemplate;
-    }
-
-    return null;
-  }
-
-  static String? _preprocessSearchKeyword(String? keyword) {
-    final trimmed = keyword?.trim();
-    if (trimmed == null || trimmed.isEmpty) {
-      return null;
-    }
-    final core = _extractCoreName(trimmed);
-    return core.isNotEmpty ? core : trimmed;
-  }
-
-  static Map<String, String> _buildNavigationHeaders(
-    String url, {
-    String? referer,
-  }) {
-    try {
-      final uri = Uri.parse(url);
-      final origin = '${uri.scheme}://${uri.host}';
-      return {
-        'Accept':
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-US;q=0.7',
-        'Referer': referer ?? '$origin/',
-        'Upgrade-Insecure-Requests': '1',
-      };
-    } catch (_) {
-      return {
-        'Accept':
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-US;q=0.7',
-        if (referer != null && referer.isNotEmpty) 'Referer': referer,
-        'Upgrade-Insecure-Requests': '1',
-      };
-    }
-  }
-
-  Future<List<_ExtractedCandidate>> _extractSearchCandidates(
-    InAppWebViewController ctrl, {
-    required _SearchExtractionConfig config,
-    required String? currentUrl,
-  }) async {
-    final script = config.buildExtractScript(baseUrl: currentUrl);
-    try {
-      final raw = await ctrl.evaluateJavascript(source: script);
-      if (raw is! String || raw.isEmpty) {
-        return const [];
-      }
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) {
-        return const [];
-      }
-      return decoded
-          .whereType<Map>()
-          .map(
-            (item) => _ExtractedCandidate(
-              title: (item['title'] ?? '').toString().trim(),
-              url: (item['url'] ?? '').toString().trim(),
-            ),
-          )
-          .where((item) => item.title.isNotEmpty && item.url.isNotEmpty)
-          .toList();
-    } catch (e) {
-      _log('Failed to extract search candidates in WebView: $e');
-      return const [];
-    }
-  }
-
-  static String _extractCoreName(String name) {
-    var value = name.trim();
-    final seasonPatterns = [
-      RegExp(r'第[一二三四五六七八九十\d]+\s*季', caseSensitive: false),
-      RegExp(r'part\s*\d+', caseSensitive: false),
-      RegExp(r'\bseason\s*\d+\b', caseSensitive: false),
-      RegExp(r'\b\d+(st|nd|rd|th)\s*season\b', caseSensitive: false),
-    ];
-    for (final pattern in seasonPatterns) {
-      value = value.replaceAll(pattern, ' ');
-    }
-    return value.replaceAll(RegExp(r'\s+'), ' ').trim();
-  }
-
-  static int _calculateMatchScore(String title, String query, String core) {
-    final titleNorm = _normalizeForMatch(title);
-    final queryNorm = _normalizeForMatch(query);
-    final coreNorm = _normalizeForMatch(core);
-    final titleCoreNorm = _normalizeForMatch(_extractCoreName(title));
-
-    if (titleNorm.isEmpty) return 0;
-    if (queryNorm.isNotEmpty && titleNorm == queryNorm) return 100;
-    if (coreNorm.isNotEmpty && titleCoreNorm == coreNorm) return 95;
-    if (queryNorm.isNotEmpty && titleNorm.contains(queryNorm)) return 70;
-    if (coreNorm.isNotEmpty && titleCoreNorm.contains(coreNorm)) return 57;
-    return 0;
-  }
-
-  static String _normalizeForMatch(String value) {
-    return value.toLowerCase().replaceAll(
-      RegExp(r'[^\p{L}\p{N}]+', unicode: true),
-      '',
-    );
-  }
-
-  static String _buildSelectorExistsScript(String selector) {
-    final selectorLiteral = jsonEncode(selector);
-    return '''
-(function() {
-  var selector = $selectorLiteral;
-
-  function exists(sel) {
-    var containsMatch = sel.match(/^(.*?):contains\\((["'])(.*)\\2\\)\$/);
-    if (containsMatch) {
-      var baseSelector = containsMatch[1].trim();
-      var text = containsMatch[3];
-      var nodes = document.querySelectorAll(baseSelector || '*');
-      for (var i = 0; i < nodes.length; i++) {
-        if ((nodes[i].textContent || '').indexOf(text) !== -1) {
-          return true;
-        }
-      }
-      return false;
-    }
-    return document.querySelector(sel) !== null;
-  }
-
-  try {
-    return exists(selector);
-  } catch (_) {
-    return false;
-  }
-})()
-''';
-  }
-
-  /// Run [source] against the page, but never block longer than [timeout].
-  ///
-  /// Android's WebView silently drops a pending `evaluateJavascript` callback
-  /// when the document it was issued against is torn down by a navigation. The
-  /// bridge future then never completes, and any `await` on it hangs forever.
-  /// The eager poll issues these calls against a still-loading (and sometimes
-  /// about-to-be-replaced) document, so an unbounded await there wedges the
-  /// entire poll for the full preflight window — which is exactly the failure
-  /// the eager path was built to avoid. Bounding each call lets the loop retry
-  /// against the live document on the next tick instead of dying on a dead one.
-  static Future<dynamic> _evalJs(
-    InAppWebViewController ctrl,
-    String source, {
-    Duration timeout = const Duration(seconds: 3),
-  }) async {
-    try {
-      return await ctrl
-          .evaluateJavascript(source: source)
-          .timeout(timeout, onTimeout: () => null);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  static Future<bool> _detectCaptcha(
-    InAppWebViewController ctrl,
-    CaptchaConfig config,
-  ) async {
-    final detectSelector = config.detectSelector;
-    if (detectSelector == null || detectSelector.isEmpty) return false;
-
-    final selectors = detectSelector
-        .split(',')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty);
-
-    for (final selector in selectors) {
-      final exists = await _evalJs(
-        ctrl,
-        _buildSelectorExistsScript(selector),
-      );
-      if (exists == true) return true;
-    }
-    return false;
-  }
-
-  static Future<bool> _checkSuccess(
-    InAppWebViewController ctrl,
-    CaptchaConfig config, {
-    bool allowEmptySelector = true,
-  }) async {
-    final selector = config.successSelector;
-    if (selector == null || selector.isEmpty) return allowEmptySelector;
-    final exists = await _evalJs(ctrl, _buildSelectorExistsScript(selector));
-    return exists == true;
-  }
-
-  Future<_CaptchaPageSignal> _waitForCaptchaOrSuccessSignal(
-    InAppWebViewController ctrl,
-    CaptchaConfig config, {
-    required int loadEventToken,
-    required String stageLabel,
-    required Duration timeout,
-  }) async {
-    const interval = Duration(milliseconds: 350);
-    final deadline = DateTime.now().add(timeout);
-    var tick = 0;
-
-    while (!_isCompleted &&
-        loadEventToken == _loadEventToken &&
-        DateTime.now().isBefore(deadline)) {
-      final hasCaptcha = await _detectCaptcha(ctrl, config);
-      if (hasCaptcha) {
-        _log('[$stageLabel] Captcha selector detected');
-        return _CaptchaPageSignal.captcha;
-      }
-
-      final hasSuccess = await _checkSuccess(
-        ctrl,
-        config,
-        allowEmptySelector: false,
-      );
-      if (hasSuccess) {
-        _log('[$stageLabel] Success selector detected');
-        return _CaptchaPageSignal.success;
-      }
-
-      tick += 1;
-      if (tick % 9 == 0) {
-        _log('[$stageLabel] Waiting for challenge to finish...');
-      }
-      await Future.delayed(interval);
-    }
-
-    if (_isCompleted) return _CaptchaPageSignal.cancelled;
-    if (loadEventToken != _loadEventToken) {
-      return _CaptchaPageSignal.superseded;
-    }
-    return _CaptchaPageSignal.timedOut;
-  }
-
-  Future<bool> _waitForSubmitResult(
-    InAppWebViewController ctrl,
-    CaptchaConfig config,
-  ) async {
-    const timeout = Duration(seconds: 8);
-    const interval = Duration(milliseconds: 350);
-    final deadline = DateTime.now().add(timeout);
-
-    while (!_isCompleted && DateTime.now().isBefore(deadline)) {
-      final success = await _checkSuccess(ctrl, config);
-      if (success) return true;
-
-      final hasCaptcha = await _detectCaptcha(ctrl, config);
-      if (!hasCaptcha) {
-        final isReady = await _isDocumentReady(ctrl);
-        if (isReady) return true;
-      }
-
-      await Future.delayed(interval);
-    }
-
-    return false;
-  }
-
-  static Future<bool> _isDocumentReady(InAppWebViewController ctrl) async {
-    final ready = await _evalJs(
-      ctrl,
-      '(function(){ return document.readyState === "complete"; })()',
-    );
-    return ready == true;
-  }
-
-  Future<void> _logEnvironmentSnapshot(InAppWebViewController ctrl) async {
-    try {
-      final snapshot = await ctrl.evaluateJavascript(
-        source: '''
-(function() {
-  function hasOwn(target, key) {
-    try {
-      return !!target && Object.prototype.hasOwnProperty.call(target, key);
-    } catch (_) {
-      return false;
-    }
-  }
-
-  return JSON.stringify({
-    webdriver: {
-      navigator: (function(){ try { return navigator.webdriver; } catch (_) { return 'error'; } })(),
-      window: (function(){ try { return window.webdriver; } catch (_) { return 'error'; } })(),
-      attr: (function(){ try { return document.documentElement && document.documentElement.getAttribute('webdriver'); } catch (_) { return 'error'; } })()
-    },
-    notification: typeof window.Notification,
-    languages: (function(){ try { return navigator.languages; } catch (_) { return 'error'; } })(),
-    platform: (function(){ try { return navigator.platform; } catch (_) { return 'error'; } })(),
-    plugins: (function(){ try { return navigator.plugins ? navigator.plugins.length : null; } catch (_) { return 'error'; } })(),
-    mimeTypes: (function(){ try { return navigator.mimeTypes ? navigator.mimeTypes.length : null; } catch (_) { return 'error'; } })(),
-    chrome: {
-      exists: typeof window.chrome !== 'undefined',
-      runtime: (function(){ try { return !!(window.chrome && window.chrome.runtime); } catch (_) { return 'error'; } })(),
-      loadTimes: (function(){ try { return !!(window.chrome && window.chrome.loadTimes); } catch (_) { return 'error'; } })()
-    },
-    suspiciousWindowKeys: (function() {
-      var keys = [
-        '__nightmare',
-        '_selenium',
-        'callSelenium',
-        '_Selenium_IDE_Recorder',
-        'callPhantom',
-        '_phantom',
-        '__webdriver_capture',
-        'webdriver'
-      ];
-      return keys.filter(function(key) { return hasOwn(window, key); });
-    })(),
-    suspiciousDocumentKeys: (function() {
-      var keys = [
-        '__selenium_evaluate',
-        '__selenium_unwrapped',
-        '__webdriver_script_fn',
-        '__driver_evaluate',
-        '__webdriver_evaluate',
-        '__fxdriver_evaluate',
-        '__driver_unwrapped',
-        '__webdriver_unwrapped',
-        '__fxdriver_unwrapped',
-        '__webdriver_script_func'
-      ];
-      return keys.filter(function(key) { return hasOwn(document, key); });
-    })()
-  });
-})()
-''',
-      );
-      if (snapshot != null) {
-        _log('Environment snapshot: $snapshot');
-      }
-    } catch (e) {
-      _log('Failed to capture environment snapshot: $e');
-    }
-  }
-
-  Future<String?> _solveImageOcrCaptcha(
-    InAppWebViewController ctrl,
-    CaptchaConfig config,
-  ) async {
-    final imageSelector = config.imageSelector;
-    if (imageSelector == null || imageSelector.isEmpty) return null;
-
-    try {
-      final imageSrc = await ctrl.evaluateJavascript(
-        source:
-            '''
-(function(){
-  var img = document.querySelector("${_esc(imageSelector)}");
-  if(!img) return null;
-  var c = document.createElement("canvas");
-  c.width = img.naturalWidth || img.width;
-  c.height = img.naturalHeight || img.height;
-  c.getContext("2d").drawImage(img, 0, 0);
-  return c.toDataURL("image/png");
-})()
-''',
-      );
-
-      if (imageSrc == null ||
-          imageSrc is! String ||
-          !imageSrc.startsWith('data:image/png;base64,')) {
-        _log('Failed to extract captcha image');
-        return null;
-      }
-
-      final base64 = imageSrc.substring('data:image/png;base64,'.length);
-      final imageBytes = _base64Decode(base64);
-
-      _log('Captcha image extracted, running OCR...');
-
-      final constraints = config.ocrConstraints != null
-          ? CaptchaConstraintOptions(
-              expectedLength: config.ocrConstraints!.expectedLength,
-              allowedChars: config.ocrConstraints!.allowedChars,
-              enableLookalikeMapping: true,
-            )
-          : null;
-
-      final result = await CaptchaOcrService.instance.recognizeBytes(
-        Uint8List.fromList(imageBytes),
-        pngFix: true,
-        constraints: constraints,
-      );
-
-      _log('OCR result: "$result"');
-
-      if (result.isEmpty) return null;
-
-      if (config.ocrConstraints?.expectedLength != null &&
-          result.length != config.ocrConstraints!.expectedLength) {
-        _log(
-          'OCR length mismatch: ${result.length} != ${config.ocrConstraints!.expectedLength}',
-        );
-        return null;
-      }
-
-      return result;
-    } catch (e) {
-      _log('OCR error: $e');
-      return null;
-    }
-  }
-
-  Future<void> _refreshCaptchaImage(
-    InAppWebViewController ctrl,
-    CaptchaConfig config,
-  ) async {
-    final refreshSelector = config.refreshSelector;
-    if (refreshSelector == null || refreshSelector.isEmpty) {
-      _log('No refreshSelector configured, reloading page to refresh captcha');
-      try {
-        await ctrl.evaluateJavascript(source: 'location.reload()');
-      } catch (_) {}
-      await Future.delayed(const Duration(milliseconds: 2000));
-      return;
-    }
-
-    _log('Clicking captcha refresh button: $refreshSelector');
-    try {
-      await ctrl.evaluateJavascript(
-        source:
-            '''
-(function(){
-  var btn = document.querySelector("${_esc(refreshSelector)}");
-  if(btn) btn.click();
-})()
-''',
-      );
-    } catch (e) {
-      _log('Failed to click refresh button: $e');
-    }
-    await Future.delayed(const Duration(milliseconds: 1000));
-  }
-
-  static Future<void> _fillInputAndSubmit(
-    InAppWebViewController ctrl,
-    CaptchaConfig config,
-    String ocrResult,
-  ) async {
-    final inputSelector = config.inputSelector;
-    final submitSelector = config.submitSelector;
-
-    if (inputSelector != null && inputSelector.isNotEmpty) {
-      await ctrl.evaluateJavascript(
-        source:
-            '''
-(function(){
-  var input = document.querySelector("${_esc(inputSelector)}");
-  if(input){
-    input.value = "${_esc(ocrResult)}";
-    input.dispatchEvent(new Event("input", {bubbles: true}));
-    input.dispatchEvent(new Event("change", {bubbles: true}));
-  }
-})()
-''',
-      );
-    }
-
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    if (submitSelector != null && submitSelector.isNotEmpty) {
-      await ctrl.evaluateJavascript(
-        source:
-            '''
-(function(){
-  var btn = document.querySelector("${_esc(submitSelector)}");
-  if(btn) btn.click();
-})()
-''',
-      );
-    }
-  }
-
-  static String? _mergeCookieStrings(String? a, String? b) {
-    final aTrimmed = a?.trim();
-    final bTrimmed = b?.trim();
-    if (aTrimmed == null || aTrimmed.isEmpty) return bTrimmed;
-    if (bTrimmed == null || bTrimmed.isEmpty) return aTrimmed;
-
-    final map = <String, String>{};
-    for (final part in '$aTrimmed; $bTrimmed'.split(';')) {
-      final trimmed = part.trim();
-      if (trimmed.isEmpty) continue;
-      final eq = trimmed.indexOf('=');
-      if (eq < 0) continue;
-      final name = trimmed.substring(0, eq).trim();
-      final value = trimmed.substring(eq + 1).trim();
-      if (name.isNotEmpty) map[name] = value;
-    }
-    if (map.isEmpty) return null;
-    return map.entries.map((e) => '${e.key}=${e.value}').join('; ');
-  }
-
-  static Future<String?> _getCookiesForUrl(String url) async {
-    try {
-      final uri = Uri.parse(url);
-      final cookieManager = CookieManager();
-      final cookies = await cookieManager.getCookies(
-        url: WebUri('${uri.scheme}://${uri.host}'),
-      );
-      if (cookies.isEmpty) return null;
-      return cookies.map((c) => '${c.name}=${c.value}').join('; ');
-    } catch (_) {
-      return null;
-    }
-  }
-
-  static List<int> _base64Decode(String base64Str) {
-    final lookup = <int, int>{};
-    const chars =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    for (var i = 0; i < chars.length; i++) {
-      lookup[chars.codeUnitAt(i)] = i;
-    }
-    final source = base64Str.replaceAll(RegExp(r'\s'), '');
-    final result = <int>[];
-    int buffer = 0;
-    int bits = 0;
-    for (final charCode in source.runes) {
-      final val = lookup[charCode] ?? 0;
-      buffer = (buffer << 6) | val;
-      bits += 6;
-      if (bits >= 8) {
-        bits -= 8;
-        result.add((buffer >> bits) & 0xFF);
-      }
-    }
-    return result;
-  }
-
-  static String _esc(String s) {
-    return s
-        .replaceAll('\\', '\\\\')
-        .replaceAll('"', '\\"')
-        .replaceAll("'", "\\'")
-        .replaceAll('\n', '\\n')
-        .replaceAll('\r', '\\r');
   }
 }
