@@ -55,6 +55,7 @@ class CustomVideoControls extends StatelessWidget {
 
   // 加载状态
   final bool isLoading;
+  final VoidCallback onUserInteraction;
 
   // 移动端锁屏状态
   final ValueNotifier<bool> mobilePlayerLockNotifier;
@@ -84,6 +85,7 @@ class CustomVideoControls extends StatelessWidget {
     this.currentSourceLabel = '未知',
     this.currentSourceLabelListenable,
     this.isLoading = false,
+    required this.onUserInteraction,
     required this.mobilePlayerLockNotifier,
     this.videoTitle,
     this.videoTitleListenable,
@@ -305,279 +307,299 @@ class CustomVideoControls extends StatelessWidget {
       builder: (context, isMobilePlayerLocked, _) {
         final isLocked = isMobile && isFullscreenMode && isMobilePlayerLocked;
 
-        return MaterialVideoControlsTheme(
-          normal: MaterialVideoControlsThemeData(
-            topButtonBar: isLocked ? const [] : mobileNormalTopButtonBar,
-            bottomButtonBar: isLocked ? const [] : mobileNormalBottomButtonBar,
-            primaryButtonBar: [], // 移除中间按钮
-            displaySeekBar: !isLocked, // 使用 media_kit 内置进度条
-            // 将进度条移到按钮栏上方，更容易点击
-            seekBarMargin: const EdgeInsets.only(bottom: 48),
-            seekBarThumbSize: 14, // 稍微增大滑块以便更容易点击
-            // 调整触摸区域，让判定位置与视觉位置对齐
-            seekBarContainerHeight: 24, // 减小触摸区域高度（默认36px）
-            seekBarAlignment: Alignment.center, // 进度条在容器中居中对齐
-          ),
-          fullscreen: MaterialVideoControlsThemeData(
-            topButtonBar: isLocked ? const [] : mobileFullscreenTopButtonBar,
-            bottomButtonBar: isLocked
-                ? const []
-                : mobileFullscreenBottomButtonBar,
-            primaryButtonBar: [], // 移除中间按钮
-            displaySeekBar: !isLocked, // 使用 media_kit 内置进度条
-            // 将进度条移到按钮栏上方，更容易点击
-            seekBarMargin: const EdgeInsets.only(bottom: 48),
-            seekBarThumbSize: 14, // 稍微增大滑块以便更容易点击
-            // 调整触摸区域，让判定位置与视觉位置对齐
-            seekBarContainerHeight: 24, // 减小触摸区域高度（默认36px）
-            seekBarAlignment: Alignment.center, // 进度条在容器中居中对齐
-          ),
-          child: MaterialDesktopVideoControlsTheme(
-            normal: MaterialDesktopVideoControlsThemeData(
-              topButtonBar: desktopNormalTopButtonBar,
-              bottomButtonBar: [
-                const SizedBox(width: 8),
-                // 左下角：播放控制
-                _buildEpisodeSkipButton(
-                  direction: _EpisodeSkipDirection.previous,
-                ),
-                const MaterialDesktopPlayOrPauseButton(iconSize: 32),
-                _buildEpisodeSkipButton(direction: _EpisodeSkipDirection.next),
-                const SizedBox(width: 8),
-                const MaterialDesktopVolumeButton(),
-                const SizedBox(width: 8),
-                // 左下角：时间进度条
-                const MaterialDesktopPositionIndicator(),
-                const Spacer(),
-                // 右下角：功能按钮（不显示选集）
-                ListenableBuilder(
-                  listenable: danmakuService,
-                  builder: (context, _) {
-                    final settings = danmakuService.settings;
-                    final hasData = danmakuService.danmakuList.isNotEmpty;
-                    return _buildIntegratedButton(
-                      context: context,
-                      icon: settings.enabled
-                          ? Icons.comment
-                          : Icons.comments_disabled,
-                      isActive: settings.enabled,
-                      onPressed: hasData ? danmakuService.toggleEnabled : null,
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-                ListenableBuilder(
-                  listenable: subtitleService,
-                  builder: (context, _) {
-                    final hasSubtitles = subtitleService.hasSubtitles;
-                    if (!hasSubtitles) return const SizedBox.shrink();
-                    final isEnabled = subtitleService.isSubtitleVisible;
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildIntegratedButton(
-                          context: context,
-                          icon: isEnabled
-                              ? Icons.closed_caption
-                              : Icons.closed_caption_off,
-                          isActive: isEnabled,
-                          onPressed: subtitleService.toggleEnabled,
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                    );
-                  },
-                ),
-                _buildIntegratedButton(
-                  context: context,
-                  icon: Icons.settings,
-                  onPressed: () => _showSettingsMenu(context),
-                ),
-                const SizedBox(width: 8),
-                const MaterialDesktopFullscreenButton(),
-                const SizedBox(width: 8),
-              ],
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) => onUserInteraction(),
+          onPointerMove: (_) => onUserInteraction(),
+          onPointerUp: (_) => onUserInteraction(),
+          onPointerSignal: (_) => onUserInteraction(),
+          child: MaterialVideoControlsTheme(
+            normal: MaterialVideoControlsThemeData(
+              topButtonBar: isLocked ? const [] : mobileNormalTopButtonBar,
+              bottomButtonBar: isLocked
+                  ? const []
+                  : mobileNormalBottomButtonBar,
+              primaryButtonBar: [], // 移除中间按钮
+              displaySeekBar: !isLocked, // 使用 media_kit 内置进度条
+              // 将进度条移到按钮栏上方，更容易点击
+              seekBarMargin: const EdgeInsets.only(bottom: 48),
+              seekBarThumbSize: 14, // 稍微增大滑块以便更容易点击
+              // 调整触摸区域，让判定位置与视觉位置对齐
+              seekBarContainerHeight: 24, // 减小触摸区域高度（默认36px）
+              seekBarAlignment: Alignment.center, // 进度条在容器中居中对齐
             ),
-            fullscreen: MaterialDesktopVideoControlsThemeData(
-              topButtonBar: desktopFullscreenTopButtonBar,
-              bottomButtonBar: [
-                const SizedBox(width: 16),
-                // 左下角：播放控制
-                _buildEpisodeSkipButton(
-                  direction: _EpisodeSkipDirection.previous,
-                ),
-                const MaterialDesktopPlayOrPauseButton(iconSize: 32),
-                _buildEpisodeSkipButton(direction: _EpisodeSkipDirection.next),
-                const SizedBox(width: 16),
-                const MaterialDesktopVolumeButton(),
-                const SizedBox(width: 16),
-                // 左下角：时间进度条
-                const MaterialDesktopPositionIndicator(),
-                const Spacer(),
-                // 右下角：功能按钮
-                ListenableBuilder(
-                  listenable: danmakuService,
-                  builder: (context, _) {
-                    final settings = danmakuService.settings;
-                    final hasData = danmakuService.danmakuList.isNotEmpty;
-                    return _buildIntegratedButton(
-                      context: context,
-                      icon: settings.enabled
-                          ? Icons.comment
-                          : Icons.comments_disabled,
-                      isActive: settings.enabled,
-                      onPressed: hasData ? danmakuService.toggleEnabled : null,
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-                ListenableBuilder(
-                  listenable: subtitleService,
-                  builder: (context, _) {
-                    final hasSubtitles = subtitleService.hasSubtitles;
-                    if (!hasSubtitles) return const SizedBox.shrink();
-                    final isEnabled = subtitleService.isSubtitleVisible;
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildIntegratedButton(
-                          context: context,
-                          icon: isEnabled
-                              ? Icons.closed_caption
-                              : Icons.closed_caption_off,
-                          isActive: isEnabled,
-                          onPressed: subtitleService.toggleEnabled,
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                    );
-                  },
-                ),
-                _buildIntegratedButton(
-                  context: context,
-                  icon: Icons.playlist_play,
-                  onPressed: () => _showEpisodeSidePanel(context),
-                ),
-                const SizedBox(width: 8),
-                _buildIntegratedButton(
-                  context: context,
-                  icon: Icons.settings,
-                  onPressed: () => _showSettingsMenu(context),
-                ),
-                const SizedBox(width: 8),
-                const MaterialDesktopFullscreenButton(),
-                const SizedBox(width: 16),
-              ],
+            fullscreen: MaterialVideoControlsThemeData(
+              topButtonBar: isLocked ? const [] : mobileFullscreenTopButtonBar,
+              bottomButtonBar: isLocked
+                  ? const []
+                  : mobileFullscreenBottomButtonBar,
+              primaryButtonBar: [], // 移除中间按钮
+              displaySeekBar: !isLocked, // 使用 media_kit 内置进度条
+              // 将进度条移到按钮栏上方，更容易点击
+              seekBarMargin: const EdgeInsets.only(bottom: 48),
+              seekBarThumbSize: 14, // 稍微增大滑块以便更容易点击
+              // 调整触摸区域，让判定位置与视觉位置对齐
+              seekBarContainerHeight: 24, // 减小触摸区域高度（默认36px）
+              seekBarAlignment: Alignment.center, // 进度条在容器中居中对齐
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // 1. 弹幕渲染层 (在视频之后，控件之前)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: ValueListenableBuilder<double>(
-                        valueListenable: currentVideoTimeListenable,
-                        builder: (context, currentVideoTime, _) {
-                          return ValueListenableBuilder<bool>(
-                            valueListenable: isVideoPausedListenable,
-                            builder: (context, isVideoPaused, _) {
-                              return DanmakuOverlay(
-                                currentTime: currentVideoTime,
-                                danmakuList: danmakuService.danmakuList,
-                                settings: danmakuService.settings,
-                                isPaused: isVideoPaused,
-                                isPlaying: !isVideoPaused,
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ),
+            child: MaterialDesktopVideoControlsTheme(
+              normal: MaterialDesktopVideoControlsThemeData(
+                topButtonBar: desktopNormalTopButtonBar,
+                bottomButtonBar: [
+                  const SizedBox(width: 8),
+                  // 左下角：播放控制
+                  _buildEpisodeSkipButton(
+                    direction: _EpisodeSkipDirection.previous,
                   ),
-
-                  // 2. 加载选集提示
-                  if (isLoading)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.black54,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  // 3. 原生控制层
-                  AdaptiveVideoControls(state),
-
-                  // 4. 移动端手势层 (在控制层之上，但不覆盖底部控件区域)
-                  if (isMobile)
-                    _MobileGestureAndLockLayer(
-                      isEnabled: !isLocked,
-                      isFullscreen: isFullscreenMode,
-                      player: state.widget.controller.player,
-                      onLeftDouble: () => _onSkipTime(-10),
-                      onLeftTriple: () => _onSkipTime(-85),
-                      onCenterDouble: _togglePlayPause,
-                      onRightDouble: () => _onSkipTime(10),
-                      onRightTriple: () => _onSkipTime(85),
-                      onLock: () => mobilePlayerLockNotifier.value = true,
-                    ),
-
-                  // 5. 移动端全屏锁屏：锁定时吃掉屏幕触摸，只保留解锁入口
-                  if (isLocked) ...[
-                    Positioned.fill(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {},
-                        onVerticalDragStart: (_) {},
-                        onHorizontalDragStart: (_) {},
-                        child: const SizedBox.expand(),
-                      ),
-                    ),
-                    _buildFullscreenLockPositionedButton(
-                      icon: Icons.lock,
-                      tooltip: '解锁',
-                      onPressed: () => mobilePlayerLockNotifier.value = false,
-                    ),
-                  ],
-
-                  // 4. 右侧设置面板 (类似 Bilibili 风格)
-                  ValueListenableBuilder<bool>(
-                    valueListenable: showDanmakuSettingsListenable,
-                    builder: (context, showDanmakuSettings, _) {
-                      if (!showDanmakuSettings) return const SizedBox.shrink();
-                      return Stack(
+                  const MaterialDesktopPlayOrPauseButton(iconSize: 32),
+                  _buildEpisodeSkipButton(
+                    direction: _EpisodeSkipDirection.next,
+                  ),
+                  const SizedBox(width: 8),
+                  const MaterialDesktopVolumeButton(),
+                  const SizedBox(width: 8),
+                  // 左下角：时间进度条
+                  const MaterialDesktopPositionIndicator(),
+                  const Spacer(),
+                  // 右下角：功能按钮（不显示选集）
+                  ListenableBuilder(
+                    listenable: danmakuService,
+                    builder: (context, _) {
+                      final settings = danmakuService.settings;
+                      final hasData = danmakuService.danmakuList.isNotEmpty;
+                      return _buildIntegratedButton(
+                        context: context,
+                        icon: settings.enabled
+                            ? Icons.comment
+                            : Icons.comments_disabled,
+                        isActive: settings.enabled,
+                        onPressed: hasData
+                            ? danmakuService.toggleEnabled
+                            : null,
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  ListenableBuilder(
+                    listenable: subtitleService,
+                    builder: (context, _) {
+                      final hasSubtitles = subtitleService.hasSubtitles;
+                      if (!hasSubtitles) return const SizedBox.shrink();
+                      final isEnabled = subtitleService.isSubtitleVisible;
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          // 背景点击关闭
-                          Positioned.fill(
-                            child: GestureDetector(
-                              onTap: onToggleDanmakuSettings,
-                              behavior: HitTestBehavior.opaque,
-                              child: Container(color: Colors.transparent),
-                            ),
+                          _buildIntegratedButton(
+                            context: context,
+                            icon: isEnabled
+                                ? Icons.closed_caption
+                                : Icons.closed_caption_off,
+                            isActive: isEnabled,
+                            onPressed: subtitleService.toggleEnabled,
                           ),
-                          // 侧边栏
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            bottom: 0,
-                            child: GestureDetector(
-                              onTap: () {}, // 阻止点击穿透关闭面板
-                              child: VideoSidePanel(
-                                danmakuService: danmakuService,
-                                onClose: onToggleDanmakuSettings,
-                              ),
-                            ),
-                          ),
+                          const SizedBox(width: 8),
                         ],
                       );
                     },
                   ),
+                  _buildIntegratedButton(
+                    context: context,
+                    icon: Icons.settings,
+                    onPressed: () => _showSettingsMenu(context),
+                  ),
+                  const SizedBox(width: 8),
+                  const MaterialDesktopFullscreenButton(),
+                  const SizedBox(width: 8),
                 ],
+              ),
+              fullscreen: MaterialDesktopVideoControlsThemeData(
+                topButtonBar: desktopFullscreenTopButtonBar,
+                bottomButtonBar: [
+                  const SizedBox(width: 16),
+                  // 左下角：播放控制
+                  _buildEpisodeSkipButton(
+                    direction: _EpisodeSkipDirection.previous,
+                  ),
+                  const MaterialDesktopPlayOrPauseButton(iconSize: 32),
+                  _buildEpisodeSkipButton(
+                    direction: _EpisodeSkipDirection.next,
+                  ),
+                  const SizedBox(width: 16),
+                  const MaterialDesktopVolumeButton(),
+                  const SizedBox(width: 16),
+                  // 左下角：时间进度条
+                  const MaterialDesktopPositionIndicator(),
+                  const Spacer(),
+                  // 右下角：功能按钮
+                  ListenableBuilder(
+                    listenable: danmakuService,
+                    builder: (context, _) {
+                      final settings = danmakuService.settings;
+                      final hasData = danmakuService.danmakuList.isNotEmpty;
+                      return _buildIntegratedButton(
+                        context: context,
+                        icon: settings.enabled
+                            ? Icons.comment
+                            : Icons.comments_disabled,
+                        isActive: settings.enabled,
+                        onPressed: hasData
+                            ? danmakuService.toggleEnabled
+                            : null,
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  ListenableBuilder(
+                    listenable: subtitleService,
+                    builder: (context, _) {
+                      final hasSubtitles = subtitleService.hasSubtitles;
+                      if (!hasSubtitles) return const SizedBox.shrink();
+                      final isEnabled = subtitleService.isSubtitleVisible;
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildIntegratedButton(
+                            context: context,
+                            icon: isEnabled
+                                ? Icons.closed_caption
+                                : Icons.closed_caption_off,
+                            isActive: isEnabled,
+                            onPressed: subtitleService.toggleEnabled,
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                      );
+                    },
+                  ),
+                  _buildIntegratedButton(
+                    context: context,
+                    icon: Icons.playlist_play,
+                    onPressed: () => _showEpisodeSidePanel(context),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildIntegratedButton(
+                    context: context,
+                    icon: Icons.settings,
+                    onPressed: () => _showSettingsMenu(context),
+                  ),
+                  const SizedBox(width: 8),
+                  const MaterialDesktopFullscreenButton(),
+                  const SizedBox(width: 16),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // 1. 弹幕渲染层 (在视频之后，控件之前)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: ValueListenableBuilder<double>(
+                          valueListenable: currentVideoTimeListenable,
+                          builder: (context, currentVideoTime, _) {
+                            return ValueListenableBuilder<bool>(
+                              valueListenable: isVideoPausedListenable,
+                              builder: (context, isVideoPaused, _) {
+                                return DanmakuOverlay(
+                                  currentTime: currentVideoTime,
+                                  danmakuList: danmakuService.danmakuList,
+                                  settings: danmakuService.settings,
+                                  isPaused: isVideoPaused,
+                                  isPlaying: !isVideoPaused,
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+
+                    // 2. 加载选集提示
+                    if (isLoading)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.black54,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // 3. 原生控制层
+                    AdaptiveVideoControls(state),
+
+                    // 4. 移动端手势层 (在控制层之上，但不覆盖底部控件区域)
+                    if (isMobile)
+                      _MobileGestureAndLockLayer(
+                        isEnabled: !isLocked,
+                        isFullscreen: isFullscreenMode,
+                        player: state.widget.controller.player,
+                        onLeftDouble: () => _onSkipTime(-10),
+                        onLeftTriple: () => _onSkipTime(-85),
+                        onCenterDouble: _togglePlayPause,
+                        onRightDouble: () => _onSkipTime(10),
+                        onRightTriple: () => _onSkipTime(85),
+                        onLock: () => mobilePlayerLockNotifier.value = true,
+                        onUserInteraction: onUserInteraction,
+                      ),
+
+                    // 5. 移动端全屏锁屏：锁定时吃掉屏幕触摸，只保留解锁入口
+                    if (isLocked) ...[
+                      Positioned.fill(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {},
+                          onVerticalDragStart: (_) {},
+                          onHorizontalDragStart: (_) {},
+                          child: const SizedBox.expand(),
+                        ),
+                      ),
+                      _buildFullscreenLockPositionedButton(
+                        icon: Icons.lock,
+                        tooltip: '解锁',
+                        onPressed: () => mobilePlayerLockNotifier.value = false,
+                      ),
+                    ],
+
+                    // 4. 右侧设置面板 (类似 Bilibili 风格)
+                    ValueListenableBuilder<bool>(
+                      valueListenable: showDanmakuSettingsListenable,
+                      builder: (context, showDanmakuSettings, _) {
+                        if (!showDanmakuSettings) {
+                          return const SizedBox.shrink();
+                        }
+                        return Stack(
+                          children: [
+                            // 背景点击关闭
+                            Positioned.fill(
+                              child: GestureDetector(
+                                onTap: onToggleDanmakuSettings,
+                                behavior: HitTestBehavior.opaque,
+                                child: Container(color: Colors.transparent),
+                              ),
+                            ),
+                            // 侧边栏
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              bottom: 0,
+                              child: GestureDetector(
+                                onTap: () {}, // 阻止点击穿透关闭面板
+                                child: VideoSidePanel(
+                                  danmakuService: danmakuService,
+                                  onClose: onToggleDanmakuSettings,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -780,6 +802,7 @@ class CustomVideoControls extends StatelessWidget {
 
   /// 跳转指定秒数（正数向前跳，负数向后跳）
   void _onSkipTime(int seconds) {
+    onUserInteraction();
     final player = state.widget.controller.player;
     final currentPosition = player.state.position;
     final newPosition = currentPosition + Duration(seconds: seconds);
@@ -793,6 +816,7 @@ class CustomVideoControls extends StatelessWidget {
   }
 
   void _togglePlayPause() {
+    onUserInteraction();
     final player = state.widget.controller.player;
     final isPlaying = player.state.playing;
     if (isPlaying) {
@@ -1260,6 +1284,7 @@ class _MobileGestureAndLockLayer extends StatefulWidget {
   final VoidCallback onRightDouble;
   final VoidCallback onRightTriple;
   final VoidCallback onLock;
+  final VoidCallback onUserInteraction;
 
   const _MobileGestureAndLockLayer({
     required this.isEnabled,
@@ -1271,6 +1296,7 @@ class _MobileGestureAndLockLayer extends StatefulWidget {
     required this.onRightDouble,
     required this.onRightTriple,
     required this.onLock,
+    required this.onUserInteraction,
   });
 
   @override
@@ -1330,7 +1356,10 @@ class _MobileGestureAndLockLayerState
           child: _MobileMultiTapDetector(
             isEnabled: widget.isEnabled,
             player: widget.player,
-            onPointerActivity: _handlePointerActivity,
+            onPointerActivity: () {
+              widget.onUserInteraction();
+              _handlePointerActivity();
+            },
             onLeftDouble: widget.onLeftDouble,
             onLeftTriple: widget.onLeftTriple,
             onCenterDouble: widget.onCenterDouble,

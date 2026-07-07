@@ -242,8 +242,7 @@ class CaptchaWebViewBypassWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveJobKey =
-        jobKey ?? 'captcha_once_${identityHashCode(this)}';
+    final effectiveJobKey = jobKey ?? 'captcha_once_${identityHashCode(this)}';
     return ReusableCaptchaWebViewBypasser(
       workerId: -1,
       job: CaptchaPreflightJob(
@@ -594,9 +593,7 @@ class _ReusableCaptchaWebViewBypasserState
     for (final host in _blockedResourceHosts) {
       blockers.add(
         ContentBlocker(
-          trigger: ContentBlockerTrigger(
-            urlFilter: '.*$host.*',
-          ),
+          trigger: ContentBlockerTrigger(urlFilter: '.*$host.*'),
           action: ContentBlockerAction(type: ContentBlockerActionType.BLOCK),
         ),
       );
@@ -724,6 +721,30 @@ class _ReusableCaptchaWebViewBypasserState
       },
       onConsoleMessage: (_, consoleMessage) {
         _runner.onConsoleMessage(consoleMessage);
+      },
+      onJsAlert: (_, request) async {
+        debugPrint('[CaptchaWebView] Suppressed JS alert: ${request.message}');
+        return JsAlertResponse(
+          handledByClient: true,
+          action: JsAlertResponseAction.CONFIRM,
+        );
+      },
+      onJsConfirm: (_, request) async {
+        debugPrint(
+          '[CaptchaWebView] Suppressed JS confirm: ${request.message}',
+        );
+        return JsConfirmResponse(
+          handledByClient: true,
+          action: JsConfirmResponseAction.CANCEL,
+        );
+      },
+      onJsPrompt: (_, request) async {
+        debugPrint('[CaptchaWebView] Suppressed JS prompt: ${request.message}');
+        return JsPromptResponse(
+          handledByClient: true,
+          action: JsPromptResponseAction.CANCEL,
+          value: '',
+        );
       },
     );
 

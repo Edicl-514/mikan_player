@@ -38,6 +38,8 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
   double _lastTime = 0;
   int _lastProcessedIndex = 0;
   bool _isInitialized = false;
+  bool _controllerReadyRetryScheduled = false;
+  bool _hasLoggedControllerNotReady = false;
 
   @override
   void initState() {
@@ -168,8 +170,11 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
         continue;
       }
 
-      // 添加弹幕到 canvas_danmaku
-      _addDanmaku(danmakuItem);
+      // 添加弹幕到 canvas_danmaku。如果底层 canvas 还没完成布局初始化，
+      // 本轮先停住，等下一帧/下一次 position 更新重试当前弹幕。
+      if (!_addDanmaku(danmakuItem)) {
+        break;
+      }
       _lastProcessedIndex++;
     }
   }
@@ -198,8 +203,8 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
     }
   }
 
-  void _addDanmaku(Danmaku danmakuItem) {
-    if (!mounted || _controller == null) return;
+  bool _addDanmaku(Danmaku danmakuItem) {
+    if (!mounted || _controller == null) return false;
 
     final r = (danmakuItem.color >> 16) & 0xFF;
     final g = (danmakuItem.color >> 8) & 0xFF;
@@ -214,9 +219,50 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
           type: _getDanmakuType(danmakuItem.danmakuType),
         ),
       );
+      return true;
     } catch (e) {
+      if (_isCanvasDanmakuNotReadyError(e)) {
+        _isInitialized = false;
+        if (!_hasLoggedControllerNotReady) {
+          _hasLoggedControllerNotReady = true;
+          debugPrint('[Danmaku] Canvas not ready yet, will retry after layout');
+        }
+        _scheduleControllerReadyRetry();
+        return false;
+      }
       debugPrint('Error adding danmaku: $e');
+      return true;
     }
+  }
+
+  bool _isCanvasDanmakuNotReadyError(Object error) {
+    final message = error.toString();
+    return message.contains('LateInitializationError') ||
+        message.contains('_trackYPositions');
+  }
+
+  void _scheduleControllerReadyRetry() {
+    if (_controllerReadyRetryScheduled) return;
+    _controllerReadyRetryScheduled = true;
+
+    Future<void>.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted || _controller == null || !widget.settings.enabled) {
+        _controllerReadyRetryScheduled = false;
+        return;
+      }
+
+      _controllerReadyRetryScheduled = false;
+      _isInitialized = true;
+      _lastTime = widget.currentTime;
+      _lastProcessedIndex = _findStartIndex(widget.currentTime);
+
+      if (widget.isPaused || !widget.isPlaying) {
+        _controller?.pause();
+      } else {
+        _controller?.resume();
+        _processDanmaku();
+      }
+    });
   }
 
   void _updateOption() {
@@ -244,23 +290,7 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      setState(() {
-        _isInitialized = true;
-      });
-
-      // 更新 _lastTime 防止初始化时触发 seek 判定
-      _lastTime = widget.currentTime;
-
-      // 初始化时，如果已暂停则暂停控制器
-      if (widget.isPaused || !widget.isPlaying) {
-        _controller?.pause();
-      }
-
-      // 初始化后立即定位到当前时间
-      _resetDanmaku();
-      if (widget.isPlaying && !widget.isPaused) {
-        _processDanmaku();
-      }
+      _scheduleControllerReadyRetry();
     });
   }
 

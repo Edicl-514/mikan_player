@@ -688,6 +688,28 @@ class _ReusableBrowserWorkerState extends State<ReusableBrowserWorker> {
           _captchaRunner.onConsoleMessage(consoleMessage);
         }
       },
+      onJsAlert: (_, request) async {
+        debugPrint('[WebViewWorker] Suppressed JS alert: ${request.message}');
+        return JsAlertResponse(
+          handledByClient: true,
+          action: JsAlertResponseAction.CONFIRM,
+        );
+      },
+      onJsConfirm: (_, request) async {
+        debugPrint('[WebViewWorker] Suppressed JS confirm: ${request.message}');
+        return JsConfirmResponse(
+          handledByClient: true,
+          action: JsConfirmResponseAction.CANCEL,
+        );
+      },
+      onJsPrompt: (_, request) async {
+        debugPrint('[WebViewWorker] Suppressed JS prompt: ${request.message}');
+        return JsPromptResponse(
+          handledByClient: true,
+          action: JsPromptResponseAction.CANCEL,
+          value: '',
+        );
+      },
       onReceivedError: (controller, request, error) {
         final activeKind = _lastJob?.kind;
         if (activeKind == WebViewJobKind.video) {

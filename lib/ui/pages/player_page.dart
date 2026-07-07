@@ -338,12 +338,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   int? _pendingStartPositionMs;
   int _lastSavedPositionMs = 0;
   static const int _saveIntervalMs = 5000;
-  static const Duration _manualSeekGracePeriod = Duration(seconds: 2);
+  static const Duration _manualSeekGracePeriod = Duration(seconds: 3);
   static const Duration _positionResetGracePeriod = Duration(seconds: 4);
   static const Duration _unexpectedJumpMinimum = Duration(seconds: 30);
   static const Duration _unexpectedJumpRecoveryOffset = Duration(seconds: 5);
   static const Duration _unexpectedJumpSourceMinimum = Duration(seconds: 60);
   static const Duration _manualBackwardSeekMinimum = Duration(seconds: 10);
+
+  /// 进入播放页后给首帧 / 转场动画留出的保护延时，避免页面刚加载时
+  /// 在线源搜索 / WebView 启动 / 弹幕加载等重操作与动画争抢主线程。
+  static const Duration _entryAnimationGuard = Duration(milliseconds: 350);
   Duration _furthestObservedPosition = Duration.zero;
   DateTime? _lastUserInteractionAt;
   DateTime? _allowPositionResetUntil;
@@ -463,12 +467,23 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
     });
 
-    _loadComments();
-    _loadRecommendations();
-    _loadOnairSites();
+    _scheduleDeferredEntryWork();
+  }
 
-    _loadDanmaku();
-    unawaited(_initializePlaybackAndSourceLoading());
+  /// 把进入播放页时启动的"重活"（评论 / 推荐 / 番剧 onair / 弹幕 / 在线源
+  /// 搜索等）统一延后到首帧 + 转场动画结束之后再触发，避免页面刚加载时
+  /// 多个网络请求 / WebView 启动 / 弹幕解析同时争抢主线程导致首屏卡一下。
+  void _scheduleDeferredEntryWork() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await Future.delayed(_entryAnimationGuard);
+      if (!mounted) return;
+      unawaited(_loadComments());
+      unawaited(_loadRecommendations());
+      unawaited(_loadOnairSites());
+      unawaited(_loadDanmaku());
+      unawaited(_initializePlaybackAndSourceLoading());
+    });
   }
 
   Future<void> _initializePlaybackAndSourceLoading() async {
@@ -637,10 +652,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         episodeNumber: _currentEpisode.sort.toInt(),
       );
     } catch (e) {
+      debugPrint('[Download] Failed to add current online source: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ).showSnackBar(const SnackBar(content: Text('添加下载任务失败，请稍后重试')));
       }
       return;
     }
@@ -5455,6 +5471,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   _startPlaybackFromSelectedSource();
                 },
                 isLoading: _isLoadingVideo || _loadingMagnet != null,
+                onUserInteraction: _markUserInteraction,
                 mobilePlayerLockNotifier: _mobilePlayerLockNotifier,
                 videoTitle: _videoTitleNotifier.value,
                 videoTitleListenable: _videoTitleNotifier,
@@ -8054,10 +8071,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         _lastUserInteractionAt != null &&
         now.difference(_lastUserInteractionAt!) <= _manualSeekGracePeriod;
 
-    if (isWithinManualInteractionWindow &&
-        furthestPosition > position &&
-        furthestPosition - position >= _manualBackwardSeekMinimum) {
-      _furthestObservedPosition = position;
+    if (isWithinManualInteractionWindow) {
+      final movedForward = position > furthestPosition;
+      final movedBackward =
+          furthestPosition > position &&
+          furthestPosition - position >= _manualBackwardSeekMinimum;
+
+      if (movedForward || movedBackward) {
+        // 用户手动 seek 后，必须把异常跳转检测的基线切到用户选中的位置。
+        // 只跳过短暂窗口不够：窗口结束后旧 furthest 仍会把进度拉回去。
+        _furthestObservedPosition = position;
+      }
       return;
     }
 
@@ -8071,10 +8095,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     if (_allowPositionResetUntil?.isAfter(now) ?? false) {
-      return;
-    }
-
-    if (isWithinManualInteractionWindow) {
       return;
     }
 

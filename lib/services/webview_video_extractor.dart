@@ -423,6 +423,34 @@ class _ReusableWebViewVideoExtractorState
       onConsoleMessage: (controller, consoleMessage) {
         _runner.onConsoleMessage(consoleMessage);
       },
+      onJsAlert: (_, request) async {
+        debugPrint(
+          '[WebViewExtractor] Suppressed JS alert: ${request.message}',
+        );
+        return JsAlertResponse(
+          handledByClient: true,
+          action: JsAlertResponseAction.CONFIRM,
+        );
+      },
+      onJsConfirm: (_, request) async {
+        debugPrint(
+          '[WebViewExtractor] Suppressed JS confirm: ${request.message}',
+        );
+        return JsConfirmResponse(
+          handledByClient: true,
+          action: JsConfirmResponseAction.CANCEL,
+        );
+      },
+      onJsPrompt: (_, request) async {
+        debugPrint(
+          '[WebViewExtractor] Suppressed JS prompt: ${request.message}',
+        );
+        return JsPromptResponse(
+          handledByClient: true,
+          action: JsPromptResponseAction.CANCEL,
+          value: '',
+        );
+      },
       onReceivedError: (controller, request, error) {
         _runner.onReceivedError(request, error);
       },
