@@ -87,6 +87,7 @@ sample.json
 
 # JSON directory - only ignore generated/temporary files
 json/*.json
+!json/package.json
 json/node_modules/
 json/package-lock.json
 
@@ -95,4 +96,5 @@ android/build/
 
 .hermes
 /*.txt
+!LICENSE.txt
 *.pftrace
