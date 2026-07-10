@@ -38,8 +38,7 @@ void main() {
       expect(decoded.channelIndex, BigInt.from(3));
     });
 
-    test('legacy underscore-separated key still parses (backward compat)',
-        () {
+    test('legacy underscore-separated key still parses (backward compat)', () {
       // `_` separator path: source ends at the last `_`, last segment is the
       // channel index (or `-1` sentinel for null).
       const nullKey = 'source_with_underscores_-1';

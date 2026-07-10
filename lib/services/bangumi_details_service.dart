@@ -77,8 +77,8 @@ class BangumiDetailsService {
       final subjectData = results[0] as Map<String, dynamic>?;
       final cachedEpisodes = results[1] as List<BangumiEpisode>;
       final episodes = cachedEpisodes.isNotEmpty
-            ? cachedEpisodes
-            : _parseEpisodesFromSubjectData(subjectData);
+          ? cachedEpisodes
+          : _parseEpisodesFromSubjectData(subjectData);
       final characters = results[2] as List<BangumiCharacter>;
       final relations = results[3] as List<BangumiRelatedSubject>;
       final persons = results[4] as List<BangumiPerson>;

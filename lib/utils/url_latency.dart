@@ -6,9 +6,7 @@ import 'dart:io';
 Future<int> tcpPing(String url) async {
   try {
     final uri = Uri.parse(url);
-    final port = uri.port != 0
-        ? uri.port
-        : (uri.scheme == 'https' ? 443 : 80);
+    final port = uri.port != 0 ? uri.port : (uri.scheme == 'https' ? 443 : 80);
     final stopwatch = Stopwatch()..start();
     if (uri.scheme == 'https') {
       final socket = await SecureSocket.connect(

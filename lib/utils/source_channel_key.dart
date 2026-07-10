@@ -2,10 +2,7 @@ class SourceChannelKey {
   final String sourceName;
   final BigInt? channelIndex;
 
-  const SourceChannelKey({
-    required this.sourceName,
-    this.channelIndex,
-  });
+  const SourceChannelKey({required this.sourceName, this.channelIndex});
 
   static const int _nullChannelIndex = -1;
 

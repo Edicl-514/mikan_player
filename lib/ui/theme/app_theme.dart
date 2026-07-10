@@ -51,20 +51,30 @@ class AppTheme {
 
     ColorScheme finalColorScheme = useMaterial3Color
         ? colorScheme
-        : colorScheme.copyWith(
-            primary: seedColor,
-          );
+        : colorScheme.copyWith(primary: seedColor);
 
     if (pureBackground) {
-      final pureBgColor = brightness == Brightness.light ? Colors.white : Colors.black;
-      final pureSurfaceColor = brightness == Brightness.light ? Colors.white : const Color(0xFF121212);
+      final pureBgColor = brightness == Brightness.light
+          ? Colors.white
+          : Colors.black;
+      final pureSurfaceColor = brightness == Brightness.light
+          ? Colors.white
+          : const Color(0xFF121212);
       finalColorScheme = finalColorScheme.copyWith(
         surface: pureSurfaceColor,
         surfaceContainerLowest: pureBgColor,
-        surfaceContainerLow: brightness == Brightness.light ? const Color(0xFFF7F7F7) : const Color(0xFF1C1C1C),
-        surfaceContainer: brightness == Brightness.light ? const Color(0xFFF0F0F0) : const Color(0xFF242424),
-        surfaceContainerHigh: brightness == Brightness.light ? const Color(0xFFE8E8E8) : const Color(0xFF2C2C2C),
-        surfaceContainerHighest: brightness == Brightness.light ? const Color(0xFFE0E0E0) : const Color(0xFF333333),
+        surfaceContainerLow: brightness == Brightness.light
+            ? const Color(0xFFF7F7F7)
+            : const Color(0xFF1C1C1C),
+        surfaceContainer: brightness == Brightness.light
+            ? const Color(0xFFF0F0F0)
+            : const Color(0xFF242424),
+        surfaceContainerHigh: brightness == Brightness.light
+            ? const Color(0xFFE8E8E8)
+            : const Color(0xFF2C2C2C),
+        surfaceContainerHighest: brightness == Brightness.light
+            ? const Color(0xFFE0E0E0)
+            : const Color(0xFF333333),
       );
     }
 
@@ -85,7 +95,12 @@ class AppTheme {
 
   static List<String>? get _platformFontFamilyFallback {
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
-      return const ['Microsoft YaHei UI', 'Microsoft YaHei', 'SimHei', 'SimSun'];
+      return const [
+        'Microsoft YaHei UI',
+        'Microsoft YaHei',
+        'SimHei',
+        'SimSun',
+      ];
     }
     return null;
   }

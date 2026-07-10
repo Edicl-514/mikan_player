@@ -83,7 +83,9 @@ class _FavoritesPageState extends State<FavoritesPage>
       final apiHost = await BangumiUrlRewriter.hostFor('api');
       String rewrite(String url) {
         if (url.isEmpty) return url;
-        return BangumiUrlRewriter.rewrite(url).replaceFirst('api.bgm.tv', apiHost);
+        return BangumiUrlRewriter.rewrite(
+          url,
+        ).replaceFirst('api.bgm.tv', apiHost);
       }
 
       final collections = raw

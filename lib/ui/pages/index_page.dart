@@ -88,16 +88,49 @@ class _IndexPageState extends State<IndexPage> {
 
   static const List<String> _yearOptions = [
     '不限',
-    '2026', '2025', '2024', '2023', '2022', '2021', '2020',
-    '2019', '2018', '2017', '2016', '2015', '2014', '2013',
-    '2012', '2011', '2010', '2009', '2008', '2007', '2006',
-    '2005', '2004', '2003', '2002', '2001', '2000',
+    '2026',
+    '2025',
+    '2024',
+    '2023',
+    '2022',
+    '2021',
+    '2020',
+    '2019',
+    '2018',
+    '2017',
+    '2016',
+    '2015',
+    '2014',
+    '2013',
+    '2012',
+    '2011',
+    '2010',
+    '2009',
+    '2008',
+    '2007',
+    '2006',
+    '2005',
+    '2004',
+    '2003',
+    '2002',
+    '2001',
+    '2000',
   ];
 
   static const List<String> _monthOptions = [
     '全部',
-    '1月', '2月', '3月', '4月', '5月', '6月',
-    '7月', '8月', '9月', '10月', '11月', '12月',
+    '1月',
+    '2月',
+    '3月',
+    '4月',
+    '5月',
+    '6月',
+    '7月',
+    '8月',
+    '9月',
+    '10月',
+    '11月',
+    '12月',
   ];
 
   List<RankingAnime> _animes = [];
@@ -129,7 +162,9 @@ class _IndexPageState extends State<IndexPage> {
 
   @override
   void dispose() {
-    BangumiRequestModeService.notifier.removeListener(_handleRequestModeChanged);
+    BangumiRequestModeService.notifier.removeListener(
+      _handleRequestModeChanged,
+    );
     _scrollController.dispose();
     super.dispose();
   }
@@ -300,12 +335,15 @@ class _IndexPageState extends State<IndexPage> {
   ) {
     if (previous == next) return;
 
-    if (previous == BangumiRequestMode.legacy && next != BangumiRequestMode.legacy) {
+    if (previous == BangumiRequestMode.legacy &&
+        next != BangumiRequestMode.legacy) {
       final selectedType = _selections['类型'];
       _selectedTypeTags
         ..clear()
         ..addAll(
-          selectedType != null && selectedType != '全部' ? [selectedType] : const [],
+          selectedType != null && selectedType != '全部'
+              ? [selectedType]
+              : const [],
         );
 
       final legacyYear = _selectedYear;
@@ -331,7 +369,8 @@ class _IndexPageState extends State<IndexPage> {
       return;
     }
 
-    if (previous != BangumiRequestMode.legacy && next == BangumiRequestMode.legacy) {
+    if (previous != BangumiRequestMode.legacy &&
+        next == BangumiRequestMode.legacy) {
       final orderedTags = _orderedSelectedTypeTags();
       _selections['类型'] = orderedTags.isEmpty ? '全部' : orderedTags.first;
 
@@ -424,7 +463,8 @@ class _IndexPageState extends State<IndexPage> {
       return;
     }
 
-    if (_timePanelMode == _TimePanelMode.range && _supportsAdvancedBrowserFilters) {
+    if (_timePanelMode == _TimePanelMode.range &&
+        _supportsAdvancedBrowserFilters) {
       setState(() {
         _selectedYear = value;
         _selectedMonth = '全部';
@@ -452,7 +492,8 @@ class _IndexPageState extends State<IndexPage> {
       return;
     }
 
-    if (_timePanelMode == _TimePanelMode.range && _supportsAdvancedBrowserFilters) {
+    if (_timePanelMode == _TimePanelMode.range &&
+        _supportsAdvancedBrowserFilters) {
       if (value == '全部') {
         if (_selectedYear != '不限') {
           _onTimePanelYearSelected(_selectedYear);
@@ -585,16 +626,15 @@ class _IndexPageState extends State<IndexPage> {
     return '${_rangeStart!.displayLabel} - ${_rangeEnd!.displayLabel}';
   }
 
-  ({
-    bool isSelected,
-    bool isInRange,
-    bool isBoundary,
-  }) _chipHighlightState(String label, String option) {
+  ({bool isSelected, bool isInRange, bool isBoundary}) _chipHighlightState(
+    String label,
+    String option,
+  ) {
     final isSelected = label == '时间'
         ? _selectedYear == option
         : label == '月份'
-            ? _selectedMonth == option
-            : _selections[label] == option;
+        ? _selectedMonth == option
+        : _selections[label] == option;
 
     if (!_supportsAdvancedBrowserFilters ||
         (_rangeStart == null && _rangeEnd == null)) {
@@ -711,8 +751,7 @@ class _IndexPageState extends State<IndexPage> {
                 _buildTimeButtonRow(context),
                 if (_timePanelOpen) ...[
                   _buildTimePanelYearRow(context),
-                  if (showMonthFilter)
-                    _buildTimePanelMonthRow(context),
+                  if (showMonthFilter) _buildTimePanelMonthRow(context),
                   if (_supportsAdvancedBrowserFilters &&
                       _rangeStart != null &&
                       _rangeEnd != null)
@@ -930,7 +969,9 @@ class _IndexPageState extends State<IndexPage> {
               decoration: BoxDecoration(
                 color: hasTimeFilter
                     ? colorScheme.secondaryContainer
-                    : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    : colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.5,
+                      ),
                 borderRadius: BorderRadius.circular(12),
                 border: _timePanelOpen
                     ? Border.all(
@@ -946,7 +987,9 @@ class _IndexPageState extends State<IndexPage> {
                     displayText,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: hasTimeFilter ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: hasTimeFilter
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       color: hasTimeFilter
                           ? colorScheme.onSecondaryContainer
                           : colorScheme.onSurface,
@@ -993,7 +1036,9 @@ class _IndexPageState extends State<IndexPage> {
 
     final chips = _yearOptions.map((option) {
       final isSelected = _selectedYear == option;
-      final highlightState = _timePanelMode == _TimePanelMode.range && _supportsAdvancedBrowserFilters
+      final highlightState =
+          _timePanelMode == _TimePanelMode.range &&
+              _supportsAdvancedBrowserFilters
           ? _chipHighlightState('时间', option)
           : (isSelected: isSelected, isInRange: false, isBoundary: false);
       final isInRange = highlightState.isInRange;
@@ -1075,7 +1120,9 @@ class _IndexPageState extends State<IndexPage> {
 
     final chips = _monthOptions.map((option) {
       final isSelected = _selectedMonth == option;
-      final highlightState = _timePanelMode == _TimePanelMode.range && _supportsAdvancedBrowserFilters
+      final highlightState =
+          _timePanelMode == _TimePanelMode.range &&
+              _supportsAdvancedBrowserFilters
           ? _chipHighlightState('月份', option)
           : (isSelected: isSelected, isInRange: false, isBoundary: false);
       final isInRange = highlightState.isInRange;
@@ -1319,7 +1366,4 @@ class _YearMonthFilterValue implements Comparable<_YearMonthFilterValue> {
   int get hashCode => Object.hash(year, month);
 }
 
-enum _TimePanelMode {
-  point,
-  range,
-}
+enum _TimePanelMode { point, range }

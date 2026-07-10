@@ -143,10 +143,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     final useReverseProxy =
         prefs.getBool(BangumiReverseProxyService.preferenceKey) ?? false;
 
-    await prefs.setString(
-      'playback_sub_url',
-      _playbackSubController.text,
-    );
+    await prefs.setString('playback_sub_url', _playbackSubController.text);
     await prefs.setStringList('disabled_sources', _disabledSources.toList());
 
     // Sync to Rust

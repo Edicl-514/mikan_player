@@ -18,8 +18,7 @@ Future<void> launchBangumiSiteUrl(String url) async {
       debugPrint('Refusing to launch non-HTTP URL: $url');
       return;
     }
-    final launched =
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched) {
       debugPrint('launchUrl returned false for $url');
     }

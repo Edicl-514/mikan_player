@@ -140,8 +140,7 @@ void main() {
       expect(stats.captchaJobTimedOut, 1);
     });
 
-    test('onBrowserWorkerKindSwitched increments only kind switch counter',
-        () {
+    test('onBrowserWorkerKindSwitched increments only kind switch counter', () {
       final stats = WebViewSchedulerStats();
       stats.onBrowserWorkerCreated('w0');
       stats.onBrowserWorkerKindSwitched(0, WebViewJobKind.captcha);
@@ -205,15 +204,16 @@ void main() {
     final extractor = WebViewVideoExtractor();
 
     test('isVideoUrl returns true for m3u8 / mp4 / image / akamaized', () {
-      expect(extractor.isVideoUrl('https://cdn.example.com/playlist.m3u8'), isTrue);
+      expect(
+        extractor.isVideoUrl('https://cdn.example.com/playlist.m3u8'),
+        isTrue,
+      );
       expect(
         extractor.isVideoUrl('https://cdn.example.com/stream.mp4?token=abc'),
         isTrue,
       );
       expect(
-        extractor.isVideoUrl(
-          'https://cdn.example.com/play.image?key=xyz',
-        ),
+        extractor.isVideoUrl('https://cdn.example.com/play.image?key=xyz'),
         isTrue,
       );
       expect(
@@ -229,19 +229,16 @@ void main() {
     test('isVideoUrl returns false for non-video URLs', () {
       expect(extractor.isVideoUrl('https://example.com/index.html'), isFalse);
       expect(extractor.isVideoUrl('https://example.com/style.css'), isFalse);
-      expect(
-        extractor.isVideoUrl('https://example.com/img.png'),
-        isFalse,
-      );
+      expect(extractor.isVideoUrl('https://example.com/img.png'), isFalse);
       expect(extractor.isVideoUrl('https://example.com/main.js'), isFalse);
     });
 
     test('matchesCustomRegex honors empty/sentinel regex', () {
-      expect(extractor.matchesCustomRegex('https://example.com', null), isFalse);
       expect(
-        extractor.matchesCustomRegex('https://example.com', ''),
+        extractor.matchesCustomRegex('https://example.com', null),
         isFalse,
       );
+      expect(extractor.matchesCustomRegex('https://example.com', ''), isFalse);
       expect(
         extractor.matchesCustomRegex('https://example.com', r'$^'),
         isFalse,

@@ -68,7 +68,9 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   void dispose() {
-    BangumiRequestModeService.notifier.removeListener(_handleRequestModeChanged);
+    BangumiRequestModeService.notifier.removeListener(
+      _handleRequestModeChanged,
+    );
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -237,7 +239,8 @@ class _SearchPageState extends State<SearchPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final sortOptions = _buildSortOptions(l10n);
-    final effectiveSortType = sortOptions.any((option) => option.value == _sortType)
+    final effectiveSortType =
+        sortOptions.any((option) => option.value == _sortType)
         ? _sortType
         : (sortOptions.isEmpty ? _sortType : sortOptions.first.value);
 
@@ -287,7 +290,11 @@ class _SearchPageState extends State<SearchPage> {
                 child: Row(
                   children: [
                     if (_searchMode == SearchMode.keyword)
-                      Icon(Icons.check, size: 18, color: Theme.of(context).colorScheme.primary)
+                      Icon(
+                        Icons.check,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
                     else
                       const SizedBox(width: 18),
                     const SizedBox(width: 12),
@@ -300,7 +307,11 @@ class _SearchPageState extends State<SearchPage> {
                 child: Row(
                   children: [
                     if (_searchMode == SearchMode.tag)
-                      Icon(Icons.check, size: 18, color: Theme.of(context).colorScheme.primary)
+                      Icon(
+                        Icons.check,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
                     else
                       const SizedBox(width: 18),
                     const SizedBox(width: 12),
@@ -325,7 +336,11 @@ class _SearchPageState extends State<SearchPage> {
                       child: Row(
                         children: [
                           if (option.value == effectiveSortType)
-                            Icon(Icons.check, size: 18, color: Theme.of(context).colorScheme.primary)
+                            Icon(
+                              Icons.check,
+                              size: 18,
+                              color: Theme.of(context).colorScheme.primary,
+                            )
                           else
                             const SizedBox(width: 18),
                           const SizedBox(width: 12),
@@ -455,11 +470,7 @@ extension on SearchMode {
           page: page,
         );
       case SearchMode.tag:
-        return searchBangumiTag(
-          tag: keyword,
-          sortType: sortType,
-          page: page,
-        );
+        return searchBangumiTag(tag: keyword, sortType: sortType, page: page);
     }
   }
 }

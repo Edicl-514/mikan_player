@@ -73,9 +73,11 @@ class _HistoryPageState extends State<HistoryPage> {
     final playableEpisodes = episodes.releasedEpisodes();
     if (playableEpisodes.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).cannotLoadEpisodes)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).cannotLoadEpisodes),
+          ),
+        );
       }
       return;
     }
@@ -85,7 +87,9 @@ class _HistoryPageState extends State<HistoryPage> {
     if (byId.isNotEmpty) {
       currentEpisode = byId.first;
     } else {
-      final bySort = playableEpisodes.where((e) => e.sort == item.episodeSort).toList();
+      final bySort = playableEpisodes
+          .where((e) => e.sort == item.episodeSort)
+          .toList();
       if (bySort.isNotEmpty) {
         currentEpisode = bySort.first;
       }

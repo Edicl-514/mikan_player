@@ -17,7 +17,9 @@ extension BangumiEpisodeFilter on BangumiEpisode {
 
 extension BangumiEpisodeFilterList on Iterable<BangumiEpisode> {
   List<BangumiEpisode> releasedEpisodes() {
-    return withoutPhantomEpisodes().where((episode) => episode.isReleased()).toList();
+    return withoutPhantomEpisodes()
+        .where((episode) => episode.isReleased())
+        .toList();
   }
 
   /// Removes phantom episodes returned by the Bangumi API: entries that share

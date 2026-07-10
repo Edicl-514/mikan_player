@@ -24,7 +24,6 @@ import 'tag_browse_page.dart';
 import 'character_detail_page.dart';
 import 'person_detail_page.dart';
 
-
 class BangumiDetailsPage extends StatefulWidget {
   final AnimeInfo anime;
   final String? heroTag;
@@ -367,7 +366,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
     return AnimeInfo(
       title: widget.anime.title,
-      subTitle: currentNameCn.isNotEmpty ? currentNameCn : widget.anime.subTitle,
+      subTitle: currentNameCn.isNotEmpty
+          ? currentNameCn
+          : widget.anime.subTitle,
       bangumiId: widget.anime.bangumiId,
       mikanId: widget.anime.mikanId,
       coverUrl: widget.anime.coverUrl,
@@ -1126,9 +1127,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               final subjectId = widget.anime.bangumiId;
               if (subjectId != null) {
                 final mainHost = await BangumiUrlRewriter.hostFor('main');
-                final url =
-                    BangumiUrlRewriter.rewrite("https://bgm.tv/subject/$subjectId")
-                        .replaceFirst('bgm.tv', mainHost);
+                final url = BangumiUrlRewriter.rewrite(
+                  "https://bgm.tv/subject/$subjectId",
+                ).replaceFirst('bgm.tv', mainHost);
                 await Clipboard.setData(ClipboardData(text: url));
                 if (!mounted) return;
                 setState(() {
@@ -1412,7 +1413,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                           if (_sites != null && _sites!.isNotEmpty) ...[
                             const SizedBox(height: 32),
                             _buildSitesSection(context, isDarkBg: true),
-                          ] else if (_relations == null || _relations!.isEmpty) ...[
+                          ] else if (_relations == null ||
+                              _relations!.isEmpty) ...[
                             const SizedBox(height: 32),
                           ],
 
@@ -2329,9 +2331,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: epBorderColor,
-                        ),
+                        border: Border.all(color: epBorderColor),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2376,10 +2376,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                           if (ep.airdate.isNotEmpty)
                             Text(
                               ep.airdate,
-                              style: TextStyle(
-                                fontSize: 9,
-                                color: epDateColor,
-                              ),
+                              style: TextStyle(fontSize: 9, color: epDateColor),
                             ),
                         ],
                       ),
@@ -2819,7 +2816,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (var index = 0; index < _sortedSites!.length; index++) ...[
+                    for (
+                      var index = 0;
+                      index < _sortedSites!.length;
+                      index++
+                    ) ...[
                       if (index > 0) const SizedBox(width: 12),
                       _buildSiteCard(
                         context,
@@ -2859,8 +2860,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       return;
     }
     _sortedSites = [..._sites!]
-      ..sort((a, b) => _siteKindPriority(a.kind)
-          .compareTo(_siteKindPriority(b.kind)));
+      ..sort(
+        (a, b) =>
+            _siteKindPriority(a.kind).compareTo(_siteKindPriority(b.kind)),
+      );
   }
 
   String _siteKindLabel(String kind) {
@@ -2926,8 +2929,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     required Color borderColor,
     required bool isDarkBg,
   }) {
-    final fallbackColor =
-        isDarkBg ? Colors.white24 : Colors.grey[400]!;
+    final fallbackColor = isDarkBg ? Colors.white24 : Colors.grey[400]!;
     return GestureDetector(
       onTap: () => launchBangumiSiteUrl(site.url),
       child: SizedBox(
@@ -2954,10 +2956,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   Positioned(
                     right: 4,
                     top: 4,
-                    child: _buildSiteKindBadge(
-                      site.kind,
-                      isDarkBg: isDarkBg,
-                    ),
+                    child: _buildSiteKindBadge(site.kind, isDarkBg: isDarkBg),
                   ),
                 ],
               ),

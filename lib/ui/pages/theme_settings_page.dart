@@ -173,8 +173,8 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: AppTheme.presetColors.map((color) {
-                  final isSelected = _settingsService.seedColor.toARGB32() ==
-                      color.toARGB32();
+                  final isSelected =
+                      _settingsService.seedColor.toARGB32() == color.toARGB32();
                   return Padding(
                     padding: const EdgeInsets.only(right: 12),
                     child: GestureDetector(
@@ -192,7 +192,9 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
                           shape: BoxShape.circle,
                           border: isSelected
                               ? Border.all(
-                                  color: Theme.of(context).colorScheme.onSurface,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                   width: 3,
                                 )
                               : null,

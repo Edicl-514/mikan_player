@@ -136,9 +136,7 @@ class _TimeTablePageState extends State<TimeTablePage>
     try {
       // 1. 获取基础时间表数据（三级优先策略）
       final cache = CacheManager.instance;
-      final cachedData = await cache.getTimetable(
-        quarter: yearQuarter,
-      );
+      final cachedData = await cache.getTimetable(quarter: yearQuarter);
 
       if (!mounted) return;
 
@@ -353,7 +351,8 @@ class _TimeTablePageState extends State<TimeTablePage>
             MaterialPageRoute(
               builder: (context) => BangumiDetailsPage(
                 anime: anime,
-                heroTag: 'timetable_cover_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
+                heroTag:
+                    'timetable_cover_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
               ),
             ),
           );

@@ -1030,7 +1030,9 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Row(
@@ -1065,7 +1067,9 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(
@@ -1202,9 +1206,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
             onPressed: () async {
               final success = await _downloadManager.pauseTask(task.id);
               if (mounted && !success) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(AppLocalizations.of(context).pauseFailed),
                   ),
@@ -1219,9 +1221,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
             onPressed: () async {
               final success = await _downloadManager.resumeTask(task.id);
               if (mounted && !success) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(AppLocalizations.of(context).resumeFailed),
                   ),
@@ -1252,10 +1252,10 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
     final streamUrl = await _downloadManager.getOrCreateStreamUrl(task.id);
     if (streamUrl == null) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).cannotGetPlaybackUrl)),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).cannotGetPlaybackUrl),
+          ),
         );
       }
       return;
@@ -1341,9 +1341,11 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
 
     if (currentEpisode == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).cannotLoadEpisodes)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).cannotLoadEpisodes),
+        ),
+      );
       return;
     }
 

@@ -138,9 +138,7 @@ class WebViewSchedulerStats {
   // ---------------- 验证码 widget 生命周期 ----------------
   void onCaptchaWidgetCreated(String? jobKey) {
     captchaWidgetCreations++;
-    _log(
-      'CAPTCHA widget created (#$captchaWidgetCreations) jobKey=$jobKey',
-    );
+    _log('CAPTCHA widget created (#$captchaWidgetCreations) jobKey=$jobKey');
   }
 
   void onCaptchaWidgetDisposed(String? jobKey) {
@@ -154,9 +152,7 @@ class WebViewSchedulerStats {
   // ---------------- 统一 Browser worker (5B step 2) ----------------
   void onBrowserWorkerCreated(String workerKey) {
     browserWorkerCreations++;
-    _log(
-      'BROWSER worker created (#$browserWorkerCreations) key=$workerKey',
-    );
+    _log('BROWSER worker created (#$browserWorkerCreations) key=$workerKey');
   }
 
   void onBrowserWorkerDisposed(String workerKey) {

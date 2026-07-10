@@ -64,9 +64,14 @@ class VideoExtractionJobRunner {
 
   /// True after [dispose] has been called. Mirrors the old State flag so
   /// async callbacks can short-circuit cleanly.
-  bool get isDisposed => _timeoutTimer == null && _currentJob == null &&
-      _webViewController == null && _isCompleted && _capturedUrls.isEmpty &&
-      _cookiesWrittenToJar.isEmpty && _navigationCount == 0 &&
+  bool get isDisposed =>
+      _timeoutTimer == null &&
+      _currentJob == null &&
+      _webViewController == null &&
+      _isCompleted &&
+      _capturedUrls.isEmpty &&
+      _cookiesWrittenToJar.isEmpty &&
+      _navigationCount == 0 &&
       _totalUrlsChecked == 0;
 
   VideoExtractionJob? get currentJob => _currentJob;
@@ -217,10 +222,7 @@ class VideoExtractionJobRunner {
     }
   }
 
-  void onReceivedError(
-    WebResourceRequest request,
-    WebResourceError error,
-  ) {
+  void onReceivedError(WebResourceRequest request, WebResourceError error) {
     if (request.isForMainFrame ?? false) {
       _log('Page error: ${error.description} (URL: ${request.url})');
     }
@@ -267,8 +269,10 @@ class VideoExtractionJobRunner {
     _isCompleted = true;
     _timeoutTimer?.cancel();
     _quietCurrentPage();
-    _log('🎉 Extraction complete! videoUrl=${result.videoUrl}, '
-        'error=${result.error}');
+    _log(
+      '🎉 Extraction complete! videoUrl=${result.videoUrl}, '
+      'error=${result.error}',
+    );
     sink.onResult?.call(job.jobKey, result);
     sink.onIdle?.call(workerId);
   }
@@ -310,7 +314,8 @@ class VideoExtractionJobRunner {
       _complete(
         token,
         VideoExtractResult(
-          error: 'Extraction timed out after ${job.timeout.inSeconds}s '
+          error:
+              'Extraction timed out after ${job.timeout.inSeconds}s '
               'without finding a video URL '
               '($_totalUrlsChecked URLs checked)',
           timedOut: true,
@@ -345,8 +350,9 @@ class VideoExtractionJobRunner {
     if (!merged.containsKey('Referer') && !merged.containsKey('referer')) {
       final uri = Uri.tryParse(job.url);
       if (uri != null && uri.scheme.isNotEmpty && uri.host.isNotEmpty) {
-        merged['Referer'] =
-            uri.origin.endsWith('/') ? uri.origin : '${uri.origin}/';
+        merged['Referer'] = uri.origin.endsWith('/')
+            ? uri.origin
+            : '${uri.origin}/';
       }
     }
     return merged;
@@ -548,8 +554,10 @@ class VideoExtractionJobRunner {
         return false;
       }
       if (_navigationCount >= 3) {
-        _log('⚠️ Maximum navigation attempts ($_navigationCount) reached, '
-            'ignoring nested URL: $url');
+        _log(
+          '⚠️ Maximum navigation attempts ($_navigationCount) reached, '
+          'ignoring nested URL: $url',
+        );
         return false;
       }
 
@@ -560,8 +568,10 @@ class VideoExtractionJobRunner {
       final navigationUrl = extractedNestedUrl ?? url;
 
       _navigationCount++;
-      _log('🎬 matchNestedUrl matched nested URL '
-          '(attempt $_navigationCount): $url');
+      _log(
+        '🎬 matchNestedUrl matched nested URL '
+        '(attempt $_navigationCount): $url',
+      );
       _log('   Extracted nested URL: $navigationUrl');
       _log('   Navigating to intercept inner video requests...');
       final controller = _webViewController;
@@ -590,8 +600,10 @@ class VideoExtractionJobRunner {
         if (extractedUrl != null &&
             extractedUrl.isNotEmpty &&
             extractedUrl != url) {
-          _log('🎯 Extracted video URL via custom regex on parser URL: '
-              '$extractedUrl');
+          _log(
+            '🎯 Extracted video URL via custom regex on parser URL: '
+            '$extractedUrl',
+          );
           _complete(
             token,
             VideoExtractResult(videoUrl: extractedUrl, headers: finalHeaders),
@@ -607,8 +619,10 @@ class VideoExtractionJobRunner {
         return false;
       }
       if (_navigationCount >= 3) {
-        _log('⚠️ Maximum navigation attempts ($_navigationCount) reached, '
-            'ignoring parser: $url');
+        _log(
+          '⚠️ Maximum navigation attempts ($_navigationCount) reached, '
+          'ignoring parser: $url',
+        );
         return false;
       }
       _navigationCount++;
@@ -782,11 +796,7 @@ class VideoExtractionJobRunner {
 /// runner is portable across the current [ReusableWebViewVideoExtractor] and
 /// the future [ReusableBrowserWorker].
 class VideoExtractionJobSink {
-  VideoExtractionJobSink({
-    this.onResult,
-    this.onIdle,
-    this.onLog,
-  });
+  VideoExtractionJobSink({this.onResult, this.onIdle, this.onLog});
 
   final void Function(String pageKey, VideoExtractResult result)? onResult;
   final void Function(int workerId)? onIdle;

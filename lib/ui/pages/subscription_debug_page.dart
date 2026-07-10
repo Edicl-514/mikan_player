@@ -49,7 +49,10 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
   Map<String, String> _extractHeaders = const {};
 
   String _buildSourceChannelKey(String sourceName, BigInt? channelIndex) {
-    return SourceChannelKey(sourceName: sourceName, channelIndex: channelIndex).toPageKey();
+    return SourceChannelKey(
+      sourceName: sourceName,
+      channelIndex: channelIndex,
+    ).toPageKey();
   }
 
   Map<String, String> _buildProbeHeaders(
@@ -80,7 +83,10 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       return;
     }
 
-    final sourceKey = _buildSourceChannelKey(source.sourceName, source.channelIndex);
+    final sourceKey = _buildSourceChannelKey(
+      source.sourceName,
+      source.channelIndex,
+    );
     if (_probingSourceKeys.contains(sourceKey)) {
       return;
     }
@@ -262,9 +268,11 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
     final animeName = _animeNameController.text.trim();
 
     if (animeName.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).pleaseEnterAnimeName)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).pleaseEnterAnimeName),
+        ),
+      );
       return;
     }
 
@@ -273,9 +281,13 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
     );
     if (_absoluteEpisodeController.text.trim().isNotEmpty &&
         absoluteEpisode == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).absoluteEpisodeMustBeInteger)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).absoluteEpisodeMustBeInteger,
+          ),
+        ),
+      );
       return;
     }
 
@@ -284,16 +296,24 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
     );
     if (_relativeEpisodeController.text.trim().isNotEmpty &&
         relativeEpisode == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).relativeEpisodeMustBeInteger)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).relativeEpisodeMustBeInteger,
+          ),
+        ),
+      );
       return;
     }
 
     if ((absoluteEpisode ?? 1) <= 0 || (relativeEpisode ?? 1) <= 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).episodeMustBeGreaterThanZero)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).episodeMustBeGreaterThanZero,
+          ),
+        ),
+      );
       return;
     }
 
@@ -306,10 +326,10 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context).loadFailed(e.toString()))),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).loadFailed(e.toString())),
+        ),
       );
       return;
     }
@@ -781,7 +801,12 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       runSpacing: 8,
       children: [
         _buildSummaryChip(context, l10n.sourceCount, '${progresses.length}'),
-        _buildSummaryChip(context, l10n.success, '$successCount', color: Colors.green),
+        _buildSummaryChip(
+          context,
+          l10n.success,
+          '$successCount',
+          color: Colors.green,
+        ),
         _buildSummaryChip(
           context,
           l10n.failure,
@@ -874,12 +899,18 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               children: [
                 const SizedBox(height: 4),
                 Text(
-                  AppLocalizations.of(context).debugStatus(_stepLabel(result.step)),
+                  AppLocalizations.of(
+                    context,
+                  ).debugStatus(_stepLabel(result.step)),
                   style: TextStyle(color: stepColor),
                 ),
                 if (result.channelName != null &&
                     result.channelName!.isNotEmpty)
-                  Text(AppLocalizations.of(context).channelLine(result.channelName!)),
+                  Text(
+                    AppLocalizations.of(
+                      context,
+                    ).channelLine(result.channelName!),
+                  ),
                 if (result.playPageUrl != null &&
                     result.playPageUrl!.isNotEmpty)
                   Text(
@@ -976,7 +1007,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             const SizedBox(height: 6),
             Text('来源: ${_extractTarget!.sourceName}'),
             Text(
-              AppLocalizations.of(context).playPage(_extractTarget!.playPageUrl),
+              AppLocalizations.of(
+                context,
+              ).playPage(_extractTarget!.playPageUrl),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -987,7 +1020,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  AppLocalizations.of(context).extractFailed(_extractError ?? ''),
+                  AppLocalizations.of(
+                    context,
+                  ).extractFailed(_extractError ?? ''),
                   style: const TextStyle(color: Colors.redAccent),
                 ),
               ),
@@ -998,9 +1033,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SelectableText(
-                      AppLocalizations.of(context).extractSuccess(
-                        _extractedVideoUrl ?? '',
-                      ),
+                      AppLocalizations.of(
+                        context,
+                      ).extractSuccess(_extractedVideoUrl ?? ''),
                       style: const TextStyle(color: Colors.green),
                     ),
                     const SizedBox(height: 4),
@@ -1011,7 +1046,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                           _extractTarget!.channelIndex,
                         );
                         final probeResult = _probeResultsByKey[sourceKey];
-                        final isProbing = _probingSourceKeys.contains(sourceKey);
+                        final isProbing = _probingSourceKeys.contains(
+                          sourceKey,
+                        );
                         return Text(
                           _probeStatusText(probeResult, isProbing: isProbing),
                           style: TextStyle(
@@ -1065,11 +1102,11 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                     _extractingSourceName = null;
                     _extractHeaders = result.headers;
                     if (result.success) {
-                       _extractedVideoUrl = result.videoUrl;
-                       _extractError = null;
-                       _appendLog(
-                         _extractLogs,
-                         '提取成功: ${result.videoUrl}',
+                      _extractedVideoUrl = result.videoUrl;
+                      _extractError = null;
+                      _appendLog(
+                        _extractLogs,
+                        '提取成功: ${result.videoUrl}',
                         maxLines: 120,
                       );
                     } else {
@@ -1079,10 +1116,12 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                         _extractLogs,
                         '提取失败: ${result.error}',
                         maxLines: 120,
-                        );
-                      }
+                      );
+                    }
                   });
-                  if (result.success && result.videoUrl != null && target != null) {
+                  if (result.success &&
+                      result.videoUrl != null &&
+                      target != null) {
                     final probeTarget = generic_scraper.SearchPlayResult(
                       sourceName: target.sourceName,
                       playPageUrl: target.playPageUrl,
@@ -1136,7 +1175,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
             ),
             child: SelectableText(
-              logs.isEmpty ? AppLocalizations.of(context).logsEmpty : logs.join('\n'),
+              logs.isEmpty
+                  ? AppLocalizations.of(context).logsEmpty
+                  : logs.join('\n'),
             ),
           ),
         ],

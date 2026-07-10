@@ -9,8 +9,7 @@ ScrollController createPlatformScrollController({
   bool keepScrollOffset = true,
   String? debugLabel,
 }) {
-  final isWindows =
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+  final isWindows = !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
   if (!isWindows) {
     return ScrollController(
       initialScrollOffset: initialScrollOffset,

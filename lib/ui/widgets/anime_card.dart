@@ -46,7 +46,9 @@ class AnimeCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              heroTag != null ? Hero(tag: heroTag!, child: _buildCover()) : _buildCover(),
+              heroTag != null
+                  ? Hero(tag: heroTag!, child: _buildCover())
+                  : _buildCover(),
               Positioned(
                 left: -1,
                 right: -1,
@@ -159,9 +161,15 @@ class AnimeCard extends StatelessWidget {
                   child: InkWell(
                     onTap: onTap,
                     borderRadius: BorderRadius.circular(_cardRadius),
-                    splashColor: theme.colorScheme.primary.withValues(alpha: 0.2),
-                    highlightColor: theme.colorScheme.primary.withValues(alpha: 0.08),
-                    hoverColor: theme.colorScheme.primary.withValues(alpha: 0.08),
+                    splashColor: theme.colorScheme.primary.withValues(
+                      alpha: 0.2,
+                    ),
+                    highlightColor: theme.colorScheme.primary.withValues(
+                      alpha: 0.08,
+                    ),
+                    hoverColor: theme.colorScheme.primary.withValues(
+                      alpha: 0.08,
+                    ),
                     mouseCursor: SystemMouseCursors.click,
                   ),
                 ),

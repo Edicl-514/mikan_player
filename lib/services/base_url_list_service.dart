@@ -71,10 +71,7 @@ class BaseUrlListService {
 
   /// Merges builtin + custom URLs, dropping any custom entry that duplicates a
   /// builtin (after normalisation).
-  static List<String> mergeUrls(
-    BaseUrlKind kind,
-    List<String> custom,
-  ) {
+  static List<String> mergeUrls(BaseUrlKind kind, List<String> custom) {
     final builtin = builtinFor(kind);
     final seen = <String>{};
     final result = <String>[];
@@ -103,8 +100,7 @@ class BaseUrlListService {
   /// Returns the currently selected URL, defaulting to the first builtin.
   static Future<String> getSelected(BaseUrlKind kind) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(selectedPrefKey[kind]!) ??
-        builtinFor(kind).first;
+    return prefs.getString(selectedPrefKey[kind]!) ?? builtinFor(kind).first;
   }
 
   /// Persists the selected URL (normalised).
@@ -115,10 +111,7 @@ class BaseUrlListService {
 
   /// Adds [url] to the custom list (if it is not a builtin and not already
   /// present). Returns the resulting merged list of all selectable URLs.
-  static Future<List<String>> addCustomUrl(
-    BaseUrlKind kind,
-    String url,
-  ) async {
+  static Future<List<String>> addCustomUrl(BaseUrlKind kind, String url) async {
     final cleaned = normalize(url);
     if (cleaned.isEmpty) return getAllUrls(kind);
     if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
@@ -158,10 +151,7 @@ class BaseUrlListService {
     // builtin so the runtime never points at a deleted entry.
     final selected = prefs.getString(selectedPrefKey[kind]!);
     if (selected != null && normalize(selected) == target) {
-      await prefs.setString(
-        selectedPrefKey[kind]!,
-        builtinFor(kind).first,
-      );
+      await prefs.setString(selectedPrefKey[kind]!, builtinFor(kind).first);
     }
     return mergeUrls(kind, updated);
   }

@@ -98,7 +98,9 @@ class VideoUrlProbeService {
           lowerContentType.contains('vnd.apple.mpegurl') ||
           looksLikePlaylist;
 
-      final playable = hasSuccessStatus && (looksLikeMedia || !_looksClearlyTextResponse(lowerContentType));
+      final playable =
+          hasSuccessStatus &&
+          (looksLikeMedia || !_looksClearlyTextResponse(lowerContentType));
       return VideoUrlProbeResult(
         playable: playable,
         statusCode: statusCode,

@@ -5,7 +5,8 @@ import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
 import 'package:mikan_player/services/bangumi_ech_service.dart';
 import 'package:intl/intl.dart';
-import 'package:mikan_player/src/rust/api/crawler.dart' show BangumiDataCacheStatus;
+import 'package:mikan_player/src/rust/api/crawler.dart'
+    show BangumiDataCacheStatus;
 import 'package:mikan_player/services/bangumi_data_service.dart';
 import 'package:mikan_player/services/base_url_list_service.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
@@ -64,15 +65,20 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     final results = await Future.wait([
       SharedPreferences.getInstance(),
       BangumiEchService.getDohEndpoints().catchError(
-          (_) => <String>[], test: (_) => true),
+        (_) => <String>[],
+        test: (_) => true,
+      ),
       _reloadKindQuiet(BaseUrlKind.bgmlist),
       _reloadKindQuiet(BaseUrlKind.bangumi),
       _reloadKindQuiet(BaseUrlKind.mikan),
       BangumiDataService.getStatus().catchError(
-          (_) => BangumiDataCacheStatus(
-                cached: false, fileSize: BigInt.zero, version: '',
-              ),
-          test: (_) => true),
+        (_) => BangumiDataCacheStatus(
+          cached: false,
+          fileSize: BigInt.zero,
+          version: '',
+        ),
+        test: (_) => true,
+      ),
     ]);
 
     final prefs = results[0] as SharedPreferences;
@@ -102,8 +108,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
       );
       _bangumiUseReverseProxy =
           prefs.getBool(BangumiReverseProxyService.preferenceKey) ?? false;
-      _bangumiUseEch =
-          prefs.getBool(BangumiEchService.preferenceKey) ?? true;
+      _bangumiUseEch = prefs.getBool(BangumiEchService.preferenceKey) ?? true;
       _dohEndpoints = dohList;
       _bangumiDataStatus = status;
       _isLoading = false;
@@ -192,8 +197,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
       } catch (_) {}
       if (mounted) {
         setState(() {
-          _bangumiDataRefreshResult =
-              ok ? '已更新离线放送数据' : '更新失败，请检查网络';
+          _bangumiDataRefreshResult = ok ? '已更新离线放送数据' : '更新失败，请检查网络';
           _bangumiDataStatus = status;
         });
       }
@@ -212,9 +216,9 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     if (raw.isEmpty) return;
     if (!raw.toLowerCase().startsWith('https://')) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.bangumiEchDohAddInvalid)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.bangumiEchDohAddInvalid)));
       }
       return;
     }
@@ -357,9 +361,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          l10n.fastestSourceSwitched(bestUrl, latency.toString()),
-        ),
+        content: Text(l10n.fastestSourceSwitched(bestUrl, latency.toString())),
       ),
     );
   }
@@ -398,8 +400,9 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
   void _resetDefaults() {
     setState(() {
       _selectedBgm = BaseUrlListService.builtinFor(BaseUrlKind.bgmlist).first;
-      _selectedBangumi =
-          BaseUrlListService.builtinFor(BaseUrlKind.bangumi).first;
+      _selectedBangumi = BaseUrlListService.builtinFor(
+        BaseUrlKind.bangumi,
+      ).first;
       _selectedMikan = BaseUrlListService.builtinFor(BaseUrlKind.mikan).first;
       _bangumiRequestMode = BangumiRequestMode.hybrid;
       _bangumiUseReverseProxy = false;
@@ -478,8 +481,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                   kind: BaseUrlKind.bgmlist,
                   allUrls: _allBgmUrls,
                   selectedUrl: _selectedBgm,
-                  onSelected: (url) =>
-                      setState(() => _selectedBgm = url),
+                  onSelected: (url) => setState(() => _selectedBgm = url),
                   onUrlsChanged: () => _reloadKind(BaseUrlKind.bgmlist),
                 ),
                 const SizedBox(height: 16),
@@ -503,10 +505,10 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                     onPressed: _isAutoSettingMikan
                         ? null
                         : () => _autoSelect(
-                              kind: BaseUrlKind.mikan,
-                              setBusy: (v) => _isAutoSettingMikan = v,
-                              setSelected: (url) => _selectedMikan = url,
-                            ),
+                            kind: BaseUrlKind.mikan,
+                            setBusy: (v) => _isAutoSettingMikan = v,
+                            setSelected: (url) => _selectedMikan = url,
+                          ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -519,8 +521,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                     kind: BaseUrlKind.bangumi,
                     allUrls: _allBangumiUrls,
                     selectedUrl: _selectedBangumi,
-                    onSelected: (url) =>
-                        setState(() => _selectedBangumi = url),
+                    onSelected: (url) => setState(() => _selectedBangumi = url),
                     onUrlsChanged: () => _reloadKind(BaseUrlKind.bangumi),
                     trailing: IconButton(
                       icon: _isAutoSettingBangumi
@@ -534,10 +535,10 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                       onPressed: _isAutoSettingBangumi
                           ? null
                           : () => _autoSelect(
-                                kind: BaseUrlKind.bangumi,
-                                setBusy: (v) => _isAutoSettingBangumi = v,
-                                setSelected: (url) => _selectedBangumi = url,
-                              ),
+                              kind: BaseUrlKind.bangumi,
+                              setBusy: (v) => _isAutoSettingBangumi = v,
+                              setSelected: (url) => _selectedBangumi = url,
+                            ),
                     ),
                   ),
                 const SizedBox(height: 24),
@@ -624,8 +625,9 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                               ? const SizedBox(
                                   height: 20,
                                   width: 20,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 )
                               : const Icon(Icons.chevron_right),
                           onTap: _isRefreshingEch ? null : _refreshEchConfig,
@@ -644,8 +646,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                     ),
                     title: const Text('离线放送数据'),
                     subtitle: Text(
-                      _bangumiDataRefreshResult ??
-                          _bangumiDataStatusSubtitle(),
+                      _bangumiDataRefreshResult ?? _bangumiDataStatusSubtitle(),
                       style: const TextStyle(fontSize: 12),
                     ),
                     trailing: _isRefreshingBangumiData
@@ -674,9 +675,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: Theme.of(context).dividerColor.withAlpha(50),
-        ),
+        side: BorderSide(color: Theme.of(context).dividerColor.withAlpha(50)),
       ),
       child: child,
     );
@@ -711,10 +710,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
           l10n.bangumiBaseUrlHidden,
           style: const TextStyle(fontSize: 12),
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 4,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       ),
     );
   }
@@ -853,9 +849,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
             IconButton(
               tooltip: l10n.bangumiEchDohRemove,
               icon: const Icon(Icons.delete_outline, size: 20),
-              onPressed: _isDohBusy
-                  ? null
-                  : () => _removeDohEndpoint(endpoint),
+              onPressed: _isDohBusy ? null : () => _removeDohEndpoint(endpoint),
             ),
           ],
         ),

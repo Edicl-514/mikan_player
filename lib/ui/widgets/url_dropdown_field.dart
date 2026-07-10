@@ -40,7 +40,9 @@ class UrlDropdownField extends StatelessWidget {
 
     final dropdown = DropdownButtonFormField<String>(
       key: ValueKey(effectiveSelected),
-      initialValue: allUrls.contains(effectiveSelected) ? effectiveSelected : null,
+      initialValue: allUrls.contains(effectiveSelected)
+          ? effectiveSelected
+          : null,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
@@ -59,10 +61,7 @@ class UrlDropdownField extends StatelessWidget {
           .map(
             (url) => DropdownMenuItem<String>(
               value: url,
-              child: Text(
-                url,
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: Text(url, overflow: TextOverflow.ellipsis),
             ),
           )
           .toList(),
@@ -82,10 +81,7 @@ class UrlDropdownField extends StatelessWidget {
       children: [
         Expanded(child: dropdown),
         const SizedBox(width: 8),
-        Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: trailing,
-        ),
+        Padding(padding: const EdgeInsets.only(top: 4), child: trailing),
       ],
     );
   }
@@ -142,19 +138,20 @@ class _UrlManageDialogState extends State<_UrlManageDialog> {
     final cleaned = BaseUrlListService.normalize(raw);
     if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.invalidUrl)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.invalidUrl)));
       }
       return;
     }
-    final alreadyExists = _urls.any((u) =>
-        BaseUrlListService.normalize(u) == cleaned);
+    final alreadyExists = _urls.any(
+      (u) => BaseUrlListService.normalize(u) == cleaned,
+    );
     if (alreadyExists) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.urlAlreadyExists)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.urlAlreadyExists)));
       }
       return;
     }
@@ -180,9 +177,9 @@ class _UrlManageDialogState extends State<_UrlManageDialog> {
   Future<void> _removeUrl(String url) async {
     if (BaseUrlListService.isBuiltin(widget.kind, url)) {
       final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.builtinUrlCannotRemove)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.builtinUrlCannotRemove)));
       return;
     }
     setState(() => _isBusy = true);
@@ -224,9 +221,7 @@ class _UrlManageDialogState extends State<_UrlManageDialog> {
                   );
                   return ListTile(
                     dense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
                     title: Text(
                       url,
                       overflow: TextOverflow.ellipsis,
@@ -239,10 +234,9 @@ class _UrlManageDialogState extends State<_UrlManageDialog> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .primary
-                                  .withAlpha(25),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withAlpha(25),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(

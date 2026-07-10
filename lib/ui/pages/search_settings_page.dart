@@ -39,7 +39,9 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _concurrencyController.text =
-          (prefs.getInt('max_concurrent_webviews') ?? PlayerPage.kDefaultMaxConcurrentWebViews).toString();
+          (prefs.getInt('max_concurrent_webviews') ??
+                  PlayerPage.kDefaultMaxConcurrentWebViews)
+              .toString();
       _intervalController.text =
           (prefs.getInt('webview_launch_interval') ?? 200).toString();
       _searchConcurrencyController.text =
@@ -53,7 +55,9 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
 
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    final concurrency = int.tryParse(_concurrencyController.text) ?? PlayerPage.kDefaultMaxConcurrentWebViews;
+    final concurrency =
+        int.tryParse(_concurrencyController.text) ??
+        PlayerPage.kDefaultMaxConcurrentWebViews;
     final interval = int.tryParse(_intervalController.text) ?? 200;
     final searchConcurrency =
         int.tryParse(_searchConcurrencyController.text) ?? 3;
@@ -63,7 +67,9 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
     await prefs.setInt('max_concurrent_searches', searchConcurrency);
     await prefs.setBool('auto_search_online', _autoSearchOnline);
     await prefs.setBool(
-        'cancel_low_priority_sources_on_play', _cancelLowPrioritySourcesOnPlay);
+      'cancel_low_priority_sources_on_play',
+      _cancelLowPrioritySourcesOnPlay,
+    );
 
     // Update Rust runtime config
     await simple.setMaxConcurrentSearches(limit: searchConcurrency);
