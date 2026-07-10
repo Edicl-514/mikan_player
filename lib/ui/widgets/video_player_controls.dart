@@ -13,6 +13,8 @@ import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/ui/widgets/danmaku_overlay.dart';
 import 'package:mikan_player/ui/widgets/danmaku_settings.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
+import 'package:mikan_player/ui/widgets/video_player_controls/mobile_floating_lock_button.dart';
+import 'package:mikan_player/ui/widgets/video_player_controls/system_time_display.dart';
 
 import 'package:screen_brightness/screen_brightness.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart';
@@ -628,7 +630,7 @@ class CustomVideoControls extends StatelessWidget {
 
   /// 构建系统时间显示组件 - 只在全屏时显示
   Widget _buildSystemTimeDisplay() {
-    return _SystemTimeDisplay();
+    return SystemTimeDisplay();
   }
 
   /// 构建风格统一的工具栏按钮
@@ -1375,7 +1377,7 @@ class _MobileGestureAndLockLayerState
             bottom: 0,
             child: SafeArea(
               child: Center(
-                child: _MobileFloatingLockButton(
+                child: MobileFloatingLockButton(
                   icon: Icons.lock_outline,
                   tooltip: '锁定',
                   onPressed: _handleLock,
@@ -1384,45 +1386,6 @@ class _MobileGestureAndLockLayerState
             ),
           ),
       ],
-    );
-  }
-}
-
-class _MobileFloatingLockButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  const _MobileFloatingLockButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onPressed,
-          child: Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.36),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.28),
-                width: 1,
-              ),
-            ),
-            child: Icon(icon, color: Colors.white, size: 28),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -3045,59 +3008,6 @@ class _SettingsPanelState extends State<_SettingsPanel> {
           ),
         );
       },
-    );
-  }
-}
-
-/// 系统时间显示组件 - 使用 StatefulWidget 避免 Stream 多次监听问题
-class _SystemTimeDisplay extends StatefulWidget {
-  const _SystemTimeDisplay();
-
-  @override
-  State<_SystemTimeDisplay> createState() => _SystemTimeDisplayState();
-}
-
-class _SystemTimeDisplayState extends State<_SystemTimeDisplay> {
-  late Timer _timer;
-  late String _timeStr;
-
-  @override
-  void initState() {
-    super.initState();
-    _updateTime();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
-  }
-
-  @override
-  void dispose() {
-    _timer.cancel();
-    super.dispose();
-  }
-
-  void _updateTime() {
-    final now = DateTime.now();
-    setState(() {
-      _timeStr =
-          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        _timeStr,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
     );
   }
 }
