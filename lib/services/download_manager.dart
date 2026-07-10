@@ -1,13 +1,26 @@
 import 'dart:async';
-import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:mikan_player/native/mikan_libtorrent_native.dart';
+import 'package:mikan_player/services/download/download_queue.dart';
+import 'package:mikan_player/services/download/download_task.dart';
+import 'package:mikan_player/services/download/magnet_helpers.dart';
 import 'package:mikan_player/utils/app_directories.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust_api;
+
+// Re-export the extracted model, enums, and helpers so existing
+// `import 'package:mikan_player/services/download_manager.dart';` callers
+// keep working unchanged.
+export 'package:mikan_player/services/download/download_task.dart'
+    show
+        DownloadTask,
+        DownloadTaskType,
+        DownloadTaskStatus,
+        BtBackendKind,
+        BtBackendKindX;
 
 /// Key for storing BT download tasks in SharedPreferences
 /// This key is NOT cleared by the cache clearing function
@@ -19,29 +32,6 @@ const String _uploadLimitKey = 'upload_limit_mbps';
 const String _allowBackgroundDownloadKey = 'allow_background_download';
 const String _keepSeedingInBackgroundKey = 'keep_seeding_in_background';
 const String _customDownloadDirKey = 'download_dir_custom';
-
-enum DownloadTaskType { bt, http }
-
-enum BtBackendKind { rqbit, libtorrent }
-
-extension BtBackendKindX on BtBackendKind {
-  String get storageValue => switch (this) {
-    BtBackendKind.rqbit => 'rqbit',
-    BtBackendKind.libtorrent => 'libtorrent',
-  };
-
-  String get label => switch (this) {
-    BtBackendKind.rqbit => 'rqbit',
-    BtBackendKind.libtorrent => 'libtorrent',
-  };
-
-  static BtBackendKind fromStorage(String? value) {
-    return switch (value) {
-      'libtorrent' => BtBackendKind.libtorrent,
-      _ => BtBackendKind.rqbit,
-    };
-  }
-}
 
 class _BackendStartResult {
   final String infoHash;
@@ -61,227 +51,6 @@ class _BackendStartResult {
     this.torrentId,
     this.streamId,
   });
-}
-
-/// High-quality public trackers to inject into magnet links.
-/// Kept intentionally short: every extra tracker has to be announced to on
-/// startup, which delays the first peer connection when many are slow or dead.
-/// Users get the rest through DHT + PEX + the magnet's own trackers.
-const List<String> _injectedTrackers = [
-  'udp://tracker.opentrackr.org:1337/announce',
-  'udp://open.demonii.com:1337/announce',
-  'udp://exodus.desync.com:6969/announce',
-  'udp://tracker.openbittorrent.com:6969/announce',
-  'udp://opentracker.i2p.rocks:6969/announce',
-  // Anime-friendly (kept minimal; many bangumi-specific trackers are unreliable)
-  'udp://tracker.doko.moe:6969/announce',
-];
-
-/// Inject [_injectedTrackers] into a magnet URI, skipping duplicates.
-String _injectTrackers(String magnet) {
-  var result = magnet;
-  for (final tracker in _injectedTrackers) {
-    final trParam = '&tr=$tracker';
-    if (!result.contains(trParam)) {
-      result = '$result$trParam';
-    }
-  }
-  return result;
-}
-
-/// Represents a download task
-class DownloadTask {
-  String id;
-  final String name;
-  final String magnet;
-  final String? animeName;
-  final int? episodeNumber;
-  final DateTime startTime;
-
-  DownloadTaskType taskType;
-  DownloadTaskStatus status;
-  double progress;
-  double downloadSpeed; // bytes per second
-  double uploadSpeed; // bytes per second
-  BigInt downloaded;
-  BigInt totalSize;
-  int peers;
-  String? streamUrl;
-  int? largestFileIdx; // Persisted so streamUrl can be recreated after restart.
-  String? largestFilePath;
-  BtBackendKind backend;
-  String? errorMessage;
-  String? downloadDir;
-
-  // HTTP-specific fields
-  String? videoUrl;
-  Map<String, String>? headers;
-  String? cookies;
-  String? localFilePath;
-
-  DownloadTask({
-    required this.id,
-    required this.name,
-    this.magnet = '',
-    this.animeName,
-    this.episodeNumber,
-    required this.startTime,
-    this.taskType = DownloadTaskType.bt,
-    this.status = DownloadTaskStatus.pending,
-    this.progress = 0.0,
-    this.downloadSpeed = 0.0,
-    this.uploadSpeed = 0.0,
-    BigInt? downloaded,
-    BigInt? totalSize,
-    this.peers = 0,
-    this.streamUrl,
-    this.largestFileIdx,
-    this.largestFilePath,
-    this.backend = BtBackendKind.rqbit,
-    this.errorMessage,
-    this.downloadDir,
-    this.videoUrl,
-    this.headers,
-    this.cookies,
-    this.localFilePath,
-  }) : downloaded = downloaded ?? BigInt.zero,
-       totalSize = totalSize ?? BigInt.zero;
-
-  /// Create from JSON (for persistence)
-  factory DownloadTask.fromJson(Map<String, dynamic> json) {
-    final id = json['id'] as String;
-    final statusIndex = json['status'] as int;
-    final largestFileIdx = (json['largestFileIdx'] as num?)?.toInt();
-    final backend = BtBackendKindX.fromStorage(json['backend'] as String?);
-    // Backward compatibility: old data without taskType defaults to bt
-    final taskTypeStr = json['taskType'] as String?;
-    final taskType = switch (taskTypeStr) {
-      'http' => DownloadTaskType.http,
-      _ => DownloadTaskType.bt,
-    };
-
-    // Parse headers map
-    Map<String, String>? headers;
-    final headersJson = json['headers'] as Map<String, dynamic>?;
-    if (headersJson != null) {
-      headers = headersJson.map((k, v) => MapEntry(k, v.toString()));
-    }
-
-    return DownloadTask(
-      id: id,
-      name: json['name'] as String,
-      magnet: json['magnet'] as String? ?? '',
-      animeName: json['animeName'] as String?,
-      episodeNumber: json['episodeNumber'] as int?,
-      startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
-      taskType: taskType,
-      status: statusIndex >= 0 && statusIndex < DownloadTaskStatus.values.length
-          ? DownloadTaskStatus.values[statusIndex]
-          : DownloadTaskStatus.pending,
-      progress: (json['progress'] as num).toDouble(),
-      downloadSpeed: 0.0, // Reset speed on load
-      uploadSpeed: 0.0,
-      downloaded: BigInt.parse(json['downloaded'] as String? ?? '0'),
-      totalSize: BigInt.parse(json['totalSize'] as String? ?? '0'),
-      peers: 0,
-      // streamUrl is intentionally not restored. The local streaming endpoint
-      // only works after the torrent has been re-attached to this process.
-      streamUrl: null,
-      largestFileIdx: largestFileIdx,
-      largestFilePath: json['largestFilePath'] as String?,
-      backend: backend,
-      errorMessage: null,
-      downloadDir: json['downloadDir'] as String?,
-      videoUrl: json['videoUrl'] as String?,
-      headers: headers,
-      cookies: json['cookies'] as String?,
-      localFilePath: json['localFilePath'] as String?,
-    );
-  }
-
-  /// Convert to JSON (for persistence)
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'magnet': magnet,
-      'animeName': animeName,
-      'episodeNumber': episodeNumber,
-      'startTime': startTime.millisecondsSinceEpoch,
-      'taskType': taskType.name,
-      'status': status.index,
-      'progress': progress,
-      'downloaded': downloaded.toString(),
-      'totalSize': totalSize.toString(),
-      'largestFileIdx': largestFileIdx,
-      'largestFilePath': largestFilePath,
-      'backend': backend.storageValue,
-      // streamUrl intentionally omitted — it is process-local and rebuilt on demand.
-      'downloadDir': downloadDir,
-      'videoUrl': videoUrl,
-      'headers': headers,
-      'cookies': cookies,
-      'localFilePath': localFilePath,
-    };
-  }
-
-  String get formattedSpeed {
-    if (downloadSpeed < 1024) {
-      return '${downloadSpeed.toStringAsFixed(1)} B/s';
-    } else if (downloadSpeed < 1024 * 1024) {
-      return '${(downloadSpeed / 1024).toStringAsFixed(1)} KB/s';
-    } else {
-      return '${(downloadSpeed / 1024 / 1024).toStringAsFixed(2)} MB/s';
-    }
-  }
-
-  String get formattedUploadSpeed {
-    if (uploadSpeed < 1024) {
-      return '${uploadSpeed.toStringAsFixed(1)} B/s';
-    } else if (uploadSpeed < 1024 * 1024) {
-      return '${(uploadSpeed / 1024).toStringAsFixed(1)} KB/s';
-    } else {
-      return '${(uploadSpeed / 1024 / 1024).toStringAsFixed(2)} MB/s';
-    }
-  }
-
-  String get formattedSize {
-    final total = totalSize.toInt();
-    if (total < 1024) {
-      return '$total B';
-    } else if (total < 1024 * 1024) {
-      return '${(total / 1024).toStringAsFixed(1)} KB';
-    } else if (total < 1024 * 1024 * 1024) {
-      return '${(total / 1024 / 1024).toStringAsFixed(1)} MB';
-    } else {
-      return '${(total / 1024 / 1024 / 1024).toStringAsFixed(2)} GB';
-    }
-  }
-
-  String get formattedDownloaded {
-    final dl = downloaded.toInt();
-    if (dl < 1024) {
-      return '$dl B';
-    } else if (dl < 1024 * 1024) {
-      return '${(dl / 1024).toStringAsFixed(1)} KB';
-    } else if (dl < 1024 * 1024 * 1024) {
-      return '${(dl / 1024 / 1024).toStringAsFixed(1)} MB';
-    } else {
-      return '${(dl / 1024 / 1024 / 1024).toStringAsFixed(2)} GB';
-    }
-  }
-
-  /// Check if this task is completed (100% progress)
-  bool get isCompleted => progress >= 100.0;
-
-  /// Check if this task is actively downloading or seeding
-  bool get isPlayable =>
-      status == DownloadTaskStatus.downloading ||
-      status == DownloadTaskStatus.seeding ||
-      status == DownloadTaskStatus.completed ||
-      status == DownloadTaskStatus.paused ||
-      status == DownloadTaskStatus.metadata ||
-      status == DownloadTaskStatus.checking;
 }
 
 /// Internal helper to track an active HTTP download so it can be cancelled.
@@ -306,25 +75,6 @@ class _HttpDownloadJob {
       sink.close();
     } catch (_) {}
   }
-}
-
-class _DownloadSlotWaiter {
-  final String taskId;
-  final Completer<bool> completer = Completer<bool>();
-
-  _DownloadSlotWaiter(this.taskId);
-}
-
-enum DownloadTaskStatus {
-  pending,
-  downloading,
-  seeding,
-  paused,
-  completed,
-  error,
-  metadata, // Fetching torrent metadata (DHT/peers)
-  checking, // Verifying existing files (checking_files / checking_resume_data)
-  queued, // Waiting for an available download slot
 }
 
 /// Global download manager singleton
@@ -372,10 +122,11 @@ class DownloadManager extends ChangeNotifier {
   bool _allowBackgroundDownload = true;
   bool _keepSeedingInBackground = false;
 
-  // Parallel download control
-  final Queue<_DownloadSlotWaiter> _downloadSlotQueue = Queue();
-  int _activeDownloadSlotCount = 0;
-  final Set<String> _slotHolderTaskIds = {};
+  // Parallel download control (slot acquire/release lives in DownloadQueue).
+  late final DownloadQueue _slotQueue = DownloadQueue(
+    maxConcurrent: _maxConcurrentDownloads,
+    isTaskEligible: _canAcquireDownloadSlot,
+  );
 
   // HTTP download tracking
   final Map<String, _HttpDownloadJob> _httpDownloadJobs = {};
@@ -412,81 +163,17 @@ class DownloadManager extends ChangeNotifier {
         _isActiveStatus(task.status);
   }
 
-  void _reconcileDownloadSlots() {
-    final staleHolders = _slotHolderTaskIds
-        .where((taskId) => !_canAcquireDownloadSlot(taskId))
-        .toList(growable: false);
-    for (final taskId in staleHolders) {
-      _slotHolderTaskIds.remove(taskId);
-      if (_activeDownloadSlotCount > 0) {
-        _activeDownloadSlotCount--;
-      }
-    }
+  Future<bool> _acquireDownloadSlot(String taskId) =>
+      _slotQueue.acquire(taskId);
 
-    // After slot holders were introduced for every acquired slot, the count is
-    // derived from the holder set. This self-heals stale counts from older
-    // paths and prevents phantom slots from keeping new tasks queued forever.
-    if (_activeDownloadSlotCount != _slotHolderTaskIds.length) {
-      _activeDownloadSlotCount = _slotHolderTaskIds.length;
-    }
-  }
+  void _drainDownloadSlotQueue() => _slotQueue.drain();
 
-  /// Acquire a download slot for [taskId], waiting if the limit is reached.
-  ///
-  /// Returns false if the task was removed/paused while it was waiting.
-  Future<bool> _acquireDownloadSlot(String taskId) async {
-    _reconcileDownloadSlots();
-    if (!_canAcquireDownloadSlot(taskId)) return false;
-    if (_slotHolderTaskIds.contains(taskId)) return true;
+  void _releaseSlotForTask(String taskId) => _slotQueue.release(taskId);
 
-    if (_downloadSlotQueue.isEmpty &&
-        _activeDownloadSlotCount < _maxConcurrentDownloads) {
-      _activeDownloadSlotCount++;
-      _slotHolderTaskIds.add(taskId);
-      return true;
-    }
+  void _transferDownloadSlot(String oldTaskId, String newTaskId) =>
+      _slotQueue.transfer(oldTaskId, newTaskId);
 
-    final waiter = _DownloadSlotWaiter(taskId);
-    _downloadSlotQueue.add(waiter);
-    _drainDownloadSlotQueue();
-    return waiter.completer.future;
-  }
-
-  void _drainDownloadSlotQueue() {
-    _reconcileDownloadSlots();
-    while (_downloadSlotQueue.isNotEmpty &&
-        _activeDownloadSlotCount < _maxConcurrentDownloads) {
-      final next = _downloadSlotQueue.removeFirst();
-      if (next.completer.isCompleted) continue;
-      if (!_canAcquireDownloadSlot(next.taskId)) {
-        next.completer.complete(false);
-        continue;
-      }
-      if (_slotHolderTaskIds.contains(next.taskId)) {
-        next.completer.complete(true);
-        continue;
-      }
-      _activeDownloadSlotCount++;
-      _slotHolderTaskIds.add(next.taskId);
-      next.completer.complete(true);
-    }
-  }
-
-  /// Release a download slot held by a specific task.
-  void _releaseSlotForTask(String taskId) {
-    if (_slotHolderTaskIds.remove(taskId) && _activeDownloadSlotCount > 0) {
-      _activeDownloadSlotCount--;
-    }
-    _drainDownloadSlotQueue();
-  }
-
-  void _transferDownloadSlot(String oldTaskId, String newTaskId) {
-    if (oldTaskId == newTaskId) return;
-    if (_slotHolderTaskIds.remove(oldTaskId)) {
-      _slotHolderTaskIds.add(newTaskId);
-    }
-    _reconcileDownloadSlots();
-  }
+  bool get _hasAvailableSlot => _slotQueue.hasAvailableSlot;
 
   /// Resolve the default download directory from app data path.
   Future<String> _resolveDefaultDownloadDir() async {
@@ -687,11 +374,7 @@ class DownloadManager extends ChangeNotifier {
   bool _shouldDeleteFiles(bool deleteFiles) =>
       deleteFiles || (!kIsWeb && Platform.isAndroid);
 
-  bool get _hasAvailableDownloadSlot {
-    _reconcileDownloadSlots();
-    return _downloadSlotQueue.isEmpty &&
-        _activeDownloadSlotCount < _maxConcurrentDownloads;
-  }
+  bool get _hasAvailableDownloadSlot => _hasAvailableSlot;
 
   Future<void> _markTaskQueued(DownloadTask task) async {
     if (!_isActiveStatus(task.status)) return;
@@ -712,6 +395,7 @@ class DownloadManager extends ChangeNotifier {
       prefs.getString(_btBackendStorageKey),
     );
     _maxConcurrentDownloads = prefs.getInt(_maxConcurrentKey) ?? 3;
+    _slotQueue.maxConcurrent = _maxConcurrentDownloads;
     _downloadLimitMbps = prefs.getDouble(_downloadLimitKey) ?? 0;
     _uploadLimitMbps = prefs.getDouble(_uploadLimitKey) ?? 0;
     _allowBackgroundDownload =
@@ -788,6 +472,7 @@ class DownloadManager extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     if (maxConcurrent != null) {
       _maxConcurrentDownloads = maxConcurrent.clamp(1, 10);
+      _slotQueue.maxConcurrent = _maxConcurrentDownloads;
       await prefs.setInt(_maxConcurrentKey, _maxConcurrentDownloads);
       _drainDownloadSlotQueue();
     }
@@ -1156,7 +841,7 @@ class DownloadManager extends ChangeNotifier {
           task.status != DownloadTaskStatus.paused;
       // Inject a small, high-quality tracker set (same as rqbit backend).
       // This improves peer discovery, especially for magnets with few trackers.
-      final enrichedMagnet = _injectTrackers(magnet);
+      final enrichedMagnet = injectMagnetTrackers(magnet);
       torrentId = session.addMagnetEx(
         enrichedMagnet,
         savePath: effectiveDownloadDir,
@@ -2745,27 +2430,11 @@ class DownloadManager extends ChangeNotifier {
   }
 
   /// Extract info hash from magnet link.
-  String? _extractInfoHash(String magnet) {
-    final btmh = RegExp(r'btmh:1220([a-fA-F0-9]{64})');
-    final hex64 = RegExp(r'btih:([a-fA-F0-9]{64})');
-    final base32 = RegExp(r'btih:([A-Za-z2-7]{32})');
-    final hex40 = RegExp(r'btih:([a-fA-F0-9]{40})(?![a-fA-F0-9])');
-
-    for (final regex in [btmh, hex64, base32, hex40]) {
-      final match = regex.firstMatch(magnet);
-      if (match != null) {
-        return match.group(1)!.toLowerCase();
-      }
-    }
-    return null;
-  }
+  String? _extractInfoHash(String magnet) => extractInfoHashFromMagnet(magnet);
 
   /// Extract info hash from stream URL
-  String? _extractInfoHashFromUrl(String url) {
-    final regex = RegExp(r'/torrents/([a-fA-F0-9]+)/');
-    final match = regex.firstMatch(url);
-    return match?.group(1)?.toLowerCase();
-  }
+  String? _extractInfoHashFromUrl(String url) =>
+      extractInfoHashFromStreamUrl(url);
 
   /// Extract file index from stream URL (e.g. `.../stream/0` → 0)
   int? _extractFileIdxFromUrl(String url) {
