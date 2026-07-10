@@ -23,6 +23,7 @@ import 'player_page.dart';
 import 'tag_browse_page.dart';
 import 'character_detail_page.dart';
 import 'person_detail_page.dart';
+import 'bangumi_details/bangumi_details_helpers.dart';
 
 class BangumiDetailsPage extends StatefulWidget {
   final AnimeInfo anime;
@@ -383,24 +384,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   }
 
   // Parse summary to extract translation and original text
-  Map<String, String?> _parseSummary(String? summary) {
-    if (summary == null || summary.isEmpty) {
-      return {'translation': null, 'original': null};
-    }
-
-    // Check if summary contains the separator
-    final separatorIndex = summary.indexOf('[简介原文]');
-    if (separatorIndex == -1) {
-      // No separator, treat entire text as translation
-      return {'translation': summary, 'original': null};
-    }
-
-    // Split into translation and original
-    final translation = summary.substring(0, separatorIndex).trim();
-    final original = summary.substring(separatorIndex + '[简介原文]'.length).trim();
-
-    return {'translation': translation, 'original': original};
-  }
+  Map<String, String?> _parseSummary(String? summary) =>
+      parseBangumiSummary(summary);
 
   String? _getDisplaySummary() {
     final summary = _data?['summary'];
@@ -2008,33 +1993,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     );
   }
 
-  bool _shouldEnableInfoBoxCollapse(List infobox) {
-    if (infobox.length > 6) {
-      return true;
-    }
+  bool _shouldEnableInfoBoxCollapse(List infobox) =>
+      shouldEnableInfoBoxCollapse(infobox);
 
-    for (final item in infobox) {
-      final value = item is Map ? item['value'] : null;
-      if (value is List && value.length > 4) {
-        return true;
-      }
-      if (_summarizeInfoboxValue(value).length > 80) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  bool _isInfoboxItemEmpty(dynamic item) {
-    if (item is! Map) {
-      return true;
-    }
-
-    final key = (item['key'] ?? '').toString().trim();
-    final value = _summarizeInfoboxValue(item['value']).trim();
-    return key.isEmpty || value.isEmpty;
-  }
+  bool _isInfoboxItemEmpty(dynamic item) => isInfoboxItemEmpty(item);
 
   Widget _buildInfoBoxItem(
     dynamic item, {
@@ -2128,15 +2090,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     );
   }
 
-  String _summarizeInfoboxValue(dynamic value) {
-    if (value is List) {
-      return value
-          .map((v) => (v['v'] ?? '').toString())
-          .where((s) => s.isNotEmpty)
-          .join(', ');
-    }
-    return value?.toString() ?? '';
-  }
+  String _summarizeInfoboxValue(dynamic value) => summarizeInfoboxValue(value);
 
   Widget _buildPlaceholderSection(
     BuildContext context,
@@ -2841,19 +2795,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     );
   }
 
-  int _siteKindPriority(String kind) {
-    switch (kind) {
-      case 'info':
-        return 0;
-      case 'onair':
-        return 1;
-      case 'resource':
-        return 2;
-      default:
-        return 3;
-    }
-  }
-
   void _sortSites() {
     if (_sites == null || _sites!.isEmpty) {
       _sortedSites = _sites;
@@ -2862,7 +2803,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _sortedSites = [..._sites!]
       ..sort(
         (a, b) =>
-            _siteKindPriority(a.kind).compareTo(_siteKindPriority(b.kind)),
+            siteKindPriority(a.kind).compareTo(siteKindPriority(b.kind)),
       );
   }
 
