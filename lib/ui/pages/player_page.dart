@@ -35,6 +35,7 @@ import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
 import 'package:mikan_player/ui/widgets/site_icon_map.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
+import 'package:mikan_player/ui/pages/player/player_source_helpers.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
@@ -1324,26 +1325,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-  List<String> _normalizeRecommendationTags(Iterable<String> rawTags) {
-    const invalidTags = {'tv', 'web', 'ova', '日本', '中国', '动画', 'anime'};
-
-    final unique = <String>[];
-    final seen = <String>{};
-    for (final raw in rawTags) {
-      final tag = raw.trim();
-      if (tag.isEmpty || tag.length <= 1) continue;
-      if (RegExp(r'^\d{4}([-/]\d{1,2})?$').hasMatch(tag)) continue;
-      final lower = tag.toLowerCase();
-      if (invalidTags.contains(lower) || invalidTags.contains(tag)) continue;
-      if (seen.add(lower)) {
-        unique.add(tag);
-      }
-    }
-    return unique;
-  }
-
   Future<List<String>> _resolveRecommendationTags() async {
-    final directTags = _normalizeRecommendationTags(widget.anime.tags);
+    final directTags = normalizeRecommendationTags(widget.anime.tags);
     if (directTags.isNotEmpty) {
       debugPrint(
         '[Recommendations] Using widget tags for ${widget.anime.bangumiId ?? widget.anime.title}: $directTags',
@@ -1351,7 +1334,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return directTags;
     }
 
-    final jsonTags = _normalizeRecommendationTags(
+    final jsonTags = normalizeRecommendationTags(
       _extractRecommendationTagsFromBangumiJson(widget.anime.fullJson),
     );
     if (jsonTags.isNotEmpty) {
@@ -1371,7 +1354,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     try {
       final detail = await fetchLightSubjectDetails(subjectId: subjectId);
-      final resolvedTags = _normalizeRecommendationTags([
+      final resolvedTags = normalizeRecommendationTags([
         ...detail.tags,
         ..._extractRecommendationTagsFromBangumiJson(detail.fullJson),
       ]);
@@ -5661,7 +5644,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final borderColor = isDark
         ? Colors.white10
         : Colors.grey.withValues(alpha: 0.3);
-    final btCount = _dedupBtResources([
+    final btCount = dedupBtResources([
       ..._mikanResources,
       ..._dmhyResources,
     ]).length;
@@ -5812,7 +5795,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (id == 'bt') {
       isLoading = _isLoadingMikan || _isLoadingDmhy;
       hasError = _mikanError != null || _dmhyError != null;
-      count = _dedupBtResources([..._mikanResources, ..._dmhyResources]).length;
+      count = dedupBtResources([..._mikanResources, ..._dmhyResources]).length;
     } else if (id == 'sample') {
       isLoading = _isLoadingSample;
       hasError = _sampleError != null;
@@ -6883,8 +6866,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ? Colors.white24
         : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7);
 
-    final dedupedBtResources = _sortBtResourcesByTitle(
-      _dedupBtResources([..._mikanResources, ..._dmhyResources]),
+    final dedupedBtResources = sortBtResourcesByTitle(
+      dedupBtResources([..._mikanResources, ..._dmhyResources]),
     );
     final btCount = dedupedBtResources.length;
     final btHasError = _mikanError != null || _dmhyError != null;
@@ -7351,62 +7334,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       'subType': subType,
       'codec': codec,
     };
-  }
-
-  static final RegExp _btihRegex = RegExp(
-    r'urn:btih:([a-fA-F0-9]{40}|[2-7A-Z]{32})',
-  );
-
-  String _magnetOf(dynamic r) => r is MikanEpisodeResource
-      ? r.magnet
-      : r is DmhyResource
-      ? r.magnet
-      : '';
-
-  String _titleOf(dynamic r) => r is MikanEpisodeResource
-      ? r.title
-      : r is DmhyResource
-      ? r.title
-      : '';
-
-  String _sizeOf(dynamic r) => r is MikanEpisodeResource
-      ? r.size
-      : r is DmhyResource
-      ? r.size
-      : '';
-
-  List<dynamic> _dedupBtResources(List<dynamic> resources) {
-    final seenHashes = <String>{};
-    final seenFallback = <String>{};
-    final result = <dynamic>[];
-    for (final r in resources) {
-      final magnet = _magnetOf(r);
-      final hash = magnet.isNotEmpty
-          ? (_btihRegex.firstMatch(magnet)?.group(1)?.toLowerCase() ?? '')
-          : '';
-      if (hash.isNotEmpty) {
-        if (!seenHashes.add(hash)) continue;
-      } else {
-        final key = '${_titleOf(r)}|${_sizeOf(r)}';
-        if (!seenFallback.add(key)) continue;
-      }
-      result.add(r);
-    }
-    return result;
-  }
-
-  List<dynamic> _sortBtResourcesByTitle(List<dynamic> resources) {
-    final sorted = List<dynamic>.from(resources);
-    sorted.sort((a, b) {
-      final ta = _titleOf(a).trim();
-      final tb = _titleOf(b).trim();
-      final c = ta.compareTo(tb);
-      if (c != 0) return c;
-      final sa = _sizeOf(a);
-      final sb = _sizeOf(b);
-      return sa.compareTo(sb);
-    });
-    return sorted;
   }
 
   Widget _buildBtTag(String label, Color bgColor, Color textColor) {
