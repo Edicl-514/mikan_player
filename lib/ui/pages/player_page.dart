@@ -40,6 +40,7 @@ import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_selection.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_bookkeeping.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_pump_decisions.dart';
+import 'package:mikan_player/ui/pages/player/webview_worker_state_transitions.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
@@ -2479,7 +2480,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final slot = _webViewWorkerSlots[workerId];
       if (slot == null) return;
       final taskKey = slot.taskKey;
-      if (taskKey != null && !_activeCaptchaTasks.containsKey(taskKey)) {
+      if (shouldClearCaptchaSlotOnIdle(
+        slotTaskKey: taskKey,
+        activeCaptchaTasksContainsKey: _activeCaptchaTasks.containsKey(taskKey),
+      )) {
         slot.taskKey = null;
         slot.kind = null;
         _activeCaptchaJobs.remove(taskKey);
@@ -3661,9 +3665,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // （含已接受源的其他 channel 与其他 Tier-0 源的 channel）的迟到结果仍按正常
       // 流程走 probe/register 以填充源列表作为后备。这里仍然清理上面的记账以释放
       // 并发槽位，然后只需更新状态、泵送任务池并提前返回。
-      if (_acceptedSourcePageKey != null) {
-        final tier = _sourceTiers[sourceNameForKey] ?? 999;
-        if (tier != 0) {
+      final tier = _sourceTiers[sourceNameForKey] ?? 999;
+      if (isVideoResultLateAfterCancel(
+        acceptedSourcePageKey: _acceptedSourcePageKey,
+        tier: tier,
+      )) {
           _webviewStats.onVideoJobLateAfterCancel(pageKey, sourceNameForKey);
           _failedWebViewPageKeys.add(pageKey);
           final total = _samplePlayPages.length;
@@ -3681,7 +3687,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           // `_scheduleWebViewPoolPump(immediate: true)`。
           return;
         }
-      }
 
       _webviewStats.onVideoJobCompleted(
         success: result.success,
@@ -3715,25 +3720,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             '[_onWebViewResult] matched page: playPageUrl=${page.playPageUrl} channelName=${page.channelName}',
           );
 
-          final resultHeaders = <String, String>{};
-          if (page.headers != null) resultHeaders.addAll(page.headers!);
-          resultHeaders.addAll(result.headers);
-
-          debugPrint(
-            '[_onWebViewResult] Captured headers: ${resultHeaders.keys.join(", ")}',
+          final updatedPage = buildUpdatedPlayPageFromResult(
+            page: page,
+            result: result,
           );
-
-          final updatedPage = SearchPlayResult(
-            sourceName: page.sourceName,
-            playPageUrl: page.playPageUrl,
-            videoRegex: page.videoRegex,
-            directVideoUrl: result.videoUrl,
-            cookies: page.cookies,
-            headers: resultHeaders,
-            channelName: page.channelName,
-            channelIndex: page.channelIndex,
-            enableNestedUrl: page.enableNestedUrl,
-            matchNestedUrl: page.matchNestedUrl,
+          debugPrint(
+            '[_onWebViewResult] Captured headers: ${updatedPage.headers?.keys.join(", ")}',
           );
 
           unawaited(
