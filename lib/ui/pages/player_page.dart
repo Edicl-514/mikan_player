@@ -39,6 +39,7 @@ import 'package:mikan_player/ui/pages/player/player_source_helpers.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_selection.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_bookkeeping.dart';
+import 'package:mikan_player/ui/pages/player/webview_worker_pump_decisions.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
@@ -1908,64 +1909,21 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     WebViewWorkerSlot slot,
     List<SearchPlayResult> pending,
   ) {
-    if (pending.isEmpty) return null;
-
-    final activeSourceWorkers = _activeSourceWorkerCounts();
-    final softLimit = _sourceAffinitySoftLimit;
-    final affinitySource = slot.lastSourceName;
-
-    // Step 1：同源优先（受 soft limit 约束）。
-    if (affinitySource != null && affinitySource.isNotEmpty) {
-      final sameSource = pending
-          .where((p) => p.sourceName == affinitySource)
-          .toList();
-      if (sameSource.isNotEmpty) {
-        final otherSourcesPending = pending.any(
-          (p) => p.sourceName != affinitySource,
-        );
-        final currentActive = activeSourceWorkers[affinitySource] ?? 0;
-        final limited = otherSourcesPending && currentActive >= softLimit;
-        if (!limited) {
-          final picked = _pickBestPending(sameSource);
-          _logAffinityPick(
-            workerId: slot.workerId,
-            lastSource: affinitySource,
-            pickedSource: picked.sourceName,
-            pageKey: _buildSourceChannelKey(
-              picked.sourceName,
-              picked.channelIndex,
-            ),
-            sameSource: true,
-          );
-          return picked;
-        }
-        // 被软限制：让出本 worker 给其它源，落到全局回退。
-      }
-    }
-
-    // Step 2：全局回退，逐候选源套 soft limit。
-    final candidates = <SearchPlayResult>[];
-    for (final p in pending) {
-      final src = p.sourceName;
-      final currentActive = activeSourceWorkers[src] ?? 0;
-      final otherSourcesPending = pending.any((pp) => pp.sourceName != src);
-      final limited = otherSourcesPending && currentActive >= softLimit;
-      if (!limited) {
-        candidates.add(p);
-      }
-    }
-    if (candidates.isEmpty) {
-      // 极端：所有候选源都已饱和（理论上 softLimit=concurrent-1 时不可能发
-      // 生，但保守回退允许任何源，避免 pump 死锁卡住 pending job）。
-      candidates.addAll(pending);
-    }
-
-    final picked = _pickBestPending(candidates);
+    final picked = selectVideoJobForAffinitySlot(
+      affinitySource: slot.lastSourceName,
+      pending: pending,
+      activeSourceWorkers: _activeSourceWorkerCounts(),
+      softLimit: _sourceAffinitySoftLimit,
+      sourceTiers: _sourceTiers,
+      enqueueSeqByPageKey: _pageEnqueueSeq,
+      pageKeyOf: (p) => _buildSourceChannelKey(p.sourceName, p.channelIndex),
+    );
+    if (picked == null) return null;
     final sameSourcePick =
-        affinitySource != null && picked.sourceName == affinitySource;
+        slot.lastSourceName != null && picked.sourceName == slot.lastSourceName;
     _logAffinityPick(
       workerId: slot.workerId,
-      lastSource: affinitySource,
+      lastSource: slot.lastSourceName,
       pickedSource: picked.sourceName,
       pageKey: _buildSourceChannelKey(picked.sourceName, picked.channelIndex),
       sameSource: sameSourcePick,
@@ -1973,29 +1931,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return picked;
   }
 
-  /// 按 tier 升序，tier 相同时按 [`_pageEnqueueSeq`] 入队序号升序选首项。
-  /// 对 [list] 做一次 in-place 排序后返回 `list.first`。
-  SearchPlayResult _pickBestPending(List<SearchPlayResult> list) {
-    list.sort((a, b) {
-      final tierA = _sourceTiers[a.sourceName] ?? 999;
-      final tierB = _sourceTiers[b.sourceName] ?? 999;
-      if (tierA != tierB) return tierA.compareTo(tierB);
-      final seqA =
-          _pageEnqueueSeq[_buildSourceChannelKey(
-            a.sourceName,
-            a.channelIndex,
-          )] ??
-          0;
-      final seqB =
-          _pageEnqueueSeq[_buildSourceChannelKey(
-            b.sourceName,
-            b.channelIndex,
-          )] ??
-          0;
-      return seqA.compareTo(seqB);
-    });
-    return list.first;
-  }
+
 
   /// 结构化日志：记录一次 affinity 选取的结果。
   ///
@@ -2093,8 +2029,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           ? _activeVideoJobs.isNotEmpty
           : _activeWebViews.isNotEmpty;
 
-      final canStartCaptcha =
-          !hasPendingExtraction || hasActiveExtraction || slotsRemaining > 1;
+      final canStartCaptcha = canStartCaptchaDecision(
+        hasPendingExtraction: hasPendingExtraction,
+        hasActiveExtraction: hasActiveExtraction,
+        slotsRemaining: slotsRemaining,
+      );
 
       if (canStartCaptcha && _startOneCaptchaTask()) {
         startedAny = true;
@@ -2459,8 +2398,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           ? _activeVideoJobs.isNotEmpty
           : _activeWebViews.isNotEmpty;
 
-      final canStartCaptcha =
-          !hasPendingExtraction || hasActiveExtraction || slotsRemaining > 1;
+      final canStartCaptcha = canStartCaptchaDecision(
+        hasPendingExtraction: hasPendingExtraction,
+        hasActiveExtraction: hasActiveExtraction,
+        slotsRemaining: slotsRemaining,
+      );
 
       var didStart = false;
       if (canStartCaptcha && _startOneCaptchaTask()) {
