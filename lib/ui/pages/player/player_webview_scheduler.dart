@@ -52,9 +52,29 @@ class PlayerWebViewSchedulerAcquire {
     required this.createdNew,
   });
 
-  final WebViewWorkerSlot? slot;
-  final List<WebViewWorkerSlot> disposedIdleSlots;
+  final WebViewWorkerSlotSnapshot? slot;
+  final List<WebViewWorkerSlotSnapshot> disposedIdleSlots;
   final bool createdNew;
+}
+
+/// Immutable page-facing view of a mutable scheduler-owned worker slot.
+class WebViewWorkerSlotSnapshot {
+  WebViewWorkerSlotSnapshot._(this._slot);
+
+  factory WebViewWorkerSlotSnapshot._fromSlot(WebViewWorkerSlot slot) =>
+      WebViewWorkerSlotSnapshot._(slot);
+
+  final WebViewWorkerSlot _slot;
+
+  int get workerId => _slot.workerId;
+  String? get pageKey => _slot.pageKey;
+  String? get taskKey => _slot.taskKey;
+  String? get lastSourceName => _slot.lastSourceName;
+  WebViewWorkerHealth get health => _slot.health;
+  int get consecutiveFailures => _slot.consecutiveFailures;
+  WebViewWorkerKind? get kind => _slot.kind;
+
+  bool get isIdle => kind == null;
 }
 
 class PlayerWebViewScheduler {
@@ -67,8 +87,6 @@ class PlayerWebViewScheduler {
       WebViewPoolPumpCoordinator();
   int _nextWorkerId = 0;
 
-  late final Map<int, WebViewWorkerSlot> _slotsView =
-      UnmodifiableMapView<int, WebViewWorkerSlot>(_slots);
   late final Map<String, int> _activeVideoJobsView =
       UnmodifiableMapView<String, int>(_activeVideoJobs);
   late final Map<String, int> _activeCaptchaJobsView =
@@ -76,10 +94,14 @@ class PlayerWebViewScheduler {
 
   // ── Read-only views for the page ──────────────────────────────────────────
 
-  /// Unmodifiable live view of the worker-slot table. The page iterates this
-  /// during build (`_buildWebViewExtractorsPool`, status rows, affinity
-  /// summary) but must never add/remove entries — use the methods below.
-  Map<int, WebViewWorkerSlot> get slots => _slotsView;
+  /// Immutable snapshot of the worker-slot table. Returning snapshots keeps
+  /// slot fields scheduler-owned instead of leaking mutable values through an
+  /// otherwise-unmodifiable map.
+  Map<int, WebViewWorkerSlotSnapshot> get slots =>
+      UnmodifiableMapView(<int, WebViewWorkerSlotSnapshot>{
+        for (final entry in _slots.entries)
+          entry.key: WebViewWorkerSlotSnapshot._fromSlot(entry.value),
+      });
 
   /// Unmodifiable live view of the active video reverse map
   /// (`pageKey -> workerId`). The page reads `.length` / `.containsKey` /
@@ -93,8 +115,11 @@ class PlayerWebViewScheduler {
 
   /// Direct slot lookup (`null` if the worker was disposed, or if
   /// [workerId] itself is `null`).
-  WebViewWorkerSlot? slotOf(int? workerId) =>
-      workerId == null ? null : _slots[workerId];
+  WebViewWorkerSlotSnapshot? slotOf(int? workerId) {
+    if (workerId == null) return null;
+    final slot = _slots[workerId];
+    return slot == null ? null : WebViewWorkerSlotSnapshot._fromSlot(slot);
+  }
 
   /// Current health of a worker slot (`null` if disposed, or if
   /// [workerId] itself is `null`).
@@ -113,26 +138,43 @@ class PlayerWebViewScheduler {
 
   // ── Start job ─────────────────────────────────────────────────────────────
 
-  /// Marks [slot] as running a video job for [pageKey] from [sourceName] and
+  /// Marks [slotView] as running a video job for [pageKey] from [sourceName] and
   /// records the reverse mapping. Reuses [bk.startVideoJobOnSlot], so the
   /// idle/reverse-map invariants are validated atomically (throws
   /// [StateError] on any violation without partially mutating state).
   void startVideoJob(
-    WebViewWorkerSlot slot,
+    WebViewWorkerSlotSnapshot slotView,
     String pageKey,
     String sourceName,
   ) {
+    final slot = _requireOwnedSlot(slotView);
     bk.startVideoJobOnSlot(slot, pageKey, sourceName, _activeVideoJobs);
   }
 
-  /// Marks [slot] as running a captcha job for [taskKey] from [sourceName] and
+  /// Marks [slotView] as running a captcha job for [taskKey] from [sourceName] and
   /// records the reverse mapping. Reuses [bk.startCaptchaJobOnSlot].
   void startCaptchaJob(
-    WebViewWorkerSlot slot,
+    WebViewWorkerSlotSnapshot slotView,
     String taskKey,
     String sourceName,
   ) {
+    final slot = _requireOwnedSlot(slotView);
     bk.startCaptchaJobOnSlot(slot, taskKey, sourceName, _activeCaptchaJobs);
+  }
+
+  WebViewWorkerSlot _requireOwnedSlot(WebViewWorkerSlotSnapshot slotView) {
+    final slot = _slots[slotView.workerId];
+    if (slot == null) {
+      throw StateError(
+        'Worker ${slotView.workerId} is not owned by this scheduler',
+      );
+    }
+    if (!identical(slot, slotView._slot)) {
+      throw StateError(
+        'Worker ${slotView.workerId} belongs to a different scheduler',
+      );
+    }
+    return slot;
   }
 
   // ── Cancel / release ──────────────────────────────────────────────────────
@@ -188,16 +230,20 @@ class PlayerWebViewScheduler {
   /// via [shouldClearCaptchaSlotOnIdle] that the slot's taskKey is no longer in
   /// the active-task set. Clears the slot's taskKey + kind (guarded by a
   /// taskKey match) and removes the reverse-mapping entry.
-  void clearStaleCaptchaSlotOnIdle(int workerId, String? taskKey) {
+  void clearStaleCaptchaSlotOnIdle(int workerId) {
     final slot = _slots[workerId];
     if (slot == null) return;
-    if (taskKey != null && slot.taskKey == taskKey) {
-      slot.taskKey = null;
-      slot.kind = null;
+    final taskKey = slot.taskKey;
+    if (taskKey == null) return;
+    final mappedWorkerId = _activeCaptchaJobs[taskKey];
+    if (mappedWorkerId != null && mappedWorkerId != workerId) {
+      throw StateError(
+        'Captcha job $taskKey maps to worker $mappedWorkerId, not $workerId',
+      );
     }
-    if (taskKey != null) {
-      _activeCaptchaJobs.remove(taskKey);
-    }
+    slot.taskKey = null;
+    slot.kind = null;
+    if (mappedWorkerId == workerId) _activeCaptchaJobs.remove(taskKey);
   }
 
   // ── Record worker results ─────────────────────────────────────────────────
@@ -241,15 +287,30 @@ class PlayerWebViewScheduler {
   /// unhealthyness).
   void markSlotIdle(int workerId) {
     final slot = _slots[workerId];
-    if (slot != null) {
-      slot.health = WebViewWorkerHealth.idle;
+    if (slot == null) return;
+    if (slot.kind != null || slot.pageKey != null || slot.taskKey != null) {
+      throw StateError('Worker $workerId still has an assigned job');
     }
+    if (_activeVideoJobs.containsValue(workerId) ||
+        _activeCaptchaJobs.containsValue(workerId)) {
+      throw StateError('Worker $workerId still has an active reverse mapping');
+    }
+    slot.health = WebViewWorkerHealth.idle;
   }
 
   /// Removes a worker's slot entirely (used after an unhealthy worker reports
   /// idle, so the build stops emitting its `ReusableBrowserWorker` and Flutter
   /// disposes the underlying InAppWebView). Idempotent.
   void removeSlot(int workerId) {
+    final slot = _slots[workerId];
+    if (slot == null) return;
+    if (!slot.canDisposeWhenIdle) {
+      throw StateError('Worker $workerId is not disposable while busy');
+    }
+    if (_activeVideoJobs.containsValue(workerId) ||
+        _activeCaptchaJobs.containsValue(workerId)) {
+      throw StateError('Worker $workerId still has an active reverse mapping');
+    }
     _slots.remove(workerId);
   }
 
@@ -260,17 +321,19 @@ class PlayerWebViewScheduler {
   /// `disposed idle worker` line. No-op (returns `const []`) when
   /// [useWorkerPool] is false — matching the legacy short-circuit. Reuses
   /// [sel.selectDisposableIdleSlotId] verbatim.
-  List<WebViewWorkerSlot> trimIdleWorkerSlotsToBudget({
+  List<WebViewWorkerSlotSnapshot> trimIdleWorkerSlotsToBudget({
     required bool useWorkerPool,
     required int maxConcurrent,
   }) {
     if (!useWorkerPool) return const [];
-    final removed = <WebViewWorkerSlot>[];
+    final removed = <WebViewWorkerSlotSnapshot>[];
     while (_slots.length > maxConcurrent) {
       final workerId = sel.selectDisposableIdleSlotId(_slots.values);
       if (workerId == null) break;
       final slot = _slots.remove(workerId);
-      if (slot != null) removed.add(slot);
+      if (slot != null) {
+        removed.add(WebViewWorkerSlotSnapshot._fromSlot(slot));
+      }
     }
     return removed;
   }
@@ -281,7 +344,7 @@ class PlayerWebViewScheduler {
     required bool useWorkerPool,
     required int maxConcurrent,
   }) {
-    final disposed = <WebViewWorkerSlot>[];
+    final disposed = <WebViewWorkerSlotSnapshot>[];
     disposed.addAll(
       trimIdleWorkerSlotsToBudget(
         useWorkerPool: useWorkerPool,
@@ -292,7 +355,7 @@ class PlayerWebViewScheduler {
     final idle = sel.selectAnyIdleAcceptableSlot(_slots.values);
     if (idle != null) {
       return PlayerWebViewSchedulerAcquire(
-        slot: idle,
+        slot: WebViewWorkerSlotSnapshot._fromSlot(idle),
         disposedIdleSlots: disposed,
         createdNew: false,
       );
@@ -306,7 +369,7 @@ class PlayerWebViewScheduler {
       final slot = WebViewWorkerSlot(workerId: workerId);
       _slots[workerId] = slot;
       return PlayerWebViewSchedulerAcquire(
-        slot: slot,
+        slot: WebViewWorkerSlotSnapshot._fromSlot(slot),
         disposedIdleSlots: disposed,
         createdNew: true,
       );
@@ -334,7 +397,7 @@ class PlayerWebViewScheduler {
     required bool useWorkerPool,
     required int maxConcurrent,
   }) {
-    final disposed = <WebViewWorkerSlot>[];
+    final disposed = <WebViewWorkerSlotSnapshot>[];
     disposed.addAll(
       trimIdleWorkerSlotsToBudget(
         useWorkerPool: useWorkerPool,
@@ -348,7 +411,7 @@ class PlayerWebViewScheduler {
     );
     if (sameSource != null) {
       return PlayerWebViewSchedulerAcquire(
-        slot: sameSource,
+        slot: WebViewWorkerSlotSnapshot._fromSlot(sameSource),
         disposedIdleSlots: disposed,
         createdNew: false,
       );
@@ -356,7 +419,7 @@ class PlayerWebViewScheduler {
     final any = sel.selectAnyIdleAcceptableSlot(_slots.values);
     if (any != null) {
       return PlayerWebViewSchedulerAcquire(
-        slot: any,
+        slot: WebViewWorkerSlotSnapshot._fromSlot(any),
         disposedIdleSlots: disposed,
         createdNew: false,
       );
@@ -370,7 +433,7 @@ class PlayerWebViewScheduler {
       final slot = WebViewWorkerSlot(workerId: workerId);
       _slots[workerId] = slot;
       return PlayerWebViewSchedulerAcquire(
-        slot: slot,
+        slot: WebViewWorkerSlotSnapshot._fromSlot(slot),
         disposedIdleSlots: disposed,
         createdNew: true,
       );
@@ -382,10 +445,11 @@ class PlayerWebViewScheduler {
     );
   }
 
-  WebViewWorkerSlot? _freeOneDisposableIdle() {
+  WebViewWorkerSlotSnapshot? _freeOneDisposableIdle() {
     final workerId = sel.selectDisposableIdleSlotId(_slots.values);
     if (workerId == null) return null;
-    return _slots.remove(workerId);
+    final slot = _slots.remove(workerId);
+    return slot == null ? null : WebViewWorkerSlotSnapshot._fromSlot(slot);
   }
 
   // ── Reset paths ───────────────────────────────────────────────────────────
@@ -436,8 +500,8 @@ class PlayerWebViewScheduler {
 
   /// Validates the map/slot consistency invariants. Returns a list of
   /// human-readable violation messages; an empty list means the scheduler is
-  /// in a consistent state. The page (and tests) call this after each mutation
-  /// to catch any drift between the slot table and the reverse maps early.
+  /// in a consistent state. Composition tests call this after each mutation to
+  /// catch any drift between the slot table and reverse maps early.
   ///
   /// Checks:
   ///   1. Each active video entry maps to a unique slot whose kind is video

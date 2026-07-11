@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/ui/pages/player/player_webview_scheduler.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
@@ -78,7 +80,7 @@ void main() {
           maxConcurrent: _maxConcurrent,
         );
         expectConsistent(s, 'after video acquire');
-        expect(vid.slot, same(cap.slot));
+        expect(vid.slot!.workerId, cap.slot!.workerId);
         expect(vid.createdNew, isFalse);
 
         s.startVideoJob(vid.slot!, 'pageA', 'srcX');
@@ -108,7 +110,7 @@ void main() {
         useWorkerPool: true,
         maxConcurrent: _maxConcurrent,
       );
-      expect(cap.slot, same(vid.slot));
+      expect(cap.slot!.workerId, vid.slot!.workerId);
       s.startCaptchaJob(cap.slot!, 'taskB', 'srcY');
       expectConsistent(s, 'after captcha start');
       expect(s.activeVideoJobs, isEmpty);
@@ -330,7 +332,7 @@ void main() {
         // Simulate the _onCaptchaWorkerIdle path: the task has been removed
         // from the page's active-task set, so the slot's lingering taskKey is
         // stale and must be cleared together with its reverse-mapping.
-        s.clearStaleCaptchaSlotOnIdle(slot.workerId, 'taskA');
+        s.clearStaleCaptchaSlotOnIdle(slot.workerId);
         expectConsistent(s, 'after stale clear');
         expect(s.activeCaptchaJobs, isEmpty);
         expect(slot.taskKey, isNull);
@@ -524,65 +526,45 @@ void main() {
     'staggered pump with two tokens: old completion cannot clear new state',
     () {
       test(
-        'a late-arriving old-token completion leaves the new schedule intact',
-        () {
+        'old pump completing while the new pump is pending keeps it scheduled',
+        () async {
           final s = newScheduler();
-          // Issue pump A (token 1).
-          s.pumpCoordinator.scheduleStaggered((_) async {});
+          final pumpA = Completer<void>();
+          final futureA = s.pumpCoordinator.scheduleStaggered(
+            (_) => pumpA.future,
+          );
           final tokenA = s.pumpCoordinator.token;
-          expect(s.pumpCoordinator.isScheduled, isTrue);
 
-          // Meanwhile a reset bumps the token and clears the flag.
           s.resetForNewSearch();
-          expect(s.pumpCoordinator.isCurrentToken(tokenA), isFalse);
-
-          // A new pump B is scheduled. reset already bumped the token once,
-          // so this schedule bumps it again -> tokenB = tokenA + 2.
-          s.pumpCoordinator.scheduleStaggered((_) async {});
+          final pumpB = Completer<void>();
+          final futureB = s.pumpCoordinator.scheduleStaggered(
+            (_) => pumpB.future,
+          );
           final tokenB = s.pumpCoordinator.token;
           expect(tokenB, tokenA + 2);
           expect(s.pumpCoordinator.isScheduled, isTrue);
 
-          // The OLD pump A finally completes and tries to clear the flag.
-          s.pumpCoordinator.clearScheduledIfCurrent(tokenA);
-          // The new schedule must NOT be cleared by the stale completion.
+          pumpA.complete();
+          await futureA;
           expect(s.pumpCoordinator.isScheduled, isTrue);
           expect(s.pumpCoordinator.isCurrentToken(tokenB), isTrue);
 
-          // The scheduler's own job/slot state is unaffected by the stale
-          // pump completion (mutations only go through scheduler methods).
-          expectConsistent(s, 'after stale completion');
-          expect(s.activeVideoJobs, isEmpty);
-          expect(s.activeCaptchaJobs, isEmpty);
-          expect(s.workerCount, 0);
-
-          // The NEW pump B completing DOES clear the flag.
-          s.pumpCoordinator.clearScheduledIfCurrent(tokenB);
+          pumpB.complete();
+          await futureB;
           expect(s.pumpCoordinator.isScheduled, isFalse);
         },
       );
 
       test(
-        'old staggered pump does not clear new scheduler job state mid-flight',
-        () {
+        'new pump completing before the old pump preserves new job state',
+        () async {
           final s = newScheduler();
-          // Start a video job on worker 0, then issue staggered pump A.
-          final w0 = s
-              .acquireIdleVideoWorkerSlot(
-                {'srcA'},
-                useWorkerPool: true,
-                maxConcurrent: _maxConcurrent,
-              )
-              .slot!;
-          s.startVideoJob(w0, 'pageA', 'srcA');
-          expectConsistent(s, 'before pump A');
-          s.pumpCoordinator.scheduleStaggered((_) async {});
-          final tokenA = s.pumpCoordinator.token;
+          final pumpA = Completer<void>();
+          final futureA = s.pumpCoordinator.scheduleStaggered(
+            (_) => pumpA.future,
+          );
 
-          // A reset invalidates pump A and clears the jobs, then a brand-new
-          // job starts under a fresh slot.
           s.resetForNewSearch();
-          expectConsistent(s, 'after reset');
           final w1 = s
               .acquireIdleVideoWorkerSlot(
                 {'srcB'},
@@ -591,11 +573,19 @@ void main() {
               )
               .slot!;
           s.startVideoJob(w1, 'pageB', 'srcB');
-          expectConsistent(s, 'after new job');
+          final pumpB = Completer<void>();
+          final futureB = s.pumpCoordinator.scheduleStaggered(
+            (_) => pumpB.future,
+          );
 
-          // Pump A's stale completion must not touch the new job state.
-          s.pumpCoordinator.clearScheduledIfCurrent(tokenA);
-          expectConsistent(s, 'after stale pump A completion');
+          pumpB.complete();
+          await futureB;
+          expect(s.pumpCoordinator.isScheduled, isFalse);
+
+          pumpA.complete();
+          await futureA;
+          expect(s.pumpCoordinator.isScheduled, isFalse);
+          expectConsistent(s, 'after reverse-order completion');
           expect(s.activeVideoJobs, {'pageB': w1.workerId});
           expect(s.activeCaptchaJobs, isEmpty);
         },
@@ -618,11 +608,9 @@ void main() {
     },
   );
 
-  group('validateInvariants surfaces drift (negative sanity)', () {
-    test('flags an active video entry whose slot has been removed', () {
+  group('scheduler ownership guards', () {
+    test('removeSlot rejects an active worker and preserves invariants', () {
       final s = newScheduler();
-      // Manually corrupt by starting then disposing the slot out of band
-      // (simulates a bug where removeSlot runs before the reverse map clear).
       final slot = s
           .acquireIdleVideoWorkerSlot(
             {'srcA'},
@@ -631,10 +619,48 @@ void main() {
           )
           .slot!;
       s.startVideoJob(slot, 'pageA', 'srcA');
-      s.removeSlot(slot.workerId); // corruption: reverse map still has it
-      final errors = s.validateInvariants();
-      expect(errors, isNotEmpty);
-      expect(errors.first, contains('has no slot'));
+      expect(() => s.removeSlot(slot.workerId), throwsStateError);
+      expectConsistent(s, 'after rejected active removal');
+      expect(s.activeVideoJobs, {'pageA': slot.workerId});
+      expect(s.slotOf(slot.workerId), isNotNull);
+    });
+
+    test('a slot snapshot from another scheduler is rejected', () {
+      final owner = newScheduler();
+      final other = newScheduler();
+      final foreignSlot = owner
+          .acquireIdleVideoWorkerSlot(
+            {'srcA'},
+            useWorkerPool: true,
+            maxConcurrent: _maxConcurrent,
+          )
+          .slot!;
+      other.acquireIdleVideoWorkerSlot(
+        {'srcB'},
+        useWorkerPool: true,
+        maxConcurrent: _maxConcurrent,
+      );
+
+      expect(
+        () => other.startVideoJob(foreignSlot, 'pageA', 'srcA'),
+        throwsStateError,
+      );
+      expectConsistent(owner, 'foreign owner');
+      expectConsistent(other, 'rejecting scheduler');
+    });
+
+    test('slot table snapshots cannot be structurally mutated', () {
+      final s = newScheduler();
+      final slot = s
+          .acquireIdleVideoWorkerSlot(
+            {'srcA'},
+            useWorkerPool: true,
+            maxConcurrent: _maxConcurrent,
+          )
+          .slot!;
+      expect(() => s.slots.remove(slot.workerId), throwsUnsupportedError);
+      expect(s.slotOf(slot.workerId), isNotNull);
+      expectConsistent(s, 'after rejected view mutation');
     });
   });
 
@@ -707,7 +733,7 @@ void main() {
           maxConcurrent: _maxConcurrent,
         );
         expectConsistent(s, 'after affinity pick');
-        expect(picked.slot, same(w1));
+        expect(picked.slot!.workerId, w1.workerId);
         expect(picked.slot!.lastSourceName, 'srcA');
       },
     );

@@ -1627,7 +1627,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 把 scheduler 在 trim/acquire 过程中腾退的 idle slot 逐个复刻原来的
   /// `[WebViewScheduler] disposed idle ... worker=...` 日志。scheduler 本身
   /// 不持有 logging 职责，所以把腾退结果返回到本页来打点。
-  void _logDisposedIdleSlots(List<WebViewWorkerSlot> disposed) {
+  void _logDisposedIdleSlots(List<WebViewWorkerSlotSnapshot> disposed) {
     for (final slot in disposed) {
       final kindLabel = switch (slot.kind) {
         WebViewWorkerKind.video => 'video',
@@ -1677,7 +1677,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 5B step 3：取一个 idle（kind == null）slot 用来跑 captcha job。
   /// 不区分原来 captcha/video 两条路径 —— 统一 slot 表里 kind == null
   /// 即空闲 worker，可被任意 kind 复用。
-  WebViewWorkerSlot? _acquireIdleCaptchaWorkerSlot() {
+  WebViewWorkerSlotSnapshot? _acquireIdleCaptchaWorkerSlot() {
     final result = _scheduler.acquireIdleCaptchaWorkerSlot(
       useWorkerPool: _useWorkerPool,
       maxConcurrent: _maxConcurrentWebViews,
@@ -1782,7 +1782,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// `_scheduler.activeVideoJobs`，因此 soft limit
   /// 能正确反映本轮已派出的 job。
   SearchPlayResult? _selectNextVideoJobForWorker(
-    WebViewWorkerSlot slot,
+    WebViewWorkerSlotSnapshot slot,
     List<SearchPlayResult> pending,
   ) {
     final picked = selectVideoJobForAffinitySlot(
@@ -1863,7 +1863,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// [`_scheduler.slots`]。新创建的 slot 初始 `kind == null`（idle），
   /// 派活时由 [`_startOneWebViewExtractionTask`] 切到
   /// [WebViewWorkerKind.video]。
-  WebViewWorkerSlot? _acquireIdleVideoWorkerSlotForAffinity(
+  WebViewWorkerSlotSnapshot? _acquireIdleVideoWorkerSlotForAffinity(
     List<SearchPlayResult> pending,
   ) {
     final pendingSourceNames = <String>{};
@@ -2249,8 +2249,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
       if (!isFirst && _webViewLaunchInterval > 0) {
         await Future.delayed(Duration(milliseconds: _webViewLaunchInterval));
-        if (!mounted || !_scheduler.pumpCoordinator.isCurrentToken(token))
+        if (!mounted || !_scheduler.pumpCoordinator.isCurrentToken(token)) {
           break;
+        }
       }
       isFirst = false;
 
@@ -2341,7 +2342,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         slotTaskKey: taskKey,
         activeCaptchaTasksContainsKey: _activeCaptchaTasks.containsKey(taskKey),
       )) {
-        _scheduler.clearStaleCaptchaSlotOnIdle(workerId, taskKey);
+        _scheduler.clearStaleCaptchaSlotOnIdle(workerId);
       }
       final health = _scheduler.healthOf(workerId);
       if (health == WebViewWorkerHealth.unhealthy) {
