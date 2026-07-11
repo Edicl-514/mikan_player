@@ -37,6 +37,7 @@ import 'package:mikan_player/ui/widgets/site_icon_map.dart';
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/pages/player/player_source_helpers.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
+import 'package:mikan_player/ui/pages/player/webview_worker_selection.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
@@ -1654,26 +1655,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 移除一个 idle slot（[canDisposeWhenIdle] 为 true）以腾出总 slot 预算。
   /// 优先按 [kind] 选择（保持与之前的行为兼容），无匹配时回退到任意 kind。
   bool _removeIdleWorkerSlot(WebViewWorkerKind? kindFilter) {
-    Iterable<WebViewWorkerSlot> candidates = _webViewWorkerSlots.values;
-    if (kindFilter != null) {
-      candidates = candidates.where((slot) => slot.kind == kindFilter);
-    }
-    final idleSlots =
-        candidates.where((slot) => slot.canDisposeWhenIdle).toList()
-          ..sort((a, b) {
-            final aBad = a.health == WebViewWorkerHealth.unhealthy ? 0 : 1;
-            final bBad = b.health == WebViewWorkerHealth.unhealthy ? 0 : 1;
-            if (aBad != bBad) return aBad.compareTo(bBad);
-            // 同 kind 同 health 时优先保留 warm（lastSourceName 非空）slot
-            // 让 affinity 调度在 trim 之后仍能命中 warm worker。
-            final aWarm = a.lastSourceName == null ? 0 : 1;
-            final bWarm = b.lastSourceName == null ? 0 : 1;
-            if (aWarm != bWarm) return aWarm.compareTo(bWarm);
-            return b.workerId.compareTo(a.workerId);
-          });
-    if (idleSlots.isEmpty) return false;
-    final slot = idleSlots.first;
-    _webViewWorkerSlots.remove(slot.workerId);
+    final workerId = selectDisposableIdleSlotId(
+      _webViewWorkerSlots.values,
+      kindFilter: kindFilter,
+    );
+    if (workerId == null) return false;
+    final slot = _webViewWorkerSlots.remove(workerId);
+    if (slot == null) return false;
     final kindLabel = switch (slot.kind) {
       WebViewWorkerKind.video => 'video',
       WebViewWorkerKind.captcha => 'captcha',
@@ -1776,12 +1764,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   WebViewWorkerSlot? _acquireIdleCaptchaWorkerSlot() {
     _trimIdleWebViewWorkerSlotsToBudget(preferKeep: WebViewWorkerKind.captcha);
 
-    final idleSlots =
-        _webViewWorkerSlots.values.where((slot) => slot.canAcceptJob).toList()
-          ..sort((a, b) => a.workerId.compareTo(b.workerId));
-    if (idleSlots.isNotEmpty) {
-      return idleSlots.first;
-    }
+    final idleSlot = selectAnyIdleAcceptableSlot(_webViewWorkerSlots.values);
+    if (idleSlot != null) return idleSlot;
 
     if (!_releaseIdleSlotForWorkerType(WebViewWorkerKind.captcha)) {
       return null;
@@ -1811,22 +1795,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 到 [WebViewWorkerKind.video] 并设置 [pageKey]。slot 仍留在
   /// [`_webViewWorkerSlots`]，对应的 `ValueKey('worker_$workerId')`
   /// widget 不会被 Flutter 销毁，InAppWebView 真正跨 kind 复用。
+  ///
+  /// 逻辑已抽取到 [selectSameSourceIdleSlot]（Phase 2 B1）。
+  /// 此方法保留为 dead-code 占位，未来若需单独的 adoption 入口可重新接线。
+  // ignore: unused_element
   WebViewWorkerSlot? _adoptIdleWorkerForSameSource(
     Set<String> pendingSourceNames,
   ) {
-    final candidates =
-        _webViewWorkerSlots.values
-            .where(
-              (slot) =>
-                  slot.canAcceptJob &&
-                  slot.lastSourceName != null &&
-                  pendingSourceNames.contains(slot.lastSourceName),
-            )
-            .toList()
-          ..sort((a, b) => a.workerId.compareTo(b.workerId));
-    if (candidates.isEmpty) return null;
-
-    final slot = candidates.first;
+    final slot = selectSameSourceIdleSlot(
+      _webViewWorkerSlots.values,
+      pendingSourceNames,
+    );
+    if (slot == null) return null;
     debugPrint(
       '[WebViewScheduler] worker=${slot.workerId} promoted '
       'idle->video (same source) for source=${slot.lastSourceName} '
@@ -2085,19 +2065,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       pendingSourceNames.add(p.sourceName);
     }
 
-    WebViewWorkerSlot? idleMatch;
-    WebViewWorkerSlot? idleAny;
-    for (final slot in _webViewWorkerSlots.values) {
-      if (!slot.canAcceptJob) continue;
-      idleAny ??= slot;
-      if (slot.lastSourceName != null &&
-          pendingSourceNames.contains(slot.lastSourceName!)) {
-        idleMatch ??= slot;
-      }
-    }
+    final idleMatch = selectSameSourceIdleSlot(
+      _webViewWorkerSlots.values,
+      pendingSourceNames,
+    );
     if (idleMatch != null) return idleMatch;
-    final adoptedIdleSlot = _adoptIdleWorkerForSameSource(pendingSourceNames);
-    if (adoptedIdleSlot != null) return adoptedIdleSlot;
+    final idleAny = selectAnyIdleAcceptableSlot(_webViewWorkerSlots.values);
     if (idleAny != null) return idleAny;
 
     if (!_releaseIdleSlotForWorkerType(WebViewWorkerKind.video)) {
