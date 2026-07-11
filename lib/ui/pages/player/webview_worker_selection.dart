@@ -4,28 +4,21 @@ import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 ///
 /// These functions replicate the sort/pick logic that was previously inline in
 /// `_PlayerPageState` methods (`_removeIdleWorkerSlot`,
-/// `_adoptIdleWorkerForSameSource`, `_acquireIdleVideoWorkerSlotForAffinity`,
-/// `_acquireIdleCaptchaWorkerSlot`). They only READ slot fields — the map
+/// `_acquireIdleVideoWorkerSlotForAffinity`, `_acquireIdleCaptchaWorkerSlot`).
+/// They only READ slot fields — the map
 /// mutation (`_webViewWorkerSlots.remove/add`, `_nextWebViewWorkerId++`) stays
 /// in the page.
 
 /// Selects the [workerId] of the disposable idle slot to remove, or `null` if
-/// no disposable idle slot matches [kindFilter].
+/// no disposable idle slot exists.
 ///
 /// Sort priority (ascending = first to remove):
 /// 1. Unhealthy first: `health == unhealthy` → 0, else → 1.
 /// 2. Cold first (`lastSourceName == null` → 0, warm → 1): cold sorts first
 ///    so affinity scheduling can still hit warm workers after trim.
 /// 3. Highest [WebViewWorkerSlot.workerId] first.
-int? selectDisposableIdleSlotId(
-  Iterable<WebViewWorkerSlot> slots, {
-  WebViewWorkerKind? kindFilter,
-}) {
-  Iterable<WebViewWorkerSlot> candidates = slots;
-  if (kindFilter != null) {
-    candidates = candidates.where((slot) => slot.kind == kindFilter);
-  }
-  final idleSlots = candidates.where((slot) => slot.canDisposeWhenIdle).toList()
+int? selectDisposableIdleSlotId(Iterable<WebViewWorkerSlot> slots) {
+  final idleSlots = slots.where((slot) => slot.canDisposeWhenIdle).toList()
     ..sort((a, b) {
       final aBad = a.health == WebViewWorkerHealth.unhealthy ? 0 : 1;
       final bBad = b.health == WebViewWorkerHealth.unhealthy ? 0 : 1;

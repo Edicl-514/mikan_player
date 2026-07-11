@@ -87,27 +87,30 @@ void main() {
       );
     });
 
-    test('slotsRemaining=0: gate follows other flags (no slot pump guards anyway)', () {
-      // slotsRemaining=0 doesn't force false — the pump loop's outer guard
-      // already stops when no slots are available. Here the gate just
-      // reflects the flags: with active extraction, true; else false.
-      expect(
-        canStartCaptchaDecision(
-          hasPendingExtraction: true,
-          hasActiveExtraction: false,
-          slotsRemaining: 0,
-        ),
-        isFalse,
-      );
-      expect(
-        canStartCaptchaDecision(
-          hasPendingExtraction: true,
-          hasActiveExtraction: true,
-          slotsRemaining: 0,
-        ),
-        isTrue,
-      );
-    });
+    test(
+      'slotsRemaining=0: gate follows other flags (no slot pump guards anyway)',
+      () {
+        // slotsRemaining=0 doesn't force false — the pump loop's outer guard
+        // already stops when no slots are available. Here the gate just
+        // reflects the flags: with active extraction, true; else false.
+        expect(
+          canStartCaptchaDecision(
+            hasPendingExtraction: true,
+            hasActiveExtraction: false,
+            slotsRemaining: 0,
+          ),
+          isFalse,
+        );
+        expect(
+          canStartCaptchaDecision(
+            hasPendingExtraction: true,
+            hasActiveExtraction: true,
+            slotsRemaining: 0,
+          ),
+          isTrue,
+        );
+      },
+    );
   });
 
   group('pickBestPending', () {

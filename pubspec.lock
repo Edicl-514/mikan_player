@@ -277,18 +277,18 @@ packages:
     dependency: "direct dev"
     description:
       name: drift_dev
-      sha256: c563e0ea24a1b4ad316f860a206220a74dd9c6324f0e7e02a961dd4808dba942
+      sha256: "0994276f63a394b7434ed7deaeffd2ddc855a5eafccf5ed00e5e341905a6f62b"
       url: "https://pub.dev"
     source: hosted
-    version: "2.34.2+1"
+    version: "2.34.3"
   drift_flutter:
     dependency: "direct main"
     description:
       name: drift_flutter
-      sha256: "887fdec622174dc7eaefd0048403e34ee07cc18626ac8a7544cc3b8a4a172166"
+      sha256: "91acf4bee7c3c84467cba46455aa70e5292a3b889f4582645d74f2e5a8c106f2"
       url: "https://pub.dev"
     source: hosted
-    version: "0.3.0"
+    version: "0.3.1"
   fake_async:
     dependency: transitive
     description:
@@ -1436,26 +1436,26 @@ packages:
     dependency: transitive
     description:
       name: video_player
-      sha256: "48a7bdaa38a3d50ec10c78627abdbfad863fdf6f0d6e08c7c3c040cfd80ae36f"
+      sha256: "0431179e1a7a2234a1148f64dde63c73167ca23829815169b24cc0bc6b9444a3"
       url: "https://pub.dev"
     source: hosted
-    version: "2.11.1"
+    version: "2.12.0"
   video_player_android:
     dependency: transitive
     description:
       name: video_player_android
-      sha256: "15bfd0598f8d8946bf0e2d50e2ca1a0db9491589a8bb7f6f9a388c0b48aef764"
+      sha256: "5121de08444d00363efdda630a69ad4d27a208a9f7586482d4909a44a1cdbc63"
       url: "https://pub.dev"
     source: hosted
-    version: "2.10.0"
+    version: "2.11.0"
   video_player_avfoundation:
     dependency: transitive
     description:
       name: video_player_avfoundation
-      sha256: "76097729ef0c976937945afa53f1ca3afa9b50c9a95909ba347bcf93270466fd"
+      sha256: c238f5f0a26845cd0bcc2956049b63065a4d3c40ddfc22c3414cd170bef7fff9
       url: "https://pub.dev"
     source: hosted
-    version: "2.10.0"
+    version: "2.11.0"
   video_player_platform_interface:
     dependency: transitive
     description:

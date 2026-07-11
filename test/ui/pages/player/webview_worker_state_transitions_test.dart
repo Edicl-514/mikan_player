@@ -200,15 +200,21 @@ void main() {
       },
     );
 
-    test('captchaConfigJson reflects verbatim page behavior (not forwarded)', () {
-      // The original inline constructor in `_onWebViewResult` does NOT set
-      // captchaConfigJson from `page`, so the field defaults to null on the
-      // updated page. The pure helper preserves this verbatim behavior.
-      final page = _page(captchaConfigJson: '{ "type":"simple_click" }');
-      final result = _result();
-      final updated = buildUpdatedPlayPageFromResult(page: page, result: result);
-      expect(updated.captchaConfigJson, isNull);
-    });
+    test(
+      'captchaConfigJson reflects verbatim page behavior (not forwarded)',
+      () {
+        // The original inline constructor in `_onWebViewResult` does NOT set
+        // captchaConfigJson from `page`, so the field defaults to null on the
+        // updated page. The pure helper preserves this verbatim behavior.
+        final page = _page(captchaConfigJson: '{ "type":"simple_click" }');
+        final result = _result();
+        final updated = buildUpdatedPlayPageFromResult(
+          page: page,
+          result: result,
+        );
+        expect(updated.captchaConfigJson, isNull);
+      },
+    );
   });
 
   group('shouldClearCaptchaSlotOnIdle', () {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/ui/pages/player/webview_pool_pump_coordinator.dart';
 
@@ -92,6 +94,29 @@ void main() {
         expect(c.token, 1);
       },
     );
+
+    test('clears the scheduled flag when the pump completes', () async {
+      final c = make();
+      final pumpDone = Completer<void>();
+      final scheduled = c.scheduleStaggered((_) => pumpDone.future);
+
+      expect(c.isScheduled, isTrue);
+      pumpDone.complete();
+      await scheduled;
+
+      expect(c.isScheduled, isFalse);
+    });
+
+    test('clears the scheduled flag when the pump fails', () async {
+      final c = make();
+      final scheduled = c.scheduleStaggered(
+        (_) async => throw StateError('pump failed'),
+      );
+
+      expect(c.isScheduled, isTrue);
+      await expectLater(scheduled, throwsStateError);
+      expect(c.isScheduled, isFalse);
+    });
 
     test(
       'second call while scheduled is no-op (does not invoke pump)',

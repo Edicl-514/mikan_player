@@ -31,13 +31,29 @@ void main() {
       expect(jobs, {'pageA': 5});
     });
 
-    test('overwrites previous job on same slot', () {
+    test('rejects assigning a second job to the same slot atomically', () {
       final slot = _slot(workerId: 3);
       final jobs = <String, int>{};
       startVideoJobOnSlot(slot, 'page1', 'srcA', jobs);
-      startVideoJobOnSlot(slot, 'page2', 'srcB', jobs);
-      expect(slot.pageKey, 'page2');
-      expect(jobs, {'page1': 3, 'page2': 3});
+      expect(
+        () => startVideoJobOnSlot(slot, 'page2', 'srcB', jobs),
+        throwsStateError,
+      );
+      expect(slot.pageKey, 'page1');
+      expect(slot.lastSourceName, 'srcA');
+      expect(jobs, {'page1': 3});
+    });
+
+    test('rejects a duplicate page key mapped to another worker', () {
+      final slot = _slot(workerId: 3);
+      final jobs = <String, int>{'page1': 8};
+      expect(
+        () => startVideoJobOnSlot(slot, 'page1', 'srcA', jobs),
+        throwsStateError,
+      );
+      expect(slot.pageKey, isNull);
+      expect(slot.kind, isNull);
+      expect(jobs, {'page1': 8});
     });
   });
 
@@ -52,12 +68,24 @@ void main() {
       expect(slot.health, WebViewWorkerHealth.running);
       expect(jobs, {'taskA': 7});
     });
+
+    test('rejects assigning a second captcha job to the same slot', () {
+      final slot = _slot(workerId: 7);
+      final jobs = <String, int>{};
+      startCaptchaJobOnSlot(slot, 'taskA', 'srcA', jobs);
+      expect(
+        () => startCaptchaJobOnSlot(slot, 'taskB', 'srcB', jobs),
+        throwsStateError,
+      );
+      expect(slot.taskKey, 'taskA');
+      expect(jobs, {'taskA': 7});
+    });
   });
 
   group('releaseCaptchaSlot', () {
     test('removes reverse-map entry and clears slot job fields', () {
       final slots = {5: _slot(workerId: 5)};
-      final captchaJobs = {'taskA': 5};
+      final captchaJobs = <String, int>{};
       startCaptchaJobOnSlot(slots[5]!, 'taskA', 'srcA', captchaJobs);
       releaseCaptchaSlot('taskA', captchaJobs, slots);
       expect(captchaJobs, isEmpty);
@@ -295,7 +323,12 @@ void main() {
       expect(captchaJobs, isEmpty);
       expect(slots[1]!.taskKey, isNull);
       expect(slots[1]!.kind, isNull);
-      // can reuse slot for a new job
+      // The worker becomes reusable only after its idle callback updates health.
+      expect(
+        () => startVideoJobOnSlot(slots[1]!, 'p2', 's2', {}),
+        throwsStateError,
+      );
+      slots[1]!.health = WebViewWorkerHealth.idle;
       startVideoJobOnSlot(slots[1]!, 'p2', 's2', {});
       expect(slots[1]!.kind, WebViewWorkerKind.video);
     });

@@ -63,7 +63,8 @@ class WebViewPoolPumpCoordinator {
 
   /// Staggered pump — if a staggered pump is already scheduled, this is a
   /// no-op. Otherwise marks scheduled, issues a new token, and starts the
-  /// async pump.
+  /// async pump. The flag is cleared when the current pump finishes, including
+  /// when it completes with an error.
   ///
   /// Verbatim from `_scheduleWebViewPoolPump(immediate: false)`:
   /// ```
@@ -72,11 +73,14 @@ class WebViewPoolPumpCoordinator {
   /// _webViewPumpToken++;
   /// _pumpWebViewPoolStaggered(_webViewPumpToken);
   /// ```
-  void scheduleStaggered(PumpStaggeredCallback pump) {
-    if (_scheduled) return;
+  Future<void> scheduleStaggered(PumpStaggeredCallback pump) {
+    if (_scheduled) return Future<void>.value();
     _scheduled = true;
     _token++;
-    pump(_token);
+    final issuedToken = _token;
+    return Future<void>.sync(
+      () => pump(issuedToken),
+    ).whenComplete(() => clearScheduledIfCurrent(issuedToken));
   }
 
   /// Clears the scheduled flag iff the given token is still current.

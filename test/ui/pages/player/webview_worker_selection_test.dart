@@ -15,12 +15,10 @@ import 'package:mikan_player/ui/pages/player/webview_worker_selection.dart';
 
 WebViewWorkerSlot _slot({
   required int workerId,
-  WebViewWorkerKind? kind,
   WebViewWorkerHealth health = WebViewWorkerHealth.idle,
   String? lastSourceName,
 }) {
   final s = WebViewWorkerSlot(workerId: workerId);
-  s.kind = kind;
   s.health = health;
   s.lastSourceName = lastSourceName;
   return s;
@@ -64,54 +62,6 @@ void main() {
     test('same health/warm -> highest workerId preferred for removal', () {
       final slots = [_slot(workerId: 4), _slot(workerId: 9)];
       expect(selectDisposableIdleSlotId(slots), 9);
-    });
-
-    test('kindFilter=video never matches (kind!=null => not disposable)', () {
-      // In the unified pool an idle slot has kind==null. A slot with
-      // kind==video is running an active job so canDisposeWhenIdle is false.
-      // Therefore a kindFilter of video can never select a slot in the unified
-      // pool — the caller falls back to the null-kind path.
-      final slots = [
-        _slot(workerId: 1, kind: WebViewWorkerKind.video),
-        _slot(workerId: 2, kind: WebViewWorkerKind.captcha),
-      ];
-      expect(
-        selectDisposableIdleSlotId(slots, kindFilter: WebViewWorkerKind.video),
-        isNull,
-      );
-    });
-
-    test('kindFilter=video with no disposable video slot -> null', () {
-      final slots = [
-        _slot(workerId: 2, kind: WebViewWorkerKind.captcha),
-      ];
-      expect(
-        selectDisposableIdleSlotId(slots, kindFilter: WebViewWorkerKind.video),
-        isNull,
-      );
-    });
-
-    test('kindFilter=null considers all disposable idle slots', () {
-      final slots = [
-        _slot(workerId: 1, kind: WebViewWorkerKind.video),
-        _slot(workerId: 2, kind: WebViewWorkerKind.captcha),
-        _slot(workerId: 3, health: WebViewWorkerHealth.unhealthy),
-      ];
-      expect(selectDisposableIdleSlotId(slots), 3);
-    });
-
-    test('non-disposable video slot excluded even if kindFilter matches', () {
-      final slots = [
-        _slot(
-          workerId: 1,
-          kind: WebViewWorkerKind.video,
-          health: WebViewWorkerHealth.running,
-        ),
-      ];
-      expect(
-        selectDisposableIdleSlotId(slots, kindFilter: WebViewWorkerKind.video),
-        isNull,
-      );
     });
 
     test('unhealthy takes priority over cold/warm tiebreak', () {
@@ -257,7 +207,7 @@ void main() {
       // first (priority removal), then the cold one.
       final slots = [
         _slot(workerId: 1, health: WebViewWorkerHealth.running), // busy, kept
-        _slot(workerId: 2, kind: WebViewWorkerKind.video), // idle, warm
+        _slot(workerId: 2, lastSourceName: 'srcA'), // idle, warm
         _slot(
           workerId: 3,
           health: WebViewWorkerHealth.unhealthy,

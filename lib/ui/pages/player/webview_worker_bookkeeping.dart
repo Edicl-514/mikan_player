@@ -1,6 +1,6 @@
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 
-/// Phase 2 B2: pure bookkeeping operations for active video/captcha jobs.
+/// Phase 2 B2: isolated bookkeeping operations for active video/captcha jobs.
 ///
 /// These functions replicate the slot + reverse-map mutation logic that was
 /// previously inline in `_PlayerPageState` methods. They parameterize the
@@ -8,8 +8,31 @@ import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 /// can be unit-tested without a full page State. The caller (the page) keeps
 /// the side-effects (debugPrint, _webviewStats, _webViewStatus, setState).
 ///
-/// Every function assumes the caller has already chosen the slot via the
-/// pure selection rules from `webview_worker_selection.dart` (Phase 2 B1).
+/// Start operations validate the idle-slot and reverse-map invariants before
+/// mutating either object. Invalid transitions throw [StateError] without
+/// partially updating the slot or map.
+
+void _ensureSlotCanStartJob(
+  WebViewWorkerSlot slot,
+  String jobKey,
+  Map<String, int> activeJobs,
+) {
+  if (!slot.canAcceptJob || slot.pageKey != null || slot.taskKey != null) {
+    throw StateError(
+      'Worker ${slot.workerId} cannot accept $jobKey: '
+      'kind=${slot.kind}, health=${slot.health}, '
+      'pageKey=${slot.pageKey}, taskKey=${slot.taskKey}',
+    );
+  }
+  if (activeJobs.containsKey(jobKey)) {
+    throw StateError('Job $jobKey is already active');
+  }
+  if (activeJobs.values.contains(slot.workerId)) {
+    throw StateError(
+      'Worker ${slot.workerId} already has an active reverse mapping',
+    );
+  }
+}
 
 /// Marks [slot] as running a video job and records the reverse mapping.
 ///
@@ -22,6 +45,7 @@ void startVideoJobOnSlot(
   String sourceName,
   Map<String, int> activeVideoJobs,
 ) {
+  _ensureSlotCanStartJob(slot, pageKey, activeVideoJobs);
   slot.pageKey = pageKey;
   slot.kind = WebViewWorkerKind.video;
   slot.lastSourceName = sourceName;
@@ -41,6 +65,7 @@ void startCaptchaJobOnSlot(
   String sourceName,
   Map<String, int> activeCaptchaJobs,
 ) {
+  _ensureSlotCanStartJob(slot, taskKey, activeCaptchaJobs);
   slot.taskKey = taskKey;
   slot.kind = WebViewWorkerKind.captcha;
   slot.lastSourceName = sourceName;
