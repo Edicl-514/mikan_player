@@ -41,6 +41,7 @@ import 'package:mikan_player/ui/pages/player/webview_worker_selection.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_bookkeeping.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_pump_decisions.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_state_transitions.dart';
+import 'package:mikan_player/ui/pages/player/webview_pool_pump_coordinator.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
@@ -157,8 +158,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   bool _cancelLowPrioritySourcesOnPlay = true;
   int _webViewLaunchInterval = 200;
   int _sampleLoadToken = 0;
-  bool _webViewPoolPumpScheduled = false;
-  int _webViewPumpToken = 0;
+  final WebViewPoolPumpCoordinator _pumpCoordinator = WebViewPoolPumpCoordinator();
   bool _showWebView = false; // 是否显示 WebView（调试用）
 
   // ── 5B step 3：统一的长期 WebView worker slot 池 ──
@@ -2360,11 +2360,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (!mounted) return;
 
     if (immediate) {
-      if (_webViewPoolPumpScheduled) {
-        _webViewPumpToken++;
-        _webViewPoolPumpScheduled = false;
-      }
-      final startedAny = _pumpWebViewPoolNow();
+      final startedAny =
+          _pumpCoordinator.scheduleImmediate(_pumpWebViewPoolNow);
       if (startedAny && mounted) {
         setState(() {});
         _updatePoolStatusMessage();
@@ -2373,11 +2370,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return;
     }
 
-    if (_webViewPoolPumpScheduled) return;
-
-    _webViewPoolPumpScheduled = true;
-    _webViewPumpToken++;
-    _pumpWebViewPoolStaggered(_webViewPumpToken);
+    _pumpCoordinator.scheduleStaggered(_pumpWebViewPoolStaggered);
   }
 
   Future<void> _pumpWebViewPoolStaggered(int token) async {
@@ -2385,11 +2378,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     var isFirst = true;
 
     while (_activeWebViewTaskCount < _maxConcurrentWebViews) {
-      if (!mounted || token != _webViewPumpToken) break;
+      if (!mounted || !_pumpCoordinator.isCurrentToken(token)) break;
 
       if (!isFirst && _webViewLaunchInterval > 0) {
         await Future.delayed(Duration(milliseconds: _webViewLaunchInterval));
-        if (!mounted || token != _webViewPumpToken) break;
+        if (!mounted || !_pumpCoordinator.isCurrentToken(token)) break;
       }
       isFirst = false;
 
@@ -2422,9 +2415,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
     }
 
-    if (token == _webViewPumpToken) {
-      _webViewPoolPumpScheduled = false;
-    }
+    _pumpCoordinator.clearScheduledIfCurrent(token);
 
     if (startedAny && mounted) {
       _updatePoolStatusMessage();
@@ -2962,8 +2953,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _sourceTiers = {};
       _hasAutoPlayed = false;
       _acceptedSourcePageKey = null;
-      _webViewPoolPumpScheduled = false;
-      _webViewPumpToken++;
+      _pumpCoordinator.reset();
       _clearPlaybackStartupWatchdog();
       _webviewStats.reset();
     });
@@ -5054,8 +5044,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _sourceTiers = {};
       _hasAutoPlayed = false;
       _acceptedSourcePageKey = null;
-      _webViewPoolPumpScheduled = false;
-      _webViewPumpToken++;
+      _pumpCoordinator.reset();
       _webviewStats.reset();
 
       // Reset comments
