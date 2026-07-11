@@ -46,6 +46,10 @@ if(WIN32)
   target_compile_definitions(torrent-rasterbar PRIVATE _WIN32_WINNT=0x0A00)
 endif()
 
+if(ANDROID)
+  target_compile_definitions(torrent-rasterbar PUBLIC BOOST_ASIO_DISABLE_STD_ALIGNED_ALLOC)
+endif()
+
 add_library(mikan_libtorrent SHARED
   src/mikan_libtorrent.cpp
 )
