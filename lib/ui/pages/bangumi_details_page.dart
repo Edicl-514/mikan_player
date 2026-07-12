@@ -16,6 +16,7 @@ import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/pages/bangumi_details/widgets/relations_section.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'package:mikan_player/ui/widgets/site_icon_map.dart';
@@ -2590,150 +2591,37 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   }
 
   Widget _buildRelationsSection(BuildContext context, {bool isDarkBg = false}) {
-    if (_isLoadingRelations) {
-      return _buildPlaceholderSection(
+    return RelationsSection(
+      relations: _relations ?? const [],
+      isLoading: _isLoadingRelations,
+      isDarkBg: isDarkBg,
+      sectionTitle: _buildSectionTitle(
+        context,
+        AppLocalizations.of(context).bangumiDetailsRelatedItems,
+        isDarkBg: isDarkBg,
+      ),
+      loadingPlaceholder: (context) => _buildPlaceholderSection(
         context,
         AppLocalizations.of(context).bangumiDetailsRelatedItems,
         Icons.link,
         isDarkBg: isDarkBg,
-      );
-    }
-
-    if (_relations == null || _relations!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final textColor = isDarkBg ? Colors.white : Colors.black87;
-    final cardColor = isDarkBg
-        ? Colors.white.withValues(alpha: 0.05)
-        : Colors.grey[100];
-    final borderColor = isDarkBg ? Colors.white10 : Colors.grey[300]!;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionTitle(
+      ),
+      scrollController: _relationsScrollController,
+      onItemTap: (rel) {
+        Navigator.push(
           context,
-          AppLocalizations.of(context).bangumiDetailsRelatedItems,
-          isDarkBg: isDarkBg,
-        ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Scrollbar(
-            controller: _relationsScrollController,
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              controller: _relationsScrollController,
-              scrollDirection: Axis.horizontal,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (
-                      var index = 0;
-                      index < _relations!.length;
-                      index++
-                    ) ...[
-                      if (index > 0) const SizedBox(width: 16),
-                      Builder(
-                        builder: (context) {
-                          final rel = _relations![index];
-                          return GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => BangumiDetailsPage(
-                                    anime: AnimeInfo(
-                                      title: rel.nameCn.isNotEmpty
-                                          ? rel.nameCn
-                                          : rel.name,
-                                      bangumiId: rel.id.toString(),
-                                      coverUrl: rel.image,
-                                      tags: const [],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                            child: SizedBox(
-                              width: 110,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 110,
-                                    height: 120,
-                                    decoration: BoxDecoration(
-                                      color: cardColor,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: borderColor),
-                                    ),
-                                    child: rel.image.isNotEmpty
-                                        ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                            child: CachedNetworkImage(
-                                              imageUrl: rel.image,
-                                              fit: BoxFit.cover,
-                                              alignment: Alignment.center,
-                                              deferOffscreenLoad: false,
-                                            ),
-                                          )
-                                        : Center(
-                                            child: Icon(
-                                              Icons.movie_outlined,
-                                              color: isDarkBg
-                                                  ? Colors.white24
-                                                  : Colors.grey[400],
-                                              size: 32,
-                                            ),
-                                          ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    rel.relation,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: isDarkBg
-                                          ? Colors.amber
-                                          : Colors.deepPurple,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    rel.nameCn.isNotEmpty
-                                        ? rel.nameCn
-                                        : rel.name,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: textColor.withValues(alpha: 0.9),
-                                      fontWeight: FontWeight.w500,
-                                      height: 1.3,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ],
-                ),
+          MaterialPageRoute(
+            builder: (context) => BangumiDetailsPage(
+              anime: AnimeInfo(
+                title: rel.nameCn.isNotEmpty ? rel.nameCn : rel.name,
+                bangumiId: rel.id.toString(),
+                coverUrl: rel.image,
+                tags: const [],
               ),
             ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -2802,8 +2690,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     }
     _sortedSites = [..._sites!]
       ..sort(
-        (a, b) =>
-            siteKindPriority(a.kind).compareTo(siteKindPriority(b.kind)),
+        (a, b) => siteKindPriority(a.kind).compareTo(siteKindPriority(b.kind)),
       );
   }
 

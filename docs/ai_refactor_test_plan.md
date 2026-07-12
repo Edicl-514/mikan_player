@@ -42,14 +42,14 @@ download-task-store, and player-recommendations extractions.
 | `lib/ui/pages/player_page.dart` | 8318 | 7673 | -645 | Source loading, playback, episode changes, comments, resource UI, and part of WebView dispatch orchestration remain mixed together; recommendations now extracted. |
 | `lib/services/download_manager.dart` | 3285 | 2862 | -423 | HTTP/m3u8/BT backends still in one service; persistence now extracted and tested, path/file cleanup extracted, DownloadTaskStore injected. |
 | `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | The main hotspot has been reduced substantially; the source-list panel is the main remaining coherent boundary. |
-| `lib/ui/pages/bangumi_details_page.dart` | 3096 | 3036 | -60 | Data loading, favorite/comment state, and all large display sections remain on the page. |
+| `lib/ui/pages/bangumi_details_page.dart` | 3096 | 2923 | -173 | Data loading, favorite/comment state, sites and comments sections remain on the page; relations now extracted. |
 
 ## Progress Snapshot
 
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 340 tests passing across 18 test files.
+- `flutter test`: 345 tests passing across 19 test files.
 - Current checkpoint includes `PlayerWebViewScheduler`, ownership
   boundary fixes, immutable page-facing slot views, composition tests,
   the extracted `EpisodeSidePanel` widget with the project's first
@@ -57,8 +57,9 @@ Current validation baseline:
   with path-safety + empty-parent-cleanup tests that surfaced and fixed a
   real Windows mixed-separator defect in the inherited `isPathUnderDownloadDir`,
   the extracted `DownloadTaskStore` behind an injected key-value-preference
-  interface with round-trip tests, and the extracted `PlayerRecommendations`
-  widget with widget tests.
+  interface with round-trip tests, the extracted `PlayerRecommendations`
+  widget with widget tests, and the extracted `RelationsSection` widget
+  with widget tests.
 - **Real player smoke run completed (2026-07-11)** after the
   episode-panel and download-cleanup checkpoints: source search,
   captcha-to-video reuse, cancellation, source switching, episode
@@ -76,7 +77,7 @@ Phase status:
 | Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **Episode side panel widget + `testWidgets`**. | Player comments/recommendations/models; Bangumi comments/sites/relations; **source-list panel** (only remaining controls boundary). |
 | Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests; **`PlayerRecommendations` display widget + widget tests**. | Dispatch planning/affinity ownership, source controller, episode controller, playback controller, comments/resource widgets, integration smoke. |
 | Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, **DownloadFileCleanup + Windows path-safety tests**, **DownloadTaskStore behind injected prefs interface + round-trip tests**, and unit tests. | HTTP/m3u8 jobs, BT adapters. |
-| Phase 4 | Partial | Pure parsing/sorting helpers and tests. | Details controller and all section widgets. |
+| Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**. | Details controller and sites/comments section widgets. |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
 
 ## Target Dart Shape
