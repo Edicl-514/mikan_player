@@ -16,6 +16,7 @@ import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/pages/bangumi_details/widgets/comments_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/relations_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/sites_section.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
@@ -2657,40 +2658,18 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     if (!_hasRequestedComments && !_isLoadingComments) {
       unawaited(_ensureCommentsLoaded());
     }
-
-    if (_isLoadingComments) {
-      return _buildPlaceholderSection(
-        context,
+    return CommentsSection(
+      comments: _comments ?? const [],
+      isLoading: _isLoadingComments,
+      isLoadingMore: _isLoadingMoreComments,
+      isDarkBg: isDarkBg,
+      sectionTitle: _buildSectionTitle(context, "评论", isDarkBg: isDarkBg),
+      loadingPlaceholder: (ctx) => _buildPlaceholderSection(
+        ctx,
         "Comments",
         Icons.comment,
         isDarkBg: isDarkBg,
-      );
-    }
-
-    if (_comments == null || _comments!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionTitle(context, "评论", isDarkBg: isDarkBg),
-        const SizedBox(height: 12),
-        ..._comments!.map(
-          (comment) => _buildCommentCard(context, comment, isDarkBg: isDarkBg),
-        ),
-        if (_isLoadingMoreComments)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Center(
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          ),
-      ],
+      ),
     );
   }
 
