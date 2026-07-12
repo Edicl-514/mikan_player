@@ -4,17 +4,55 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-12 (updated after Phase 3 HTTP/m3u8 job extraction +
-m3u8 parse-quirk fixes). Counts via `wc -l`. This checkpoint: (1) fixed three
-latent m3u8 parse quirks (METHOD token parse, BANDWIDTH vs AVERAGE-BANDWIDTH
-boundary, colon-delimited EXT tag match); (2) physically extracted plain-HTTP
+Status date: 2026-07-12 (updated after Phase 2 Episode-controller extraction).
+Counts via `wc -l`. Latest checkpoint: extracted the **first Phase 2
+controller** — `lib/ui/pages/player/player_episode_controller.dart` (374
+lines) + `test/ui/pages/player/player_episode_controller_test.dart` (595
+lines, 27 pure-Dart composition tests). The controller owns **episode-state
+mutations only** (`_currentEpisode` / `_playableEpisodes` /
+`_currentEpisodeNotifier` were private page fields at
+`player_page.dart:96/107/110/111/215/216`); the page drives it via
+`selectEpisode(BangumiEpisode)` (returns an `EpisodeSelectionResult{previous;
+next; changed}` DTO), `resolveByOffset(int)` (non-mutating pure resolver
+replacing `_onSkipNext` at `player_page.dart:4819-4824`), `reset({...})`, and
+`clearForDispose()`, and reads back the read-only views (`playableEpisodes`,
+`currentEpisode`, `currentEpisodeListenable`, `currentEpisodeIndex`,
+`episodesCount`, `currentEpisodeNumbers` / `currentEpisodeNumbersAgainst(...)`).
+Pattern follows `PlayerWebViewScheduler` exactly — pure Dart, no
+`flutter/widgets.dart` / `BuildContext` / webview / player / prefs; the page
+runs **all** side-effects (player stop, search-subscription cancel, the big
+`setState` resetting ~30 playback/source fields, history save, danmaku+comments
+reload, BT-existing-download probe, source-loader cascade) and the controller
+never orchestrates them. `_loadDanmaku` (`752-760`) and `_loadSampleSource`'s
+episode-number math (`~2859-2865`) is folded into
+`_episodeController.currentEpisodeNumbersAgainst(widget.allEpisodes)` returning
+`EpisodeNumbers{absolute; relative}` (byte-for-byte with the old three-line
+`indexWhere(id)+1` math). Epoch switch wiring in `_onSkipNext` is rewritten to
+`resolveByOffset(1) -> _onEpisodeSelected(next)` so the side-effect fan-out
+runs exactly once through the single entry point. `video_player_controls.dart`
+(`_resolvedCurrentEpisodeIndex`, `_onSkipPrevious/_onSkipNext`,
+`_showEpisodeSidePanel`) is intentionally UNCHANGED — its id→sort→indexOf
+fallback resolves against the full `allEpisodes` list, while this controller's
+`currentEpisodeIndex`/`resolveByOffset` work in the released-only list;
+unifying the two is a separate behavior-change commit. `player_page.dart` is
+now 6849 lines (+7 vs prior 6842; net diff is small because this checkpoint is
+about testability/ownership, not LOC reduction — the inline episode state was
+already ~17 lines and most of the delta is the controller field + import + the
+_helpers_'_comments clarifying the now-controller-owned fields). Test count:
+503→539 tests across 31 files (+27 controller tests). Manual smoke (episode
+switching) required before the next Phase 2 architectural checkpoint per the
+plan's "episode switching" rule.
+
+The immediately-prior checkpoint (2026-07-12) added: (1) fixed three latent
+m3u8 parse quirks (METHOD token parse, BANDWIDTH vs AVERAGE-BANDWIDTH boundary,
+colon-delimited EXT tag match); (2) physically extracted plain-HTTP
 orchestration into `http_download_job.dart` (`runHttpFileDownload` +
 `ActiveHttpDownload`); (3) extracted HLS resolve+segment download into
 `m3u8_downloader.dart` (`resolveHlsSegments` + `runM3u8Download`), with
 per-segment bytes going through the existing `HttpFileDownloadPort` (no
 separate M3u8DownloadPort needed). Manager keeps slots / task map /
 persistence / notifyListeners / pause-cancel registry. `download_manager.dart`
-is now 2660 lines (−304 from prior 2964).
+was 2660 lines (−304 from prior 2964); unchanged this checkpoint.
 
 ## Goals
 
@@ -45,15 +83,20 @@ is now 2660 lines (−304 from prior 2964).
 
 The initial snapshot is retained for comparison. Current counts are measured
 with `wc -l` at this checkpoint; the immediately-prior checkpoint added the
-episode-panel, download-cleanup, download-task-store, recommendations,
-relations, comments, BT resource-list, resource-content-routing, and the
-comment-HTML-rendering-helper work; this checkpoint adds the HTTP download
-job characterization seam (Package B). The inspect commit (`e9e1862`) and
-this checkpoint dominate the player_page / download_manager deltas.
+HTTP download job characterization seam (Package B), the m3u8 playlist port
++ parse-quirk fixes, and the physical `http_download_job.dart` /
+`m3u8_downloader.dart` extraction; this checkpoint adds the Phase 2
+**`PlayerEpisodeController`** — pure-Dart state object mirroring the
+`PlayerWebViewScheduler` precedent (controller owns mutations only; page keeps
+side-effects). The inspect commit (`e9e1862`) dominated the
+`player_page`/`download_manager` deltas; this Episode-controller checkpoint's
+small LOC delta (+7 on `player_page.dart`) is intentional — the win is a new
+testable ownership boundary (374 lines of controller code + 27 composition
+tests), not a line-count drop.
 
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
-| `lib/ui/pages/player_page.dart` | 8318 | 6842 | -1476 | Source loading, playback, episode changes, WebView dispatch orchestration remain mixed together; recommendations, comments, and the BT resource list are extracted. |
+| `lib/ui/pages/player_page.dart` | 8318 | 6849 | -1469 | Source loading, playback, episode changes, comments, recommendations, and the BT resource list remain mixed together; recommendations, comments, and the BT resource list display trees are extracted; **`PlayerEpisodeController` (Phase 2 controller #1) owns episode-state mutations** (`currentEpisode` / `playableEpisodes` / `currentEpisodeListenable` / `currentEpisodeNumbers`), the page keeps all side-effects. Source/episode/playback controllers, scheduler dispatch planning, and source affinity still page-owned. |
 | `lib/services/download_manager.dart` | 3285 | 2660 | -625 | HTTP + HLS job bodies live in `http_download_job.dart` / `m3u8_downloader.dart`; manager keeps slots, task map, persistence, throttle clock, and active-job cancel registry. BT / libtorrent / rqbit still inline. |
 | `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | Fully decomposed: SettingsPanel + MobileGestureAndLockLayer + MobileFloatingLockButton + SystemTimeDisplay + EpisodeSidePanel + SourceListPanel are now separate files. No remaining coherent controls boundary. |
 | `↳ lib/ui/widgets/video_player_controls/settings_panel.dart` | 1141 | 939 | -202 | Source list extracted as `SourceListPanel`; panel keeps reactive source listener state for the menu subtitle. |
@@ -64,7 +107,7 @@ this checkpoint dominate the player_page / download_manager deltas.
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 506 tests passing across 30 test files.
+- `flutter test`: 539 tests passing across 31 test files.
 - Current checkpoint adds (over the 2026-07-11 source-list / sites /
   comments / bt-resource-list leaf-widget checkpoint): the comment-HTML
   rendering helpers `normalizeBangumiImageSrc` / `isBangumiSmileUrl` /
@@ -142,6 +185,89 @@ Current validation baseline:
   **preserved byte-for-byte** (now locked as the *current* behavior by the
   parser tests) — fix is a separate behavior-change decision, not part of
   this behavior-preserving seam.
+- **Episode controller checkpoint (this commit) adds Phase 2 controller #1.**
+  New files `lib/ui/pages/player/player_episode_controller.dart` (374 lines)
+  + `test/ui/pages/player/player_episode_controller_test.dart` (595 lines,
+  27 pure-Dart composition tests). `PlayerEpisodeController` owns
+  **episode-state mutations only** (mirroring `PlayerWebViewScheduler`'s
+  state-only stance; class doc references the precedent at
+  `player_webview_scheduler.dart:10-34`). Three private page fields
+  (`late BangumiEpisode _currentEpisode;` at `player_page.dart:110`,
+  `late List<BangumiEpisode> _playableEpisodes;` at `111`,
+  `late final ValueNotifier<BangumiEpisode> _currentEpisodeNotifier;` at
+  `215`) move into the controller. The page drives it via:
+  - `selectEpisode(BangumiEpisode)` → `EpisodeSelectionResult{previous; next;
+    changed}` (returns `{changed:false}` on the historic guard at
+    `player_page.dart:4827` — `!ep.isReleased() || ep.id == _currentEpisode.id`
+    — without mutating).
+  - `resolveByOffset(int)` — **non-mutating pure resolver** replacing
+    `_onSkipNext` at `player_page.dart:4819-4824`. `_onSkipNext` is rewritten
+    to `final next = _episodeController.resolveByOffset(1); if (next != null)
+    _onEpisodeSelected(next);` so the side-effect fan-out runs exactly once
+    through the single `_onEpisodeSelected` entry point. This split mirrors
+    the scheduler's deliberately-no-side-effect precedent: "resolve where
+    would we go" is separated from "perform the mutation"; the page chooses
+    the orchestration order.
+  - `reset({BangumiEpisode? newInitial, List<BangumiEpisode>? newAllEpisodes})`
+    (reserved for a future source-controller checkpoint that proves
+    `widget.allEpisodes` legitimately changes externally; NOT called from the
+    page this commit).
+  - `clearForDispose()` — disposes the internal `ValueNotifier` (replaces
+    `_currentEpisodeNotifier.dispose()` at `player_page.dart:~3856`).
+  Read-only views: `playableEpisodes` (`UnmodifiableListView`, freshly wrapped
+  per call), `currentEpisode`, `currentEpisodeListenable`, `currentEpisodeIndex`
+  (`indexOf` in the released-only list, matching historic `_onSkipNext` /
+  panel math), `episodesCount`, `currentEpisodeNumbers` /
+  `currentEpisodeNumbersAgainst(List<BangumiEpisode>)` returning
+  `EpisodeNumbers{absolute; relative}`. The two-argument variant lets the
+  page pass a fresh `widget.allEpisodes` snapshot; `_loadDanmaku`
+  (`player_page.dart:752-760`) and the sample-source site (~`2859-2865`) fold
+  their inline `indexWhere((e) => e.id == _currentEpisode.id) + 1` /
+  `.sort.toInt()` math into `_episodeController.currentEpisodeNumbersAgainst(
+  widget.allEpisodes)` — byte-for-byte preserved. Page keeps ALL side
+  effects: `_player.stop()`, `_searchSubscriptions` cancel, `_sampleLoadToken++`,
+  the big `setState` resetting ~30 playback/source fields (with the now-redundant
+  `_currentEpisode = ep;` and `_currentEpisodeNotifier.value = ep;` lines
+  removed since the controller applied them), `_videoTitleNotifier` bump,
+  `_publishPlayerControlSourceState`, `_savePlaybackHistory`, `_loadDanmaku` /
+  `_loadComments`, `_checkAndPlayExistingBtDownload`, source-loader cascade
+  (`_reloadMikanResourcesForEpisode` / `_loadMikanSource` / `_loadDmhySource` /
+  `_loadSampleSource`). The controller never imports `flutter/widgets.dart`,
+  `BuildContext`, webview, player, or prefs — pure-Dart unit-testable. New
+  tests (pure Dart, `flutter_test`; mirrors `player_webview_scheduler_test.dart`'s
+  group structure): seeding (released-initial preserved / unreleased-initial
+  with released fallback / unreleased-initial with no released fallback);
+  `selectEpisode` guards (unreleased → no-op; same-id → no-op; identical → no-op;
+  different-released → mutates + notifier fires exactly once); `resolveByOffset`
+  is **side-effect-free** (sub-test: notifier-listener counter stays at 0
+  across every resolve call across both clause boundaries); `EpisodeNumbers`
+  math (id-found → `relative`=idx+1; id-not-found → `relative==absolute`;
+  fresh-list snapshot proves no caching); `reset({newAllEpisodes,
+  newInitial})` recomputes `playableEpisodes` and re-seeds `currentEpisode`;
+  `validateInvariants` empty across the public-surface exercise (one **reachable**
+  failure branch — check #2: selecting a released-but-phantom episode filtered
+  out by `withoutPhantomEpisodes()` — is locked by an explicit test; the other
+  four checks are unreachable via the public API and regression-guarded by an
+  "exercise the full public surface → expect empty invariants" test, per the
+  scheduler precedent that adds no `@visibleForTesting` mutators). Vintage
+  `BangumiEpisode ==` was found to override == with full value-equality
+  (`lib/src/rust/api/bangumi.dart:256-267`); the `selectEpisode` guard and the
+  notifier-equality invariant still use `.id` byte-for-byte with the original
+  page code at line 4827 — strictly finer than `==`. `video_player_controls.dart`
+  (`_resolvedCurrentEpisodeIndex`, `_onSkipPrevious/_onSkipNext`,
+  `_showEpisodeSidePanel`) intentionally UNCHANGED — its id→sort→indexOf
+  fallback resolves against the full `allEpisodes` list while the controller
+  works in the released-only list; unifying both is a separate behavior-change
+  commit. The post-controller grep audit confirms zero remaining direct reads
+  of `_currentEpisode` / `_playableEpisodes` / `_currentEpisodeNotifier` in
+  `player_page.dart` (all matches now inside `player_episode_controller.dart`
+  where the private fields live). **Manual player smoke required** before the
+  next Phase 2 architectural checkpoint (episode switching per the plan's
+  manual-smoke rule): PC episode-list tap → side-effect fan-out;
+  auto-play-next at completion and at the last-playable boundary (no-op);
+  skip-prev / skip-next via `CustomVideoControls` buttons at corpus boundaries;
+  unreleased-initial + no-released fallback seeding; `didUpdateWidget` prop
+  drilling; leave / re-enter (`clearForDispose`).
 - **Real player smoke run completed (2026-07-11)** after the
   episode-panel and download-cleanup checkpoints: source search,
   captcha-to-video reuse, cancellation, source switching, episode
@@ -163,9 +289,9 @@ Phase status:
 
 | Phase | Status | Completed | Main remaining work |
 | --- | --- | --- | --- |
-| Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. |
+| Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. **Episode-controller checkpoint (2026-07-12) touches episode switching** — its smoke is pending; see the smoke paragraph above. |
 | Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, pure BT-tag helpers, and **comment HTML rendering helpers (`normalizeBangumiImageSrc` / `isBangumiSmileUrl` / `bangumiSmileSize`) promoted to top-level + 23 widget/helper tests** — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
-| Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests; **`PlayerRecommendations` display widget + widget tests**; **`PlayerComments` display widget + widget tests (incl. `text_mask` + Bangumi smile `<img>` HTML rendering)**; **`BtResourceList` display widget + `BtResource` view-model + dispatch adapters + tests** (play/download/clipboard callbacks stay on page). | Dispatch planning/affinity ownership, source controller, episode controller, playback controller, integration smoke. |
+| Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests; **`PlayerRecommendations` display widget + widget tests**; **`PlayerComments` display widget + widget tests (incl. `text_mask` + Bangumi smile `<img>` HTML rendering)**; **`BtResourceList` display widget + `BtResource` view-model + dispatch adapters + tests** (play/download/clipboard callbacks stay on page); **`PlayerEpisodeController` (controller #1) — pure-Dart state object mirroring the scheduler precedent, owns `currentEpisode` / `playableEpisodes` / `currentEpisodeListenable` mutations; page keeps all side-effects; 27 composition tests**. | Dispatch planning/affinity ownership, source controller, playback controller, integration smoke. |
 | Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, cleanup, task store, **HTTP port + throttle clock**, **m3u8 playlist port + parse quirks fixed**, **physical `http_download_job.dart` + `m3u8_downloader.dart`** (segment download reuses `HttpFileDownloadPort`), characterization tests incl. HLS segment concat. | BT / libtorrent / rqbit adapters last. Manual HTTP/HLS download smoke recommended. |
 | Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**; **`SitesSection` display widget + widget tests**; **`CommentsSection` display widget (wide layout) + widget tests (incl. `text_mask` rendering)**. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. | |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
@@ -421,17 +547,27 @@ Status: partial. `PlayerWebViewScheduler` now owns worker slots, reverse maps,
 worker ids, health/bookkeeping transitions, budget allocation, and the pump
 coordinator. It exposes immutable page-facing slot views and has composition
 tests for cross-kind lifecycle, cancellation, stale callbacks, unhealthy
-workers, ownership, and token ordering.
+workers, ownership, and token ordering. **`PlayerEpisodeController`
+(Phase 2 controller #1, this checkpoint)** owns episode-state mutations
+(`currentEpisode` / `playableEpisodes` / `currentEpisodeListenable` /
+`currentEpisodeNumbers`); the page drives it via `selectEpisode` /
+`resolveByOffset` / `reset` / `clearForDispose` and reads back the read-only
+views. The page keeps all episode-change side-effects (player stop, search-
+subscription cancel, the big `setState` resetting ~30 playback/source fields,
+history save, danmaku+comments reload, BT-existing-download probe, source-
+loader cascade). 27 pure-Dart composition tests; manual episode-switch smoke
+is pending (see Progress Snapshot above).
 
 Still page-owned:
 
 - Pending `SearchPlayResult` collection and source-tier/enqueue metadata.
 - Source-affinity job choice and the pump loop that invokes page side effects.
 - Captcha/video result business handling, probe/register, logging, and UI text.
-- Source loading, playback, episode changes, comments, recommendations, and
-  resource list remain page-owned for behavior, but their display trees are
-  now extracted widgets (`PlayerRecommendations`, `PlayerComments`,
-  `BtResourceList`) wired back via callbacks.
+- Source loading, playback, comments, recommendations, and the BT resource
+  list remain page-owned for behavior; episode-change **side-effects** remain
+  page-owned but the **mutated state** for `currentEpisode`/`playableEpisodes`
+  lives in `PlayerEpisodeController`; display trees for recommendations /
+  comments / `BtResourceList` are extracted widgets wired back via callbacks.
 
 Purpose: make `PlayerPage` a page shell plus orchestration layer, then move
 long-running behavior into testable controllers.
@@ -467,7 +603,22 @@ the revised sequence below:
    effects.
 3. Recommendations and comments are complete. Extract only the resource list
    or source panel as the next display-only player widget, one per commit.
-4. Extract `PlayerEpisodeController` as the lowest-risk controller.
+4. ✅ Extract `PlayerEpisodeController` as the lowest-risk controller — done in
+   the Episode-controller checkpoint (2026-07-12). Pure-Dart state object
+   (`lib/ui/pages/player/player_episode_controller.dart`, 374 lines) mirrors
+   the `PlayerWebViewScheduler` precedent. Page drives it via `selectEpisode`
+   (returns `EpisodeSelectionResult{previous; next; changed}` DTO) /
+   `resolveByOffset` (non-mutating pure resolver) / `reset` / `clearForDispose`,
+   reads back immutable views. Page keeps ALL side-effects. 27 composition
+   tests in `test/ui/pages/player/player_episode_controller_test.dart` (595
+   lines); max risk is the `_onSkipNext` wiring (`resolveByOffset(1) ->
+   _onEpisodeSelected(next)`) — manual episode-switch smoke required before
+   the next Phase 2 architectural checkpoint. The Episode controller was the
+   one identified latent finding: `BangumiEpisode ==` already overrides `==`
+   with full value-equality (`lib/src/rust/api/bangumi.dart:256-267`), and
+   both the controller guard and the `validateInvariants` notifier-equality
+   check stay `.id`-based (byte-for-byte with `player_page.dart:4827`),
+   which is strictly finer than `==` — preserved, not changed.
 5. Extract source loading state into `PlayerSourceController` using injected
    loaders/streams and cancellation tests.
 6. Extract `PlayerPlaybackController` last, with injected clock/timer/player
@@ -650,6 +801,16 @@ Covered areas:
 - Scheduler statistics, worker selection, bookkeeping, pump decisions,
   state transitions, pump coordinator, and composed scheduler invariants.
 - Player source/BT/tag helper behavior.
+- **`PlayerEpisodeController` composition tests** (pure Dart, `flutter_test`):
+  seeding (released-initial preserved; unreleased-initial + released fallback;
+  unreleased-initial + no released fallback), `selectEpisode` guards +
+  notifier-fires-once contract, `resolveByOffset` is side-effect-free
+  (notifier-listener counter stays at 0 across all resolve calls including both
+  clause boundaries), `EpisodeNumbers` math (id-found-in-list → relative=idx+1;
+  id-not-found → relative==absolute; fresh-`allEpisodes` snapshot proves no
+  caching), `reset({newAllEpisodes,newInitial})` recomputes + re-seeds, `reset()`
+  no-op, `validateInvariants` empty across the public-surface exercise + the
+  one reachable failure branch (selecting a released-but-phantom episode).
 - DownloadTask JSON compatibility, magnet helpers, DownloadQueue.
 - Download path safety (`download_file_cleanup_test.dart`): under-root
   containment, similar-prefix sibling rejection, traversal/`:` rejection,
@@ -747,6 +908,7 @@ High-value new tests:
 | Download path safety | `test/services/download/download_file_cleanup_test.dart` | Under-download-dir checks, relative path resolution, Windows separators, empty parent cleanup with temp dirs. |
 | Magnet helpers | `test/services/download/magnet_test.dart` | Tracker injection dedupe, info-hash extraction from magnet and stream URLs. |
 | Player scheduler | `test/ui/pages/player/player_webview_scheduler_test.dart` | Worker selection, source affinity, unhealthy workers, captcha/video active job maps. |
+| Player episode controller (NEW) | `test/ui/pages/player/player_episode_controller_test.dart` | Pure-Dart composition tests mirroring the scheduler test pattern. Seeding (`released-initial` preserved; `unreleased-initial` + released fallback; `unreleased-initial` + no released fallback). `selectEpisode` guards (unreleased → no-op; same-`.id` → no-op; identical → no-op; different-released → mutates + notifier fires exactly once). `resolveByOffset` is **side-effect-free** (sub-test: notifier-listener counter stays at 0 across every resolve call AND at both clause boundaries — last→null and first→null). `EpisodeNumbers` math (`id`-found-in-list → `relative`=idx+1; `id`-not-found → `relative==absolute`; fresh-`allEpisodes` snapshot to `currentEpisodeNumbersAgainst` proves no caching). `reset({newAllEpisodes, newInitial})` recomputes `playableEpisodes` and re-seeds `currentEpisode` with notifier fire; `reset()` no-op. `validateInvariants` empty across the public-surface exercise; one reachable failure branch (check #2: selecting a released-but-phantom episode filtered out by `withoutPhantomEpisodes()`) is locked by an explicit test; the other four checks are unreachable via the public surface and regression-guarded by the surface-exercise test (no `@visibleForTesting` mutators added, per the scheduler precedent). |
 | Player source helpers | `test/ui/pages/player/player_source_helpers_test.dart` | BT-resource dedup/sorting, view-model dispatch, resource-content routing, recommendation tag normalization. |
 | Video controls helpers | `test/ui/widgets/video_player_controls/video_controls_test.dart` | Episode selection, source labels, playback speed formatting where extracted. |
 | Bangumi details helpers | `test/ui/pages/bangumi_details/bangumi_details_helpers_test.dart` | Summary parsing, infobox summarization, site sorting, person matching. |
@@ -948,15 +1110,48 @@ containment and empty-parent cleanup of literal-backslash siblings.
    immutable input/output DTOs and tests for tier/enqueue order, affinity,
    soft limits, captcha/video competition, and no-work results. Do not move
    WebView construction or page side effects in this step.
-5. Extract controllers in risk order: Episode, Bangumi Details, Source,
-   Playback. Stop for review after each controller rather than running this
-   sequence unattended.
-  6. ✅ HTTP/m3u8 jobs extracted: `http_download_job.dart` +
-     `m3u8_downloader.dart`; m3u8 parse quirks fixed; HLS segments use
-     `HttpFileDownloadPort`. Remaining Phase 3: BT / libtorrent / rqbit
-     adapters only. Prefer switching main effort to Phase 2 (`player_page`)
-     after a short HTTP/HLS manual smoke.
- 7. Start styling/token work only after the structural phases stop moving.
+5. Extract controllers in risk order, **per user direction prioritizing Phase 2
+   player_page controllers over the Bangumi Details controller**:
+   - ✅ `PlayerEpisodeController` (controller #1) — done in the Episode-
+     controller checkpoint (2026-07-12). See the Episode controller paragraph
+     in Progress Snapshot + the revised Phase 2 order item #4 above. **Manual
+     episode-switch smoke is still pending** (see the smoke paragraph in
+     Progress Snapshot); run it before the next Phase 2 architectural
+     checkpoint.
+   - ⏭ Next: `PlayerSourceController` — extract the Mikan/DMHY/sample loading
+     state (`_mikanAnime` / `_isLoadingMikan` / `_mikanError` / `_mikanResources` /
+     `_isLoadingDmhy` / `_dmhyError` / `_dmhyResources` / `_isLoadingSample` /
+     `_sampleError` / `_samplePlayPages` / `_sampleSuccessfulSources` /
+     `_pageEnqueueSeq` / `_nextPageEnqueueSeq` / `_selectedSourceIndex` /
+     `_sourceProgressMap` / `_sourceTiers` / `_enabledSourceNames` /
+     `_sampleLoadToken`) into a pure-Dart controller that receives injected
+     loaders/streams and exposes cancellation tests. Per the plan's revised
+     Phase 2 order item #5. The page keeps the WebView dispatch / pump loop /
+     probe / play side-effects. This controller has the largest injection
+     surface of the four (Rust mikan/dmhy APIs + sample HTTP search + stream
+     subscriptions + cancellation tokens); likely a MEDIUM-to-LARGE sub-agent
+     task that may warrant sub-task splitting.
+   - ⏭ After: `PlayerPlaybackController` — per the plan's revised Phase 2 order
+     item #6; inject `clock`/`timer`/`player` callbacks for watchdog/fallback
+     tests. Play sequence last because the player lifecycle (start, watchdog
+     teardown, auto-play-next subscription, fallback) is the highest-risk side-
+     effect cluster on the page and only becomes safely extractable once the
+     source/episode controllers are stable.
+   - ⏸ `BangumiDetailsController` is in the plan's risk list (item Phase 4)
+     but explicitly DEFERRED per user direction; resume it after Phase 2
+     player_page controllers are stable.
+   Stop for review after each controller rather than running this sequence
+   unattended.
+   6. ✅ HTTP/m3u8 jobs extracted: `http_download_job.dart` +
+      `m3u8_downloader.dart`; m3u8 parse quirks fixed; HLS segments use
+      `HttpFileDownloadPort`. **Phase 3 remaining: BT / libtorrent / rqbit
+      adapters only — WORK IS PARALLEL-ABLE / DEFERRED per user direction**;
+      a separate sub-agent (or a parallel session) can pick it up at any time
+      without coordination with Phase 2 player_page work, since the download
+      and player files have no shared state. A short HTTP/HLS manual smoke is
+      still recommended before the next architectural checkpoint that depends
+      on the HTTP/HLS seam.
+  7. Start styling/token work only after the structural phases stop moving.
 
 Use a new branch/checkpoint for each architectural stage. Do not measure
 completion by hotspot line count alone; require an owned responsibility,
