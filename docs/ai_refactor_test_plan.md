@@ -4,7 +4,11 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-12.
+Status date: 2026-07-12 (updated after the source-list / sites / comments /
+bt-resource-list leaf-widget extraction checkpoint). Counts below are
+physical line counts via `wc -l`; the earlier checkpoint's row was measured
+with a tool that undercounted, so "Current" is not directly comparable to
+the prior "Current" across files. Trends are correct.
 
 ## Goals
 
@@ -33,32 +37,37 @@ Status date: 2026-07-12.
 
 ## Current Hotspots
 
-The initial snapshot is retained for comparison. Current counts are from the
-2026-07-12 checkpoint after the episode-panel, download-cleanup,
-download-task-store, recommendations, relations, comments, and POSIX path
-containment-parity fix.
+The initial snapshot is retained for comparison. Current counts are measured
+with `wc -l` at this checkpoint; the immediately-prior checkpoint added the
+episode-panel, download-cleanup, download-task-store, recommendations,
+relations, comments, and POSIX path containment-parity work.
 
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
-| `lib/ui/pages/player_page.dart` | 8318 | 6830 | -1488 | Source loading, playback, episode changes, resource UI, and part of WebView dispatch orchestration remain mixed together; recommendations and comments are extracted. |
-| `lib/services/download_manager.dart` | 3285 | 2600 | -685 | HTTP/m3u8/BT backends still live in one service; persistence and path/file cleanup are extracted with Windows mixed-separator and POSIX literal-backslash safety tests. |
-| `lib/ui/widgets/video_player_controls.dart` | 3103 | 1053 | -2050 | The source-list panel is the remaining coherent controls boundary. |
-| `lib/ui/pages/bangumi_details_page.dart` | 3096 | 2750 | -346 | Data loading, favorite/comment state, sites, and comments sections remain on the page; relations are extracted. |
+| `lib/ui/pages/player_page.dart` | 8318 | 6835 | -1483 | Source loading, playback, episode changes, WebView dispatch orchestration remain mixed together; recommendations, comments, and the BT resource list are extracted. |
+| `lib/services/download_manager.dart` | 3285 | 2862 | -423 | HTTP/m3u8/BT backends still live in one service; persistence and path/file cleanup are extracted with Windows mixed-separator and POSIX literal-backslash safety tests. |
+| `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | Fully decomposed: SettingsPanel + MobileGestureAndLockLayer + MobileFloatingLockButton + SystemTimeDisplay + EpisodeSidePanel + SourceListPanel are now separate files. No remaining coherent controls boundary. |
+| `↳ lib/ui/widgets/video_player_controls/settings_panel.dart` | 1141 | 939 | -202 | Source list extracted as `SourceListPanel`; panel keeps reactive source listener state for the menu subtitle. |
+| `lib/ui/pages/bangumi_details_page.dart` | 3096 | 2732 | -364 | Data loading, favorite state, and the mobile inline comment rendering remain on the page; relations, sites, and the wide-layout comments section are extracted. |
 
 ## Progress Snapshot
 
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 352 tests passing across 21 test files.
-- Current checkpoint includes `PlayerWebViewScheduler`, ownership
-  boundary fixes, immutable page-facing slot views, composition tests,
-  the extracted `EpisodeSidePanel` widget with the project's first
-  `testWidgets` coverage, the extracted `DownloadFileCleanup` module,
-  the extracted `DownloadTaskStore` with injected prefs interface,
-  the extracted `PlayerRecommendations` widget, the extracted
-  `RelationsSection` widget, and the extracted `PlayerComments` widget
-  with widget tests.
+- `flutter test`: 425 tests passing across 26 test files.
+- Current checkpoint adds (over the 2026-07-11 checkpoint): the extracted
+  `SourceListPanel` widget from `settings_panel.dart` (with pure helpers
+  `sourceDisplayLabel` / `clampSourceIndex` / `resolveActiveOnlineSourceIndex`),
+  the extracted `SitesSection` widget, the extracted `CommentsSection`
+  display widget (wide layout; the mobile layout keeps its own inline
+  rendering and `_buildCommentCard`), the extracted pure BT-tag helpers
+  (`parseBtTags` / `buildBtTag` / `buildBtTagsRow` in `bt_resource_tags.dart`),
+  and the extracted `BtResourceList` display widget with an immutable
+  `BtResource` view-model plus dispatch adapters (`timeOf` / `episodeOf` /
+  `toBtResource` / `toBtResourceViewModels`). All play/download/clipboard
+  side effects stay on `PlayerPage` as `BtResourceList` callbacks; the
+  `onPlay` body is byte-identical to the original inline closure.
 - **Real player smoke run completed (2026-07-11)** after the
   episode-panel and download-cleanup checkpoints: source search,
   captcha-to-video reuse, cancellation, source switching, episode
@@ -73,10 +82,10 @@ Phase status:
 | Phase | Status | Completed | Main remaining work |
 | --- | --- | --- | --- |
 | Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. |
-| Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, and **RelationsSection** display widgets with `testWidgets`. | Player data models/enums; Bangumi sites/comments sections; **source-list panel** (only remaining controls boundary). |
-| Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests; **`PlayerRecommendations` display widget + widget tests**; **`PlayerComments` display widget + widget tests**. | Dispatch planning/affinity ownership, source controller, episode controller, playback controller, resource list widget, integration smoke. |
+| Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, and pure BT-tag helpers — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
+| Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests; **`PlayerRecommendations` display widget + widget tests**; **`PlayerComments` display widget + widget tests**; **`BtResourceList` display widget + `BtResource` view-model + dispatch adapters + tests** (play/download/clipboard callbacks stay on page). | Dispatch planning/affinity ownership, source controller, episode controller, playback controller, integration smoke. |
 | Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, **DownloadFileCleanup + Windows/POSIX path-safety tests**, **DownloadTaskStore behind injected prefs interface + round-trip tests**, and unit tests. | HTTP/m3u8 jobs, then BT adapters. |
-| Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**. | Details controller and sites/comments section widgets. |
+| Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**; **`SitesSection` display widget + widget tests**; **`CommentsSection` display widget (wide layout) + widget tests**. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. | |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
 
 ## Target Dart Shape
@@ -201,8 +210,8 @@ cargo test
 
 Owner: baseline agent
 
-Status: complete. The current checkpoint is 0 analyzer issues and 352 passing
-tests across 21 test files. Re-run the baseline after dependency, Flutter SDK,
+Status: complete. The current checkpoint is 0 analyzer issues and 425 passing
+tests across 26 test files. Re-run the baseline after dependency, Flutter SDK,
 or platform changes.
 
 Tasks:
@@ -241,13 +250,36 @@ Completed:
   focused widget tests.
 - `RelationsSection` display widget with loading, empty, populated, dark, and
   tap-forwarding widget tests.
+- `SourceListPanel` widget (`lib/ui/widgets/video_player_controls/source_list_panel.dart`)
+  extracted from `settings_panel.dart`'s `_buildSourceList`; pure helpers
+  `sourceDisplayLabel` / `clampSourceIndex` / `resolveActiveOnlineSourceIndex`
+  promoted to top-level; 9 widget/unit tests.
+- `SitesSection` display widget (`lib/ui/pages/bangumi_details/widgets/sites_section.dart`)
+  extracted from `bangumi_details_page.dart`; page keeps `_sortSites`, the
+  scroll controller, and the `launchBangumiSiteUrl` callback; 6 widget tests.
+- `CommentsSection` display widget (`lib/ui/pages/bangumi_details/widgets/comments_section.dart`)
+  extracted from the wide-layout `_buildCommentsSection`; the fetch side
+  effect (`unawaited(_ensureCommentsLoaded())`) and all pagination/state stay
+  on the page's thin wrapper; the mobile layout keeps its own inline
+  rendering and `_buildCommentCard`; 9 widget tests.
+- Pure BT-tag helpers (`lib/ui/pages/player/widgets/bt_resource_tags.dart`):
+  `parseBtTags` / `buildBtTag` / `buildBtTagsRow`, relocated verbatim from
+  `player_page.dart`; 25 unit + widget tests.
+- `BtResourceList` display widget (`lib/ui/pages/player/widgets/player_resource_list.dart`)
+  with immutable `BtResource` view-model (`bt_resource.dart`) and dispatch
+  adapters `timeOf` / `episodeOf` / `toBtResource` / `toBtResourceViewModels`
+  added to `player_source_helpers.dart`; the page keeps all
+  play/download/clipboard side effects as `BtResourceList` callbacks; 10
+  widget tests + 14 dispatch/adapter tests.
 
 Remaining:
 
-- Bangumi comments and sites section widgets.
 - Player data models/enums that do not belong to a controller.
-- Source-list panel (the only remaining coherent controls boundary after the
-  episode panel was extracted).
+- (Deferred redesign) Unify the mobile inline comment rendering with the
+  wide-layout `CommentsSection` — the mobile branch inlines its own
+  ListView + "加载中..."/"暂无评论" text and calls `_buildCommentCard`
+  directly; unifying would redraw mobile and is out of scope for a
+  behavior-preserving leaf-widget pass.
 
 Purpose: shrink large files by moving clearly independent declarations and
 private widgets into new files with minimal behavior changes.
@@ -300,7 +332,9 @@ Still page-owned:
 - Source-affinity job choice and the pump loop that invokes page side effects.
 - Captcha/video result business handling, probe/register, logging, and UI text.
 - Source loading, playback, episode changes, comments, recommendations, and
-  resource widgets.
+  resource list remain page-owned for behavior, but their display trees are
+  now extracted widgets (`PlayerRecommendations`, `PlayerComments`,
+  `BtResourceList`) wired back via callbacks.
 
 Purpose: make `PlayerPage` a page shell plus orchestration layer, then move
 long-running behavior into testable controllers.
@@ -432,7 +466,9 @@ Avoid:
 Owner: details page agent
 
 Status: partial. Pure summary/infobox/site/person helpers are extracted and
-tested. Controller state and section widgets remain on the page.
+tested. `RelationsSection`, `SitesSection`, and the wide-layout
+`CommentsSection` display widgets are extracted with `testWidgets` coverage.
+Controller state and the mobile inline comment rendering remain on the page.
 
 Purpose: make the details page a composition of sections with isolated parsing
 helpers.
@@ -505,7 +541,7 @@ Only add this after confirming the project benefits from it.
 
 ## Test Plan
 
-Current baseline: 352 tests across 21 files.
+Current baseline: 425 tests across 26 test files.
 
 Covered areas:
 
@@ -536,6 +572,22 @@ Covered areas:
 - `PlayerComments` widget: loading, error, empty, populated, and sort-button
   states; `RelationsSection`: loading, empty, populated, dark-mode, and
   relation-tap forwarding.
+- `SourceListPanel` widget: empty, populated, selection highlight, tap
+  callback, `ValueListenable` reactivity; plus pure-helper unit tests
+  (`sourceDisplayLabel` / `clampSourceIndex` / `resolveActiveOnlineSourceIndex`).
+- `SitesSection` widget: empty, populated, kind-badge labels, tap-to-launch
+  forwarding, dark-bg, Scrollbar wiring.
+- `CommentsSection` widget (wide layout): loading, empty, populated, rate
+  stars, load-more spinner on/off, dark-bg, HtmlWidget no-throw smoke.
+- BT-tag helpers (`bt_resource_tags_test.dart`): resolution / codec /
+  subLang / subType / raw precedence, combination-language priority,
+  soft-over-hard sub, empty title, realistic VCB-Studio title,
+  `buildBtTagsRow` rendering + SizedBox.shrink-on-empty + pre-parsed-tags path.
+- `BtResourceList` display widget + `BtResource` view-model: collapsed gate,
+  loader-in-tab guard, empty + retry, empty + error status, populated,
+  per-card `loadingMagnet` spinner, play-disabled, copy/download/play
+  callback forwarding, dark-theme, R1 tag chips; plus dispatch adapters
+  (`timeOf` / `episodeOf` / `toBtResource` / `toBtResourceViewModels`).
 
 Important uncovered areas:
 
@@ -560,6 +612,11 @@ High-value new tests:
 | Player source helpers | `test/ui/pages/player/player_source_helpers_test.dart` | Alias extraction, recommendation tag normalization, source key generation. |
 | Video controls helpers | `test/ui/widgets/video_player_controls/video_controls_test.dart` | Episode selection, source labels, playback speed formatting where extracted. |
 | Bangumi details helpers | `test/ui/pages/bangumi_details/bangumi_details_helpers_test.dart` | Summary parsing, infobox summarization, site sorting, person matching. |
+| Source-list panel | `test/ui/widgets/video_player_controls/source_list_panel_test.dart` | Empty, populated, selection highlight, tap callback, `ValueListenable` reactivity, pure-helper dispatch. |
+| Bangumi sites section | `test/ui/pages/bangumi_details/widgets/sites_section_test.dart` | Empty, populated, kind-badge labels, tap-to-launch forwarding, dark-bg, Scrollbar wiring. |
+| Bangumi comments section | `test/ui/pages/bangumi_details/widgets/comments_section_test.dart` | Loading, empty, populated, rate stars, load-more spinner on/off, dark-bg, HtmlWidget no-throw. |
+| BT-resource tag helpers | `test/ui/pages/player/widgets/bt_resource_tags_test.dart` | Resolution/codec/subLang/subType/raw precedence, combination priority, HEVC-over-AVC, soft-over-hard sub, empty, realistic VCB-Studio title, `buildBtTagsRow` rendering. |
+| BtResourceList display | `test/ui/pages/player/widgets/player_resource_list_test.dart` | Collapsed gate, loader-in-tab guard, empty + retry, empty + error status, populated, per-card loading spinner, play-disabled, copy/download/play callback forwarding, dark-theme, R1 tag chips. |
 
 Add basic widget tests with each display-only extraction. Prefer stable state
 and callback assertions over pixel-perfect goldens:
@@ -580,7 +637,7 @@ Testing guidance:
 
 ## Suggested Sub-Agent Work Packages
 
-### Package A: Remaining Video Controls Boundary
+### Package A: Remaining Video Controls Boundary (✅ complete — `SourceListPanel`)
 
 Prompt:
 
@@ -636,7 +693,7 @@ Acceptance:
 - Page-side effects and WebView construction remain on PlayerPage.
 - Existing scheduler and runner tests still pass.
 
-### Package D: Bangumi Details Section Widget
+### Package D: Bangumi Details Section Widget (✅ complete — `SitesSection` + `CommentsSection`)
 
 Prompt:
 
@@ -654,7 +711,7 @@ Acceptance:
 - Page output and callbacks are preserved.
 - Analyzer and full tests pass.
 
-### Package E: Player Page Widget Sections
+### Package E: Player Page Widget Sections (✅ complete — `BtResourceList` + `BtResource`)
 
 Prompt:
 
@@ -712,16 +769,29 @@ The download containment parity fix is complete: separator spelling and case
 are normalized only on Windows, and POSIX temp-directory tests cover both
 containment and empty-parent cleanup of literal-backslash siblings.
 
-1. Complete low-risk leaf widgets in isolated commits: source-list panel,
-   Bangumi sites, Bangumi comments, then the player resource list. Add only
-   state/callback widget tests; do not combine this with controller work.
-2. Add focused `PlayerComments` HTML-rendering tests for a mask and a Bangumi
-   smile image, then manually check one populated comments view. The current
-   tests cover states and callbacks but intentionally use empty HTML.
-3. Keep the current scheduler checkpoint frozen until the display-only work is
-   complete. Its real player/WebView smoke run has passed; repeat that smoke
-   before and after any dispatch, source, episode, or playback controller
-   checkpoint.
+1. ✅ Complete low-risk leaf widgets in isolated commits: source-list panel,
+   Bangumi sites, Bangumi comments, and the player resource list — all
+   extracted this checkpoint with state/callback widget tests and no
+   controller work. Next leaf candidates: player data models/enums and the
+   deferred mobile-comment-rendering unification (a redesign, not an
+   extraction).
+   **Smoke caveat:** the `BtResourceList` extraction is display-only, but its
+   `onPlay` callback on the page drives the playback-startup path
+   (`_downloadManager.startDownload(forPlayback:true)` → `_player.open(Media)`).
+   The `onPlay` body is byte-identical to the original inline closure, so
+   risk is low — but a real player/WebView smoke run (source search → play
+   a BT source → confirm playback + leave/re-enter) should be recorded
+   before the next architectural checkpoint, per the Phase 2 manual-smoke
+   rule.
+2. Add focused `PlayerComments` (and Bangumi `CommentsSection`) HTML-rendering
+   tests for a mask and a Bangumi smile image, then manually check one
+   populated comments view. The current tests cover states and callbacks but
+   intentionally use empty HTML.
+3. Keep the current scheduler checkpoint frozen until the next architectural
+   step. Its real player/WebView smoke run has passed (2026-07-11); repeat
+   that smoke before and after any dispatch, source, episode, or playback
+   controller checkpoint, and after the `BtResourceList` `onPlay` rewiring
+   noted above.
 4. Move scheduler dispatch planning into command-returning methods. Require
    immutable input/output DTOs and tests for tier/enqueue order, affinity,
    soft limits, captcha/video competition, and no-work results. Do not move
@@ -766,3 +836,26 @@ download-cleanup extractions:
    the *plan* preserves (persisted JSON keys, public APIs, download-dir
    resolution) stays frozen; behavior that is plainly buggy is fair game
    once a test confirms it.
+
+3. **A display-section extraction can hit a divergent sibling render path
+   and force a partial extraction.** (2026-07-12.) When extracting the
+   Bangumi comments section, the page's `_buildCommentsSection` (wide
+   layout) and the mobile layout's inline rendering turned out to be
+   *materially different*: the mobile branch builds its own ListView with
+   "加载中..." / "暂无评论" text and calls `_buildCommentCard` directly,
+   while only the wide layout routes through `_buildCommentsSection`.
+   Deleting `_buildCommentCard` would have redrawn mobile and was a
+   forbidden UI change. The behavior-preserving move was to extract the
+   wide-layout widget *and leave* `_buildCommentCard` on the page (the card
+   tree now exists in two places). Unifying the two render paths is a
+   redesign, deferred. Lesson: before deleting a helper as "moved", grep all
+   call sites and confirm there is a single caller; if two divergent render
+   paths share a helper, extraction is partial by design, and that is fine.
+
+4. **Use `wc -l` as the single source of truth for hotspot line counts.**
+   (2026-07-12.) The prior checkpoint's hotspot table was measured with a
+   tool that undercounted several files by ~500 lines versus `wc -l`, so
+   the "Current" column was not directly comparable across files and the
+   "Change" delta appeared inflated. Always measure with `wc -l` (or
+   `grep -c '^'`, which agrees) and restate the tool in the table caption
+   so the next agent compares apples to apples.
