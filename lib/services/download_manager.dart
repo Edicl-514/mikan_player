@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:mikan_player/native/mikan_libtorrent_native.dart';
+import 'package:mikan_player/services/download/download_file_cleanup.dart';
 import 'package:mikan_player/services/download/download_queue.dart';
 import 'package:mikan_player/services/download/download_task.dart';
 import 'package:mikan_player/services/download/magnet_helpers.dart';
@@ -1170,30 +1171,13 @@ class DownloadManager extends ChangeNotifier {
   bool _isPathUnderDownloadDir(String path, {String? baseDir}) {
     final downloadDir = baseDir ?? _downloadDir;
     if (downloadDir == null || downloadDir.isEmpty) return false;
-
-    var base = Directory(downloadDir).absolute.path;
-    var target = File(path).absolute.path;
-    if (Platform.isWindows) {
-      base = base.toLowerCase();
-      target = target.toLowerCase();
-    }
-
-    final separator = Platform.pathSeparator;
-    final baseWithSeparator = base.endsWith(separator)
-        ? base
-        : '$base$separator';
-    return target == base || target.startsWith(baseWithSeparator);
-  }
-
-  bool _isAbsolutePath(String path) {
-    if (path.startsWith('/') || path.startsWith(r'\')) return true;
-    return RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(path);
+    return isPathUnderDownloadDir(path, downloadDir: downloadDir);
   }
 
   String? _resolveDownloadChildPath(String relativePath, {String? baseDir}) {
     final downloadDir = baseDir ?? _downloadDir;
     if (downloadDir == null || downloadDir.isEmpty) return null;
-    if (relativePath.isEmpty || _isAbsolutePath(relativePath)) {
+    if (relativePath.isEmpty || isAbsolutePath(relativePath)) {
       return null;
     }
 
@@ -1215,96 +1199,16 @@ class DownloadManager extends ChangeNotifier {
     return _isPathUnderDownloadDir(path, baseDir: downloadDir) ? path : null;
   }
 
-  bool _isLikelyVideoPath(String path) {
-    final dot = path.lastIndexOf('.');
-    if (dot < 0) return false;
-    final ext = path.substring(dot + 1).toLowerCase();
-    const videoExts = {
-      'mkv',
-      'mp4',
-      'avi',
-      'mov',
-      'wmv',
-      'flv',
-      'm4v',
-      'ts',
-      'webm',
-      'mpg',
-      'mpeg',
-      'm2ts',
-      '3gp',
-      'vob',
-    };
-    return videoExts.contains(ext);
-  }
-
-  String _basename(String path) {
-    final normalized = path.replaceAll('\\', '/');
-    final slash = normalized.lastIndexOf('/');
-    return slash < 0 ? normalized : normalized.substring(slash + 1);
-  }
-
-  String _matchKey(String value) {
-    return value.toLowerCase().replaceAll(
-      RegExp(r'[^a-z0-9\u3040-\u30ff\u3400-\u9fff]+'),
-      '',
-    );
-  }
-
   File? _findUniqueDownloadedFileCandidate(DownloadTask task) {
     final downloadDir = task.downloadDir ?? _downloadDir;
     if (downloadDir == null || downloadDir.isEmpty) return null;
-    final totalSize = task.totalSize.toInt();
-    if (totalSize <= 0) return null;
-
-    final root = Directory(downloadDir);
-    if (!root.existsSync()) return null;
-
-    final candidates = <File>[];
-    try {
-      for (final entity in root.listSync(recursive: true, followLinks: false)) {
-        if (entity is! File) continue;
-        if (!_isPathUnderDownloadDir(entity.path, baseDir: downloadDir)) {
-          continue;
-        }
-        if (entity.path.toLowerCase().endsWith('.resume')) continue;
-        if (!_isLikelyVideoPath(entity.path)) continue;
-        if (entity.lengthSync() == totalSize) {
-          candidates.add(entity);
-        }
-      }
-    } catch (e) {
-      debugPrint('[DownloadManager] Error scanning downloaded files: $e');
-      return null;
-    }
-
-    if (candidates.length == 1) return candidates.single;
-
-    final taskKey = _matchKey(task.name);
-    if (taskKey.isEmpty) return null;
-    final named = candidates
-        .where((file) => _matchKey(_basename(file.path)).contains(taskKey))
-        .toList(growable: false);
-    return named.length == 1 ? named.single : null;
+    return findUniqueDownloadedFileCandidate(task, downloadDir: downloadDir);
   }
 
   void _deleteEmptyParentsUnderDownloadDir(File file, {String? baseDir}) {
     final downloadDir = baseDir ?? _downloadDir;
     if (downloadDir == null || downloadDir.isEmpty) return;
-
-    var dir = file.parent;
-    final root = Directory(downloadDir).absolute.path;
-    while (_isPathUnderDownloadDir(dir.path, baseDir: downloadDir) &&
-        dir.absolute.path != Directory(root).absolute.path) {
-      try {
-        if (!dir.existsSync() || dir.listSync().isNotEmpty) return;
-        final parent = dir.parent;
-        dir.deleteSync();
-        dir = parent;
-      } catch (_) {
-        return;
-      }
-    }
+    deleteEmptyParentsUnderDownloadDir(file, downloadDir: downloadDir);
   }
 
   Future<void> _deleteLibtorrentFilesForTask(DownloadTask task) async {

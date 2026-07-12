@@ -2,7 +2,9 @@
 
 This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
-and sequencing.
+sequencing, and current progress.
+
+Status date: 2026-07-11.
 
 ## Goals
 
@@ -31,14 +33,48 @@ and sequencing.
 
 ## Current Hotspots
 
-Snapshot from the repository at the time this plan was created:
+The initial snapshot is retained for comparison. Current counts are from the
+2026-07-11 checkpoint after the episode-panel and download-cleanup
+extractions.
 
-| File | Approx lines | Main issue |
-| --- | ---: | --- |
-| `lib/ui/pages/player_page.dart` | 8318 | Page UI, playback orchestration, source search, WebView worker scheduling, comments, recommendations, BT resources, and history are all mixed together. |
-| `lib/services/download_manager.dart` | 3285 | Task model, persistence, concurrency, HTTP download, m3u8 download, BT backends, libtorrent/rqbit glue, stats, and cleanup live in one service. |
-| `lib/ui/widgets/video_player_controls.dart` | 3103 | Video controls, settings panel, mobile gesture layer, lock UI, episode panel, source list, subtitle controls, and time display live in one widget file. |
-| `lib/ui/pages/bangumi_details_page.dart` | 3096 | Data loading, parsing helpers, mobile/wide layouts, header, stats, tags, characters, episodes, relations, sites, and comments are mixed together. |
+| File | Initial | Current | Change | Main remaining issue |
+| --- | ---: | ---: | ---: | --- |
+| `lib/ui/pages/player_page.dart` | 8318 | 7871 | -447 | Source loading, playback, episode changes, comments, recommendations, resource UI, and part of WebView dispatch orchestration remain mixed together. |
+| `lib/services/download_manager.dart` | 3285 | 2858 | -427 | Persistence and HTTP/m3u8/BT backends remain in one service; path/file-safety and empty-parent cleanup are now extracted and tested. |
+| `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | The main hotspot has been reduced substantially; the source-list panel is the main remaining coherent boundary. |
+| `lib/ui/pages/bangumi_details_page.dart` | 3096 | 3036 | -60 | Data loading, favorite/comment state, and all large display sections remain on the page. |
+
+## Progress Snapshot
+
+Current validation baseline:
+
+- `flutter analyze`: 0 issues.
+- `flutter test`: 325 tests passing across 17 test files.
+- Current checkpoint includes `PlayerWebViewScheduler`, ownership
+  boundary fixes, immutable page-facing slot views, composition tests,
+  the extracted `EpisodeSidePanel` widget with the project's first
+  `testWidgets` coverage, and the extracted `DownloadFileCleanup` module
+  with path-safety + empty-parent-cleanup tests that surfaced and fixed a
+  real Windows mixed-separator defect in the inherited `isPathUnderDownloadDir`.
+- **Real player smoke run completed (2026-07-11)** after the
+  episode-panel and download-cleanup checkpoints: source search,
+  captcha-to-video reuse, cancellation, source switching, episode
+  switching, and leave/re-enter all verified on-device with no
+  regressions. This clears the Phase 0 "record real runtime smoke"
+  item for the current checkpoint.
+- No generated Drift/Flutter Rust Bridge files were refactored by this
+  plan.
+
+Phase status:
+
+| Phase | Status | Completed | Main remaining work |
+| --- | --- | --- | --- |
+| Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. |
+| Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **Episode side panel widget + `testWidgets`**. | Player comments/recommendations/models; Bangumi comments/sites/relations; **source-list panel** (only remaining controls boundary). |
+| Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests. | Dispatch planning/affinity ownership, source controller, episode controller, playback controller, display widgets, integration smoke. |
+| Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, **DownloadFileCleanup + Windows path-safety tests**, and unit tests. | DownloadTaskStore, HTTP/m3u8 jobs, BT adapters. |
+| Phase 4 | Partial | Pure parsing/sorting helpers and tests. | Details controller and all section widgets. |
+| Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
 
 ## Target Dart Shape
 
@@ -127,13 +163,25 @@ across multiple files.
 
 ## Validation Commands
 
-Run these after Dart refactor tasks:
+Format only the files touched by the current task. Do not run a write-mode
+whole-repository format during an ordinary extraction; the repository has
+previously produced unrelated formatting churn from that command.
 
 ```powershell
-dart format lib test
+dart format <touched Dart files>
+dart format --output=none --set-exit-if-changed <touched Dart files>
 flutter analyze
 flutter test
+git diff --check
 ```
+
+Run a whole-repository format only as a dedicated formatting task with its own
+reviewable commit.
+
+For changes involving WebView scheduling, playback startup/fallback, episode
+switching, or platform-backed downloads, automated validation is necessary but
+not sufficient. Record the relevant manual smoke steps before merging the
+checkpoint.
 
 If a task touches generated Drift or Flutter Rust Bridge files, stop and explain
 why before proceeding. This plan should not normally touch them.
@@ -149,6 +197,9 @@ cargo test
 ## Phase 0: Safety Baseline
 
 Owner: baseline agent
+
+Status: complete. The current checkpoint is 0 analyzer issues and 275 passing
+tests. Re-run the baseline after dependency, Flutter SDK, or platform changes.
 
 Tasks:
 
@@ -169,6 +220,27 @@ Done when:
 ## Phase 1: Low-Risk Pure Extractions
 
 Owner: extraction agents
+
+Status: partial.
+
+Completed:
+
+- `SystemTimeDisplay`.
+- Mobile floating lock button.
+- Mobile gesture/lock/multi-tap cluster.
+- `SettingsPanel`.
+- Pure Bangumi details parsing/sorting helpers.
+- `EpisodeSidePanel` widget (`lib/ui/widgets/video_player_controls/episode_side_panel.dart`),
+  extracted from `video_player_controls.dart`, with the project's first
+  `testWidgets` coverage (`test/ui/widgets/video_player_controls/episode_side_panel_test.dart`).
+
+Remaining:
+
+- Bangumi comments, sites, and relations section widgets.
+- Player data models/enums that do not belong to a controller.
+- Player recommendations and comments widgets.
+- Source-list panel (the only remaining coherent controls boundary after the
+  episode panel was extracted).
 
 Purpose: shrink large files by moving clearly independent declarations and
 private widgets into new files with minimal behavior changes.
@@ -198,14 +270,30 @@ Suggested tasks:
 Recommended verification after each task:
 
 ```powershell
-dart format lib test
+dart format <touched Dart files>
+dart format --output=none --set-exit-if-changed <touched Dart files>
 flutter analyze
 flutter test
+git diff --check
 ```
 
 ## Phase 2: Player Page Responsibility Split
 
 Owner: player architecture agent
+
+Status: partial. `PlayerWebViewScheduler` now owns worker slots, reverse maps,
+worker ids, health/bookkeeping transitions, budget allocation, and the pump
+coordinator. It exposes immutable page-facing slot views and has composition
+tests for cross-kind lifecycle, cancellation, stale callbacks, unhealthy
+workers, ownership, and token ordering.
+
+Still page-owned:
+
+- Pending `SearchPlayResult` collection and source-tier/enqueue metadata.
+- Source-affinity job choice and the pump loop that invokes page side effects.
+- Captcha/video result business handling, probe/register, logging, and UI text.
+- Source loading, playback, episode changes, comments, recommendations, and
+  resource widgets.
 
 Purpose: make `PlayerPage` a page shell plus orchestration layer, then move
 long-running behavior into testable controllers.
@@ -232,21 +320,22 @@ Target boundaries:
   - Owns current episode, playable episode list, skip next/previous, and episode
     selection.
 
-Suggested sequence:
+Original helper/state sequence is complete through scheduler B6. Continue with
+the revised sequence below:
 
-1. Extract pure helper functions first:
-   - source channel key building
-   - source label formatting
-   - recommendation tag normalization
-   - BT resource sort/dedup helpers
-   - Bangumi comment HTML normalization
-2. Add unit tests for extracted helpers.
-3. Extract `PlayerWebViewScheduler` state model without moving widget building.
-4. Move scheduling decisions into methods that return commands/events.
-5. Add unit tests for scheduler decisions.
-6. Extract source loading state into `PlayerSourceController`.
-7. Wire page to controller with `ChangeNotifier`, `ValueNotifier`, or existing
-   Flutter primitives.
+1. Record a real player/WebView smoke baseline for the current scheduler.
+2. Move only dispatch planning into scheduler input/output DTOs. The scheduler
+   should return commands; the page should still execute widget and side
+   effects.
+3. Extract display-only player widgets one at a time: recommendations,
+   comments, then resource list/source panel.
+4. Extract `PlayerEpisodeController` as the lowest-risk controller.
+5. Extract source loading state into `PlayerSourceController` using injected
+   loaders/streams and cancellation tests.
+6. Extract `PlayerPlaybackController` last, with injected clock/timer/player
+   callbacks for watchdog and fallback tests.
+7. Keep page wiring on existing Flutter primitives unless a local abstraction
+   is already established.
 
 Avoid:
 
@@ -254,10 +343,16 @@ Avoid:
 - Combining refactor with UI redesign.
 - Making `BuildContext` available inside business controllers.
 - Letting controller tests instantiate `InAppWebView` or real media players.
+- Moving widget building, probe/playback side effects, and scheduler state in
+  the same commit.
 
 ## Phase 3: Download Manager Split
 
 Owner: download architecture agent
+
+Status: partial. `DownloadTask`, related enums, magnet helpers, and
+`DownloadQueue` are extracted and tested. Path safety and persistence are the
+next priorities before network/backend extraction.
 
 Purpose: separate persistence, queueing, backend operations, and file operations
 so each piece can be tested without a full app runtime.
@@ -297,6 +392,19 @@ Suggested sequence:
 9. Extract HTTP and m3u8 download jobs only after helpers are tested.
 10. Extract BT backend adapters last.
 
+Revised immediate order:
+
+1. ~~`DownloadFileCleanup` with Windows and temp-directory containment tests.~~
+   Done (2026-07-11). Surfaced and fixed a real Windows mixed-separator
+   defect in `isPathUnderDownloadDir`: `.absolute.path` on the host mixes
+   `\\` and `/`, so the unnormalised `startsWith(baseWithSeparator)`
+   false-negatives on real child paths. Both affected functions now
+   normalise to `/` before comparing.
+2. `DownloadTaskStore` behind an injected key-value preference interface.
+3. HTTP job extraction.
+4. m3u8 parsing/download extraction.
+5. Rqbit/libtorrent adapters last.
+
 Avoid:
 
 - Changing persisted JSON keys.
@@ -307,6 +415,9 @@ Avoid:
 ## Phase 4: Bangumi Details Page Split
 
 Owner: details page agent
+
+Status: partial. Pure summary/infobox/site/person helpers are extracted and
+tested. Controller state and section widgets remain on the page.
 
 Purpose: make the details page a composition of sections with isolated parsing
 helpers.
@@ -346,6 +457,9 @@ Suggested tests:
 
 Owner: UI cleanup agent
 
+Status: not started. Do not start while the large page/controller boundaries
+above are still moving.
+
 Purpose: extract style only after widget boundaries are clearer.
 
 Extract style when:
@@ -376,12 +490,34 @@ Only add this after confirming the project benefits from it.
 
 ## Test Plan
 
-Existing tests:
+Current baseline: 325 tests across 17 files.
 
-- `test/reusable_browser_worker_test.dart`
-- `test/source_channel_key_test.dart`
-- `test/webview_scheduler_stats_test.dart`
-- `test/widget_test.dart`
+Covered areas:
+
+- Reusable captcha/video runners without a real `InAppWebView`.
+- Scheduler statistics, worker selection, bookkeeping, pump decisions,
+  state transitions, pump coordinator, and composed scheduler invariants.
+- Player source/BT/tag helper behavior.
+- DownloadTask JSON compatibility, magnet helpers, DownloadQueue.
+- Download path safety (`download_file_cleanup_test.dart`): under-root
+  containment, similar-prefix sibling rejection, traversal/`:` rejection,
+  child-path resolution, empty-parent cleanup up to (not including) the
+  root, Windows mixed-separator normalisation, `findUniqueDownloadedFileCandidate`
+  size + fuzzy-basename disambiguation. These tests surfaced and fixed a
+  real Windows defect in the inherited `isPathUnderDownloadDir`.
+- Bangumi details parsing/sorting helpers.
+- `EpisodeSidePanel` widget: cell rendering, selected-cell styling,
+  tap-select-and-navigator-pop, empty list, `ValueListenable` reactive
+  update — the project's first `testWidgets` coverage.
+
+Important uncovered areas:
+
+- No meaningful `testWidgets` coverage for PlayerPage, BangumiDetailsPage, or
+  CustomVideoControls.
+- No integration-test directory or real WebView/media lifecycle coverage.
+- No download path/file cleanup tests.
+- No persistence tests around SharedPreferences task loading/saving.
+- No HTTP/m3u8/backend lifecycle tests.
 
 High-value new tests:
 
@@ -396,6 +532,14 @@ High-value new tests:
 | Video controls helpers | `test/ui/widgets/video_player_controls/video_controls_test.dart` | Episode selection, source labels, playback speed formatting where extracted. |
 | Bangumi details helpers | `test/ui/pages/bangumi_details/bangumi_details_helpers_test.dart` | Summary parsing, infobox summarization, site sorting, person matching. |
 
+Add basic widget tests with each display-only extraction. Prefer stable state
+and callback assertions over pixel-perfect goldens:
+
+- Loading, empty, error, and populated states.
+- Selection/callback forwarding.
+- Mobile/wide branch smoke where the widget has materially different layouts.
+- No network, WebView, media player, or platform-channel startup.
+
 Testing guidance:
 
 - Prefer pure Dart unit tests for extracted helpers.
@@ -407,16 +551,16 @@ Testing guidance:
 
 ## Suggested Sub-Agent Work Packages
 
-### Package A: Video Controls Extraction
+### Package A: Remaining Video Controls Boundary
 
 Prompt:
 
 ```text
-Refactor `lib/ui/widgets/video_player_controls.dart` by extracting one cohesive
-private widget/helper cluster into a new file under
-`lib/ui/widgets/video_player_controls/`. Keep behavior unchanged. Add tests only
-for pure helpers that become testable. Run `dart format lib test`,
-`flutter analyze`, and `flutter test`.
+Extract either the episode panel or source-list panel from
+`lib/ui/widgets/video_player_controls.dart` into one focused widget file. Keep
+the public `CustomVideoControls` API unchanged. Pass state and callbacks through
+the constructor. Add focused helper/widget tests for selection and callback
+forwarding. Format touched files, then run analyzer and the full test suite.
 ```
 
 Acceptance:
@@ -425,58 +569,61 @@ Acceptance:
 - Public `CustomVideoControls` API is unchanged.
 - Analyzer and tests pass or pre-existing failures are documented.
 
-### Package B: Download Model And Queue
+### Package B: Download File Cleanup
 
 Prompt:
 
 ```text
-Extract `DownloadTask`, related enums, JSON serialization, magnet helper logic,
-and queue slot logic from `lib/services/download_manager.dart` into focused
-files under `lib/services/download/`. Preserve persisted JSON keys and runtime
-behavior. Add unit tests for serialization, magnet helpers, and queue behavior.
-Run formatting, analyzer, and tests.
+Extract path containment, absolute/relative path handling, orphan detection,
+and empty-parent cleanup from `lib/services/download_manager.dart` into
+`lib/services/download/download_file_cleanup.dart`. Preserve deletion
+semantics. Add Windows separator, traversal, similar-prefix, and temp-directory
+tests. Never delete outside the test temp root. Format touched files, then run
+analyzer and the full test suite.
 ```
 
 Acceptance:
 
-- Existing imports compile.
-- JSON round-trip tests pass.
-- Queue behavior is covered without starting real downloads.
+- No deletion can escape the configured download root.
+- Windows and POSIX path cases are covered.
+- Existing manager behavior and public API remain unchanged.
 
-### Package C: Player WebView Scheduler
+### Package C: Player Scheduler Dispatch Planning
 
 Prompt:
 
 ```text
-Extract WebView worker slot state and scheduling decisions from
-`lib/ui/pages/player_page.dart` into a testable scheduler module. The scheduler
-must not import Flutter widget classes or build UI. Keep widget creation in the
-page for now. Add unit tests for worker selection, active job bookkeeping,
-source affinity, and unhealthy worker handling.
+Extend `PlayerWebViewScheduler` with immutable pending-job input DTOs and a
+dispatch decision/command result. Move source-affinity job choice into the
+scheduler without moving widget creation, setState, logging, probe/playback, or
+result callbacks. The page executes returned commands. Add composition tests
+for tier ordering, enqueue ordering, per-source soft limits, captcha/video
+competition, and no-work results.
 ```
 
 Acceptance:
 
-- Scheduler can be tested without WebView.
-- `PlayerPage` behavior remains unchanged.
-- Existing worker stats tests still pass.
+- Scheduler remains pure Dart and has no Flutter/widget imports.
+- Page-side effects and WebView construction remain on PlayerPage.
+- Existing scheduler and runner tests still pass.
 
-### Package D: Bangumi Details Helpers
+### Package D: Bangumi Details Section Widget
 
 Prompt:
 
 ```text
-Extract pure parsing/sorting helpers from `lib/ui/pages/bangumi_details_page.dart`
-into `lib/ui/pages/bangumi_details/bangumi_details_helpers.dart`. Add unit tests
-for summary parsing, infobox summarization, site sorting, and person matching.
-Do not redesign the UI.
+Extract one display-only section from `lib/ui/pages/bangumi_details_page.dart`,
+starting with relations, sites, or comments, into
+`lib/ui/pages/bangumi_details/widgets/`. Pass data and callbacks explicitly.
+Do not move fetching, pagination, favorite state, or navigation ownership in
+the same commit. Add loading/empty/populated widget tests where practical.
 ```
 
 Acceptance:
 
-- Helpers are covered by tests.
-- Page output behavior is unchanged.
-- Analyzer and tests pass.
+- Extracted widget has no hidden service/global state.
+- Page output and callbacks are preserved.
+- Analyzer and full tests pass.
 
 ### Package E: Player Page Widget Sections
 
@@ -504,9 +651,13 @@ Use this checklist for every automated refactor:
 - Are new files named by responsibility rather than by vague categories?
 - Did the agent avoid mixing behavior changes with extraction?
 - Are tests added for newly testable logic?
-- Did `dart format lib test` run?
+- Were only touched files formatted in write mode?
+- Did the touched-file `--set-exit-if-changed` check pass?
 - Did `flutter analyze` run?
 - Did `flutter test` run?
+- Did `git diff --check` run?
+- If WebView/playback/platform behavior was touched, was the manual smoke result
+  recorded?
 - Are any failures clearly marked as pre-existing?
 - Is the final summary short and specific?
 
@@ -521,14 +672,58 @@ An agent should stop and ask for review if:
 - The same extraction causes cascading edits across many unrelated modules.
 - Analyzer errors appear unrelated to the files touched and were not present in
   the baseline.
+- A task needs simultaneous architectural edits in `player_page.dart` and
+  unrelated download/details modules.
+- A scheduler/controller change cannot be expressed as testable state or
+  commands without importing widget/platform objects.
 
-## Recommended First Three Changes
+## Recommended Next Steps
 
-1. Extract `DownloadTask` and its enum types from `download_manager.dart`, then
-   add JSON compatibility tests.
-2. Extract `_SystemTimeDisplay` and mobile lock UI from
-   `video_player_controls.dart`.
-3. Extract pure helper functions from `bangumi_details_page.dart` and add tests.
+1. Freeze the current scheduler checkpoint and record a real player/WebView
+   smoke run: source search, captcha-to-video reuse, cancellation, source
+   switching, episode switching, leave/re-enter.
+2. ~~Extract `DownloadFileCleanup` and add path/file safety tests.~~ Done
+   (2026-07-11). Uncovered and fixed a Windows mixed-separator defect in
+   `isPathUnderDownloadDir` as a direct consequence of the new tests.
+3. Extract `DownloadTaskStore` behind an injected preference interface.
+4. Extract player recommendations, comments, and resource widgets one at a
+   time, with basic widget tests.
+5. Move scheduler dispatch planning into command-returning methods.
+6. Extract controllers in risk order: Episode, Bangumi Details, Source,
+   Playback.
+7. Extract HTTP and m3u8 jobs, then BT adapters last.
+8. Start styling/token work only after the structural phases stop moving.
 
-These are good first changes because they reduce large files without forcing a
-major app architecture decision.
+Use a new branch/checkpoint for each architectural stage. Do not measure
+completion by hotspot line count alone; require an owned responsibility,
+tests for its behavior, and a page/service boundary that no longer mutates the
+extracted state directly.
+
+## Lessons For Sub-Agents (2026-07-11 checkpoint)
+
+Two operational rules confirmed during the episode-panel and
+download-cleanup extractions:
+
+1. **Run unattended OpenCode in `--auto`/YOLO mode, not plain background.**
+   A background `opencode run` (no `--auto`) hangs silently the moment a
+   tool call wants interactive permission approval — the approval dialog
+   cannot surface in a non-interactive background run, and the agent
+   appears stuck while actually waiting on a prompt nobody can answer.
+   The pkgA agent hung for several minutes on exactly this (a `dart run`
+   diagnostic that needed an external-directory permission). For any
+   fire-and-forget refactor, pass `--auto` so tool permissions are
+   auto-approved and the stall never happens. Reserve plain
+   `opencode run` forForeground interactive calls where a human is watching.
+
+2. **Do not treat the original code as a load-bearing contract.** Extraction
+   is not "relocate verbatim and preserve every quirk." The point of adding
+   tests around extracted behavior is to *find* latent defects — when a
+   new test surfaces one, confirm it is real, fix it at the helper, and
+   cover the fix with a test. The `isPathUnderDownloadDir` Windows
+   mixed-separator bug is a concrete example: the original
+   `startsWith(baseWithSeparator)` silently false-negatived on real child
+   paths on this host, and only the extracted Windows tests exposed it.
+   Fixing it was in-scope, not scope creep. Apply judgment: behavior
+   the *plan* preserves (persisted JSON keys, public APIs, download-dir
+   resolution) stays frozen; behavior that is plainly buggy is fair game
+   once a test confirms it.
