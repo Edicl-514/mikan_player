@@ -14,6 +14,15 @@ import 'package:flutter/foundation.dart';
 
 import 'package:mikan_player/services/download/download_task.dart';
 
+String _normalizePathForComparison(String path) {
+  if (!Platform.isWindows) return path;
+
+  // Windows accepts both separators and compares paths case-insensitively.
+  // POSIX treats `\\` as an ordinary filename character, so changing it
+  // there could turn a sibling such as `download\\outside` into a child.
+  return path.replaceAll('\\', '/').toLowerCase();
+}
+
 /// Returns true when [path] (after normalization) is inside [downloadDir].
 ///
 /// The comparison is path-aware: it appends [Platform.pathSeparator] to
@@ -23,21 +32,10 @@ import 'package:mikan_player/services/download/download_task.dart';
 bool isPathUnderDownloadDir(String path, {required String downloadDir}) {
   if (downloadDir.isEmpty) return false;
 
-  // Normalize both paths to use `/` before comparing. On Windows (and
-  // especially under MSYS/git-bash), `Directory.absolute.path` and
-  // `File.absolute.path` can legitimately return paths that mix `\\` and
-  // `/` separators. Without normalization, a real child path can fail the
-  // `startsWith(baseWithSeparator)` test purely because of a separator
-  // mismatch — a false negative that the original private helper in
-  // `download_manager.dart` carried silently until the extracted tests
-  // exercised it. Both forms are still absolute on the host OS; only the
-  // string comparison cares about the separator.
-  var base = Directory(downloadDir).absolute.path.replaceAll('\\', '/');
-  var target = File(path).absolute.path.replaceAll('\\', '/');
-  if (Platform.isWindows) {
-    base = base.toLowerCase();
-    target = target.toLowerCase();
-  }
+  final base = _normalizePathForComparison(
+    Directory(downloadDir).absolute.path,
+  );
+  final target = _normalizePathForComparison(File(path).absolute.path);
 
   const separator = '/';
   final baseWithSeparator = base.endsWith(separator) ? base : '$base$separator';
@@ -143,14 +141,11 @@ void deleteEmptyParentsUnderDownloadDir(
   if (downloadDir.isEmpty) return;
 
   var dir = file.parent;
-  // Normalize separators for the root-equality guard for the same reason
-  // `isPathUnderDownloadDir` does: `.absolute.path` can mix `\\` and `/` on
-  // this host, so a direct `String ==` comparison of two equally-valid
-  // absolute forms would spuriously differ and let the walk climb past the
-  // download root.
-  final root = Directory(downloadDir).absolute.path.replaceAll('\\', '/');
+  final root = _normalizePathForComparison(
+    Directory(downloadDir).absolute.path,
+  );
   while (isPathUnderDownloadDir(dir.path, downloadDir: downloadDir) &&
-      dir.absolute.path.replaceAll('\\', '/') != root) {
+      _normalizePathForComparison(dir.absolute.path) != root) {
     try {
       if (!dir.existsSync() || dir.listSync().isNotEmpty) return;
       final parent = dir.parent;

@@ -4,7 +4,7 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-11.
+Status date: 2026-07-12.
 
 ## Goals
 
@@ -34,22 +34,23 @@ Status date: 2026-07-11.
 ## Current Hotspots
 
 The initial snapshot is retained for comparison. Current counts are from the
-2026-07-11 checkpoint after the episode-panel, download-cleanup,
-download-task-store, and player-recommendations extractions.
+2026-07-12 checkpoint after the episode-panel, download-cleanup,
+download-task-store, recommendations, relations, comments, and POSIX path
+containment-parity fix.
 
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
-| `lib/ui/pages/player_page.dart` | 8318 | 7327 | -991 | Source loading, playback, episode changes, resource UI, and part of WebView dispatch orchestration remain mixed together; recommendations and comments now extracted. |
-| `lib/services/download_manager.dart` | 3285 | 2862 | -423 | HTTP/m3u8/BT backends still in one service; persistence now extracted and tested, path/file cleanup extracted, DownloadTaskStore injected. |
-| `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | The main hotspot has been reduced substantially; the source-list panel is the main remaining coherent boundary. |
-| `lib/ui/pages/bangumi_details_page.dart` | 3096 | 2923 | -173 | Data loading, favorite/comment state, sites and comments sections remain on the page; relations now extracted. |
+| `lib/ui/pages/player_page.dart` | 8318 | 6830 | -1488 | Source loading, playback, episode changes, resource UI, and part of WebView dispatch orchestration remain mixed together; recommendations and comments are extracted. |
+| `lib/services/download_manager.dart` | 3285 | 2600 | -685 | HTTP/m3u8/BT backends still live in one service; persistence and path/file cleanup are extracted with Windows mixed-separator and POSIX literal-backslash safety tests. |
+| `lib/ui/widgets/video_player_controls.dart` | 3103 | 1053 | -2050 | The source-list panel is the remaining coherent controls boundary. |
+| `lib/ui/pages/bangumi_details_page.dart` | 3096 | 2750 | -346 | Data loading, favorite/comment state, sites, and comments sections remain on the page; relations are extracted. |
 
 ## Progress Snapshot
 
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 350 tests passing across 20 test files.
+- `flutter test`: 352 tests passing across 21 test files.
 - Current checkpoint includes `PlayerWebViewScheduler`, ownership
   boundary fixes, immutable page-facing slot views, composition tests,
   the extracted `EpisodeSidePanel` widget with the project's first
@@ -72,9 +73,9 @@ Phase status:
 | Phase | Status | Completed | Main remaining work |
 | --- | --- | --- | --- |
 | Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. |
-| Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **Episode side panel widget + `testWidgets`**. | Player comments/recommendations/models; Bangumi comments/sites/relations; **source-list panel** (only remaining controls boundary). |
+| Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, and **RelationsSection** display widgets with `testWidgets`. | Player data models/enums; Bangumi sites/comments sections; **source-list panel** (only remaining controls boundary). |
 | Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests; **`PlayerRecommendations` display widget + widget tests**; **`PlayerComments` display widget + widget tests**. | Dispatch planning/affinity ownership, source controller, episode controller, playback controller, resource list widget, integration smoke. |
-| Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, **DownloadFileCleanup + Windows path-safety tests**, **DownloadTaskStore behind injected prefs interface + round-trip tests**, and unit tests. | HTTP/m3u8 jobs, BT adapters. |
+| Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, **DownloadFileCleanup + Windows/POSIX path-safety tests**, **DownloadTaskStore behind injected prefs interface + round-trip tests**, and unit tests. | HTTP/m3u8 jobs, then BT adapters. |
 | Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**. | Details controller and sites/comments section widgets. |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
 
@@ -200,8 +201,9 @@ cargo test
 
 Owner: baseline agent
 
-Status: complete. The current checkpoint is 0 analyzer issues and 275 passing
-tests. Re-run the baseline after dependency, Flutter SDK, or platform changes.
+Status: complete. The current checkpoint is 0 analyzer issues and 352 passing
+tests across 21 test files. Re-run the baseline after dependency, Flutter SDK,
+or platform changes.
 
 Tasks:
 
@@ -235,12 +237,15 @@ Completed:
 - `EpisodeSidePanel` widget (`lib/ui/widgets/video_player_controls/episode_side_panel.dart`),
   extracted from `video_player_controls.dart`, with the project's first
   `testWidgets` coverage (`test/ui/widgets/video_player_controls/episode_side_panel_test.dart`).
+- `PlayerRecommendations` and `PlayerComments` display widgets, each with
+  focused widget tests.
+- `RelationsSection` display widget with loading, empty, populated, dark, and
+  tap-forwarding widget tests.
 
 Remaining:
 
-- Bangumi comments, sites, and relations section widgets.
+- Bangumi comments and sites section widgets.
 - Player data models/enums that do not belong to a controller.
-- Player recommendations and comments widgets.
 - Source-list panel (the only remaining coherent controls boundary after the
   episode panel was extracted).
 
@@ -261,13 +266,13 @@ Suggested tasks:
 2. `video_player_controls.dart`: extract mobile lock button and lock layer.
 3. `video_player_controls.dart`: extract mobile multi-tap/gesture layer.
 4. `video_player_controls.dart`: extract settings panel.
-5. `bangumi_details_page.dart`: extract comments section widget.
-6. `bangumi_details_page.dart`: extract sites section widget.
-7. `bangumi_details_page.dart`: extract relations section widget.
+5. `bangumi_details_page.dart`: extract comments section widget (remaining).
+6. `bangumi_details_page.dart`: extract sites section widget (remaining).
+7. `bangumi_details_page.dart`: extract relations section widget (complete).
 8. `player_page.dart`: extract small data classes/enums near the top into
    `player_models.dart`.
-9. `player_page.dart`: extract recommendation list widgets.
-10. `player_page.dart`: extract comments tab widgets.
+9. `player_page.dart`: extract recommendation list widgets (complete).
+10. `player_page.dart`: extract comments tab widgets (complete).
 
 Recommended verification after each task:
 
@@ -329,8 +334,8 @@ the revised sequence below:
 2. Move only dispatch planning into scheduler input/output DTOs. The scheduler
    should return commands; the page should still execute widget and side
    effects.
-3. Extract display-only player widgets one at a time: recommendations,
-   comments, then resource list/source panel.
+3. Recommendations and comments are complete. Extract only the resource list
+   or source panel as the next display-only player widget, one per commit.
 4. Extract `PlayerEpisodeController` as the lowest-risk controller.
 5. Extract source loading state into `PlayerSourceController` using injected
    loaders/streams and cancellation tests.
@@ -500,7 +505,7 @@ Only add this after confirming the project benefits from it.
 
 ## Test Plan
 
-Current baseline: 340 tests across 18 files.
+Current baseline: 352 tests across 21 files.
 
 Covered areas:
 
@@ -512,9 +517,10 @@ Covered areas:
 - Download path safety (`download_file_cleanup_test.dart`): under-root
   containment, similar-prefix sibling rejection, traversal/`:` rejection,
   child-path resolution, empty-parent cleanup up to (not including) the
-  root, Windows mixed-separator normalisation, `findUniqueDownloadedFileCandidate`
-  size + fuzzy-basename disambiguation. These tests surfaced and fixed a
-  real Windows defect in the inherited `isPathUnderDownloadDir`.
+  root, Windows mixed-separator handling, `findUniqueDownloadedFileCandidate`
+  size + fuzzy-basename disambiguation, and POSIX literal-backslash siblings.
+  The POSIX cases prove both containment and empty-parent cleanup do not
+  classify or delete a sibling named `download\\outside`.
 - DownloadTaskStore (`download_task_store_test.dart`): round-trip, empty
   store, overwrite, corrupt/invalid JSON handling, `saveTasks(const [])`
   writes `"[]"`, default storage key const enforcement — all via an
@@ -526,16 +532,21 @@ Covered areas:
   update — the project's first `testWidgets` coverage.
 - `PlayerRecommendations` widget: loading / empty / populated vertical /
   populated horizontal in a `SingleChildScrollView`, tap callback
-  forwarding — second widget-test file in the project.
+  forwarding.
+- `PlayerComments` widget: loading, error, empty, populated, and sort-button
+  states; `RelationsSection`: loading, empty, populated, dark-mode, and
+  relation-tap forwarding.
 
 Important uncovered areas:
 
 - No meaningful `testWidgets` coverage for PlayerPage, BangumiDetailsPage, or
   CustomVideoControls.
 - No integration-test directory or real WebView/media lifecycle coverage.
-- No download path/file cleanup tests.
-- No persistence tests around SharedPreferences task loading/saving.
+- No production-wiring test around `SharedPreferences`; persistence tests use
+  the intended injected key-value interface.
 - No HTTP/m3u8/backend lifecycle tests.
+- Comment HTML custom-widget rendering (masked text and Bangumi smile images)
+  has no focused widget coverage after its move into `PlayerComments`.
 
 High-value new tests:
 
@@ -574,9 +585,9 @@ Testing guidance:
 Prompt:
 
 ```text
-Extract either the episode panel or source-list panel from
-`lib/ui/widgets/video_player_controls.dart` into one focused widget file. Keep
-the public `CustomVideoControls` API unchanged. Pass state and callbacks through
+Extract the source-list panel from `lib/ui/widgets/video_player_controls.dart`
+into one focused widget file. The episode panel is already extracted. Keep the
+public `CustomVideoControls` API unchanged. Pass state and callbacks through
 the constructor. Add focused helper/widget tests for selection and callback
 forwarding. Format touched files, then run analyzer and the full test suite.
 ```
@@ -587,23 +598,23 @@ Acceptance:
 - Public `CustomVideoControls` API is unchanged.
 - Analyzer and tests pass or pre-existing failures are documented.
 
-### Package B: Download File Cleanup
+### Package B: HTTP Download Job Characterization
 
 Prompt:
 
 ```text
-Extract path containment, absolute/relative path handling, orphan detection,
-and empty-parent cleanup from `lib/services/download_manager.dart` into
-`lib/services/download/download_file_cleanup.dart`. Preserve deletion
-semantics. Add Windows separator, traversal, similar-prefix, and temp-directory
-tests. Never delete outside the test temp root. Format touched files, then run
-analyzer and the full test suite.
+Before extracting HTTP download code from `download_manager.dart`, identify a
+small injected HTTP/file interface that permits characterization tests for
+headers, cancellation, partial-file cleanup, resume/range behavior, and error
+transitions. Keep production behavior unchanged and do not move m3u8 or BT
+code in the same commit. Format touched files, then run analyzer and the full
+test suite.
 ```
 
 Acceptance:
 
-- No deletion can escape the configured download root.
-- Windows and POSIX path cases are covered.
+- HTTP behavior is covered without real network traffic.
+- Cancellation and failed-transfer cleanup have explicit tests.
 - Existing manager behavior and public API remain unchanged.
 
 ### Package C: Player Scheduler Dispatch Planning
@@ -631,7 +642,7 @@ Prompt:
 
 ```text
 Extract one display-only section from `lib/ui/pages/bangumi_details_page.dart`,
-starting with relations, sites, or comments, into
+starting with sites or comments (`RelationsSection` is already complete), into
 `lib/ui/pages/bangumi_details/widgets/`. Pass data and callbacks explicitly.
 Do not move fetching, pagination, favorite state, or navigation ownership in
 the same commit. Add loading/empty/populated widget tests where practical.
@@ -648,10 +659,10 @@ Acceptance:
 Prompt:
 
 ```text
-Extract one display-only section from `lib/ui/pages/player_page.dart` into a
-widget under `lib/ui/pages/player/widgets/`. The extracted widget should receive
-all required data and callbacks through its constructor. Do not move source
-loading or playback logic in this package.
+Extract the resource list from `lib/ui/pages/player_page.dart` into a widget
+under `lib/ui/pages/player/widgets/`; recommendations and comments are already
+complete. The widget should receive all required data and callbacks through its
+constructor. Do not move source loading or playback logic in this package.
 ```
 
 Acceptance:
@@ -697,22 +708,30 @@ An agent should stop and ask for review if:
 
 ## Recommended Next Steps
 
-1. Freeze the current scheduler checkpoint and record a real player/WebView
-   smoke run: source search, captcha-to-video reuse, cancellation, source
-   switching, episode switching, leave/re-enter.
-2. ~~Extract `DownloadFileCleanup` and add path/file safety tests.~~ Done
-   (2026-07-11). Uncovered and fixed a Windows mixed-separator defect in
-   `isPathUnderDownloadDir` as a direct consequence of the new tests.
-3. Extract `DownloadTaskStore` behind an injected preference interface.
-4. Extract player recommendations, comments, and resource widgets one at a
-   time, with basic widget tests. **Recommendations done (2026-07-11):**
-   `lib/ui/pages/player/widgets/player_recommendations.dart` + tests;
-   `player_page.dart` 7871→7673. Comments and resource list still ahead.
-5. Move scheduler dispatch planning into command-returning methods.
-6. Extract controllers in risk order: Episode, Bangumi Details, Source,
-   Playback.
-7. Extract HTTP and m3u8 jobs, then BT adapters last.
-8. Start styling/token work only after the structural phases stop moving.
+The download containment parity fix is complete: separator spelling and case
+are normalized only on Windows, and POSIX temp-directory tests cover both
+containment and empty-parent cleanup of literal-backslash siblings.
+
+1. Complete low-risk leaf widgets in isolated commits: source-list panel,
+   Bangumi sites, Bangumi comments, then the player resource list. Add only
+   state/callback widget tests; do not combine this with controller work.
+2. Add focused `PlayerComments` HTML-rendering tests for a mask and a Bangumi
+   smile image, then manually check one populated comments view. The current
+   tests cover states and callbacks but intentionally use empty HTML.
+3. Keep the current scheduler checkpoint frozen until the display-only work is
+   complete. Its real player/WebView smoke run has passed; repeat that smoke
+   before and after any dispatch, source, episode, or playback controller
+   checkpoint.
+4. Move scheduler dispatch planning into command-returning methods. Require
+   immutable input/output DTOs and tests for tier/enqueue order, affinity,
+   soft limits, captcha/video competition, and no-work results. Do not move
+   WebView construction or page side effects in this step.
+5. Extract controllers in risk order: Episode, Bangumi Details, Source,
+   Playback. Stop for review after each controller rather than running this
+   sequence unattended.
+6. Characterize HTTP/m3u8 behavior behind injected
+   network/filesystem seams before extracting jobs; leave BT adapters last.
+7. Start styling/token work only after the structural phases stop moving.
 
 Use a new branch/checkpoint for each architectural stage. Do not measure
 completion by hotspot line count alone; require an owned responsibility,

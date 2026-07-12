@@ -95,6 +95,24 @@ void main() {
         isFalse,
       );
     });
+
+    test(
+      'POSIX treats a backslash-name sibling as outside the download dir',
+      () {
+        if (Platform.isWindows) {
+          return;
+        }
+
+        final base = Directory('${tempRoot.path}/download')..createSync();
+        final sibling = File('${tempRoot.path}/download\\outside.mkv')
+          ..createSync();
+
+        expect(
+          isPathUnderDownloadDir(sibling.path, downloadDir: base.path),
+          isFalse,
+        );
+      },
+    );
   });
 
   group('isAbsolutePath', () {
@@ -260,6 +278,28 @@ void main() {
       deleteEmptyParentsUnderDownloadDir(outsideFile, downloadDir: root.path);
       expect(outside.existsSync(), isTrue);
     });
+
+    test(
+      'POSIX does not delete a backslash-name sibling of the download dir',
+      () {
+        if (Platform.isWindows) {
+          return;
+        }
+
+        final root = Directory('${tempRoot.path}/download')..createSync();
+        final sibling = Directory('${tempRoot.path}/download\\outside')
+          ..createSync();
+        final nested = Directory('${sibling.path}/nested')..createSync();
+        final file = File('${nested.path}/movie.mkv')..createSync();
+        file.deleteSync();
+
+        deleteEmptyParentsUnderDownloadDir(file, downloadDir: root.path);
+
+        expect(nested.existsSync(), isTrue);
+        expect(sibling.existsSync(), isTrue);
+        expect(root.existsSync(), isTrue);
+      },
+    );
   });
 
   group('matchKey', () {
