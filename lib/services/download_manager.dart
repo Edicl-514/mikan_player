@@ -8,6 +8,7 @@ import 'package:mikan_player/services/download/download_file_cleanup.dart';
 import 'package:mikan_player/services/download/download_queue.dart';
 import 'package:mikan_player/services/download/download_task.dart';
 import 'package:mikan_player/services/download/download_task_store.dart';
+import 'package:mikan_player/services/download/http_file_download_port.dart';
 import 'package:mikan_player/services/download/magnet_helpers.dart';
 import 'package:mikan_player/utils/app_directories.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -53,23 +54,38 @@ class _BackendStartResult {
 }
 
 /// Internal helper to track an active HTTP download so it can be cancelled.
+///
+/// The legacy m3u8 segment-downloading path passes the raw [request] so it
+/// can be aborted per segment; the HTTP file-download path passes the
+/// [handle] returned by [HttpFileDownloadPort] so the port's `cancel`
+/// aborts the underlying request. [cancel] dispatches to whichever is
+/// set, sets the [cancelled] bool (checked inside the chunk loop), and
+/// closes the file sink. Both paths keep the [cancelled] flag in scope
+/// so the manager's chunk loop checks `_httpDownloadJobs[task.id]
+/// ?.cancelled` exactly as before.
 class _HttpDownloadJob {
-  final HttpClientRequest request;
+  final HttpClientRequest? request;
+  final HttpFileDownloadHandle? handle;
   final File outputFile;
   final IOSink sink;
   bool cancelled = false;
 
   _HttpDownloadJob({
-    required this.request,
+    this.request,
+    this.handle,
     required this.outputFile,
     required this.sink,
   });
 
   void cancel() {
     cancelled = true;
-    try {
-      request.abort();
-    } catch (_) {}
+    if (handle != null) {
+      handle!.cancel();
+    } else if (request != null) {
+      try {
+        request!.abort();
+      } catch (_) {}
+    }
     try {
       sink.close();
     } catch (_) {}
@@ -83,7 +99,19 @@ class DownloadManager extends ChangeNotifier {
     'mikan_player/download_service',
   );
   factory DownloadManager() => _instance;
-  DownloadManager._internal();
+
+  /// Production constructor: uses the real [IoHttpFileDownloadPort].
+  DownloadManager._internal() : _httpPort = IoHttpFileDownloadPort();
+
+  /// Test constructor: injects an [HttpFileDownloadPort] so the HTTP
+  /// file-download path can be exercised without real network sockets or a
+  /// real `HttpClient`. The zero-arg [factory DownloadManager] still uses
+  /// [DownloadManager._internal] so existing callers are unaffected.
+  @visibleForTesting
+  DownloadManager.forTesting({HttpFileDownloadPort? httpPort})
+    : _httpPort = httpPort ?? IoHttpFileDownloadPort();
+
+  final HttpFileDownloadPort _httpPort;
 
   final Map<String, DownloadTask> _tasks = {};
   final Set<String> _removedTaskIds =
@@ -1986,32 +2014,28 @@ class DownloadManager extends ChangeNotifier {
         return;
       }
 
-      final client = HttpClient();
       final outputFile = File(task.localFilePath!);
       IOSink? sink;
-      HttpClientRequest? request;
+      HttpFileDownloadHandle? handle;
       bool wasCancelled = false;
 
       try {
         final uri = Uri.parse(url);
-        request = await client.getUrl(uri);
-
-        _applyHttpHeaders(request, task.headers, task.cookies);
-
-        final response = await request.close();
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          throw Exception('HTTP ${response.statusCode}');
-        }
+        handle = await _httpPort.start(
+          url: uri,
+          headers: task.headers,
+          cookies: task.cookies,
+        );
 
         sink = outputFile.openWrite();
         _httpDownloadJobs[task.id] = _HttpDownloadJob(
-          request: request,
+          handle: handle,
           outputFile: outputFile,
           sink: sink,
         );
 
-        final contentLength = response.contentLength;
-        if (contentLength > 0) {
+        final contentLength = handle.contentLength;
+        if (contentLength != null && contentLength > 0) {
           task.totalSize = BigInt.from(contentLength);
         }
 
@@ -2019,7 +2043,7 @@ class DownloadManager extends ChangeNotifier {
         int lastReceived = 0;
         DateTime lastUpdate = DateTime.now();
 
-        await for (final chunk in response) {
+        await for (final chunk in handle.chunks) {
           if (_httpDownloadJobs[task.id]?.cancelled ?? false) {
             wasCancelled = true;
             break;
@@ -2036,7 +2060,7 @@ class DownloadManager extends ChangeNotifier {
               final bytesSince = received - lastReceived;
               task.downloadSpeed = bytesSince / elapsed;
             }
-            if (contentLength > 0) {
+            if (contentLength != null && contentLength > 0) {
               task.progress = (received / contentLength * 100.0).clamp(
                 0.0,
                 100.0,
@@ -2068,7 +2092,7 @@ class DownloadManager extends ChangeNotifier {
           task.status = DownloadTaskStatus.completed;
           task.progress = 100.0;
           task.downloadSpeed = 0;
-          if (contentLength <= 0) {
+          if (contentLength == null || contentLength <= 0) {
             // Update total size from actual file size
             try {
               final fileLen = outputFile.lengthSync();
@@ -2096,7 +2120,7 @@ class DownloadManager extends ChangeNotifier {
         } catch (_) {}
       } finally {
         _httpDownloadJobs.remove(task.id);
-        client.close();
+        await handle?.close();
         if (_tasks.containsKey(task.id)) {
           await _saveTasks();
           notifyListeners();
@@ -2852,6 +2876,63 @@ class DownloadManager extends ChangeNotifier {
     notifyListeners();
     _ensureStatsPolling();
   }
+
+  // --- HTTP file-download characterization test seam (Package B) ------------
+  //
+  // Exposes the minimum private surface required for characterizing the
+  // HTTP file-download path in `test/services/download/
+  // download_manager_http_test.dart` without real network sockets, real
+  // `HttpClient`, or platform channels. Each helper is annotated
+  // `@visibleForTesting` and named `...ForTesting` so accidental production
+  // use is obvious in review. The public `DownloadManager` behavior and the
+  // zero-arg factory are unchanged.
+
+  /// Directly sets the in-memory download directory used by the HTTP path,
+  /// bypassing `setDownloadDir`'s `SharedPreferences` + Rust-API calls so
+  /// tests do not touch platform channels.
+  @visibleForTesting
+  void setDownloadDirForTesting(String dir) {
+    _downloadDir = dir;
+    _customDownloadDir = dir;
+  }
+
+  /// Sets the download-limit Mbps used by `_throttleHttpChunk`, bypassing
+  /// `setDownloadSettings`'s `SharedPreferences` persist.
+  @visibleForTesting
+  void setDownloadLimitMbpsForTesting(double mbps) {
+    _downloadLimitMbps = mbps;
+  }
+
+  /// Seeds an HTTP [DownloadTask] directly into the manager's task map so a
+  /// test can drive `_downloadHttpFile` without going through
+  /// `startHttpDownload`'s slot/dir/platform-channel path.
+  @visibleForTesting
+  void seedHttpTaskForTesting(DownloadTask task) {
+    _tasks[task.id] = task;
+  }
+
+  /// Removes a seeded task (and its paused-id entry) so tests do not leak
+  /// state between cases.
+  @visibleForTesting
+  void removeHttpTaskForTesting(String id) {
+    _tasks.remove(id);
+    _pausedTaskIds.remove(id);
+    _removedTaskIds.add(id);
+  }
+
+  /// Drives `_downloadHttpFile` directly so tests can assert on the
+  /// resulting `task.status` / `task.progress` / partial-file bytes
+  /// produced by the injected [HttpFileDownloadPort].
+  @visibleForTesting
+  Future<void> downloadHttpFileForTesting(DownloadTask task) =>
+      _downloadHttpFile(task);
+
+  /// Exposes `_throttleHttpChunk` so its windowed byte-counter math can be
+  /// exercised directly. The default `_downloadLimitMbps == 0` path must
+  /// return immediately (no throttle).
+  @visibleForTesting
+  Future<void> throttleHttpChunkForTesting(int chunkBytes) =>
+      _throttleHttpChunk(chunkBytes);
 
   @override
   void dispose() {

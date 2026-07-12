@@ -4,13 +4,16 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-12 (updated after the comment HTML rendering helper
-promotion checkpoint; the row for `player_page.dart` reflects the
-`e9e1862 feat(player): add resource content resolution and related tests`
-commit's line count, which was already in HEAD). Counts below are
-physical line counts via `wc -l`; the earlier checkpoint's row was measured
-with a tool that undercounted, so "Current" is not directly comparable to
-the prior "Current" across files. Trends are correct.
+Status date: 2026-07-12 (updated after the HTTP download job
+characterization checkpoint — Package B). Counts below are physical line
+counts via `wc -l`; the embedded `e9e1862 feat(player): add resource content
+resolution and related tests` commit grew `player_page.dart` to 6842 even
+though no controller work ran this checkpoint, and the Package B seam grew
+`download_manager.dart` by ~81 lines (the port field, the `@visibleForTesting`
+test hooks, and the `HttpFileDownloadHandle`-based `_HttpDownloadJob`). Earlier
+"Current" cells were measured with a tool that undercounted, so cross-file
+deltas against the very first rows are not apples-to-apples; trends are
+correct.
 
 ## Goals
 
@@ -42,15 +45,15 @@ the prior "Current" across files. Trends are correct.
 The initial snapshot is retained for comparison. Current counts are measured
 with `wc -l` at this checkpoint; the immediately-prior checkpoint added the
 episode-panel, download-cleanup, download-task-store, recommendations,
-relations, comments, BT resource-list, and resource-content-routing work;
-this checkpoint adds the comment HTML rendering helper promotion work (the
-e9e1862 commit grew `player_page.dart` to 6842 even though no controller
-work ran this checkpoint).
+relations, comments, BT resource-list, resource-content-routing, and the
+comment-HTML-rendering-helper work; this checkpoint adds the HTTP download
+job characterization seam (Package B). The inspect commit (`e9e1862`) and
+this checkpoint dominate the player_page / download_manager deltas.
 
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
 | `lib/ui/pages/player_page.dart` | 8318 | 6842 | -1476 | Source loading, playback, episode changes, WebView dispatch orchestration remain mixed together; recommendations, comments, and the BT resource list are extracted. |
-| `lib/services/download_manager.dart` | 3285 | 2862 | -423 | HTTP/m3u8/BT backends still live in one service; persistence and path/file cleanup are extracted with Windows mixed-separator and POSIX literal-backslash safety tests. |
+| `lib/services/download_manager.dart` | 3285 | 2943 | -342 | HTTP file download now routes through the injected `HttpFileDownloadPort` (Package B); m3u8 / HLS, BT / libtorrent / rqbit paths still live in one service; persistence and path/file cleanup are extracted with Windows mixed-separator and POSIX literal-backslash safety tests. |
 | `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | Fully decomposed: SettingsPanel + MobileGestureAndLockLayer + MobileFloatingLockButton + SystemTimeDisplay + EpisodeSidePanel + SourceListPanel are now separate files. No remaining coherent controls boundary. |
 | `↳ lib/ui/widgets/video_player_controls/settings_panel.dart` | 1141 | 939 | -202 | Source list extracted as `SourceListPanel`; panel keeps reactive source listener state for the menu subtitle. |
 | `lib/ui/pages/bangumi_details_page.dart` | 3096 | 2732 | -364 | Data loading, favorite state, and the mobile inline comment rendering remain on the page; relations, sites, and the wide-layout comments section are extracted. |
@@ -60,7 +63,7 @@ work ran this checkpoint).
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 452 tests passing across 26 test files.
+- `flutter test`: 475 tests passing across 28 test files.
 - Current checkpoint adds (over the 2026-07-11 source-list / sites /
   comments / bt-resource-list leaf-widget checkpoint): the comment-HTML
   rendering helpers `normalizeBangumiImageSrc` / `isBangumiSmileUrl` /
@@ -79,13 +82,44 @@ Current validation baseline:
   card. Twenty-one pure-helper unit tests cover the host-rewrite,
   smile-URL classification, and `Size` math (fallback, scale>=1,
   landscape/portrait, both clamp branches, single-attr fallbacks).
+  **Same checkpoint adds the Package B HTTP download job characterization
+  seam:** new files
+  `lib/services/download/http_file_download_port.dart`
+  (`HttpFileDownloadPort` abstract interface + `HttpFileDownloadHandle`
+  + prod `IoHttpFileDownloadPort` backed by `dart:io.HttpClient`) and
+  `test/services/download/http_file_download_port_test.dart` (8 contract
+  + fake tests) and `test/services/download/download_manager_http_test.dart`
+  (15 manager-side characterization tests). `download_manager.dart` now
+  routes the HTTP file-download path through `_httpPort.start(...)`; the
+  manager keeps the throttle / speed / notifyListeners / cancel-flag
+  check before `sink.add`, plus the file IOSink — so the original
+  byte-for-byte behavior (non-2xx throws before file creation, partial
+  file retained on cancel with no new chunks written, error-while-cancel-
+  flagged treated as paused, content-length fallback to
+  `outputFile.lengthSync()`, `resumeTask` deletes partial + restarts with
+  NO Range request) is preserved and now locked down by tests. m3u8 / HLS
+  / BT / libtorrent / rqbit paths intentionally untouched. Added
+  `DownloadManager.forTesting({HttpFileDownloadPort? httpPort})` and a
+  small `...ForTesting` API surface (`setDownloadDirForTesting`,
+  `setDownloadLimitMbpsForTesting`, `seedHttpTaskForTesting`,
+  `removeHttpTaskForTesting`, `downloadHttpFileForTesting`,
+  `throttleHttpChunkForTesting`);
+  all `@visibleForTesting` and `-ForTesting`-named to flag any accidental
+  production use during review.
 - **Real player smoke run completed (2026-07-11)** after the
   episode-panel and download-cleanup checkpoints: source search,
   captcha-to-video reuse, cancellation, source switching, episode
   switching, and leave/re-enter all verified on-device with no
   regressions. The comment-helper promotion checkpoint did not touch
   WebView/playback/platform behavior, so the 2026-07-11 smoke run
-  remained valid for it; no re-recording was needed.
+  remained valid for it. **Package B (HTTP seam)** is a behavior-
+  preserving refactor of `_downloadHttpFile`; characterization tests
+  cover the production call path through the new port, but a manual
+  HTTP-download smoke (start one small HTTP file download, observe
+  bytes-to-disk / progress / pause / resume / leave-re-enter) is still
+  recommended before the next architectural checkpoint that depends on
+  this seam, since the original inline `dart:io` HttpClient lifecycle
+  is now behind the port.
 - No generated Drift/Flutter Rust Bridge files were refactored by this
   plan.
 
@@ -96,7 +130,7 @@ Phase status:
 | Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. |
 | Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, pure BT-tag helpers, and **comment HTML rendering helpers (`normalizeBangumiImageSrc` / `isBangumiSmileUrl` / `bangumiSmileSize`) promoted to top-level + 23 widget/helper tests** — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
 | Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests; **`PlayerRecommendations` display widget + widget tests**; **`PlayerComments` display widget + widget tests (incl. `text_mask` + Bangumi smile `<img>` HTML rendering)**; **`BtResourceList` display widget + `BtResource` view-model + dispatch adapters + tests** (play/download/clipboard callbacks stay on page). | Dispatch planning/affinity ownership, source controller, episode controller, playback controller, integration smoke. |
-| Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, **DownloadFileCleanup + Windows/POSIX path-safety tests**, **DownloadTaskStore behind injected prefs interface + round-trip tests**, and unit tests. | HTTP/m3u8 jobs, then BT adapters. |
+| Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, **DownloadFileCleanup + Windows/POSIX path-safety tests**, **DownloadTaskStore behind injected prefs interface + round-trip tests**, **Package B HTTP download seam (`HttpFileDownloadPort` + `IoHttpFileDownloadPort` + `_httpPort` injection + `DownloadManager.forTesting`) + 23 char/manager characterization tests**, and unit tests. | m3u8 / HLS seam + per-segment port; throttle window-clock injectable for budget-exhaustion tests; then the BT adapters. |
 | Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**; **`SitesSection` display widget + widget tests**; **`CommentsSection` display widget (wide layout) + widget tests (incl. `text_mask` rendering)**. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. | |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
 
@@ -477,7 +511,16 @@ Revised immediate order:
    place. The manager keeps ALL domain logic (validation, status
    transitions, resume queue, paused-id tracking, cold-start throttle);
    only raw encode/decode/string-IO moved out.
-3. HTTP job extraction.
+3. ✅ (Package B characterization seam) HTTP file-download behavior
+   now routed through `HttpFileDownloadPort` + prod
+   `IoHttpFileDownloadPort`; 23 character/manager tests lock down the
+   2xx / 404 / 500 / headers-and-cookies / cancel-retains-partial /
+   error-while-cancel-flagged / content-length fallback / throttle
+   no-delay / resume-deletes-partial behavior. Physical extraction of
+   `_downloadHttpFile`'s remaining manager-side orchestration into a
+   dedicated `http_download_job.dart` module (with the throttle window
+   clock injectable so the budget-exhaustion `Future.delayed` branch
+   can be tested deterministically) is still pending.
 4. m3u8 parsing/download extraction.
 5. Rqbit/libtorrent adapters last.
 
@@ -620,6 +663,17 @@ Covered areas:
   callback forwarding, dark-theme, R1 tag chips; plus resource-content routing
   (collapsed precedence and BT/subscription selection) and dispatch adapters
   (`timeOf` / `episodeOf` / `toBtResource` / `toBtResourceViewModels`).
+- HTTP download port + manager-side characterization (`http_file_download_port_test.dart`
+  + `download_manager_http_test.dart`): 2xx / 404 / 500 (start throws before
+  `openWrite` so **no file created** on error); headers + cookies captured
+  verbatim (`Range`/`User-Agent`/`Referer`/`Cookie`); `pauseTask` retains
+  partial bytes; post-cancel chunk NOT written (`cancelClosesStream:false`
+  bridge drives the original `await-for` break); mid-stream error →
+  status=error; error while cancel-flag-set → paused (not error);
+  unknown `Content-Length` falls back to `outputFile.lengthSync()`;
+  throttle no-delay branches (limit==0, within-budget); `resumeTask` deletes
+  existing partial file BEFORE restarting with NO `Range` header; factory
+  `DownloadManager()` still `same()`-idempotent (zero-arg unchanged).
 
 Important uncovered areas:
 
@@ -628,7 +682,13 @@ Important uncovered areas:
 - No integration-test directory or real WebView/media lifecycle coverage.
 - No production-wiring test around `SharedPreferences`; persistence tests use
   the intended injected key-value interface.
-- No HTTP/m3u8/backend lifecycle tests.
+- ~~No HTTP/m3u8/backend lifecycle tests.~~ HTTP file-download lifecycle
+  is now covered by Package B (2xx / 404 / 500 / headers+cookies /
+  cancel-keeps-partial / mid-stream error / cancel-flag-treats-as-paused /
+  content-length fallback / throttle no-delay / resume-deletes-partial).
+  m3u8 / HLS parsing + per-segment download, BT / libtorrent / rqbit
+  backend lifecycle, and the throttle's budget-exhaustion delay branch
+  still have no test coverage.
 - ~~Comment HTML custom-widget rendering (masked text and Bangumi smile
   images) had no focused widget coverage after its move into
   `PlayerComments`.~~ Covered as of the comment-HTML-rendering-helper
@@ -658,6 +718,8 @@ High-value new tests:
 | Player comments | `test/ui/pages/player/widgets/player_comments_test.dart` | Loading / error / empty / populated / sort-button; `text_mask` → `BangumiMaskText`; Bangumi smile `<img>` → `CachedNetworkImage` smile URL + size/fit wiring; pure helpers `normalizeBangumiImageSrc` / `isBangumiSmileUrl` / `bangumiSmileSize` (fallback, scale>=1, landscape/portrait, both clamp branches, single-attr fallbacks). |
 | BT-resource tag helpers | `test/ui/pages/player/widgets/bt_resource_tags_test.dart` | Resolution/codec/subLang/subType/raw precedence, combination priority, HEVC-over-AVC, soft-over-hard sub, empty, realistic VCB-Studio title, `buildBtTagsRow` rendering. |
 | BtResourceList display | `test/ui/pages/player/widgets/player_resource_list_test.dart` | Collapsed gate, loader-in-tab guard, empty + retry, empty + error status, populated, per-card loading spinner, play-disabled, copy/download/play callback forwarding, dark-theme, R1 tag chips. |
+| HTTP download port | `test/services/download/http_file_download_port_test.dart` | Contract: handle shape (chunks stream, `contentLength` null-or-int, cancel, close), `FakeHttpFileDownloadPort` capture contract (url/headers/cookies in order), `startException` rethrow before any handle is returned, chunk ordering, cancel closes stream, emitError surfaces on stream, close is idempotent. |
+| HTTP download manager | `test/services/download/download_manager_http_test.dart` | 2xx single/multi-chunk → status=completed+progress=100; unknown content-length reads `outputFile.lengthSync()`; 404 / 500 → status=error, **no file created** (start throws before `openWrite`); headers+cookies captured verbatim (`Range`/`User-Agent`/`Referer`/`Cookie`); pauseTask retains partial with no post-cancel chunks written; mid-stream error → status=error; error while cancel-flag-set → paused (not error); throttle no-delay branches; `resumeTask` deletes existing partial BEFORE restart with NO `Range` header; `factory DownloadManager()` zero-arg still `same()`-idempotent. |
 
 Add basic widget tests with each display-only extraction. Prefer stable state
 and callback assertions over pixel-perfect goldens:
@@ -849,8 +911,18 @@ containment and empty-parent cleanup of literal-backslash siblings.
 5. Extract controllers in risk order: Episode, Bangumi Details, Source,
    Playback. Stop for review after each controller rather than running this
    sequence unattended.
-6. Characterize HTTP/m3u8 behavior behind injected
+6. ✅ (Partial — HTTP) Characterize HTTP/m3u8 behavior behind injected
    network/filesystem seams before extracting jobs; leave BT adapters last.
+   The HTTP file-download half is now done: `HttpFileDownloadPort` +
+   `IoHttpFileDownloadPort` injected through `DownloadManager._internal`'s
+   new `_httpPort` field; 23 char + manager tests cover 2xx/4xx/5xx,
+   headers, cancel-keeps-partial, mid-stream error, content-length
+   fallback, throttle no-delay, and `resumeTask` deletes-partials. Still
+   pending: a parallel seam for m3u8 / HLS parsing + per-segment download
+   (same shape — a `M3u8DownloadPort`), an injectable clock for the
+   throttle's budget-exhaustion delay branch (`_throttleHttpChunk` reads
+   `DateTime.now()` directly today), and the BT / libtorrent / rqbit
+   adapters last.
 7. Start styling/token work only after the structural phases stop moving.
 
 Use a new branch/checkpoint for each architectural stage. Do not measure
