@@ -17,9 +17,9 @@ import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/relations_section.dart';
+import 'package:mikan_player/ui/pages/bangumi_details/widgets/sites_section.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
-import 'package:mikan_player/ui/widgets/site_icon_map.dart';
 import 'player_page.dart';
 import 'tag_browse_page.dart';
 import 'character_detail_page.dart';
@@ -2629,57 +2629,16 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     if (_sites == null || _sites!.isEmpty) {
       return const SizedBox.shrink();
     }
-
-    final textColor = isDarkBg ? Colors.white : Colors.black87;
-    final cardColor = isDarkBg
-        ? Colors.white.withValues(alpha: 0.05)
-        : Colors.grey[100];
-    final borderColor = isDarkBg ? Colors.white10 : Colors.grey[300]!;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionTitle(
-          context,
-          AppLocalizations.of(context).bangumiDetailsRelatedSites,
-          isDarkBg: isDarkBg,
-        ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Scrollbar(
-            controller: _sitesScrollController,
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              controller: _sitesScrollController,
-              scrollDirection: Axis.horizontal,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (
-                      var index = 0;
-                      index < _sortedSites!.length;
-                      index++
-                    ) ...[
-                      if (index > 0) const SizedBox(width: 12),
-                      _buildSiteCard(
-                        context,
-                        _sortedSites![index],
-                        textColor: textColor,
-                        cardColor: cardColor!,
-                        borderColor: borderColor,
-                        isDarkBg: isDarkBg,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+    return SitesSection(
+      sites: _sortedSites!,
+      isDarkBg: isDarkBg,
+      sectionTitle: _buildSectionTitle(
+        context,
+        AppLocalizations.of(context).bangumiDetailsRelatedSites,
+        isDarkBg: isDarkBg,
+      ),
+      scrollController: _sitesScrollController,
+      onSiteTap: (site) => launchBangumiSiteUrl(site.url),
     );
   }
 
@@ -2692,135 +2651,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       ..sort(
         (a, b) => siteKindPriority(a.kind).compareTo(siteKindPriority(b.kind)),
       );
-  }
-
-  String _siteKindLabel(String kind) {
-    switch (kind) {
-      case 'onair':
-        return '放送';
-      case 'info':
-        return '资料';
-      case 'resource':
-        return '资源';
-      default:
-        return kind;
-    }
-  }
-
-  Color _siteKindColor(String kind) {
-    switch (kind) {
-      case 'onair':
-        return Colors.green;
-      case 'info':
-        return Colors.blue;
-      case 'resource':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  Widget _buildSiteKindBadge(String kind, {required bool isDarkBg}) {
-    final label = _siteKindLabel(kind);
-    final badgeColor = _siteKindColor(kind);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-      decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.9)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 9,
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSiteCard(
-    BuildContext context,
-    BangumiDataSiteEntry site, {
-    required Color textColor,
-    required Color cardColor,
-    required Color borderColor,
-    required bool isDarkBg,
-  }) {
-    final fallbackColor = isDarkBg ? Colors.white24 : Colors.grey[400]!;
-    return GestureDetector(
-      onTap: () => launchBangumiSiteUrl(site.url),
-      child: SizedBox(
-        width: 100,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 80,
-              height: 80,
-              child: Stack(
-                children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: _buildSiteIcon(site.site, fallbackColor),
-                  ),
-                  Positioned(
-                    right: 4,
-                    top: 4,
-                    child: _buildSiteKindBadge(site.kind, isDarkBg: isDarkBg),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              site.title,
-              style: TextStyle(
-                fontSize: 12,
-                color: textColor.withValues(alpha: 0.9),
-                fontWeight: FontWeight.w500,
-                height: 1.3,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSiteIcon(String siteKey, Color fallbackColor) {
-    final assetPath = siteIconAssetPath(siteKey);
-    if (assetPath == null) {
-      return Icon(Icons.public, color: fallbackColor, size: 36);
-    }
-    return Image.asset(
-      assetPath,
-      width: 80,
-      height: 80,
-      fit: BoxFit.contain,
-      errorBuilder: (_, _, _) =>
-          Icon(Icons.public, color: fallbackColor, size: 36),
-    );
   }
 
   Widget _buildCommentsSection(BuildContext context, {bool isDarkBg = false}) {
