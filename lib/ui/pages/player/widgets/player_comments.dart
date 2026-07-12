@@ -18,6 +18,72 @@ import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 /// rendering for the desktop Sliver-based comments block, which stays on
 /// the page because its layout is too deeply integrated with the page's
 /// sliver-tree to extract cleanly in one step.
+///
+
+/// Bangumi comment HTML rendering helpers.
+///
+/// Promoted to top-level (without the leading underscore) so the URL
+/// classification, host rewrites, and size math for `text_mask` and
+/// Bangumi smile `<img>` rendering can be unit-tested without pumping a
+/// real `HtmlWidget` / `CachedNetworkImage`. The widget still owns the
+/// DOM-element-to-attribute glue in `_buildCommentHtmlWidget` /
+/// `_buildBangumiSmileImage`.
+String normalizeBangumiImageSrc(String src) {
+  if (src.startsWith('//')) {
+    return BangumiUrlRewriter.rewrite('https:$src');
+  }
+  if (src.startsWith('/img/')) {
+    return BangumiUrlRewriter.rewrite('https://bangumi.tv$src');
+  }
+  return BangumiUrlRewriter.rewrite(src);
+}
+
+bool isBangumiSmileUrl(String src) {
+  final uri = Uri.tryParse(src);
+  if (uri == null) return false;
+
+  final host = uri.host.toLowerCase();
+  return uri.path.startsWith('/img/smiles/') &&
+      (host == 'bangumi.tv' ||
+          host == 'bgm.tv' ||
+          host.endsWith('.bgm.tv') ||
+          host == 'chii.in' ||
+          host == 'bangumi.lol' ||
+          host.endsWith('.bangumi.lol'));
+}
+
+/// Resolves the inline size for a Bangumi smile `<img>` from its `width`/
+/// `height` attributes. Falls back to a 42×42 square when both are absent,
+/// scales the larger axis down to 42 when necessary, then clamps each axis
+/// to the 18–64 px usable range.
+Size bangumiSmileSize({String? widthAttr, String? heightAttr}) {
+  final width = double.tryParse(widthAttr ?? '');
+  final height = double.tryParse(heightAttr ?? '');
+  const fallback = Size.square(42);
+
+  if (width == null && height == null) {
+    return fallback;
+  }
+
+  final rawWidth = width ?? height ?? fallback.width;
+  final rawHeight = height ?? width ?? fallback.height;
+  final scale = rawWidth > rawHeight
+      ? fallback.width / rawWidth
+      : fallback.height / rawHeight;
+
+  if (scale >= 1) {
+    return Size(
+      rawWidth.clamp(18, 64).toDouble(),
+      rawHeight.clamp(18, 64).toDouble(),
+    );
+  }
+
+  return Size(
+    (rawWidth * scale).clamp(18, 64).toDouble(),
+    (rawHeight * scale).clamp(18, 64).toDouble(),
+  );
+}
+
 class PlayerComments extends StatelessWidget {
   final List<BangumiEpisodeComment> comments;
   final bool isLoading;
@@ -331,12 +397,15 @@ class PlayerComments extends StatelessWidget {
   }
 
   static Widget? _buildBangumiSmileImage(dynamic element) {
-    final src = _normalizeBangumiImageSrc(element.attributes['src'] ?? '');
-    if (!_isBangumiSmileUrl(src)) {
+    final src = normalizeBangumiImageSrc(element.attributes['src'] ?? '');
+    if (!isBangumiSmileUrl(src)) {
       return null;
     }
 
-    final size = _commentSmileSize(element);
+    final size = bangumiSmileSize(
+      widthAttr: element.attributes['width'],
+      heightAttr: element.attributes['height'],
+    );
     return InlineCustomWidget(
       alignment: PlaceholderAlignment.middle,
       child: Padding(
@@ -352,58 +421,6 @@ class PlayerComments extends StatelessWidget {
           errorWidget: SizedBox(width: size.width, height: size.height),
         ),
       ),
-    );
-  }
-
-  static String _normalizeBangumiImageSrc(String src) {
-    if (src.startsWith('//')) {
-      return BangumiUrlRewriter.rewrite('https:$src');
-    }
-    if (src.startsWith('/img/')) {
-      return BangumiUrlRewriter.rewrite('https://bangumi.tv$src');
-    }
-    return BangumiUrlRewriter.rewrite(src);
-  }
-
-  static bool _isBangumiSmileUrl(String src) {
-    final uri = Uri.tryParse(src);
-    if (uri == null) return false;
-
-    final host = uri.host.toLowerCase();
-    return uri.path.startsWith('/img/smiles/') &&
-        (host == 'bangumi.tv' ||
-            host == 'bgm.tv' ||
-            host.endsWith('.bgm.tv') ||
-            host == 'chii.in' ||
-            host == 'bangumi.lol' ||
-            host.endsWith('.bangumi.lol'));
-  }
-
-  static Size _commentSmileSize(dynamic element) {
-    final width = double.tryParse(element.attributes['width'] ?? '');
-    final height = double.tryParse(element.attributes['height'] ?? '');
-    const fallback = Size.square(42);
-
-    if (width == null && height == null) {
-      return fallback;
-    }
-
-    final rawWidth = width ?? height ?? fallback.width;
-    final rawHeight = height ?? width ?? fallback.height;
-    final scale = rawWidth > rawHeight
-        ? fallback.width / rawWidth
-        : fallback.height / rawHeight;
-
-    if (scale >= 1) {
-      return Size(
-        rawWidth.clamp(18, 64).toDouble(),
-        rawHeight.clamp(18, 64).toDouble(),
-      );
-    }
-
-    return Size(
-      (rawWidth * scale).clamp(18, 64).toDouble(),
-      (rawHeight * scale).clamp(18, 64).toDouble(),
     );
   }
 }

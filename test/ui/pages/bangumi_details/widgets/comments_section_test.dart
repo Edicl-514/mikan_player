@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/comments_section.dart';
+import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 
 BangumiComment _comment({
   String userName = '',
@@ -246,6 +247,34 @@ void main() {
       // Smoke: HtmlWidget wired correctly; no throw. Do not assert on
       // HtmlWidget internals.
       expect(find.text('Html'), findsOneWidget);
+    });
+
+    testWidgets('text_mask span renders BangumiMaskText', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CommentsSection(
+              comments: [
+                _comment(
+                  userName: 'Masker',
+                  time: '1月1日',
+                  contentHtml: '<span class="text_mask">剧透剧透</span>',
+                ),
+              ],
+              isLoading: false,
+              isLoadingMore: false,
+              isDarkBg: false,
+              sectionTitle: _buildSectionTitleStub('评论', false),
+              loadingPlaceholder: _loadingStub,
+            ),
+          ),
+        ),
+      );
+
+      // The wide-layout card routes `text_mask` through BangumiMaskText
+      // (the only custom widget CommentsSection's HtmlWidget knows).
+      expect(find.byType(BangumiMaskText), findsOneWidget);
+      expect(find.text('Masker'), findsOneWidget);
     });
   });
 }

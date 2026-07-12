@@ -4,8 +4,10 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-12 (updated after the source-list / sites / comments /
-bt-resource-list leaf-widget extraction checkpoint). Counts below are
+Status date: 2026-07-12 (updated after the comment HTML rendering helper
+promotion checkpoint; the row for `player_page.dart` reflects the
+`e9e1862 feat(player): add resource content resolution and related tests`
+commit's line count, which was already in HEAD). Counts below are
 physical line counts via `wc -l`; the earlier checkpoint's row was measured
 with a tool that undercounted, so "Current" is not directly comparable to
 the prior "Current" across files. Trends are correct.
@@ -40,11 +42,14 @@ the prior "Current" across files. Trends are correct.
 The initial snapshot is retained for comparison. Current counts are measured
 with `wc -l` at this checkpoint; the immediately-prior checkpoint added the
 episode-panel, download-cleanup, download-task-store, recommendations,
-relations, comments, and POSIX path containment-parity work.
+relations, comments, BT resource-list, and resource-content-routing work;
+this checkpoint adds the comment HTML rendering helper promotion work (the
+e9e1862 commit grew `player_page.dart` to 6842 even though no controller
+work ran this checkpoint).
 
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
-| `lib/ui/pages/player_page.dart` | 8318 | 6835 | -1483 | Source loading, playback, episode changes, WebView dispatch orchestration remain mixed together; recommendations, comments, and the BT resource list are extracted. |
+| `lib/ui/pages/player_page.dart` | 8318 | 6842 | -1476 | Source loading, playback, episode changes, WebView dispatch orchestration remain mixed together; recommendations, comments, and the BT resource list are extracted. |
 | `lib/services/download_manager.dart` | 3285 | 2862 | -423 | HTTP/m3u8/BT backends still live in one service; persistence and path/file cleanup are extracted with Windows mixed-separator and POSIX literal-backslash safety tests. |
 | `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | Fully decomposed: SettingsPanel + MobileGestureAndLockLayer + MobileFloatingLockButton + SystemTimeDisplay + EpisodeSidePanel + SourceListPanel are now separate files. No remaining coherent controls boundary. |
 | `↳ lib/ui/widgets/video_player_controls/settings_panel.dart` | 1141 | 939 | -202 | Source list extracted as `SourceListPanel`; panel keeps reactive source listener state for the menu subtitle. |
@@ -55,25 +60,32 @@ relations, comments, and POSIX path containment-parity work.
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 428 tests passing across 26 test files.
-- Current checkpoint adds (over the 2026-07-11 checkpoint): the extracted
-  `SourceListPanel` widget from `settings_panel.dart` (with pure helpers
-  `sourceDisplayLabel` / `clampSourceIndex` / `resolveActiveOnlineSourceIndex`),
-  the extracted `SitesSection` widget, the extracted `CommentsSection`
-  display widget (wide layout; the mobile layout keeps its own inline
-  rendering and `_buildCommentCard`), the extracted pure BT-tag helpers
-  (`parseBtTags` / `buildBtTag` / `buildBtTagsRow` in `bt_resource_tags.dart`),
-  and the extracted `BtResourceList` display widget with an immutable
-  `BtResource` view-model plus dispatch adapters (`timeOf` / `episodeOf` /
-  `toBtResource` / `toBtResourceViewModels`). All play/download/clipboard
-  side effects stay on `PlayerPage` as `BtResourceList` callbacks; the
-  `onPlay` body is byte-identical to the original inline closure.
+- `flutter test`: 452 tests passing across 26 test files.
+- Current checkpoint adds (over the 2026-07-11 source-list / sites /
+  comments / bt-resource-list leaf-widget checkpoint): the comment-HTML
+  rendering helpers `normalizeBangumiImageSrc` / `isBangumiSmileUrl` /
+  `bangumiSmileSize` promoted from private static methods on
+  `PlayerComments` to top-level functions in `player_comments.dart`
+  (behavior-preserving; `_commentSmileSize`'s `dynamic element` glue was
+  refactored to take `String?` width/height attributes so it is unit-
+  testable without a `flutter_widget_from_html` DOM node). Two new
+  `PlayerComments` widget tests cover the `text_mask` body
+  (`BangumiMaskText` on the rendered tree) and the Bangumi smile `<img>`
+  route (asserts the first-frame `CachedNetworkImage.imageUrl` and the
+  BoxFit/size wiring; `_maybeStartLoading`'s post-frame
+  `ImageCacheService.initialize()` `MissingPluginException` is caught
+  inside the widget and never reaches the test Zone). One new
+  `CommentsSection` widget test covers `text_mask` on the wide-layout
+  card. Twenty-one pure-helper unit tests cover the host-rewrite,
+  smile-URL classification, and `Size` math (fallback, scale>=1,
+  landscape/portrait, both clamp branches, single-attr fallbacks).
 - **Real player smoke run completed (2026-07-11)** after the
   episode-panel and download-cleanup checkpoints: source search,
   captcha-to-video reuse, cancellation, source switching, episode
   switching, and leave/re-enter all verified on-device with no
-  regressions. This clears the Phase 0 "record real runtime smoke"
-  item for the current checkpoint.
+  regressions. The comment-helper promotion checkpoint did not touch
+  WebView/playback/platform behavior, so the 2026-07-11 smoke run
+  remained valid for it; no re-recording was needed.
 - No generated Drift/Flutter Rust Bridge files were refactored by this
   plan.
 
@@ -82,10 +94,10 @@ Phase status:
 | Phase | Status | Completed | Main remaining work |
 | --- | --- | --- | --- |
 | Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. |
-| Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, and pure BT-tag helpers — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
-| Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests; **`PlayerRecommendations` display widget + widget tests**; **`PlayerComments` display widget + widget tests**; **`BtResourceList` display widget + `BtResource` view-model + dispatch adapters + tests** (play/download/clipboard callbacks stay on page). | Dispatch planning/affinity ownership, source controller, episode controller, playback controller, integration smoke. |
+| Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, pure BT-tag helpers, and **comment HTML rendering helpers (`normalizeBangumiImageSrc` / `isBangumiSmileUrl` / `bangumiSmileSize`) promoted to top-level + 23 widget/helper tests** — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
+| Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests; **`PlayerRecommendations` display widget + widget tests**; **`PlayerComments` display widget + widget tests (incl. `text_mask` + Bangumi smile `<img>` HTML rendering)**; **`BtResourceList` display widget + `BtResource` view-model + dispatch adapters + tests** (play/download/clipboard callbacks stay on page). | Dispatch planning/affinity ownership, source controller, episode controller, playback controller, integration smoke. |
 | Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, **DownloadFileCleanup + Windows/POSIX path-safety tests**, **DownloadTaskStore behind injected prefs interface + round-trip tests**, and unit tests. | HTTP/m3u8 jobs, then BT adapters. |
-| Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**; **`SitesSection` display widget + widget tests**; **`CommentsSection` display widget (wide layout) + widget tests**. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. | |
+| Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**; **`SitesSection` display widget + widget tests**; **`CommentsSection` display widget (wide layout) + widget tests (incl. `text_mask` rendering)**. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. | |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
 
 ## Target Dart Shape
@@ -271,6 +283,21 @@ Completed:
   added to `player_source_helpers.dart`; the page keeps all
   play/download/clipboard side effects as `BtResourceList` callbacks; 10
   widget tests + 17 dispatch/adapter/content-routing tests.
+- Comment HTML rendering helpers (`normalizeBangumiImageSrc` /
+  `isBangumiSmileUrl` / `bangumiSmileSize`) promoted from private static
+  methods on `PlayerComments` to top-level functions in
+  `lib/ui/pages/player/widgets/player_comments.dart`. Behavior is
+  preserved; only `_commentSmileSize`'s `dynamic element` glue was
+  refactored to take `String?` width/height attrs (the DOM-element call
+  site still does `element.attributes['width']`). 2 widget tests cover
+  `text_mask` (`BangumiMaskText` on the rendered tree) and the Bangumi
+  smile `<img>` route (first-frame `CachedNetworkImage.imageUrl` + size/
+  fit wiring; `_maybeStartLoading`'s post-frame
+  `ImageCacheService.initialize()` `MissingPluginException` is swallowed
+  inside the widget); 1 `CommentsSection` wide-layout `text_mask` widget
+  test; 21 pure-helper unit tests cover host rewriting, smile-URL
+  classification, and `Size` math (fallback, scale>=1, landscape/portrait,
+  both clamp branches, single-attr fallbacks).
 
 Remaining:
 
@@ -541,7 +568,7 @@ Only add this after confirming the project benefits from it.
 
 ## Test Plan
 
-Current baseline: 428 tests across 26 test files.
+Current baseline: 452 tests across 26 test files.
 
 Covered areas:
 
@@ -569,8 +596,11 @@ Covered areas:
 - `PlayerRecommendations` widget: loading / empty / populated vertical /
   populated horizontal in a `SingleChildScrollView`, tap callback
   forwarding.
-- `PlayerComments` widget: loading, error, empty, populated, and sort-button
-  states; `RelationsSection`: loading, empty, populated, dark-mode, and
+- `PlayerComments` widget: loading, error, empty, populated, sort-button,
+  `text_mask`→`BangumiMaskText`, and Bangumi smile `<img>`→`CachedNetworkImage`
+  URL/size/fit wiring; pure-helper unit tests for
+  `normalizeBangumiImageSrc` / `isBangumiSmileUrl` / `bangumiSmileSize`.
+  `RelationsSection`: loading, empty, populated, dark-mode, and
   relation-tap forwarding.
 - `SourceListPanel` widget: empty, populated, selection highlight, tap
   callback, `ValueListenable` reactivity; plus pure-helper unit tests
@@ -578,7 +608,8 @@ Covered areas:
 - `SitesSection` widget: empty, populated, kind-badge labels, tap-to-launch
   forwarding, dark-bg, Scrollbar wiring.
 - `CommentsSection` widget (wide layout): loading, empty, populated, rate
-  stars, load-more spinner on/off, dark-bg, HtmlWidget no-throw smoke.
+  stars, load-more spinner on/off, dark-bg, HtmlWidget no-throw smoke,
+  `text_mask`→`BangumiMaskText`.
 - BT-tag helpers (`bt_resource_tags_test.dart`): resolution / codec /
   subLang / subType / raw precedence, combination-language priority,
   soft-over-hard sub, empty title, realistic VCB-Studio title,
@@ -598,8 +629,16 @@ Important uncovered areas:
 - No production-wiring test around `SharedPreferences`; persistence tests use
   the intended injected key-value interface.
 - No HTTP/m3u8/backend lifecycle tests.
-- Comment HTML custom-widget rendering (masked text and Bangumi smile images)
-  has no focused widget coverage after its move into `PlayerComments`.
+- ~~Comment HTML custom-widget rendering (masked text and Bangumi smile
+  images) had no focused widget coverage after its move into
+  `PlayerComments`.~~ Covered as of the comment-HTML-rendering-helper
+  checkpoint: the `text_mask` body renders `BangumiMaskText`, the Bangumi
+  smile `<img>` route yields a `CachedNetworkImage` with the rewritten
+  smile URL, and the pure `normalizeBangumiImageSrc` /
+  `isBangumiSmileUrl` / `bangumiSmileSize` host classify + size math are
+  unit-tested directly. The avatar `CachedNetworkImage` first-frame
+  decode path and the smile `<img>`'s network/cached-image byte fetch
+  remain explicitly uncovered (platform-channel-driven).
 
 High-value new tests:
 
@@ -615,7 +654,8 @@ High-value new tests:
 | Bangumi details helpers | `test/ui/pages/bangumi_details/bangumi_details_helpers_test.dart` | Summary parsing, infobox summarization, site sorting, person matching. |
 | Source-list panel | `test/ui/widgets/video_player_controls/source_list_panel_test.dart` | Empty, populated, selection highlight, tap callback, `ValueListenable` reactivity, pure-helper dispatch. |
 | Bangumi sites section | `test/ui/pages/bangumi_details/widgets/sites_section_test.dart` | Empty, populated, kind-badge labels, tap-to-launch forwarding, dark-bg, Scrollbar wiring. |
-| Bangumi comments section | `test/ui/pages/bangumi_details/widgets/comments_section_test.dart` | Loading, empty, populated, rate stars, load-more spinner on/off, dark-bg, HtmlWidget no-throw. |
+| Bangumi comments section | `test/ui/pages/bangumi_details/widgets/comments_section_test.dart` | Loading, empty, populated, rate stars, load-more spinner on/off, dark-bg, HtmlWidget no-throw, `text_mask` → `BangumiMaskText`. |
+| Player comments | `test/ui/pages/player/widgets/player_comments_test.dart` | Loading / error / empty / populated / sort-button; `text_mask` → `BangumiMaskText`; Bangumi smile `<img>` → `CachedNetworkImage` smile URL + size/fit wiring; pure helpers `normalizeBangumiImageSrc` / `isBangumiSmileUrl` / `bangumiSmileSize` (fallback, scale>=1, landscape/portrait, both clamp branches, single-attr fallbacks). |
 | BT-resource tag helpers | `test/ui/pages/player/widgets/bt_resource_tags_test.dart` | Resolution/codec/subLang/subType/raw precedence, combination priority, HEVC-over-AVC, soft-over-hard sub, empty, realistic VCB-Studio title, `buildBtTagsRow` rendering. |
 | BtResourceList display | `test/ui/pages/player/widgets/player_resource_list_test.dart` | Collapsed gate, loader-in-tab guard, empty + retry, empty + error status, populated, per-card loading spinner, play-disabled, copy/download/play callback forwarding, dark-theme, R1 tag chips. |
 
@@ -784,10 +824,19 @@ containment and empty-parent cleanup of literal-backslash siblings.
    a BT source → confirm playback + leave/re-enter) should be recorded
    before the next architectural checkpoint, per the Phase 2 manual-smoke
    rule.
-2. Add focused `PlayerComments` (and Bangumi `CommentsSection`) HTML-rendering
-   tests for a mask and a Bangumi smile image, then manually check one
-   populated comments view. The current tests cover states and callbacks but
-   intentionally use empty HTML.
+2. ✅ (2026-07-12 checkpoint) Focused `PlayerComments` and Bangumi
+   `CommentsSection` HTML-rendering tests are now in place: `text_mask`
+   spans render `BangumiMaskText`, the Bangumi smile `<img>` route yields
+   a `CachedNetworkImage` at the rewritten smile URL (with size/fit
+   wiring asserted), and the pure
+   `normalizeBangumiImageSrc` / `isBangumiSmileUrl` / `bangumiSmileSize`
+   helpers are unit-tested (host-rewrite, classify, size math). No
+   platform-channels exist in the page-grade tests; the smile `<img>`
+   network/cached-image byte fetch and the avatar `CachedNetworkImage`
+   decode path remain intentionally uncovered. Manual smoke (load one
+   populated comments view in the player and details page) is still
+   recommended before the next architectural checkpoint that touches
+   comments rendering.
 3. Keep the current scheduler checkpoint frozen until the next architectural
    step. Its real player/WebView smoke run has passed (2026-07-11); repeat
    that smoke before and after any dispatch, source, episode, or playback
@@ -860,3 +909,26 @@ download-cleanup extractions:
    "Change" delta appeared inflated. Always measure with `wc -l` (or
    `grep -c '^'`, which agrees) and restate the tool in the table caption
    so the next agent compares apples to apples.
+
+5. **A widget can route through `CachedNetworkImage` in widget tests if
+   you only assert the first-frame tree.** (2026-07-12.) The
+   comment-HTML-rendering tests need to assert that a Bangumi smile
+   `<img>` produces a `CachedNetworkImage` with the rewritten smile URL,
+   but every previous widget test in the repo went out of its way to feed
+   empty `image`/`avatar` so `CachedNetworkImage` was never constructed
+   (its `initState` schedules `_maybeStartLoading` via
+   `addPostFrameCallback`, which awaits `ImageCacheService.initialize()`
+   → `path_provider` → `MissingPluginException` on a Flutter test host).
+   It turns out that failure path is fully caught inside the widget's own
+   `try { await cache.initialize(); } catch (e) { setState(...); }`, so
+   the exception never reaches the test Zone. The pattern that works:
+   `pumpWidget` once, then assert on
+   `tester.widget<CachedNetworkImage>(find.byType(CachedNetworkImage))`
+   using its `.imageUrl` / `.width` / `.height` / `.fit` props. Do NOT
+   `pump()` again or call `tester.takeException()` without intent — the
+   post-frame callback will have already fired during the initial
+   `pumpWidget` frame, and any further pumps can drive a second
+   `_loadImage` cycle. Prefer pure-helper promotion for the actual URL
+   classification and size math (no `HtmlWidget`, no
+   `CachedNetworkImage`); reserve the widget pump for the one assertion
+   that the routing and the constructed widget props are correct.
