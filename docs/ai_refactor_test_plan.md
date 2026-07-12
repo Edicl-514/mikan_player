@@ -55,7 +55,7 @@ relations, comments, and POSIX path containment-parity work.
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 425 tests passing across 26 test files.
+- `flutter test`: 428 tests passing across 26 test files.
 - Current checkpoint adds (over the 2026-07-11 checkpoint): the extracted
   `SourceListPanel` widget from `settings_panel.dart` (with pure helpers
   `sourceDisplayLabel` / `clampSourceIndex` / `resolveActiveOnlineSourceIndex`),
@@ -210,7 +210,7 @@ cargo test
 
 Owner: baseline agent
 
-Status: complete. The current checkpoint is 0 analyzer issues and 425 passing
+Status: complete. The current checkpoint is 0 analyzer issues and 428 passing
 tests across 26 test files. Re-run the baseline after dependency, Flutter SDK,
 or platform changes.
 
@@ -270,7 +270,7 @@ Completed:
   adapters `timeOf` / `episodeOf` / `toBtResource` / `toBtResourceViewModels`
   added to `player_source_helpers.dart`; the page keeps all
   play/download/clipboard side effects as `BtResourceList` callbacks; 10
-  widget tests + 14 dispatch/adapter tests.
+  widget tests + 17 dispatch/adapter/content-routing tests.
 
 Remaining:
 
@@ -541,7 +541,7 @@ Only add this after confirming the project benefits from it.
 
 ## Test Plan
 
-Current baseline: 425 tests across 26 test files.
+Current baseline: 428 tests across 26 test files.
 
 Covered areas:
 
@@ -586,7 +586,8 @@ Covered areas:
 - `BtResourceList` display widget + `BtResource` view-model: collapsed gate,
   loader-in-tab guard, empty + retry, empty + error status, populated,
   per-card `loadingMagnet` spinner, play-disabled, copy/download/play
-  callback forwarding, dark-theme, R1 tag chips; plus dispatch adapters
+  callback forwarding, dark-theme, R1 tag chips; plus resource-content routing
+  (collapsed precedence and BT/subscription selection) and dispatch adapters
   (`timeOf` / `episodeOf` / `toBtResource` / `toBtResourceViewModels`).
 
 Important uncovered areas:
@@ -609,7 +610,7 @@ High-value new tests:
 | Download path safety | `test/services/download/download_file_cleanup_test.dart` | Under-download-dir checks, relative path resolution, Windows separators, empty parent cleanup with temp dirs. |
 | Magnet helpers | `test/services/download/magnet_test.dart` | Tracker injection dedupe, info-hash extraction from magnet and stream URLs. |
 | Player scheduler | `test/ui/pages/player/player_webview_scheduler_test.dart` | Worker selection, source affinity, unhealthy workers, captcha/video active job maps. |
-| Player source helpers | `test/ui/pages/player/player_source_helpers_test.dart` | Alias extraction, recommendation tag normalization, source key generation. |
+| Player source helpers | `test/ui/pages/player/player_source_helpers_test.dart` | BT-resource dedup/sorting, view-model dispatch, resource-content routing, recommendation tag normalization. |
 | Video controls helpers | `test/ui/widgets/video_player_controls/video_controls_test.dart` | Episode selection, source labels, playback speed formatting where extracted. |
 | Bangumi details helpers | `test/ui/pages/bangumi_details/bangumi_details_helpers_test.dart` | Summary parsing, infobox summarization, site sorting, person matching. |
 | Source-list panel | `test/ui/widgets/video_player_controls/source_list_panel_test.dart` | Empty, populated, selection highlight, tap callback, `ValueListenable` reactivity, pure-helper dispatch. |

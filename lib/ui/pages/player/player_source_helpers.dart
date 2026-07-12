@@ -11,6 +11,17 @@ import 'package:mikan_player/ui/pages/player/widgets/bt_resource.dart';
 /// info-hash pattern used to dedupe BT resources by magnet.
 final RegExp btihRegex = RegExp(r'urn:btih:([a-fA-F0-9]{40}|[2-7A-Z]{32})');
 
+enum PlayerResourceContent { hidden, bt, sample }
+
+PlayerResourceContent resolvePlayerResourceContent({
+  required bool isExpanded,
+  required String activeSource,
+}) {
+  if (!isExpanded) return PlayerResourceContent.hidden;
+  if (activeSource == 'sample') return PlayerResourceContent.sample;
+  return PlayerResourceContent.bt;
+}
+
 String magnetOf(dynamic r) => r is MikanEpisodeResource
     ? r.magnet
     : r is DmhyResource

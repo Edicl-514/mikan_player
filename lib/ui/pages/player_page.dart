@@ -6558,7 +6558,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildResourceList() {
-    if (_activeSource == 'sample') {
+    final content = resolvePlayerResourceContent(
+      isExpanded: _isSourceControlExpanded,
+      activeSource: _activeSource,
+    );
+    if (content == PlayerResourceContent.hidden) {
+      return const SizedBox.shrink();
+    }
+    if (content == PlayerResourceContent.sample) {
       return _buildSampleSourceContent();
     }
     final deduped = sortBtResourcesByTitle(

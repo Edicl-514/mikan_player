@@ -46,6 +46,37 @@ DmhyResource _dmhy({
 );
 
 void main() {
+  group('resolvePlayerResourceContent', () {
+    test('hides every source while the source control is collapsed', () {
+      expect(
+        resolvePlayerResourceContent(isExpanded: false, activeSource: 'bt'),
+        PlayerResourceContent.hidden,
+      );
+      expect(
+        resolvePlayerResourceContent(isExpanded: false, activeSource: 'sample'),
+        PlayerResourceContent.hidden,
+      );
+    });
+
+    test('selects the expanded BT or subscription content', () {
+      expect(
+        resolvePlayerResourceContent(isExpanded: true, activeSource: 'bt'),
+        PlayerResourceContent.bt,
+      );
+      expect(
+        resolvePlayerResourceContent(isExpanded: true, activeSource: 'sample'),
+        PlayerResourceContent.sample,
+      );
+    });
+
+    test('keeps the page\'s historic BT fallback for an unknown source', () {
+      expect(
+        resolvePlayerResourceContent(isExpanded: true, activeSource: 'unknown'),
+        PlayerResourceContent.bt,
+      );
+    });
+  });
+
   group('dedupBtResources', () {
     test('empty list returns empty list', () {
       final out = dedupBtResources(<dynamic>[]);
