@@ -1,5 +1,6 @@
 import 'package:mikan_player/src/rust/api/dmhy.dart';
 import 'package:mikan_player/src/rust/api/mikan.dart';
+import 'package:mikan_player/ui/pages/player/widgets/bt_resource.dart';
 
 /// Phase 2 step 1: pure helpers extracted from `_PlayerPageState` for BT
 /// resource dedup/sort and recommendation tag normalization.
@@ -27,6 +28,29 @@ String sizeOf(dynamic r) => r is MikanEpisodeResource
     : r is DmhyResource
     ? r.size
     : '';
+
+String timeOf(dynamic r) => r is MikanEpisodeResource
+    ? r.updateTime
+    : r is DmhyResource
+    ? r.publishDate
+    : '';
+
+int? episodeOf(dynamic r) => r is MikanEpisodeResource
+    ? r.episode
+    : r is DmhyResource
+    ? r.episode
+    : null;
+
+BtResource toBtResource(dynamic r) => BtResource(
+  title: titleOf(r),
+  magnet: magnetOf(r),
+  size: sizeOf(r),
+  time: timeOf(r),
+  episode: episodeOf(r),
+);
+
+List<BtResource> toBtResourceViewModels(List<dynamic> raw) =>
+    raw.map(toBtResource).toList();
 
 List<dynamic> dedupBtResources(List<dynamic> resources) {
   final seenHashes = <String>{};

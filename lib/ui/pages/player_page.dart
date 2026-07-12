@@ -35,9 +35,9 @@ import 'package:mikan_player/ui/widgets/site_icon_map.dart';
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/pages/player/player_source_helpers.dart';
 import 'package:mikan_player/ui/pages/player/player_webview_scheduler.dart';
-import 'package:mikan_player/ui/pages/player/widgets/bt_resource_tags.dart';
-import 'package:mikan_player/ui/pages/player/widgets/player_recommendations.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
+import 'package:mikan_player/ui/pages/player/widgets/player_recommendations.dart';
+import 'package:mikan_player/ui/pages/player/widgets/player_resource_list.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_pump_decisions.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_state_transitions.dart';
@@ -6558,406 +6558,89 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildResourceList() {
-    if (!_isSourceControlExpanded) {
-      return const SizedBox.shrink();
-    }
-
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final cardColor = isDark
-        ? const Color(0xFF1E1E2C)
-        : theme.colorScheme.surfaceContainer;
-    final borderColor = isDark
-        ? Colors.white10
-        : Colors.grey.withValues(alpha: 0.3);
-    final mutedTextColor = isDark
-        ? Colors.white70
-        : theme.colorScheme.onSurfaceVariant;
-    final faintTextColor = isDark
-        ? Colors.white38
-        : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.8);
-    final faintIconColor = isDark
-        ? Colors.white24
-        : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7);
-
-    final dedupedBtResources = sortBtResourcesByTitle(
-      dedupBtResources([..._mikanResources, ..._dmhyResources]),
-    );
-    final btCount = dedupedBtResources.length;
-    final btHasError = _mikanError != null || _dmhyError != null;
-
-    final btStatusBar = Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            if (_isLoadingMikan || _isLoadingDmhy) ...[
-              SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(width: 10),
-            ],
-            Expanded(
-              child: Text(
-                (_isLoadingMikan || _isLoadingDmhy)
-                    ? '正在搜索BT源...'
-                    : (btCount > 0
-                          ? '已找到 $btCount 个BT源'
-                          : (btHasError ? 'BT搜索失败' : '尚未开始搜索BT源')),
-                style: TextStyle(
-                  color: btHasError && btCount == 0
-                      ? Colors.redAccent
-                      : mutedTextColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    List<dynamic> resources = [];
-    if (_activeSource == 'bt') {
-      resources = dedupedBtResources;
-    } else if (_activeSource == 'sample') {
+    if (_activeSource == 'sample') {
       return _buildSampleSourceContent();
     }
-
-    if (resources.isEmpty) {
-      if ((_activeSource == 'bt' && (_isLoadingMikan || _isLoadingDmhy))) {
-        return const SizedBox.shrink(); // Loader is in tab
-      }
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          btStatusBar,
-          Container(
-            padding: const EdgeInsets.all(24),
-            alignment: Alignment.center,
-            child: Column(
-              children: [
-                Icon(Icons.search_off, color: faintIconColor, size: 32),
-                const SizedBox(height: 8),
-                Text(
-                  '尚未开始搜索BT源',
-                  style: TextStyle(color: faintTextColor, fontSize: 12),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '点击下方按钮开始搜索',
-                  style: TextStyle(color: faintIconColor, fontSize: 11),
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _disableAutoSourceSearchForCurrentEpisode = false;
-                    });
-                    _loadMikanSource();
-                    _loadDmhySource();
-                  },
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('搜索BT源', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark
-                        ? Colors.white12
-                        : Colors.grey.withValues(alpha: 0.2),
-                    foregroundColor: isDark
-                        ? Colors.white70
-                        : theme.colorScheme.onSurface,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Column(
-      children: [
-        btStatusBar,
-        ...resources.map((res) {
-          String title = "";
-          String magnet = "";
-          String size = "";
-          String time = "";
-          int? episode;
-
-          if (res is MikanEpisodeResource) {
-            title = res.title;
-            magnet = res.magnet;
-            size = res.size;
-            time = res.updateTime;
-            episode = res.episode;
-          } else if (res is DmhyResource) {
-            title = res.title;
-            magnet = res.magnet;
-            size = res.size;
-            time = res.publishDate;
-            episode = res.episode;
-          }
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: borderColor),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: TextStyle(
-                          color: isDark
-                              ? Colors.white70
-                              : theme.colorScheme.onSurface,
-                          fontSize: 12,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                buildBtTagsRow(title),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blueAccent.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        size,
-                        style: const TextStyle(
-                          color: Colors.blueAccent,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        time,
-                        style: TextStyle(color: Colors.grey[600], fontSize: 10),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    InkWell(
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: magnet));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("磁力链接已复制")),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.white10
-                              : Colors.grey.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.copy,
-                              size: 12,
-                              color: isDark ? Colors.white : Colors.black87,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              "复制",
-                              style: TextStyle(
-                                color: isDark ? Colors.white : Colors.black87,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    InkWell(
-                      onTap: () async {
-                        // Trigger download/play based on type
-                        // Check if _downloadMagnet needs specific type
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("开始下载，可在「我的」页面查看进度")),
-                        );
-                        await _downloadManager.startDownload(
-                          magnet: magnet,
-                          name: title,
-                          animeName: widget.anime.title,
-                          episodeNumber: episode,
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.white10
-                              : Colors.grey.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.download,
-                              size: 12,
-                              color: isDark ? Colors.white : Colors.black87,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              "下载",
-                              style: TextStyle(
-                                color: isDark ? Colors.white : Colors.black87,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    InkWell(
-                      onTap: (_isLoadingVideo || _loadingMagnet != null)
-                          ? null
-                          : () async {
-                              // Adapt _playMagnet to handle generic data
-                              setState(() {
-                                _loadingMagnet = magnet;
-                                _videoError = null;
-                              });
-
-                              try {
-                                final streamUrl = await _downloadManager
-                                    .startDownload(
-                                      magnet: magnet,
-                                      name: title,
-                                      animeName: widget.anime.title,
-                                      episodeNumber: episode,
-                                      forPlayback: true,
-                                    );
-
-                                if (streamUrl == null) {
-                                  setState(() {
-                                    _videoError = "无法获取播放地址";
-                                    _loadingMagnet = null;
-                                  });
-                                  return;
-                                }
-
-                                debugPrint(
-                                  "[Player] Got stream URL: $streamUrl",
-                                );
-                                _currentStreamUrl = streamUrl;
-                                final btHash = _extractBtHashFromStreamUrl(
-                                  streamUrl,
-                                );
-                                if (btHash != null) {
-                                  _downloadManager.setActiveStream(btHash);
-                                  debugPrint(
-                                    '[Player] Notified DownloadManager: stream active for $btHash',
-                                  );
-                                }
-
-                                // 停止之前的播放，防止后台继续播放
-                                await _player.stop();
-                                await _player.open(Media(streamUrl));
-                                await _applyPlaybackSpeed();
-                                await _applyPendingStartPosition();
-
-                                setState(() {
-                                  _loadingMagnet = null;
-                                  _playingSourceLabel = "BT";
-                                });
-                                _publishPlayerControlSourceState();
-                              } catch (e) {
-                                debugPrint("[Player] Error playing magnet: $e");
-                                setState(() {
-                                  _videoError = e.toString();
-                                  _loadingMagnet = null;
-                                });
-                              }
-                            },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: (_isLoadingVideo || _loadingMagnet != null)
-                              ? Theme.of(
-                                  context,
-                                ).colorScheme.primary.withValues(alpha: 0.5)
-                              : Theme.of(context).colorScheme.primary,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          children: [
-                            if (_loadingMagnet == magnet)
-                              const SizedBox(
-                                width: 12,
-                                height: 12,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white70,
-                                ),
-                              )
-                            else
-                              const Icon(
-                                Icons.play_arrow,
-                                size: 12,
-                                color: Colors.white,
-                              ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _loadingMagnet == magnet ? "加载中" : "播放",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+    final deduped = sortBtResourcesByTitle(
+      dedupBtResources([..._mikanResources, ..._dmhyResources]),
+    );
+    return BtResourceList(
+      isExpanded: _isSourceControlExpanded,
+      resources: toBtResourceViewModels(deduped),
+      isLoading: _isLoadingMikan || _isLoadingDmhy,
+      hasError: _mikanError != null || _dmhyError != null,
+      loadingMagnet: _loadingMagnet,
+      isPlayBlocked: _isLoadingVideo || _loadingMagnet != null,
+      onRetrySearch: () {
+        setState(() {
+          _disableAutoSourceSearchForCurrentEpisode = false;
+        });
+        _loadMikanSource();
+        _loadDmhySource();
+      },
+      onCopyMagnet: (res) {
+        Clipboard.setData(ClipboardData(text: res.magnet));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('磁力链接已复制')));
+      },
+      onDownload: (res) async {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('开始下载，可在「我的」页面查看进度')));
+        await _downloadManager.startDownload(
+          magnet: res.magnet,
+          name: res.title,
+          animeName: widget.anime.title,
+          episodeNumber: res.episode,
+        );
+      },
+      onPlay: (res) async {
+        setState(() {
+          _loadingMagnet = res.magnet;
+          _videoError = null;
+        });
+        try {
+          final streamUrl = await _downloadManager.startDownload(
+            magnet: res.magnet,
+            name: res.title,
+            animeName: widget.anime.title,
+            episodeNumber: res.episode,
+            forPlayback: true,
           );
-        }),
-      ],
+          if (streamUrl == null) {
+            setState(() {
+              _videoError = '无法获取播放地址';
+              _loadingMagnet = null;
+            });
+            return;
+          }
+          debugPrint('[Player] Got stream URL: $streamUrl');
+          _currentStreamUrl = streamUrl;
+          final btHash = _extractBtHashFromStreamUrl(streamUrl);
+          if (btHash != null) {
+            _downloadManager.setActiveStream(btHash);
+            debugPrint(
+              '[Player] Notified DownloadManager: stream active for $btHash',
+            );
+          }
+          await _player.stop();
+          await _player.open(Media(streamUrl));
+          await _applyPlaybackSpeed();
+          await _applyPendingStartPosition();
+          setState(() {
+            _loadingMagnet = null;
+            _playingSourceLabel = 'BT';
+          });
+          _publishPlayerControlSourceState();
+        } catch (e) {
+          debugPrint('[Player] Error playing magnet: $e');
+          setState(() {
+            _videoError = e.toString();
+            _loadingMagnet = null;
+          });
+        }
+      },
     );
   }
 

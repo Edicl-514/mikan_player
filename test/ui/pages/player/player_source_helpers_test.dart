@@ -15,23 +15,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/src/rust/api/dmhy.dart';
 import 'package:mikan_player/src/rust/api/mikan.dart';
 import 'package:mikan_player/ui/pages/player/player_source_helpers.dart';
+import 'package:mikan_player/ui/pages/player/widgets/bt_resource.dart';
 
 MikanEpisodeResource _mikan({
   String title = 't',
   String magnet = '',
   String size = '0',
+  String updateTime = '',
+  int? episode,
 }) => MikanEpisodeResource(
   title: title,
   magnet: magnet,
   size: size,
-  updateTime: '',
+  updateTime: updateTime,
+  episode: episode,
 );
 
 DmhyResource _dmhy({
   String title = 't',
   String magnet = '',
   String size = '0',
-}) => DmhyResource(title: title, magnet: magnet, size: size, publishDate: '');
+  String publishDate = '',
+  int? episode,
+}) => DmhyResource(
+  title: title,
+  magnet: magnet,
+  size: size,
+  publishDate: publishDate,
+  episode: episode,
+);
 
 void main() {
   group('dedupBtResources', () {
@@ -216,6 +228,119 @@ void main() {
 
     test('returns "" for an unrelated object', () {
       expect(sizeOf(Object()), '');
+    });
+  });
+
+  group('timeOf', () {
+    test('returns updateTime of a MikanEpisodeResource', () {
+      final r = _mikan(updateTime: '2024-01-02');
+      expect(timeOf(r), '2024-01-02');
+    });
+
+    test('returns publishDate of a DmhyResource', () {
+      final r = _dmhy(publishDate: 'Mon, 01 Jan 2024 00:00:00 +0800');
+      expect(timeOf(r), 'Mon, 01 Jan 2024 00:00:00 +0800');
+    });
+
+    test('returns "" for an unrelated object', () {
+      expect(timeOf(Object()), '');
+    });
+  });
+
+  group('episodeOf', () {
+    test('returns episode of a MikanEpisodeResource', () {
+      final r = _mikan(episode: 7);
+      expect(episodeOf(r), 7);
+    });
+
+    test('returns episode of a DmhyResource', () {
+      final r = _dmhy(episode: 12);
+      expect(episodeOf(r), 12);
+    });
+
+    test('returns null when episode is null', () {
+      expect(episodeOf(_mikan()), isNull);
+      expect(episodeOf(_dmhy()), isNull);
+    });
+
+    test('returns null for an unrelated object', () {
+      expect(episodeOf(Object()), isNull);
+    });
+  });
+
+  group('toBtResource', () {
+    test('maps a MikanEpisodeResource field-by-field', () {
+      final r = _mikan(
+        title: 'S0 1080p',
+        magnet: 'magnet:?xt=urn:btih:aaa',
+        size: '1.2GB',
+        updateTime: '2024-05-06',
+        episode: 3,
+      );
+      final vm = toBtResource(r);
+      expect(vm, isA<BtResource>());
+      expect(vm.title, 'S0 1080p');
+      expect(vm.magnet, 'magnet:?xt=urn:btih:aaa');
+      expect(vm.size, '1.2GB');
+      expect(vm.time, '2024-05-06');
+      expect(vm.episode, 3);
+    });
+
+    test('maps a DmhyResource field-by-field', () {
+      final r = _dmhy(
+        title: 'DMHY S0 1080p',
+        magnet: 'magnet:?xt=urn:btih:bbb',
+        size: '2.4GB',
+        publishDate: 'Tue, 06 May 2024 12:00:00 +0800',
+        episode: 4,
+      );
+      final vm = toBtResource(r);
+      expect(vm.title, 'DMHY S0 1080p');
+      expect(vm.magnet, 'magnet:?xt=urn:btih:bbb');
+      expect(vm.size, '2.4GB');
+      expect(vm.time, 'Tue, 06 May 2024 12:00:00 +0800');
+      expect(vm.episode, 4);
+    });
+
+    test('falls back to empty strings / null for an unrelated object', () {
+      final vm = toBtResource(Object());
+      expect(vm.title, '');
+      expect(vm.magnet, '');
+      expect(vm.size, '');
+      expect(vm.time, '');
+      expect(vm.episode, isNull);
+    });
+
+    test('preserves null episode', () {
+      final vm = toBtResource(_mikan(title: 'no ep'));
+      expect(vm.episode, isNull);
+    });
+  });
+
+  group('toBtResourceViewModels', () {
+    test('empty input returns empty list', () {
+      expect(toBtResourceViewModels(<dynamic>[]), isEmpty);
+    });
+
+    test('preserves order and length for mixed sources', () {
+      final a = _mikan(title: 'A', magnet: 'm1');
+      final b = _dmhy(title: 'B', magnet: 'm2');
+      final c = _mikan(title: 'C', magnet: 'm3', episode: 2);
+      final out = toBtResourceViewModels(<dynamic>[a, b, c]);
+      expect(out.length, 3);
+      expect(out[0].title, 'A');
+      expect(out[0].magnet, 'm1');
+      expect(out[1].title, 'B');
+      expect(out[1].magnet, 'm2');
+      expect(out[2].title, 'C');
+      expect(out[2].episode, 2);
+    });
+
+    test('returns a new List<BtResource>', () {
+      final input = <dynamic>[_mikan(title: 'X')];
+      final out = toBtResourceViewModels(input);
+      expect(out, isA<List<BtResource>>());
+      expect(identical(out, input), isFalse);
     });
   });
 
