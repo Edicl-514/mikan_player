@@ -6,6 +6,7 @@ import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:mikan_player/ui/widgets/danmaku_settings.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
+import 'package:mikan_player/ui/widgets/video_player_controls/source_list_panel.dart';
 
 /// 设置面板组件 - 支持一级菜单导航
 class SettingsPanel extends StatefulWidget {
@@ -109,7 +110,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
     }
     if (!identical(widget.availableSources, oldWidget.availableSources)) {
       _availableSources = widget.availableSources;
-      _currentSourceIndex = _clampSourceIndex(
+      _currentSourceIndex = clampSourceIndex(
         _currentSourceIndex,
         _availableSources,
       );
@@ -136,7 +137,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
 
   void _onSourceIndexChanged() {
     setState(() {
-      _currentSourceIndex = _clampSourceIndex(
+      _currentSourceIndex = clampSourceIndex(
         widget.sourceIndexNotifier!.value,
         _availableSources,
       );
@@ -148,7 +149,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
         widget.availableSourcesListenable?.value ?? widget.availableSources;
     setState(() {
       _availableSources = nextSources;
-      _currentSourceIndex = _clampSourceIndex(
+      _currentSourceIndex = clampSourceIndex(
         _currentSourceIndex,
         _availableSources,
       );
@@ -163,48 +164,13 @@ class _SettingsPanelState extends State<SettingsPanel> {
     });
   }
 
-  int _clampSourceIndex(int index, List<SearchPlayResult> sources) {
-    if (sources.isEmpty) return 0;
-    return index.clamp(0, sources.length - 1);
-  }
-
-  String _sourceDisplayLabel(SearchPlayResult source) {
-    final channelName = source.channelName;
-    if (channelName != null && channelName.isNotEmpty) {
-      return '${source.sourceName}($channelName)';
-    }
-    return source.sourceName;
-  }
-
-  int? _resolveActiveOnlineSourceIndex() {
-    if (_availableSources.isEmpty) {
-      return null;
-    }
-
-    final currentLabel = _currentSourceLabel.trim();
-    if (currentLabel.isNotEmpty) {
-      final exactMatchIndex = _availableSources.indexWhere(
-        (source) => _sourceDisplayLabel(source) == currentLabel,
-      );
-      if (exactMatchIndex >= 0) {
-        return exactMatchIndex;
-      }
-
-      final sourceNameMatchIndex = _availableSources.indexWhere(
-        (source) => source.sourceName == currentLabel,
-      );
-      if (sourceNameMatchIndex >= 0) {
-        return sourceNameMatchIndex;
-      }
-    }
-
-    return null;
-  }
-
   String _buildSourceMenuSubtitle() {
-    final activeOnlineSourceIndex = _resolveActiveOnlineSourceIndex();
+    final activeOnlineSourceIndex = resolveActiveOnlineSourceIndex(
+      _availableSources,
+      _currentSourceLabel,
+    );
     if (activeOnlineSourceIndex != null) {
-      return '${_sourceDisplayLabel(_availableSources[activeOnlineSourceIndex])} (${_availableSources.length}个可用)';
+      return '${sourceDisplayLabel(_availableSources[activeOnlineSourceIndex])} (${_availableSources.length}个可用)';
     }
 
     final currentLabel = _currentSourceLabel.trim();
@@ -217,11 +183,11 @@ class _SettingsPanelState extends State<SettingsPanel> {
     }
 
     if (_availableSources.isNotEmpty) {
-      final fallbackIndex = _clampSourceIndex(
+      final fallbackIndex = clampSourceIndex(
         _currentSourceIndex,
         _availableSources,
       );
-      return '${_sourceDisplayLabel(_availableSources[fallbackIndex])} (${_availableSources.length}个可用)';
+      return '${sourceDisplayLabel(_availableSources[fallbackIndex])} (${_availableSources.length}个可用)';
     }
 
     return '暂无可用源';
@@ -344,7 +310,15 @@ class _SettingsPanelState extends State<SettingsPanel> {
       case 2:
         return _buildSubtitleSettings();
       case 3:
-        return _buildSourceList();
+        return SourceListPanel(
+          availableSources: widget.availableSources,
+          availableSourcesListenable: widget.availableSourcesListenable,
+          sourceIndexNotifier: widget.sourceIndexNotifier,
+          currentSourceLabel: widget.currentSourceLabel,
+          currentSourceLabelListenable: widget.currentSourceLabelListenable,
+          onSourceSelected: widget.onSourceSelected,
+          scrollController: widget.scrollController,
+        );
       case 4:
         return _buildPlaybackSpeedSettings();
       default:
@@ -960,182 +934,6 @@ class _SettingsPanelState extends State<SettingsPanel> {
               : null,
         ),
       ),
-    );
-  }
-
-  Widget _buildSourceList() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark
-        ? Colors.white
-        : Theme.of(context).colorScheme.onSurface;
-    final subTextColor = isDark
-        ? Colors.white54
-        : Theme.of(context).colorScheme.onSurfaceVariant;
-    final hintTextColor = isDark
-        ? Colors.white38
-        : Theme.of(context).colorScheme.outline;
-    final unselectedIconColor = isDark
-        ? Colors.white54
-        : Theme.of(context).colorScheme.onSurfaceVariant;
-    final unselectedBgColor = isDark
-        ? Colors.white.withValues(alpha: 0.03)
-        : Theme.of(context).colorScheme.surfaceContainerLow;
-    final unselectedIconBgColor = isDark
-        ? Colors.white.withValues(alpha: 0.05)
-        : Theme.of(context).colorScheme.surfaceContainerLow;
-    final emptyIconColor = isDark
-        ? Colors.white.withValues(alpha: 0.2)
-        : Colors.black.withValues(alpha: 0.15);
-
-    if (_availableSources.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.videocam_off_outlined, size: 64, color: emptyIconColor),
-            const SizedBox(height: 16),
-            Text(
-              '暂无可用播放源',
-              style: TextStyle(color: subTextColor, fontSize: 14),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      controller: widget.scrollController,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: _availableSources.length,
-      itemBuilder: (context, index) {
-        final source = _availableSources[index];
-        final activeOnlineSourceIndex = _resolveActiveOnlineSourceIndex();
-        final isSelected = activeOnlineSourceIndex != null
-            ? index == activeOnlineSourceIndex
-            : false;
-
-        return InkWell(
-          onTap: () {
-            setState(() {
-              _currentSourceIndex = index;
-            });
-            widget.onSourceSelected(index);
-          },
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.15)
-                  : unselectedBgColor,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: isSelected
-                    ? Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.5)
-                    : Colors.transparent,
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: 0.2)
-                        : unselectedIconBgColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.play_circle_outline,
-                    color: isSelected
-                        ? Theme.of(context).colorScheme.primary
-                        : unselectedIconColor,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              source.sourceName,
-                              style: TextStyle(
-                                color: isSelected
-                                    ? Theme.of(context).colorScheme.primary
-                                    : textColor,
-                                fontSize: 14,
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (source.channelName != null &&
-                              source.channelName!.isNotEmpty)
-                            Container(
-                              margin: const EdgeInsets.only(left: 8),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.primary.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.primary.withValues(alpha: 0.3),
-                                ),
-                              ),
-                              child: Text(
-                                source.channelName!,
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      if (source.directVideoUrl != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          source.directVideoUrl!,
-                          style: TextStyle(color: hintTextColor, fontSize: 10),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                if (isSelected)
-                  Icon(
-                    Icons.check_circle,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 20,
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }
