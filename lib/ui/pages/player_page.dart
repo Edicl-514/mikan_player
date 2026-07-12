@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/mikan.dart';
 import 'package:mikan_player/src/rust/api/dmhy.dart';
@@ -25,7 +24,6 @@ import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/services/reusable_browser_worker.dart';
 import 'package:mikan_player/services/webview_scheduler_stats.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls.dart';
-import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_data_service.dart';
@@ -38,11 +36,10 @@ import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/pages/player/player_source_helpers.dart';
 import 'package:mikan_player/ui/pages/player/player_webview_scheduler.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_recommendations.dart';
+import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_pump_decisions.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_state_transitions.dart';
-import 'package:mikan_player/ui/widgets/cached_network_image.dart';
-import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
 class _CaptchaPreflightTask {
   final String taskKey;
@@ -4615,7 +4612,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                             context,
                             index,
                           ) {
-                            return _buildCommentItem(_comments[index]);
+                            return PlayerComments.buildItem(
+                              context,
+                              _comments[index],
+                            );
                           }, childCount: _comments.length),
                         ),
                       ),
@@ -7137,358 +7137,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildCommentsTab(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final mutedTextColor = isDark
-        ? Colors.white54
-        : theme.colorScheme.onSurfaceVariant;
-    if (_isLoadingComments) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_commentsError != null) {
-      return Center(
-        child: Text(
-          "加载失败: $_commentsError",
-          style: const TextStyle(color: Colors.redAccent),
-        ),
-      );
-    }
-    if (_comments.isEmpty) {
-      return Center(
-        child: Text("暂无评论", style: TextStyle(color: mutedTextColor)),
-      );
-    }
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              Text(
-                "全部评论",
-                style: TextStyle(
-                  color: isDark
-                      ? Colors.white70
-                      : theme.colorScheme.onSurfaceVariant,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
-              _buildSortButton(),
-            ],
-          ),
-        ),
-        Divider(
-          height: 1,
-          color: isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.3),
-        ),
-        Expanded(
-          child: ListView.builder(
-            controller: _commentsScrollController,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            itemCount: _comments.length,
-            itemBuilder: (context, index) {
-              return _buildCommentItem(_comments[index]);
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget? _buildCommentHtmlWidget(dynamic element, TextStyle textStyle) {
-    if (element.classes.contains('text_mask')) {
-      return BangumiMaskText(html: element.innerHtml, textStyle: textStyle);
-    }
-
-    if (element.localName == 'img') {
-      return _buildBangumiSmileImage(element);
-    }
-
-    return null;
-  }
-
-  Widget? _buildBangumiSmileImage(dynamic element) {
-    final src = _normalizeBangumiImageSrc(element.attributes['src'] ?? '');
-    if (!_isBangumiSmileUrl(src)) {
-      return null;
-    }
-
-    final size = _commentSmileSize(element);
-    return InlineCustomWidget(
-      alignment: PlaceholderAlignment.middle,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: CachedNetworkImage(
-          imageUrl: src,
-          width: size.width,
-          height: size.height,
-          fit: BoxFit.contain,
-          deferOffscreenLoad: false,
-          networkFallbackWhileCaching: false,
-          placeholder: SizedBox(width: size.width, height: size.height),
-          errorWidget: SizedBox(width: size.width, height: size.height),
-        ),
-      ),
-    );
-  }
-
-  String _normalizeBangumiImageSrc(String src) {
-    if (src.startsWith('//')) {
-      return BangumiUrlRewriter.rewrite('https:$src');
-    }
-    if (src.startsWith('/img/')) {
-      // The relative path is always under the main bangumi host (the comment
-      // renderer builds it with the configured base url). Use the same
-      // bangumi_url the Rust side is using.
-      return BangumiUrlRewriter.rewrite('https://bangumi.tv$src');
-    }
-    return BangumiUrlRewriter.rewrite(src);
-  }
-
-  bool _isBangumiSmileUrl(String src) {
-    final uri = Uri.tryParse(src);
-    if (uri == null) return false;
-
-    final host = uri.host.toLowerCase();
-    return uri.path.startsWith('/img/smiles/') &&
-        (host == 'bangumi.tv' ||
-            host == 'bgm.tv' ||
-            host.endsWith('.bgm.tv') ||
-            host == 'chii.in' ||
-            // Bangumi reverse-proxy hosts
-            host == 'bangumi.lol' ||
-            host.endsWith('.bangumi.lol'));
-  }
-
-  Size _commentSmileSize(dynamic element) {
-    final width = double.tryParse(element.attributes['width'] ?? '');
-    final height = double.tryParse(element.attributes['height'] ?? '');
-    final fallback = const Size.square(42);
-
-    if (width == null && height == null) {
-      return fallback;
-    }
-
-    final rawWidth = width ?? height ?? fallback.width;
-    final rawHeight = height ?? width ?? fallback.height;
-    final scale = rawWidth > rawHeight
-        ? fallback.width / rawWidth
-        : fallback.height / rawHeight;
-
-    if (scale >= 1) {
-      return Size(
-        rawWidth.clamp(18, 64).toDouble(),
-        rawHeight.clamp(18, 64).toDouble(),
-      );
-    }
-
-    return Size(
-      (rawWidth * scale).clamp(18, 64).toDouble(),
-      (rawHeight * scale).clamp(18, 64).toDouble(),
-    );
-  }
-
-  Widget _buildCommentItem(BangumiEpisodeComment comment) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Avatar
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: comment.avatar.isEmpty
-                  ? (isDark ? Colors.grey[800] : Colors.grey[300])
-                  : null,
-            ),
-            child: comment.avatar.isNotEmpty
-                ? ClipOval(
-                    child: CachedNetworkImage(
-                      imageUrl: comment.avatar,
-                      width: 32,
-                      height: 32,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                : Center(
-                    child: Text(
-                      comment.userName.isNotEmpty ? comment.userName[0] : "?",
-                      style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black87,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header: Name + Time
-                Row(
-                  children: [
-                    Text(
-                      comment.userName,
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      comment.time,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 11),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-
-                // Content
-                HtmlWidget(
-                  comment.contentHtml,
-                  textStyle: TextStyle(
-                    color: isDark
-                        ? Colors.white70
-                        : theme.colorScheme.onSurface,
-                    fontSize: 14,
-                    height: 1.5,
-                  ),
-                  customStylesBuilder: (element) {
-                    if (element.localName == 'img') {
-                      return {'max-width': '100%', 'max-height': '350px'};
-                    }
-                    return null;
-                  },
-                  customWidgetBuilder: (element) {
-                    return _buildCommentHtmlWidget(
-                      element,
-                      const TextStyle(fontSize: 14, height: 1.5),
-                    );
-                  },
-                ),
-
-                // Replies (樓中樓)
-                if (comment.replies.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.05)
-                          : Colors.grey.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      children: comment.replies.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final reply = entry.value;
-                        final isLast = index == comment.replies.length - 1;
-                        return Padding(
-                          padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 24,
-                                height: 24,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: reply.avatar.isEmpty
-                                      ? (isDark
-                                            ? Colors.grey[800]
-                                            : Colors.grey[300])
-                                      : null,
-                                ),
-                                child: reply.avatar.isNotEmpty
-                                    ? ClipOval(
-                                        child: CachedNetworkImage(
-                                          imageUrl: reply.avatar,
-                                          width: 24,
-                                          height: 24,
-                                          fit: BoxFit.cover,
-                                        ),
-                                      )
-                                    : null,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          reply.userName,
-                                          style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          reply.time,
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 10,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    HtmlWidget(
-                                      reply.contentHtml,
-                                      textStyle: TextStyle(
-                                        color: isDark
-                                            ? Colors.white70
-                                            : theme.colorScheme.onSurface,
-                                        fontSize: 13,
-                                        height: 1.4,
-                                      ),
-                                      customStylesBuilder: (element) {
-                                        if (element.localName == 'img') {
-                                          return {
-                                            'max-width': '100%',
-                                            'max-height': '350px',
-                                          };
-                                        }
-                                        return null;
-                                      },
-                                      customWidgetBuilder: (element) {
-                                        return _buildCommentHtmlWidget(
-                                          element,
-                                          const TextStyle(
-                                            fontSize: 13,
-                                            height: 1.4,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
+    return PlayerComments(
+      comments: _comments,
+      isLoading: _isLoadingComments,
+      error: _commentsError,
+      scrollController: _commentsScrollController,
+      sortButton: _buildSortButton(),
     );
   }
 
