@@ -7,6 +7,7 @@ import 'package:mikan_player/native/mikan_libtorrent_native.dart';
 import 'package:mikan_player/services/download/download_file_cleanup.dart';
 import 'package:mikan_player/services/download/download_queue.dart';
 import 'package:mikan_player/services/download/download_task.dart';
+import 'package:mikan_player/services/download/download_task_store.dart';
 import 'package:mikan_player/services/download/magnet_helpers.dart';
 import 'package:mikan_player/utils/app_directories.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,9 +24,6 @@ export 'package:mikan_player/services/download/download_task.dart'
         BtBackendKind,
         BtBackendKindX;
 
-/// Key for storing BT download tasks in SharedPreferences
-/// This key is NOT cleared by the cache clearing function
-const String _btTasksStorageKey = 'bt_download_tasks_v1';
 const String _btBackendStorageKey = 'bt_backend_v1';
 const String _maxConcurrentKey = 'download_max_concurrent';
 const String _downloadLimitKey = 'download_limit_mbps';
@@ -127,6 +125,17 @@ class DownloadManager extends ChangeNotifier {
   late final DownloadQueue _slotQueue = DownloadQueue(
     maxConcurrent: _maxConcurrentDownloads,
     isTaskEligible: _canAcquireDownloadSlot,
+  );
+
+  // Persistence layer for download tasks: raw SharedPreferences string IO +
+  // JSON encode/decode only. All domain logic (validation, status
+  // transitions, resume queue, cold-start throttle) stays in
+  // [DownloadManager]. Lazy so it is constructed on first use by
+  // [_loadTasks]. The storage key is the frozen [btTasksStorageKey] const
+  // so the persisted key stays defined in exactly one place.
+  late final DownloadTaskStore _taskStore = DownloadTaskStore(
+    prefs: SharedPreferencesDownloadTaskKeyValueStore(),
+    storageKey: btTasksStorageKey,
   );
 
   // HTTP download tracking
@@ -520,17 +529,18 @@ class DownloadManager extends ChangeNotifier {
     );
   }
 
-  /// Load tasks from SharedPreferences
+  /// Load tasks from SharedPreferences.
+  ///
+  /// Raw string read + JSON decode live in [_taskStore]; this method runs
+  /// the domain logic (validation, status transitions, paused-id tracking,
+  /// and the cold-start resume queue) over the decoded list.
   Future<void> _loadTasks() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonStr = prefs.getString(_btTasksStorageKey);
-      if (jsonStr != null && jsonStr.isNotEmpty) {
-        final List<dynamic> jsonList = jsonDecode(jsonStr);
+    final loaded = await _taskStore.loadTasks();
+    if (loaded.isNotEmpty) {
+      try {
         var removedInvalidTasks = false;
         final toResume = <DownloadTask>[];
-        for (final json in jsonList) {
-          final task = DownloadTask.fromJson(json as Map<String, dynamic>);
+        for (final task in loaded) {
           task.downloadDir ??= _downloadDir;
 
           // Only skip BT tasks with empty magnet; HTTP tasks have no magnet
@@ -597,9 +607,9 @@ class DownloadManager extends ChangeNotifier {
         if (toResume.isNotEmpty) {
           unawaited(_runResumeQueue(toResume, _maxConcurrentDownloads));
         }
+      } catch (e) {
+        debugPrint('[DownloadManager] Error loading tasks: $e');
       }
-    } catch (e) {
-      debugPrint('[DownloadManager] Error loading tasks: $e');
     }
     notifyListeners();
   }
@@ -742,16 +752,10 @@ class DownloadManager extends ChangeNotifier {
     }
   }
 
-  /// Save tasks to SharedPreferences
-  Future<void> _saveTasks() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonList = _tasks.values.map((t) => t.toJson()).toList();
-      await prefs.setString(_btTasksStorageKey, jsonEncode(jsonList));
-    } catch (e) {
-      debugPrint('[DownloadManager] Error saving tasks: $e');
-    }
-  }
+  /// Save tasks to SharedPreferences via the persistence store. The store
+  /// performs the JSON encode + write and swallows/logs encode/write errors
+  /// the same way this method did before extraction.
+  Future<void> _saveTasks() => _taskStore.saveTasks(_tasks.values);
 
   Future<void> _ensureLibtorrentInitialized() async {
     if (_libtorrentInitialized) return;

@@ -37,6 +37,7 @@ import 'package:mikan_player/ui/widgets/site_icon_map.dart';
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/pages/player/player_source_helpers.dart';
 import 'package:mikan_player/ui/pages/player/player_webview_scheduler.dart';
+import 'package:mikan_player/ui/pages/player/widgets/player_recommendations.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_pump_decisions.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_state_transitions.dart';
@@ -4291,7 +4292,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: _buildRecommendationsList(isVertical: false),
+            child: PlayerRecommendations(
+              recommendations: _recommendations,
+              isLoading: _isLoadingRecommendations,
+              isVertical: false,
+              onItemTap: _navigateToAnime,
+            ),
           ),
         ],
       ),
@@ -4665,7 +4671,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     const SizedBox(height: 12),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildRecommendationsList(isVertical: true),
+                      child: PlayerRecommendations(
+                        recommendations: _recommendations,
+                        isLoading: _isLoadingRecommendations,
+                        isVertical: true,
+                        onItemTap: _navigateToAnime,
+                      ),
                     ),
                   ]),
                 ),
@@ -7556,56 +7567,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildRecommendationsList({required bool isVertical}) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    if (_isLoadingRecommendations) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    if (_recommendations.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        alignment: Alignment.center,
-        child: Text(
-          "暂无相关推荐",
-          style: TextStyle(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.3)
-                : Colors.grey.withValues(alpha: 0.6),
-          ),
-        ),
-      );
-    }
-
-    if (isVertical) {
-      return Column(
-        children: _recommendations
-            .map((item) => _buildRecommendationItemVertical(item))
-            .toList(),
-      );
-    }
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (var i = 0; i < _recommendations.length; i++) ...[
-            if (i > 0) const SizedBox(width: 12),
-            _buildRecommendationItemHorizontal(_recommendations[i]),
-          ],
-        ],
-      ),
-    );
-  }
-
   void _markUserInteraction() {
     _lastUserInteractionAt = DateTime.now();
   }
@@ -7679,165 +7640,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       '[AntiAd] Unexpected position jump detected: '
       '${furthestPosition.inSeconds}s -> ${position.inSeconds}s, '
       'recovering to ${boundedRecoverPosition.inSeconds}s',
-    );
-  }
-
-  Widget _buildRecommendationItemHorizontal(RankingAnime item) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return InkWell(
-      onTap: () {
-        _navigateToAnime(item);
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: SizedBox(
-        width: 110,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 110,
-              height: 150,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: isDark
-                    ? const Color(0xFF252535)
-                    : theme.colorScheme.surfaceContainerHigh,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: item.coverUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
-                        imageUrl: item.coverUrl,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              item.title,
-              style: TextStyle(
-                color: isDark ? Colors.white : theme.colorScheme.onSurface,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (item.info.isNotEmpty)
-              Text(
-                item.info.split(' / ').first,
-                style: TextStyle(
-                  color: isDark ? Colors.grey[500] : Colors.grey,
-                  fontSize: 10,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecommendationItemVertical(RankingAnime item) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () {
-          _navigateToAnime(item);
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Row(
-          children: [
-            Container(
-              width: 100,
-              height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: isDark
-                    ? const Color(0xFF252535)
-                    : theme.colorScheme.surfaceContainerHigh,
-              ),
-              child: item.coverUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: CachedNetworkImage(
-                        imageUrl: item.coverUrl,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    style: TextStyle(
-                      color: isDark
-                          ? Colors.white
-                          : theme.colorScheme.onSurface,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      if (item.info.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            item.info.split(' / ').first,
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
-                      if (item.score != null) ...[
-                        const SizedBox(width: 6),
-                        const Icon(Icons.star, size: 10, color: Colors.amber),
-                        const SizedBox(width: 2),
-                        Text(
-                          "${item.score}",
-                          style: const TextStyle(
-                            color: Colors.amber,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

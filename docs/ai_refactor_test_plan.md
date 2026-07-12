@@ -34,13 +34,13 @@ Status date: 2026-07-11.
 ## Current Hotspots
 
 The initial snapshot is retained for comparison. Current counts are from the
-2026-07-11 checkpoint after the episode-panel and download-cleanup
-extractions.
+2026-07-11 checkpoint after the episode-panel, download-cleanup,
+download-task-store, and player-recommendations extractions.
 
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
-| `lib/ui/pages/player_page.dart` | 8318 | 7871 | -447 | Source loading, playback, episode changes, comments, recommendations, resource UI, and part of WebView dispatch orchestration remain mixed together. |
-| `lib/services/download_manager.dart` | 3285 | 2858 | -427 | Persistence and HTTP/m3u8/BT backends remain in one service; path/file-safety and empty-parent cleanup are now extracted and tested. |
+| `lib/ui/pages/player_page.dart` | 8318 | 7673 | -645 | Source loading, playback, episode changes, comments, resource UI, and part of WebView dispatch orchestration remain mixed together; recommendations now extracted. |
+| `lib/services/download_manager.dart` | 3285 | 2862 | -423 | HTTP/m3u8/BT backends still in one service; persistence now extracted and tested, path/file cleanup extracted, DownloadTaskStore injected. |
 | `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | The main hotspot has been reduced substantially; the source-list panel is the main remaining coherent boundary. |
 | `lib/ui/pages/bangumi_details_page.dart` | 3096 | 3036 | -60 | Data loading, favorite/comment state, and all large display sections remain on the page. |
 
@@ -49,13 +49,16 @@ extractions.
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 325 tests passing across 17 test files.
+- `flutter test`: 340 tests passing across 18 test files.
 - Current checkpoint includes `PlayerWebViewScheduler`, ownership
   boundary fixes, immutable page-facing slot views, composition tests,
   the extracted `EpisodeSidePanel` widget with the project's first
-  `testWidgets` coverage, and the extracted `DownloadFileCleanup` module
+  `testWidgets` coverage, the extracted `DownloadFileCleanup` module
   with path-safety + empty-parent-cleanup tests that surfaced and fixed a
-  real Windows mixed-separator defect in the inherited `isPathUnderDownloadDir`.
+  real Windows mixed-separator defect in the inherited `isPathUnderDownloadDir`,
+  the extracted `DownloadTaskStore` behind an injected key-value-preference
+  interface with round-trip tests, and the extracted `PlayerRecommendations`
+  widget with widget tests.
 - **Real player smoke run completed (2026-07-11)** after the
   episode-panel and download-cleanup checkpoints: source search,
   captcha-to-video reuse, cancellation, source switching, episode
@@ -71,8 +74,8 @@ Phase status:
 | --- | --- | --- | --- |
 | Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. |
 | Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **Episode side panel widget + `testWidgets`**. | Player comments/recommendations/models; Bangumi comments/sites/relations; **source-list panel** (only remaining controls boundary). |
-| Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests. | Dispatch planning/affinity ownership, source controller, episode controller, playback controller, display widgets, integration smoke. |
-| Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, **DownloadFileCleanup + Windows path-safety tests**, and unit tests. | DownloadTaskStore, HTTP/m3u8 jobs, BT adapters. |
+| Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests; **`PlayerRecommendations` display widget + widget tests**. | Dispatch planning/affinity ownership, source controller, episode controller, playback controller, comments/resource widgets, integration smoke. |
+| Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, **DownloadFileCleanup + Windows path-safety tests**, **DownloadTaskStore behind injected prefs interface + round-trip tests**, and unit tests. | HTTP/m3u8 jobs, BT adapters. |
 | Phase 4 | Partial | Pure parsing/sorting helpers and tests. | Details controller and all section widgets. |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
 
@@ -400,7 +403,15 @@ Revised immediate order:
    `\\` and `/`, so the unnormalised `startsWith(baseWithSeparator)`
    false-negatives on real child paths. Both affected functions now
    normalise to `/` before comparing.
-2. `DownloadTaskStore` behind an injected key-value preference interface.
+2. ~~`DownloadTaskStore` behind an injected key-value preference interface.~~
+   Done (2026-07-11). `lib/services/download/download_task_store.dart`
+   exposes `DownloadTaskKeyValueStore` (interface) +
+   `SharedPreferencesDownloadTaskKeyValueStore` (prod impl) +
+   `DownloadTaskStore` (load/save), with the persisted key
+   `'bt_download_tasks_v1'` re-exported as a const so it stays in one
+   place. The manager keeps ALL domain logic (validation, status
+   transitions, resume queue, paused-id tracking, cold-start throttle);
+   only raw encode/decode/string-IO moved out.
 3. HTTP job extraction.
 4. m3u8 parsing/download extraction.
 5. Rqbit/libtorrent adapters last.
@@ -490,7 +501,7 @@ Only add this after confirming the project benefits from it.
 
 ## Test Plan
 
-Current baseline: 325 tests across 17 files.
+Current baseline: 340 tests across 18 files.
 
 Covered areas:
 
@@ -505,10 +516,18 @@ Covered areas:
   root, Windows mixed-separator normalisation, `findUniqueDownloadedFileCandidate`
   size + fuzzy-basename disambiguation. These tests surfaced and fixed a
   real Windows defect in the inherited `isPathUnderDownloadDir`.
+- DownloadTaskStore (`download_task_store_test.dart`): round-trip, empty
+  store, overwrite, corrupt/invalid JSON handling, `saveTasks(const [])`
+  writes `"[]"`, default storage key const enforcement — all via an
+  in-memory `DownloadTaskKeyValueStore` fake (no SharedPreferences /
+  platform channels).
 - Bangumi details parsing/sorting helpers.
 - `EpisodeSidePanel` widget: cell rendering, selected-cell styling,
   tap-select-and-navigator-pop, empty list, `ValueListenable` reactive
   update — the project's first `testWidgets` coverage.
+- `PlayerRecommendations` widget: loading / empty / populated vertical /
+  populated horizontal in a `SingleChildScrollView`, tap callback
+  forwarding — second widget-test file in the project.
 
 Important uncovered areas:
 
@@ -687,7 +706,9 @@ An agent should stop and ask for review if:
    `isPathUnderDownloadDir` as a direct consequence of the new tests.
 3. Extract `DownloadTaskStore` behind an injected preference interface.
 4. Extract player recommendations, comments, and resource widgets one at a
-   time, with basic widget tests.
+   time, with basic widget tests. **Recommendations done (2026-07-11):**
+   `lib/ui/pages/player/widgets/player_recommendations.dart` + tests;
+   `player_page.dart` 7871→7673. Comments and resource list still ahead.
 5. Move scheduler dispatch planning into command-returning methods.
 6. Extract controllers in risk order: Episode, Bangumi Details, Source,
    Playback.
