@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +8,7 @@ import 'package:mikan_player/services/download/download_queue.dart';
 import 'package:mikan_player/services/download/download_task.dart';
 import 'package:mikan_player/services/download/download_task_store.dart';
 import 'package:mikan_player/services/download/http_file_download_port.dart';
+import 'package:mikan_player/services/download/m3u8_playlist_port.dart';
 import 'package:mikan_player/services/download/magnet_helpers.dart';
 import 'package:mikan_player/utils/app_directories.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -100,18 +100,49 @@ class DownloadManager extends ChangeNotifier {
   );
   factory DownloadManager() => _instance;
 
-  /// Production constructor: uses the real [IoHttpFileDownloadPort].
-  DownloadManager._internal() : _httpPort = IoHttpFileDownloadPort();
+  /// Production constructor: uses the real [IoHttpFileDownloadPort] and
+  /// the real [IoM3u8PlaylistPort]. The throttle clock/sleeper default to
+  /// [DateTime.now] / [Future.delayed] so the budget-exhaustion branch of
+  /// [_throttleHttpChunk] matches the original inline `DateTime.now()` +
+  /// `Future.delayed` behavior.
+  DownloadManager._internal()
+    : _httpPort = IoHttpFileDownloadPort(),
+      _m3u8Port = IoM3u8PlaylistPort(),
+      _now = _defaultThrottleNow,
+      _sleep = _defaultThrottleSleep;
 
-  /// Test constructor: injects an [HttpFileDownloadPort] so the HTTP
-  /// file-download path can be exercised without real network sockets or a
+  /// Test constructor: injects an [HttpFileDownloadPort] and a
+  /// [M3u8PlaylistPort] so the HTTP file-download and m3u8 playlist-
+  /// resolution paths can be exercised without real network sockets or a
   /// real `HttpClient`. The zero-arg [factory DownloadManager] still uses
   /// [DownloadManager._internal] so existing callers are unaffected.
+  ///
+  /// [clock] and [sleep] are optional overrides for the HTTP throttle's
+  /// window clock and delay primitive so the budget-exhaustion branch of
+  /// `_throttleHttpChunk` can be tested deterministically (no wall-clock
+  /// delay, controllable `elapsed` math).
   @visibleForTesting
-  DownloadManager.forTesting({HttpFileDownloadPort? httpPort})
-    : _httpPort = httpPort ?? IoHttpFileDownloadPort();
+  DownloadManager.forTesting({
+    HttpFileDownloadPort? httpPort,
+    M3u8PlaylistPort? m3u8Port,
+    DateTime Function()? clock,
+    Future<void> Function(Duration)? sleep,
+  }) : _httpPort = httpPort ?? IoHttpFileDownloadPort(),
+       _m3u8Port = m3u8Port ?? IoM3u8PlaylistPort(),
+       _now = clock ?? _defaultThrottleNow,
+       _sleep = sleep ?? _defaultThrottleSleep {
+    if (clock != null) {
+      _httpThrottleWindowStart = clock();
+    }
+  }
 
   final HttpFileDownloadPort _httpPort;
+  final M3u8PlaylistPort _m3u8Port;
+  final DateTime Function() _now;
+  final Future<void> Function(Duration) _sleep;
+
+  static DateTime _defaultThrottleNow() => DateTime.now();
+  static Future<void> _defaultThrottleSleep(Duration d) => Future.delayed(d);
 
   final Map<String, DownloadTask> _tasks = {};
   final Set<String> _removedTaskIds =
@@ -179,7 +210,7 @@ class DownloadManager extends ChangeNotifier {
     if (_downloadLimitMbps <= 0) return; // unlimited
     final budgetBytes = (_downloadLimitMbps * 1024 * 1024).round();
     _httpThrottleBytesThisWindow += chunkBytes;
-    final now = DateTime.now();
+    final now = _now();
     final elapsed = now.difference(_httpThrottleWindowStart);
     if (elapsed.inMilliseconds >= 1000) {
       // New window
@@ -188,8 +219,8 @@ class DownloadManager extends ChangeNotifier {
     } else if (_httpThrottleBytesThisWindow >= budgetBytes) {
       // Budget exhausted — sleep until the window resets
       final remaining = Duration(milliseconds: 1000 - elapsed.inMilliseconds);
-      await Future.delayed(remaining);
-      _httpThrottleWindowStart = DateTime.now();
+      await _sleep(remaining);
+      _httpThrottleWindowStart = _now();
       _httpThrottleBytesThisWindow = 0;
     }
   }
@@ -1750,23 +1781,13 @@ class DownloadManager extends ChangeNotifier {
     }
   }
 
-  Future<String> _fetchHttpText(
-    HttpClient client,
-    Uri uri, {
-    Map<String, String>? headers,
-    String? cookies,
-  }) async {
-    final request = await client.getUrl(uri);
-    _applyHttpHeaders(request, headers, cookies);
-    final response = await request.close();
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('HTTP ${response.statusCode}');
-    }
-    return response.transform(utf8.decoder).join();
-  }
+  // `_fetchHttpText` was the inline playlist-text fetcher before the
+  // m3u8 seam; its wire behavior now lives on `IoM3u8PlaylistPort.fetchText`
+  // (byte-for-byte). Removed here per the plan's "remove unused after
+  // extraction" rule; the per-segment loop in `_downloadM3u8File` keeps its
+  // own `HttpClient` and still calls the manager's `_applyHttpHeaders`.
 
   Future<List<Uri>> _resolveHlsSegments(
-    HttpClient client,
     Uri playlistUri, {
     Map<String, String>? headers,
     String? cookies,
@@ -1776,69 +1797,32 @@ class DownloadManager extends ChangeNotifier {
       throw Exception('m3u8层级过深，无法解析');
     }
 
-    final content = await _fetchHttpText(
-      client,
-      playlistUri,
+    final content = await _m3u8Port.fetchText(
+      url: playlistUri,
       headers: headers,
       cookies: cookies,
     );
-    final lines = const LineSplitter()
-        .convert(content)
-        .map((line) => line.trim())
-        .toList(growable: false);
+    final parsed = parseM3u8Playlist(content, playlistUri);
 
-    final variantCandidates = <({Uri uri, int bandwidth})>[];
-    for (var i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      if (!line.startsWith('#EXT-X-STREAM-INF')) continue;
-      final bandwidthMatch = RegExp(
-        r'BANDWIDTH=(\d+)',
-        caseSensitive: false,
-      ).firstMatch(line);
-      final bandwidth = int.tryParse(bandwidthMatch?.group(1) ?? '') ?? 0;
-
-      for (var j = i + 1; j < lines.length; j++) {
-        final candidate = lines[j];
-        if (candidate.isEmpty || candidate.startsWith('#')) {
-          continue;
-        }
-        variantCandidates.add((
-          uri: playlistUri.resolve(candidate),
-          bandwidth: bandwidth,
-        ));
-        break;
-      }
-    }
-
-    if (variantCandidates.isNotEmpty) {
-      variantCandidates.sort((a, b) => b.bandwidth.compareTo(a.bandwidth));
+    // Master playlist: recurse into the highest-BANDWIDTH variant. The
+    // parser already sorted `variants` by `bandwidth` descending, so
+    // `.first` is the original `variantCandidates.first.uri` after the
+    // inline sort. Depth + headers/cookies forwarding are unchanged.
+    if (parsed is M3u8MasterPlaylist) {
       return _resolveHlsSegments(
-        client,
-        variantCandidates.first.uri,
+        parsed.variants.first.uri,
         headers: headers,
         cookies: cookies,
         depth: depth + 1,
       );
     }
 
-    final hasEncryptedKey = lines.any((line) {
-      if (!line.startsWith('#EXT-X-KEY')) return false;
-      return !line.toUpperCase().contains('METHOD=NONE');
-    });
-    if (hasEncryptedKey) {
-      throw UnsupportedError('暂不支持下载加密HLS流');
-    }
-
-    final segments = <Uri>[];
-    for (final line in lines) {
-      if (line.isEmpty || line.startsWith('#')) continue;
-      segments.add(playlistUri.resolve(line));
-    }
-
-    if (segments.isEmpty) {
-      throw Exception('未找到可下载的HLS分片');
-    }
-    return segments;
+    // Media playlist: the parser rejects encrypted media (`#EXT-X-KEY`
+    // without `METHOD=NONE`) with `UnsupportedError('暂不支持下载加密HLS流')`
+    // and an empty segment list with `Exception('未找到可下载的HLS分片')`,
+    // so by here `segments` is non-empty. Both throws propagate verbatim
+    // through this tail recursion, matching the original inline behavior.
+    return (parsed as M3u8MediaPlaylist).segments;
   }
 
   Future<void> _downloadM3u8File(DownloadTask task) async {
@@ -1854,7 +1838,6 @@ class DownloadManager extends ChangeNotifier {
     try {
       final playlistUri = Uri.parse(url);
       final segments = await _resolveHlsSegments(
-        client,
         playlistUri,
         headers: task.headers,
         cookies: task.cookies,
@@ -2933,6 +2916,44 @@ class DownloadManager extends ChangeNotifier {
   @visibleForTesting
   Future<void> throttleHttpChunkForTesting(int chunkBytes) =>
       _throttleHttpChunk(chunkBytes);
+
+  /// Resets the throttle window state so each budget-exhaustion test case
+  /// starts from a clean window. Tests that inject a `clock` into
+  /// [DownloadManager.forTesting] should call this between cases to pin the
+  /// window start to the current fake time.
+  @visibleForTesting
+  void resetHttpThrottleForTesting() {
+    _httpThrottleBytesThisWindow = 0;
+    _httpThrottleWindowStart = _now();
+  }
+
+  // --- m3u8 / HLS playlist-resolution characterization test seam --------
+  //
+  // Mirrors the Package B HTTP seam above: exposes the minimum private
+  // surface required for characterizing the `_resolveHlsSegments` recursion
+  // in `test/services/download/download_manager_m3u8_test.dart` without
+  // real network sockets, a real `HttpClient`, or platform channels. The
+  // injected `M3u8PlaylistPort` (default `IoM3u8PlaylistPort`) supplies
+  // canned playlist text; the pure `parseM3u8Playlist` parser is covered
+  // separately in `test/services/download/m3u8_playlist_port_test.dart`.
+  // Per-segment download / progress / cancel behavior is owned by
+  // `_downloadM3u8File` and is intentionally NOT exposed here — that path
+  // keeps its own `HttpClient` per-segment loop and is a separate later
+  // checkpoint. The public `DownloadManager` behavior and the zero-arg
+  // factory are unchanged.
+
+  /// Drives `_resolveHlsSegments` directly so the HLS playlist-resolution
+  /// recursion, `depth > 4` throw, highest-BANDWIDTH variant selection,
+  /// encrypted-key rejection, empty-segment rejection, and headers/cookies
+  /// forwarding can be characterized through the injected
+  /// [M3u8PlaylistPort]. Returns the resolved segment `Uri` list for a
+  /// media playlist (after recursing through any master playlists).
+  @visibleForTesting
+  Future<List<Uri>> resolveHlsSegmentsForTesting(
+    Uri playlistUri, {
+    Map<String, String>? headers,
+    String? cookies,
+  }) => _resolveHlsSegments(playlistUri, headers: headers, cookies: cookies);
 
   @override
   void dispose() {

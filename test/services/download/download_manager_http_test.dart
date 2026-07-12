@@ -445,6 +445,122 @@ void main() {
     });
   });
 
+  group('DownloadManager HTTP throttle budget-exhaustion delay', () {
+    // These cover the previously-untested `else if` branch of
+    // `_throttleHttpChunk` — the budget-exhausted `await Future.delayed(...)`
+    // path, plus the `elapsed >= 1000` new-window branch — by injecting a
+    // controllable clock and a counting/no-op sleeper via
+    // `DownloadManager.forTesting(clock:, sleep:)` so no wall-clock delay
+    // runs and the elapsed math is deterministic.
+
+    test(
+      'sleeps exactly once when a chunk exhausts the per-second budget',
+      () async {
+        final sleepCalls = <Duration>[];
+        var fakeNow = DateTime(2026, 7, 12, 0, 0, 0);
+        DateTime clock() => fakeNow;
+        Future<void> sleep(Duration d) {
+          sleepCalls.add(d);
+          // Advance the fake clock by the requested delay so the post-sleep
+          // `_now()` reassigns the window start to the new window boundary.
+          fakeNow = fakeNow.add(d);
+          return Future<void>.value();
+        }
+
+        final localManager = DownloadManager.forTesting(
+          httpPort: FakeHttpFileDownloadPort(),
+          clock: clock,
+          sleep: sleep,
+        );
+        localManager.setDownloadDirForTesting(tempRoot.path);
+        // 1 MB/s budget; a 2 MB chunk exhausts the window immediately.
+        localManager.setDownloadLimitMbpsForTesting(1);
+        try {
+          await localManager.throttleHttpChunkForTesting(2 * 1024 * 1024);
+          // Window started at construction (clock() == base), now == base, so
+          // elapsed == 0 and remaining == 1000ms → exactly one sleep.
+          expect(sleepCalls, [const Duration(milliseconds: 1000)]);
+          // After the sleep the window + counter are reset; a within-budget
+          // chunk must NOT sleep again.
+          await localManager.throttleHttpChunkForTesting(512 * 1024);
+          expect(sleepCalls.length, 1);
+        } finally {
+          localManager.dispose();
+        }
+      },
+    );
+
+    test(
+      'does not sleep when the window has already elapsed >= 1000ms',
+      () async {
+        final sleepCalls = <Duration>[];
+        var fakeNow = DateTime(2026, 7, 12, 0, 0, 0);
+        DateTime clock() => fakeNow;
+        Future<void> sleep(Duration d) {
+          sleepCalls.add(d);
+          fakeNow = fakeNow.add(d);
+          return Future<void>.value();
+        }
+
+        final localManager = DownloadManager.forTesting(
+          httpPort: FakeHttpFileDownloadPort(),
+          clock: clock,
+          sleep: sleep,
+        );
+        localManager.setDownloadDirForTesting(tempRoot.path);
+        localManager.setDownloadLimitMbpsForTesting(1);
+        try {
+          // Simulate a window that started 1.1s ago so the first chunk's
+          // `elapsed >= 1000ms` branch resets the window and returns WITHOUT
+          // sleeping (even though the chunk is 2x the budget).
+          fakeNow = fakeNow.add(const Duration(milliseconds: 1100));
+          await localManager.throttleHttpChunkForTesting(2 * 1024 * 1024);
+          expect(sleepCalls, isEmpty);
+          // The branch reset the window start to the current fakeNow; a
+          // follow-up 2MB chunk now hits the exhausted branch and sleeps.
+          await localManager.throttleHttpChunkForTesting(2 * 1024 * 1024);
+          expect(sleepCalls, [const Duration(milliseconds: 1000)]);
+        } finally {
+          localManager.dispose();
+        }
+      },
+    );
+
+    test(
+      'resetHttpThrottleForTesting pins the window start to the fake clock',
+      () async {
+        final sleepCalls = <Duration>[];
+        var fakeNow = DateTime(2026, 7, 12, 0, 0, 5);
+        DateTime clock() => fakeNow;
+        Future<void> sleep(Duration d) {
+          sleepCalls.add(d);
+          fakeNow = fakeNow.add(d);
+          return Future<void>.value();
+        }
+
+        final localManager = DownloadManager.forTesting(
+          httpPort: FakeHttpFileDownloadPort(),
+          clock: clock,
+          sleep: sleep,
+        );
+        localManager.setDownloadDirForTesting(tempRoot.path);
+        localManager.setDownloadLimitMbpsForTesting(1);
+        try {
+          // Constructor set _httpThrottleWindowStart = clock() == 00:00:05.
+          // Advance fakeNow to 00:00:06 (1s later) would normally trip the
+          // new-window branch. resetHttpThrottleForTesting re-pins the
+          // window start to the advanced now so a 2MB chunk sleeps instead.
+          fakeNow = fakeNow.add(const Duration(seconds: 1));
+          localManager.resetHttpThrottleForTesting();
+          await localManager.throttleHttpChunkForTesting(2 * 1024 * 1024);
+          expect(sleepCalls, [const Duration(milliseconds: 1000)]);
+        } finally {
+          localManager.dispose();
+        }
+      },
+    );
+  });
+
   group('DownloadManager resumeTask HTTP path', () {
     test(
       'resumeTask deletes an existing partial file BEFORE restarting '
