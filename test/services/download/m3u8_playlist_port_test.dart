@@ -233,6 +233,60 @@ c.m3u8
       );
     });
 
+    test(
+      'does not treat AVERAGE-BANDWIDTH as BANDWIDTH (attribute boundary)',
+      () {
+        // `BANDWIDTH=(\d+)` used to match the suffix of AVERAGE-BANDWIDTH.
+        // The fixed parser requires a whole attribute token.
+        const content = '''
+#EXTM3U
+#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=3000000,RESOLUTION=1920x1080
+1080p.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1000000,AVERAGE-BANDWIDTH=900000
+720p.m3u8
+''';
+        final result =
+            parseM3u8Playlist(
+                  content,
+                  Uri.parse('https://hls.example.com/master.m3u8'),
+                )
+                as M3u8MasterPlaylist;
+        expect(result.variants.length, 2);
+        expect(result.variants.map((v) => v.bandwidth).toList(), [
+          1_000_000,
+          0,
+        ]);
+        expect(
+          result.variants[0].uri,
+          Uri.parse('https://hls.example.com/720p.m3u8'),
+        );
+      },
+    );
+
+    test(
+      'rejects #EXT-X-STREAM-INF prefix collisions without colon delimiter',
+      () {
+        // `#EXT-X-STREAM-INF-EXTRA` must not be treated as STREAM-INF.
+        const content = '''
+#EXTM3U
+#EXT-X-STREAM-INF-EXTRA:BANDWIDTH=999
+not-a-variant
+#EXTINF:10.0,
+seg1.ts
+''';
+        final result =
+            parseM3u8Playlist(
+                  content,
+                  Uri.parse('https://hls.example.com/media.m3u8'),
+                )
+                as M3u8MediaPlaylist;
+        expect(result.segments, [
+          Uri.parse('https://hls.example.com/not-a-variant'),
+          Uri.parse('https://hls.example.com/seg1.ts'),
+        ]);
+      },
+    );
+
     test('falls back to bandwidth 0 when BANDWIDTH= value is non-numeric', () {
       const content = '''
 #EXTM3U
@@ -463,6 +517,72 @@ seg2.ts
         Uri.parse('https://hls.example.com/seg1.ts'),
         Uri.parse('https://hls.example.com/seg2.ts'),
       ]);
+    });
+
+    test(
+      'METHOD=NONE as substring of another method still counts as encrypted',
+      () {
+        // Old check used `contains('METHOD=NONE')` and would false-negative
+        // on values like `METHOD=NONE-BUT-ENCRYPTED`. Attribute parse only
+        // accepts the exact METHOD token value `NONE`.
+        const content = '''
+#EXTM3U
+#EXT-X-KEY:METHOD=NONE-BUT-ENCRYPTED,URI="https://hls.example.com/key.bin"
+#EXTINF:10.0,
+seg1.ts
+''';
+        expect(
+          () => parseM3u8Playlist(
+            content,
+            Uri.parse('https://hls.example.com/media.m3u8'),
+          ),
+          throwsA(
+            isA<UnsupportedError>().having(
+              (e) => e.toString(),
+              'toString',
+              contains('暂不支持下载加密HLS流'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test('#EXT-X-KEY without METHOD attribute is treated as encrypted', () {
+      const content = '''
+#EXTM3U
+#EXT-X-KEY:URI="https://hls.example.com/key.bin"
+#EXTINF:10.0,
+seg1.ts
+''';
+      expect(
+        () => parseM3u8Playlist(
+          content,
+          Uri.parse('https://hls.example.com/media.m3u8'),
+        ),
+        throwsA(
+          isA<UnsupportedError>().having(
+            (e) => e.toString(),
+            'toString',
+            contains('暂不支持下载加密HLS流'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects #EXT-X-KEY prefix collisions without colon delimiter', () {
+      const content = '''
+#EXTM3U
+#EXT-X-KEY-EXTRA:METHOD=AES-128
+#EXTINF:10.0,
+seg1.ts
+''';
+      final result =
+          parseM3u8Playlist(
+                content,
+                Uri.parse('https://hls.example.com/media.m3u8'),
+              )
+              as M3u8MediaPlaylist;
+      expect(result.segments, [Uri.parse('https://hls.example.com/seg1.ts')]);
     });
   });
 

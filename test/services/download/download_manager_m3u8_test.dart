@@ -17,17 +17,16 @@
 // required for resolution tests (the parser is pure and the port is faked),
 // so no temp directory is used.
 //
-// Per-segment download / progress / cancel behavior is owned by
-// `_downloadM3u8File` and is intentionally NOT exercised here — that path
-// keeps its own `HttpClient` per-segment loop and is a separate later
-// checkpoint. Only the playlist-resolution seam (`resolveHlsSegmentsForTesting`)
-// is characterized. The public `DownloadManager` API and the zero-arg
-// `factory DownloadManager()` are unchanged.
+// Per-segment download is covered in the group at the bottom via
+// `downloadHttpFileForTesting` + dual fakes (playlist + HTTP segment port).
+
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'http_file_download_port_test.dart' show FakeHttpFileDownloadPort;
 import 'm3u8_playlist_port_test.dart' show FakeM3u8PlaylistPort;
 
 void main() {
@@ -276,6 +275,85 @@ seg1.ts
           expect(call.headers, headers);
           expect(call.cookies, cookies);
         }
+      },
+    );
+  });
+
+  group('DownloadManager HLS segment download (via HTTP port)', () {
+    late Directory tempRoot;
+    late FakeHttpFileDownloadPort httpFake;
+
+    setUp(() {
+      tempRoot = Directory.systemTemp.createTempSync('mikan_hls_mgr_');
+      httpFake = FakeHttpFileDownloadPort(contentLength: 3);
+      manager.dispose();
+      manager = DownloadManager.forTesting(httpPort: httpFake, m3u8Port: fake);
+      manager.setDownloadDirForTesting(tempRoot.path);
+    });
+
+    tearDown(() {
+      if (tempRoot.existsSync()) {
+        tempRoot.deleteSync(recursive: true);
+      }
+    });
+
+    Future<void> pumpSlots() async {
+      for (var i = 0; i < 8; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+
+    test(
+      'media playlist segments are fetched in order and concatenated',
+      () async {
+        const mediaText = '''
+#EXTM3U
+#EXTINF:10.0,
+seg1.ts
+#EXTINF:10.0,
+seg2.ts
+#EXT-X-ENDLIST
+''';
+        final mediaUri = Uri.parse('https://hls.example.com/media.m3u8');
+        fake.register(mediaUri, mediaText);
+
+        final outFile = File('${tempRoot.path}/hls.mp4');
+        final task = DownloadTask(
+          id: 'hls_test',
+          name: 'HLS Episode',
+          magnet: '',
+          animeName: 'Test',
+          episodeNumber: 1,
+          startTime: DateTime.fromMillisecondsSinceEpoch(1_700_000_000_000),
+          taskType: DownloadTaskType.http,
+          status: DownloadTaskStatus.downloading,
+          progress: 0.0,
+          videoUrl: mediaUri.toString(),
+          localFilePath: outFile.path,
+        );
+        manager.seedHttpTaskForTesting(task);
+
+        final downloadFuture = manager.downloadHttpFileForTesting(task);
+        await pumpSlots();
+
+        // Segment 1
+        expect(httpFake.startCallCount, 1);
+        expect(httpFake.lastUrl, Uri.parse('https://hls.example.com/seg1.ts'));
+        httpFake.emit([1, 2, 3]);
+        httpFake.done();
+        await pumpSlots();
+
+        // Segment 2
+        expect(httpFake.startCallCount, 2);
+        expect(httpFake.lastUrl, Uri.parse('https://hls.example.com/seg2.ts'));
+        httpFake.emit([4, 5, 6]);
+        httpFake.done();
+        await downloadFuture;
+
+        expect(task.status, DownloadTaskStatus.completed);
+        expect(task.progress, 100.0);
+        expect(await outFile.readAsBytes(), [1, 2, 3, 4, 5, 6]);
+        expect(fake.callCount, 1);
       },
     );
   });

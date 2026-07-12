@@ -7,7 +7,9 @@ import 'package:mikan_player/services/download/download_file_cleanup.dart';
 import 'package:mikan_player/services/download/download_queue.dart';
 import 'package:mikan_player/services/download/download_task.dart';
 import 'package:mikan_player/services/download/download_task_store.dart';
+import 'package:mikan_player/services/download/http_download_job.dart';
 import 'package:mikan_player/services/download/http_file_download_port.dart';
+import 'package:mikan_player/services/download/m3u8_downloader.dart';
 import 'package:mikan_player/services/download/m3u8_playlist_port.dart';
 import 'package:mikan_player/services/download/magnet_helpers.dart';
 import 'package:mikan_player/utils/app_directories.dart';
@@ -51,45 +53,6 @@ class _BackendStartResult {
     this.torrentId,
     this.streamId,
   });
-}
-
-/// Internal helper to track an active HTTP download so it can be cancelled.
-///
-/// The legacy m3u8 segment-downloading path passes the raw [request] so it
-/// can be aborted per segment; the HTTP file-download path passes the
-/// [handle] returned by [HttpFileDownloadPort] so the port's `cancel`
-/// aborts the underlying request. [cancel] dispatches to whichever is
-/// set, sets the [cancelled] bool (checked inside the chunk loop), and
-/// closes the file sink. Both paths keep the [cancelled] flag in scope
-/// so the manager's chunk loop checks `_httpDownloadJobs[task.id]
-/// ?.cancelled` exactly as before.
-class _HttpDownloadJob {
-  final HttpClientRequest? request;
-  final HttpFileDownloadHandle? handle;
-  final File outputFile;
-  final IOSink sink;
-  bool cancelled = false;
-
-  _HttpDownloadJob({
-    this.request,
-    this.handle,
-    required this.outputFile,
-    required this.sink,
-  });
-
-  void cancel() {
-    cancelled = true;
-    if (handle != null) {
-      handle!.cancel();
-    } else if (request != null) {
-      try {
-        request!.abort();
-      } catch (_) {}
-    }
-    try {
-      sink.close();
-    } catch (_) {}
-  }
 }
 
 /// Global download manager singleton
@@ -197,8 +160,8 @@ class DownloadManager extends ChangeNotifier {
     storageKey: btTasksStorageKey,
   );
 
-  // HTTP download tracking
-  final Map<String, _HttpDownloadJob> _httpDownloadJobs = {};
+  // HTTP / HLS active-job registry (cancel via pause/remove).
+  final Map<String, ActiveHttpDownload> _httpDownloadJobs = {};
 
   /// Simple HTTP download speed limiter.
   /// Tracks bytes written within the current 1-second window and sleeps
@@ -1766,201 +1729,35 @@ class DownloadManager extends ChangeNotifier {
     return normalizedPath.contains('.m3u8');
   }
 
-  void _applyHttpHeaders(
-    HttpClientRequest request,
-    Map<String, String>? headers,
-    String? cookies,
-  ) {
-    if (headers != null) {
-      for (final entry in headers.entries) {
-        request.headers.set(entry.key, entry.value);
-      }
-    }
-    if (cookies != null && cookies.isNotEmpty) {
-      request.headers.set(HttpHeaders.cookieHeader, cookies);
-    }
-  }
-
-  // `_fetchHttpText` was the inline playlist-text fetcher before the
-  // m3u8 seam; its wire behavior now lives on `IoM3u8PlaylistPort.fetchText`
-  // (byte-for-byte). Removed here per the plan's "remove unused after
-  // extraction" rule; the per-segment loop in `_downloadM3u8File` keeps its
-  // own `HttpClient` and still calls the manager's `_applyHttpHeaders`.
-
-  Future<List<Uri>> _resolveHlsSegments(
-    Uri playlistUri, {
-    Map<String, String>? headers,
-    String? cookies,
-    int depth = 0,
-  }) async {
-    if (depth > 4) {
-      throw Exception('m3u8层级过深，无法解析');
-    }
-
-    final content = await _m3u8Port.fetchText(
-      url: playlistUri,
-      headers: headers,
-      cookies: cookies,
-    );
-    final parsed = parseM3u8Playlist(content, playlistUri);
-
-    // Master playlist: recurse into the highest-BANDWIDTH variant. The
-    // parser already sorted `variants` by `bandwidth` descending, so
-    // `.first` is the original `variantCandidates.first.uri` after the
-    // inline sort. Depth + headers/cookies forwarding are unchanged.
-    if (parsed is M3u8MasterPlaylist) {
-      return _resolveHlsSegments(
-        parsed.variants.first.uri,
-        headers: headers,
-        cookies: cookies,
-        depth: depth + 1,
-      );
-    }
-
-    // Media playlist: the parser rejects encrypted media (`#EXT-X-KEY`
-    // without `METHOD=NONE`) with `UnsupportedError('暂不支持下载加密HLS流')`
-    // and an empty segment list with `Exception('未找到可下载的HLS分片')`,
-    // so by here `segments` is non-empty. Both throws propagate verbatim
-    // through this tail recursion, matching the original inline behavior.
-    return (parsed as M3u8MediaPlaylist).segments;
-  }
-
   Future<void> _downloadM3u8File(DownloadTask task) async {
-    final url = task.videoUrl;
-    if (url == null) return;
+    if (task.videoUrl == null) return;
     _syncAndroidDownloadService();
 
-    final client = HttpClient();
-    final outputFile = File(task.localFilePath!);
-    IOSink? sink;
-    bool wasCancelled = false;
+    final result = await runM3u8Download(
+      task: task,
+      m3u8Port: _m3u8Port,
+      httpPort: _httpPort,
+      throttle: _throttleHttpChunk,
+      // Pause sets job.cancelled and/or task.status + _pausedTaskIds; the
+      // job entry is cleared between HLS segments, so status/paused-id must
+      // still count as cancelled across segment boundaries.
+      isCancelled: () =>
+          (_httpDownloadJobs[task.id]?.cancelled ?? false) ||
+          task.status == DownloadTaskStatus.paused ||
+          _pausedTaskIds.contains(task.id),
+      registerJob: (job) => _httpDownloadJobs[task.id] = job,
+      clearJob: () => _httpDownloadJobs.remove(task.id),
+      onProgress: notifyListeners,
+      isTaskStillTracked: () => _tasks.containsKey(task.id),
+    );
 
-    try {
-      final playlistUri = Uri.parse(url);
-      final segments = await _resolveHlsSegments(
-        playlistUri,
-        headers: task.headers,
-        cookies: task.cookies,
-      );
-
-      sink = outputFile.openWrite();
-      task.totalSize = BigInt.zero;
-
-      var received = 0;
-      var lastReceived = 0;
-      var finishedSegments = 0;
-      var lastUpdate = DateTime.now();
-
-      for (final segmentUri in segments) {
-        if (_httpDownloadJobs[task.id]?.cancelled ?? false) {
-          wasCancelled = true;
-          break;
-        }
-
-        final request = await client.getUrl(segmentUri);
-        _applyHttpHeaders(request, task.headers, task.cookies);
-        final response = await request.close();
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          throw Exception('HTTP ${response.statusCode}');
-        }
-
-        _httpDownloadJobs[task.id] = _HttpDownloadJob(
-          request: request,
-          outputFile: outputFile,
-          sink: sink,
-        );
-
-        final contentLength = response.contentLength;
-        if (contentLength > 0) {
-          task.totalSize += BigInt.from(contentLength);
-        }
-
-        await for (final chunk in response) {
-          if (_httpDownloadJobs[task.id]?.cancelled ?? false) {
-            wasCancelled = true;
-            break;
-          }
-          sink.add(chunk);
-          received += chunk.length;
-          task.downloaded = BigInt.from(received);
-          await _throttleHttpChunk(chunk.length);
-
-          final now = DateTime.now();
-          if (now.difference(lastUpdate).inMilliseconds >= 500) {
-            final elapsed = now.difference(lastUpdate).inMilliseconds / 1000.0;
-            if (elapsed > 0) {
-              final bytesSince = received - lastReceived;
-              task.downloadSpeed = bytesSince / elapsed;
-            }
-            task.progress = (finishedSegments / segments.length * 100.0).clamp(
-              0.0,
-              100.0,
-            );
-            lastUpdate = now;
-            lastReceived = received;
-            notifyListeners();
-          }
-        }
-
-        if (wasCancelled) {
-          break;
-        }
-
-        finishedSegments += 1;
-        task.progress = (finishedSegments / segments.length * 100.0).clamp(
-          0.0,
-          100.0,
-        );
-        notifyListeners();
-      }
-
-      await sink.close();
-      sink = null;
-
-      if ((_httpDownloadJobs[task.id]?.cancelled ?? false) || wasCancelled) {
-        task.status = DownloadTaskStatus.paused;
-        task.downloadSpeed = 0;
-        task.uploadSpeed = 0;
-        _pausedTaskIds.add(task.id);
-        debugPrint(
-          '[DownloadManager] HLS download paused (partial): ${task.name}',
-        );
-      } else {
-        task.status = DownloadTaskStatus.completed;
-        task.progress = 100.0;
-        task.downloadSpeed = 0;
-        try {
-          final fileLen = outputFile.lengthSync();
-          task.totalSize = BigInt.from(fileLen);
-          task.downloaded = BigInt.from(fileLen);
-        } catch (_) {}
-        debugPrint('[DownloadManager] HLS download completed: ${task.name}');
-      }
-    } catch (e) {
-      debugPrint('[DownloadManager] HLS download error: $e');
-      if (!_tasks.containsKey(task.id)) {
-        return;
-      }
-      if (_httpDownloadJobs[task.id]?.cancelled ?? false) {
-        task.status = DownloadTaskStatus.paused;
-        task.downloadSpeed = 0;
-        task.uploadSpeed = 0;
-        _pausedTaskIds.add(task.id);
-        return;
-      }
-      task.status = DownloadTaskStatus.error;
-      task.errorMessage = e.toString();
-      try {
-        sink?.close();
-      } catch (_) {}
-    } finally {
-      _httpDownloadJobs.remove(task.id);
-      client.close();
-      if (_tasks.containsKey(task.id)) {
-        await _saveTasks();
-        notifyListeners();
-        _syncAndroidDownloadService();
-      }
+    if (result.outcome == HttpDownloadJobOutcome.paused) {
+      _pausedTaskIds.add(task.id);
+    }
+    if (_tasks.containsKey(task.id)) {
+      await _saveTasks();
+      notifyListeners();
+      _syncAndroidDownloadService();
     }
   }
 
@@ -1997,118 +1794,27 @@ class DownloadManager extends ChangeNotifier {
         return;
       }
 
-      final outputFile = File(task.localFilePath!);
-      IOSink? sink;
-      HttpFileDownloadHandle? handle;
-      bool wasCancelled = false;
+      final result = await runHttpFileDownload(
+        task: task,
+        httpPort: _httpPort,
+        throttle: _throttleHttpChunk,
+        isCancelled: () =>
+            (_httpDownloadJobs[task.id]?.cancelled ?? false) ||
+            task.status == DownloadTaskStatus.paused ||
+            _pausedTaskIds.contains(task.id),
+        registerJob: (job) => _httpDownloadJobs[task.id] = job,
+        clearJob: () => _httpDownloadJobs.remove(task.id),
+        onProgress: notifyListeners,
+        isTaskStillTracked: () => _tasks.containsKey(task.id),
+      );
 
-      try {
-        final uri = Uri.parse(url);
-        handle = await _httpPort.start(
-          url: uri,
-          headers: task.headers,
-          cookies: task.cookies,
-        );
-
-        sink = outputFile.openWrite();
-        _httpDownloadJobs[task.id] = _HttpDownloadJob(
-          handle: handle,
-          outputFile: outputFile,
-          sink: sink,
-        );
-
-        final contentLength = handle.contentLength;
-        if (contentLength != null && contentLength > 0) {
-          task.totalSize = BigInt.from(contentLength);
-        }
-
-        int received = 0;
-        int lastReceived = 0;
-        DateTime lastUpdate = DateTime.now();
-
-        await for (final chunk in handle.chunks) {
-          if (_httpDownloadJobs[task.id]?.cancelled ?? false) {
-            wasCancelled = true;
-            break;
-          }
-          sink.add(chunk);
-          received += chunk.length;
-          task.downloaded = BigInt.from(received);
-          await _throttleHttpChunk(chunk.length);
-
-          final now = DateTime.now();
-          if (now.difference(lastUpdate).inMilliseconds >= 500) {
-            final elapsed = now.difference(lastUpdate).inMilliseconds / 1000.0;
-            if (elapsed > 0) {
-              final bytesSince = received - lastReceived;
-              task.downloadSpeed = bytesSince / elapsed;
-            }
-            if (contentLength != null && contentLength > 0) {
-              task.progress = (received / contentLength * 100.0).clamp(
-                0.0,
-                100.0,
-              );
-            } else {
-              task.progress = 0.0; // Unknown progress
-            }
-            lastUpdate = now;
-            lastReceived = received;
-            notifyListeners();
-          }
-        }
-
-        await sink.close();
-        sink = null;
-
-        // Check if cancelled
-        if ((_httpDownloadJobs[task.id]?.cancelled ?? false) || wasCancelled) {
-          // Partial file remains; mark as paused
-          task.status = DownloadTaskStatus.paused;
-          task.downloadSpeed = 0;
-          task.uploadSpeed = 0;
-          _pausedTaskIds.add(task.id);
-          debugPrint(
-            '[DownloadManager] HTTP download paused (partial): ${task.name}',
-          );
-        } else {
-          // Completed
-          task.status = DownloadTaskStatus.completed;
-          task.progress = 100.0;
-          task.downloadSpeed = 0;
-          if (contentLength == null || contentLength <= 0) {
-            // Update total size from actual file size
-            try {
-              final fileLen = outputFile.lengthSync();
-              task.totalSize = BigInt.from(fileLen);
-            } catch (_) {}
-          }
-          debugPrint('[DownloadManager] HTTP download completed: ${task.name}');
-        }
-      } catch (e) {
-        debugPrint('[DownloadManager] HTTP download error: $e');
-        if (!_tasks.containsKey(task.id)) {
-          return;
-        }
-        if (_httpDownloadJobs[task.id]?.cancelled ?? false) {
-          task.status = DownloadTaskStatus.paused;
-          task.downloadSpeed = 0;
-          task.uploadSpeed = 0;
-          _pausedTaskIds.add(task.id);
-          return;
-        }
-        task.status = DownloadTaskStatus.error;
-        task.errorMessage = e.toString();
-        try {
-          sink?.close();
-        } catch (_) {}
-      } finally {
-        _httpDownloadJobs.remove(task.id);
-        await handle?.close();
-        if (_tasks.containsKey(task.id)) {
-          await _saveTasks();
-          notifyListeners();
-          _syncAndroidDownloadService();
-        }
+      if (result.outcome == HttpDownloadJobOutcome.paused) {
+        _pausedTaskIds.add(task.id);
+      }
+      if (_tasks.containsKey(task.id)) {
+        await _saveTasks();
+        notifyListeners();
+        _syncAndroidDownloadService();
       }
     } finally {
       _releaseSlotForTask(task.id);
@@ -2929,31 +2635,21 @@ class DownloadManager extends ChangeNotifier {
 
   // --- m3u8 / HLS playlist-resolution characterization test seam --------
   //
-  // Mirrors the Package B HTTP seam above: exposes the minimum private
-  // surface required for characterizing the `_resolveHlsSegments` recursion
-  // in `test/services/download/download_manager_m3u8_test.dart` without
-  // real network sockets, a real `HttpClient`, or platform channels. The
-  // injected `M3u8PlaylistPort` (default `IoM3u8PlaylistPort`) supplies
-  // canned playlist text; the pure `parseM3u8Playlist` parser is covered
-  // separately in `test/services/download/m3u8_playlist_port_test.dart`.
-  // Per-segment download / progress / cancel behavior is owned by
-  // `_downloadM3u8File` and is intentionally NOT exposed here — that path
-  // keeps its own `HttpClient` per-segment loop and is a separate later
-  // checkpoint. The public `DownloadManager` behavior and the zero-arg
-  // factory are unchanged.
+  // Thin wrapper around [resolveHlsSegments] so manager-side tests keep a
+  // stable entry point while the recursion lives in `m3u8_downloader.dart`.
 
-  /// Drives `_resolveHlsSegments` directly so the HLS playlist-resolution
-  /// recursion, `depth > 4` throw, highest-BANDWIDTH variant selection,
-  /// encrypted-key rejection, empty-segment rejection, and headers/cookies
-  /// forwarding can be characterized through the injected
-  /// [M3u8PlaylistPort]. Returns the resolved segment `Uri` list for a
-  /// media playlist (after recursing through any master playlists).
+  /// Drives HLS playlist resolution through the injected [M3u8PlaylistPort].
   @visibleForTesting
   Future<List<Uri>> resolveHlsSegmentsForTesting(
     Uri playlistUri, {
     Map<String, String>? headers,
     String? cookies,
-  }) => _resolveHlsSegments(playlistUri, headers: headers, cookies: cookies);
+  }) => resolveHlsSegments(
+    m3u8Port: _m3u8Port,
+    playlistUri: playlistUri,
+    headers: headers,
+    cookies: cookies,
+  );
 
   @override
   void dispose() {

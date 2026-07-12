@@ -77,31 +77,19 @@ final class M3u8MediaPlaylist extends M3u8Playlist {
 /// fetched from, decides whether this is a master playlist (returns
 /// [M3u8MasterPlaylist] with resolved + BANDWIDTH-desc-sorted variants) or
 /// a media playlist (returns [M3u8MediaPlaylist] with resolved segments in
-/// file order). Replicates `DownloadManager._resolveHlsSegments`'s parse
-/// logic byte for byte:
+/// file order).
 ///
-/// - Lines are split on `\n`/`\r\n` via [LineSplitter] and `.trim()`-ed, so
-///   leading/trailing whitespace and blank lines are tolerated.
-/// - For each `#EXT-X-STREAM-INF` line, `BANDWIDTH=(\d+)` is matched
-///   case-insensitively; an unparseable (or missing) value degrades to
-///   `0` via `int.tryParse(...) ?? 0`. The first non-empty / non-`#` line
-///   after it is the variant URI (resolved against [playlistUri]); the
-///   inner scan then `break`s, exactly as the original.
-/// - If at least one variant candidate was collected, the list is sorted
-///   by `bandwidth` descending and returned as a master playlist — the
-///   encryption check is NOT applied to master playlists in this pass
-///   (matches original: that check only runs when there are no variants).
-/// - Otherwise (no variants), any `#EXT-X-KEY` line whose uppercased form
-///   does NOT contain `METHOD=NONE` is treated as an encrypted stream and
-///   throws `UnsupportedError('暂不支持下载加密HLS流')`.
-/// - Then every non-empty / non-`#` line is collected as a segment
-///   (resolved against [playlistUri]); an empty segment list throws
-///   `Exception('未找到可下载的HLS分片')`.
+/// - Lines are split on `\n`/`\r\n` via [LineSplitter] and `.trim()`-ed.
+/// - Master tags must be `#EXT-X-STREAM-INF` or `#EXT-X-STREAM-INF:...`
+///   (colon-delimited); a bare prefix match against unrelated tags is
+///   rejected.
+/// - Bandwidth is read from a whole attribute `BANDWIDTH=(\d+)`, not from
+///   the suffix of `AVERAGE-BANDWIDTH=`.
+/// - Encryption is decided by the `METHOD=` attribute value on
+///   `#EXT-X-KEY:` lines (`NONE` is clear; anything else is encrypted).
+/// - Empty media playlists throw `Exception('未找到可下载的HLS分片')`.
 ///
-/// The parser is depth-naive: it parses exactly one playlist text and
-/// returns variants-or-segments. The caller (`_resolveHlsSegments`) owns
-/// the recursion, the `depth > 4` throw, and the highest-BANDWIDTH
-/// selection, so that behavior stays byte-for-byte unchanged.
+/// The parser is depth-naive: recursion / `depth > 4` stay in the manager.
 M3u8Playlist parseM3u8Playlist(String content, Uri playlistUri) {
   final lines = const LineSplitter()
       .convert(content)
@@ -111,9 +99,11 @@ M3u8Playlist parseM3u8Playlist(String content, Uri playlistUri) {
   final variantCandidates = <({Uri uri, int bandwidth})>[];
   for (var i = 0; i < lines.length; i++) {
     final line = lines[i];
-    if (!line.startsWith('#EXT-X-STREAM-INF')) continue;
+    if (!_isExtTag(line, 'EXT-X-STREAM-INF')) continue;
+    // Attribute token boundary: reject the suffix of AVERAGE-BANDWIDTH
+    // (hyphen is a token char) while still matching `:BANDWIDTH=` / `,BANDWIDTH=`.
     final bandwidthMatch = RegExp(
-      r'BANDWIDTH=(\d+)',
+      r'(?<![A-Za-z0-9-])BANDWIDTH=(\d+)',
       caseSensitive: false,
     ).firstMatch(line);
     final bandwidth = int.tryParse(bandwidthMatch?.group(1) ?? '') ?? 0;
@@ -137,8 +127,14 @@ M3u8Playlist parseM3u8Playlist(String content, Uri playlistUri) {
   }
 
   final hasEncryptedKey = lines.any((line) {
-    if (!line.startsWith('#EXT-X-KEY')) return false;
-    return !line.toUpperCase().contains('METHOD=NONE');
+    if (!_isExtTag(line, 'EXT-X-KEY')) return false;
+    final methodMatch = RegExp(
+      r'(?<![A-Za-z0-9-])METHOD=([^,;\s]+)',
+      caseSensitive: false,
+    ).firstMatch(line);
+    final method = methodMatch?.group(1)?.toUpperCase();
+    // Missing METHOD is treated as encrypted (spec requires METHOD).
+    return method != 'NONE';
   });
   if (hasEncryptedKey) {
     throw UnsupportedError('暂不支持下载加密HLS流');
@@ -154,6 +150,14 @@ M3u8Playlist parseM3u8Playlist(String content, Uri playlistUri) {
     throw Exception('未找到可下载的HLS分片');
   }
   return M3u8MediaPlaylist(segments);
+}
+
+/// True when [line] is exactly `#NAME` or `#NAME:...` (case-sensitive name
+/// match, colon-delimited attributes). Rejects prefix collisions such as
+/// `#EXT-X-STREAM-INF-EXTRA`.
+bool _isExtTag(String line, String name) {
+  final prefix = '#$name';
+  return line == prefix || line.startsWith('$prefix:');
 }
 
 /// Injectable seam for the m3u8 playlist-fetch half of

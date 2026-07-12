@@ -4,25 +4,17 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-12 (updated after the HTTP throttle clock-injection and
-the m3u8/HLS playlist-resolution seam checkpoint). Counts below are physical
-line counts via `wc -l`; the embedded `e9e1862 feat(player): add resource
-content resolution and related tests` commit grew `player_page.dart` to 6842
-even though no controller work ran this checkpoint. This checkpoint adds the
-HTTP throttle's injectable clock/sleeper (so the budget-exhaustion
-`Future.delayed` branch of `_throttleHttpChunk` is deterministically testable,
-+3 manager-side tests) and the m3u8/HLS playlist-resolution seam: new files
-`lib/services/download/m3u8_playlist_port.dart` (pure `parseM3u8Playlist`
-+ sealed `M3u8Playlist` result + `M3u8PlaylistPort`/`IoM3u8PlaylistPort`),
-with `_resolveHlsSegments` now fetching through the injected port and
-delegating the text→decisions parse to the pure helper (recursion, depth>4,
-highest-BANDWIDTH selection unchanged; the now-orphaned `_fetchHttpText` was
-deleted per the "remove unused after extraction" rule, so `dart:convert` is
-no longer imported by the manager). `download_manager.dart` netted +21 lines
-(the two seams' fields/ctor plumbing outweigh the parse-logic extraction +
-`_fetchHttpText` deletion). Earlier "Current" cells were measured with a tool
-that undercounted, so cross-file deltas against the very first rows are not
-apples-to-apples; trends are correct.
+Status date: 2026-07-12 (updated after Phase 3 HTTP/m3u8 job extraction +
+m3u8 parse-quirk fixes). Counts via `wc -l`. This checkpoint: (1) fixed three
+latent m3u8 parse quirks (METHOD token parse, BANDWIDTH vs AVERAGE-BANDWIDTH
+boundary, colon-delimited EXT tag match); (2) physically extracted plain-HTTP
+orchestration into `http_download_job.dart` (`runHttpFileDownload` +
+`ActiveHttpDownload`); (3) extracted HLS resolve+segment download into
+`m3u8_downloader.dart` (`resolveHlsSegments` + `runM3u8Download`), with
+per-segment bytes going through the existing `HttpFileDownloadPort` (no
+separate M3u8DownloadPort needed). Manager keeps slots / task map /
+persistence / notifyListeners / pause-cancel registry. `download_manager.dart`
+is now 2660 lines (−304 from prior 2964).
 
 ## Goals
 
@@ -62,7 +54,7 @@ this checkpoint dominate the player_page / download_manager deltas.
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
 | `lib/ui/pages/player_page.dart` | 8318 | 6842 | -1476 | Source loading, playback, episode changes, WebView dispatch orchestration remain mixed together; recommendations, comments, and the BT resource list are extracted. |
-| `lib/services/download_manager.dart` | 3285 | 2964 | -321 | HTTP file download routes through the injected `HttpFileDownloadPort` (Package B) and `_throttleHttpChunk` now takes injectable clock/sleeper so the budget-exhaustion delay branch is testable; m3u8/HLS **playlist resolution** routes through the injected `M3u8PlaylistPort` + pure `parseM3u8Playlist` (per-segment download loop in `_downloadM3u8File` still inline); BT / libtorrent / rqbit paths still live in one service; persistence and path/file cleanup are extracted with Windows mixed-separator and POSIX literal-backslash safety tests. |
+| `lib/services/download_manager.dart` | 3285 | 2660 | -625 | HTTP + HLS job bodies live in `http_download_job.dart` / `m3u8_downloader.dart`; manager keeps slots, task map, persistence, throttle clock, and active-job cancel registry. BT / libtorrent / rqbit still inline. |
 | `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | Fully decomposed: SettingsPanel + MobileGestureAndLockLayer + MobileFloatingLockButton + SystemTimeDisplay + EpisodeSidePanel + SourceListPanel are now separate files. No remaining coherent controls boundary. |
 | `↳ lib/ui/widgets/video_player_controls/settings_panel.dart` | 1141 | 939 | -202 | Source list extracted as `SourceListPanel`; panel keeps reactive source listener state for the menu subtitle. |
 | `lib/ui/pages/bangumi_details_page.dart` | 3096 | 2732 | -364 | Data loading, favorite state, and the mobile inline comment rendering remain on the page; relations, sites, and the wide-layout comments section are extracted. |
@@ -174,7 +166,7 @@ Phase status:
 | Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. |
 | Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, pure BT-tag helpers, and **comment HTML rendering helpers (`normalizeBangumiImageSrc` / `isBangumiSmileUrl` / `bangumiSmileSize`) promoted to top-level + 23 widget/helper tests** — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
 | Phase 2 | Partial | Player helpers; WebView scheduler B1-B6 state, selection, bookkeeping, pump coordinator, ownership guards, and tests; **`PlayerRecommendations` display widget + widget tests**; **`PlayerComments` display widget + widget tests (incl. `text_mask` + Bangumi smile `<img>` HTML rendering)**; **`BtResourceList` display widget + `BtResource` view-model + dispatch adapters + tests** (play/download/clipboard callbacks stay on page). | Dispatch planning/affinity ownership, source controller, episode controller, playback controller, integration smoke. |
-| Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, **DownloadFileCleanup + Windows/POSIX path-safety tests**, **DownloadTaskStore behind injected prefs interface + round-trip tests**, **Package B HTTP download seam (`HttpFileDownloadPort` + `IoHttpFileDownloadPort` + `_httpPort` injection + `DownloadManager.forTesting`) + 23 char/manager characterization tests**, **HTTP throttle clock/sleeper injection + 3 budget-exhaustion delay tests**, and **m3u8/HLS playlist-resolution seam (`M3u8PlaylistPort` + `IoM3u8PlaylistPort` + pure `parseM3u8Playlist` + `resolveHlsSegmentsForTesting`) + 28 char/manager tests**, and unit tests. | Physical extraction of `_downloadHttpFile` / `_downloadM3u8File` orchestration into dedicated job modules (HLS still needs a per-segment download port); then the BT / libtorrent / rqbit adapters. |
+| Phase 3 | Partial | DownloadTask/enums, magnet helpers, DownloadQueue, cleanup, task store, **HTTP port + throttle clock**, **m3u8 playlist port + parse quirks fixed**, **physical `http_download_job.dart` + `m3u8_downloader.dart`** (segment download reuses `HttpFileDownloadPort`), characterization tests incl. HLS segment concat. | BT / libtorrent / rqbit adapters last. Manual HTTP/HLS download smoke recommended. |
 | Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**; **`SitesSection` display widget + widget tests**; **`CommentsSection` display widget (wide layout) + widget tests (incl. `text_mask` rendering)**. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. | |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
 
@@ -555,27 +547,13 @@ Revised immediate order:
    place. The manager keeps ALL domain logic (validation, status
    transitions, resume queue, paused-id tracking, cold-start throttle);
    only raw encode/decode/string-IO moved out.
- 3. ✅ (Package B characterization seam) HTTP file-download behavior
-    now routed through `HttpFileDownloadPort` + prod
-    `IoHttpFileDownloadPort`; 23 character/manager tests lock down the
-    2xx / 404 / 500 / headers-and-cookies / cancel-retains-partial /
-    error-while-cancel-flagged / content-length fallback / throttle
-    no-delay / resume-deletes-partial behavior. ✅ The throttle window clock
-    is now injectable (`clock` / `sleep` params on `DownloadManager.forTesting`,
-    defaulting to `DateTime.now` / `Future.delayed`); 3 manager-side tests
-    cover the budget-exhaustion `Future.delayed` branch deterministically.
-    Physical extraction of `_downloadHttpFile`'s remaining manager-side
-    orchestration into a dedicated `http_download_job.dart` module is still
-    pending.
- 4. ✅ (m3u8 resolution seam) HLS **playlist resolution** now routes
-    through `M3u8PlaylistPort` + prod `IoM3u8PlaylistPort` + pure
-    `parseM3u8Playlist`; 28 character/manager tests lock down master→variant
-    recursion, BANDWIDTH-desc selection, `depth > 4`, encrypted-key
-    rejection, empty-segments rejection, and headers+cookies forwarding.
-    Still pending: the per-segment download port (`M3u8DownloadPort`) and
-    physical extraction of `_downloadM3u8File`'s manager-side orchestration
-    into an `m3u8_downloader.dart` module.
- 5. Rqbit/libtorrent adapters last.
+  3. ✅ Package B + physical HTTP job: `HttpFileDownloadPort` +
+     `http_download_job.dart` (`runHttpFileDownload` / `ActiveHttpDownload`).
+     Manager thin-wraps slots + cancel registry + persist/notify.
+  4. ✅ m3u8: playlist port + pure parser (quirks fixed) +
+     `m3u8_downloader.dart` (`resolveHlsSegments` + `runM3u8Download`).
+     Segments reuse `HttpFileDownloadPort` (no separate segment port).
+  5. Rqbit/libtorrent adapters last.
 
 Avoid:
 
@@ -973,22 +951,12 @@ containment and empty-parent cleanup of literal-backslash siblings.
 5. Extract controllers in risk order: Episode, Bangumi Details, Source,
    Playback. Stop for review after each controller rather than running this
    sequence unattended.
- 6. ✅ (HTTP throttle clock + m3u8 resolution seam) Characterize HTTP/m3u8
-    behavior behind injected network/filesystem seams before extracting jobs;
-    leave BT adapters last. Done: `HttpFileDownloadPort` +
-    `IoHttpFileDownloadPort` injected via `_httpPort` (23 char + manager
-    tests); the throttle window clock is injectable via `clock` / `sleep` on
-    `DownloadManager.forTesting` (3 manager-side tests cover the
-    budget-exhaustion `Future.delayed` branch); and the m3u8/HLS
-    **playlist-resolution** seam is in — `M3u8PlaylistPort` +
-    `IoM3u8PlaylistPort` + pure `parseM3u8Playlist` injected via `_m3u8Port`,
-    with 28 character/manager tests covering master→variant recursion,
-    BANDWIDTH-desc selection, `depth > 4`, encrypted-key, empty-segments, and
-    headers+cookies forwarding. Still pending: the per-segment download port
-    for HLS (`M3u8DownloadPort`), physical extraction of `_downloadHttpFile`
-    and `_downloadM3u8File` orchestration into `http_download_job.dart` /
-    `m3u8_downloader.dart`, and the BT / libtorrent / rqbit adapters last.
-7. Start styling/token work only after the structural phases stop moving.
+  6. ✅ HTTP/m3u8 jobs extracted: `http_download_job.dart` +
+     `m3u8_downloader.dart`; m3u8 parse quirks fixed; HLS segments use
+     `HttpFileDownloadPort`. Remaining Phase 3: BT / libtorrent / rqbit
+     adapters only. Prefer switching main effort to Phase 2 (`player_page`)
+     after a short HTTP/HLS manual smoke.
+ 7. Start styling/token work only after the structural phases stop moving.
 
 Use a new branch/checkpoint for each architectural stage. Do not measure
 completion by hotspot line count alone; require an owned responsibility,
