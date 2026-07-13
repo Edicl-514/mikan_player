@@ -34,6 +34,7 @@ import 'package:mikan_player/ui/widgets/site_icon_map.dart';
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/pages/player/player_source_helpers.dart';
 import 'package:mikan_player/ui/pages/player/player_episode_controller.dart';
+import 'package:mikan_player/ui/pages/player/player_source_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_webview_scheduler.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_recommendations.dart';
@@ -116,17 +117,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   List<BangumiDataSiteEntry> _onairSites = [];
 
-  // Mikan Source
-  bool _isLoadingMikan = false;
-  String? _mikanError;
-  MikanSearchResult? _mikanAnime;
-  List<MikanEpisodeResource> _mikanResources = [];
-
-  // DMHY Source
-  bool _isLoadingDmhy = false;
-  String? _dmhyError;
-  List<DmhyResource> _dmhyResources = [];
-
   // Sample Source
   bool _isLoadingSample = false;
   String? _sampleError;
@@ -171,6 +161,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // history / setState）仍留在本页。完整 doc comments 详见
   // `lib/ui/pages/player/player_episode_controller.dart`。
   late final PlayerEpisodeController _episodeController;
+
+  // Mikan + DMHY 源加载状态对象。Phase 2 责任拆分：本页原先散落的 7 个源加载
+  // 状态字段（Mikan 的 loading 标志、error、anime 绑定、resources 列表，以及
+  // DMHY 的 loading 标志、error、resources 列表）全归该对象管理。本页只读只读
+  // 视图、把所有 mutation 路由到 controller 方法（`markMikanLoading` /
+  // `setMikanResources` / `markDmhyLoading` / ...）；异步 fetch 本身
+  // （`_loadMikanSource` / `_loadDmhySource` / `_reloadMikanResourcesForEpisode`
+  // 的方法体，内含 `widget.anime.*`、`BangumiRequestModeService` /
+  // `searchMikanAnime` / `getMikanResources` / `fetchDmhyResources`、`mounted`
+  // 检查、`setState` 包裹）仍留在本页。完整 doc comments 详见
+  // `lib/ui/pages/player/player_source_controller.dart`。
+  late final PlayerSourceController _sourceController;
 
   /// Round 4 Stage 3：pageKey → 入队序号。`_samplePlayPages` 每次新增播放页
   /// 后都会按 tier 重新 `sort()`，原始 `List` 下标不再稳定反映 arrival 顺序。
@@ -288,6 +290,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       allEpisodes: widget.allEpisodes,
       initialEpisode: widget.currentEpisode,
     );
+    _sourceController = PlayerSourceController();
     _videoTitleNotifier = ValueNotifier(
       '${widget.anime.title} - 第${_episodeController.currentEpisode.sort.toInt()}集',
     );
@@ -992,9 +995,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (widget.anime.bangumiId == null) return;
 
     setState(() {
-      _isLoadingDmhy = true;
-      _dmhyError = null;
-      _dmhyResources = [];
+      _sourceController.markDmhyLoading();
     });
 
     try {
@@ -1005,16 +1006,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
       if (mounted) {
         setState(() {
-          _dmhyResources = resources;
-          _isLoadingDmhy = false;
+          _sourceController.setDmhyResources(resources);
         });
       }
     } catch (e) {
       debugPrint("Error loading DMHY source: $e");
       if (mounted) {
         setState(() {
-          _dmhyError = e.toString();
-          _isLoadingDmhy = false;
+          _sourceController.setDmhyError(e.toString());
         });
       }
     }
@@ -1028,9 +1027,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
 
     setState(() {
-      _isLoadingMikan = true;
-      _mikanError = null;
-      _mikanResources = [];
+      _sourceController.markMikanLoading();
     });
 
     try {
@@ -1075,7 +1072,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
         if (mounted) {
           setState(() {
-            _mikanAnime = result;
+            _sourceController.setMikanAnime(result);
           });
         }
 
@@ -1089,14 +1086,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           );
           if (mounted) {
             setState(() {
-              _mikanResources = resources;
-              _isLoadingMikan = false;
+              _sourceController.setMikanResources(resources);
             });
           }
         } else {
           if (mounted) {
             setState(() {
-              _isLoadingMikan = false;
+              _sourceController.markMikanIdle();
             });
           }
         }
@@ -1112,8 +1108,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         );
         if (mounted) {
           setState(() {
-            _isLoadingMikan = false;
-            _mikanError = "未找到番剧";
+            _sourceController.setMikanNotFound();
           });
         }
         return;
@@ -1125,7 +1120,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
       if (mounted) {
         setState(() {
-          _mikanAnime = result;
+          _sourceController.setMikanAnime(result);
         });
       }
 
@@ -1141,14 +1136,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
         if (mounted) {
           setState(() {
-            _mikanResources = resources;
-            _isLoadingMikan = false;
+            _sourceController.setMikanResources(resources);
           });
         }
       } else {
         if (mounted) {
           setState(() {
-            _isLoadingMikan = false;
+            _sourceController.markMikanIdle();
           });
         }
       }
@@ -1156,8 +1150,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       debugPrint("Error loading Mikan source: $e");
       if (mounted) {
         setState(() {
-          _mikanError = e.toString();
-          _isLoadingMikan = false;
+          _sourceController.setMikanError(e.toString());
         });
       }
     }
@@ -3755,7 +3748,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return;
     }
 
-    if (_mikanAnime != null) {
+    if (_sourceController.mikanAnime != null) {
       _reloadMikanResourcesForEpisode();
     } else {
       _loadMikanSource();
@@ -3768,29 +3761,28 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     debugPrint(
       "[Mikan] Reloading resources for new episode: ${_episodeController.currentEpisode.sort.toInt()}",
     );
-    debugPrint("[Mikan] Using existing anime ID: ${_mikanAnime!.id}");
+    debugPrint(
+      "[Mikan] Using existing anime ID: ${_sourceController.mikanAnime!.id}",
+    );
 
     setState(() {
-      _isLoadingMikan = true;
-      _mikanResources = []; // Clear previous episode resources
+      _sourceController.markMikanReloadForEpisode();
     });
     try {
       final resources = await getMikanResources(
-        mikanId: _mikanAnime!.id,
+        mikanId: _sourceController.mikanAnime!.id,
         currentEpisodeSort: _episodeController.currentEpisode.sort.toInt(),
       );
       if (mounted) {
         setState(() {
-          _mikanResources = resources;
-          _isLoadingMikan = false;
+          _sourceController.setMikanResources(resources);
         });
       }
     } catch (e) {
       debugPrint("[Mikan] Error reloading resources: $e");
       if (mounted) {
         setState(() {
-          _mikanError = e.toString();
-          _isLoadingMikan = false;
+          _sourceController.setMikanError(e.toString());
         });
       }
     }
@@ -3855,6 +3847,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _sampleStatusMessageNotifier.dispose();
     _selectedSourceIndexNotifier.dispose();
     _episodeController.clearForDispose();
+    _sourceController.clearForDispose();
     _videoTitleNotifier.dispose();
     super.dispose();
   }
@@ -4857,14 +4850,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _loadingMagnet = null;
       _playingSourceLabel = 'Switching...';
 
-      // Reset all source states
-      _isLoadingMikan = false;
-      _mikanError = null;
-      _mikanResources = [];
-
-      _isLoadingDmhy = false;
-      _dmhyError = null;
-      _dmhyResources = [];
+      // Reset all source states (mikanAnime preserved — see controller)
+      _sourceController.resetForSwitching();
 
       _isLoadingSample = false;
       _sampleError = null;
@@ -4929,7 +4916,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     // Reload video sources
-    if (_mikanAnime != null) {
+    if (_sourceController.mikanAnime != null) {
       _reloadMikanResourcesForEpisode();
     } else {
       _loadMikanSource();
@@ -5366,8 +5353,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ? Colors.white10
         : Colors.grey.withValues(alpha: 0.3);
     final btCount = dedupBtResources([
-      ..._mikanResources,
-      ..._dmhyResources,
+      ..._sourceController.mikanResources,
+      ..._sourceController.dmhyResources,
     ]).length;
     final onlineCount = _sampleSuccessfulSources.length;
     final currentLabel = _playingSourceLabel;
@@ -5514,9 +5501,15 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     int count = 0;
 
     if (id == 'bt') {
-      isLoading = _isLoadingMikan || _isLoadingDmhy;
-      hasError = _mikanError != null || _dmhyError != null;
-      count = dedupBtResources([..._mikanResources, ..._dmhyResources]).length;
+      isLoading =
+          _sourceController.isLoadingMikan || _sourceController.isLoadingDmhy;
+      hasError =
+          _sourceController.mikanError != null ||
+          _sourceController.dmhyError != null;
+      count = dedupBtResources([
+        ..._sourceController.mikanResources,
+        ..._sourceController.dmhyResources,
+      ]).length;
     } else if (id == 'sample') {
       isLoading = _isLoadingSample;
       hasError = _sampleError != null;
@@ -6576,13 +6569,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return _buildSampleSourceContent();
     }
     final deduped = sortBtResourcesByTitle(
-      dedupBtResources([..._mikanResources, ..._dmhyResources]),
+      dedupBtResources([
+        ..._sourceController.mikanResources,
+        ..._sourceController.dmhyResources,
+      ]),
     );
     return BtResourceList(
       isExpanded: _isSourceControlExpanded,
       resources: toBtResourceViewModels(deduped),
-      isLoading: _isLoadingMikan || _isLoadingDmhy,
-      hasError: _mikanError != null || _dmhyError != null,
+      isLoading:
+          _sourceController.isLoadingMikan || _sourceController.isLoadingDmhy,
+      hasError:
+          _sourceController.mikanError != null ||
+          _sourceController.dmhyError != null,
       loadingMagnet: _loadingMagnet,
       isPlayBlocked: _isLoadingVideo || _loadingMagnet != null,
       onRetrySearch: () {
