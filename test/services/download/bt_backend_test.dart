@@ -672,6 +672,8 @@ class _ContractBackend implements BtBackend {
     required String fallbackInfoHash,
     String? downloadDir,
     bool startStream = false,
+    bool seedMode = false,
+    String? resumePath,
   }) async => const BtTorrentHandle(infoHash: '');
 
   @override

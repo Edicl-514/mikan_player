@@ -140,11 +140,17 @@ abstract interface class BtBackend {
   /// configured default when `null` (replacing the manager's
   /// `_downloadDir ?? task?.downloadDir ?? _downloadDir` resolution at
   /// :859-861).
+  /// Optional [seedMode] / [resumePath] are libtorrent-only fast-resume
+  /// knobs (mirrors `session.addMagnetEx(..., seedMode:, resumePath:)` at
+  /// `download_manager.dart:872-877`). The rqbit impl ignores them. Defaults
+  /// keep existing Fake / call sites compiling unchanged.
   Future<BtTorrentHandle> addTorrent(
     String magnet, {
     required String fallbackInfoHash,
     String? downloadDir,
     bool startStream = false,
+    bool seedMode = false,
+    String? resumePath,
   });
 
   /// Pause a tracked torrent.
@@ -503,6 +509,8 @@ class FakeBtBackend implements BtBackend {
     required String fallbackInfoHash,
     String? downloadDir,
     bool startStream = false,
+    bool seedMode = false,
+    String? resumePath,
   }) async {
     callLog.add('addTorrent:$magnet');
     if (addException != null) throw addException!;
@@ -513,6 +521,10 @@ class FakeBtBackend implements BtBackend {
     }
     final hash = (extractInfoHashFromMagnet(magnet) ?? fallbackInfoHash)
         .toLowerCase();
+    // Record libtorrent-only knobs so tests can assert they were accepted.
+    if (seedMode || resumePath != null) {
+      callLog.add('addTorrentOpts:seedMode=$seedMode:resumePath=$resumePath');
+    }
 
     // Duplicate add: return a fresh handle for the EXISTING tracked torrent,
     // re-using its torrentId, matching the libtorrent short-circuit at
