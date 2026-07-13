@@ -200,9 +200,78 @@ class LibtorrentBackend implements BtBackend {
   int? torrentIdForHash(String infoHash) =>
       _torrentIdsByHash[infoHash.toLowerCase()];
 
-  /// Tracked file size for progress math (commit 3 may read this).
+  /// Tracked stream id for [infoHash], or null.
+  ///
+  /// Interim helper until [BtStreamBackend] owns stream lifecycle.
+  int? streamIdForHash(String infoHash) =>
+      _streamIdsByHash[infoHash.toLowerCase()];
+
+  /// Tracked selected file index for [infoHash], or null.
+  int? fileIdxForHash(String infoHash) =>
+      _fileIdxByHash[infoHash.toLowerCase()];
+
+  /// Tracked file size for progress math.
   int? fileSizeForHash(String infoHash) =>
       _fileSizeByHash[infoHash.toLowerCase()];
+
+  /// Stop the HTTP stream for [infoHash] without removing the torrent.
+  ///
+  /// Interim helper until [BtStreamBackend] owns stream lifecycle. Clears the
+  /// internal stream-id map entry.
+  void stopStreamForHash(String infoHash) {
+    final hashLower = infoHash.toLowerCase();
+    final streamId = _streamIdsByHash.remove(hashLower);
+    if (streamId == null || _session == null) return;
+    try {
+      _session!.stopStream(streamId);
+      debugPrint('[LibtorrentBackend] Stopped stream $streamId for $hashLower');
+    } catch (e) {
+      debugPrint('[LibtorrentBackend] Error stopping stream $streamId: $e');
+    }
+  }
+
+  /// Re-prioritize the selected file and resume after playback ends.
+  ///
+  /// Returns a handle with the selected file metadata when the torrent is
+  /// already tracked; `null` if the torrent is not in the session (caller
+  /// should [addTorrent] instead).
+  Future<BtTorrentHandle?> restoreBackgroundDownload(
+    String infoHash, {
+    int? preferredFileIdx,
+  }) async {
+    if (!_initialized || _session == null) return null;
+    final hashLower = infoHash.toLowerCase();
+    final torrentId =
+        _torrentIdsByHash[hashLower] ?? _findNativeTorrentIdByHash(hashLower);
+    if (torrentId == null || !_isNativeTorrentValid(torrentId)) {
+      return null;
+    }
+
+    await _waitForMetadata(torrentId);
+    var fileIdx = preferredFileIdx ?? _fileIdxByHash[hashLower];
+    String? filePath;
+    int? fileSize = _fileSizeByHash[hashLower];
+    if (fileIdx == null) {
+      final file = _selectFile(torrentId);
+      if (file == null) return null;
+      fileIdx = file.index;
+      fileSize = file.size;
+      filePath = file.path;
+      _fileIdxByHash[hashLower] = file.index;
+      _fileSizeByHash[hashLower] = file.size;
+    }
+
+    await _prioritizeDownloadFile(torrentId, fileIdx);
+    _session!.resumeTorrent(torrentId);
+
+    return BtTorrentHandle(
+      infoHash: hashLower,
+      torrentId: torrentId,
+      fileIdx: fileIdx,
+      fileSize: fileSize,
+      filePath: filePath,
+    );
+  }
 
   @override
   Future<void> ensureInitialized() async {

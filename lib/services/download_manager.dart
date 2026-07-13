@@ -2,16 +2,18 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:mikan_player/native/mikan_libtorrent_native.dart';
+import 'package:mikan_player/services/download/bt_backend.dart';
 import 'package:mikan_player/services/download/download_file_cleanup.dart';
 import 'package:mikan_player/services/download/download_queue.dart';
 import 'package:mikan_player/services/download/download_task.dart';
 import 'package:mikan_player/services/download/download_task_store.dart';
 import 'package:mikan_player/services/download/http_download_job.dart';
 import 'package:mikan_player/services/download/http_file_download_port.dart';
+import 'package:mikan_player/services/download/libtorrent_backend.dart';
 import 'package:mikan_player/services/download/m3u8_downloader.dart';
 import 'package:mikan_player/services/download/m3u8_playlist_port.dart';
 import 'package:mikan_player/services/download/magnet_helpers.dart';
+import 'package:mikan_player/services/download/rqbit_backend.dart';
 import 'package:mikan_player/utils/app_directories.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust_api;
@@ -35,26 +37,6 @@ const String _allowBackgroundDownloadKey = 'allow_background_download';
 const String _keepSeedingInBackgroundKey = 'keep_seeding_in_background';
 const String _customDownloadDirKey = 'download_dir_custom';
 
-class _BackendStartResult {
-  final String infoHash;
-  final String? streamUrl;
-  final int? fileIdx;
-  final int? fileSize;
-  final String? filePath;
-  final int? torrentId;
-  final int? streamId;
-
-  const _BackendStartResult({
-    required this.infoHash,
-    this.streamUrl,
-    this.fileIdx,
-    this.fileSize,
-    this.filePath,
-    this.torrentId,
-    this.streamId,
-  });
-}
-
 /// Global download manager singleton
 class DownloadManager extends ChangeNotifier {
   static final DownloadManager _instance = DownloadManager._internal();
@@ -72,12 +54,15 @@ class DownloadManager extends ChangeNotifier {
     : _httpPort = IoHttpFileDownloadPort(),
       _m3u8Port = IoM3u8PlaylistPort(),
       _now = _defaultThrottleNow,
-      _sleep = _defaultThrottleSleep;
+      _sleep = _defaultThrottleSleep,
+      _rqbitBackend = RqbitBackend(),
+      _libtorrentBackend = LibtorrentBackend();
 
   /// Test constructor: injects an [HttpFileDownloadPort] and a
   /// [M3u8PlaylistPort] so the HTTP file-download and m3u8 playlist-
   /// resolution paths can be exercised without real network sockets or a
-  /// real `HttpClient`. The zero-arg [factory DownloadManager] still uses
+  /// real `HttpClient`. Optional BT backends allow manager-side BT tests.
+  /// The zero-arg [factory DownloadManager] still uses
   /// [DownloadManager._internal] so existing callers are unaffected.
   ///
   /// [clock] and [sleep] are optional overrides for the HTTP throttle's
@@ -90,10 +75,14 @@ class DownloadManager extends ChangeNotifier {
     M3u8PlaylistPort? m3u8Port,
     DateTime Function()? clock,
     Future<void> Function(Duration)? sleep,
+    BtBackend? rqbitBackend,
+    LibtorrentBackend? libtorrentBackend,
   }) : _httpPort = httpPort ?? IoHttpFileDownloadPort(),
        _m3u8Port = m3u8Port ?? IoM3u8PlaylistPort(),
        _now = clock ?? _defaultThrottleNow,
-       _sleep = sleep ?? _defaultThrottleSleep {
+       _sleep = sleep ?? _defaultThrottleSleep,
+       _rqbitBackend = rqbitBackend ?? RqbitBackend(),
+       _libtorrentBackend = libtorrentBackend ?? LibtorrentBackend() {
     if (clock != null) {
       _httpThrottleWindowStart = clock();
     }
@@ -103,6 +92,8 @@ class DownloadManager extends ChangeNotifier {
   final M3u8PlaylistPort _m3u8Port;
   final DateTime Function() _now;
   final Future<void> Function(Duration) _sleep;
+  final BtBackend _rqbitBackend;
+  final LibtorrentBackend _libtorrentBackend;
 
   static DateTime _defaultThrottleNow() => DateTime.now();
   static Future<void> _defaultThrottleSleep(Duration d) => Future.delayed(d);
@@ -121,20 +112,15 @@ class DownloadManager extends ChangeNotifier {
   DateTime? _lastLibtorrentResumeSaveAt;
   bool _isSavingLibtorrentResumeData = false;
   BtBackendKind _backendKind = BtBackendKind.rqbit;
-  bool _libtorrentInitialized = false;
-  Future<void>? _libtorrentInitialization;
-  MikanLibtorrentSession? _nativeSession;
   String? _downloadDir;
   String? _customDownloadDir;
-  final Map<String, int> _ltTorrentIdsByHash = {};
-  final Map<int, String> _ltInfoHashesByTorrentId = {};
-  final Map<String, int> _ltStreamIdsByHash = {};
-  final Map<String, int> _ltFileIdxByHash = {};
-  final Map<String, int> _ltFileSizeByHash = {};
   final Set<String> _ltPriorityRecoveryHashes = {};
   final Set<String> _activeStreamHashes = {}; // Track active playback streams
   final Set<String> _ltCompletionResumeSavedHashes = {};
   static const Duration _ltResumeSaveInterval = Duration(minutes: 1);
+
+  BtBackend _backendFor(BtBackendKind kind) =>
+      kind == BtBackendKind.libtorrent ? _libtorrentBackend : _rqbitBackend;
 
   // Download settings
   int _maxConcurrentDownloads = 3;
@@ -237,28 +223,27 @@ class DownloadManager extends ChangeNotifier {
     return '$dir/${infoHash.toLowerCase()}.resume';
   }
 
-  bool _saveLibtorrentResumeDataForHash(String infoHash, String reason) {
-    if (!_libtorrentInitialized || _nativeSession == null) return false;
-
+  Future<bool> _saveLibtorrentResumeDataForHash(
+    String infoHash,
+    String reason,
+  ) async {
     final hashLower = infoHash.toLowerCase();
     final task = _tasks[hashLower] ?? _tasks[infoHash];
     if (task == null || task.backend != BtBackendKind.libtorrent) {
       return false;
     }
 
-    final torrentId =
-        _ltTorrentIdsByHash[hashLower] ?? _findNativeTorrentIdByHash(hashLower);
-    if (torrentId == null) return false;
-
     try {
-      _nativeSession!.saveResumeData(
-        torrentId,
-        resumePath: _ltResumePath(hashLower, task: task),
+      final ok = await _libtorrentBackend.saveResumeData(
+        hashLower,
+        _ltResumePath(hashLower, task: task),
       );
-      debugPrint(
-        '[DownloadManager] Saved libtorrent resume data ($reason): $hashLower',
-      );
-      return true;
+      if (ok) {
+        debugPrint(
+          '[DownloadManager] Saved libtorrent resume data ($reason): $hashLower',
+        );
+      }
+      return ok;
     } catch (e) {
       debugPrint(
         '[DownloadManager] Error saving libtorrent resume data ($reason): $e',
@@ -267,9 +252,8 @@ class DownloadManager extends ChangeNotifier {
     }
   }
 
-  void _saveActiveLibtorrentResumeData(String reason) {
+  Future<void> _saveActiveLibtorrentResumeData(String reason) async {
     if (_isSavingLibtorrentResumeData) return;
-    if (!_libtorrentInitialized || _nativeSession == null) return;
 
     final hashes = _tasks.entries
         .where(
@@ -287,7 +271,7 @@ class DownloadManager extends ChangeNotifier {
     _isSavingLibtorrentResumeData = true;
     try {
       for (final hash in hashes) {
-        _saveLibtorrentResumeDataForHash(hash, reason);
+        await _saveLibtorrentResumeDataForHash(hash, reason);
       }
     } finally {
       _isSavingLibtorrentResumeData = false;
@@ -301,11 +285,11 @@ class DownloadManager extends ChangeNotifier {
       return;
     }
     _lastLibtorrentResumeSaveAt = now;
-    _saveActiveLibtorrentResumeData('periodic');
+    unawaited(_saveActiveLibtorrentResumeData('periodic'));
   }
 
   void saveLibtorrentResumeDataForShutdown() {
-    _saveActiveLibtorrentResumeData('shutdown');
+    unawaited(_saveActiveLibtorrentResumeData('shutdown'));
     unawaited(_saveTasks());
   }
 
@@ -441,7 +425,7 @@ class DownloadManager extends ChangeNotifier {
     }
     await _ensureDownloadDir();
     if (_backendKind == BtBackendKind.libtorrent) {
-      unawaited(_ensureLibtorrentInitialized());
+      unawaited(_libtorrentBackend.ensureInitialized());
     }
     await _loadTasks();
     _isInitialized = true;
@@ -454,7 +438,7 @@ class DownloadManager extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_btBackendStorageKey, backend.storageValue);
     if (backend == BtBackendKind.libtorrent) {
-      unawaited(_ensureLibtorrentInitialized());
+      unawaited(_libtorrentBackend.ensureInitialized());
     }
     notifyListeners();
   }
@@ -535,17 +519,16 @@ class DownloadManager extends ChangeNotifier {
         _keepSeedingInBackground,
       );
     }
-    _applyLibtorrentSpeedLimits();
+    unawaited(_applyLibtorrentSpeedLimits());
     _syncAndroidDownloadService();
     notifyListeners();
   }
 
   /// Apply current speed limits to the libtorrent session (if initialized).
-  void _applyLibtorrentSpeedLimits() {
-    if (!_libtorrentInitialized || _nativeSession == null) return;
+  Future<void> _applyLibtorrentSpeedLimits() async {
     final dlBytes = (_downloadLimitMbps * 1024 * 1024).round();
     final ulBytes = (_uploadLimitMbps * 1024 * 1024).round();
-    _nativeSession!.configureSession(
+    await _libtorrentBackend.applySpeedLimits(
       downloadLimitBytesPerSecond: dlBytes,
       uploadLimitBytesPerSecond: ulBytes,
     );
@@ -668,7 +651,7 @@ class DownloadManager extends ChangeNotifier {
       final result = await _startTorrentWithBackend(
         task.magnet,
         fallbackInfoHash: task.id,
-        backend: task.backend,
+        backendKind: task.backend,
         startStream: false,
         downloadDir: task.downloadDir,
       );
@@ -717,7 +700,7 @@ class DownloadManager extends ChangeNotifier {
       final result = await _startTorrentWithBackend(
         task.magnet,
         fallbackInfoHash: task.id,
-        backend: task.backend,
+        backendKind: task.backend,
         startStream: false,
         downloadDir: task.downloadDir,
       );
@@ -779,248 +762,39 @@ class DownloadManager extends ChangeNotifier {
   /// the same way this method did before extraction.
   Future<void> _saveTasks() => _taskStore.saveTasks(_tasks.values);
 
-  Future<void> _ensureLibtorrentInitialized() async {
-    if (_libtorrentInitialized) return;
-    final pending = _libtorrentInitialization;
-    if (pending != null) {
-      await pending;
-      return;
-    }
-
-    final initialization = _initializeLibtorrent();
-    _libtorrentInitialization = initialization;
-    try {
-      await initialization;
-    } catch (_) {
-      _libtorrentInitialization = null;
-      rethrow;
-    }
-  }
-
-  Future<void> _initializeLibtorrent() async {
-    // Respect custom download dir if already set; otherwise resolve default.
-    if (_downloadDir == null) {
-      if (_customDownloadDir != null) {
-        _downloadDir = _customDownloadDir;
-      } else {
-        final appSupportDir = await AppDirectories.getUnifiedAppDataDirectory();
-        _downloadDir = '${appSupportDir.path}/downloads';
-      }
-    }
-    // Use a high listen port — the legacy 6881-6889 range is widely
-    // throttled or blocked by ISPs; 49152 is in the IANA dynamic range.
-    _nativeSession = MikanLibtorrentNative.instance.createSession(
-      listenInterfaces: '0.0.0.0:49152',
-    );
-    _nativeSession!.configureSession(
-      connectionsLimit: 200,
-      enableDht: true,
-      enableLsd: true,
-      enableUpnp: true,
-      enableNatPmp: true,
-    );
-    _libtorrentInitialized = true;
-    _applyLibtorrentSpeedLimits();
-    debugPrint(
-      '[DownloadManager] libtorrent initialized: '
-      '${MikanLibtorrentNative.instance.version}',
-    );
-  }
-
-  Future<_BackendStartResult> _startTorrentWithBackend(
+  Future<BtTorrentHandle> _startTorrentWithBackend(
     String magnet, {
     required String fallbackInfoHash,
-    required BtBackendKind backend,
+    required BtBackendKind backendKind,
     bool startStream = true,
     String? downloadDir,
   }) async {
-    if (backend == BtBackendKind.rqbit) {
-      final effectiveDownloadDir = downloadDir ?? _downloadDir;
-      if (effectiveDownloadDir != null && effectiveDownloadDir.isNotEmpty) {
-        await rust_api.setDownloadDir(dir: effectiveDownloadDir);
-      }
-      final streamUrl = await rust_api.startTorrent(magnet: magnet);
-      if (streamUrl.startsWith('Error')) {
-        throw Exception(streamUrl);
-      }
-      return _BackendStartResult(
-        infoHash: _extractInfoHashFromUrl(streamUrl) ?? fallbackInfoHash,
-        streamUrl: streamUrl,
-        fileIdx: _extractFileIdxFromUrl(streamUrl),
-      );
-    }
-
-    await _ensureLibtorrentInitialized();
-    final session = _nativeSession!;
-    final infoHash = fallbackInfoHash.toLowerCase();
-    var torrentId = _ltTorrentIdsByHash[infoHash];
-    if (torrentId == null || !_isNativeTorrentValid(torrentId)) {
-      final task = _tasks[infoHash];
-      final effectiveDownloadDir =
-          downloadDir ?? task?.downloadDir ?? _downloadDir;
-      if (effectiveDownloadDir == null || effectiveDownloadDir.isEmpty) {
-        throw StateError('Download directory is not initialized');
-      }
-      final resumePath = _ltResumePath(infoHash, baseDir: effectiveDownloadDir);
-      final seed =
-          task != null &&
-          task.progress >= 100.0 &&
-          task.status != DownloadTaskStatus.paused;
-      // Inject a small, high-quality tracker set (same as rqbit backend).
-      // This improves peer discovery, especially for magnets with few trackers.
-      final enrichedMagnet = injectMagnetTrackers(magnet);
-      torrentId = session.addMagnetEx(
-        enrichedMagnet,
-        savePath: effectiveDownloadDir,
-        resumePath: resumePath,
-        seedMode: seed,
-      );
-      _ltTorrentIdsByHash[infoHash] = torrentId;
-      _ltInfoHashesByTorrentId[torrentId] = infoHash;
-    }
-
-    await _waitForLibtorrentMetadata(torrentId);
-    final file = _selectLibtorrentFile(torrentId);
-    if (file == null) {
-      throw Exception('Error: No streamable files found in torrent');
-    }
-
-    await _prioritizeLibtorrentDownloadFile(torrentId, file.index);
-    // Explicitly resume: without auto_managed the torrent won't start on its own.
-    session.resumeTorrent(torrentId);
-
-    if (!startStream) {
-      _ltFileIdxByHash[infoHash] = file.index;
-      _ltFileSizeByHash[infoHash] = file.size;
-      return _BackendStartResult(
-        infoHash: infoHash,
-        fileIdx: file.index,
-        fileSize: file.size,
-        filePath: file.path,
-        torrentId: torrentId,
-      );
-    }
-
-    _stopLibtorrentStreamForHash(infoHash);
-    final stream = session.startStream(
-      torrentId,
-      fileIndex: file.index,
-      maxCacheBytes: 16 * 1024 * 1024,
-    );
-    _warmUpLibtorrentStream(stream);
-    _ltStreamIdsByHash[infoHash] = stream.id;
-    _ltFileIdxByHash[infoHash] = file.index;
-    _ltFileSizeByHash[infoHash] = file.size;
-
-    return _BackendStartResult(
-      infoHash: infoHash,
-      streamUrl: stream.url,
-      fileIdx: file.index,
-      fileSize: file.size,
-      filePath: file.path,
-      torrentId: torrentId,
-      streamId: stream.id,
+    final backend = _backendFor(backendKind);
+    final hashLower = fallbackInfoHash.toLowerCase();
+    final task = _tasks[hashLower] ?? _tasks[fallbackInfoHash];
+    final effectiveDir = downloadDir ?? task?.downloadDir ?? _downloadDir;
+    final seed =
+        task != null &&
+        task.progress >= 100.0 &&
+        task.status != DownloadTaskStatus.paused;
+    final resumePath = backendKind == BtBackendKind.libtorrent
+        ? _ltResumePath(
+            hashLower,
+            baseDir: effectiveDir ?? _taskDownloadDir(task),
+          )
+        : null;
+    return backend.addTorrent(
+      magnet,
+      fallbackInfoHash: fallbackInfoHash,
+      downloadDir: effectiveDir,
+      startStream: startStream,
+      seedMode: seed,
+      resumePath: resumePath,
     );
   }
 
-  Future<void> _waitForLibtorrentMetadata(int torrentId) async {
-    final session = _nativeSession!;
-    final deadline = DateTime.now().add(const Duration(seconds: 90));
-    while (DateTime.now().isBefore(deadline)) {
-      final stats = session.getTorrentStats();
-      final torrent = stats.where((s) => s.torrentId == torrentId).firstOrNull;
-      if (torrent != null && torrent.hasMetadata) return;
-      if (torrent != null && torrent.errorMessage.isNotEmpty) {
-        throw Exception(
-          'Error getting torrent metadata: ${torrent.errorMessage}',
-        );
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    }
-    throw Exception(
-      'Error adding torrent: timed out waiting for torrent metadata',
-    );
-  }
-
-  void _warmUpLibtorrentStream(MikanLtStreamInfo stream) {
-    final session = _nativeSession!;
-    try {
-      session.setStreamCache(
-        stream.id,
-        capacity: 16 * 1024 * 1024,
-        readAheadPct: 0,
-        connectionsLimit: 200,
-      );
-      session.preloadStream(stream.id, preloadBytes: 4 * 1024 * 1024);
-    } catch (e) {
-      debugPrint('[DownloadManager] Error warming up libtorrent stream: $e');
-    }
-  }
-
-  MikanLtFileInfo? _selectLibtorrentFile(int torrentId) {
-    final files = _nativeSession!.getFiles(torrentId);
-    final streamable = files.where((f) => f.isStreamable).toList();
-    final candidates = streamable.isNotEmpty ? streamable : files;
-    MikanLtFileInfo? largest;
-    for (final file in candidates) {
-      if (largest == null || file.size > largest.size) {
-        largest = file;
-      }
-    }
-    return largest;
-  }
-
-  bool _isNativeTorrentValid(int torrentId) {
-    if (_nativeSession == null) return false;
-    try {
-      final stats = _nativeSession!.getTorrentStats();
-      return stats.any((s) => s.torrentId == torrentId);
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Find a native torrent ID by info hash when the in-memory mapping is lost
-  /// (e.g. after app restart before resume completes).
-  int? _findNativeTorrentIdByHash(String infoHash) {
-    if (_nativeSession == null) return null;
-    try {
-      final stats = _nativeSession!.getTorrentStats();
-      for (final s in stats) {
-        if (s.infoHash.toLowerCase() == infoHash.toLowerCase()) {
-          // Rebuild the mapping so future lookups are fast
-          _ltTorrentIdsByHash[infoHash] = s.torrentId;
-          _ltInfoHashesByTorrentId[s.torrentId] = infoHash;
-          return s.torrentId;
-        }
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  Future<void> _prioritizeLibtorrentDownloadFile(
-    int torrentId,
-    int fileIndex,
-  ) async {
-    final files = _nativeSession!.getFiles(torrentId);
-    if (files.isEmpty) return;
-
-    final maxIndex = files.fold<int>(
-      -1,
-      (current, file) => file.index > current ? file.index : current,
-    );
-    if (fileIndex < 0 || fileIndex > maxIndex) return;
-
-    final priorities = List<int>.filled(maxIndex + 1, 0);
-    priorities[fileIndex] = 7;
-    _nativeSession!.setFilePriorities(torrentId, priorities);
-    // Native setFilePriorities uses libtorrent's async prioritize_files().
-    // Let that settle before startStream installs its piece deadlines.
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-  }
-
-  Future<List<rust_api.TorrentStats>> _getTorrentStatsWithBackend() async {
-    final results = <rust_api.TorrentStats>[];
+  Future<List<BtTorrentStats>> _getTorrentStatsWithBackend() async {
+    final results = <BtTorrentStats>[];
     final hasRqbitTasks = _tasks.values.any(
       (task) =>
           task.taskType == DownloadTaskType.bt &&
@@ -1033,116 +807,63 @@ class DownloadManager extends ChangeNotifier {
     );
 
     if (hasRqbitTasks) {
-      results.addAll(await rust_api.getTorrentStats());
+      results.addAll(await _rqbitBackend.getStats());
     }
 
-    if (!hasLibtorrentTasks || !_libtorrentInitialized) {
-      return results;
-    }
-
-    final session = _nativeSession!;
-    final nativeStats = session.getTorrentStats();
-    for (final stats in nativeStats) {
-      final infoHash = _ltInfoHashesByTorrentId[stats.torrentId];
-      if (infoHash == null) continue;
-
-      final task = _tasks[infoHash];
-      final persistedTotal = task?.totalSize.toInt() ?? 0;
-      final totalSize =
-          _ltFileSizeByHash[infoHash] ??
-          (persistedTotal > 0 ? persistedTotal : stats.totalWanted);
-      final downloaded = totalSize > 0
-          ? stats.totalDone.clamp(0, totalSize)
-          : stats.totalDone;
-      final progress = totalSize > 0
-          ? (downloaded / totalSize * 100.0).clamp(0.0, 100.0)
-          : stats.progress;
-      results.add(
-        rust_api.TorrentStats(
-          infoHash: infoHash,
-          name: stats.name.isEmpty ? 'Torrent ${stats.torrentId}' : stats.name,
-          state: _normalizeNativeLibtorrentState(stats),
-          progress: progress,
-          downloadSpeed: stats.downloadRate.toDouble(),
-          uploadSpeed: stats.uploadRate.toDouble(),
-          downloaded: BigInt.from(downloaded),
-          totalSize: BigInt.from(totalSize),
-          peers: stats.numPeers,
-          seeders: stats.numSeeds,
-        ),
-      );
+    if (hasLibtorrentTasks) {
+      final ltStats = await _libtorrentBackend.getStats();
+      for (final stats in ltStats) {
+        final task = _tasks[stats.infoHash];
+        final persistedTotal = task?.totalSize.toInt() ?? 0;
+        final backendFileSize = _libtorrentBackend.fileSizeForHash(
+          stats.infoHash,
+        );
+        final totalSize =
+            backendFileSize ??
+            (persistedTotal > 0 ? persistedTotal : stats.totalSize.toInt());
+        final downloaded = totalSize > 0
+            ? stats.downloaded.toInt().clamp(0, totalSize)
+            : stats.downloaded.toInt();
+        final progress = totalSize > 0
+            ? (downloaded / totalSize * 100.0).clamp(0.0, 100.0)
+            : stats.progress;
+        results.add(
+          BtTorrentStats(
+            infoHash: stats.infoHash,
+            name: stats.name,
+            state: stats.state,
+            progress: progress,
+            downloadSpeed: stats.downloadSpeed,
+            uploadSpeed: stats.uploadSpeed,
+            downloaded: BigInt.from(downloaded),
+            totalSize: BigInt.from(totalSize),
+            peers: stats.peers,
+            seeders: stats.seeders,
+          ),
+        );
+      }
     }
     return results;
   }
 
   Future<bool> _isRqbitTorrentManaged(String infoHash) async {
     try {
-      final hashLower = infoHash.toLowerCase();
-      final stats = await rust_api.getTorrentStats();
-      return stats.any(
-        (stat) =>
-            stat.infoHash.toLowerCase() == hashLower && stat.state != 'error',
-      );
+      return await _rqbitBackend.isTorrentManaged(infoHash);
     } catch (e) {
       debugPrint('[DownloadManager] Error checking rqbit torrent state: $e');
       return false;
     }
   }
 
-  String _normalizeNativeLibtorrentState(MikanLtTorrentStats stats) {
-    if (stats.isPaused) return 'paused';
-    if (stats.errorMessage.isNotEmpty) return 'error';
-    // libtorrent state_t: 0=queued_for_checking, 1=checking_files,
-    // 2=downloading_metadata, 3=downloading, 4=finished, 5=seeding,
-    // 6=allocating, 7=checking_resume_data
-    switch (stats.state) {
-      case 2: // downloading_metadata
-        return 'metadata';
-      case 0: // queued_for_checking
-      case 1: // checking_files
-      case 7: // checking_resume_data
-        return 'checking';
-      case 3: // downloading
-      case 4: // finished
-      case 5: // seeding
-      case 6: // allocating
-        return 'live';
-      default:
-        return 'initializing';
-    }
-  }
-
   Future<bool> _pauseTorrentWithBackend(
     String infoHash, {
     required BtBackendKind backend,
-  }) async {
-    if (backend == BtBackendKind.rqbit) {
-      return rust_api.pauseTorrent(infoHash: infoHash);
-    }
-    if (!_libtorrentInitialized) return false;
-    final hashLower = infoHash.toLowerCase();
-    var torrentId =
-        _ltTorrentIdsByHash[hashLower] ?? _findNativeTorrentIdByHash(hashLower);
-    if (torrentId == null) return false;
-    _nativeSession!.pauseTorrent(torrentId);
-    return true;
-  }
+  }) => _backendFor(backend).pauseTorrent(infoHash);
 
   Future<bool> _resumeTorrentWithBackend(
     String infoHash, {
     required BtBackendKind backend,
-  }) async {
-    if (backend == BtBackendKind.rqbit) {
-      return rust_api.resumeTorrent(infoHash: infoHash);
-    }
-    if (!_libtorrentInitialized) return false;
-    final hashLower = infoHash.toLowerCase();
-    var torrentId =
-        _ltTorrentIdsByHash[hashLower] ?? _findNativeTorrentIdByHash(hashLower);
-    if (torrentId == null) return false;
-    _nativeSession!.resumeTorrent(torrentId);
-    return true;
-  }
+  }) => _backendFor(backend).resumeTorrent(infoHash);
 
   Future<bool> _stopTorrentWithBackend(
     String infoHash, {
@@ -1150,48 +871,23 @@ class DownloadManager extends ChangeNotifier {
     required bool deleteFiles,
     DownloadTask? task,
   }) async {
-    if (backend == BtBackendKind.rqbit) {
-      return rust_api.stopTorrent(infoHash: infoHash, deleteFiles: deleteFiles);
-    }
-    if (!_libtorrentInitialized) return false;
     final hashLower = infoHash.toLowerCase();
-    final session = _nativeSession!;
-    final streamId = _ltStreamIdsByHash.remove(hashLower);
-    if (streamId != null) {
-      try {
-        session.stopStream(streamId);
-      } catch (e) {
-        debugPrint('[DownloadManager] Error stopping stream: $e');
+    if (backend == BtBackendKind.libtorrent) {
+      _ltCompletionResumeSavedHashes.remove(hashLower);
+      final resumePath = _ltResumePath(hashLower, task: task);
+      if (deleteFiles) {
+        try {
+          final file = File(resumePath);
+          if (file.existsSync()) file.deleteSync();
+        } catch (_) {}
       }
+      return _libtorrentBackend.removeTorrent(
+        infoHash,
+        deleteFiles: deleteFiles,
+        resumePath: deleteFiles ? null : resumePath,
+      );
     }
-    var torrentId = _ltTorrentIdsByHash.remove(hashLower);
-    if (torrentId == null) {
-      torrentId = _findNativeTorrentIdByHash(hashLower);
-      if (torrentId == null) return false;
-      _ltTorrentIdsByHash.remove(hashLower);
-    }
-    _ltInfoHashesByTorrentId.remove(torrentId);
-    _ltFileIdxByHash.remove(hashLower);
-    _ltFileSizeByHash.remove(hashLower);
-    _ltCompletionResumeSavedHashes.remove(hashLower);
-    final resumePath = _ltResumePath(hashLower, task: task);
-    if (deleteFiles) {
-      try {
-        final file = File(resumePath);
-        if (file.existsSync()) file.deleteSync();
-      } catch (_) {}
-    } else {
-      // Save resume data before removing the torrent so we can fast-resume later.
-      try {
-        session.saveResumeData(torrentId, resumePath: resumePath);
-      } catch (e) {
-        debugPrint(
-          '[DownloadManager] Error saving resume data before stop: $e',
-        );
-      }
-    }
-    session.removeTorrent(torrentId, deleteFiles: deleteFiles);
-    return true;
+    return _rqbitBackend.removeTorrent(infoHash, deleteFiles: deleteFiles);
   }
 
   bool _isPathUnderDownloadDir(String path, {String? baseDir}) {
@@ -1447,7 +1143,7 @@ class DownloadManager extends ChangeNotifier {
       final result = await _startTorrentWithBackend(
         magnet,
         fallbackInfoHash: tempId,
-        backend: task.backend,
+        backendKind: task.backend,
         startStream: forPlayback,
         downloadDir: task.downloadDir,
       );
@@ -1536,7 +1232,7 @@ class DownloadManager extends ChangeNotifier {
       if (task.backend == BtBackendKind.libtorrent &&
           task.streamUrl != null &&
           task.streamUrl!.isNotEmpty) {
-        final streamId = _ltStreamIdsByHash[hashLower];
+        final streamId = _libtorrentBackend.streamIdForHash(hashLower);
         if (streamId != null && task.status != DownloadTaskStatus.paused) {
           return task.streamUrl;
         }
@@ -1559,7 +1255,7 @@ class DownloadManager extends ChangeNotifier {
       final result = await _startTorrentWithBackend(
         task.magnet,
         fallbackInfoHash: task.id,
-        backend: task.backend,
+        backendKind: task.backend,
         startStream: true,
         downloadDir: task.downloadDir,
       );
@@ -1963,7 +1659,7 @@ class DownloadManager extends ChangeNotifier {
       }
 
       for (final hash in completedLibtorrentHashes) {
-        if (_saveLibtorrentResumeDataForHash(hash, 'completed')) {
+        if (await _saveLibtorrentResumeDataForHash(hash, 'completed')) {
           _ltCompletionResumeSavedHashes.add(hash);
         }
       }
@@ -1995,7 +1691,7 @@ class DownloadManager extends ChangeNotifier {
 
     try {
       final stats = await _getTorrentStatsWithBackend();
-      final statsByHash = <String, rust_api.TorrentStats>{
+      final statsByHash = <String, BtTorrentStats>{
         for (final stat in stats) stat.infoHash.toLowerCase(): stat,
       };
       final missingTasks = <DownloadTask>[];
@@ -2053,18 +1749,6 @@ class DownloadManager extends ChangeNotifier {
   /// Extract info hash from magnet link.
   String? _extractInfoHash(String magnet) => extractInfoHashFromMagnet(magnet);
 
-  /// Extract info hash from stream URL
-  String? _extractInfoHashFromUrl(String url) =>
-      extractInfoHashFromStreamUrl(url);
-
-  /// Extract file index from stream URL (e.g. `.../stream/0` → 0)
-  int? _extractFileIdxFromUrl(String url) {
-    final regex = RegExp(r'/stream/(\d+)(?:[/?#]|$)');
-    final match = regex.firstMatch(url);
-    final raw = match?.group(1);
-    return raw == null ? null : int.tryParse(raw);
-  }
-
   /// Pause a download task
   /// This stops the torrent without deleting files
   Future<bool> pauseTask(String id) async {
@@ -2111,22 +1795,7 @@ class DownloadManager extends ChangeNotifier {
         _releaseSlotForTask(id);
         // Save resume data so the next restart can fast-resume.
         if (task.backend == BtBackendKind.libtorrent) {
-          final hashLower = id.toLowerCase();
-          final torrentId =
-              _ltTorrentIdsByHash[hashLower] ??
-              _findNativeTorrentIdByHash(hashLower);
-          if (torrentId != null) {
-            try {
-              _nativeSession!.saveResumeData(
-                torrentId,
-                resumePath: _ltResumePath(hashLower, task: task),
-              );
-            } catch (e) {
-              debugPrint(
-                '[DownloadManager] Error saving resume data on pause: $e',
-              );
-            }
-          }
+          await _saveLibtorrentResumeDataForHash(id, 'pause');
         }
         await _saveTasks();
         notifyListeners();
@@ -2229,7 +1898,7 @@ class DownloadManager extends ChangeNotifier {
       final result = await _startTorrentWithBackend(
         task.magnet,
         fallbackInfoHash: id,
-        backend: task.backend,
+        backendKind: task.backend,
         startStream: false,
         downloadDir: task.downloadDir,
       );
@@ -2345,7 +2014,7 @@ class DownloadManager extends ChangeNotifier {
   String _resolveStreamHash(String infoHash) {
     final hashLower = infoHash.toLowerCase();
     if (_tasks.containsKey(hashLower) ||
-        _ltStreamIdsByHash.containsKey(hashLower)) {
+        _libtorrentBackend.streamIdForHash(hashLower) != null) {
       return hashLower;
     }
 
@@ -2363,7 +2032,7 @@ class DownloadManager extends ChangeNotifier {
 
   void _stopLibtorrentStreamForHash(String infoHash) {
     final hashLower = _resolveStreamHash(infoHash);
-    final streamId = _ltStreamIdsByHash.remove(hashLower);
+    final streamId = _libtorrentBackend.streamIdForHash(hashLower);
     if (streamId == null) return;
 
     final task = _tasks[hashLower];
@@ -2371,17 +2040,10 @@ class DownloadManager extends ChangeNotifier {
       task?.streamUrl = null;
     }
 
-    if (!_libtorrentInitialized) return;
-    try {
-      _nativeSession!.stopStream(streamId);
-      debugPrint(
-        '[DownloadManager] Stopped libtorrent stream $streamId for $hashLower',
-      );
-    } catch (e) {
-      debugPrint(
-        '[DownloadManager] Error stopping libtorrent stream $streamId: $e',
-      );
-    }
+    _libtorrentBackend.stopStreamForHash(hashLower);
+    debugPrint(
+      '[DownloadManager] Stopped libtorrent stream $streamId for $hashLower',
+    );
   }
 
   Future<void> _restoreLibtorrentBackgroundDownload(
@@ -2397,8 +2059,7 @@ class DownloadManager extends ChangeNotifier {
         await Future<void>.delayed(delay);
       }
 
-      if (!_libtorrentInitialized ||
-          _removedTaskIds.contains(hashLower) ||
+      if (_removedTaskIds.contains(hashLower) ||
           _pausedTaskIds.contains(hashLower)) {
         return;
       }
@@ -2412,43 +2073,30 @@ class DownloadManager extends ChangeNotifier {
         _stopLibtorrentStreamForHash(hashLower);
       }
 
-      final session = _nativeSession!;
-      var torrentId =
-          _ltTorrentIdsByHash[hashLower] ??
-          _findNativeTorrentIdByHash(hashLower);
-      if (torrentId == null || !_isNativeTorrentValid(torrentId)) {
+      final restored = await _libtorrentBackend.restoreBackgroundDownload(
+        hashLower,
+        preferredFileIdx: task.largestFileIdx,
+      );
+      if (restored == null) {
         if (task.magnet.isEmpty) return;
         final result = await _startTorrentWithBackend(
           task.magnet,
           fallbackInfoHash: task.id,
-          backend: task.backend,
+          backendKind: task.backend,
           startStream: false,
           downloadDir: task.downloadDir,
         );
-        torrentId = result.torrentId;
         task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
         task.largestFilePath = result.filePath ?? task.largestFilePath;
         if (result.fileSize != null && result.fileSize! > 0) {
           task.totalSize = BigInt.from(result.fileSize!);
         }
       } else {
-        await _waitForLibtorrentMetadata(torrentId);
-        var fileIdx = _ltFileIdxByHash[hashLower] ?? task.largestFileIdx;
-        if (fileIdx == null) {
-          final file = _selectLibtorrentFile(torrentId);
-          if (file == null) return;
-          fileIdx = file.index;
-          _ltFileIdxByHash[hashLower] = file.index;
-          _ltFileSizeByHash[hashLower] = file.size;
-          task.largestFileIdx = file.index;
-          task.largestFilePath = file.path;
-          if (file.size > 0) {
-            task.totalSize = BigInt.from(file.size);
-          }
+        task.largestFileIdx = restored.fileIdx ?? task.largestFileIdx;
+        task.largestFilePath = restored.filePath ?? task.largestFilePath;
+        if (restored.fileSize != null && restored.fileSize! > 0) {
+          task.totalSize = BigInt.from(restored.fileSize!);
         }
-
-        await _prioritizeLibtorrentDownloadFile(torrentId, fileIdx);
-        session.resumeTorrent(torrentId);
       }
 
       if (task.status != DownloadTaskStatus.seeding &&
@@ -2650,6 +2298,40 @@ class DownloadManager extends ChangeNotifier {
     headers: headers,
     cookies: cookies,
   );
+
+  // --- BT backend characterization test seam (Phase 3 commit 3) -----------
+
+  /// Seeds a BT [DownloadTask] into the manager without calling production
+  /// start/resume paths.
+  @visibleForTesting
+  void seedBtTaskForTesting(DownloadTask task) {
+    _tasks[task.id] = task;
+  }
+
+  /// Runs one stats poll so tests can assert backend→task status mapping.
+  @visibleForTesting
+  Future<void> updateStatsForTesting() => _updateStats();
+
+  /// Direct pause dispatch for a seeded BT task (skips HTTP branch).
+  @visibleForTesting
+  Future<bool> pauseBtTaskForTesting(String id) => pauseTask(id);
+
+  /// Direct resume dispatch for a seeded BT task.
+  @visibleForTesting
+  Future<bool> resumeBtTaskForTesting(String id) => resumeTask(id);
+
+  /// Direct remove dispatch for a seeded BT task.
+  @visibleForTesting
+  Future<void> removeBtTaskForTesting(String id, {bool deleteFiles = false}) =>
+      removeTask(id, deleteFiles: deleteFiles);
+
+  /// Starts a BT download via the public path with injected backends.
+  @visibleForTesting
+  Future<String?> startBtDownloadForTesting({
+    required String magnet,
+    required String name,
+    bool forPlayback = false,
+  }) => startDownload(magnet: magnet, name: name, forPlayback: forPlayback);
 
   @override
   void dispose() {
