@@ -4,8 +4,28 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-13 (updated after the Phase 2/3 stabilization follow-up).
-Counts via `rg -c '^'`. Latest checkpoint:
+Status date: 2026-07-13 (updated after the Phase 3 BtStreamCapability
+checkpoint). Counts via `rg -c '^'` / `wc -l`. Latest checkpoint:
+
+**Phase 3 BtStreamCapability** (this checkpoint) — narrow injectable
+libtorrent HTTP-streaming surface. New
+`lib/services/download/bt_stream_capability.dart` (`BtStreamCapability`:
+`streamIdForHash` / `fileIdxForHash` / `fileSizeForHash` /
+`stopStreamForHash` / `restoreBackgroundDownload`). `LibtorrentBackend`
+now `implements BtBackend, BtStreamCapability` (existing helpers become
+interface overrides; no behavior change). Manager keeps playback policy
+(`_activeStreamHashes`, delayed restore, pause/remove guards) but exposes
+deterministic test seams: injectable `streamRestoreDelay` (prod 300ms,
+tests default 0), `_pendingStreamRestores` await map,
+`setBackendKindForTesting` / `getOrCreateStreamUrlForTesting` /
+`isActiveStreamForTesting` / `waitPendingStreamRestoresForTesting`. New
+`download_manager_bt_stream_test.dart` (9 tests): create-stream /
+no-stream background / reattach-after-stop / stop→restore priorities /
+deactivate-all / pause-during-restore race / remove-during-restore race /
+stats+fileSize merge / capability surface. Manager 2347→2391 (+44 for
+seams). Test count: 661→670 across 39 test files.
+
+Prior same-day:
 
 **Stabilization checkpoint (2026-07-13)** — fixes review findings before the
 next architectural extraction: HLS stops at task-removal boundaries; shutdown
@@ -78,7 +98,7 @@ testability, not a line-count drop (−1 net).
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
 | `lib/ui/pages/player_page.dart` | 8318 | 6879 | -1439 | Playback + WebView/scheduler/captcha orchestration remain on page; display trees extracted; **controllers #1–#3** own episode / Mikan+DMHY / sample-search **state mutations** only. Playback controller, scheduler dispatch planning still page-owned. |
-| `lib/services/download_manager.dart` | 3285 | 2347 | -938 | HTTP + HLS extracted; **BT core ops wired through `RqbitBackend`/`LibtorrentBackend`**. Manager keeps slots/tasks/persistence + stream policy. A narrow, testable stream capability is the next BT stabilization boundary. |
+| `lib/services/download_manager.dart` | 3285 | 2391 | -894 | HTTP + HLS extracted; **BT core ops wired through `RqbitBackend`/`LibtorrentBackend`**; **`BtStreamCapability`** owns stream stop/restore/file-size accessors on `LibtorrentBackend`. Manager keeps slots/tasks/persistence + playback policy (`_activeStreamHashes`, restore delay/guards). |
 | `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | Fully decomposed: SettingsPanel + MobileGestureAndLockLayer + MobileFloatingLockButton + SystemTimeDisplay + EpisodeSidePanel + SourceListPanel are now separate files. No remaining coherent controls boundary. |
 | `↳ lib/ui/widgets/video_player_controls/settings_panel.dart` | 1141 | 939 | -202 | Source list extracted as `SourceListPanel`; panel keeps reactive source listener state for the menu subtitle. |
 | `lib/ui/pages/bangumi_details_page.dart` | 3096 | 2732 | -364 | Data loading, favorite state, and the mobile inline comment rendering remain on the page; relations, sites, and the wide-layout comments section are extracted. |
@@ -88,7 +108,7 @@ testability, not a line-count drop (−1 net).
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 661 tests passing across 38 test files.
+- `flutter test`: 670 tests passing across 39 test files.
 - Current checkpoint adds (over the 2026-07-11 source-list / sites /
   comments / bt-resource-list leaf-widget checkpoint): the comment-HTML
   rendering helpers `normalizeBangumiImageSrc` / `isBangumiSmileUrl` /
@@ -222,7 +242,7 @@ Phase status:
 | Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. **Episode-controller (2026-07-12) + Source-controller (2026-07-13) touch episode switching / source reload** — both smokes pending. |
 | Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, pure BT-tag helpers, and **comment HTML rendering helpers (`normalizeBangumiImageSrc` / `isBangumiSmileUrl` / `bangumiSmileSize`) promoted to top-level + 23 widget/helper tests** — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
 | Phase 2 | Stabilizing | Scheduler B1-B6; display widgets; **`PlayerEpisodeController` (#1)** + **`PlayerSourceController` (#2 Mikan+DMHY, stale-request tokens)** + **`PlayerSampleSourceController` (#3 sample search, 331 lines, 15 tests)**. | Prop-update semantics, dispatch planning/affinity, playback controller, integration smoke. |
-| Phase 3 | Stabilizing | Task/queue/cleanup/store; HTTP + m3u8 boundary tests; **BT Commits 1–3 done** plus resume-save/restore-priority fixes (manager 2347 LOC). | Narrow streaming capability and deterministic lifecycle tests; manual BT download/stream smoke required. |
+| Phase 3 | Stabilizing | Task/queue/cleanup/store; HTTP + m3u8 boundary tests; **BT Commits 1–3 done** plus resume-save/restore-priority fixes; **`BtStreamCapability`** + 9 stream lifecycle tests (manager 2391 LOC). | Manual BT download/stream smoke (background → playback → leave/re-enter) still required; optional further stream-policy extraction. |
 | Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**; **`SitesSection` display widget + widget tests**; **`CommentsSection` display widget (wide layout) + widget tests (incl. `text_mask` rendering)**. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. | |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
 
@@ -756,7 +776,7 @@ Only add this after confirming the project benefits from it.
 
 ## Test Plan
 
-Current baseline: 661 tests across 38 test files.
+Current baseline: 670 tests across 39 test files.
 
 Covered areas:
 
@@ -796,6 +816,14 @@ Covered areas:
 - **`DownloadManager` BT characterization** (`download_manager_bt_test.dart`,
   5 tests): forTesting injects Fake/backends; start/pause/resume/remove/stats
   dispatch through `BtBackend` without real FFI.
+- **`BtStreamCapability` / stream lifecycle**
+  (`download_manager_bt_stream_test.dart`, 9 tests):
+  `startDownload(forPlayback:true|false)`; `getOrCreateStreamUrl` reuse +
+  recreate after stop; `setActiveStream(false|null)` stop→background restore
+  (priorities + resume); pause/remove races abort pending restore body;
+  `updateStats` merges `fileSizeForHash` into `task.totalSize`; capability
+  surface on `LibtorrentBackend`. Injectable `streamRestoreDelay` +
+  `waitPendingStreamRestoresForTesting` keep races deterministic.
 - DownloadTask JSON compatibility, magnet helpers, DownloadQueue.
 - Download path safety (`download_file_cleanup_test.dart`): under-root
   containment, similar-prefix sibling rejection, traversal/`:` rejection,
@@ -1086,15 +1114,14 @@ containment and empty-parent cleanup of literal-backslash siblings.
    populated comments view in the player and details page) is still
    recommended before the next architectural checkpoint that touches
    comments rendering.
-3. **Required stabilization gate before the next controller:** record manual
+3. ✅ Narrow injectable `BtStreamCapability` + deterministic stream lifecycle
+   tests (create-stream, stop→background restore, pause/remove races,
+   stats/size merge). Manager retains playback policy.
+4. **Required stabilization gate before the next controller:** record manual
    smoke for rapid episode switch (Mikan/DMHY/Sample), HLS pause/remove, and
    rqbit/libtorrent background download → playback → leave/re-enter. The
    latest unit tests guard seams; they do not start WebView, media, or native
    FFI.
-4. Add a narrow, injectable BT streaming capability (manager retains playback
-   policy) and deterministic tests for create-stream, stop → background
-   restore, pause/resume/remove races, and stats/size merge. This is not an
-   optional cleanup before claiming the BT boundary is stable.
 5. Then move scheduler dispatch planning into command-returning methods.
    Require immutable input/output DTOs and tests for tier/enqueue order,
    affinity, soft limits, captcha/video competition, and no-work results. Do

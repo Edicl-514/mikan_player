@@ -7,6 +7,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:mikan_player/native/mikan_libtorrent_native.dart';
 import 'package:mikan_player/services/download/bt_backend.dart';
+import 'package:mikan_player/services/download/bt_stream_capability.dart';
 import 'package:mikan_player/services/download/download_task.dart';
 import 'package:mikan_player/services/download/magnet_helpers.dart';
 import 'package:mikan_player/utils/app_directories.dart';
@@ -157,7 +158,9 @@ class NativeLibtorrentSessionPort implements LibtorrentSessionPort {
 }
 
 /// Production [BtBackend] for [BtBackendKind.libtorrent].
-class LibtorrentBackend implements BtBackend {
+/// Production libtorrent backend: core torrent ops via [BtBackend] and the
+/// HTTP streaming half via [BtStreamCapability].
+class LibtorrentBackend implements BtBackend, BtStreamCapability {
   LibtorrentBackend({
     LibtorrentSessionPort Function()? sessionFactory,
     LibtorrentDownloadDirResolver? defaultDownloadDirResolver,
@@ -200,24 +203,19 @@ class LibtorrentBackend implements BtBackend {
   int? torrentIdForHash(String infoHash) =>
       _torrentIdsByHash[infoHash.toLowerCase()];
 
-  /// Tracked stream id for [infoHash], or null.
-  ///
-  /// Interim helper until [BtStreamBackend] owns stream lifecycle.
+  @override
   int? streamIdForHash(String infoHash) =>
       _streamIdsByHash[infoHash.toLowerCase()];
 
-  /// Tracked selected file index for [infoHash], or null.
+  @override
   int? fileIdxForHash(String infoHash) =>
       _fileIdxByHash[infoHash.toLowerCase()];
 
-  /// Tracked file size for progress math.
+  @override
   int? fileSizeForHash(String infoHash) =>
       _fileSizeByHash[infoHash.toLowerCase()];
 
-  /// Stop the HTTP stream for [infoHash] without removing the torrent.
-  ///
-  /// Interim helper until [BtStreamBackend] owns stream lifecycle. Clears the
-  /// internal stream-id map entry.
+  @override
   void stopStreamForHash(String infoHash) {
     final hashLower = infoHash.toLowerCase();
     final streamId = _streamIdsByHash.remove(hashLower);
@@ -230,11 +228,7 @@ class LibtorrentBackend implements BtBackend {
     }
   }
 
-  /// Re-prioritize the selected file and resume after playback ends.
-  ///
-  /// Returns a handle with the selected file metadata when the torrent is
-  /// already tracked; `null` if the torrent is not in the session (caller
-  /// should [addTorrent] instead).
+  @override
   Future<BtTorrentHandle?> restoreBackgroundDownload(
     String infoHash, {
     int? preferredFileIdx,
