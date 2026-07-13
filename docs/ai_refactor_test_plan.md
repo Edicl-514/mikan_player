@@ -4,28 +4,20 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-13 (updated after Sample-source controller + BT Commit 2).
-Counts via `wc -l`. Latest dual checkpoint (parallel agents, 2026-07-13):
+Status date: 2026-07-13 (updated after Phase 3 BT Commit 3 — manager wiring).
+Counts via `wc -l`. Latest checkpoint:
 
-1. **Phase 2 Sample Sub-commit B** — `player_sample_source_controller.dart`
-   (331 lines) + 15 composition tests. Sibling controller (not merged into
-   `PlayerSourceController`). Owns 11 sample-search fields
-   (`_isLoadingSample` / `_sampleError` / `_samplePlayPages` /
-   `_sampleSuccessfulSources` / `_selectedSourceIndex` / `_sampleLoadToken` /
-   `_pageEnqueueSeq` / `_nextPageEnqueueSeq` / `_sourceProgressMap` /
-   `_enabledSourceNames` / `_sourceTiers`). Page keeps WebView pool /
-   scheduler / captcha / stream launch / prefs / `setState`.
-   `player_page.dart` 6848→6856 (+8). Commit `1fc8f90`.
+**Phase 3 BT Commit 3 of 3** (`2d1f725`) — `DownloadManager` BT core ops
+dispatch through `RqbitBackend` / `LibtorrentBackend`. Manager drops
+`_nativeSession` + id/stream/file maps (−318 LOC: 2660→2342). Streaming
+helpers added on `LibtorrentBackend` (`stopStreamForHash` /
+`restoreBackgroundDownload` / stream+file accessors). New
+`download_manager_bt_test.dart` (5 characterization tests). Full
+`BtStreamBackend` still deferred; manager keeps playback/stream policy
+(`_activeStreamHashes`, restore orchestration). Test count: 647→652.
 
-2. **Phase 3 BT Commit 2 of 3** — `rqbit_backend.dart` (178) +
-   `libtorrent_backend.dart` (598) production `BtBackend` impls with
-   injectable `RqbitApi` / `LibtorrentSessionPort` seams; optional
-   `seedMode`/`resumePath` on `addTorrent`. Manager still **not** rewritten
-   (Commit 3). Commit `a10a1c9`.
-
-Prior same-day: Source controller Mikan+DMHY (`45a457a`), BtBackend interface
-(`86c37d0`). Test count: 607→647 across 35 files. Manual smoke still pending:
-episode switch, Mikan/DMHY reload, sample search, BT download.
+Prior same-day: Sample controller (`1fc8f90`), BT Commit 2 impls (`a10a1c9`),
+Source controller (`45a457a`), BtBackend interface (`86c37d0`).
 
 The immediately-prior checkpoint (2026-07-12) added: (1) fixed three latent
 m3u8 parse quirks (METHOD token parse, BANDWIDTH vs AVERAGE-BANDWIDTH boundary,
@@ -76,7 +68,7 @@ testability, not a line-count drop (−1 net).
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
 | `lib/ui/pages/player_page.dart` | 8318 | 6856 | -1462 | Playback + WebView/scheduler/captcha orchestration remain on page; display trees extracted; **controllers #1–#3** own episode / Mikan+DMHY / sample-search **state mutations** only. Playback controller, scheduler dispatch planning still page-owned. |
-| `lib/services/download_manager.dart` | 3285 | 2660 | -625 | HTTP + HLS extracted; **`BtBackend` + `RqbitBackend` + `LibtorrentBackend` exist** but manager still inlines BT branches. **Commit 3 remaining:** rewrite manager to dispatch through `BtBackend`. Streaming deferred to `BtStreamBackend`. |
+| `lib/services/download_manager.dart` | 3285 | 2342 | -943 | HTTP + HLS extracted; **BT core ops wired through `RqbitBackend`/`LibtorrentBackend`** (Commit 3 done). Manager keeps slots/tasks/persistence + stream policy. Optional debt: extract `BtStreamBackend` for playback streaming lifecycle. |
 | `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | Fully decomposed: SettingsPanel + MobileGestureAndLockLayer + MobileFloatingLockButton + SystemTimeDisplay + EpisodeSidePanel + SourceListPanel are now separate files. No remaining coherent controls boundary. |
 | `↳ lib/ui/widgets/video_player_controls/settings_panel.dart` | 1141 | 939 | -202 | Source list extracted as `SourceListPanel`; panel keeps reactive source listener state for the menu subtitle. |
 | `lib/ui/pages/bangumi_details_page.dart` | 3096 | 2732 | -364 | Data loading, favorite state, and the mobile inline comment rendering remain on the page; relations, sites, and the wide-layout comments section are extracted. |
@@ -86,7 +78,7 @@ testability, not a line-count drop (−1 net).
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 647 tests passing across 35 test files.
+- `flutter test`: 652 tests passing across 36 test files.
 - Current checkpoint adds (over the 2026-07-11 source-list / sites /
   comments / bt-resource-list leaf-widget checkpoint): the comment-HTML
   rendering helpers `normalizeBangumiImageSrc` / `isBangumiSmileUrl` /
@@ -220,7 +212,7 @@ Phase status:
 | Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. **Episode-controller (2026-07-12) + Source-controller (2026-07-13) touch episode switching / source reload** — both smokes pending. |
 | Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, pure BT-tag helpers, and **comment HTML rendering helpers (`normalizeBangumiImageSrc` / `isBangumiSmileUrl` / `bangumiSmileSize`) promoted to top-level + 23 widget/helper tests** — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
 | Phase 2 | Partial | Scheduler B1-B6; display widgets; **`PlayerEpisodeController` (#1)** + **`PlayerSourceController` (#2 Mikan+DMHY)** + **`PlayerSampleSourceController` (#3 sample search, 331 lines, 15 tests)**. | Dispatch planning/affinity, playback controller, integration smoke. |
-| Phase 3 | Partial | Task/queue/cleanup/store; HTTP + m3u8 jobs; **`BtBackend` + Fake (Commit 1)** + **`RqbitBackend`/`LibtorrentBackend` (Commit 2)**. Manager still inlines BT. | **Commit 3:** manager rewrite to use `BtBackend`. Streaming → `BtStreamBackend`. Manual BT smoke recommended. |
+| Phase 3 | Partial→near-complete | Task/queue/cleanup/store; HTTP + m3u8; **BT Commits 1–3 done** (interface + impls + manager wiring; manager 2342 LOC). | Optional `BtStreamBackend`; manual BT download/stream smoke recommended. |
 | Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**; **`SitesSection` display widget + widget tests**; **`CommentsSection` display widget (wide layout) + widget tests (incl. `text_mask` rendering)**. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. | |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
 
@@ -657,9 +649,10 @@ Revised immediate order:
   6. ✅ BT Commit 2 of 3 (2026-07-13, `a10a1c9`): `RqbitBackend` (178) +
      `LibtorrentBackend` (598) with injectable seams; `addTorrent` gained
      optional `seedMode`/`resumePath`. Manager still inlines until Commit 3.
-  7. BT Commit 3 of 3: manager rewrite to hold `BtBackend` instances and
-     dispatch through the interface. Absorb `_ltTorrentIdsByHash` into
-     `LibtorrentBackend`. Optional: `BtStreamBackend` for streaming lifecycle.
+  7. ✅ BT Commit 3 of 3 (2026-07-13, `2d1f725`): manager rewrites BT core
+     through `_backendFor` → `RqbitBackend`/`LibtorrentBackend`. Drops native
+     session maps (−318 LOC). Streaming helpers on `LibtorrentBackend`. 5
+     manager BT tests. Optional follow-up: full `BtStreamBackend`.
 
 Avoid:
 
@@ -748,7 +741,7 @@ Only add this after confirming the project benefits from it.
 
 ## Test Plan
 
-Current baseline: 647 tests across 35 test files.
+Current baseline: 652 tests across 36 test files.
 
 Covered areas:
 
@@ -784,6 +777,9 @@ Covered areas:
 - **`RqbitBackend` / `LibtorrentBackend` unit tests** (~25 tests): injectable
   seams; init idempotency; add/pause/resume/remove; stats mapping; no-ops for
   rqbit priorities/resume/speed; libtorrent priorities + resumePath remove.
+- **`DownloadManager` BT characterization** (`download_manager_bt_test.dart`,
+  5 tests): forTesting injects Fake/backends; start/pause/resume/remove/stats
+  dispatch through `BtBackend` without real FFI.
 - DownloadTask JSON compatibility, magnet helpers, DownloadQueue.
 - Download path safety (`download_file_cleanup_test.dart`): under-root
   containment, similar-prefix sibling rejection, traversal/`:` rejection,
@@ -1098,9 +1094,9 @@ containment and empty-parent cleanup of literal-backslash siblings.
       Phase 2 player_page controllers are stable.
     Stop for review after each controller rather than running this sequence
     unattended.
-    6. ✅ HTTP/m3u8 jobs. ✅ BT Commit 1 (`86c37d0`) + Commit 2 (`a10a1c9`:
-       `RqbitBackend`/`LibtorrentBackend`). **Phase 3 remaining: Commit 3
-       (manager rewrite to `BtBackend`)**. Streaming → `BtStreamBackend`.
+    6. ✅ HTTP/m3u8 jobs. ✅ BT Commits 1–3 complete (`86c37d0` /
+       `a10a1c9` / `2d1f725`). Manager BT path uses `BtBackend`. Optional:
+       `BtStreamBackend` for playback streaming. Manual BT smoke recommended.
    7. Start styling/token work only after the structural phases stop moving.
 
 Use a new branch/checkpoint for each architectural stage. Do not measure
