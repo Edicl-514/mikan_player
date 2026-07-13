@@ -211,27 +211,47 @@ void main() {
       },
     );
 
-    test('startStream=true populates streamUrl and streamId', () async {
-      final backend = FakeBtBackend()..initialized = true;
-      final handle = await backend.addTorrent(
-        _kTestMagnet,
-        fallbackInfoHash: 'fallback',
-        startStream: true,
-      );
-      expect(handle.streamUrl, isNotNull);
-      expect(handle.streamId, 1);
-      final tracked = backend.torrents[_kTestInfoHash]!;
-      expect(tracked.streamUrl, handle.streamUrl);
-      expect(tracked.streamId, 1);
-    });
+    test(
+      'libtorrent startStream=true populates streamUrl and streamId',
+      () async {
+        final backend = FakeBtBackend(kind: BtBackendKind.libtorrent)
+          ..initialized = true;
+        final handle = await backend.addTorrent(
+          _kTestMagnet,
+          fallbackInfoHash: 'fallback',
+          startStream: true,
+        );
+        expect(handle.streamUrl, isNotNull);
+        expect(handle.streamId, 1);
+        final tracked = backend.torrents[_kTestInfoHash]!;
+        expect(tracked.streamUrl, handle.streamUrl);
+        expect(tracked.streamId, 1);
+      },
+    );
 
-    test('startStream=false leaves streamUrl/streamId null', () async {
-      final backend = FakeBtBackend()..initialized = true;
+    test(
+      'libtorrent startStream=false leaves streamUrl/streamId null',
+      () async {
+        final backend = FakeBtBackend(kind: BtBackendKind.libtorrent)
+          ..initialized = true;
+        final handle = await backend.addTorrent(
+          _kTestMagnet,
+          fallbackInfoHash: 'fallback',
+        );
+        expect(handle.streamUrl, isNull);
+        expect(handle.streamId, isNull);
+      },
+    );
+
+    test('rqbit returns a stream URL when startStream is false', () async {
+      final backend = FakeBtBackend(kind: BtBackendKind.rqbit)
+        ..initialized = true;
       final handle = await backend.addTorrent(
         _kTestMagnet,
         fallbackInfoHash: 'fallback',
       );
-      expect(handle.streamUrl, isNull);
+
+      expect(handle.streamUrl, contains('/torrents/$_kTestInfoHash/stream/0'));
       expect(handle.streamId, isNull);
     });
 

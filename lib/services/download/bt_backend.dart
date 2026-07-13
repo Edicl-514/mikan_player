@@ -132,8 +132,8 @@ abstract interface class BtBackend {
   /// the initial `_warmUpLibtorrentStream` warmup inline); when `false`,
   /// those are `null`. The rqbit impl always starts a stream (rqbit's
   /// `rust_api.startTorrent` is stream-URL-centric and has no
-  /// "add-without-streaming" API), so `streamUrl` is populated whenever
-  /// `startStream` is true — matching the current manager behavior.
+  /// "add-without-streaming" API), so `streamUrl` is populated regardless
+  /// of [startStream] — matching the current manager behavior.
   ///
   /// Deliberate adaptation (documented for commit 3): the manager passes
   /// `downloadDir` per-call; the backend impl falls back to its own
@@ -307,9 +307,10 @@ final class BtTorrentHandle {
   /// hash-keyed, not id-keyed).
   final int? torrentId;
 
-  /// HTTP stream URL produced when `addTorrent(startStream: true)`; `null`
-  /// otherwise. Streaming-engine lifecycle is otherwise deferred to
-  /// `BtStreamBackend`.
+  /// HTTP stream URL produced by `addTorrent`. It is `null` for libtorrent
+  /// when `startStream` is false; rqbit always returns one because its add
+  /// operation is inherently stream-URL-centric. Streaming-engine lifecycle
+  /// is otherwise deferred to `BtStreamBackend`.
   final String? streamUrl;
 
   /// Native libtorrent stream id produced when
@@ -556,9 +557,16 @@ class FakeBtBackend implements BtBackend {
       torrent.fileSize = 1024;
       torrent.filePath = 'fake/$hash/file.mkv';
     }
-    if (startStream) {
-      torrent.streamId = _nextStreamId++;
-      torrent.streamUrl = 'http://127.0.0.1:8181/torrents/$hash/0';
+    if (startStream || kind == BtBackendKind.rqbit) {
+      // rqbit's add operation always produces a stream URL, even when the
+      // caller is starting a background download. Only libtorrent owns a
+      // separate native stream id.
+      if (kind == BtBackendKind.libtorrent) {
+        torrent.streamId = _nextStreamId++;
+      }
+      torrent.streamUrl = kind == BtBackendKind.rqbit
+          ? 'http://127.0.0.1:3030/torrents/$hash/stream/0'
+          : 'http://127.0.0.1:8181/torrents/$hash/0';
     }
     torrents[hash] = torrent;
     return BtTorrentHandle(

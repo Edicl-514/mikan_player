@@ -293,6 +293,24 @@ void main() {
     expect(session.calls.where((c) => c == 'addMagnetEx'), isEmpty);
   });
 
+  test(
+    'restoreBackgroundDownload keeps the runtime file selection over persisted preference',
+    () async {
+      await backend.addTorrent(_kMagnet, fallbackInfoHash: _kHash);
+      session.calls.clear();
+
+      final handle = await backend.restoreBackgroundDownload(
+        _kHash,
+        preferredFileIdx: 0,
+      );
+
+      expect(handle, isNotNull);
+      expect(handle!.fileIdx, 1);
+      expect(session.priorities[1], [0, 7]);
+      expect(session.calls, contains('resumeTorrent:1'));
+    },
+  );
+
   test('addTorrent throws when no files', () async {
     final noFiles = _EmptyFilesSession();
     final backendNoFiles = LibtorrentBackend(

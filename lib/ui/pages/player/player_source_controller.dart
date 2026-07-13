@@ -55,6 +55,14 @@ class PlayerSourceController {
   String? _dmhyError;
   List<DmhyResource> _dmhyResources = [];
 
+  // Each provider has its own monotonically increasing request token. A new
+  // Mikan request must not cancel an in-flight DMHY request (and vice versa),
+  // but an episode/anime switch invalidates both through
+  // [invalidatePendingRequests]. The page owns the async work and checks the
+  // relevant token after every await before it commits a result here.
+  int _mikanRequestToken = 0;
+  int _dmhyRequestToken = 0;
+
   // ── Read-only views for the page ──────────────────────────────────────────
 
   bool get isLoadingMikan => _isLoadingMikan;
@@ -87,6 +95,36 @@ class PlayerSourceController {
   /// `_mikanError != null || _dmhyError != null` (`player_page.dart:5518`,
   /// `:6585`).
   bool get hasErrorAny => mikanError != null || dmhyError != null;
+
+  // ── Async request ownership ─────────────────────────────────────────────
+
+  /// Starts a new Mikan source request and returns its ownership token.
+  ///
+  /// Callers must retain the returned token and only commit an asynchronous
+  /// result while [isMikanRequestCurrent] remains true. Starting a newer
+  /// Mikan request makes every earlier Mikan result stale without affecting
+  /// an in-flight DMHY request.
+  int beginMikanRequest() => ++_mikanRequestToken;
+
+  /// Whether [token] still belongs to the latest Mikan request.
+  bool isMikanRequestCurrent(int token) => token == _mikanRequestToken;
+
+  /// Starts a new DMHY source request and returns its ownership token.
+  ///
+  /// This is intentionally independent of [beginMikanRequest], so the two
+  /// providers can load in parallel.
+  int beginDmhyRequest() => ++_dmhyRequestToken;
+
+  /// Whether [token] still belongs to the latest DMHY request.
+  bool isDmhyRequestCurrent(int token) => token == _dmhyRequestToken;
+
+  /// Invalidates all in-flight provider requests without changing visible
+  /// source state. Used as soon as the page's anime/episode context changes,
+  /// including when the next source request is delayed by another async step.
+  void invalidatePendingRequests() {
+    _mikanRequestToken++;
+    _dmhyRequestToken++;
+  }
 
   // ── Mikan mutations ──────────────────────────────────────────────────────
 
@@ -190,6 +228,8 @@ class PlayerSourceController {
   /// the anime binding survives a source switch so
   /// `_reloadMikanResourcesForEpisode` (`:3758`, `:4932`) can reuse it.
   void resetForSwitching() {
+    invalidatePendingRequests();
+
     _isLoadingMikan = false;
     _mikanError = null;
     _mikanResources = [];
@@ -201,15 +241,12 @@ class PlayerSourceController {
 
   // ── Dispose hook ──────────────────────────────────────────────────────────
 
-  /// Disposes any owned resources. Currently a no-op: unlike
-  /// [PlayerEpisodeController.clearForDispose] (which disposes a
-  /// `ValueNotifier`), this controller holds only plain scalar / list fields,
-  /// so there is nothing to dispose. The hook is reserved for symmetry with
-  /// the precedent and for Phase 2 step 5, which will likely expose the
-  /// state as `ValueListenable`s (at which point the notifiers will be
-  /// disposed here).
+  /// Invalidates in-flight requests during page disposal. Unlike
+  /// [PlayerEpisodeController.clearForDispose] this controller owns no
+  /// disposable notifier, but invalidating tokens makes late completions
+  /// unambiguously stale before the page's `mounted` guard rejects them.
   void clearForDispose() {
-    // Intentionally empty — see doc comment.
+    invalidatePendingRequests();
   }
 
   // ── Invariants ──────────────────────────────────────────────────────────

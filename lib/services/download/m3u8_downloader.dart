@@ -70,6 +70,7 @@ Future<HttpDownloadJobResult> runM3u8Download({
   final outputFile = File(task.localFilePath!);
   IOSink? sink;
   var wasCancelled = false;
+  var wasRemoved = false;
 
   try {
     final playlistUri = Uri.parse(url);
@@ -80,6 +81,12 @@ Future<HttpDownloadJobResult> runM3u8Download({
       cookies: task.cookies,
     );
 
+    // Resolving a playlist can take long enough for the manager to remove
+    // this task. Do not create (or resume writing) the output file afterward.
+    if (!isTaskStillTracked()) {
+      return const HttpDownloadJobResult(HttpDownloadJobOutcome.removed);
+    }
+
     sink = outputFile.openWrite();
     task.totalSize = BigInt.zero;
 
@@ -89,6 +96,14 @@ Future<HttpDownloadJobResult> runM3u8Download({
     var lastUpdate = DateTime.now();
 
     for (final segmentUri in segments) {
+      // The active-job registration is intentionally cleared after every
+      // segment. A remove can therefore happen between segments, after its
+      // cancel flag has been discarded. Task membership is the durable signal
+      // that prevents a later segment from being requested or written.
+      if (!isTaskStillTracked()) {
+        wasRemoved = true;
+        break;
+      }
       if (isCancelled()) {
         wasCancelled = true;
         break;
@@ -99,6 +114,22 @@ Future<HttpDownloadJobResult> runM3u8Download({
         headers: task.headers,
         cookies: task.cookies,
       );
+
+      // `start` is asynchronous. The task may have been removed (or paused)
+      // while a segment connection was being opened, before a job could be
+      // registered for manager-side cancellation.
+      if (!isTaskStillTracked()) {
+        wasRemoved = true;
+        handle.cancel();
+        await handle.close();
+        break;
+      }
+      if (isCancelled()) {
+        wasCancelled = true;
+        handle.cancel();
+        await handle.close();
+        break;
+      }
 
       registerJob(
         ActiveHttpDownload(handle: handle, outputFile: outputFile, sink: sink),
@@ -111,6 +142,10 @@ Future<HttpDownloadJobResult> runM3u8Download({
         }
 
         await for (final chunk in handle.chunks) {
+          if (!isTaskStillTracked()) {
+            wasRemoved = true;
+            break;
+          }
           if (isCancelled()) {
             wasCancelled = true;
             break;
@@ -141,7 +176,7 @@ Future<HttpDownloadJobResult> runM3u8Download({
         clearJob();
       }
 
-      if (wasCancelled) {
+      if (wasRemoved || wasCancelled) {
         break;
       }
 
@@ -155,6 +190,10 @@ Future<HttpDownloadJobResult> runM3u8Download({
 
     await sink.close();
     sink = null;
+
+    if (wasRemoved || !isTaskStillTracked()) {
+      return const HttpDownloadJobResult(HttpDownloadJobOutcome.removed);
+    }
 
     if (isCancelled() || wasCancelled) {
       task.status = DownloadTaskStatus.paused;

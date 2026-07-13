@@ -986,8 +986,20 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
+  bool _isCurrentMikanSourceRequest(int requestToken) =>
+      mounted && _sourceController.isMikanRequestCurrent(requestToken);
+
+  bool _isCurrentDmhySourceRequest(int requestToken) =>
+      mounted && _sourceController.isDmhyRequestCurrent(requestToken);
+
   Future<void> _loadDmhySource() async {
-    if (widget.anime.bangumiId == null) return;
+    // Capture the source context before the first await. A later episode/anime
+    // switch invalidates this token, so an older response cannot overwrite the
+    // newer source state.
+    final requestToken = _sourceController.beginDmhyRequest();
+    final subjectId = widget.anime.bangumiId;
+    final targetEpisode = _episodeController.currentEpisode.sort.toInt();
+    if (subjectId == null || !mounted) return;
 
     setState(() {
       _sourceController.markDmhyLoading();
@@ -995,31 +1007,39 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     try {
       final resources = await fetchDmhyResources(
-        subjectId: widget.anime.bangumiId!,
-        targetEpisode: _episodeController.currentEpisode.sort.toInt(),
+        subjectId: subjectId,
+        targetEpisode: targetEpisode,
       );
+      if (!_isCurrentDmhySourceRequest(requestToken)) return;
 
-      if (mounted) {
-        setState(() {
-          _sourceController.setDmhyResources(resources);
-        });
-      }
+      setState(() {
+        _sourceController.setDmhyResources(resources);
+      });
     } catch (e) {
       debugPrint("Error loading DMHY source: $e");
-      if (mounted) {
-        setState(() {
-          _sourceController.setDmhyError(e.toString());
-        });
-      }
+      if (!_isCurrentDmhySourceRequest(requestToken)) return;
+
+      setState(() {
+        _sourceController.setDmhyError(e.toString());
+      });
     }
   }
 
   Future<void> _loadMikanSource() async {
+    // Keep this request tied to the anime/episode that initiated it. The
+    // controller's token is checked after every await before source state is
+    // changed, which protects quick episode/anime switches from stale writes.
+    final requestToken = _sourceController.beginMikanRequest();
+    final animeTitle = widget.anime.title;
+    final animeMikanId = widget.anime.mikanId;
+    final animeBangumiId = widget.anime.bangumiId;
+    final episodeId = _episodeController.currentEpisode.id;
+    final targetEpisode = _episodeController.currentEpisode.sort.toInt();
+    if (!mounted) return;
+
     debugPrint("[Mikan] Starting search for playback sources...");
-    debugPrint("[Mikan] Target anime title: ${widget.anime.title}");
-    debugPrint(
-      "[Mikan] Current episode sort: ${_episodeController.currentEpisode.sort}",
-    );
+    debugPrint("[Mikan] Target anime title: $animeTitle");
+    debugPrint("[Mikan] Current episode sort: $targetEpisode");
 
     setState(() {
       _sourceController.markMikanLoading();
@@ -1040,72 +1060,67 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (isNonLegacy) {
         // Prefer the mikanId that came with the AnimeInfo (it was derived
         // from bangumi-data already on the schedule/details page).
-        if (widget.anime.mikanId != null && widget.anime.mikanId!.isNotEmpty) {
-          resolvedMikanId = widget.anime.mikanId;
+        if (animeMikanId != null && animeMikanId.isNotEmpty) {
+          resolvedMikanId = animeMikanId;
           debugPrint(
             "[Mikan] Fast path: using mikanId from AnimeInfo: $resolvedMikanId",
           );
-        } else if (widget.anime.bangumiId != null &&
-            widget.anime.bangumiId!.isNotEmpty) {
-          resolvedMikanId = await BangumiDataService.getMikanId(
-            widget.anime.bangumiId,
-          );
+        } else if (animeBangumiId != null && animeBangumiId.isNotEmpty) {
+          resolvedMikanId = await BangumiDataService.getMikanId(animeBangumiId);
+          if (!_isCurrentMikanSourceRequest(requestToken)) return;
+
           if (resolvedMikanId != null) {
             debugPrint(
-              "[Mikan] Fast path: resolved mikanId=$resolvedMikanId from bangumiId=${widget.anime.bangumiId}",
+              "[Mikan] Fast path: resolved mikanId=$resolvedMikanId from bangumiId=$animeBangumiId",
             );
           }
         }
       }
 
       if (resolvedMikanId != null) {
+        final mikanId = resolvedMikanId;
         final result = MikanSearchResult(
-          id: resolvedMikanId,
-          name: widget.anime.title,
+          id: mikanId,
+          name: animeTitle,
           imageUrl: '',
         );
 
-        if (mounted) {
-          setState(() {
-            _sourceController.setMikanAnime(result);
-          });
-        }
+        if (!_isCurrentMikanSourceRequest(requestToken)) return;
+        setState(() {
+          _sourceController.setMikanAnime(result);
+        });
 
-        if (_episodeController.currentEpisode.id != 0) {
+        if (episodeId != 0) {
           final resources = await getMikanResources(
-            mikanId: resolvedMikanId,
-            currentEpisodeSort: _episodeController.currentEpisode.sort.toInt(),
+            mikanId: mikanId,
+            currentEpisodeSort: targetEpisode,
           );
+          if (!_isCurrentMikanSourceRequest(requestToken)) return;
+
           debugPrint(
-            "[Mikan] Fast path: Found ${resources.length} resources for EP ${_episodeController.currentEpisode.sort.toInt()}",
+            "[Mikan] Fast path: Found ${resources.length} resources for EP $targetEpisode",
           );
-          if (mounted) {
-            setState(() {
-              _sourceController.setMikanResources(resources);
-            });
-          }
+          setState(() {
+            _sourceController.setMikanResources(resources);
+          });
         } else {
-          if (mounted) {
-            setState(() {
-              _sourceController.markMikanIdle();
-            });
-          }
+          if (!_isCurrentMikanSourceRequest(requestToken)) return;
+          setState(() {
+            _sourceController.markMikanIdle();
+          });
         }
         return; // fast path done
       }
 
       // ── Fallback: web search on Mikan ──
-      final result = await searchMikanAnime(nameCn: widget.anime.title);
+      final result = await searchMikanAnime(nameCn: animeTitle);
+      if (!_isCurrentMikanSourceRequest(requestToken)) return;
 
       if (result == null) {
-        debugPrint(
-          "[Mikan] No anime found on Mikan for title: ${widget.anime.title}",
-        );
-        if (mounted) {
-          setState(() {
-            _sourceController.setMikanNotFound();
-          });
-        }
+        debugPrint("[Mikan] No anime found on Mikan for title: $animeTitle");
+        setState(() {
+          _sourceController.setMikanNotFound();
+        });
         return;
       }
 
@@ -1113,41 +1128,37 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         "[Mikan] Found matching anime: ${result.name} (ID: ${result.id})",
       );
 
-      if (mounted) {
-        setState(() {
-          _sourceController.setMikanAnime(result);
-        });
-      }
+      setState(() {
+        _sourceController.setMikanAnime(result);
+      });
 
-      if (_episodeController.currentEpisode.id != 0) {
+      if (episodeId != 0) {
         final resources = await getMikanResources(
           mikanId: result.id,
-          currentEpisodeSort: _episodeController.currentEpisode.sort.toInt(),
+          currentEpisodeSort: targetEpisode,
         );
+        if (!_isCurrentMikanSourceRequest(requestToken)) return;
 
         debugPrint(
-          "[Mikan] Initial load: Found ${resources.length} resources for EP ${_episodeController.currentEpisode.sort.toInt()}",
+          "[Mikan] Initial load: Found ${resources.length} resources for EP $targetEpisode",
         );
 
-        if (mounted) {
-          setState(() {
-            _sourceController.setMikanResources(resources);
-          });
-        }
+        setState(() {
+          _sourceController.setMikanResources(resources);
+        });
       } else {
-        if (mounted) {
-          setState(() {
-            _sourceController.markMikanIdle();
-          });
-        }
+        if (!_isCurrentMikanSourceRequest(requestToken)) return;
+        setState(() {
+          _sourceController.markMikanIdle();
+        });
       }
     } catch (e) {
       debugPrint("Error loading Mikan source: $e");
-      if (mounted) {
-        setState(() {
-          _sourceController.setMikanError(e.toString());
-        });
-      }
+      if (!_isCurrentMikanSourceRequest(requestToken)) return;
+
+      setState(() {
+        _sourceController.setMikanError(e.toString());
+      });
     }
   }
 
@@ -3705,10 +3716,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(PlayerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final animeChanged = oldWidget.anime.bangumiId != widget.anime.bangumiId;
+    final episodeChanged =
+        oldWidget.currentEpisode.sort != _episodeController.currentEpisode.sort;
+    if (animeChanged || episodeChanged) {
+      // Source loading for a prop-driven switch can be delayed by the local
+      // download probe below. Invalidate immediately so an earlier request
+      // cannot commit while that probe is still pending.
+      _sourceController.invalidatePendingRequests();
+    }
     if (oldWidget.currentEpisode.id != _episodeController.currentEpisode.id) {
       _loadComments();
     }
-    if (oldWidget.anime.bangumiId != widget.anime.bangumiId) {
+    if (animeChanged) {
       setState(() {
         _onairSites = [];
       });
@@ -3718,8 +3738,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         _loadMikanSource(); // Anime changed, reload search
         _loadDmhySource();
       }
-    } else if (oldWidget.currentEpisode.sort !=
-        _episodeController.currentEpisode.sort) {
+    } else if (episodeChanged) {
       // Episode changed, reload resources using existing mikan anime info if available
       unawaited(_handleWidgetEpisodeChanged());
     }
@@ -3752,38 +3771,42 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Future<void> _reloadMikanResourcesForEpisode() async {
-    debugPrint(
-      "[Mikan] Reloading resources for new episode: ${_episodeController.currentEpisode.sort.toInt()}",
-    );
-    debugPrint(
-      "[Mikan] Using existing anime ID: ${_sourceController.mikanAnime!.id}",
-    );
+    final mikanAnime = _sourceController.mikanAnime;
+    if (mikanAnime == null) return;
+
+    final requestToken = _sourceController.beginMikanRequest();
+    final targetEpisode = _episodeController.currentEpisode.sort.toInt();
+    if (!mounted) return;
+
+    debugPrint("[Mikan] Reloading resources for new episode: $targetEpisode");
+    debugPrint("[Mikan] Using existing anime ID: ${mikanAnime.id}");
 
     setState(() {
       _sourceController.markMikanReloadForEpisode();
     });
     try {
       final resources = await getMikanResources(
-        mikanId: _sourceController.mikanAnime!.id,
-        currentEpisodeSort: _episodeController.currentEpisode.sort.toInt(),
+        mikanId: mikanAnime.id,
+        currentEpisodeSort: targetEpisode,
       );
-      if (mounted) {
-        setState(() {
-          _sourceController.setMikanResources(resources);
-        });
-      }
+      if (!_isCurrentMikanSourceRequest(requestToken)) return;
+
+      setState(() {
+        _sourceController.setMikanResources(resources);
+      });
     } catch (e) {
       debugPrint("[Mikan] Error reloading resources: $e");
-      if (mounted) {
-        setState(() {
-          _sourceController.setMikanError(e.toString());
-        });
-      }
+      if (!_isCurrentMikanSourceRequest(requestToken)) return;
+
+      setState(() {
+        _sourceController.setMikanError(e.toString());
+      });
     }
   }
 
   @override
   void dispose() {
+    _sourceController.invalidatePendingRequests();
     try {
       final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
       _historyManager.addOrUpdate(

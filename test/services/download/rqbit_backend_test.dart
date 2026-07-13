@@ -104,6 +104,17 @@ void main() {
     expect(api.calls.where((c) => c.startsWith('setDownloadDir')), isEmpty);
   });
 
+  test('addTorrent returns a stream URL when startStream is false', () async {
+    final handle = await backend.addTorrent(
+      _kMagnet,
+      fallbackInfoHash: _kHash,
+      startStream: false,
+    );
+
+    expect(handle.streamUrl, api.startResult);
+    expect(api.calls.any((c) => c.startsWith('startTorrent:')), isTrue);
+  });
+
   test('addTorrent throws when streamUrl starts with Error', () async {
     api.startResult = 'Error: boom';
     await expectLater(

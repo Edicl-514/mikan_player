@@ -248,7 +248,11 @@ class LibtorrentBackend implements BtBackend {
     }
 
     await _waitForMetadata(torrentId);
-    var fileIdx = preferredFileIdx ?? _fileIdxByHash[hashLower];
+    // The in-memory selection belongs to the torrent currently attached to
+    // this session (and may be the file that was just streamed). Keep it
+    // ahead of a persisted preference, which can be stale after a file list
+    // or selection change between launches.
+    var fileIdx = _fileIdxByHash[hashLower] ?? preferredFileIdx;
     String? filePath;
     int? fileSize = _fileSizeByHash[hashLower];
     if (fileIdx == null) {

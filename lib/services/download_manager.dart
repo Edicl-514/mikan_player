@@ -270,9 +270,14 @@ class DownloadManager extends ChangeNotifier {
 
     _isSavingLibtorrentResumeData = true;
     try {
-      for (final hash in hashes) {
-        await _saveLibtorrentResumeDataForHash(hash, reason);
-      }
+      // Start every native save before awaiting any completion. Lifecycle
+      // callbacks (especially `detached` / `dispose`) cannot await this
+      // method; a serial await would otherwise dispatch only the first save
+      // before the process is allowed to exit.
+      await Future.wait<bool>([
+        for (final hash in hashes)
+          _saveLibtorrentResumeDataForHash(hash, reason),
+      ]);
     } finally {
       _isSavingLibtorrentResumeData = false;
     }

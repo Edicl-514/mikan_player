@@ -20,9 +20,11 @@
 // Per-segment download is covered in the group at the bottom via
 // `downloadHttpFileForTesting` + dual fakes (playlist + HTTP segment port).
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mikan_player/services/download/http_file_download_port.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -356,5 +358,189 @@ seg2.ts
         expect(fake.callCount, 1);
       },
     );
+
+    test(
+      'removeTask after a completed segment does not start or write the next '
+      'segment',
+      () async {
+        const mediaText = '''
+#EXTM3U
+#EXTINF:10.0,
+seg1.ts
+#EXTINF:10.0,
+seg2.ts
+#EXT-X-ENDLIST
+''';
+        final mediaUri = Uri.parse('https://hls.example.com/remove.m3u8');
+        final segment1Uri = Uri.parse('https://hls.example.com/seg1.ts');
+        fake.register(mediaUri, mediaText);
+
+        final port = _SegmentBoundaryHttpPort();
+        final localManager = DownloadManager.forTesting(
+          httpPort: port,
+          m3u8Port: fake,
+        );
+        localManager.setDownloadDirForTesting(tempRoot.path);
+        final outFile = File('${tempRoot.path}/removed_hls.ts');
+        final task = DownloadTask(
+          id: 'remove_hls_test',
+          name: 'Removed HLS Episode',
+          magnet: '',
+          animeName: 'Test',
+          episodeNumber: 1,
+          startTime: DateTime.fromMillisecondsSinceEpoch(1_700_000_000_000),
+          taskType: DownloadTaskType.http,
+          status: DownloadTaskStatus.downloading,
+          progress: 0.0,
+          videoUrl: mediaUri.toString(),
+          localFilePath: outFile.path,
+        );
+        localManager.seedHttpTaskForTesting(task);
+
+        try {
+          final downloadFuture = localManager.downloadHttpFileForTesting(task);
+          await pumpSlots();
+          expect(port.startedUris, [segment1Uri]);
+
+          port
+            ..emitFirst([1, 2, 3])
+            ..finishFirst();
+          // Hold the first handle's close while the manager removes the task.
+          // Once that handle is cleared, its cancellation flag no longer
+          // exists; this is the segment-boundary race being guarded here.
+          await port.firstHandleCloseStarted;
+          await localManager.removeTask(task.id);
+          port.releaseFirstHandleClose();
+          await downloadFuture;
+
+          expect(port.startedUris, [segment1Uri]);
+          expect(localManager.tasks, isEmpty);
+          expect(await outFile.readAsBytes(), [1, 2, 3]);
+        } finally {
+          port.dispose();
+          localManager.dispose();
+        }
+      },
+    );
+
+    test(
+      'pauseTask between segments still stops before the next segment',
+      () async {
+        const mediaText = '''
+#EXTM3U
+#EXTINF:10.0,
+seg1.ts
+#EXTINF:10.0,
+seg2.ts
+#EXT-X-ENDLIST
+''';
+        final mediaUri = Uri.parse('https://hls.example.com/pause.m3u8');
+        final segment1Uri = Uri.parse('https://hls.example.com/seg1.ts');
+        fake.register(mediaUri, mediaText);
+
+        final port = _SegmentBoundaryHttpPort();
+        final localManager = DownloadManager.forTesting(
+          httpPort: port,
+          m3u8Port: fake,
+        );
+        localManager.setDownloadDirForTesting(tempRoot.path);
+        final outFile = File('${tempRoot.path}/paused_hls.ts');
+        final task = DownloadTask(
+          id: 'pause_hls_test',
+          name: 'Paused HLS Episode',
+          magnet: '',
+          animeName: 'Test',
+          episodeNumber: 1,
+          startTime: DateTime.fromMillisecondsSinceEpoch(1_700_000_000_000),
+          taskType: DownloadTaskType.http,
+          status: DownloadTaskStatus.downloading,
+          progress: 0.0,
+          videoUrl: mediaUri.toString(),
+          localFilePath: outFile.path,
+        );
+        localManager.seedHttpTaskForTesting(task);
+
+        try {
+          final downloadFuture = localManager.downloadHttpFileForTesting(task);
+          await pumpSlots();
+          expect(port.startedUris, [segment1Uri]);
+
+          port
+            ..emitFirst([4, 5, 6])
+            ..finishFirst();
+          await port.firstHandleCloseStarted;
+          expect(await localManager.pauseTask(task.id), isTrue);
+          port.releaseFirstHandleClose();
+          await downloadFuture;
+
+          expect(port.startedUris, [segment1Uri]);
+          expect(task.status, DownloadTaskStatus.paused);
+          expect(await outFile.readAsBytes(), [4, 5, 6]);
+        } finally {
+          port.dispose();
+          localManager.dispose();
+        }
+      },
+    );
   });
+}
+
+/// A two-segment test port that pauses immediately after the first segment's
+/// stream ends, but before its active-job registration is cleared.
+class _SegmentBoundaryHttpPort implements HttpFileDownloadPort {
+  final StreamController<List<int>> _firstChunks =
+      StreamController<List<int>>();
+  final Completer<void> _firstHandleCloseStarted = Completer<void>();
+  final Completer<void> _allowFirstHandleClose = Completer<void>();
+
+  final List<Uri> startedUris = [];
+
+  Future<void> get firstHandleCloseStarted => _firstHandleCloseStarted.future;
+
+  @override
+  Future<HttpFileDownloadHandle> start({
+    required Uri url,
+    Map<String, String>? headers,
+    String? cookies,
+  }) async {
+    startedUris.add(url);
+    if (startedUris.length != 1) {
+      throw StateError('A second HLS segment must not be requested');
+    }
+
+    return HttpFileDownloadHandle(
+      chunks: _firstChunks.stream,
+      contentLength: 3,
+      cancel: finishFirst,
+      close: () async {
+        if (!_firstHandleCloseStarted.isCompleted) {
+          _firstHandleCloseStarted.complete();
+        }
+        await _allowFirstHandleClose.future;
+      },
+    );
+  }
+
+  void emitFirst(List<int> chunk) {
+    if (!_firstChunks.isClosed) {
+      _firstChunks.add(chunk);
+    }
+  }
+
+  void finishFirst() {
+    if (!_firstChunks.isClosed) {
+      _firstChunks.close();
+    }
+  }
+
+  void releaseFirstHandleClose() {
+    if (!_allowFirstHandleClose.isCompleted) {
+      _allowFirstHandleClose.complete();
+    }
+  }
+
+  void dispose() {
+    finishFirst();
+    releaseFirstHandleClose();
+  }
 }

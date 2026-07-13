@@ -321,6 +321,53 @@ void main() {
     });
   });
 
+  group('async source request tokens', () {
+    test('a newer request invalidates only the same provider request', () {
+      final c = _controller();
+      final firstMikan = c.beginMikanRequest();
+      final dmhy = c.beginDmhyRequest();
+      final secondMikan = c.beginMikanRequest();
+
+      expect(c.isMikanRequestCurrent(firstMikan), isFalse);
+      expect(c.isMikanRequestCurrent(secondMikan), isTrue);
+      // Mikan and DMHY load in parallel, so a Mikan retry must not discard a
+      // still-current DMHY response.
+      expect(c.isDmhyRequestCurrent(dmhy), isTrue);
+      expectConsistent(c, 'after provider-local replacement');
+    });
+
+    test('context invalidation discards both in-flight provider requests', () {
+      final c = _controller();
+      final mikan = c.beginMikanRequest();
+      final dmhy = c.beginDmhyRequest();
+
+      c.invalidatePendingRequests();
+
+      expect(c.isMikanRequestCurrent(mikan), isFalse);
+      expect(c.isDmhyRequestCurrent(dmhy), isFalse);
+      expectConsistent(c, 'after explicit context invalidation');
+    });
+
+    test('switching and disposal invalidate in-flight requests', () {
+      final c = _controller();
+      final beforeSwitchMikan = c.beginMikanRequest();
+      final beforeSwitchDmhy = c.beginDmhyRequest();
+
+      c.resetForSwitching();
+
+      expect(c.isMikanRequestCurrent(beforeSwitchMikan), isFalse);
+      expect(c.isDmhyRequestCurrent(beforeSwitchDmhy), isFalse);
+
+      final beforeDisposeMikan = c.beginMikanRequest();
+      final beforeDisposeDmhy = c.beginDmhyRequest();
+      c.clearForDispose();
+
+      expect(c.isMikanRequestCurrent(beforeDisposeMikan), isFalse);
+      expect(c.isDmhyRequestCurrent(beforeDisposeDmhy), isFalse);
+      expectConsistent(c, 'after disposal invalidation');
+    });
+  });
+
   group('read views return unmodifiable lists', () {
     test('mikanResources.add throws UnsupportedError', () {
       final c = _controller();

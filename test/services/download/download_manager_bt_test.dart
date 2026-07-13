@@ -60,15 +60,16 @@ void main() {
 
       expect(fakeRqbit.callLog.any((c) => c.startsWith('addTorrent:')), isTrue);
       expect(fakeRqbit.torrents.containsKey(_kTestInfoHash), isTrue);
-      // Fake returns a synthetic stream URL when startStream is false? Rqbit
-      // production always starts a stream; Fake only when startStream true.
-      // startDownload uses forPlayback:false → startStream false → no URL.
-      expect(streamUrl, isNull);
+      // rqbit's startTorrent is stream-URL-centric, including for background
+      // downloads (`forPlayback:false`). Keep the fake aligned with that
+      // production behavior so this path cannot mask a missing URL.
+      expect(streamUrl, isNotNull);
       final task = manager.tasks
           .where((t) => t.id == _kTestInfoHash)
           .firstOrNull;
       expect(task, isNotNull);
       expect(task!.status, DownloadTaskStatus.downloading);
+      expect(task.streamUrl, streamUrl);
     });
 
     test('pauseTask dispatches pauseTorrent', () async {

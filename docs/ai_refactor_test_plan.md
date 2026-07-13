@@ -4,8 +4,18 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-13 (updated after Phase 3 BT Commit 3 — manager wiring).
-Counts via `wc -l`. Latest checkpoint:
+Status date: 2026-07-13 (updated after the Phase 2/3 stabilization follow-up).
+Counts via `rg -c '^'`. Latest checkpoint:
+
+**Stabilization checkpoint (2026-07-13)** — fixes review findings before the
+next architectural extraction: HLS stops at task-removal boundaries; shutdown
+dispatches every active libtorrent resume-data save before awaiting; libtorrent
+prefers its live file selection during background restore; rqbit's fake matches
+its stream-URL contract; and Mikan/DMHY loads use provider-local request tokens
+to reject stale results after a source context change. Regression tests cover
+each seam. Test count: 652→661 across 38 test files.
+
+Prior committed checkpoint:
 
 **Phase 3 BT Commit 3 of 3** (`2d1f725`) — `DownloadManager` BT core ops
 dispatch through `RqbitBackend` / `LibtorrentBackend`. Manager drops
@@ -67,8 +77,8 @@ testability, not a line-count drop (−1 net).
 
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
-| `lib/ui/pages/player_page.dart` | 8318 | 6856 | -1462 | Playback + WebView/scheduler/captcha orchestration remain on page; display trees extracted; **controllers #1–#3** own episode / Mikan+DMHY / sample-search **state mutations** only. Playback controller, scheduler dispatch planning still page-owned. |
-| `lib/services/download_manager.dart` | 3285 | 2342 | -943 | HTTP + HLS extracted; **BT core ops wired through `RqbitBackend`/`LibtorrentBackend`** (Commit 3 done). Manager keeps slots/tasks/persistence + stream policy. Optional debt: extract `BtStreamBackend` for playback streaming lifecycle. |
+| `lib/ui/pages/player_page.dart` | 8318 | 6879 | -1439 | Playback + WebView/scheduler/captcha orchestration remain on page; display trees extracted; **controllers #1–#3** own episode / Mikan+DMHY / sample-search **state mutations** only. Playback controller, scheduler dispatch planning still page-owned. |
+| `lib/services/download_manager.dart` | 3285 | 2347 | -938 | HTTP + HLS extracted; **BT core ops wired through `RqbitBackend`/`LibtorrentBackend`**. Manager keeps slots/tasks/persistence + stream policy. A narrow, testable stream capability is the next BT stabilization boundary. |
 | `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | Fully decomposed: SettingsPanel + MobileGestureAndLockLayer + MobileFloatingLockButton + SystemTimeDisplay + EpisodeSidePanel + SourceListPanel are now separate files. No remaining coherent controls boundary. |
 | `↳ lib/ui/widgets/video_player_controls/settings_panel.dart` | 1141 | 939 | -202 | Source list extracted as `SourceListPanel`; panel keeps reactive source listener state for the menu subtitle. |
 | `lib/ui/pages/bangumi_details_page.dart` | 3096 | 2732 | -364 | Data loading, favorite state, and the mobile inline comment rendering remain on the page; relations, sites, and the wide-layout comments section are extracted. |
@@ -78,7 +88,7 @@ testability, not a line-count drop (−1 net).
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 652 tests passing across 36 test files.
+- `flutter test`: 661 tests passing across 38 test files.
 - Current checkpoint adds (over the 2026-07-11 source-list / sites /
   comments / bt-resource-list leaf-widget checkpoint): the comment-HTML
   rendering helpers `normalizeBangumiImageSrc` / `isBangumiSmileUrl` /
@@ -135,7 +145,7 @@ Current validation baseline:
   `M3u8Playlist` (`M3u8MasterPlaylist.variants` sorted BANDWIDTH-desc /
   `M3u8MediaPlaylist.segments`, throwing `'暂不支持下载加密HLS流'` on an
   encrypted `#EXT-X-KEY` and `'未找到可下载的HLS分片'` on an empty media
-  playlist — byte-for-byte with the original inline parse), and (b)
+  playlist), and (b)
   `M3u8PlaylistPort` abstract + `IoM3u8PlaylistPort` prod (a fresh
   `HttpClient` per `fetchText`, replicating `_fetchHttpText` wire behavior
   including the non-2xx `Exception('HTTP <code>')` throw). `_resolveHlsSegments`
@@ -150,20 +160,19 @@ Current validation baseline:
   `_resolveHlsSegments` characterization tests via
   `resolveHlsSegmentsForTesting(...)` + the fake port: single media playlist,
   master→variant recursion, `depth > 4`, encrypted-key, empty segments,
-  headers+cookies forwarding). Three latent over-match quirks in the original
-  parse (`METHOD=NONE` substring check / `BANDWIDTH=` regex picking
-  `AVERAGE-BANDWIDTH` / `startsWith` without colon delimiter) were surfaced and
-  **preserved byte-for-byte** (now locked as the *current* behavior by the
-  parser tests) — fix is a separate behavior-change decision, not part of
-  this behavior-preserving seam.
+  headers+cookies forwarding). Three latent parser defects in the original
+  implementation (`METHOD=NONE` substring check / `BANDWIDTH=` matching the
+  suffix of `AVERAGE-BANDWIDTH` / `startsWith` without a colon delimiter) were
+  **fixed as an explicit, approved behavior correction** and are locked down by
+  parser tests; they are not behavior-preserving extraction semantics.
 - **Episode controller checkpoint (2026-07-12, `2089446`) added Phase 2
   controller #1** — see prior plan text / commit message. 374-line pure-Dart
   state object + 27 composition tests. Manual episode-switch smoke still
   pending.
 - **Source controller Sub-commit A (2026-07-13, `45a457a`) adds Phase 2
   controller #2 (Mikan+DMHY only).** New files
-  `lib/ui/pages/player/player_source_controller.dart` (236 lines) +
-  `test/ui/pages/player/player_source_controller_test.dart` (405 lines, 22
+  `lib/ui/pages/player/player_source_controller.dart` (273 lines) +
+  `test/ui/pages/player/player_source_controller_test.dart` (452 lines, 25
   composition tests). Seven private page fields moved
   (`_isLoadingMikan` / `_mikanError` / `_mikanAnime` / `_mikanResources` /
   `_isLoadingDmhy` / `_dmhyError` / `_dmhyResources`). Page drives via
@@ -172,7 +181,8 @@ Current validation baseline:
   `setMikanError` / `markDmhyLoading` / `setDmhyResources` / `setDmhyError` /
   `resetForSwitching`) and reads unmodifiable views. Loader method BODIES
   stay on the page (they reach `widget.anime.*`, call Rust APIs, check
-  `mounted`, wrap in `setState`). Preserved asymmetries:
+  `mounted` plus the provider-local request token, wrap in `setState`).
+  Preserved asymmetries:
   `markMikanReloadForEpisode` does NOT clear `mikanError` (unlike
   `markMikanLoading`); `resetForSwitching` preserves `mikanAnime` so
   `_reloadMikanResourcesForEpisode` can reuse the binding. Sample-source
@@ -211,14 +221,19 @@ Phase status:
 | --- | --- | --- | --- |
 | Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. **Episode-controller (2026-07-12) + Source-controller (2026-07-13) touch episode switching / source reload** — both smokes pending. |
 | Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, pure BT-tag helpers, and **comment HTML rendering helpers (`normalizeBangumiImageSrc` / `isBangumiSmileUrl` / `bangumiSmileSize`) promoted to top-level + 23 widget/helper tests** — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
-| Phase 2 | Partial | Scheduler B1-B6; display widgets; **`PlayerEpisodeController` (#1)** + **`PlayerSourceController` (#2 Mikan+DMHY)** + **`PlayerSampleSourceController` (#3 sample search, 331 lines, 15 tests)**. | Dispatch planning/affinity, playback controller, integration smoke. |
-| Phase 3 | Partial→near-complete | Task/queue/cleanup/store; HTTP + m3u8; **BT Commits 1–3 done** (interface + impls + manager wiring; manager 2342 LOC). | Optional `BtStreamBackend`; manual BT download/stream smoke recommended. |
+| Phase 2 | Stabilizing | Scheduler B1-B6; display widgets; **`PlayerEpisodeController` (#1)** + **`PlayerSourceController` (#2 Mikan+DMHY, stale-request tokens)** + **`PlayerSampleSourceController` (#3 sample search, 331 lines, 15 tests)**. | Prop-update semantics, dispatch planning/affinity, playback controller, integration smoke. |
+| Phase 3 | Stabilizing | Task/queue/cleanup/store; HTTP + m3u8 boundary tests; **BT Commits 1–3 done** plus resume-save/restore-priority fixes (manager 2347 LOC). | Narrow streaming capability and deterministic lifecycle tests; manual BT download/stream smoke required. |
 | Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**; **`SitesSection` display widget + widget tests**; **`CommentsSection` display widget (wide layout) + widget tests (incl. `text_mask` rendering)**. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. | |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
 
 ## Target Dart Shape
 
 Use this structure as a direction, not a requirement to complete in one change.
+It is a **target shape**, not a literal inventory: the current facade files
+remain at `lib/services/download_manager.dart`,
+`lib/ui/widgets/video_player_controls.dart`, and
+`lib/ui/pages/bangumi_details_page.dart`. Do not move a facade solely to make
+this diagram true.
 
 ```text
 lib/ui/pages/player/
@@ -741,7 +756,7 @@ Only add this after confirming the project benefits from it.
 
 ## Test Plan
 
-Current baseline: 652 tests across 36 test files.
+Current baseline: 661 tests across 38 test files.
 
 Covered areas:
 
@@ -759,13 +774,14 @@ Covered areas:
   caching), `reset({newAllEpisodes,newInitial})` recomputes + re-seeds, `reset()`
   no-op, `validateInvariants` empty across the public-surface exercise + the
   one reachable failure branch (selecting a released-but-phantom episode).
-- **`PlayerSourceController` composition tests** (22 tests, pure Dart):
+- **`PlayerSourceController` composition tests** (25 tests, pure Dart):
   construction defaults; mikan load lifecycle (loading → anime → resources);
   not-found path (`"未找到番剧"`); error path; episode.id==0 idle path;
   reload-for-episode preserves error (asymmetry); reload-for-episode preserves
   anime; dmhy lifecycle + error; `resetForSwitching` clears transient state but
-  preserves `mikanAnime`; unmodifiable list views; `isLoadingAny` /
-  `hasErrorAny` convenience getters.
+  preserves `mikanAnime`; provider-local request tokens invalidate stale
+  Mikan/DMHY completions on replacement, context switch, and disposal;
+  unmodifiable list views; `isLoadingAny` / `hasErrorAny` convenience getters.
 - **`BtBackend` contract tests** (46 tests): `FakeBtBackend` init / add /
   pause / resume / remove / stats / isManaged / setFilePriorities /
   saveResumeData / applySpeedLimits; exception injection per method; callLog
@@ -853,10 +869,10 @@ Important uncovered areas:
   and m3u8/HLS **playlist resolution** is covered by the
   `M3u8PlaylistPort` + `parseM3u8Playlist` seam (master→variant recursion,
   BANDWIDTH-desc selection, `depth > 4`, encrypted-key, empty-segments,
-  headers+cookies forwarding). m3u8 **per-segment download**, BT / libtorrent
-  / rqbit backend lifecycle, and physical extraction of `_downloadHttpFile`
-  / `_downloadM3u8File` orchestration into job modules still have no test
-  coverage.
+  headers+cookies forwarding). m3u8 **per-segment download** now covers
+  ordered concatenation plus pause/remove at the segment boundary (a removed
+  task cannot request or write a later segment). BT/libtorrent/rqbit lifecycle
+  coverage remains deliberately narrower than the production stream lifecycle.
 - ~~Comment HTML custom-widget rendering (masked text and Bangumi smile
   images) had no focused widget coverage after its move into
   `PlayerComments`.~~ Covered as of the comment-HTML-rendering-helper
@@ -879,8 +895,8 @@ High-value new tests:
 | Player scheduler | `test/ui/pages/player/player_webview_scheduler_test.dart` | Worker selection, source affinity, unhealthy workers, captcha/video active job maps. |
 | Player episode controller (NEW) | `test/ui/pages/player/player_episode_controller_test.dart` | Pure-Dart composition tests mirroring the scheduler test pattern. Seeding (`released-initial` preserved; `unreleased-initial` + released fallback; `unreleased-initial` + no released fallback). `selectEpisode` guards (unreleased → no-op; same-`.id` → no-op; identical → no-op; different-released → mutates + notifier fires exactly once). `resolveByOffset` is **side-effect-free** (sub-test: notifier-listener counter stays at 0 across every resolve call AND at both clause boundaries — last→null and first→null). `EpisodeNumbers` math (`id`-found-in-list → `relative`=idx+1; `id`-not-found → `relative==absolute`; fresh-`allEpisodes` snapshot to `currentEpisodeNumbersAgainst` proves no caching). `reset({newAllEpisodes, newInitial})` recomputes `playableEpisodes` and re-seeds `currentEpisode` with notifier fire; `reset()` no-op. `validateInvariants` empty across the public-surface exercise; one reachable failure branch (check #2: selecting a released-but-phantom episode filtered out by `withoutPhantomEpisodes()`) is locked by an explicit test; the other four checks are unreachable via the public surface and regression-guarded by the surface-exercise test (no `@visibleForTesting` mutators added, per the scheduler precedent). |
 | Player source helpers | `test/ui/pages/player/player_source_helpers_test.dart` | BT-resource dedup/sorting, view-model dispatch, resource-content routing, recommendation tag normalization. |
-| Video controls helpers | `test/ui/widgets/video_player_controls/video_controls_test.dart` | Episode selection, source labels, playback speed formatting where extracted. |
-| Bangumi details helpers | `test/ui/pages/bangumi_details/bangumi_details_helpers_test.dart` | Summary parsing, infobox summarization, site sorting, person matching. |
+| Video controls helpers | `test/ui/widgets/video_player_controls/episode_side_panel_test.dart`, `source_list_panel_test.dart` | Episode selection and source-list behavior where extracted. |
+| Bangumi details helpers | `test/ui/pages/bangumi/bangumi_details_helpers_test.dart` | Summary parsing, infobox summarization, site sorting, person matching. |
 | Source-list panel | `test/ui/widgets/video_player_controls/source_list_panel_test.dart` | Empty, populated, selection highlight, tap callback, `ValueListenable` reactivity, pure-helper dispatch. |
 | Bangumi sites section | `test/ui/pages/bangumi_details/widgets/sites_section_test.dart` | Empty, populated, kind-badge labels, tap-to-launch forwarding, dark-bg, Scrollbar wiring. |
 | Bangumi comments section | `test/ui/pages/bangumi_details/widgets/comments_section_test.dart` | Loading, empty, populated, rate stars, load-more spinner on/off, dark-bg, HtmlWidget no-throw, `text_mask` → `BangumiMaskText`. |
@@ -1070,34 +1086,24 @@ containment and empty-parent cleanup of literal-backslash siblings.
    populated comments view in the player and details page) is still
    recommended before the next architectural checkpoint that touches
    comments rendering.
-3. Keep the current scheduler checkpoint frozen until the next architectural
-   step. Its real player/WebView smoke run has passed (2026-07-11); repeat
-   that smoke before and after any dispatch, source, episode, or playback
-   controller checkpoint, and after the `BtResourceList` `onPlay` rewiring
-   noted above.
-4. Move scheduler dispatch planning into command-returning methods. Require
-   immutable input/output DTOs and tests for tier/enqueue order, affinity,
-   soft limits, captcha/video competition, and no-work results. Do not move
-   WebView construction or page side effects in this step.
-  5. Extract controllers in risk order, **per user direction prioritizing Phase 2
-    player_page controllers over the Bangumi Details controller**:
-    - ✅ `PlayerEpisodeController` (controller #1) — done 2026-07-12
-      (`2089446`). **Manual episode-switch smoke still pending.**
-    - ✅ `PlayerSourceController` Sub-commit A (#2, Mikan+DMHY) — `45a457a`.
-    - ✅ `PlayerSampleSourceController` Sub-commit B (#3, sample search) —
-      `1fc8f90`. 331 lines + 15 tests. Sibling controller. **Manual sample-
-      search smoke still pending.**
-    - ⏭ Next: `PlayerPlaybackController` — inject `clock`/`timer`/`player`
-      callbacks for watchdog/fallback tests. Highest-risk side-effect cluster.
-    - ⏭ Also: scheduler dispatch planning into command DTOs (can interleave).
-    - ⏸ `BangumiDetailsController` DEFERRED per user direction; resume after
-      Phase 2 player_page controllers are stable.
-    Stop for review after each controller rather than running this sequence
-    unattended.
-    6. ✅ HTTP/m3u8 jobs. ✅ BT Commits 1–3 complete (`86c37d0` /
-       `a10a1c9` / `2d1f725`). Manager BT path uses `BtBackend`. Optional:
-       `BtStreamBackend` for playback streaming. Manual BT smoke recommended.
-   7. Start styling/token work only after the structural phases stop moving.
+3. **Required stabilization gate before the next controller:** record manual
+   smoke for rapid episode switch (Mikan/DMHY/Sample), HLS pause/remove, and
+   rqbit/libtorrent background download → playback → leave/re-enter. The
+   latest unit tests guard seams; they do not start WebView, media, or native
+   FFI.
+4. Add a narrow, injectable BT streaming capability (manager retains playback
+   policy) and deterministic tests for create-stream, stop → background
+   restore, pause/resume/remove races, and stats/size merge. This is not an
+   optional cleanup before claiming the BT boundary is stable.
+5. Then move scheduler dispatch planning into command-returning methods.
+   Require immutable input/output DTOs and tests for tier/enqueue order,
+   affinity, soft limits, captcha/video competition, and no-work results. Do
+   not move WebView construction or page side effects in this step.
+6. Only after those gates, extract `PlayerPlaybackController`: inject
+   `clock`/`timer`/`player` callbacks and characterize watchdog, fallback, and
+   stale-callback behavior. Stop for review after this controller.
+7. Keep `BangumiDetailsController` and styling/token work deferred until the
+   player and download lifecycle boundaries are stable.
 
 Use a new branch/checkpoint for each architectural stage. Do not measure
 completion by hotspot line count alone; require an owned responsibility,
