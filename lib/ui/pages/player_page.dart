@@ -35,6 +35,7 @@ import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/pages/player/player_source_helpers.dart';
 import 'package:mikan_player/ui/pages/player/player_episode_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_source_controller.dart';
+import 'package:mikan_player/ui/pages/player/player_sample_source_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_webview_scheduler.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_recommendations.dart';
@@ -118,12 +119,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   List<BangumiDataSiteEntry> _onairSites = [];
 
   // Sample Source
-  bool _isLoadingSample = false;
-  String? _sampleError;
   String? _sampleVideoUrl;
-  List<SearchPlayResult> _samplePlayPages = [];
-  List<SearchPlayResult> _sampleSuccessfulSources = []; // 成功获取到视频URL的源列表
-  int _selectedSourceIndex = 0; // 当前选中的源索引
   // 并发WebView管理
   final Map<String, bool> _activeWebViews =
       {}; // 正在运行的WebView (sourceName -> isActive)
@@ -140,7 +136,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   int _maxConcurrentWebViews = PlayerPage.kDefaultMaxConcurrentWebViews;
   bool _cancelLowPrioritySourcesOnPlay = true;
   int _webViewLaunchInterval = 200;
-  int _sampleLoadToken = 0;
   bool _showWebView = false; // 是否显示 WebView（调试用）
 
   // ── Phase 2 B6：统一的长期 WebView worker 调度状态对象 ──
@@ -174,13 +169,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // `lib/ui/pages/player/player_source_controller.dart`。
   late final PlayerSourceController _sourceController;
 
-  /// Round 4 Stage 3：pageKey → 入队序号。`_samplePlayPages` 每次新增播放页
-  /// 后都会按 tier 重新 `sort()`，原始 `List` 下标不再稳定反映 arrival 顺序。
-  /// 这里在每次 `_samplePlayPages.add` 时分配一个单调递增的序号，供
-  /// source-affinity 调度在 tier 相同时做“进入 pending 更早优先”的稳定 tie
-  /// break。新搜索开始时随 `_samplePlayPages` 清空一并 reset。
-  final Map<String, int> _pageEnqueueSeq = {};
-  int _nextPageEnqueueSeq = 0;
+  // Sample-source 搜索状态对象。Phase 2 Sub-commit B：本页原先散落的 11 个
+  // sample 搜索状态字段（loading/error/play pages/successful sources/selected
+  // index/load token/enqueue seq/progress map/enabled names/tiers）全归该对象
+  // 管理。本页只读只读视图、把 mutation 路由到 controller；WebView pool /
+  // scheduler / captcha / stream launch / prefs / BT probe / setState 仍留本页。
+  // 完整 doc comments 详见
+  // `lib/ui/pages/player/player_sample_source_controller.dart`。
+  late final PlayerSampleSourceController _sampleSourceController;
 
   /// Round 3 feature flag。默认 true（worker pool 模式）。
   /// 调试面板提供 live toggle；fallback 路径用旧 per-task widget 一次模型，
@@ -204,10 +200,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   bool _autoPlaySearchedSource = true;
   double _playbackSpeed = 1.0;
 
-  // 每个源的搜索进度状态
-  Map<String, SourceSearchProgress> _sourceProgressMap = {};
+  // 每个源的搜索进度状态（progress map / enabled names / tiers → controller）
   Map<String, SourceRuntimeOverride> _captchaRuntimeOverrides = {};
-  List<String> _enabledSourceNames = []; // 所有已启用的源名称
 
   // Active Source
   String _activeSource = 'bt'; // 'bt' or 'sample'
@@ -291,6 +285,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       initialEpisode: widget.currentEpisode,
     );
     _sourceController = PlayerSourceController();
+    _sampleSourceController = PlayerSampleSourceController();
     _videoTitleNotifier = ValueNotifier(
       '${widget.anime.title} - 第${_episodeController.currentEpisode.sort.toInt()}集',
     );
@@ -1156,8 +1151,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-  Map<String, int> _sourceTiers = {};
-
   List<String> _extractAliasesFromBangumiJson(String? fullJson) {
     if (fullJson == null || fullJson.isEmpty) return [];
 
@@ -1448,11 +1441,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   bool _isSourceSearchFinished() {
-    if (_enabledSourceNames.isEmpty) {
+    if (_sampleSourceController.enabledSourceNames.isEmpty) {
       return false;
     }
-    for (final sourceName in _enabledSourceNames) {
-      final progress = _sourceProgressMap[sourceName];
+    for (final sourceName in _sampleSourceController.enabledSourceNames) {
+      final progress = _sampleSourceController.sourceProgressMap[sourceName];
       if (progress == null || !_isSearchStepFinished(progress.step)) {
         return false;
       }
@@ -1460,17 +1453,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return true;
   }
 
-  /// Round 4 Stage 3：把 [page] 追加到 `_samplePlayPages` 的统一入口。
+  /// Round 4 Stage 3：把 [page] 追加到 `_sampleSourceController.samplePlayPages` 的统一入口。
   ///
-  /// `_samplePlayPages` 每次接受完新增项后都会按 tier `sort()`，导致 `List`
+  /// `_sampleSourceController.samplePlayPages` 每次接受完新增项后都会按 tier `sort()`，导致 `List`
   /// 下标不再稳定反映 arrival 顺序，而 source-affinity 调度需要在 tier 相同
   /// 时按“进入 pending 更早”做稳定 tie break。这里在 `add` 的同时把
-  /// 单调递增的序号写入 [`_pageEnqueueSeq`]（key 为 pageKey），保证调度器
+  /// 单调递增的序号写入 [`_sampleSourceController.pageEnqueueSeq`]（key 为 pageKey），保证调度器
   /// 任何时候都能拿到稳定的 arrival 顺序。
   void _addSamplePlayPage(SearchPlayResult page) {
-    _samplePlayPages.add(page);
     final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
-    _pageEnqueueSeq[pageKey] = _nextPageEnqueueSeq++;
+    _sampleSourceController.appendPlayPage(page, pageKey: pageKey);
     // 5B step 3：warm 同源 worker 候选已不再局限于 captcha slot —— 统一
     // 表中所有 idle（kind == null）且 lastSourceName 命中的 slot 都能
     // 在下次 pump 接到该 pageKey，affinity 选取会优先命中。这里日志沿用
@@ -1500,9 +1492,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   bool _pageIsPendingForExtraction(SearchPlayResult page) {
     final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
     final hasPlayPageUrl = page.playPageUrl.trim().isNotEmpty;
-    final alreadySuccessful = _sampleSuccessfulSources.any(
-      (s) => _buildSourceChannelKey(s.sourceName, s.channelIndex) == pageKey,
-    );
+    final alreadySuccessful = _sampleSourceController.sampleSuccessfulSources
+        .any(
+          (s) =>
+              _buildSourceChannelKey(s.sourceName, s.channelIndex) == pageKey,
+        );
     final alreadyActive = _useWorkerPool
         ? _scheduler.activeVideoJobs.containsKey(pageKey)
         : _activeWebViews.containsKey(pageKey);
@@ -1533,13 +1527,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   List<SearchPlayResult> _collectPendingWebViewExtractionTasks() {
-    final pending = _samplePlayPages
+    final pending = _sampleSourceController.samplePlayPages
         .where(_pageIsPendingForExtraction)
         .toList();
 
     pending.sort((a, b) {
-      final tierA = _sourceTiers[a.sourceName] ?? 999;
-      final tierB = _sourceTiers[b.sourceName] ?? 999;
+      final tierA = _sampleSourceController.sourceTiers[a.sourceName] ?? 999;
+      final tierB = _sampleSourceController.sourceTiers[b.sourceName] ?? 999;
       return tierA.compareTo(tierB);
     });
 
@@ -1767,7 +1761,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   ///    数已达 [`_sourceAffinitySoftLimit`] 时跳过本源，把 slot 让给其它源，
   ///    防止慢多 channel 源霸占全部并发。
   /// 3. **全局优先级回退**：同源无 pending 或被 soft limit 时，按 tier 升序
-  ///    + 入队序号（[`_pageEnqueueSeq`]）升序选取；候选源同样套用 soft
+  ///    + 入队序号（[`_sampleSourceController.pageEnqueueSeq`]）升序选取；候选源同样套用 soft
   ///    limit，仅当所有候选源都被饱和时回退允许任一源（避免死锁）。
   /// 4. **慢源分担**：若没有其它源 pending，单源可吃满全部空闲 slot。
   ///
@@ -1784,8 +1778,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       pending: pending,
       activeSourceWorkers: _activeSourceWorkerCounts(),
       softLimit: _sourceAffinitySoftLimit,
-      sourceTiers: _sourceTiers,
-      enqueueSeqByPageKey: _pageEnqueueSeq,
+      sourceTiers: _sampleSourceController.sourceTiers,
+      enqueueSeqByPageKey: _sampleSourceController.pageEnqueueSeq,
       pageKeyOf: (p) => _buildSourceChannelKey(p.sourceName, p.channelIndex),
     );
     if (picked == null) return null;
@@ -1908,13 +1902,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   int _completedSearchSourceCount() {
-    return _sourceProgressMap.values
+    return _sampleSourceController.sourceProgressMap.values
         .where((p) => _isSearchStepFinished(p.step))
         .length;
   }
 
   String _searchProgressLabel() {
-    return '搜索进度: ${_completedSearchSourceCount()}/${_enabledSourceNames.length}';
+    return '搜索进度: ${_completedSearchSourceCount()}/${_sampleSourceController.enabledSourceNames.length}';
   }
 
   String _captchaActiveLabel() {
@@ -1937,10 +1931,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 输出形如 `源A [2|1|0], 源B [0|0|1]`，方括号内依次为
   /// `pending|active|completed`。pending 复用 `_pageIsPendingForExtraction`，
   /// active 计 `_activeWebViews` + `_activeCaptchaTasks`，completed 计
-  /// `_sampleSuccessfulSources`。仅用于调试，不参与调度。
+  /// `_sampleSourceController.sampleSuccessfulSources`。仅用于调试，不参与调度。
   String _perSourceStatusLabel() {
     final pending = <String, int>{};
-    for (final page in _samplePlayPages) {
+    for (final page in _sampleSourceController.samplePlayPages) {
       if (_pageIsPendingForExtraction(page)) {
         pending[page.sourceName] = (pending[page.sourceName] ?? 0) + 1;
       }
@@ -1957,7 +1951,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       active[task.source.name] = (active[task.source.name] ?? 0) + 1;
     }
     final completed = <String, int>{};
-    for (final s in _sampleSuccessfulSources) {
+    for (final s in _sampleSourceController.sampleSuccessfulSources) {
       completed[s.sourceName] = (completed[s.sourceName] ?? 0) + 1;
     }
     final names = <String>{
@@ -2003,7 +1997,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 直观观察 source-affinity 复用与慢源分流效果。
   List<Widget> _buildWebViewWorkerStatusRows() {
     final pendingBySource = <String, int>{};
-    for (final page in _samplePlayPages) {
+    for (final page in _sampleSourceController.samplePlayPages) {
       if (_pageIsPendingForExtraction(page)) {
         pendingBySource[page.sourceName] =
             (pendingBySource[page.sourceName] ?? 0) + 1;
@@ -2042,7 +2036,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         final key = SourceChannelKey.fromPageKey(pageKey);
         sourceName = key.sourceName;
         final channelIndex = key.channelIndex?.toInt();
-        for (final item in _samplePlayPages) {
+        for (final item in _sampleSourceController.samplePlayPages) {
           final pIdx = item.channelIndex?.toInt();
           if (item.sourceName == sourceName && pIdx == channelIndex) {
             channelName = item.channelName;
@@ -2172,7 +2166,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return 'none';
     }
     final pendingBySource = <String, int>{};
-    for (final page in _samplePlayPages) {
+    for (final page in _sampleSourceController.samplePlayPages) {
       if (_pageIsPendingForExtraction(page)) {
         pendingBySource[page.sourceName] =
             (pendingBySource[page.sourceName] ?? 0) + 1;
@@ -2298,7 +2292,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return;
     }
 
-    if (!mounted || task.loadToken != _sampleLoadToken) {
+    if (!mounted || task.loadToken != _sampleSourceController.sampleLoadToken) {
       _releaseCaptchaSlotForTask(taskKey);
       _webviewStats.onCaptchaJobStaleResult(taskKey);
       if (mounted) setState(() {});
@@ -2365,33 +2359,39 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     if (runtimeOverride.skipSearchError != null) {
       setState(() {
-        _sourceProgressMap[sourceName] = SourceSearchProgress(
-          sourceName: sourceName,
-          step: SearchStep.failed,
-          error: runtimeOverride.skipSearchError,
-          playPageUrl: null,
-          videoRegex: null,
-          directVideoUrl: null,
-          cookies: runtimeOverride.cookies,
-          headers: null,
-          captchaConfigJson: task.source.captchaConfigJson,
-          enableNestedUrl: false,
+        _sampleSourceController.setSourceProgress(
+          sourceName,
+          SourceSearchProgress(
+            sourceName: sourceName,
+            step: SearchStep.failed,
+            error: runtimeOverride.skipSearchError,
+            playPageUrl: null,
+            videoRegex: null,
+            directVideoUrl: null,
+            cookies: runtimeOverride.cookies,
+            headers: null,
+            captchaConfigJson: task.source.captchaConfigJson,
+            enableNestedUrl: false,
+          ),
         );
       });
     } else {
       _captchaRuntimeOverrides[sourceName] = runtimeOverride;
       setState(() {
-        _sourceProgressMap[sourceName] = SourceSearchProgress(
-          sourceName: sourceName,
-          step: SearchStep.pending,
-          error: null,
-          playPageUrl: null,
-          videoRegex: null,
-          directVideoUrl: null,
-          cookies: runtimeOverride.cookies,
-          headers: null,
-          captchaConfigJson: task.source.captchaConfigJson,
-          enableNestedUrl: false,
+        _sampleSourceController.setSourceProgress(
+          sourceName,
+          SourceSearchProgress(
+            sourceName: sourceName,
+            step: SearchStep.pending,
+            error: null,
+            playPageUrl: null,
+            videoRegex: null,
+            directVideoUrl: null,
+            cookies: runtimeOverride.cookies,
+            headers: null,
+            captchaConfigJson: task.source.captchaConfigJson,
+            enableNestedUrl: false,
+          ),
         );
       });
     }
@@ -2413,7 +2413,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     // 更新该源的进度
-    _sourceProgressMap[progress.sourceName] = progress;
+    _sampleSourceController.setSourceProgress(progress.sourceName, progress);
 
     // 如果搜索成功，添加到成功列表
     if (progress.step == SearchStep.success && progress.playPageUrl != null) {
@@ -2481,7 +2481,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           );
 
           // 避免重复添加（使用sourceName + channelIndex作为唯一标识）
-          if (!_samplePlayPages.any(
+          if (!_sampleSourceController.samplePlayPages.any(
             (p) =>
                 _buildSourceChannelKey(p.sourceName, p.channelIndex) ==
                 channelKey,
@@ -2527,7 +2527,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         );
 
         // 避免重复添加
-        if (!_samplePlayPages.any((p) => p.sourceName == progress.sourceName)) {
+        if (!_sampleSourceController.samplePlayPages.any(
+          (p) => p.sourceName == progress.sourceName,
+        )) {
           _addSamplePlayPage(result);
 
           // 如果没有直接视频URL，标记需要WebView提取
@@ -2551,23 +2553,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         debugPrint(
           '[Immediate WebView] Starting WebView extraction for ${progress.sourceName}',
         );
-        _samplePlayPages.sort((a, b) {
-          final tierA = _sourceTiers[a.sourceName] ?? 999;
-          final tierB = _sourceTiers[b.sourceName] ?? 999;
-          return tierA.compareTo(tierB);
-        });
+        _sampleSourceController.sortPlayPagesByTier();
         _scheduleWebViewPoolPump();
       }
     }
 
     // 更新状态消息
-    final completedCount = _sourceProgressMap.values
+    final completedCount = _sampleSourceController.sourceProgressMap.values
         .where((p) => _isSearchStepFinished(p.step))
         .length;
     final activeCaptcha = _activeCaptchaTasks.length;
     final pendingCaptcha = _pendingCaptchaTasks.length;
     _sampleStatusMessageNotifier.value =
-        '搜索进度: $completedCount/${_enabledSourceNames.length}，'
+        '搜索进度: $completedCount/${_sampleSourceController.enabledSourceNames.length}，'
         '验证码 $activeCaptcha 运行/$pendingCaptcha 排队';
 
     // 手动触发搜索后不自动播放，等待用户主动点击“播放”
@@ -2599,7 +2597,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           runtimeOverrides: runtimeOverrides,
         ).listen(
           (progress) {
-            if (!mounted || loadToken != _sampleLoadToken) {
+            if (!mounted ||
+                loadToken != _sampleSourceController.sampleLoadToken) {
               return;
             }
             if (!targetSources.contains(progress.sourceName)) {
@@ -2620,28 +2619,33 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           onError: (error, _) {
             debugPrint('[SampleSearch][$streamTag] stream error: $error');
             _searchSubscriptions.remove(subscription);
-            if (!mounted || loadToken != _sampleLoadToken) {
+            if (!mounted ||
+                loadToken != _sampleSourceController.sampleLoadToken) {
               return;
             }
 
             setState(() {
               for (final sourceName in targetSources) {
-                final current = _sourceProgressMap[sourceName];
+                final current =
+                    _sampleSourceController.sourceProgressMap[sourceName];
                 final isFinished =
                     current != null && _isSearchStepFinished(current.step);
                 if (isFinished) {
                   continue;
                 }
-                _sourceProgressMap[sourceName] = SourceSearchProgress(
-                  sourceName: sourceName,
-                  step: SearchStep.failed,
-                  error: error.toString(),
-                  playPageUrl: null,
-                  videoRegex: null,
-                  directVideoUrl: null,
-                  cookies: null,
-                  headers: null,
-                  enableNestedUrl: false,
+                _sampleSourceController.setSourceProgress(
+                  sourceName,
+                  SourceSearchProgress(
+                    sourceName: sourceName,
+                    step: SearchStep.failed,
+                    error: error.toString(),
+                    playPageUrl: null,
+                    videoRegex: null,
+                    directVideoUrl: null,
+                    cookies: null,
+                    headers: null,
+                    enableNestedUrl: false,
+                  ),
                 );
               }
             });
@@ -2650,7 +2654,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           },
           onDone: () {
             _searchSubscriptions.remove(subscription);
-            if (!mounted || loadToken != _sampleLoadToken) {
+            if (!mounted ||
+                loadToken != _sampleSourceController.sampleLoadToken) {
               return;
             }
             _maybeFinishSampleSearch();
@@ -2681,7 +2686,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _maybeFinishSampleSearch() {
-    if (!mounted || !_isLoadingSample) {
+    if (!mounted || !_sampleSourceController.isLoadingSample) {
       return;
     }
     if (_searchSubscriptions.isNotEmpty) {
@@ -2712,14 +2717,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     setState(() {
-      _isLoadingSample = false;
-      if (_samplePlayPages.isEmpty) {
-        _sampleError = '未在任何源中找到该动画';
-      } else if (_sampleSuccessfulSources.isEmpty) {
-        _sampleError = '所有源都无法提取视频链接';
+      _sampleSourceController.markSampleIdle();
+      if (_sampleSourceController.samplePlayPages.isEmpty) {
+        _sampleSourceController.setSampleError('未在任何源中找到该动画');
+      } else if (_sampleSourceController.sampleSuccessfulSources.isEmpty) {
+        _sampleSourceController.setSampleError('所有源都无法提取视频链接');
       } else {
         _sampleStatusMessageNotifier.value =
-            '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
+            '搜索完成，共找到 ${_sampleSourceController.sampleSuccessfulSources.length} 个可用源';
       }
     });
   }
@@ -2728,18 +2733,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (!manual && _disableAutoSourceSearchForCurrentEpisode) {
       if (mounted) {
         setState(() {
-          _isLoadingSample = false;
-          _sampleError = null;
+          _sampleSourceController.markSampleIdle();
+          _sampleSourceController.setSampleError(null);
           _sampleStatusMessageNotifier.value = '已播放本地资源，点击刷新可手动搜索在线源';
         });
       }
       return;
     }
 
-    final loadToken = ++_sampleLoadToken;
+    final loadToken = _sampleSourceController.bumpLoadToken();
     await _cancelSearchSubscriptions();
 
-    if (!mounted || loadToken != _sampleLoadToken) {
+    if (!mounted || loadToken != _sampleSourceController.sampleLoadToken) {
       return;
     }
 
@@ -2759,7 +2764,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     if (btTask != null && _currentStreamUrl == null) {
       final streamUrl = await _downloadManager.getOrCreateStreamUrl(btTask.id);
-      if (!mounted || loadToken != _sampleLoadToken) return;
+      if (!mounted || loadToken != _sampleSourceController.sampleLoadToken) {
+        return;
+      }
       if (streamUrl != null) {
         debugPrint(
           '[Sample] Found existing BT download, using it as primary source',
@@ -2770,18 +2777,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     setState(() {
-      _isLoadingSample = true;
-      _sampleError = null;
+      _sampleSourceController.beginNewSearchReset();
       _autoPlaySearchedSource = !manual;
       _sampleVideoUrl = _sampleVideoUrl; // Keep existing if BT is playing
-      _samplePlayPages = [];
-      _sampleSuccessfulSources = [];
-      _pageEnqueueSeq.clear();
-      _nextPageEnqueueSeq = 0;
       _playableSourceKeys.clear();
       _probingSourceKeys.clear();
       _failedPlaybackSourceKeys.clear();
-      _selectedSourceIndex = 0;
       _activeWebViews.clear();
       // Phase 2 B6：pool 状态清理交给 scheduler。把每个 slot 的
       // pageKey/taskKind 置 null 让 build 把它们的 job 转为 null
@@ -2799,10 +2800,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _failedWebViewPageKeys.clear();
       _resolvingChannelPlayPageKeys.clear();
       _sampleStatusMessageNotifier.value = '正在获取播放源列表...';
-      _sourceProgressMap = {};
       _captchaRuntimeOverrides = {};
-      _enabledSourceNames = [];
-      _sourceTiers = {};
       _hasAutoPlayed = false;
       _acceptedSourcePageKey = null;
       _clearPlaybackStartupWatchdog();
@@ -2813,7 +2811,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (!_autoSearchOnline) {
       if (mounted) {
         setState(() {
-          _isLoadingSample = false;
+          _sampleSourceController.markSampleIdle();
           _sampleStatusMessageNotifier.value = '在线搜索已关闭';
         });
       }
@@ -2825,10 +2823,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final sources = await getPlaybackSources();
       final enabledSources = sources.where((s) => s.enabled).toList();
       if (enabledSources.isEmpty) {
-        if (mounted && loadToken == _sampleLoadToken) {
+        if (mounted && loadToken == _sampleSourceController.sampleLoadToken) {
           setState(() {
-            _isLoadingSample = false;
-            _sampleError = '未启用任何播放源';
+            _sampleSourceController.setSampleErrorAndIdle('未启用任何播放源');
           });
         }
         return;
@@ -2860,26 +2857,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final searchName = _buildSearchNameForSources();
       final captchaPreflightKeyword = _buildCaptchaPreflightKeyword();
 
-      if (!mounted || loadToken != _sampleLoadToken) return;
+      if (!mounted || loadToken != _sampleSourceController.sampleLoadToken) {
+        return;
+      }
 
       setState(() {
-        _enabledSourceNames = enabledNames;
-        _sourceTiers = {for (var s in enabledSources) s.name: s.tier};
-
-        // 初始化所有源的状态为 Pending
-        for (final name in enabledNames) {
-          _sourceProgressMap[name] = SourceSearchProgress(
-            sourceName: name,
-            step: SearchStep.pending,
-            error: null,
-            playPageUrl: null,
-            videoRegex: null,
-            directVideoUrl: null,
-            cookies: null,
-            headers: null,
-            enableNestedUrl: false,
-          );
-        }
+        _sampleSourceController.setEnabledSources(
+          names: enabledNames,
+          tiers: {for (var s in enabledSources) s.name: s.tier},
+        );
+        _sampleSourceController.initPendingProgressForEnabled();
         _sampleStatusMessageNotifier.value = captchaSources.isEmpty
             ? '正在搜索 ${enabledSources.length} 个源...'
             : '非验证码源先行搜索，验证码源并发预处理中...';
@@ -2888,17 +2875,20 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (captchaSources.isNotEmpty) {
         setState(() {
           for (final source in captchaSources) {
-            _sourceProgressMap[source.name] = SourceSearchProgress(
-              sourceName: source.name,
-              step: SearchStep.searching,
-              error: null,
-              playPageUrl: null,
-              videoRegex: null,
-              directVideoUrl: null,
-              cookies: null,
-              headers: null,
-              captchaConfigJson: source.captchaConfigJson,
-              enableNestedUrl: false,
+            _sampleSourceController.setSourceProgress(
+              source.name,
+              SourceSearchProgress(
+                sourceName: source.name,
+                step: SearchStep.searching,
+                error: null,
+                playPageUrl: null,
+                videoRegex: null,
+                directVideoUrl: null,
+                cookies: null,
+                headers: null,
+                captchaConfigJson: source.captchaConfigJson,
+                enableNestedUrl: false,
+              ),
             );
           }
         });
@@ -2922,7 +2912,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           searchKeyword: captchaPreflightKeyword,
           loadToken: loadToken,
           onCompleted: (runtimeOverride) {
-            if (!mounted || loadToken != _sampleLoadToken) {
+            if (!mounted ||
+                loadToken != _sampleSourceController.sampleLoadToken) {
               return;
             }
             if (runtimeOverride.skipSearchError != null) {
@@ -2945,10 +2936,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _maybeFinishSampleSearch();
     } catch (e) {
       debugPrint("Error loading Sample source: $e");
-      if (mounted && loadToken == _sampleLoadToken) {
+      if (mounted && loadToken == _sampleSourceController.sampleLoadToken) {
         setState(() {
-          _sampleError = e.toString();
-          _isLoadingSample = false;
+          _sampleSourceController.setSampleErrorAndIdle(e.toString());
         });
       }
     }
@@ -2997,7 +2987,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       source.sourceName,
       source.channelIndex,
     );
-    return _sampleSuccessfulSources.any(
+    return _sampleSourceController.sampleSuccessfulSources.any(
       (item) =>
           _buildSourceChannelKey(item.sourceName, item.channelIndex) ==
           sourceKey,
@@ -3011,7 +3001,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
     if (_playableSourceKeys.add(sourceKey) &&
         !_containsPlayableSource(source)) {
-      _sampleSuccessfulSources.add(source);
+      _sampleSourceController.addSuccessfulSource(source);
       _publishPlayerControlSourceState();
     }
   }
@@ -3063,7 +3053,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     setState(() {
       _addPlayableSource(source);
       _sampleStatusMessageNotifier.value =
-          '搜索完成，共找到 ${_sampleSuccessfulSources.length} 个可用源';
+          '搜索完成，共找到 ${_sampleSourceController.sampleSuccessfulSources.length} 个可用源';
     });
 
     if (autoPlayAfterProbe && _autoPlaySearchedSource) {
@@ -3257,14 +3247,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           matchNestedUrl: resolved.matchNestedUrl,
         );
 
-        final existingIndex = _samplePlayPages.indexWhere(
-          (page) =>
-              _buildSourceChannelKey(page.sourceName, page.channelIndex) ==
-              pageKey,
-        );
+        final existingIndex = _sampleSourceController.samplePlayPages
+            .indexWhere(
+              (page) =>
+                  _buildSourceChannelKey(page.sourceName, page.channelIndex) ==
+                  pageKey,
+            );
 
         if (existingIndex >= 0) {
-          _samplePlayPages[existingIndex] = channelResult;
+          _sampleSourceController.replacePlayPageAt(
+            existingIndex,
+            channelResult,
+          );
         } else {
           _addSamplePlayPage(channelResult);
         }
@@ -3279,11 +3273,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           );
         }
 
-        _samplePlayPages.sort((a, b) {
-          final tierA = _sourceTiers[a.sourceName] ?? 999;
-          final tierB = _sourceTiers[b.sourceName] ?? 999;
-          return tierA.compareTo(tierB);
-        });
+        _sampleSourceController.sortPlayPagesByTier();
       });
     } catch (e, st) {
       debugPrint(
@@ -3311,15 +3301,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     // 仅允许Tier 0自动播放
-    final candidates = _sampleSuccessfulSources.where((s) {
+    final candidates = _sampleSourceController.sampleSuccessfulSources.where((
+      s,
+    ) {
       final sourceKey = _buildSourceChannelKey(s.sourceName, s.channelIndex);
-      return (_sourceTiers[s.sourceName] ?? 999) == 0 &&
+      return (_sampleSourceController.sourceTiers[s.sourceName] ?? 999) == 0 &&
           sourceKey != excludedSourceKey &&
           !_failedPlaybackSourceKeys.contains(sourceKey);
     }).toList();
 
     debugPrint(
-      "[_attemptAutoPlay] Found ${candidates.length} Tier 0 candidates. Total sources: ${_sampleSuccessfulSources.length}",
+      "[_attemptAutoPlay] Found ${candidates.length} Tier 0 candidates. Total sources: ${_sampleSourceController.sampleSuccessfulSources.length}",
     );
 
     if (candidates.isNotEmpty) {
@@ -3329,7 +3321,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   /// 一旦某 Tier-0 源被接受并开始播放，取消其他低优先级（仍在运行或在队列中）
   /// 提取任务以释放并发槽位，并阻止它们的迟到 onResult 触发 probe/autoplay。
-  /// 已完成的发现结果（`_samplePlayPages`/`_sampleSuccessfulSources`）保持不变。
+  /// 已完成的发现结果（`_sampleSourceController.samplePlayPages`/`_sampleSourceController.sampleSuccessfulSources`）保持不变。
   ///
   /// 取消策略（tiers-aware）：只取消非 Tier-0 源的任务。Tier-0 源是用户配置的
   /// 高优先级源，其提取应跑完以便在源选择器里保留为后备候选。`except` 指向的
@@ -3351,7 +3343,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (sourceName == SourceChannelKey.fromPageKey(except).sourceName) {
         return false;
       }
-      return (_sourceTiers[sourceName] ?? 999) != 0;
+      return (_sampleSourceController.sourceTiers[sourceName] ?? 999) != 0;
     }
 
     // (a) 清理待处理 captcha 任务。captcha taskKey 是 'search:源名' 格式，与
@@ -3431,7 +3423,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   void _playSource(SearchPlayResult source) {
     debugPrint(
-      "Auto-playing source: ${source.sourceName} (Tier ${_sourceTiers[source.sourceName]})",
+      "Auto-playing source: ${source.sourceName} (Tier ${_sampleSourceController.sourceTiers[source.sourceName]})",
     );
 
     final acceptedKey = _buildSourceChannelKey(
@@ -3446,12 +3438,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
       _hasAutoPlayed = true;
       // Ensure index is correct in the display list
-      _selectedSourceIndex = _sampleSuccessfulSources.indexOf(source);
-      if (_selectedSourceIndex == -1) {
-        // Should not happen if source is from _sampleSuccessfulSources
-        _selectedSourceIndex = 0;
-      }
-      _selectedSourceIndexNotifier.value = _selectedSourceIndex;
+      _sampleSourceController.selectSourceOrZero(source);
+      _selectedSourceIndexNotifier.value =
+          _sampleSourceController.selectedSourceIndex;
     });
 
     // freed slots can be reused (or stay empty — either way the pump must run
@@ -3495,15 +3484,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // （含已接受源的其他 channel 与其他 Tier-0 源的 channel）的迟到结果仍按正常
       // 流程走 probe/register 以填充源列表作为后备。这里仍然清理上面的记账以释放
       // 并发槽位，然后只需更新状态、泵送任务池并提前返回。
-      final tier = _sourceTiers[sourceNameForKey] ?? 999;
+      final tier = _sampleSourceController.sourceTiers[sourceNameForKey] ?? 999;
       if (isVideoResultLateAfterCancel(
         acceptedSourcePageKey: _acceptedSourcePageKey,
         tier: tier,
       )) {
         _webviewStats.onVideoJobLateAfterCancel(pageKey, sourceNameForKey);
         _failedWebViewPageKeys.add(pageKey);
-        final total = _samplePlayPages.length;
-        final completed = _sampleSuccessfulSources.length;
+        final total = _sampleSourceController.samplePlayPages.length;
+        final completed =
+            _sampleSourceController.sampleSuccessfulSources.length;
         final active = _useWorkerPool
             ? _scheduler.activeVideoJobs.length
             : _activeWebViews.length;
@@ -3535,7 +3525,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         final channelIndex = key.channelIndex?.toInt();
 
         // 找到对应的播放页并更新
-        final pageIndex = _samplePlayPages.indexWhere((p) {
+        final pageIndex = _sampleSourceController.samplePlayPages.indexWhere((
+          p,
+        ) {
           final pIdx = p.channelIndex?.toInt();
           return p.sourceName == sourceName && (pIdx == channelIndex);
         });
@@ -3545,7 +3537,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         );
 
         if (pageIndex >= 0) {
-          final page = _samplePlayPages[pageIndex];
+          final page = _sampleSourceController.samplePlayPages[pageIndex];
           debugPrint(
             '[_onWebViewResult] matched page: playPageUrl=${page.playPageUrl} channelName=${page.channelName}',
           );
@@ -3575,25 +3567,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           );
           // 打印当前的 sample play pages 简要信息，帮助调试匹配失败原因
           try {
-            final summary = _samplePlayPages
+            final summary = _sampleSourceController.samplePlayPages
                 .map(
                   (p) =>
                       '${p.sourceName}#${p.channelIndex ?? -1}:${p.playPageUrl}',
                 )
                 .take(20)
                 .join(' | ');
-            debugPrint('[_onWebViewResult] _samplePlayPages summary: $summary');
+            debugPrint(
+              '[_onWebViewResult] _sampleSourceController.samplePlayPages summary: $summary',
+            );
           } catch (e) {
             debugPrint(
-              '[_onWebViewResult] Failed to summarize _samplePlayPages: $e',
+              '[_onWebViewResult] Failed to summarize _sampleSourceController.samplePlayPages: $e',
             );
           }
         }
       }
 
       // 更新状态消息
-      final total = _samplePlayPages.length;
-      final completed = _sampleSuccessfulSources.length;
+      final total = _sampleSourceController.samplePlayPages.length;
+      final completed = _sampleSourceController.sampleSuccessfulSources.length;
       final active = _useWorkerPool
           ? _scheduler.activeVideoJobs.length
           : _activeWebViews.length;
@@ -3804,7 +3798,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
-    _sampleLoadToken++;
+    _sampleSourceController.bumpLoadToken();
     for (final subscription in _searchSubscriptions) {
       unawaited(subscription.cancel());
     }
@@ -3848,6 +3842,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _selectedSourceIndexNotifier.dispose();
     _episodeController.clearForDispose();
     _sourceController.clearForDispose();
+    _sampleSourceController.clearForDispose();
     _videoTitleNotifier.dispose();
     super.dispose();
   }
@@ -4830,7 +4825,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     // Stop current player
     _player.stop();
-    _sampleLoadToken++;
+    _sampleSourceController.bumpLoadToken();
     final subscriptions = List<StreamSubscription<SourceSearchProgress>>.from(
       _searchSubscriptions,
     );
@@ -4852,14 +4847,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
       // Reset all source states (mikanAnime preserved — see controller)
       _sourceController.resetForSwitching();
+      _sampleSourceController.resetForSwitching();
 
-      _isLoadingSample = false;
-      _sampleError = null;
-      _samplePlayPages = [];
-      _sampleSuccessfulSources = [];
-      _pageEnqueueSeq.clear();
-      _nextPageEnqueueSeq = 0;
-      _selectedSourceIndex = 0;
       _activeWebViews.clear();
       // Phase 2 B6：与 `_loadSampleSource` 对齐，清除统一 pool 记账并保留
       // slot 实例以便 InAppWebView 跨搜索复用（scheduler 内部完成）。
@@ -4870,10 +4859,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _failedWebViewPageKeys.clear();
       _resolvingChannelPlayPageKeys.clear();
       _sampleStatusMessageNotifier.value = '';
-      _sourceProgressMap = {};
       _captchaRuntimeOverrides = {};
-      _enabledSourceNames = [];
-      _sourceTiers = {};
       _hasAutoPlayed = false;
       _acceptedSourcePageKey = null;
       _webviewStats.reset();
@@ -4966,25 +4952,26 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   late final ValueNotifier<int> _selectedSourceIndexNotifier = ValueNotifier(0);
 
   void _publishPlayerControlSourceState() {
-    final nextSourceIndex = _sampleSuccessfulSources.isEmpty
-        ? 0
-        : _selectedSourceIndex.clamp(0, _sampleSuccessfulSources.length - 1);
-    _selectedSourceIndex = nextSourceIndex;
+    _sampleSourceController.clampSelectedSourceIndex();
+    final nextSourceIndex = _sampleSourceController.selectedSourceIndex;
     _selectedSourceIndexNotifier.value = nextSourceIndex;
     _availableSourcesNotifier.value = List<SearchPlayResult>.unmodifiable(
-      _sampleSuccessfulSources,
+      _sampleSourceController.sampleSuccessfulSources,
     );
     _playingSourceLabelNotifier.value = _playingSourceLabel;
   }
 
   void _onSourceSelected(int index) {
-    if (index < 0 || index >= _sampleSuccessfulSources.length) return;
+    if (index < 0 ||
+        index >= _sampleSourceController.sampleSuccessfulSources.length) {
+      return;
+    }
 
-    final source = _sampleSuccessfulSources[index];
+    final source = _sampleSourceController.sampleSuccessfulSources[index];
     if (source.directVideoUrl == null) return;
 
     setState(() {
-      _selectedSourceIndex = index;
+      _sampleSourceController.selectSource(index);
       _selectedSourceIndexNotifier.value = index;
       _sampleVideoUrl = source.directVideoUrl;
       _playingSourceLabel = source.sourceName;
@@ -4998,12 +4985,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _startPlaybackFromSelectedSource() {
-    if (_selectedSourceIndex < 0 ||
-        _selectedSourceIndex >= _sampleSuccessfulSources.length) {
+    if (_sampleSourceController.selectedSourceIndex < 0 ||
+        _sampleSourceController.selectedSourceIndex >=
+            _sampleSourceController.sampleSuccessfulSources.length) {
       return;
     }
 
-    final source = _sampleSuccessfulSources[_selectedSourceIndex];
+    final source = _sampleSourceController
+        .sampleSuccessfulSources[_sampleSourceController.selectedSourceIndex];
     if (source.directVideoUrl == null) return;
 
     // Save current position for resuming playback after source switch
@@ -5076,7 +5065,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 },
                 playbackSpeed: _playbackSpeed,
                 onPlaybackSpeedChanged: _onPlaybackSpeedChanged,
-                availableSources: _sampleSuccessfulSources,
+                availableSources:
+                    _sampleSourceController.sampleSuccessfulSources,
                 availableSourcesListenable: _availableSourcesNotifier,
                 sourceIndexNotifier: _selectedSourceIndexNotifier,
                 currentSourceLabel: _playingSourceLabel,
@@ -5356,7 +5346,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       ..._sourceController.mikanResources,
       ..._sourceController.dmhyResources,
     ]).length;
-    final onlineCount = _sampleSuccessfulSources.length;
+    final onlineCount = _sampleSourceController.sampleSuccessfulSources.length;
     final currentLabel = _playingSourceLabel;
 
     if (!_isSourceControlExpanded) {
@@ -5511,9 +5501,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ..._sourceController.dmhyResources,
       ]).length;
     } else if (id == 'sample') {
-      isLoading = _isLoadingSample;
-      hasError = _sampleError != null;
-      count = _sampleSuccessfulSources.length;
+      isLoading = _sampleSourceController.isLoadingSample;
+      hasError = _sampleSourceController.sampleError != null;
+      count = _sampleSourceController.sampleSuccessfulSources.length;
     }
 
     return InkWell(
@@ -5606,7 +5596,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             children: [
-              if (_isLoadingSample) ...[
+              if (_sampleSourceController.isLoadingSample) ...[
                 SizedBox(
                   width: 14,
                   height: 14,
@@ -5621,20 +5611,23 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 child: ValueListenableBuilder<String>(
                   valueListenable: _sampleStatusMessageNotifier,
                   builder: (context, statusMessage, _) {
-                    final summaryText = _enabledSourceNames.isEmpty
+                    final summaryText =
+                        _sampleSourceController.enabledSourceNames.isEmpty
                         ? (_disableAutoSourceSearchForCurrentEpisode
                               ? '已播放本地资源，在线源搜索待手动触发'
                               : '尚未开始搜索在线源')
-                        : '搜索完成 (${_sampleSuccessfulSources.length}/${_enabledSourceNames.length} 个可用)';
+                        : '搜索完成 (${_sampleSourceController.sampleSuccessfulSources.length}/${_sampleSourceController.enabledSourceNames.length} 个可用)';
 
-                    final displayText = _isLoadingSample
+                    final displayText = _sampleSourceController.isLoadingSample
                         ? statusMessage
-                        : (_sampleError != null ? '搜索失败' : summaryText);
+                        : (_sampleSourceController.sampleError != null
+                              ? '搜索失败'
+                              : summaryText);
 
                     return Text(
                       displayText,
                       style: TextStyle(
-                        color: _sampleError != null
+                        color: _sampleSourceController.sampleError != null
                             ? Colors.redAccent
                             : (Theme.of(context).brightness == Brightness.dark
                                   ? Colors.white70
@@ -5653,7 +5646,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ),
 
         // 如果有错误信息，显示在顶部
-        if (_sampleError != null)
+        if (_sampleSourceController.sampleError != null)
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             padding: const EdgeInsets.all(8),
@@ -5674,7 +5667,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    _sampleError!,
+                    _sampleSourceController.sampleError!,
                     style: const TextStyle(
                       color: Colors.redAccent,
                       fontSize: 11,
@@ -5686,17 +5679,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           ),
 
         // 所有源的搜索状态列表
-        if (_enabledSourceNames.isNotEmpty) ...[
+        if (_sampleSourceController.enabledSourceNames.isNotEmpty) ...[
           const SizedBox(height: 4),
           Container(
             constraints: const BoxConstraints(maxHeight: 250),
             child: ListView.builder(
               shrinkWrap: true,
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              itemCount: _enabledSourceNames.length,
+              itemCount: _sampleSourceController.enabledSourceNames.length,
               itemBuilder: (context, index) {
-                final sourceName = _enabledSourceNames[index];
-                final progress = _sourceProgressMap[sourceName];
+                final sourceName =
+                    _sampleSourceController.enabledSourceNames[index];
+                final progress =
+                    _sampleSourceController.sourceProgressMap[sourceName];
                 return _buildSourceProgressItem(sourceName, progress);
               },
             ),
@@ -5819,7 +5814,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     final channelIndex = key.channelIndex?.toInt();
 
                     SearchPlayResult? page;
-                    for (final item in _samplePlayPages) {
+                    for (final item
+                        in _sampleSourceController.samplePlayPages) {
                       final pIdx = item.channelIndex?.toInt();
                       if (item.sourceName == sourceName &&
                           pIdx == channelIndex) {
@@ -5932,7 +5928,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ],
 
         // 如果有成功的源，显示播放按钮
-        if (_sampleSuccessfulSources.isNotEmpty) ...[
+        if (_sampleSourceController.sampleSuccessfulSources.isNotEmpty) ...[
           Divider(
             color: Theme.of(context).brightness == Brightness.dark
                 ? Colors.white10
@@ -5952,7 +5948,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      "可用源 (${_sampleSuccessfulSources.length})",
+                      "可用源 (${_sampleSourceController.sampleSuccessfulSources.length})",
                       style: TextStyle(
                         color: Theme.of(context).brightness == Brightness.dark
                             ? Colors.white70
@@ -5965,125 +5961,136 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 8),
                 // 成功源列表
-                ...List.generate(_sampleSuccessfulSources.length, (index) {
-                  final source = _sampleSuccessfulSources[index];
-                  final isSelected = index == _selectedSourceIndex;
-                  return GestureDetector(
-                    onTap: () {
-                      _onSourceSelected(index);
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.15)
-                            : (Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.black26
-                                  : Theme.of(
-                                      context,
-                                    ).colorScheme.surfaceContainerHigh),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
+                ...List.generate(
+                  _sampleSourceController.sampleSuccessfulSources.length,
+                  (index) {
+                    final source =
+                        _sampleSourceController.sampleSuccessfulSources[index];
+                    final isSelected =
+                        index == _sampleSourceController.selectedSourceIndex;
+                    return GestureDetector(
+                      onTap: () {
+                        _onSourceSelected(index);
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
                           color: isSelected
                               ? Theme.of(
                                   context,
-                                ).colorScheme.primary.withValues(alpha: 0.5)
-                              : Colors.transparent,
+                                ).colorScheme.primary.withValues(alpha: 0.15)
+                              : (Theme.of(context).brightness == Brightness.dark
+                                    ? Colors.black26
+                                    : Theme.of(
+                                        context,
+                                      ).colorScheme.surfaceContainerHigh),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isSelected
+                                ? Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.5)
+                                : Colors.transparent,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isSelected
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              size: 16,
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : (Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Colors.white38
+                                        : Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          source.sourceName,
+                                          style: TextStyle(
+                                            color: isSelected
+                                                ? (Theme.of(
+                                                            context,
+                                                          ).brightness ==
+                                                          Brightness.dark
+                                                      ? Colors.white
+                                                      : Colors.black87)
+                                                : (Theme.of(
+                                                            context,
+                                                          ).brightness ==
+                                                          Brightness.dark
+                                                      ? Colors.white70
+                                                      : Colors.grey),
+                                            fontSize: 12,
+                                            fontWeight: isSelected
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                          ),
+                                        ),
+                                      ),
+                                      // 显示channel信息
+                                      if (source.channelName != null &&
+                                          source.channelName!.isNotEmpty)
+                                        Container(
+                                          margin: const EdgeInsets.only(
+                                            left: 6,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(
+                                              0xFFBB86FC,
+                                            ).withValues(alpha: 0.3),
+                                            borderRadius: BorderRadius.circular(
+                                              3,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            source.channelName!,
+                                            style: TextStyle(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.primary,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  Text(
+                                    source.directVideoUrl ?? '',
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 8,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isSelected
-                                ? Icons.radio_button_checked
-                                : Icons.radio_button_unchecked,
-                            size: 16,
-                            color: isSelected
-                                ? Theme.of(context).colorScheme.primary
-                                : (Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? Colors.white38
-                                      : Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        source.sourceName,
-                                        style: TextStyle(
-                                          color: isSelected
-                                              ? (Theme.of(context).brightness ==
-                                                        Brightness.dark
-                                                    ? Colors.white
-                                                    : Colors.black87)
-                                              : (Theme.of(context).brightness ==
-                                                        Brightness.dark
-                                                    ? Colors.white70
-                                                    : Colors.grey),
-                                          fontSize: 12,
-                                          fontWeight: isSelected
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                        ),
-                                      ),
-                                    ),
-                                    // 显示channel信息
-                                    if (source.channelName != null &&
-                                        source.channelName!.isNotEmpty)
-                                      Container(
-                                        margin: const EdgeInsets.only(left: 6),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(
-                                            0xFFBB86FC,
-                                          ).withValues(alpha: 0.3),
-                                          borderRadius: BorderRadius.circular(
-                                            3,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          source.channelName!,
-                                          style: TextStyle(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                Text(
-                                  source.directVideoUrl ?? '',
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 8,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
+                    );
+                  },
+                ),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
                   onPressed: _sampleVideoUrl != null
@@ -6091,7 +6098,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                       : null,
                   icon: const Icon(Icons.play_arrow, size: 18),
                   label: Text(
-                    "播放 - ${_sampleSuccessfulSources.isNotEmpty ? (_sampleSuccessfulSources[_selectedSourceIndex].channelName != null ? '${_sampleSuccessfulSources[_selectedSourceIndex].sourceName}(${_sampleSuccessfulSources[_selectedSourceIndex].channelName})' : _sampleSuccessfulSources[_selectedSourceIndex].sourceName) : ''}",
+                    "播放 - ${_sampleSourceController.sampleSuccessfulSources.isNotEmpty ? (_sampleSourceController.sampleSuccessfulSources[_sampleSourceController.selectedSourceIndex].channelName != null ? '${_sampleSourceController.sampleSuccessfulSources[_sampleSourceController.selectedSourceIndex].sourceName}(${_sampleSourceController.sampleSuccessfulSources[_sampleSourceController.selectedSourceIndex].channelName})' : _sampleSourceController.sampleSuccessfulSources[_sampleSourceController.selectedSourceIndex].sourceName) : ''}",
                     style: const TextStyle(fontSize: 12),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -6106,7 +6113,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ],
 
         // 如果没有任何源且不在加载中，显示空状态
-        if (_enabledSourceNames.isEmpty && !_isLoadingSample)
+        if (_sampleSourceController.enabledSourceNames.isEmpty &&
+            !_sampleSourceController.isLoadingSample)
           Container(
             padding: const EdgeInsets.all(24),
             alignment: Alignment.center,
@@ -6395,7 +6403,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             final parsedKey = SourceChannelKey.fromPageKey(pageKey);
             final sourceName = parsedKey.sourceName;
             final channelIndex = parsedKey.channelIndex?.toInt();
-            for (final page in _samplePlayPages) {
+            for (final page in _sampleSourceController.samplePlayPages) {
               final pIdx = page.channelIndex?.toInt();
               if (page.sourceName == sourceName && pIdx == channelIndex) {
                 matchedPage = page;
@@ -6456,7 +6464,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final channelIndex = key.channelIndex?.toInt();
 
       SearchPlayResult? matchedPage;
-      for (final page in _samplePlayPages) {
+      for (final page in _sampleSourceController.samplePlayPages) {
         final pIdx = page.channelIndex?.toInt();
         if (page.sourceName == sourceName && pIdx == channelIndex) {
           matchedPage = page;
@@ -6496,7 +6504,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       );
     }
 
-    // 清理孤儿提取任务：这些任务被标记为活动，但在 _samplePlayPages 中已经
+    // 清理孤儿提取任务：这些任务被标记为活动，但在 _sampleSourceController.samplePlayPages 中已经
     // 找不到对应的播放页，因此不会有 WebView 被创建来驱动 onResult。如果放任
     // 不管，它们会一直占用并发槽位并停留在“正在提取”状态。build 阶段不能直接
     // setState，所以推迟到本帧渲染完成后清理并重新泵送任务池。
