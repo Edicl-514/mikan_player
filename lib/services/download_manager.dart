@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:mikan_player/services/download/bt_backend.dart';
+import 'package:mikan_player/services/download/bt_stream_capability.dart';
+import 'package:mikan_player/services/download/bt_stream_restore_coordinator.dart';
 import 'package:mikan_player/services/download/download_file_cleanup.dart';
 import 'package:mikan_player/services/download/download_queue.dart';
 import 'package:mikan_player/services/download/download_task.dart';
@@ -57,7 +59,10 @@ class DownloadManager extends ChangeNotifier {
       _sleep = _defaultThrottleSleep,
       _rqbitBackend = RqbitBackend(),
       _libtorrentBackend = LibtorrentBackend(),
-      _streamRestoreDelay = const Duration(milliseconds: 300);
+      _streamRestoreDelay = const Duration(milliseconds: 300),
+      _streamRestores = BtStreamRestoreCoordinator(
+        onError: _logStreamRestoreError,
+      );
 
   /// Test constructor: injects an [HttpFileDownloadPort] and a
   /// [M3u8PlaylistPort] so the HTTP file-download and m3u8 playlist-
@@ -77,15 +82,20 @@ class DownloadManager extends ChangeNotifier {
     DateTime Function()? clock,
     Future<void> Function(Duration)? sleep,
     BtBackend? rqbitBackend,
-    LibtorrentBackend? libtorrentBackend,
+    LibtorrentBtBackend? libtorrentBackend,
     Duration streamRestoreDelay = Duration.zero,
+    Future<void> Function(Duration)? streamRestoreSleep,
   }) : _httpPort = httpPort ?? IoHttpFileDownloadPort(),
        _m3u8Port = m3u8Port ?? IoM3u8PlaylistPort(),
        _now = clock ?? _defaultThrottleNow,
        _sleep = sleep ?? _defaultThrottleSleep,
        _rqbitBackend = rqbitBackend ?? RqbitBackend(),
        _libtorrentBackend = libtorrentBackend ?? LibtorrentBackend(),
-       _streamRestoreDelay = streamRestoreDelay {
+       _streamRestoreDelay = streamRestoreDelay,
+       _streamRestores = BtStreamRestoreCoordinator(
+         sleep: streamRestoreSleep,
+         onError: _logStreamRestoreError,
+       ) {
     if (clock != null) {
       _httpThrottleWindowStart = clock();
     }
@@ -97,12 +107,17 @@ class DownloadManager extends ChangeNotifier {
   final Future<void> Function(Duration) _sleep;
   final BtBackend _rqbitBackend;
 
-  /// Typed as [LibtorrentBackend] because production needs both [BtBackend]
-  /// core ops and [BtStreamCapability] streaming ops on the same instance.
-  final LibtorrentBackend _libtorrentBackend;
+  /// Core BT and HTTP-stream operations must share one backend instance.
+  final LibtorrentBtBackend _libtorrentBackend;
 
   static DateTime _defaultThrottleNow() => DateTime.now();
   static Future<void> _defaultThrottleSleep(Duration d) => Future.delayed(d);
+  static void _logStreamRestoreError(Object error, StackTrace stackTrace) {
+    debugPrint(
+      '[DownloadManager] Error restoring libtorrent background download: '
+      '$error',
+    );
+  }
 
   final Map<String, DownloadTask> _tasks = {};
   final Set<String> _removedTaskIds =
@@ -120,15 +135,14 @@ class DownloadManager extends ChangeNotifier {
   BtBackendKind _backendKind = BtBackendKind.rqbit;
   String? _downloadDir;
   String? _customDownloadDir;
-  final Set<String> _ltPriorityRecoveryHashes = {};
   final Set<String> _activeStreamHashes = {}; // Track active playback streams
-  final Map<String, Future<void>> _pendingStreamRestores = {};
   final Set<String> _ltCompletionResumeSavedHashes = {};
   static const Duration _ltResumeSaveInterval = Duration(minutes: 1);
 
   /// Delay before post-playback background restore. Production uses 300ms so
   /// a quick re-activate can cancel the restore; tests inject [Duration.zero].
-  Duration _streamRestoreDelay = const Duration(milliseconds: 300);
+  final Duration _streamRestoreDelay;
+  final BtStreamRestoreCoordinator _streamRestores;
 
   BtBackend _backendFor(BtBackendKind kind) =>
       kind == BtBackendKind.libtorrent ? _libtorrentBackend : _rqbitBackend;
@@ -1231,6 +1245,13 @@ class DownloadManager extends ChangeNotifier {
     final task = _tasks[id];
     if (task == null) return null;
 
+    // A delayed post-playback restore belongs to the stream that just ended.
+    // Once playback asks for a stream again, that old restore must not touch
+    // the replacement stream or reset its piece priorities.
+    if (task.backend == BtBackendKind.libtorrent) {
+      _cancelLibtorrentBackgroundRestore(task.id);
+    }
+
     // HTTP completed tasks: play from local file
     if (task.taskType == DownloadTaskType.http) {
       if (task.status == DownloadTaskStatus.completed &&
@@ -1266,6 +1287,10 @@ class DownloadManager extends ChangeNotifier {
       if (task.status == DownloadTaskStatus.paused) {
         final resumed = await resumeTask(id);
         if (!resumed) return null;
+      }
+
+      if (task.backend == BtBackendKind.libtorrent) {
+        _cancelLibtorrentBackgroundRestore(task.id);
       }
 
       final result = await _startTorrentWithBackend(
@@ -2067,80 +2092,92 @@ class DownloadManager extends ChangeNotifier {
     Duration delay = Duration.zero,
   }) {
     final hashLower = _resolveStreamHash(infoHash);
-    final existing = _pendingStreamRestores[hashLower];
-    if (existing != null) return existing;
-    if (_ltPriorityRecoveryHashes.contains(hashLower)) {
-      return Future<void>.value();
+    return _streamRestores.schedule(
+      hashLower,
+      delay: delay,
+      operation: (isCurrent) =>
+          _runLibtorrentBackgroundRestore(hashLower, isCurrent: isCurrent),
+    );
+  }
+
+  Future<void> _runLibtorrentBackgroundRestore(
+    String hashLower, {
+    required bool Function() isCurrent,
+  }) async {
+    if (!_canContinueLibtorrentBackgroundRestore(hashLower, isCurrent)) {
+      return;
     }
-    _ltPriorityRecoveryHashes.add(hashLower);
 
-    final future = () async {
-      try {
-        if (delay > Duration.zero) {
-          await Future<void>.delayed(delay);
-        }
+    final task = _tasks[hashLower];
+    if (task == null || task.backend != BtBackendKind.libtorrent) {
+      return;
+    }
 
-        if (_removedTaskIds.contains(hashLower) ||
-            _pausedTaskIds.contains(hashLower)) {
-          return;
-        }
+    _stopLibtorrentStreamForHash(hashLower);
 
-        final task = _tasks[hashLower];
-        if (task == null || task.backend != BtBackendKind.libtorrent) {
-          return;
-        }
+    final restored = await _libtorrentBackend.restoreBackgroundDownload(
+      hashLower,
+      preferredFileIdx: task.largestFileIdx,
+    );
+    if (!_canContinueLibtorrentBackgroundRestore(hashLower, isCurrent) ||
+        !identical(_tasks[hashLower], task)) {
+      return;
+    }
 
-        if (!_activeStreamHashes.contains(hashLower)) {
-          _stopLibtorrentStreamForHash(hashLower);
-        }
-
-        final restored = await _libtorrentBackend.restoreBackgroundDownload(
-          hashLower,
-          preferredFileIdx: task.largestFileIdx,
-        );
-        if (restored == null) {
-          if (task.magnet.isEmpty) return;
-          final result = await _startTorrentWithBackend(
-            task.magnet,
-            fallbackInfoHash: task.id,
-            backendKind: task.backend,
-            startStream: false,
-            downloadDir: task.downloadDir,
-          );
-          task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
-          task.largestFilePath = result.filePath ?? task.largestFilePath;
-          if (result.fileSize != null && result.fileSize! > 0) {
-            task.totalSize = BigInt.from(result.fileSize!);
-          }
-        } else {
-          task.largestFileIdx = restored.fileIdx ?? task.largestFileIdx;
-          task.largestFilePath = restored.filePath ?? task.largestFilePath;
-          if (restored.fileSize != null && restored.fileSize! > 0) {
-            task.totalSize = BigInt.from(restored.fileSize!);
-          }
-        }
-
-        if (task.status != DownloadTaskStatus.seeding &&
-            task.status != DownloadTaskStatus.completed) {
-          task.status = DownloadTaskStatus.downloading;
-        }
-        _ensureStatsPolling();
-        await _saveTasks();
-        notifyListeners();
-        debugPrint(
-          '[DownloadManager] Restored libtorrent background download: $hashLower',
-        );
-      } catch (e) {
-        debugPrint(
-          '[DownloadManager] Error restoring libtorrent background download: $e',
-        );
-      } finally {
-        _ltPriorityRecoveryHashes.remove(hashLower);
-        _pendingStreamRestores.remove(hashLower);
+    if (restored == null) {
+      if (task.magnet.isEmpty) return;
+      final result = await _startTorrentWithBackend(
+        task.magnet,
+        fallbackInfoHash: task.id,
+        backendKind: task.backend,
+        startStream: false,
+        downloadDir: task.downloadDir,
+      );
+      if (!_canContinueLibtorrentBackgroundRestore(hashLower, isCurrent) ||
+          !identical(_tasks[hashLower], task)) {
+        return;
       }
-    }();
-    _pendingStreamRestores[hashLower] = future;
-    return future;
+      task.largestFileIdx = result.fileIdx ?? task.largestFileIdx;
+      task.largestFilePath = result.filePath ?? task.largestFilePath;
+      if (result.fileSize != null && result.fileSize! > 0) {
+        task.totalSize = BigInt.from(result.fileSize!);
+      }
+    } else {
+      task.largestFileIdx = restored.fileIdx ?? task.largestFileIdx;
+      task.largestFilePath = restored.filePath ?? task.largestFilePath;
+      if (restored.fileSize != null && restored.fileSize! > 0) {
+        task.totalSize = BigInt.from(restored.fileSize!);
+      }
+    }
+
+    if (task.status != DownloadTaskStatus.seeding &&
+        task.status != DownloadTaskStatus.completed) {
+      task.status = DownloadTaskStatus.downloading;
+    }
+    _ensureStatsPolling();
+    await _saveTasks();
+    if (!_canContinueLibtorrentBackgroundRestore(hashLower, isCurrent) ||
+        !identical(_tasks[hashLower], task)) {
+      return;
+    }
+    notifyListeners();
+    debugPrint(
+      '[DownloadManager] Restored libtorrent background download: $hashLower',
+    );
+  }
+
+  bool _canContinueLibtorrentBackgroundRestore(
+    String hashLower,
+    bool Function() isCurrent,
+  ) =>
+      isCurrent() &&
+      !_activeStreamHashes.contains(hashLower) &&
+      !_removedTaskIds.contains(hashLower) &&
+      !_pausedTaskIds.contains(hashLower);
+
+  void _cancelLibtorrentBackgroundRestore(String infoHash) {
+    final hashLower = _resolveStreamHash(infoHash);
+    _streamRestores.cancel(hashLower);
   }
 
   /// Notify that a BT stream is now active (being played) or inactive.
@@ -2179,6 +2216,7 @@ class DownloadManager extends ChangeNotifier {
       return;
     }
 
+    _cancelLibtorrentBackgroundRestore(hashLower);
     _activeStreamHashes.add(hashLower);
     debugPrint('[DownloadManager] Activated BT stream for: $hashLower');
 
@@ -2376,14 +2414,13 @@ class DownloadManager extends ChangeNotifier {
 
   /// Awaits any in-flight stop→background restore jobs (deterministic tests).
   @visibleForTesting
-  Future<void> waitPendingStreamRestoresForTesting() async {
-    while (_pendingStreamRestores.isNotEmpty) {
-      await Future.wait(_pendingStreamRestores.values.toList(growable: false));
-    }
-  }
+  Future<void> waitPendingStreamRestoresForTesting() =>
+      _streamRestores.waitForIdle();
 
   @override
   void dispose() {
+    _streamRestores.dispose();
+    _activeStreamHashes.clear();
     stopStatsPolling();
     _saveTasks(); // Save before disposing
     super.dispose();

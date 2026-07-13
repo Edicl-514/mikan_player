@@ -160,7 +160,7 @@ class NativeLibtorrentSessionPort implements LibtorrentSessionPort {
 /// Production [BtBackend] for [BtBackendKind.libtorrent].
 /// Production libtorrent backend: core torrent ops via [BtBackend] and the
 /// HTTP streaming half via [BtStreamCapability].
-class LibtorrentBackend implements BtBackend, BtStreamCapability {
+class LibtorrentBackend implements LibtorrentBtBackend {
   LibtorrentBackend({
     LibtorrentSessionPort Function()? sessionFactory,
     LibtorrentDownloadDirResolver? defaultDownloadDirResolver,

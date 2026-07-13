@@ -6,8 +6,12 @@
 // are deterministic without native FFI. Playback policy (_activeStreamHashes,
 // restore delay/guards) stays on DownloadManager.
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/native/mikan_libtorrent_native.dart';
+import 'package:mikan_player/services/download/bt_backend.dart';
+import 'package:mikan_player/services/download/bt_stream_capability.dart';
 import 'package:mikan_player/services/download/libtorrent_backend.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,6 +19,43 @@ import 'package:shared_preferences/shared_preferences.dart';
 const _kHash = '0123456789abcdef0123456789abcdef01234567';
 const _kMagnet =
     'magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=test';
+
+class _RestoreDelayGate {
+  final List<Duration> requested = [];
+  final List<Completer<void>> _waiters = [];
+
+  Future<void> call(Duration duration) {
+    requested.add(duration);
+    final completer = Completer<void>();
+    _waiters.add(completer);
+    return completer.future;
+  }
+
+  void releaseNext() {
+    _waiters.removeAt(0).complete();
+  }
+}
+
+class _FakeLibtorrentBtBackend extends FakeBtBackend
+    implements LibtorrentBtBackend {
+  @override
+  int? fileIdxForHash(String infoHash) => null;
+
+  @override
+  int? fileSizeForHash(String infoHash) => null;
+
+  @override
+  Future<BtTorrentHandle?> restoreBackgroundDownload(
+    String infoHash, {
+    int? preferredFileIdx,
+  }) async => null;
+
+  @override
+  int? streamIdForHash(String infoHash) => null;
+
+  @override
+  void stopStreamForHash(String infoHash) {}
+}
 
 class _StreamSession implements LibtorrentSessionPort {
   final List<String> calls = [];
@@ -355,13 +396,124 @@ void main() {
       },
     );
 
+    test('zero-delay early return clears pending restore bookkeeping', () async {
+      manager.setActiveStream(_kHash, active: false);
+      await manager.waitPendingStreamRestoresForTesting();
+
+      // A second call must schedule and finish normally instead of returning a
+      // stale completed Future left behind by the first early return.
+      manager.setActiveStream(_kHash, active: false);
+      await manager.waitPendingStreamRestoresForTesting();
+    });
+
+    test('manager accepts an abstract LibtorrentBtBackend fake', () async {
+      final fakeManager = DownloadManager.forTesting(
+        libtorrentBackend: _FakeLibtorrentBtBackend(),
+      );
+      addTearDown(fakeManager.dispose);
+
+      fakeManager.setActiveStream(_kHash, active: false);
+      await fakeManager.waitPendingStreamRestoresForTesting();
+    });
+
+    test(
+      'reactivation cancels delayed restore for the replacement stream',
+      () async {
+        final gate = _RestoreDelayGate();
+        final delayedManager = DownloadManager.forTesting(
+          libtorrentBackend: backend,
+          streamRestoreDelay: const Duration(milliseconds: 300),
+          streamRestoreSleep: gate.call,
+        );
+        delayedManager.setDownloadDirForTesting(r'C:\mikan-test-downloads');
+        delayedManager.setBackendKindForTesting(BtBackendKind.libtorrent);
+        addTearDown(delayedManager.dispose);
+
+        await delayedManager.startBtDownloadForTesting(
+          magnet: _kMagnet,
+          name: 'Episode 1',
+          forPlayback: true,
+        );
+        delayedManager.setActiveStream(_kHash, active: true);
+        delayedManager.setActiveStream(_kHash, active: false);
+        expect(gate.requested, [const Duration(milliseconds: 300)]);
+
+        final replacement = await delayedManager.getOrCreateStreamUrlForTesting(
+          _kHash,
+        );
+        expect(replacement, isNotNull);
+        expect(backend.streamIdForHash(_kHash), 11);
+        delayedManager.setActiveStream(_kHash, active: true);
+
+        session.calls.clear();
+        gate.releaseNext();
+        await delayedManager.waitPendingStreamRestoresForTesting();
+
+        expect(backend.streamIdForHash(_kHash), 11);
+        expect(
+          session.calls.where((c) => c.startsWith('setFilePriorities:')),
+          isEmpty,
+        );
+        expect(
+          session.calls.where((c) => c.startsWith('resumeTorrent:')),
+          isEmpty,
+        );
+      },
+    );
+
+    test(
+      'deactivate after reactivation schedules a new restore generation',
+      () async {
+        final gate = _RestoreDelayGate();
+        final delayedManager = DownloadManager.forTesting(
+          libtorrentBackend: backend,
+          streamRestoreDelay: const Duration(milliseconds: 300),
+          streamRestoreSleep: gate.call,
+        );
+        delayedManager.setDownloadDirForTesting(r'C:\mikan-test-downloads');
+        delayedManager.setBackendKindForTesting(BtBackendKind.libtorrent);
+        addTearDown(delayedManager.dispose);
+
+        await delayedManager.startBtDownloadForTesting(
+          magnet: _kMagnet,
+          name: 'Episode 1',
+          forPlayback: true,
+        );
+        delayedManager.setActiveStream(_kHash, active: true);
+        delayedManager.setActiveStream(_kHash, active: false);
+        await delayedManager.getOrCreateStreamUrlForTesting(_kHash);
+        delayedManager.setActiveStream(_kHash, active: true);
+        delayedManager.setActiveStream(_kHash, active: false);
+        expect(gate.requested, [
+          const Duration(milliseconds: 300),
+          const Duration(milliseconds: 300),
+        ]);
+
+        session.calls.clear();
+        gate.releaseNext();
+        gate.releaseNext();
+        await delayedManager.waitPendingStreamRestoresForTesting();
+
+        expect(backend.streamIdForHash(_kHash), isNull);
+        expect(
+          session.calls.where((c) => c.startsWith('setFilePriorities:1')),
+          hasLength(1),
+        );
+        expect(
+          session.calls.where((c) => c.startsWith('resumeTorrent:1')),
+          hasLength(1),
+        );
+      },
+    );
+
     test(
       'pause during pending restore skips restore body (race guard)',
       () async {
-        // Non-zero delay so we can pause while restore is scheduled.
+        final gate = _RestoreDelayGate();
         final delayedManager = DownloadManager.forTesting(
           libtorrentBackend: backend,
-          streamRestoreDelay: const Duration(milliseconds: 40),
+          streamRestoreDelay: const Duration(milliseconds: 300),
+          streamRestoreSleep: gate.call,
         );
         delayedManager.setDownloadDirForTesting(r'C:\mikan-test-downloads');
         delayedManager.setBackendKindForTesting(BtBackendKind.libtorrent);
@@ -379,6 +531,7 @@ void main() {
         // Pause while restore delay is still ticking.
         final paused = await delayedManager.pauseBtTaskForTesting(_kHash);
         expect(paused, isTrue);
+        gate.releaseNext();
         await delayedManager.waitPendingStreamRestoresForTesting();
 
         // Stream was stopped immediately on deactivate; restore body aborted
@@ -400,9 +553,11 @@ void main() {
     test(
       'remove during pending restore skips restore body (race guard)',
       () async {
+        final gate = _RestoreDelayGate();
         final delayedManager = DownloadManager.forTesting(
           libtorrentBackend: backend,
-          streamRestoreDelay: const Duration(milliseconds: 40),
+          streamRestoreDelay: const Duration(milliseconds: 300),
+          streamRestoreSleep: gate.call,
         );
         delayedManager.setDownloadDirForTesting(r'C:\mikan-test-downloads');
         delayedManager.setBackendKindForTesting(BtBackendKind.libtorrent);
@@ -418,6 +573,7 @@ void main() {
         session.calls.clear();
         delayedManager.setActiveStream(_kHash, active: false);
         await delayedManager.removeBtTaskForTesting(_kHash);
+        gate.releaseNext();
         await delayedManager.waitPendingStreamRestoresForTesting();
 
         expect(delayedManager.tasks.where((t) => t.id == _kHash), isEmpty);
@@ -429,6 +585,39 @@ void main() {
         );
       },
     );
+
+    test('dispose cancels pending restore side effects', () async {
+      final gate = _RestoreDelayGate();
+      final disposableManager = DownloadManager.forTesting(
+        libtorrentBackend: backend,
+        streamRestoreDelay: const Duration(milliseconds: 300),
+        streamRestoreSleep: gate.call,
+      );
+      disposableManager.setDownloadDirForTesting(r'C:\mikan-test-downloads');
+      disposableManager.setBackendKindForTesting(BtBackendKind.libtorrent);
+
+      await disposableManager.startBtDownloadForTesting(
+        magnet: _kMagnet,
+        name: 'Episode 1',
+        forPlayback: true,
+      );
+      disposableManager.setActiveStream(_kHash, active: true);
+      disposableManager.setActiveStream(_kHash, active: false);
+
+      session.calls.clear();
+      disposableManager.dispose();
+      gate.releaseNext();
+      await disposableManager.waitPendingStreamRestoresForTesting();
+
+      expect(
+        session.calls.where((c) => c.startsWith('setFilePriorities:')),
+        isEmpty,
+      );
+      expect(
+        session.calls.where((c) => c.startsWith('resumeTorrent:')),
+        isEmpty,
+      );
+    });
 
     test(
       'updateStats merges libtorrent fileSizeForHash into task.totalSize',

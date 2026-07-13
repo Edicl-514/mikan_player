@@ -14,9 +14,9 @@
 //   - delayed restore orchestration and pause/remove guards
 //   - task.streamUrl / notifyListeners / persistence fan-out
 //
-// Production: [LibtorrentBackend] implements this interface.
-// Tests: inject [LibtorrentBackend] with a fake [LibtorrentSessionPort], or a
-// dedicated fake that implements only this surface.
+// Production: [LibtorrentBackend] implements [LibtorrentBtBackend].
+// Tests can inject either that production adapter with a fake native session,
+// or a dedicated in-memory [LibtorrentBtBackend].
 
 import 'package:mikan_player/services/download/bt_backend.dart';
 
@@ -53,3 +53,11 @@ abstract interface class BtStreamCapability {
     int? preferredFileIdx,
   });
 }
+
+/// Aggregate manager port for the libtorrent backend.
+///
+/// Dart has no intersection type for "[BtBackend] and [BtStreamCapability]".
+/// This named aggregate keeps [DownloadManager] injectable without coupling it
+/// to the concrete production [LibtorrentBackend].
+abstract interface class LibtorrentBtBackend
+    implements BtBackend, BtStreamCapability {}
