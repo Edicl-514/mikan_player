@@ -28,6 +28,8 @@ import 'package:mikan_player/services/download/http_file_download_port.dart';
 class FakeHttpFileDownloadPort implements HttpFileDownloadPort {
   FakeHttpFileDownloadPort({
     this.contentLength = 12,
+    this.statusCode = 200,
+    this.contentRange,
     this.startException,
     this.cancelClosesStream = true,
   });
@@ -35,6 +37,11 @@ class FakeHttpFileDownloadPort implements HttpFileDownloadPort {
   /// Value returned as the handle's `contentLength`. `null` mimics a missing
   /// Content-Length header (dart:io reports -1).
   final int? contentLength;
+
+  /// Response metadata used by resume tests. A 206 plus matching
+  /// [contentRange] means the fake honoured the caller's Range request.
+  final int statusCode;
+  final String? contentRange;
 
   /// When non-null, `start()` synchronously throws this object instead of
   /// producing a handle (used to characterise the non-2xx / connect-fail
@@ -73,6 +80,8 @@ class FakeHttpFileDownloadPort implements HttpFileDownloadPort {
     return HttpFileDownloadHandle(
       chunks: _chunkController!.stream,
       contentLength: contentLength,
+      statusCode: statusCode,
+      contentRange: contentRange,
       cancel: () {
         cancelCalled = true;
         if (cancelClosesStream) {
@@ -112,6 +121,7 @@ void main() {
         close: () async {},
       );
       expect(handle.contentLength, 42);
+      expect(handle.statusCode, 200);
     });
 
     test(
@@ -126,6 +136,28 @@ void main() {
         expect(handle.contentLength, isNull);
       },
     );
+  });
+
+  group('normalizeHttpRequestHeaders', () {
+    test('canonicalizes browser header casing and preserves live cookies', () {
+      final headers = normalizeHttpRequestHeaders(const {
+        'userAgent': 'captured-agent',
+        'referer': 'https://embed.example/watch/1',
+        'Cookie': 'session=live; shared=live',
+        'cookie': 'token=video; shared=newer',
+      }, cookies: 'session=stale; config=1');
+
+      expect(headers['User-Agent'], 'captured-agent');
+      expect(headers['Referer'], 'https://embed.example/watch/1');
+      expect(
+        headers['Cookie'],
+        'token=video; shared=newer; session=live; config=1',
+      );
+      expect(
+        headers.keys.where((key) => key.toLowerCase() == 'cookie'),
+        hasLength(1),
+      );
+    });
   });
 
   group('FakeHttpFileDownloadPort', () {

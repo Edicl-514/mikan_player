@@ -56,6 +56,16 @@ class HttpFileDownloadHandle {
   /// `contentLength > 0`).
   final int? contentLength;
 
+  /// HTTP status returned by the server.  Plain downloads accept every 2xx
+  /// response, while the job runner needs to distinguish a 206 response that
+  /// honoured a resume Range request from a 200 response that ignored it.
+  final int statusCode;
+
+  /// Raw `Content-Range` response header, when supplied.  It lets the job
+  /// verify that a 206 response starts at the byte offset it requested before
+  /// appending to an existing partial file.
+  final String? contentRange;
+
   /// Aborts the underlying HTTP request. Idempotent; never throws. The
   /// manager also sets its own `cancelled` bool on the `_HttpDownloadJob`
   /// and the chunk-loop break is driven by that bool; this call stops the
@@ -69,6 +79,8 @@ class HttpFileDownloadHandle {
   const HttpFileDownloadHandle({
     required this.chunks,
     required this.contentLength,
+    this.statusCode = HttpStatus.ok,
+    this.contentRange,
     required this.cancel,
     required this.close,
   });
@@ -102,6 +114,8 @@ class IoHttpFileDownloadPort implements HttpFileDownloadPort {
       return HttpFileDownloadHandle(
         chunks: response,
         contentLength: cl >= 0 ? cl : null,
+        statusCode: response.statusCode,
+        contentRange: response.headers.value(HttpHeaders.contentRangeHeader),
         cancel: () {
           try {
             request?.abort();
@@ -126,13 +140,92 @@ class IoHttpFileDownloadPort implements HttpFileDownloadPort {
     Map<String, String>? headers,
     String? cookies,
   ) {
-    if (headers != null) {
-      for (final entry in headers.entries) {
-        request.headers.set(entry.key, entry.value);
-      }
-    }
-    if (cookies != null && cookies.isNotEmpty) {
-      request.headers.set(HttpHeaders.cookieHeader, cookies);
+    final effectiveHeaders = normalizeHttpRequestHeaders(
+      headers,
+      cookies: cookies,
+    );
+    for (final entry in effectiveHeaders.entries) {
+      request.headers.set(entry.key, entry.value);
     }
   }
+}
+
+/// Makes captured browser headers safe and deterministic for a new
+/// [HttpClient] request.
+///
+/// Browser interception can expose the same semantic header under different
+/// casing (`referer` + `Referer`, `userAgent` + `User-Agent`).  `HttpHeaders`
+/// is case-insensitive, but applying an unnormalised map one item at a time
+/// makes the winner depend on map order.  Cookies are additionally available
+/// through the separately persisted [cookies] field; keep the cookie captured
+/// from the actual media request as the primary value and add only missing
+/// configured cookies behind it.
+Map<String, String> normalizeHttpRequestHeaders(
+  Map<String, String>? headers, {
+  String? cookies,
+}) {
+  final normalized = <String, String>{};
+  String? mergedCookies;
+
+  if (headers != null) {
+    for (final entry in headers.entries) {
+      final rawKey = entry.key.trim();
+      final value = entry.value.trim();
+      if (rawKey.isEmpty || value.isEmpty) continue;
+
+      final key = _canonicalHttpHeaderName(rawKey);
+      if (key == 'Cookie') {
+        // Later entries are closer to the final captured request, so they
+        // take precedence for duplicate cookie names.
+        mergedCookies = mergeHttpCookieHeaders(value, mergedCookies);
+      } else {
+        normalized[key] = value;
+      }
+    }
+  }
+
+  mergedCookies = mergeHttpCookieHeaders(mergedCookies, cookies);
+  if (mergedCookies != null && mergedCookies.isNotEmpty) {
+    normalized['Cookie'] = mergedCookies;
+  }
+  return normalized;
+}
+
+/// Combines two request `Cookie` values without letting an older fallback
+/// overwrite a cookie captured from the live video request.  The first value
+/// wins for duplicate cookie names.
+String? mergeHttpCookieHeaders(String? primary, String? fallback) {
+  final values = <String>[];
+  final seenNames = <String>{};
+
+  void add(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return;
+    for (final item in raw.split(';')) {
+      final cookie = item.trim();
+      if (cookie.isEmpty) continue;
+      final separator = cookie.indexOf('=');
+      if (separator <= 0) {
+        values.add(cookie);
+        continue;
+      }
+      final name = cookie.substring(0, separator).trim();
+      if (name.isEmpty || !seenNames.add(name)) continue;
+      values.add(cookie);
+    }
+  }
+
+  add(primary);
+  add(fallback);
+  return values.isEmpty ? null : values.join('; ');
+}
+
+String _canonicalHttpHeaderName(String rawKey) {
+  return switch (rawKey.toLowerCase()) {
+    'useragent' || 'user-agent' => 'User-Agent',
+    'referer' => 'Referer',
+    'cookie' => 'Cookie',
+    'origin' => 'Origin',
+    'range' => 'Range',
+    _ => rawKey,
+  };
 }

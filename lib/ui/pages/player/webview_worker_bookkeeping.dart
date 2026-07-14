@@ -49,6 +49,7 @@ void startVideoJobOnSlot(
   slot.pageKey = pageKey;
   slot.kind = WebViewWorkerKind.video;
   slot.lastSourceName = sourceName;
+  slot.preserveCaptchaSessionOnIdle = false;
   slot.health = WebViewWorkerHealth.running;
   activeVideoJobs[pageKey] = slot.workerId;
 }
@@ -69,6 +70,7 @@ void startCaptchaJobOnSlot(
   slot.taskKey = taskKey;
   slot.kind = WebViewWorkerKind.captcha;
   slot.lastSourceName = sourceName;
+  slot.preserveCaptchaSessionOnIdle = false;
   slot.health = WebViewWorkerHealth.running;
   activeCaptchaJobs[taskKey] = slot.workerId;
 }
@@ -91,6 +93,7 @@ void releaseCaptchaSlot(
   if (slot?.taskKey == taskKey) {
     slot?.taskKey = null;
     slot?.kind = null;
+    slot?.preserveCaptchaSessionOnIdle = false;
   }
 }
 
@@ -112,6 +115,7 @@ int? cancelVideoJob(
     slot.health = WebViewWorkerHealth.cancelling;
     slot.pageKey = null;
     slot.kind = null;
+    slot.preserveCaptchaSessionOnIdle = false;
   }
   return workerId;
 }

@@ -21,6 +21,7 @@ import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/services/header_injection_proxy.dart';
 import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/services/reusable_browser_worker.dart';
+import 'package:mikan_player/services/source_request_gate.dart';
 import 'package:mikan_player/services/webview_scheduler_stats.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
@@ -540,10 +541,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return;
     }
 
-    // Merge headers and cookies
-    final headers = <String, String>{
-      if (source.headers != null) ...source.headers!,
-    };
+    // Download with the same browser context used for playback. In
+    // particular, `_buildPlaybackHeaders` supplies the fallback UA and
+    // Referer that a raw extraction result may not contain; omitting them is
+    // enough for some CDN anti-hotlink checks to return 403 even though the
+    // video can play in-app.
+    final headers = _buildPlaybackHeaders(source);
 
     final episodeName = _episodeController.currentEpisode.nameCn.isNotEmpty
         ? _episodeController.currentEpisode.nameCn
@@ -1658,18 +1661,61 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return false;
     }
 
-    final task = _pendingCaptchaTasks.removeFirst();
+    // Per-source cooldown (latest-wins pending). Rapid EP switches / re-entry
+    // used to cancel an in-flight captcha and immediately re-hit the same host,
+    // which is exactly when OCR sources start returning blank images.
+    final stillPending = <_CaptchaPreflightTask>[];
+    final coolingSources = <String>{};
+    _CaptchaPreflightTask? ready;
+    while (_pendingCaptchaTasks.isNotEmpty) {
+      final candidate = _pendingCaptchaTasks.removeFirst();
+      final interval = SourceRequestGate.captchaIntervalMs(
+        candidate.captchaConfig.initialDelayMs,
+      );
+      final canStart = SourceRequestGate.instance.canStartNow(
+        candidate.source.name,
+        interval,
+      );
+      if (ready == null && canStart) {
+        ready = candidate;
+        continue;
+      }
+      stillPending.add(candidate);
+      if (!canStart && coolingSources.add(candidate.source.name)) {
+        SourceRequestGate.instance.scheduleWhenReady(
+          sourceName: candidate.source.name,
+          minInterval: interval,
+          token: candidate.loadToken,
+          onReady: () {
+            if (!mounted) return;
+            if (candidate.loadToken !=
+                _sampleSourceController.sampleLoadToken) {
+              return;
+            }
+            _scheduleWebViewPoolPump(immediate: true);
+          },
+        );
+      }
+    }
+    for (final task in stillPending) {
+      _pendingCaptchaTasks.add(task);
+    }
+    if (ready == null) {
+      return false;
+    }
+
     if (_useWorkerPool) {
       final slot = _acquireIdleCaptchaWorkerSlot();
       if (slot == null) {
-        _pendingCaptchaTasks.addFirst(task);
+        _pendingCaptchaTasks.addFirst(ready);
         return false;
       }
-      _scheduler.startCaptchaJob(slot, task.taskKey, task.source.name);
+      _scheduler.startCaptchaJob(slot, ready.taskKey, ready.source.name);
     }
-    _activeCaptchaTasks[task.taskKey] = task;
-    _webViewStatus[task.taskKey] = '正在跳过验证码...';
-    _webviewStats.onCaptchaJobStarted(task.taskKey, task.source.name);
+    SourceRequestGate.instance.markStarted(ready.source.name);
+    _activeCaptchaTasks[ready.taskKey] = ready;
+    _webViewStatus[ready.taskKey] = '正在跳过验证码...';
+    _webviewStats.onCaptchaJobStarted(ready.taskKey, ready.source.name);
     return true;
   }
 
@@ -1701,6 +1747,34 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return false;
     }
 
+    // Drop sources still in their per-source start cooldown so rapid re-entry
+    // does not hammer the same host. Schedule a delayed pump for the earliest
+    // waiter so work resumes once the gate opens.
+    final gate = SourceRequestGate.instance;
+    final readyPending = <SearchPlayResult>[];
+    final coolingSources = <String>{};
+    for (final page in pending) {
+      if (gate.canStartNow(
+        page.sourceName,
+        SourceRequestGate.defaultVideoInterval,
+      )) {
+        readyPending.add(page);
+      } else if (coolingSources.add(page.sourceName)) {
+        gate.scheduleWhenReady(
+          sourceName: page.sourceName,
+          minInterval: SourceRequestGate.defaultVideoInterval,
+          token: _sampleSourceController.sampleLoadToken,
+          onReady: () {
+            if (!mounted) return;
+            _scheduleWebViewPoolPump(immediate: true);
+          },
+        );
+      }
+    }
+    if (readyPending.isEmpty) {
+      return false;
+    }
+
     if (_useWorkerPool) {
       // Round 4 Stage 3：source-affinity 调度。先按 affinity 偏好挑一个 idle
       // worker（lastSourceName 命中 pending 同源 job 的 worker 优先，保证它
@@ -1708,12 +1782,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // [`_selectNextVideoJobForWorker`] 选取 job。这样同源多 channel 在单
       // worker 连续空闲时会连续落在同一个 worker，而慢多 channel 源又不会
       // 霸占全部 slot（soft limit）。
-      final slot = _acquireIdleVideoWorkerSlotForAffinity(pending);
+      final slot = _acquireIdleVideoWorkerSlotForAffinity(readyPending);
       if (slot == null) {
         // 理论上不会达到：_activeWebViewTaskCount 已 guard。容错退出。
         return false;
       }
-      final page = _selectNextVideoJobForWorker(slot, pending);
+      final page = _selectNextVideoJobForWorker(slot, readyPending);
       if (page == null) {
         return false;
       }
@@ -1722,6 +1796,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         page.channelIndex,
       );
       _scheduler.startVideoJob(slot, pageKey, page.sourceName);
+      gate.markStarted(page.sourceName);
       _webViewStatus[pageKey] = '正在提取...';
       _webviewStats.onVideoJobStarted(
         pageKey,
@@ -1732,9 +1807,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     // Fallback：per-task widget 路径（旧逻辑，行为等价于 Round 2 之前）。
-    final page = pending.first;
+    final page = readyPending.first;
     final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
     _activeWebViews[pageKey] = true;
+    gate.markStarted(page.sourceName);
     _webViewStatus[pageKey] = '正在提取...';
     _webviewStats.onVideoJobStarted(
       pageKey,
@@ -2336,6 +2412,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (!mounted) return;
       final slot = _scheduler.slotOf(workerId);
       if (slot == null) return;
+      // A reset can reassign this worker before the cancelled predecessor's
+      // post-frame idle notification arrives. In that case the slot already
+      // carries a new job; the stale notification must not mark it idle or
+      // clear its fresh scheduler bookkeeping.
+      if (slot.kind != null) return;
       final taskKey = slot.taskKey;
       if (shouldClearCaptchaSlotOnIdle(
         slotTaskKey: taskKey,
@@ -2752,19 +2833,35 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return;
     }
 
-    final loadToken = _sampleSourceController.bumpLoadToken();
-    await _cancelSearchSubscriptions();
-
-    if (!mounted || loadToken != _sampleSourceController.sampleLoadToken) {
-      return;
-    }
-
-    // Ensure we have the latest setting
+    // Refresh the preference before deciding whether this automatic entry may
+    // start a search. Manual taps intentionally bypass the gate.
     try {
       final prefs = await SharedPreferences.getInstance();
       _autoSearchOnline = prefs.getBool('auto_search_online') ?? true;
     } catch (e) {
       debugPrint('Error refreshing settings in loadSampleSource: $e');
+    }
+
+    // auto_search_online only gates automatic entry-time / episode-switch
+    // search. Manual taps on "搜索在线源" must still run even when the
+    // preference is off — bail out before any destructive reset so the empty
+    // "尚未开始搜索" state (and its search button) remains usable.
+    if (!manual && !_autoSearchOnline) {
+      if (mounted) {
+        setState(() {
+          _sampleSourceController.markSampleIdle();
+          _sampleSourceController.setSampleError(null);
+          _sampleStatusMessageNotifier.value = '在线搜索已关闭，可手动搜索在线源';
+        });
+      }
+      return;
+    }
+
+    final loadToken = _sampleSourceController.bumpLoadToken();
+    await _cancelSearchSubscriptions();
+
+    if (!mounted || loadToken != _sampleSourceController.sampleLoadToken) {
+      return;
     }
 
     // First check if there's already a BT download for this episode
@@ -2795,14 +2892,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _probingSourceKeys.clear();
       _failedPlaybackSourceKeys.clear();
       _activeWebViews.clear();
-      // Phase 2 B6：pool 状态清理交给 scheduler。把每个 slot 的
-      // pageKey/taskKind 置 null 让 build 把它们的 job 转为 null
-      // （didUpdateWidget 触发 _cancelCurrentJob(silent) -> onIdle ->
-      // _onWorkerIdlePostFrame 走 no-op），并清空 active 反查。
-      // slot 表本身保留以便跨搜索复用 InAppWebView；下一个搜索开始后
-      // `_acquireIdleVideoWorkerSlotForAffinity` 直接命中这些 idle
-      // slot。`lastSourceName` 也保留，便于跨搜索复用同源 warm
-      // WebView。
+      // Keep worker slots across searches so captcha cookies / warm WebViews
+      // survive. resetForNewSearch clears job fields and returns slots to idle
+      // so they are reacquired instead of minting new workers (which would
+      // dispose the old ones and run the cookie janitor).
       _activeCaptchaTasks.clear();
       _scheduler.resetForNewSearch();
       _pendingCaptchaTasks.clear();
@@ -2814,20 +2907,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _captchaRuntimeOverrides = {};
       _hasAutoPlayed = false;
       _acceptedSourcePageKey = null;
+      // A previous generation may have left this latch true while
+      // `_openOnlineSource` was still awaiting `_player.open`. Without
+      // clearing it, the next generation's autoplay is permanently blocked.
+      _isAutoPlayFallbackInProgress = false;
       _clearPlaybackStartupWatchdog();
       _webviewStats.reset();
     });
     _publishPlayerControlSourceState();
-
-    if (!_autoSearchOnline) {
-      if (mounted) {
-        setState(() {
-          _sampleSourceController.markSampleIdle();
-          _sampleStatusMessageNotifier.value = '在线搜索已关闭';
-        });
-      }
-      return;
-    }
 
     try {
       // 获取所有源（包括详细信息如Tier）
@@ -2966,13 +3053,23 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final headers = <String, String>{
       if (source.headers != null) ...source.headers!,
     };
-    headers.putIfAbsent(
-      'User-Agent',
-      () =>
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-          '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    final hasUserAgent = headers.entries.any(
+      (entry) =>
+          (entry.key.trim().toLowerCase() == 'user-agent' ||
+              entry.key.trim().toLowerCase() == 'useragent') &&
+          entry.value.trim().isNotEmpty,
     );
-    if (!headers.containsKey('Referer') && !headers.containsKey('referer')) {
+    if (!hasUserAgent) {
+      headers['User-Agent'] =
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    }
+    final hasReferer = headers.entries.any(
+      (entry) =>
+          entry.key.trim().toLowerCase() == 'referer' &&
+          entry.value.trim().isNotEmpty,
+    );
+    if (!hasReferer) {
       headers['Referer'] = source.playPageUrl;
     }
     return headers;
@@ -3034,6 +3131,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return;
     }
 
+    final loadToken = _sampleSourceController.sampleLoadToken;
     _probingSourceKeys.add(sourceKey);
     final probeResult = await _videoUrlProbeService.probe(
       directVideoUrl,
@@ -3042,7 +3140,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
     _probingSourceKeys.remove(sourceKey);
 
-    if (!mounted) {
+    if (!mounted || !_sampleSourceController.isCurrentLoadToken(loadToken)) {
       return;
     }
 
@@ -3133,12 +3231,27 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   Future<void> _openOnlineSource(
     SearchPlayResult source, {
     required bool autoFallback,
+    int? loadToken,
   }) async {
+    final expectedLoadToken =
+        loadToken ?? _sampleSourceController.sampleLoadToken;
+    bool isCurrentGeneration() =>
+        mounted &&
+        _sampleSourceController.isCurrentLoadToken(expectedLoadToken);
+
     final finalUrl = _buildPlaybackUrl(source);
     final sourceKey = _buildSourceChannelKey(
       source.sourceName,
       source.channelIndex,
     );
+
+    if (!isCurrentGeneration()) {
+      debugPrint(
+        '[_openOnlineSource] drop stale open for $sourceKey '
+        '(loadToken=$expectedLoadToken now=${_sampleSourceController.sampleLoadToken})',
+      );
+      return;
+    }
 
     setState(() {
       _currentOnlineSource = source;
@@ -3154,21 +3267,38 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     _temporarilyAllowPositionReset();
     await _player.stop();
+    if (!isCurrentGeneration()) {
+      debugPrint(
+        '[_openOnlineSource] aborted after stop for $sourceKey (stale generation)',
+      );
+      return;
+    }
     _schedulePlaybackStartupWatchdog(source, autoFallback: autoFallback);
 
     try {
       await _player.open(Media(finalUrl), play: true);
+      if (!isCurrentGeneration()) {
+        debugPrint(
+          '[_openOnlineSource] abort after open for $sourceKey (stale generation)',
+        );
+        try {
+          await _player.stop();
+        } catch (_) {}
+        return;
+      }
       await _applyPlaybackSpeed();
-      if (mounted) {
+      if (isCurrentGeneration()) {
         setState(() {
           _isLoadingVideo = false;
         });
       }
       await _applyPendingStartPosition();
+      if (!isCurrentGeneration()) return;
       debugPrint('[_openOnlineSource] Media loading started for $sourceKey');
     } catch (e, st) {
       debugPrint('[_openOnlineSource] ERROR loading media: $e');
       debugPrint('Stack trace: $st');
+      if (!isCurrentGeneration()) return;
       _clearPlaybackStartupWatchdog();
       _failedPlaybackSourceKeys.add(sourceKey);
       if (mounted) {
@@ -3219,6 +3349,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           )
         : null;
 
+    final loadToken = _sampleSourceController.sampleLoadToken;
     _resolvingChannelPlayPageKeys.add(pageKey);
     try {
       final resolved = await getEpisodePlayUrl(
@@ -3229,7 +3360,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         runtimeOverride: runtimeOverride,
       );
 
-      if (!mounted) {
+      if (!mounted || !_sampleSourceController.isCurrentLoadToken(loadToken)) {
         return;
       }
 
@@ -3292,7 +3423,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       );
     } finally {
       _resolvingChannelPlayPageKeys.remove(pageKey);
-      if (mounted) {
+      if (mounted && _sampleSourceController.isCurrentLoadToken(loadToken)) {
         _startNextWebViewExtraction();
       }
     }
@@ -3441,6 +3572,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       source.sourceName,
       source.channelIndex,
     );
+    // Capture generation at accept time so a rapid episode switch cannot let
+    // this open finish and re-arm `_currentStreamUrl` / `_hasAutoPlayed` for a
+    // later generation (which permanently blocks autoplay).
+    final loadToken = _sampleSourceController.sampleLoadToken;
 
     setState(() {
       if (_cancelLowPrioritySourcesOnPlay) {
@@ -3460,8 +3595,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     _isAutoPlayFallbackInProgress = true;
     unawaited(
-      _openOnlineSource(source, autoFallback: true).whenComplete(() {
-        _isAutoPlayFallbackInProgress = false;
+      _openOnlineSource(
+        source,
+        autoFallback: true,
+        loadToken: loadToken,
+      ).whenComplete(() {
+        if (_sampleSourceController.isCurrentLoadToken(loadToken)) {
+          _isAutoPlayFallbackInProgress = false;
+        }
       }),
     );
   }
@@ -3821,13 +3962,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
+    // Invalidate every in-flight sample/captcha/video generation first so any
+    // stream event, probe, or open that races with dispose is dropped.
     _sampleSourceController.bumpLoadToken();
-    for (final subscription in _searchSubscriptions) {
-      unawaited(subscription.cancel());
-    }
-    _searchSubscriptions.clear();
+    _isAutoPlayFallbackInProgress = false;
+    _hasAutoPlayed = false;
+    _acceptedSourcePageKey = null;
+    unawaited(_cancelSearchSubscriptions());
     _activeCaptchaTasks.clear();
     _pendingCaptchaTasks.clear();
+    // Drop active jobs so runners stop loading; framework dispose of
+    // ReusableBrowserWorker tears down InAppWebViews afterwards.
+    _scheduler.resetForNewSearch();
     // Phase 2 B6：清理统一 pool 调度记账。worker widget 在 widget 树卸载时
     // 由框架负责 dispose（含 InAppWebView），scheduler 侧只需清空内部表
     // 以避免后续 post-frame 回调进来时引用已 dispose 的 slot。
@@ -4204,19 +4350,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                       color: epCardColor,
                       borderRadius: BorderRadius.circular(8),
                       child: InkWell(
+                        // Must stay on the same PlayerPage State. pushReplacement
+                        // with a fresh PlayerPage disposes the entire WebView
+                        // worker pool (and captcha CookieManager sessions), which
+                        // is the rapid EP1→EP2→EP1 captcha failure mode on
+                        // mobile. PC list / skip next already call
+                        // `_onEpisodeSelected` in-place so warm workers survive.
                         onTap: !isSelected
-                            ? () {
-                                Navigator.of(context).pushReplacement(
-                                  MaterialPageRoute(
-                                    builder: (context) => PlayerPage(
-                                      anime: widget.anime,
-                                      currentEpisode: ep,
-                                      allEpisodes:
-                                          _episodeController.playableEpisodes,
-                                    ),
-                                  ),
-                                );
-                              }
+                            ? () => unawaited(_onEpisodeSelected(ep))
                             : null,
                         borderRadius: BorderRadius.circular(8),
                         child: Container(
@@ -4846,16 +4987,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final result = _episodeController.selectEpisode(ep);
     if (!result.changed) return;
 
-    // Stop current player
+    // Stop current player and invalidate in-flight online-source work.
     _player.stop();
     _sampleSourceController.bumpLoadToken();
-    final subscriptions = List<StreamSubscription<SourceSearchProgress>>.from(
-      _searchSubscriptions,
-    );
-    _searchSubscriptions.clear();
-    for (final subscription in subscriptions) {
-      unawaited(subscription.cancel());
-    }
+    unawaited(_cancelSearchSubscriptions());
 
     // Update current episode and reset all states
     setState(() {
@@ -4873,11 +5008,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _sampleSourceController.resetForSwitching();
 
       _activeWebViews.clear();
-      // Phase 2 B6：与 `_loadSampleSource` 对齐，清除统一 pool 记账并保留
-      // slot 实例以便 InAppWebView 跨搜索复用（scheduler 内部完成）。
+      // Keep the pool slot table (warm InAppWebView + site cookies). Clearing
+      // jobs + marking idle is enough for runners to cancel via didUpdateWidget
+      // and accept the next captcha/video job without dispose/cookie wipe.
       _activeCaptchaTasks.clear();
-      _scheduler.resetForNewSearch();
       _pendingCaptchaTasks.clear();
+      _scheduler.resetForNewSearch();
       _webViewStatus.clear();
       _failedWebViewPageKeys.clear();
       _resolvingChannelPlayPageKeys.clear();
@@ -4885,6 +5021,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _captchaRuntimeOverrides = {};
       _hasAutoPlayed = false;
       _acceptedSourcePageKey = null;
+      _isAutoPlayFallbackInProgress = false;
+      _clearPlaybackStartupWatchdog();
       _webviewStats.reset();
 
       // Reset comments
@@ -5638,7 +5776,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                         _sampleSourceController.enabledSourceNames.isEmpty
                         ? (_disableAutoSourceSearchForCurrentEpisode
                               ? '已播放本地资源，在线源搜索待手动触发'
-                              : '尚未开始搜索在线源')
+                              : (!_autoSearchOnline
+                                    ? '在线搜索已关闭，可手动搜索在线源'
+                                    : '尚未开始搜索在线源'))
                         : '搜索完成 (${_sampleSourceController.sampleSuccessfulSources.length}/${_sampleSourceController.enabledSourceNames.length} 个可用)';
 
                     final displayText = _sampleSourceController.isLoadingSample
@@ -6154,7 +6294,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 Text(
                   _disableAutoSourceSearchForCurrentEpisode
                       ? '已使用本地资源播放'
-                      : '尚未开始搜索在线源',
+                      : (!_autoSearchOnline ? '在线搜索已关闭' : '尚未开始搜索在线源'),
                   style: TextStyle(
                     color: Theme.of(context).brightness == Brightness.dark
                         ? Colors.white38
@@ -6166,7 +6306,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 Text(
                   _disableAutoSourceSearchForCurrentEpisode
                       ? '如需在线源，请点击下方按钮手动搜索'
-                      : '点击下方按钮开始搜索',
+                      : (!_autoSearchOnline ? '点击下方按钮手动搜索在线源' : '点击下方按钮开始搜索'),
                   style: TextStyle(
                     color: Theme.of(context).brightness == Brightness.dark
                         ? Colors.white24
@@ -6414,7 +6554,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           final taskKey = slot.taskKey;
           final task = taskKey == null ? null : _activeCaptchaTasks[taskKey];
           if (task != null) {
-            job = CaptchaJob(_buildCaptchaPreflightJob(task));
+            job = CaptchaJob(
+              _buildCaptchaPreflightJob(task),
+              generation: task.loadToken,
+            );
           }
           onCaptchaResult = (key, result) =>
               _onCaptchaPreflightResult(key, result);
@@ -6437,6 +6580,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           if (matchedPage != null && pageKey != null) {
             job = VideoJob(
               _buildVideoExtractionJob(matchedPage, pageKey: pageKey),
+              generation: _sampleSourceController.sampleLoadToken,
             );
           }
           onVideoResult = (key, result) => _onWebViewResult(key, result);
@@ -6459,6 +6603,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             debugPrint('[WebView][worker_$workerId] $message');
           },
           showWebView: _showWebView,
+          preserveCaptchaSessionOnIdle: slot.preserveCaptchaSessionOnIdle,
           stats: _webviewStats,
         ),
       );

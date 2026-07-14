@@ -1149,9 +1149,11 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                     const SizedBox(width: 10),
                   ],
 
-                  // Downloaded / Total size
+                  // Downloaded / Total size (HLS uses segment-based progress)
                   Text(
-                    '${task.formattedDownloaded} / ${task.formattedSize}',
+                    task.hlsSegmentCount != null && task.hlsSegmentCount! > 0
+                        ? '${task.formattedDownloaded} · ${task.progress.toStringAsFixed(1)}%'
+                        : '${task.formattedDownloaded} / ${task.formattedSize}',
                     style: TextStyle(color: Colors.grey[500], fontSize: 10),
                   ),
 

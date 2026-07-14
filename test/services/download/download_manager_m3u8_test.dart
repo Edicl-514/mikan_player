@@ -25,6 +25,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/services/download/http_file_download_port.dart';
+import 'package:mikan_player/services/download/m3u8_downloader.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -475,6 +476,7 @@ seg2.ts
 
           expect(port.startedUris, [segment1Uri]);
           expect(task.status, DownloadTaskStatus.paused);
+          expect(task.progress, 50.0);
           expect(await outFile.readAsBytes(), [4, 5, 6]);
         } finally {
           port.dispose();
@@ -482,6 +484,87 @@ seg2.ts
         }
       },
     );
+
+    test(
+      'resume after pause downloads only remaining segments and appends bytes',
+      () async {
+        const mediaText = '''
+#EXTM3U
+#EXTINF:10.0,
+seg1.ts
+#EXTINF:10.0,
+seg2.ts
+#EXT-X-ENDLIST
+''';
+        final mediaUri = Uri.parse('https://hls.example.com/resume.m3u8');
+        final segment2Uri = Uri.parse('https://hls.example.com/seg2.ts');
+        fake.register(mediaUri, mediaText);
+
+        final port = _HlsResumeHttpPort();
+        final localManager = DownloadManager.forTesting(
+          httpPort: port,
+          m3u8Port: fake,
+        );
+        localManager.setDownloadDirForTesting(tempRoot.path);
+        final outFile = File('${tempRoot.path}/resume_hls.ts');
+        final task = DownloadTask(
+          id: 'resume_hls_test',
+          name: 'Resume HLS Episode',
+          magnet: '',
+          animeName: 'Test',
+          episodeNumber: 1,
+          startTime: DateTime.fromMillisecondsSinceEpoch(1_700_000_000_000),
+          taskType: DownloadTaskType.http,
+          status: DownloadTaskStatus.downloading,
+          progress: 0.0,
+          videoUrl: mediaUri.toString(),
+          localFilePath: outFile.path,
+        );
+        localManager.seedHttpTaskForTesting(task);
+
+        try {
+          final firstRun = localManager.downloadHttpFileForTesting(task);
+          await pumpSlots();
+          port.finishFirst();
+          await port.firstHandleCloseStarted;
+          expect(await localManager.pauseTask(task.id), isTrue);
+          port.releaseFirstHandleClose();
+          await firstRun;
+
+          expect(task.status, DownloadTaskStatus.paused);
+          expect(task.progress, 50.0);
+          expect(await outFile.readAsBytes(), [1, 2, 3]);
+
+          expect(await localManager.resumeTask(task.id), isTrue);
+          for (var i = 0; i < 32; i++) {
+            await Future<void>.delayed(Duration.zero);
+          }
+          port.finishSecond();
+          for (var i = 0; i < 32; i++) {
+            await Future<void>.delayed(Duration.zero);
+            if (task.status == DownloadTaskStatus.completed) break;
+          }
+
+          expect(port.startedUris.length, 2);
+          expect(port.startedUris.last, segment2Uri);
+          expect(task.status, DownloadTaskStatus.completed);
+          expect(task.progress, 100.0);
+          expect(await outFile.readAsBytes(), [1, 2, 3, 7, 8, 9]);
+        } finally {
+          port.dispose();
+          localManager.dispose();
+        }
+      },
+    );
+  });
+
+  group('estimateHlsResumeSegmentIndex', () {
+    test('maps progress percent to completed segment count', () {
+      expect(estimateHlsResumeSegmentIndex(0, 4), 0);
+      expect(estimateHlsResumeSegmentIndex(49.9, 4), 1);
+      expect(estimateHlsResumeSegmentIndex(50, 4), 2);
+      expect(estimateHlsResumeSegmentIndex(100, 4), 4);
+    });
   });
 }
 
@@ -541,6 +624,76 @@ class _SegmentBoundaryHttpPort implements HttpFileDownloadPort {
 
   void dispose() {
     finishFirst();
+    releaseFirstHandleClose();
+  }
+}
+
+class _HlsResumeHttpPort implements HttpFileDownloadPort {
+  final StreamController<List<int>> _firstChunks =
+      StreamController<List<int>>();
+  final StreamController<List<int>> _secondChunks =
+      StreamController<List<int>>();
+  final Completer<void> _firstHandleCloseStarted = Completer<void>();
+  final Completer<void> _allowFirstHandleClose = Completer<void>();
+
+  final List<Uri> startedUris = [];
+
+  Future<void> get firstHandleCloseStarted => _firstHandleCloseStarted.future;
+
+  @override
+  Future<HttpFileDownloadHandle> start({
+    required Uri url,
+    Map<String, String>? headers,
+    String? cookies,
+  }) async {
+    startedUris.add(url);
+    if (startedUris.length == 1) {
+      return HttpFileDownloadHandle(
+        chunks: _firstChunks.stream,
+        contentLength: 3,
+        cancel: finishFirst,
+        close: () async {
+          if (!_firstHandleCloseStarted.isCompleted) {
+            _firstHandleCloseStarted.complete();
+          }
+          await _allowFirstHandleClose.future;
+        },
+      );
+    }
+    if (startedUris.length == 2) {
+      return HttpFileDownloadHandle(
+        chunks: _secondChunks.stream,
+        contentLength: 3,
+        cancel: finishSecond,
+        close: () async {},
+      );
+    }
+    throw StateError('Unexpected HLS segment start #${startedUris.length}');
+  }
+
+  void finishFirst() {
+    if (!_firstChunks.isClosed) {
+      _firstChunks.add([1, 2, 3]);
+      _firstChunks.close();
+    }
+  }
+
+  void finishSecond() {
+    if (!_secondChunks.isClosed) {
+      _secondChunks.add([7, 8, 9]);
+      _secondChunks.close();
+    }
+  }
+
+  void releaseFirstHandleClose() {
+    if (!_allowFirstHandleClose.isCompleted) {
+      _allowFirstHandleClose.complete();
+    }
+  }
+
+  void dispose() {
+    finishFirst();
+    finishSecond();
     releaseFirstHandleClose();
   }
 }

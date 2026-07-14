@@ -131,6 +131,34 @@ void main() {
       expect(captured, 1);
     });
 
+    testWidgets(
+      'initState prefers listenable values over stale constructor props',
+      (tester) async {
+        final staleSources = [_source(sourceName: 'stale')];
+        final freshSources = [_source(sourceName: 'fresh')];
+        final sourcesNotifier = ValueNotifier<List<SearchPlayResult>>(
+          freshSources,
+        );
+        final labelNotifier = ValueNotifier<String>('fresh');
+        final indexNotifier = ValueNotifier<int>(0);
+
+        await tester.pumpWidget(
+          _wrap(
+            Container(),
+            availableSources: staleSources,
+            availableSourcesListenable: sourcesNotifier,
+            currentSourceLabel: 'stale',
+            currentSourceLabelListenable: labelNotifier,
+            sourceIndexNotifier: indexNotifier,
+          ),
+        );
+
+        expect(find.text('fresh'), findsOneWidget);
+        expect(find.text('stale'), findsNothing);
+        expect(find.byIcon(Icons.check_circle), findsOneWidget);
+      },
+    );
+
     testWidgets('availableSourcesListenable changes update the rendered list', (
       tester,
     ) async {

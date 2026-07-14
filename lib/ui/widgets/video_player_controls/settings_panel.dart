@@ -68,12 +68,27 @@ class _SettingsPanelState extends State<SettingsPanel> {
     3.0,
   ];
 
+  void _syncSourceStateFromWidget() {
+    _availableSources = resolveAvailableSourcesSnapshot(
+      availableSources: widget.availableSources,
+      availableSourcesListenable: widget.availableSourcesListenable,
+    );
+    _currentSourceLabel = resolveCurrentSourceLabelSnapshot(
+      currentSourceLabel: widget.currentSourceLabel,
+      currentSourceLabelListenable: widget.currentSourceLabelListenable,
+    );
+    _currentSourceIndex = clampSourceIndex(
+      resolveSourceIndexSnapshot(
+        sourceIndexNotifier: widget.sourceIndexNotifier,
+      ),
+      _availableSources,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    _availableSources = widget.availableSources;
-    _currentSourceLabel = widget.currentSourceLabel;
-    _currentSourceIndex = widget.sourceIndexNotifier?.value ?? 0;
+    _syncSourceStateFromWidget();
     _currentPlaybackSpeed = widget.playbackSpeed.clamp(0.25, 3.0).toDouble();
     widget.sourceIndexNotifier?.addListener(_onSourceIndexChanged);
     widget.availableSourcesListenable?.addListener(_onAvailableSourcesChanged);
@@ -88,7 +103,12 @@ class _SettingsPanelState extends State<SettingsPanel> {
     if (widget.sourceIndexNotifier != oldWidget.sourceIndexNotifier) {
       oldWidget.sourceIndexNotifier?.removeListener(_onSourceIndexChanged);
       widget.sourceIndexNotifier?.addListener(_onSourceIndexChanged);
-      _currentSourceIndex = widget.sourceIndexNotifier?.value ?? 0;
+      _currentSourceIndex = clampSourceIndex(
+        resolveSourceIndexSnapshot(
+          sourceIndexNotifier: widget.sourceIndexNotifier,
+        ),
+        _availableSources,
+      );
     }
     if (widget.availableSourcesListenable !=
         oldWidget.availableSourcesListenable) {
@@ -97,6 +117,14 @@ class _SettingsPanelState extends State<SettingsPanel> {
       );
       widget.availableSourcesListenable?.addListener(
         _onAvailableSourcesChanged,
+      );
+      _availableSources = resolveAvailableSourcesSnapshot(
+        availableSources: widget.availableSources,
+        availableSourcesListenable: widget.availableSourcesListenable,
+      );
+      _currentSourceIndex = clampSourceIndex(
+        _currentSourceIndex,
+        _availableSources,
       );
     }
     if (widget.currentSourceLabelListenable !=
@@ -107,16 +135,26 @@ class _SettingsPanelState extends State<SettingsPanel> {
       widget.currentSourceLabelListenable?.addListener(
         _onCurrentSourceLabelChanged,
       );
+      _currentSourceLabel = resolveCurrentSourceLabelSnapshot(
+        currentSourceLabel: widget.currentSourceLabel,
+        currentSourceLabelListenable: widget.currentSourceLabelListenable,
+      );
     }
     if (!identical(widget.availableSources, oldWidget.availableSources)) {
-      _availableSources = widget.availableSources;
+      _availableSources = resolveAvailableSourcesSnapshot(
+        availableSources: widget.availableSources,
+        availableSourcesListenable: widget.availableSourcesListenable,
+      );
       _currentSourceIndex = clampSourceIndex(
         _currentSourceIndex,
         _availableSources,
       );
     }
     if (widget.currentSourceLabel != oldWidget.currentSourceLabel) {
-      _currentSourceLabel = widget.currentSourceLabel;
+      _currentSourceLabel = resolveCurrentSourceLabelSnapshot(
+        currentSourceLabel: widget.currentSourceLabel,
+        currentSourceLabelListenable: widget.currentSourceLabelListenable,
+      );
     }
     if ((widget.playbackSpeed - oldWidget.playbackSpeed).abs() > 0.001) {
       _currentPlaybackSpeed = widget.playbackSpeed.clamp(0.25, 3.0).toDouble();

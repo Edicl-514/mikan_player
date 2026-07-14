@@ -73,6 +73,7 @@ class WebViewWorkerSlotSnapshot {
   WebViewWorkerHealth get health => _slot.health;
   int get consecutiveFailures => _slot.consecutiveFailures;
   WebViewWorkerKind? get kind => _slot.kind;
+  bool get preserveCaptchaSessionOnIdle => _slot.preserveCaptchaSessionOnIdle;
 
   bool get isIdle => kind == null;
 }
@@ -206,6 +207,7 @@ class PlayerWebViewScheduler {
       slot.health = WebViewWorkerHealth.cancelling;
       slot.taskKey = null;
       slot.kind = null;
+      slot.preserveCaptchaSessionOnIdle = false;
     }
     return workerId;
   }
@@ -243,6 +245,7 @@ class PlayerWebViewScheduler {
     }
     slot.taskKey = null;
     slot.kind = null;
+    slot.preserveCaptchaSessionOnIdle = false;
     if (mappedWorkerId == workerId) _activeCaptchaJobs.remove(taskKey);
   }
 
@@ -455,22 +458,29 @@ class PlayerWebViewScheduler {
   // ── Reset paths ───────────────────────────────────────────────────────────
 
   /// Resets scheduler state for a new search / new episode. Clears both active
-  /// maps, clears every slot's job fields, sets idle slots healthy-idle and
-  /// busy slots cancelling (so the build routes didUpdateWidget into the
-  /// runner's `_cancelCurrentJob(silent)` path), and cancels any in-flight
-  /// staggered pump via [WebViewPoolPumpCoordinator.reset]. The slot table is
-  /// **kept** so InAppWebView instances are reused across searches; only the
-  /// per-job state is dropped. Mirrors the inline sequences in
-  /// `_loadSampleSource` / `_loadEpisodeSource`.
+  /// maps, clears every slot's job fields, marks slots healthy-idle so they can
+  /// be reacquired immediately, and cancels any in-flight staggered pump.
+  ///
+  /// Busy slots must NOT stay in [WebViewWorkerHealth.cancelling] here: while
+  /// cancelling they are not selectable as idle, so the next search would mint
+  /// brand-new workers, dispose the old InAppWebViews, and wipe captcha cookies
+  /// via the captcha runner's dispose janitor — which is exactly the rapid
+  /// episode-switch captcha failure mode. Clearing the job and returning to
+  /// idle lets the same `ReusableBrowserWorker` receive the next captcha/video
+  /// job through `didUpdateWidget` (runner `acceptJob` cancels any in-flight
+  /// work) while keeping the warm WebView + CookieManager session.
   void resetForNewSearch() {
     _activeVideoJobs.clear();
     _activeCaptchaJobs.clear();
     for (final slot in _slots.values) {
-      final wasIdle = slot.kind == null;
-      slot.health = wasIdle
-          ? WebViewWorkerHealth.idle
-          : WebViewWorkerHealth.cancelling;
+      // A captcha task is normally followed by the same source in the next
+      // episode. If this reset reaches a frame before that job is dispatched,
+      // its runner must cancel network work without navigating away or
+      // deleting the challenge cookies.
+      slot.preserveCaptchaSessionOnIdle =
+          slot.kind == WebViewWorkerKind.captcha;
       slot.clearCurrentJob();
+      slot.health = WebViewWorkerHealth.idle;
     }
     _pumpCoordinator.reset();
   }

@@ -4,8 +4,60 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-13 (updated after the BT stream stabilization review).
-Counts via `rg -c '^'` / `wc -l`. Latest checkpoint:
+Status date: 2026-07-14 (updated after the player/download lifecycle smoke
+gate). Counts via `rg -c '^'` / `wc -l`. Latest checkpoint:
+
+**Lifecycle smoke + request-gate stabilization (2026-07-14)** — closes the
+required manual smoke gate that blocked the next Phase 2 architectural
+step, and fixes the real player failures discovered during that smoke.
+
+Manual smoke recorded complete:
+
+- Rapid episode switch / re-enter (including mobile in-page switch; OCR
+  captcha sources no longer blank-out under cancel→restart storms).
+- HLS / MP4 (HTTP) download pause-remove-resume paths.
+- BT download + playback stream (background → play → leave/re-enter).
+- Comments and other leaf UI (player/details).
+
+Runtime fixes landed with this checkpoint (behavior + characterization
+tests; not pure extraction):
+
+1. **Mobile episode switch no longer `pushReplacement`s a fresh
+   `PlayerPage`.** It now calls in-page `_onEpisodeSelected`, so the
+   WebView worker pool / captcha CookieManager session survives rapid EP
+   changes (PC list / skip-next already did this).
+2. **Search-reset keeps warm workers.** `PlayerWebViewScheduler.resetForNewSearch`
+   returns busy slots to healthy-idle (not stuck `cancelling`) and sets
+   `preserveCaptchaSessionOnIdle` so a transient idle frame does not
+   navigate to `about:blank` or queue cookie janitor cleanup. Job identity
+   now includes a `generation` token so `search:<source>` across episodes
+   is not treated as the same WebView job.
+3. **Stale autoplay race fixed.** `_openOnlineSource` / `_playSource` /
+   probe / channel-resolve bind to `sampleLoadToken`; episode/search reset
+   clears `_isAutoPlayFallbackInProgress`. A previous generation can no
+   longer re-arm `_currentStreamUrl` and permanently block autoplay.
+4. **Player dispose stops online work.** dispose bumps load token, cancels
+   search subscriptions, `resetForNewSearch`s then `clearForDispose`s so
+   captcha/video jobs and Rust search streams do not keep running after
+   leave.
+5. **Captcha false-success after image refresh fixed.** OCR retry no longer
+   treats a momentarily missing captcha node as success; it waits for a
+   real success selector or the image to reappear.
+6. **Process-global per-source start gate**
+   (`lib/services/source_request_gate.dart`): latest-wins cooldown so rapid
+   EP switch / leave-reenter cannot hammer the same captcha host.
+   Captcha interval = `max(initialDelayMs, 800ms)`; video extraction
+   default 350ms. Five pure unit tests.
+7. **HTTP/HLS download hardening** (same working tree): pause/remove at
+   segment/chunk boundaries, richer port contract, manager characterization
+   tests expanded. Manager 2428→2533.
+
+Hotspots (`rg -c '^'`): `player_page.dart` 7031; `download_manager.dart`
+2533; `settings_panel.dart` 977; `video_player_controls.dart` 1121;
+`bangumi_details_page.dart` 2732. Test count: 680→692 across 41 test
+files (`source_request_gate_test` + expanded download/scheduler tests).
+
+Prior checkpoint:
 
 **Phase 3 BT stream stabilization** — fixes the review findings from the
 initial `BtStreamCapability` checkpoint. New pure-Dart
@@ -21,60 +73,11 @@ rapid deactivate→reattach→deactivate, abstract fake injection, and dispose.
 The prior 40ms wall-clock race tests now use explicit delay gates. Manager
 2391→2428; coordinator 104 lines. Test count: 670→680 across 40 test files.
 
-Prior checkpoint:
-
-**Phase 3 BtStreamCapability** — narrow injectable
-libtorrent HTTP-streaming surface. New
-`lib/services/download/bt_stream_capability.dart` (`BtStreamCapability`:
-`streamIdForHash` / `fileIdxForHash` / `fileSizeForHash` /
-`stopStreamForHash` / `restoreBackgroundDownload`). `LibtorrentBackend`
-now `implements BtBackend, BtStreamCapability` (existing helpers become
-interface overrides; no behavior change). Manager keeps playback policy
-(`_activeStreamHashes`, delayed restore, pause/remove guards) but exposes
-deterministic test seams: injectable `streamRestoreDelay` (prod 300ms,
-tests default 0), `_pendingStreamRestores` await map,
-`setBackendKindForTesting` / `getOrCreateStreamUrlForTesting` /
-`isActiveStreamForTesting` / `waitPendingStreamRestoresForTesting`. New
-`download_manager_bt_stream_test.dart` (9 tests): create-stream /
-no-stream background / reattach-after-stop / stop→restore priorities /
-deactivate-all / pause-during-restore race / remove-during-restore race /
-stats+fileSize merge / capability surface. Manager 2347→2391 (+44 for
-seams). Test count: 661→670 across 39 test files.
-
-Prior same-day:
-
-**Stabilization checkpoint (2026-07-13)** — fixes review findings before the
-next architectural extraction: HLS stops at task-removal boundaries; shutdown
-dispatches every active libtorrent resume-data save before awaiting; libtorrent
-prefers its live file selection during background restore; rqbit's fake matches
-its stream-URL contract; and Mikan/DMHY loads use provider-local request tokens
-to reject stale results after a source context change. Regression tests cover
-each seam. Test count: 652→661 across 38 test files.
-
-Prior committed checkpoint:
-
-**Phase 3 BT Commit 3 of 3** (`2d1f725`) — `DownloadManager` BT core ops
-dispatch through `RqbitBackend` / `LibtorrentBackend`. Manager drops
-`_nativeSession` + id/stream/file maps (−318 LOC: 2660→2342). Streaming
-helpers added on `LibtorrentBackend` (`stopStreamForHash` /
-`restoreBackgroundDownload` / stream+file accessors). New
-`download_manager_bt_test.dart` (5 characterization tests). Full
-`BtStreamBackend` still deferred; manager keeps playback/stream policy
-(`_activeStreamHashes`, restore orchestration). Test count: 647→652.
-
-Prior same-day: Sample controller (`1fc8f90`), BT Commit 2 impls (`a10a1c9`),
-Source controller (`45a457a`), BtBackend interface (`86c37d0`).
-
-The immediately-prior checkpoint (2026-07-12) added: (1) fixed three latent
-m3u8 parse quirks (METHOD token parse, BANDWIDTH vs AVERAGE-BANDWIDTH boundary,
-colon-delimited EXT tag match); (2) physically extracted plain-HTTP
-orchestration into `http_download_job.dart` (`runHttpFileDownload` +
-`ActiveHttpDownload`); (3) extracted HLS resolve+segment download into
-`m3u8_downloader.dart` (`resolveHlsSegments` + `runM3u8Download`), with
-per-segment bytes going through the existing `HttpFileDownloadPort` (no
-separate M3u8DownloadPort needed). Manager keeps slots / task map /
-persistence / notifyListeners / pause-cancel registry. `download_manager.dart`
-was 2660 lines (−304 from prior 2964); unchanged this checkpoint.
+Prior same-day / prior commits retained for history: Phase 3
+`BtStreamCapability` (661→670), Stabilization checkpoint (652→661), BT
+Commit 3 (`2d1f725`, 647→652), Sample controller (`1fc8f90`), BT Commit 2
+(`a10a1c9`), Source controller (`45a457a`), BtBackend interface
+(`86c37d0`), and the 2026-07-12 HTTP/m3u8 extraction + parser-quirk fix.
 
 ## Goals
 
@@ -109,10 +112,10 @@ remain the primary completion criteria; line count is only a secondary signal.
 
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
-| `lib/ui/pages/player_page.dart` | 8318 | 6879 | -1439 | Playback + WebView/scheduler/captcha orchestration remain on page; display trees extracted; **controllers #1–#3** own episode / Mikan+DMHY / sample-search **state mutations** only. Playback controller, scheduler dispatch planning still page-owned. |
-| `lib/services/download_manager.dart` | 3285 | 2428 | -857 | HTTP + HLS extracted; BT core ops use backend ports; `BtStreamRestoreCoordinator` now owns delayed-job bookkeeping/generations. Manager keeps slots/tasks/persistence + playback policy and the actual background-restore state mutation. |
+| `lib/ui/pages/player_page.dart` | 8318 | 7031 | -1287 | Playback + WebView/scheduler/captcha orchestration remain on page; lifecycle smoke + request-gate fixes landed 2026-07-14. Display trees extracted; **controllers #1–#3** own episode / Mikan+DMHY / sample-search **state mutations** only. Playback controller, scheduler dispatch planning still page-owned. |
+| `lib/services/download_manager.dart` | 3285 | 2533 | -752 | HTTP + HLS extracted (segment/chunk boundary hardening this checkpoint); BT core ops use backend ports; `BtStreamRestoreCoordinator` owns delayed-job bookkeeping. Manager keeps slots/tasks/persistence + playback policy and background-restore mutation. |
 | `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | Fully decomposed: SettingsPanel + MobileGestureAndLockLayer + MobileFloatingLockButton + SystemTimeDisplay + EpisodeSidePanel + SourceListPanel are now separate files. No remaining coherent controls boundary. |
-| `↳ lib/ui/widgets/video_player_controls/settings_panel.dart` | 1141 | 939 | -202 | Source list extracted as `SourceListPanel`; panel keeps reactive source listener state for the menu subtitle. |
+| `↳ lib/ui/widgets/video_player_controls/settings_panel.dart` | 1141 | 977 | -164 | Source list extracted as `SourceListPanel`; panel keeps reactive source listener state for the menu subtitle. |
 | `lib/ui/pages/bangumi_details_page.dart` | 3096 | 2732 | -364 | Data loading, favorite state, and the mobile inline comment rendering remain on the page; relations, sites, and the wide-layout comments section are extracted. |
 
 ## Progress Snapshot
@@ -120,7 +123,10 @@ remain the primary completion criteria; line count is only a secondary signal.
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 680 tests passing across 40 test files.
+- `flutter test`: 692 tests passing across 41 test files.
+- **Manual smoke (2026-07-14) recorded complete:** rapid episode switch /
+  leave-reenter (OCR captcha sources + autoplay), HLS/MP4 download,
+  BT download + stream playback, comments and other leaf UI.
 - Current checkpoint adds (over the 2026-07-11 source-list / sites /
   comments / bt-resource-list leaf-widget checkpoint): the comment-HTML
   rendering helpers `normalizeBangumiImageSrc` / `isBangumiSmileUrl` /
@@ -251,11 +257,11 @@ Phase status:
 
 | Phase | Status | Completed | Main remaining work |
 | --- | --- | --- | --- |
-| Phase 0 | Complete | Analyzer/test baseline and worktree checks; **real player/WebView smoke run recorded 2026-07-11** (source search, captcha-to-video, cancel, source/episode switch, leave/re-enter). | Re-record after the next architectural checkpoint that touches WebView/playback/platform. **Episode-controller (2026-07-12) + Source-controller (2026-07-13) touch episode switching / source reload** — both smokes pending. |
-| Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, pure BT-tag helpers, and **comment HTML rendering helpers (`normalizeBangumiImageSrc` / `isBangumiSmileUrl` / `bangumiSmileSize`) promoted to top-level + 23 widget/helper tests** — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
-| Phase 2 | Stabilizing | Scheduler B1-B6; display widgets; **`PlayerEpisodeController` (#1)** + **`PlayerSourceController` (#2 Mikan+DMHY, stale-request tokens)** + **`PlayerSampleSourceController` (#3 sample search, 331 lines, 15 tests)**. | Prop-update semantics, dispatch planning/affinity, playback controller, integration smoke. |
-| Phase 3 | Stabilizing | Task/queue/cleanup/store; HTTP + m3u8 boundaries; BT backend ports; `BtStreamCapability`; **generation-safe `BtStreamRestoreCoordinator` + 19 coordinator/manager stream tests** (manager 2428 LOC). | Manual rqbit/libtorrent background → playback → leave/rapid re-enter smoke is required. Do not extract more stream policy until this passes. |
-| Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` display widget + widget tests**; **`SitesSection` display widget + widget tests**; **`CommentsSection` display widget (wide layout) + widget tests (incl. `text_mask` rendering)**. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. | |
+| Phase 0 | Complete | Analyzer/test baseline; **real player/WebView smoke 2026-07-11**; **lifecycle smoke gate re-recorded 2026-07-14** (rapid EP switch/re-enter, HLS/MP4 download, BT stream, comments/UI). | Re-record only after the next architectural checkpoint that touches WebView/playback/platform. |
+| Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, pure BT-tag helpers, and **comment HTML rendering helpers** — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
+| Phase 2 | Stabilizing | Scheduler B1-B6; display widgets; **controllers #1–#3**; **2026-07-14 lifecycle fixes** (in-page mobile EP switch, warm-worker reset, generation-aware jobs, autoplay loadToken, dispose cancel, captcha false-success, **`SourceRequestGate`**). Manual smoke gate open. | Scheduler dispatch planning into command DTOs; then `PlayerPlaybackController`. |
+| Phase 3 | Stabilizing | Task/queue/cleanup/store; HTTP + m3u8 boundaries (+ chunk/segment pause-remove tests); BT backend ports; `BtStreamCapability`; **`BtStreamRestoreCoordinator`**; **BT download+stream smoke recorded 2026-07-14**. Manager 2533 LOC. | Further stream-policy extraction optional; prefer characterization over more moves until dispatch planning lands. |
+| Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` / `SitesSection` / wide `CommentsSection`** display widgets + widget tests. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
 
 ## Target Dart Shape
@@ -387,8 +393,8 @@ cargo test
 
 Owner: baseline agent
 
-Status: complete. The current checkpoint is 0 analyzer issues and 680 passing
-tests across 40 test files. Re-run the baseline after dependency, Flutter SDK,
+Status: complete. The current checkpoint is 0 analyzer issues and 692 passing
+tests across 41 test files. Re-run the baseline after dependency, Flutter SDK,
 or platform changes.
 
 Tasks:
@@ -795,7 +801,7 @@ Only add this after confirming the project benefits from it.
 
 ## Test Plan
 
-Current baseline: 680 tests across 40 test files.
+Current baseline: 692 tests across 41 test files.
 
 Covered areas:
 
@@ -1141,16 +1147,19 @@ containment and empty-parent cleanup of literal-backslash siblings.
    generation-safe delayed restore coordinator, zero-delay cleanup, rapid
    reattach cancellation, pause/remove/dispose guards, and explicit delay-gate
    tests. Manager retains playback policy and task mutation.
-4. **Required stabilization gate before the next controller:** record manual
-   smoke for rapid episode switch (Mikan/DMHY/Sample), HLS pause/remove, and
-   rqbit/libtorrent background download → playback → leave/re-enter. The
-   latest unit tests guard seams; they do not start WebView, media, or native
-   FFI.
-5. Then move scheduler dispatch planning into command-returning methods.
-   Require immutable input/output DTOs and tests for tier/enqueue order,
-   affinity, soft limits, captcha/video competition, and no-work results. Do
-   not move WebView construction or page side effects in this step.
-6. Only after those gates, extract `PlayerPlaybackController`: inject
+4. ✅ **Manual lifecycle smoke gate (2026-07-14):** rapid episode switch /
+   leave-reenter (OCR captcha + autoplay), HLS/MP4 download, BT download +
+   stream, comments/UI. Runtime fixes that unblocked the gate (mobile
+   in-page EP switch, warm-worker reset, job generation, autoplay loadToken,
+   dispose cancel, captcha false-success, `SourceRequestGate`) stay in the
+   tree and are covered by unit/characterization tests.
+5. **Next architectural step (unblocked):** move scheduler dispatch planning
+   into command-returning methods. Require immutable input/output DTOs and
+   tests for tier/enqueue order, affinity, soft limits, captcha/video
+   competition, and no-work results. Do not move WebView construction or
+   page side effects in this step. Keep `SourceRequestGate` outside the
+   pure planner (it is a timing side effect owned by the page/pump).
+6. Only after dispatch planning, extract `PlayerPlaybackController`: inject
    `clock`/`timer`/`player` callbacks and characterize watchdog, fallback, and
    stale-callback behavior. Stop for review after this controller.
 7. Keep `BangumiDetailsController` and styling/token work deferred until the
@@ -1160,6 +1169,25 @@ Use a new branch/checkpoint for each architectural stage. Do not measure
 completion by hotspot line count alone; require an owned responsibility,
 tests for its behavior, and a page/service boundary that no longer mutates the
 extracted state directly.
+
+## Lessons For Sub-Agents (2026-07-14 lifecycle smoke)
+
+1. **A mobile episode list that `pushReplacement`s a new `PlayerPage` will
+   silently defeat every WebView-pool reuse fix.** PC `_onEpisodeSelected`
+   and mobile `Navigator.pushReplacement(PlayerPage(...))` are not equivalent
+   paths: the latter disposes the entire worker table + captcha sessions.
+   Prefer in-page select unless a full remount is intentional.
+2. **Rapid cancel→restart against captcha hosts is a site-level rate limit,
+   not just a local runner bug.** After fixing false-success and dispose
+   races, OCR still failed until a process-global per-source start cooldown
+   (`SourceRequestGate`, latest-wins) prevented hammering the same host.
+3. **Autoplay latches must be generation-scoped.** Clearing `_hasAutoPlayed`
+   is not enough if an old `_openOnlineSource` can finish later and rewrite
+   `_currentStreamUrl` / leave `_isAutoPlayFallbackInProgress` true.
+4. **Captcha DOM absence ≠ captcha solved.** A refresh click briefly removes
+   the captcha node; requiring the success selector (or image reappearance)
+   before `_completeSuccess` avoids empty-HTML "未找到匹配的动画" false
+   successes.
 
 ## Lessons For Sub-Agents (2026-07-11 checkpoint)
 

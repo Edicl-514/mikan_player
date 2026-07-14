@@ -43,6 +43,13 @@ class WebViewWorkerSlot {
   WebViewWorkerHealth health = WebViewWorkerHealth.idle;
   int consecutiveFailures = 0;
 
+  /// A search reset may temporarily render a previously-running captcha job
+  /// as `null` before the next episode dispatches the same source again.
+  /// Preserve its browser session during that idle transition; otherwise the
+  /// runner would navigate to about:blank and queue cookie deletion even
+  /// though the next generation needs the challenge session.
+  bool preserveCaptchaSessionOnIdle = false;
+
   /// 当前 job 的类型，null 表示 slot idle。build 阶段会以此决定渲染哪个
   /// runner 的 job payload（CaptchaJob / VideoJob / null）。
   WebViewWorkerKind? kind;

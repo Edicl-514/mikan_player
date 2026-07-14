@@ -434,40 +434,61 @@ void main() {
   });
 
   group('reset clears jobs/slots and invalidates the old pump token', () {
-    test('resetForNewSearch clears active maps, cancels busy slots', () {
-      final s = newScheduler();
-      final v = s
-          .acquireIdleVideoWorkerSlot(
-            {'srcA'},
-            useWorkerPool: true,
-            maxConcurrent: _maxConcurrent,
-          )
-          .slot!;
-      s.startVideoJob(v, 'pageA', 'srcA');
-      final c = s
-          .acquireIdleCaptchaWorkerSlot(
-            useWorkerPool: true,
-            maxConcurrent: _maxConcurrent,
-          )
-          .slot!;
-      s.startCaptchaJob(c, 'taskA', 'srcA');
-      expectConsistent(s, 'before reset');
-      expect(s.workerCount, 2);
+    test(
+      'resetForNewSearch clears active maps and returns busy slots to idle',
+      () {
+        final s = newScheduler();
+        final v = s
+            .acquireIdleVideoWorkerSlot(
+              {'srcA'},
+              useWorkerPool: true,
+              maxConcurrent: _maxConcurrent,
+            )
+            .slot!;
+        s.startVideoJob(v, 'pageA', 'srcA');
+        final c = s
+            .acquireIdleCaptchaWorkerSlot(
+              useWorkerPool: true,
+              maxConcurrent: _maxConcurrent,
+            )
+            .slot!;
+        s.startCaptchaJob(c, 'taskA', 'srcA');
+        expectConsistent(s, 'before reset');
+        expect(s.workerCount, 2);
 
-      s.resetForNewSearch();
-      expectConsistent(s, 'after reset');
-      expect(s.activeVideoJobs, isEmpty);
-      expect(s.activeCaptchaJobs, isEmpty);
-      // slot table is preserved for cross-search WebView reuse ...
-      expect(s.workerCount, 2);
-      // ... busy slots are cancelling, idle ones healthy-idle.
-      expect(v.health, WebViewWorkerHealth.cancelling);
-      expect(v.pageKey, isNull);
-      expect(v.kind, isNull);
-      expect(c.health, WebViewWorkerHealth.cancelling);
-      expect(c.taskKey, isNull);
-      expect(c.kind, isNull);
-    });
+        s.resetForNewSearch();
+        expectConsistent(s, 'after reset');
+        expect(s.activeVideoJobs, isEmpty);
+        expect(s.activeCaptchaJobs, isEmpty);
+        // slot table is preserved for cross-search WebView / cookie reuse ...
+        expect(s.workerCount, 2);
+        // ... and previously-busy slots become healthy-idle so they can be
+        // reacquired immediately (not stuck cancelling → new workers → dispose).
+        expect(v.health, WebViewWorkerHealth.idle);
+        expect(v.pageKey, isNull);
+        expect(v.kind, isNull);
+        expect(c.health, WebViewWorkerHealth.idle);
+        expect(c.taskKey, isNull);
+        expect(c.kind, isNull);
+        // A captcha slot keeps its browser session through the temporary
+        // idle render caused by an episode/search reset. The next job clears
+        // this flag when it is actually assigned.
+        expect(c.preserveCaptchaSessionOnIdle, isTrue);
+        expect(v.preserveCaptchaSessionOnIdle, isFalse);
+
+        // Reacquire must reuse the same slots rather than mint new workers.
+        final next = s.acquireIdleCaptchaWorkerSlot(
+          useWorkerPool: true,
+          maxConcurrent: _maxConcurrent,
+        );
+        expect(next.createdNew, isFalse);
+        expect({
+          next.slot!.workerId,
+        }, anyOf(equals({v.workerId}), equals({c.workerId})));
+        s.startCaptchaJob(next.slot!, 'taskAfterReset', 'srcA');
+        expect(next.slot!.preserveCaptchaSessionOnIdle, isFalse);
+      },
+    );
 
     test('resetForNewSearch invalidates the old pump token', () {
       final s = newScheduler();

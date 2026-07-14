@@ -149,6 +149,29 @@ void main() {
       expect(identical(job.extraction, inner), isTrue);
       expect(job.extraction.sourceName, 'video-source');
     });
+
+    test('same stable task key in a new search generation is a new job', () {
+      const inner = CaptchaPreflightJob(
+        jobKey: 'search:source',
+        source: _SourceStub(),
+        captchaConfig: CaptchaConfig(enable: true),
+      );
+
+      expect(
+        sameWebViewJob(
+          const CaptchaJob(inner, generation: 41),
+          const CaptchaJob(inner, generation: 42),
+        ),
+        isFalse,
+      );
+      expect(
+        sameWebViewJob(
+          const CaptchaJob(inner, generation: 42),
+          const CaptchaJob(inner, generation: 42),
+        ),
+        isTrue,
+      );
+    });
   });
 }
 

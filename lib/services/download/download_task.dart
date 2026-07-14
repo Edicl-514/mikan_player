@@ -73,6 +73,16 @@ class DownloadTask {
   String? cookies;
   String? localFilePath;
 
+  /// HLS-only: total media segments in the resolved playlist (for resume).
+  int? hlsSegmentCount;
+
+  /// HLS-only: segments fully written before pause/complete.
+  int? hlsCompletedSegmentCount;
+
+  /// HLS-only: byte length of the partial file after the last fully written
+  /// segment. Used to truncate an incomplete final segment on resume.
+  int? hlsCheckpointBytes;
+
   DownloadTask({
     required this.id,
     required this.name,
@@ -98,6 +108,9 @@ class DownloadTask {
     this.headers,
     this.cookies,
     this.localFilePath,
+    this.hlsSegmentCount,
+    this.hlsCompletedSegmentCount,
+    this.hlsCheckpointBytes,
   }) : downloaded = downloaded ?? BigInt.zero,
        totalSize = totalSize ?? BigInt.zero;
 
@@ -156,6 +169,10 @@ class DownloadTask {
       headers: headers,
       cookies: json['cookies'] as String?,
       localFilePath: json['localFilePath'] as String?,
+      hlsSegmentCount: (json['hlsSegmentCount'] as num?)?.toInt(),
+      hlsCompletedSegmentCount: (json['hlsCompletedSegmentCount'] as num?)
+          ?.toInt(),
+      hlsCheckpointBytes: (json['hlsCheckpointBytes'] as num?)?.toInt(),
     );
   }
 
@@ -190,6 +207,10 @@ class DownloadTask {
       'headers': headers,
       'cookies': cookies,
       'localFilePath': localFilePath,
+      if (hlsSegmentCount != null) 'hlsSegmentCount': hlsSegmentCount,
+      if (hlsCompletedSegmentCount != null)
+        'hlsCompletedSegmentCount': hlsCompletedSegmentCount,
+      if (hlsCheckpointBytes != null) 'hlsCheckpointBytes': hlsCheckpointBytes,
     };
   }
 
@@ -214,6 +235,11 @@ class DownloadTask {
   }
 
   String get formattedSize {
+    if (taskType == DownloadTaskType.http &&
+        hlsSegmentCount != null &&
+        hlsSegmentCount! > 0) {
+      return '分片';
+    }
     final total = totalSize.toInt();
     if (total < 1024) {
       return '$total B';

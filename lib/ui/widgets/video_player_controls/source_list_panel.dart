@@ -16,6 +16,27 @@ int clampSourceIndex(int index, List<SearchPlayResult> sources) {
   return index.clamp(0, sources.length - 1);
 }
 
+List<SearchPlayResult> resolveAvailableSourcesSnapshot({
+  required List<SearchPlayResult> availableSources,
+  ValueListenable<List<SearchPlayResult>>? availableSourcesListenable,
+}) {
+  return availableSourcesListenable?.value ?? availableSources;
+}
+
+String resolveCurrentSourceLabelSnapshot({
+  required String currentSourceLabel,
+  ValueListenable<String>? currentSourceLabelListenable,
+}) {
+  return currentSourceLabelListenable?.value ?? currentSourceLabel;
+}
+
+int resolveSourceIndexSnapshot({
+  required ValueNotifier<int>? sourceIndexNotifier,
+  int fallback = 0,
+}) {
+  return sourceIndexNotifier?.value ?? fallback;
+}
+
 int? resolveActiveOnlineSourceIndex(
   List<SearchPlayResult> sources,
   String currentSourceLabel,
@@ -73,12 +94,27 @@ class _SourceListPanelState extends State<SourceListPanel> {
   late String _currentSourceLabel;
   late int _currentSourceIndex;
 
+  void _syncFromWidget() {
+    _availableSources = resolveAvailableSourcesSnapshot(
+      availableSources: widget.availableSources,
+      availableSourcesListenable: widget.availableSourcesListenable,
+    );
+    _currentSourceLabel = resolveCurrentSourceLabelSnapshot(
+      currentSourceLabel: widget.currentSourceLabel,
+      currentSourceLabelListenable: widget.currentSourceLabelListenable,
+    );
+    _currentSourceIndex = clampSourceIndex(
+      resolveSourceIndexSnapshot(
+        sourceIndexNotifier: widget.sourceIndexNotifier,
+      ),
+      _availableSources,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    _availableSources = widget.availableSources;
-    _currentSourceLabel = widget.currentSourceLabel;
-    _currentSourceIndex = widget.sourceIndexNotifier?.value ?? 0;
+    _syncFromWidget();
     widget.sourceIndexNotifier?.addListener(_onSourceIndexChanged);
     widget.availableSourcesListenable?.addListener(_onAvailableSourcesChanged);
     widget.currentSourceLabelListenable?.addListener(
@@ -92,7 +128,12 @@ class _SourceListPanelState extends State<SourceListPanel> {
     if (widget.sourceIndexNotifier != oldWidget.sourceIndexNotifier) {
       oldWidget.sourceIndexNotifier?.removeListener(_onSourceIndexChanged);
       widget.sourceIndexNotifier?.addListener(_onSourceIndexChanged);
-      _currentSourceIndex = widget.sourceIndexNotifier?.value ?? 0;
+      _currentSourceIndex = clampSourceIndex(
+        resolveSourceIndexSnapshot(
+          sourceIndexNotifier: widget.sourceIndexNotifier,
+        ),
+        _availableSources,
+      );
     }
     if (widget.availableSourcesListenable !=
         oldWidget.availableSourcesListenable) {
@@ -101,6 +142,14 @@ class _SourceListPanelState extends State<SourceListPanel> {
       );
       widget.availableSourcesListenable?.addListener(
         _onAvailableSourcesChanged,
+      );
+      _availableSources = resolveAvailableSourcesSnapshot(
+        availableSources: widget.availableSources,
+        availableSourcesListenable: widget.availableSourcesListenable,
+      );
+      _currentSourceIndex = clampSourceIndex(
+        _currentSourceIndex,
+        _availableSources,
       );
     }
     if (widget.currentSourceLabelListenable !=
@@ -111,16 +160,26 @@ class _SourceListPanelState extends State<SourceListPanel> {
       widget.currentSourceLabelListenable?.addListener(
         _onCurrentSourceLabelChanged,
       );
+      _currentSourceLabel = resolveCurrentSourceLabelSnapshot(
+        currentSourceLabel: widget.currentSourceLabel,
+        currentSourceLabelListenable: widget.currentSourceLabelListenable,
+      );
     }
     if (!identical(widget.availableSources, oldWidget.availableSources)) {
-      _availableSources = widget.availableSources;
+      _availableSources = resolveAvailableSourcesSnapshot(
+        availableSources: widget.availableSources,
+        availableSourcesListenable: widget.availableSourcesListenable,
+      );
       _currentSourceIndex = clampSourceIndex(
         _currentSourceIndex,
         _availableSources,
       );
     }
     if (widget.currentSourceLabel != oldWidget.currentSourceLabel) {
-      _currentSourceLabel = widget.currentSourceLabel;
+      _currentSourceLabel = resolveCurrentSourceLabelSnapshot(
+        currentSourceLabel: widget.currentSourceLabel,
+        currentSourceLabelListenable: widget.currentSourceLabelListenable,
+      );
     }
   }
 

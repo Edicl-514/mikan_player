@@ -39,11 +39,18 @@ class CaptchaJobRunner {
     required this.workerId,
     required this.sink,
     required this.stats,
+    this.clearVisitedHostsOnDispose = true,
   });
 
   final int workerId;
   final CaptchaJobRunnerSink sink;
   final WebViewSchedulerStats? stats;
+
+  /// One-shot captcha widgets should clear their session when they leave the
+  /// tree. Long-lived pooled workers opt out because a transient tree rebuild
+  /// during an episode switch must not erase the browser challenge session
+  /// needed by the replacement worker.
+  final bool clearVisitedHostsOnDispose;
 
   static const int _maxCaptchaRetries = 3;
   static const int _matchScoreThreshold = 36;
@@ -123,14 +130,20 @@ class CaptchaJobRunner {
     }
   }
 
-  void transitionToIdle({String? incomingSourceName}) {
+  void transitionToIdle({
+    String? incomingSourceName,
+    bool preserveSession = false,
+  }) {
     if (_currentJob == null) return;
     if (!_isCompleted) {
-      _cancelCurrentJob();
+      final sameIncomingSource =
+          incomingSourceName != null &&
+          incomingSourceName == _lastJobSourceName;
+      _cancelCurrentJob(preserveSession: preserveSession || sameIncomingSource);
       return;
     }
     _timeoutTimer?.cancel();
-    if (incomingSourceName != null) {
+    if (!preserveSession && incomingSourceName != null) {
       _maybeTransitionHostsAcrossSource(
         incomingSource: incomingSourceName,
         navigateControllerToBlank: true,
@@ -151,7 +164,7 @@ class CaptchaJobRunner {
     if (controller != null) {
       unawaited(_teardownWebView(controller));
     }
-    if (_visitedHosts.isNotEmpty) {
+    if (clearVisitedHostsOnDispose && _visitedHosts.isNotEmpty) {
       final janitor = WebViewCookieJanitor();
       for (final host in _visitedHosts) {
         janitor.requestHostCleanup(host: host);
@@ -433,7 +446,7 @@ class CaptchaJobRunner {
     sink.onIdle?.call(workerId);
   }
 
-  void _cancelCurrentJob() {
+  void _cancelCurrentJob({bool preserveSession = false}) {
     final job = _currentJob;
     if (job == null) return;
     final controller = _webViewController;
@@ -447,10 +460,12 @@ class CaptchaJobRunner {
       } catch (_) {}
     }
     _log('Worker $workerId cancelled job ${job.jobKey}');
-    _maybeTransitionHostsAcrossSource(
-      incomingSource: null,
-      navigateControllerToBlank: true,
-    );
+    if (!preserveSession) {
+      _maybeTransitionHostsAcrossSource(
+        incomingSource: null,
+        navigateControllerToBlank: true,
+      );
+    }
     _currentJob = null;
     _resetJobState(advanceToken: false);
     sink.onIdle?.call(workerId);
@@ -847,10 +862,47 @@ class CaptchaJobRunner {
 
         final stillHasCaptcha = await _detectCaptcha(ctrl, config);
         if (!stillHasCaptcha) {
-          _log('Captcha no longer present after refresh, proceeding...');
-          final currentUrl = (await ctrl.getUrl())?.toString();
-          await _completeSuccess(ctrl, currentUrl, token: token);
-          return;
+          // The captcha image is often briefly detached from the DOM while a
+          // refresh is loading. That is NOT the same as a solved challenge —
+          // treating it as success produced empty search HTML and a UI error
+          // of "未找到匹配的动画" even though the job reported success=true.
+          final hasSuccess = await _checkSuccess(
+            ctrl,
+            config,
+            allowEmptySelector: false,
+          );
+          if (_isCompleted || token != _currentJobToken) return;
+          if (hasSuccess) {
+            _log(
+              'Captcha cleared after refresh and success selector is present',
+            );
+            final currentUrl = (await ctrl.getUrl())?.toString();
+            await _completeSuccess(ctrl, currentUrl, token: token);
+            return;
+          }
+
+          _log(
+            'Captcha not detectable after refresh (likely mid-reload); '
+            'waiting for image to reappear before next OCR attempt',
+          );
+          final reappeared = await _waitForCaptchaImageAfterRefresh(
+            ctrl,
+            config,
+            token: token,
+          );
+          if (_isCompleted || token != _currentJobToken) return;
+          if (reappeared == _CaptchaPageSignal.success) {
+            final currentUrl = (await ctrl.getUrl())?.toString();
+            await _completeSuccess(ctrl, currentUrl, token: token);
+            return;
+          }
+          if (reappeared != _CaptchaPageSignal.captcha) {
+            _log(
+              'Captcha did not reappear after refresh '
+              '(signal=$reappeared); retrying OCR path if attempts remain',
+            );
+            continue;
+          }
         }
       }
 
@@ -1490,6 +1542,49 @@ class CaptchaJobRunner {
       _log('Failed to click refresh button: $e');
     }
     await Future.delayed(const Duration(milliseconds: 1000));
+  }
+
+  /// After a refresh click / page reload the captcha node often disappears for
+  /// a short window. Wait for either a real success marker or a ready captcha
+  /// image before deciding the challenge is solved.
+  Future<_CaptchaPageSignal> _waitForCaptchaImageAfterRefresh(
+    InAppWebViewController ctrl,
+    CaptchaConfig config, {
+    required int token,
+  }) async {
+    const interval = Duration(milliseconds: 350);
+    final deadline = DateTime.now().add(const Duration(seconds: 8));
+    while (!_isCompleted &&
+        token == _currentJobToken &&
+        DateTime.now().isBefore(deadline)) {
+      final hasSuccess = await _checkSuccess(
+        ctrl,
+        config,
+        allowEmptySelector: false,
+      );
+      if (_isCompleted || token != _currentJobToken) {
+        return _CaptchaPageSignal.cancelled;
+      }
+      if (hasSuccess) {
+        _log('Success selector detected while waiting after captcha refresh');
+        return _CaptchaPageSignal.success;
+      }
+
+      final hasCaptcha = await _detectCaptcha(ctrl, config);
+      if (_isCompleted || token != _currentJobToken) {
+        return _CaptchaPageSignal.cancelled;
+      }
+      if (hasCaptcha) {
+        if (!config.isImageOcr || await _isCaptchaImageReady(ctrl, config)) {
+          return _CaptchaPageSignal.captcha;
+        }
+      }
+      await Future.delayed(interval);
+    }
+    if (_isCompleted || token != _currentJobToken) {
+      return _CaptchaPageSignal.cancelled;
+    }
+    return _CaptchaPageSignal.timedOut;
   }
 
   static Future<void> _fillInputAndSubmit(

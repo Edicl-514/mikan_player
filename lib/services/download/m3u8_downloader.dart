@@ -50,7 +50,8 @@ Future<List<Uri>> resolveHlsSegments({
 }
 
 /// Downloads every HLS segment into [task.localFilePath], concatenating
-/// bytes in playlist order.
+/// bytes in playlist order. Supports pause/resume by appending to an
+/// existing partial file and skipping completed segment indices.
 Future<HttpDownloadJobResult> runM3u8Download({
   required DownloadTask task,
   required M3u8PlaylistPort m3u8Port,
@@ -81,25 +82,72 @@ Future<HttpDownloadJobResult> runM3u8Download({
       cookies: task.cookies,
     );
 
-    // Resolving a playlist can take long enough for the manager to remove
-    // this task. Do not create (or resume writing) the output file afterward.
     if (!isTaskStillTracked()) {
       return const HttpDownloadJobResult(HttpDownloadJobOutcome.removed);
     }
 
-    sink = outputFile.openWrite();
-    task.totalSize = BigInt.zero;
+    final segmentCount = segments.length;
+    if (segmentCount == 0) {
+      throw Exception('未找到可下载的HLS分片');
+    }
 
+    var startSegmentIndex = 0;
     var received = 0;
-    var lastReceived = 0;
-    var finishedSegments = 0;
+    if (outputFile.existsSync()) {
+      final existingLen = outputFile.lengthSync();
+      if (existingLen > 0) {
+        // Prefer the explicit completed-segment counter over percent math so
+        // resume is stable even when progress was only a 500ms UI tick.
+        if (task.hlsCompletedSegmentCount != null) {
+          startSegmentIndex = task.hlsCompletedSegmentCount!.clamp(
+            0,
+            segmentCount,
+          );
+        } else {
+          startSegmentIndex = _estimateHlsResumeSegmentIndex(
+            task.progress,
+            segmentCount,
+          );
+        }
+
+        // Truncate any incomplete final segment left by a mid-segment pause.
+        final checkpoint =
+            task.hlsCheckpointBytes ??
+            (startSegmentIndex > 0 ? existingLen : 0);
+        if (checkpoint >= 0 && checkpoint < existingLen) {
+          final raf = await outputFile.open(mode: FileMode.write);
+          try {
+            await raf.truncate(checkpoint);
+          } finally {
+            await raf.close();
+          }
+          received = checkpoint;
+        } else {
+          received = existingLen;
+        }
+        task.downloaded = BigInt.from(received);
+        task.hlsCheckpointBytes = received;
+      }
+    }
+
+    task.hlsSegmentCount = segmentCount;
+    task.hlsCompletedSegmentCount = startSegmentIndex.clamp(0, segmentCount);
+    task.hlsCheckpointBytes ??= received;
+    task.totalSize = BigInt.zero;
+    task.progress = segmentCount > 0
+        ? (task.hlsCompletedSegmentCount! / segmentCount * 100.0).clamp(
+            0.0,
+            100.0,
+          )
+        : 0.0;
+
+    sink = outputFile.openWrite(mode: FileMode.append);
+    var lastReceived = received;
+    var finishedSegments = task.hlsCompletedSegmentCount!;
     var lastUpdate = DateTime.now();
 
-    for (final segmentUri in segments) {
-      // The active-job registration is intentionally cleared after every
-      // segment. A remove can therefore happen between segments, after its
-      // cancel flag has been discarded. Task membership is the durable signal
-      // that prevents a later segment from being requested or written.
+    for (var i = startSegmentIndex; i < segmentCount; i++) {
+      final segmentUri = segments[i];
       if (!isTaskStillTracked()) {
         wasRemoved = true;
         break;
@@ -115,9 +163,6 @@ Future<HttpDownloadJobResult> runM3u8Download({
         cookies: task.cookies,
       );
 
-      // `start` is asynchronous. The task may have been removed (or paused)
-      // while a segment connection was being opened, before a job could be
-      // registered for manager-side cancellation.
       if (!isTaskStillTracked()) {
         wasRemoved = true;
         handle.cancel();
@@ -136,11 +181,6 @@ Future<HttpDownloadJobResult> runM3u8Download({
       );
 
       try {
-        final contentLength = handle.contentLength;
-        if (contentLength != null && contentLength > 0) {
-          task.totalSize += BigInt.from(contentLength);
-        }
-
         await for (final chunk in handle.chunks) {
           if (!isTaskStillTracked()) {
             wasRemoved = true;
@@ -162,7 +202,7 @@ Future<HttpDownloadJobResult> runM3u8Download({
               final bytesSince = received - lastReceived;
               task.downloadSpeed = bytesSince / elapsed;
             }
-            task.progress = (finishedSegments / segments.length * 100.0).clamp(
+            task.progress = (finishedSegments / segmentCount * 100.0).clamp(
               0.0,
               100.0,
             );
@@ -181,7 +221,9 @@ Future<HttpDownloadJobResult> runM3u8Download({
       }
 
       finishedSegments += 1;
-      task.progress = (finishedSegments / segments.length * 100.0).clamp(
+      task.hlsCompletedSegmentCount = finishedSegments;
+      task.hlsCheckpointBytes = received;
+      task.progress = (finishedSegments / segmentCount * 100.0).clamp(
         0.0,
         100.0,
       );
@@ -196,6 +238,12 @@ Future<HttpDownloadJobResult> runM3u8Download({
     }
 
     if (isCancelled() || wasCancelled) {
+      // If the user already resumed (status flipped back to downloading), a
+      // late pause exit from the previous run must not re-pause the task.
+      if (task.status == DownloadTaskStatus.downloading ||
+          task.status == DownloadTaskStatus.queued) {
+        return const HttpDownloadJobResult(HttpDownloadJobOutcome.removed);
+      }
       task.status = DownloadTaskStatus.paused;
       task.downloadSpeed = 0;
       task.uploadSpeed = 0;
@@ -207,10 +255,10 @@ Future<HttpDownloadJobResult> runM3u8Download({
 
     task.status = DownloadTaskStatus.completed;
     task.progress = 100.0;
+    task.hlsCompletedSegmentCount = segmentCount;
     task.downloadSpeed = 0;
     try {
       final fileLen = outputFile.lengthSync();
-      task.totalSize = BigInt.from(fileLen);
       task.downloaded = BigInt.from(fileLen);
     } catch (_) {}
     debugPrint('[DownloadManager] HLS download completed: ${task.name}');
@@ -221,6 +269,10 @@ Future<HttpDownloadJobResult> runM3u8Download({
       return const HttpDownloadJobResult(HttpDownloadJobOutcome.removed);
     }
     if (isCancelled()) {
+      if (task.status == DownloadTaskStatus.downloading ||
+          task.status == DownloadTaskStatus.queued) {
+        return const HttpDownloadJobResult(HttpDownloadJobOutcome.removed);
+      }
       task.status = DownloadTaskStatus.paused;
       task.downloadSpeed = 0;
       task.uploadSpeed = 0;
@@ -238,4 +290,17 @@ Future<HttpDownloadJobResult> runM3u8Download({
   } finally {
     clearJob();
   }
+}
+
+/// Maps persisted segment progress to the next segment index to download.
+@visibleForTesting
+int estimateHlsResumeSegmentIndex(double progressPercent, int segmentCount) {
+  return _estimateHlsResumeSegmentIndex(progressPercent, segmentCount);
+}
+
+int _estimateHlsResumeSegmentIndex(double progressPercent, int segmentCount) {
+  if (segmentCount <= 0) return 0;
+  if (progressPercent >= 100.0) return segmentCount;
+  final completed = (progressPercent / 100.0 * segmentCount).floor();
+  return completed.clamp(0, segmentCount);
 }

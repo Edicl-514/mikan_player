@@ -174,6 +174,16 @@ class DownloadManager extends ChangeNotifier {
   // HTTP / HLS active-job registry (cancel via pause/remove).
   final Map<String, ActiveHttpDownload> _httpDownloadJobs = {};
 
+  /// Monotonic generation per HTTP/HLS task id. Bumped at the start of every
+  /// `_downloadHttpFile` so a superseded run (pause→resume while the previous
+  /// async body is still winding down) stops writing and cannot re-pause.
+  final Map<String, int> _httpRunGeneration = {};
+
+  /// Chains successive HTTP/HLS bodies for the same task id so only one run
+  /// holds the slot / writes the file at a time. Pause→resume waits for the
+  /// previous body to exit (and release its slot) before the new body starts.
+  final Map<String, Future<void>> _httpRunChain = {};
+
   /// Simple HTTP download speed limiter.
   /// Tracks bytes written within the current 1-second window and sleeps
   /// when the budget is exhausted.
@@ -1367,12 +1377,36 @@ class DownloadManager extends ChangeNotifier {
         return existingTask.id;
       }
 
+      // Paused/error HTTP tasks resume in place. The download body asks the
+      // origin for the existing byte offset and appends only after a verified
+      // 206 response; a server that ignores Range safely falls back to a
+      // clean restart. This applies to MP4 as well as HLS.
+      if ((existingTask.status == DownloadTaskStatus.paused ||
+              existingTask.status == DownloadTaskStatus.error) &&
+          existingTask.localFilePath != null &&
+          File(existingTask.localFilePath!).existsSync() &&
+          File(existingTask.localFilePath!).lengthSync() > 0) {
+        _pausedTaskIds.remove(existingTask.id);
+        existingTask.errorMessage = null;
+        existingTask.status = DownloadTaskStatus.downloading;
+        existingTask.downloadSpeed = 0;
+        existingTask.uploadSpeed = 0;
+        _releaseSlotForTask(existingTask.id);
+        await _saveTasks();
+        notifyListeners();
+        unawaited(_downloadHttpFile(existingTask));
+        return existingTask.id;
+      }
+
       existingTask.errorMessage = null;
       _pausedTaskIds.remove(existingTask.id);
       existingTask.status = DownloadTaskStatus.downloading;
       existingTask.progress = 0.0;
       existingTask.downloaded = BigInt.zero;
       existingTask.totalSize = BigInt.zero;
+      existingTask.hlsSegmentCount = null;
+      existingTask.hlsCompletedSegmentCount = null;
+      existingTask.hlsCheckpointBytes = null;
       existingTask.downloadSpeed = 0;
       existingTask.uploadSpeed = 0;
       if (existingTask.localFilePath != null) {
@@ -1466,7 +1500,10 @@ class DownloadManager extends ChangeNotifier {
     return normalizedPath.contains('.m3u8');
   }
 
-  Future<void> _downloadM3u8File(DownloadTask task) async {
+  Future<void> _downloadM3u8File(
+    DownloadTask task, {
+    required int runGeneration,
+  }) async {
     if (task.videoUrl == null) return;
     _syncAndroidDownloadService();
 
@@ -1477,21 +1514,37 @@ class DownloadManager extends ChangeNotifier {
       throttle: _throttleHttpChunk,
       // Pause sets job.cancelled and/or task.status + _pausedTaskIds; the
       // job entry is cleared between HLS segments, so status/paused-id must
-      // still count as cancelled across segment boundaries.
+      // still count as cancelled across segment boundaries. Generation
+      // invalidates a run superseded by resume/restart.
       isCancelled: () =>
           (_httpDownloadJobs[task.id]?.cancelled ?? false) ||
           task.status == DownloadTaskStatus.paused ||
-          _pausedTaskIds.contains(task.id),
+          _pausedTaskIds.contains(task.id) ||
+          _httpRunGeneration[task.id] != runGeneration,
       registerJob: (job) => _httpDownloadJobs[task.id] = job,
-      clearJob: () => _httpDownloadJobs.remove(task.id),
+      clearJob: () {
+        if (_httpRunGeneration[task.id] == runGeneration) {
+          _httpDownloadJobs.remove(task.id);
+        }
+      },
       onProgress: notifyListeners,
-      isTaskStillTracked: () => _tasks.containsKey(task.id),
+      isTaskStillTracked: () =>
+          _tasks.containsKey(task.id) &&
+          _httpRunGeneration[task.id] == runGeneration,
     );
 
     if (result.outcome == HttpDownloadJobOutcome.paused) {
-      _pausedTaskIds.add(task.id);
+      // A late pause result from a superseded run must not re-pause a task
+      // that the user has already resumed (status back to downloading).
+      if (identical(_tasks[task.id], task) &&
+          _httpRunGeneration[task.id] == runGeneration &&
+          task.status != DownloadTaskStatus.downloading &&
+          task.status != DownloadTaskStatus.queued) {
+        _pausedTaskIds.add(task.id);
+      }
     }
-    if (_tasks.containsKey(task.id)) {
+    if (_tasks.containsKey(task.id) &&
+        _httpRunGeneration[task.id] == runGeneration) {
       await _saveTasks();
       notifyListeners();
       _syncAndroidDownloadService();
@@ -1506,56 +1559,103 @@ class DownloadManager extends ChangeNotifier {
       return;
     }
 
-    _syncAndroidDownloadService();
+    final runGeneration = (_httpRunGeneration[task.id] ?? 0) + 1;
+    _httpRunGeneration[task.id] = runGeneration;
 
-    if (!_hasAvailableDownloadSlot) {
-      await _markTaskQueued(task);
+    // Cancel any in-flight segment/file handle from the previous run so it
+    // observes isCancelled promptly and exits the chain.
+    _httpDownloadJobs[task.id]?.cancel();
+
+    final previous = _httpRunChain[task.id] ?? Future<void>.value();
+    final gate = Completer<void>();
+    _httpRunChain[task.id] = gate.future;
+    try {
+      await previous;
+    } catch (_) {
+      // A failed previous body must not block resume.
     }
-    final acquiredSlot = await _acquireDownloadSlot(task.id);
-    if (!acquiredSlot) return;
+
     try {
       if (!identical(_tasks[task.id], task) ||
           _removedTaskIds.contains(task.id) ||
+          _httpRunGeneration[task.id] != runGeneration ||
           (task.status != DownloadTaskStatus.downloading &&
               task.status != DownloadTaskStatus.queued)) {
         return;
       }
-      if (task.status == DownloadTaskStatus.queued) {
-        task.status = DownloadTaskStatus.downloading;
-        await _saveTasks();
-        notifyListeners();
-      }
 
-      if (_isM3u8Url(url)) {
-        await _downloadM3u8File(task);
-        return;
-      }
+      _syncAndroidDownloadService();
 
-      final result = await runHttpFileDownload(
-        task: task,
-        httpPort: _httpPort,
-        throttle: _throttleHttpChunk,
-        isCancelled: () =>
-            (_httpDownloadJobs[task.id]?.cancelled ?? false) ||
-            task.status == DownloadTaskStatus.paused ||
-            _pausedTaskIds.contains(task.id),
-        registerJob: (job) => _httpDownloadJobs[task.id] = job,
-        clearJob: () => _httpDownloadJobs.remove(task.id),
-        onProgress: notifyListeners,
-        isTaskStillTracked: () => _tasks.containsKey(task.id),
-      );
-
-      if (result.outcome == HttpDownloadJobOutcome.paused) {
-        _pausedTaskIds.add(task.id);
+      if (!_hasAvailableDownloadSlot) {
+        await _markTaskQueued(task);
       }
-      if (_tasks.containsKey(task.id)) {
-        await _saveTasks();
-        notifyListeners();
+      final acquiredSlot = await _acquireDownloadSlot(task.id);
+      if (!acquiredSlot) return;
+      try {
+        if (!identical(_tasks[task.id], task) ||
+            _removedTaskIds.contains(task.id) ||
+            _httpRunGeneration[task.id] != runGeneration ||
+            (task.status != DownloadTaskStatus.downloading &&
+                task.status != DownloadTaskStatus.queued)) {
+          return;
+        }
+        if (task.status == DownloadTaskStatus.queued) {
+          task.status = DownloadTaskStatus.downloading;
+          await _saveTasks();
+          notifyListeners();
+        }
+
+        if (_isM3u8Url(url)) {
+          await _downloadM3u8File(task, runGeneration: runGeneration);
+          return;
+        }
+
+        final result = await runHttpFileDownload(
+          task: task,
+          httpPort: _httpPort,
+          throttle: _throttleHttpChunk,
+          isCancelled: () =>
+              (_httpDownloadJobs[task.id]?.cancelled ?? false) ||
+              task.status == DownloadTaskStatus.paused ||
+              _pausedTaskIds.contains(task.id) ||
+              _httpRunGeneration[task.id] != runGeneration,
+          registerJob: (job) => _httpDownloadJobs[task.id] = job,
+          clearJob: () {
+            if (_httpRunGeneration[task.id] == runGeneration) {
+              _httpDownloadJobs.remove(task.id);
+            }
+          },
+          onProgress: notifyListeners,
+          isTaskStillTracked: () =>
+              _tasks.containsKey(task.id) &&
+              _httpRunGeneration[task.id] == runGeneration,
+        );
+
+        if (result.outcome == HttpDownloadJobOutcome.paused) {
+          if (identical(_tasks[task.id], task) &&
+              _httpRunGeneration[task.id] == runGeneration &&
+              task.status != DownloadTaskStatus.downloading &&
+              task.status != DownloadTaskStatus.queued) {
+            _pausedTaskIds.add(task.id);
+          }
+        }
+        if (_tasks.containsKey(task.id) &&
+            _httpRunGeneration[task.id] == runGeneration) {
+          await _saveTasks();
+          notifyListeners();
+          _syncAndroidDownloadService();
+        }
+      } finally {
+        _releaseSlotForTask(task.id);
         _syncAndroidDownloadService();
       }
     } finally {
-      _releaseSlotForTask(task.id);
-      _syncAndroidDownloadService();
+      if (!gate.isCompleted) {
+        gate.complete();
+      }
+      if (identical(_httpRunChain[task.id], gate.future)) {
+        _httpRunChain.remove(task.id);
+      }
     }
   }
 
@@ -1859,21 +1959,18 @@ class DownloadManager extends ChangeNotifier {
 
     final task = _tasks[id]!;
 
-    // HTTP tasks: delete partial file and restart download from scratch
+    // HTTP tasks resume in place. Plain files use a byte Range request and
+    // HLS skips completed segments; neither path deletes a valid partial
+    // file before it has had a chance to resume.
     if (task.taskType == DownloadTaskType.http) {
       _pausedTaskIds.remove(id);
       task.status = DownloadTaskStatus.downloading;
-      task.progress = 0.0;
-      task.downloaded = BigInt.zero;
       task.downloadSpeed = 0;
       task.errorMessage = null;
-      // Delete partial file if it exists
-      if (task.localFilePath != null) {
-        try {
-          final file = File(task.localFilePath!);
-          if (file.existsSync()) file.deleteSync();
-        } catch (_) {}
-      }
+
+      // Free any slot still held by a winding-down previous run so the
+      // restarted body can acquire immediately.
+      _releaseSlotForTask(id);
       await _saveTasks();
       notifyListeners();
       unawaited(_downloadHttpFile(task));
@@ -1985,6 +2082,15 @@ class DownloadManager extends ChangeNotifier {
     final task = _tasks[id];
     final effectiveDeleteFiles = _shouldDeleteFiles(deleteFiles);
 
+    // Invalidate an HTTP/HLS body before dropping the task-map entry. A
+    // handle can still yield one queued chunk after cancellation; generation
+    // invalidation makes that old body stop before it writes or changes task
+    // status. (The job owner closes its own IOSink in its finally block.)
+    if (task?.taskType == DownloadTaskType.http) {
+      _httpRunGeneration[id] = (_httpRunGeneration[id] ?? 0) + 1;
+      _httpDownloadJobs[id]?.cancel();
+    }
+
     // Remove from UI immediately so the task disappears right away.
     _tasks.remove(id);
     _pausedTaskIds.remove(id);
@@ -1996,8 +2102,7 @@ class DownloadManager extends ChangeNotifier {
 
     // HTTP tasks: cancel download and optionally delete file
     if (task != null && task.taskType == DownloadTaskType.http) {
-      final job = _httpDownloadJobs.remove(id);
-      if (job != null) job.cancel();
+      _httpDownloadJobs.remove(id);
       if (effectiveDeleteFiles && task.localFilePath != null) {
         try {
           final file = File(task.localFilePath!);

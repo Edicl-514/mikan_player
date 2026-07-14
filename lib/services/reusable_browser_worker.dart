@@ -56,6 +56,7 @@ class ReusableBrowserWorker extends StatefulWidget {
   final void Function(int workerId)? onVideoIdle;
   final void Function(String message)? onLog;
   final bool showWebView;
+  final bool preserveCaptchaSessionOnIdle;
   final WebViewSchedulerStats? stats;
 
   const ReusableBrowserWorker({
@@ -68,6 +69,7 @@ class ReusableBrowserWorker extends StatefulWidget {
     this.onVideoIdle,
     this.onLog,
     this.showWebView = false,
+    this.preserveCaptchaSessionOnIdle = false,
     this.stats,
   });
 
@@ -431,6 +433,7 @@ class _ReusableBrowserWorkerState extends State<ReusableBrowserWorker> {
       workerId: widget.workerId,
       sink: _captchaSink,
       stats: widget.stats,
+      clearVisitedHostsOnDispose: false,
     );
     _videoSink = VideoExtractionJobSink(
       onResult: (pageKey, result) {
@@ -463,7 +466,10 @@ class _ReusableBrowserWorkerState extends State<ReusableBrowserWorker> {
     final next = widget.job;
     if (old == null && next == null) return;
     if (old != null && next == null) {
-      _retireCurrentRunner(old);
+      _retireCurrentRunner(
+        old,
+        preserveCaptchaSession: widget.preserveCaptchaSessionOnIdle,
+      );
       _lastJob = null;
       return;
     }
@@ -484,9 +490,7 @@ class _ReusableBrowserWorkerState extends State<ReusableBrowserWorker> {
   }
 
   bool _sameJob(WebViewJob? a, WebViewJob? b) {
-    if (identical(a, b)) return true;
-    if (a == null || b == null) return false;
-    return a.kind == b.kind && a.jobKey == b.jobKey;
+    return sameWebViewJob(a, b);
   }
 
   void _acceptJob(WebViewJob job) {
@@ -508,11 +512,18 @@ class _ReusableBrowserWorkerState extends State<ReusableBrowserWorker> {
     }
   }
 
-  void _retireCurrentRunner(WebViewJob previous, {WebViewJob? next}) {
+  void _retireCurrentRunner(
+    WebViewJob previous, {
+    WebViewJob? next,
+    bool preserveCaptchaSession = false,
+  }) {
     final incomingSourceName = _sourceNameForJob(next);
     switch (previous) {
       case CaptchaJob():
-        _captchaRunner.transitionToIdle(incomingSourceName: incomingSourceName);
+        _captchaRunner.transitionToIdle(
+          incomingSourceName: incomingSourceName,
+          preserveSession: preserveCaptchaSession,
+        );
       case VideoJob():
         _videoRunner.transitionToIdle();
     }
@@ -772,13 +783,22 @@ sealed class WebViewJob {
   /// 当前 job 类别, 决定 [ReusableBrowserWorker] 路由到 captcha 还是
   /// video runner。
   WebViewJobKind get kind;
+
+  /// Generation of the surrounding source search. A task key such as
+  /// `search:<source>` is intentionally stable across episodes for scheduler
+  /// bookkeeping, but it must not make an EP1 captcha flow indistinguishable
+  /// from a newly dispatched EP2 flow on the same warm WebView.
+  int get generation;
 }
 
 enum WebViewJobKind { captcha, video }
 
 class CaptchaJob extends WebViewJob {
   final CaptchaPreflightJob preflight;
-  const CaptchaJob(this.preflight);
+  @override
+  final int generation;
+
+  const CaptchaJob(this.preflight, {this.generation = 0});
 
   @override
   String get jobKey => preflight.jobKey;
@@ -789,11 +809,26 @@ class CaptchaJob extends WebViewJob {
 
 class VideoJob extends WebViewJob {
   final VideoExtractionJob extraction;
-  const VideoJob(this.extraction);
+  @override
+  final int generation;
+
+  const VideoJob(this.extraction, {this.generation = 0});
 
   @override
   String get jobKey => extraction.jobKey;
 
   @override
   WebViewJobKind get kind => WebViewJobKind.video;
+}
+
+/// Whether a retained browser worker can keep running [a] instead of retiring
+/// it and accepting [b]. Kept as a pure helper so episode-switch identity is
+/// testable without constructing an InAppWebView.
+@visibleForTesting
+bool sameWebViewJob(WebViewJob? a, WebViewJob? b) {
+  if (identical(a, b)) return true;
+  if (a == null || b == null) return false;
+  return a.kind == b.kind &&
+      a.jobKey == b.jobKey &&
+      a.generation == b.generation;
 }

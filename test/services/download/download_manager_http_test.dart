@@ -339,6 +339,43 @@ void main() {
         expect(fake.cancelCalled, isTrue);
       },
     );
+
+    test(
+      'removeTask drops a late chunk without closing the sink underneath it',
+      () async {
+        final lateChunkFake = FakeHttpFileDownloadPort(
+          cancelClosesStream: false,
+        );
+        final localManager = DownloadManager.forTesting(
+          httpPort: lateChunkFake,
+        );
+        localManager.setDownloadDirForTesting(tempRoot.path);
+        final outFile = File('${tempRoot.path}/remove_late_chunk.mp4');
+        final task = buildTask(localFilePath: outFile.path);
+        localManager.seedHttpTaskForTesting(task);
+
+        try {
+          final downloadFuture = localManager.downloadHttpFileForTesting(task);
+          await pumpToAwaitFor();
+          lateChunkFake.emit([1, 2, 3]);
+          await Future<void>.delayed(Duration.zero);
+          await Future<void>.delayed(Duration.zero);
+
+          await localManager.removeTask(task.id);
+          // Simulate an already-buffered network chunk that arrives after the
+          // manager removed the task. The job must discard it rather than write
+          // to a sink that an external cancel path already closed.
+          lateChunkFake.emit([4, 5, 6]);
+          lateChunkFake.done();
+          await downloadFuture;
+
+          expect(localManager.tasks, isEmpty);
+          expect(await outFile.readAsBytes(), [1, 2, 3]);
+        } finally {
+          localManager.dispose();
+        }
+      },
+    );
   });
 
   group('DownloadManager HTTP mid-stream error', () {
@@ -562,60 +599,94 @@ void main() {
   });
 
   group('DownloadManager resumeTask HTTP path', () {
-    test(
-      'resumeTask deletes an existing partial file BEFORE restarting '
-      '(_downloadHttpFile restarts from scratch with NO Range request)',
-      () async {
-        final outFile = File('${tempRoot.path}/resume_partial.mp4')
-          ..createSync(recursive: true)
-          ..writeAsBytesSync([1, 2, 3, 4, 5]);
+    test('resumeTask retains a partial MP4 and appends after a matching '
+        '206 Range response', () async {
+      final rangeFake = FakeHttpFileDownloadPort(
+        contentLength: 3,
+        statusCode: 206,
+        contentRange: 'bytes 5-7/8',
+      );
+      final localManager = DownloadManager.forTesting(httpPort: rangeFake);
+      localManager.setDownloadDirForTesting(tempRoot.path);
+      final outFile = File('${tempRoot.path}/resume_partial.mp4')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync([1, 2, 3, 4, 5]);
 
-        final task = buildTask(
-          localFilePath: outFile.path,
-          // Task is paused: resumeTask's HTTP branch deletes the partial
-          // file (no Range request), resets state, and unawaited()s a fresh
-          // _downloadHttpFile.
-          status: DownloadTaskStatus.paused,
-        );
-        manager.seedHttpTaskForTesting(task);
+      final task = buildTask(
+        localFilePath: outFile.path,
+        status: DownloadTaskStatus.paused,
+      );
+      localManager.seedHttpTaskForTesting(task);
 
-        expect(outFile.existsSync(), isTrue);
+      try {
+        expect(await localManager.resumeTask(task.id), isTrue);
+        // The existing bytes remain until the server has responded to the
+        // resume request; no eager delete means an interrupted resume is
+        // still recoverable.
+        expect(await outFile.readAsBytes(), [1, 2, 3, 4, 5]);
 
-        final ok = await manager.resumeTask(task.id);
-        expect(ok, isTrue);
-        // The partial file must be GONE immediately after resumeTask —
-        // the branch calls file.deleteSync() before _downloadHttpFile.
-        expect(outFile.existsSync(), isFalse);
-
-        // resumeTask reset the state before the restart.
-        expect(task.progress, 0.0);
-        expect(task.downloaded, BigInt.zero);
-        expect(task.errorMessage, isNull);
-
-        // Drive the background restart: pump until the fake's start() runs.
         var waited = 0;
-        while (fake.startCallCount == 0 && waited < 2000) {
+        while (rangeFake.startCallCount == 0 && waited < 2000) {
           await Future<void>.delayed(Duration.zero);
           waited++;
         }
-        expect(fake.startCallCount, 1);
-        // No Range header was sent: resumeTask does NOT ask the port to add
-        // `Range: bytes=`, so headers fall back to whatever the task had on
-        // it (none here). The header capture confirms the absence.
-        expect(fake.lastHeaders, isNull);
+        expect(rangeFake.startCallCount, 1);
+        expect(rangeFake.lastHeaders?['Range'], 'bytes=5-');
 
-        // Close the stream so the manager's _downloadHttpFile can finish
-        // (empty stream → completed status; file recreated empty).
-        fake.done();
-        waited = 0;
+        rangeFake
+          ..emit([6, 7, 8])
+          ..done();
         while (task.status != DownloadTaskStatus.completed &&
             task.status != DownloadTaskStatus.paused &&
             task.status != DownloadTaskStatus.error &&
-            waited < 2000) {
+            waited < 4000) {
           await Future<void>.delayed(Duration.zero);
           waited++;
         }
         expect(task.status, DownloadTaskStatus.completed);
+        expect(task.totalSize, BigInt.from(8));
+        expect(await outFile.readAsBytes(), [1, 2, 3, 4, 5, 6, 7, 8]);
+      } finally {
+        localManager.dispose();
+      }
+    });
+
+    test(
+      'a 200 response to a resume Range request safely restarts the file',
+      () async {
+        final fallbackFake = FakeHttpFileDownloadPort(contentLength: 3);
+        final localManager = DownloadManager.forTesting(httpPort: fallbackFake);
+        localManager.setDownloadDirForTesting(tempRoot.path);
+        final outFile = File('${tempRoot.path}/resume_fallback.mp4')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync([1, 2, 3]);
+        final task = buildTask(
+          localFilePath: outFile.path,
+          status: DownloadTaskStatus.paused,
+        );
+        localManager.seedHttpTaskForTesting(task);
+
+        try {
+          expect(await localManager.resumeTask(task.id), isTrue);
+          var waited = 0;
+          while (fallbackFake.startCallCount == 0 && waited < 2000) {
+            await Future<void>.delayed(Duration.zero);
+            waited++;
+          }
+          expect(fallbackFake.lastHeaders?['Range'], 'bytes=3-');
+
+          fallbackFake
+            ..emit([9, 8, 7])
+            ..done();
+          while (task.status != DownloadTaskStatus.completed && waited < 4000) {
+            await Future<void>.delayed(Duration.zero);
+            waited++;
+          }
+          expect(task.status, DownloadTaskStatus.completed);
+          expect(await outFile.readAsBytes(), [9, 8, 7]);
+        } finally {
+          localManager.dispose();
+        }
       },
     );
 
