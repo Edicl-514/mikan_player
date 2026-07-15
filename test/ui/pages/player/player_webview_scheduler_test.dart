@@ -40,6 +40,20 @@ void expectConsistent(PlayerWebViewScheduler s, [String? label]) {
 
 PlayerWebViewScheduler newScheduler() => PlayerWebViewScheduler();
 
+PlayerWebViewPendingVideoJob _pendingJob(
+  String sourceName,
+  String pageKey, {
+  int tier = 999,
+  int enqueueSequence = 0,
+}) {
+  return PlayerWebViewPendingVideoJob(
+    pageKey: pageKey,
+    sourceName: sourceName,
+    priorityTier: tier,
+    enqueueSequence: enqueueSequence,
+  );
+}
+
 void main() {
   group('cross-kind lifecycle (captcha -> idle -> video on same worker)', () {
     test(
@@ -779,5 +793,252 @@ void main() {
       expect(none.slot, isNull);
       expectConsistent(s, 'after null acquire');
     });
+  });
+
+  group('pool video dispatch planning', () {
+    test('returns no-work without allocating a slot for an empty input', () {
+      final scheduler = newScheduler();
+
+      final decision = scheduler.planNextVideoDispatch(
+        const <PlayerWebViewPendingVideoJob>[],
+        useWorkerPool: true,
+        maxConcurrent: _maxConcurrent,
+      );
+
+      expect(decision.hasCommand, isFalse);
+      expect(decision.command, isNull);
+      expect(decision.disposedIdleSlots, isEmpty);
+      expect(scheduler.workerCount, 0);
+      expectConsistent(scheduler, 'empty dispatch plan');
+    });
+
+    test('returns no-work for the legacy per-task-widget path', () {
+      final scheduler = newScheduler();
+
+      final decision = scheduler.planNextVideoDispatch(
+        [_pendingJob('src', 'src:0')],
+        useWorkerPool: false,
+        maxConcurrent: _maxConcurrent,
+      );
+
+      expect(decision.hasCommand, isFalse);
+      expect(scheduler.workerCount, 0);
+      expectConsistent(scheduler, 'legacy dispatch plan');
+    });
+
+    test('returns no-work at capacity when every worker is busy', () {
+      final scheduler = newScheduler();
+      const max = 1;
+      final first = scheduler.planNextVideoDispatch(
+        [_pendingJob('srcA', 'a:0')],
+        useWorkerPool: true,
+        maxConcurrent: max,
+      );
+      scheduler.startVideoJob(
+        first.command!.slot,
+        first.command!.job.pageKey,
+        first.command!.job.sourceName,
+      );
+
+      final blocked = scheduler.planNextVideoDispatch(
+        [_pendingJob('srcB', 'b:0')],
+        useWorkerPool: true,
+        maxConcurrent: max,
+      );
+      expect(blocked.hasCommand, isFalse);
+      expectConsistent(scheduler, 'full dispatch plan');
+    });
+
+    test(
+      'command plans tier ordering and leaves job activation to the page',
+      () {
+        final scheduler = newScheduler();
+
+        final decision = scheduler.planNextVideoDispatch(
+          [
+            _pendingJob('later', 'later:0', tier: 1),
+            _pendingJob('first', 'first:0', tier: 0),
+          ],
+          useWorkerPool: true,
+          maxConcurrent: _maxConcurrent,
+        );
+        final command = decision.command!;
+
+        expect(command.job.pageKey, 'first:0');
+        expect(command.slot.workerId, 0);
+        expect(command.createdNew, isTrue);
+        expect(command.previousSourceName, isNull);
+        // Allocation is scheduler-owned, while page execution starts the job.
+        expect(scheduler.activeVideoJobs, isEmpty);
+        expect(command.slot.kind, isNull);
+
+        scheduler.startVideoJob(
+          command.slot,
+          command.job.pageKey,
+          command.job.sourceName,
+        );
+        expect(scheduler.activeVideoJobs, {'first:0': command.slot.workerId});
+        expectConsistent(scheduler, 'executed tier command');
+      },
+    );
+
+    test(
+      'uses enqueue sequence for a tier tie and preserves input order on a full tie',
+      () {
+        final scheduler = newScheduler();
+        final ordered = scheduler.planNextVideoDispatch(
+          [
+            _pendingJob('src', 'src:late', tier: 2, enqueueSequence: 9),
+            _pendingJob('src', 'src:early', tier: 2, enqueueSequence: 3),
+          ],
+          useWorkerPool: true,
+          maxConcurrent: _maxConcurrent,
+        );
+        expect(ordered.command!.job.pageKey, 'src:early');
+
+        final tieScheduler = newScheduler();
+        final stable = tieScheduler.planNextVideoDispatch(
+          [
+            _pendingJob('src', 'src:first', tier: 2, enqueueSequence: 3),
+            _pendingJob('src', 'src:second', tier: 2, enqueueSequence: 3),
+          ],
+          useWorkerPool: true,
+          maxConcurrent: _maxConcurrent,
+        );
+        expect(stable.command!.job.pageKey, 'src:first');
+      },
+    );
+
+    test(
+      'prefers a warm same-source job over a higher-priority cold source',
+      () {
+        final scheduler = newScheduler();
+        final first = scheduler.planNextVideoDispatch(
+          [_pendingJob('warm', 'warm:0')],
+          useWorkerPool: true,
+          maxConcurrent: _maxConcurrent,
+        );
+        scheduler.startVideoJob(
+          first.command!.slot,
+          first.command!.job.pageKey,
+          first.command!.job.sourceName,
+        );
+        scheduler.releaseVideoSlotOnIdle(first.command!.slot.workerId);
+        scheduler.markSlotIdle(first.command!.slot.workerId);
+
+        final affinity = scheduler.planNextVideoDispatch(
+          [
+            _pendingJob('warm', 'warm:1', tier: 9),
+            _pendingJob('cold', 'cold:0', tier: 0),
+          ],
+          useWorkerPool: true,
+          maxConcurrent: _maxConcurrent,
+        );
+
+        expect(affinity.command!.slot.workerId, first.command!.slot.workerId);
+        expect(affinity.command!.job.pageKey, 'warm:1');
+        expect(affinity.command!.previousSourceName, 'warm');
+        expect(affinity.command!.usesSourceAffinity, isTrue);
+        expectConsistent(scheduler, 'warm-source dispatch plan');
+      },
+    );
+
+    test('soft limit reserves the final worker for another pending source', () {
+      final scheduler = newScheduler();
+      const max = 4;
+      for (var index = 0; index < 3; index++) {
+        final decision = scheduler.planNextVideoDispatch(
+          [_pendingJob('srcA', 'a:$index')],
+          useWorkerPool: true,
+          maxConcurrent: max,
+        );
+        scheduler.startVideoJob(
+          decision.command!.slot,
+          decision.command!.job.pageKey,
+          decision.command!.job.sourceName,
+        );
+      }
+
+      final decision = scheduler.planNextVideoDispatch(
+        [
+          _pendingJob('srcA', 'a:next', tier: 0),
+          _pendingJob('srcB', 'b:0', tier: 9),
+        ],
+        useWorkerPool: true,
+        maxConcurrent: max,
+      );
+
+      expect(decision.command!.job.pageKey, 'b:0');
+      expectConsistent(scheduler, 'soft-limit dispatch plan');
+    });
+
+    test('a single source can use every available worker', () {
+      final scheduler = newScheduler();
+      const max = 2;
+      final first = scheduler.planNextVideoDispatch(
+        [_pendingJob('solo', 'solo:0')],
+        useWorkerPool: true,
+        maxConcurrent: max,
+      );
+      scheduler.startVideoJob(
+        first.command!.slot,
+        first.command!.job.pageKey,
+        first.command!.job.sourceName,
+      );
+
+      final second = scheduler.planNextVideoDispatch(
+        [_pendingJob('solo', 'solo:1')],
+        useWorkerPool: true,
+        maxConcurrent: max,
+      );
+      expect(second.command!.job.pageKey, 'solo:1');
+      expect(
+        second.command!.slot.workerId,
+        isNot(first.command!.slot.workerId),
+      );
+    });
+  });
+
+  group('captcha/video competition decision', () {
+    test('reserves the last free slot for a pending video extraction', () {
+      expect(
+        PlayerWebViewScheduler.shouldStartCaptchaBeforeVideo(
+          hasPendingExtraction: true,
+          hasActiveExtraction: false,
+          slotsRemaining: 1,
+        ),
+        isFalse,
+      );
+    });
+
+    test(
+      'permits captcha when video is absent, active, or has another slot',
+      () {
+        expect(
+          PlayerWebViewScheduler.shouldStartCaptchaBeforeVideo(
+            hasPendingExtraction: false,
+            hasActiveExtraction: false,
+            slotsRemaining: 1,
+          ),
+          isTrue,
+        );
+        expect(
+          PlayerWebViewScheduler.shouldStartCaptchaBeforeVideo(
+            hasPendingExtraction: true,
+            hasActiveExtraction: true,
+            slotsRemaining: 1,
+          ),
+          isTrue,
+        );
+        expect(
+          PlayerWebViewScheduler.shouldStartCaptchaBeforeVideo(
+            hasPendingExtraction: true,
+            hasActiveExtraction: false,
+            slotsRemaining: 2,
+          ),
+          isTrue,
+        );
+      },
+    );
   });
 }

@@ -42,7 +42,6 @@ import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_recommendations.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_resource_list.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
-import 'package:mikan_player/ui/pages/player/webview_worker_pump_decisions.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_state_transitions.dart';
 
 class _CaptchaPreflightTask {
@@ -1776,31 +1775,62 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     if (_useWorkerPool) {
-      // Round 4 Stage 3：source-affinity 调度。先按 affinity 偏好挑一个 idle
-      // worker（lastSourceName 命中 pending 同源 job 的 worker 优先，保证它
-      // 能复用已 warm 的同源 InAppWebView），再让该 worker 用
-      // [`_selectNextVideoJobForWorker`] 选取 job。这样同源多 channel 在单
-      // worker 连续空闲时会连续落在同一个 worker，而慢多 channel 源又不会
-      // 霸占全部 slot（soft limit）。
-      final slot = _acquireIdleVideoWorkerSlotForAffinity(readyPending);
-      if (slot == null) {
-        // 理论上不会达到：_activeWebViewTaskCount 已 guard。容错退出。
-        return false;
+      // The scheduler owns source-affinity selection and returns a command;
+      // page-owned request gating, logging, state, stats, and job start stay
+      // here. This keeps the scheduler pure while making selection testable.
+      final pageByKey = <String, SearchPlayResult>{};
+      final pendingJobs = <PlayerWebViewPendingVideoJob>[];
+      for (final page in readyPending) {
+        final pageKey = _buildSourceChannelKey(
+          page.sourceName,
+          page.channelIndex,
+        );
+        pageByKey[pageKey] = page;
+        pendingJobs.add(
+          PlayerWebViewPendingVideoJob(
+            pageKey: pageKey,
+            sourceName: page.sourceName,
+            priorityTier:
+                _sampleSourceController.sourceTiers[page.sourceName] ?? 999,
+            enqueueSequence:
+                _sampleSourceController.pageEnqueueSeq[pageKey] ?? 0,
+          ),
+        );
       }
-      final page = _selectNextVideoJobForWorker(slot, readyPending);
-      if (page == null) {
-        return false;
-      }
-      final pageKey = _buildSourceChannelKey(
-        page.sourceName,
-        page.channelIndex,
+      final decision = _scheduler.planNextVideoDispatch(
+        pendingJobs,
+        useWorkerPool: _useWorkerPool,
+        maxConcurrent: _maxConcurrentWebViews,
       );
-      _scheduler.startVideoJob(slot, pageKey, page.sourceName);
-      gate.markStarted(page.sourceName);
-      _webViewStatus[pageKey] = '正在提取...';
+      _logDisposedIdleSlots(decision.disposedIdleSlots);
+      final command = decision.command;
+      if (command == null) {
+        return false;
+      }
+      if (command.createdNew) {
+        debugPrint(
+          '[WebViewScheduler] created worker=${command.slot.workerId} for video '
+          '(${_webViewWorkerPoolLabel()})',
+        );
+      }
+      _logAffinityPick(
+        workerId: command.slot.workerId,
+        lastSource: command.previousSourceName,
+        pickedSource: command.job.sourceName,
+        pageKey: command.job.pageKey,
+        sameSource: command.usesSourceAffinity,
+      );
+      final page = pageByKey[command.job.pageKey]!;
+      _scheduler.startVideoJob(
+        command.slot,
+        command.job.pageKey,
+        command.job.sourceName,
+      );
+      gate.markStarted(command.job.sourceName);
+      _webViewStatus[command.job.pageKey] = '正在提取...';
       _webviewStats.onVideoJobStarted(
-        pageKey,
-        page.sourceName,
+        command.job.pageKey,
+        command.job.sourceName,
         page.channelIndex,
       );
       return true;
@@ -1831,55 +1861,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       counts[src] = (counts[src] ?? 0) + 1;
     }
     return counts;
-  }
-
-  /// Source-affinity 软上限：当存在其它源 pending 时，单个 source 最多占用
-  /// `max(1, _maxConcurrentWebViews - 1)` 个 worker，保留至少 1 个 slot 给
-  /// 其它源。`_maxConcurrentWebViews <= 1` 时退化为 1（不零留）。
-  int get _sourceAffinitySoftLimit =>
-      _maxConcurrentWebViews > 1 ? _maxConcurrentWebViews - 1 : 1;
-
-  /// Round 4 Stage 3：为指定 idle worker 选取下一个 job。
-  ///
-  /// 调度规则（见 plan 阶段 3）：
-  /// 1. **同源优先**：worker 的 `lastSourceName` 有 pending 同源 job 时，优
-  ///    先取同源（复用 warm WebView 的站点 session/cookie）。
-  /// 2. **soft limit**：若除该源外仍有其它源 pending，则该源 active worker
-  ///    数已达 [`_sourceAffinitySoftLimit`] 时跳过本源，把 slot 让给其它源，
-  ///    防止慢多 channel 源霸占全部并发。
-  /// 3. **全局优先级回退**：同源无 pending 或被 soft limit 时，按 tier 升序
-  ///    + 入队序号（[`_sampleSourceController.pageEnqueueSeq`]）升序选取；候选源同样套用 soft
-  ///    limit，仅当所有候选源都被饱和时回退允许任一源（避免死锁）。
-  /// 4. **慢源分担**：若没有其它源 pending，单源可吃满全部空闲 slot。
-  ///
-  /// 所有判定都基于调用发生时的 `_scheduler.activeVideoJobs` 快照；调度器在
-  /// pump 循环里串行调用本方法并逐个 commit 到
-  /// `_scheduler.activeVideoJobs`，因此 soft limit
-  /// 能正确反映本轮已派出的 job。
-  SearchPlayResult? _selectNextVideoJobForWorker(
-    WebViewWorkerSlotSnapshot slot,
-    List<SearchPlayResult> pending,
-  ) {
-    final picked = selectVideoJobForAffinitySlot(
-      affinitySource: slot.lastSourceName,
-      pending: pending,
-      activeSourceWorkers: _activeSourceWorkerCounts(),
-      softLimit: _sourceAffinitySoftLimit,
-      sourceTiers: _sampleSourceController.sourceTiers,
-      enqueueSeqByPageKey: _sampleSourceController.pageEnqueueSeq,
-      pageKeyOf: (p) => _buildSourceChannelKey(p.sourceName, p.channelIndex),
-    );
-    if (picked == null) return null;
-    final sameSourcePick =
-        slot.lastSourceName != null && picked.sourceName == slot.lastSourceName;
-    _logAffinityPick(
-      workerId: slot.workerId,
-      lastSource: slot.lastSourceName,
-      pickedSource: picked.sourceName,
-      pageKey: _buildSourceChannelKey(picked.sourceName, picked.channelIndex),
-      sameSource: sameSourcePick,
-    );
-    return picked;
   }
 
   /// 结构化日志：记录一次 affinity 选取的结果。
@@ -1919,47 +1900,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-  /// 返回一个 idle [VideoWorkerSlot] 供本次 pump 派活，优先命中 affinity：
-  ///
-  /// 1. 现有 idle worker 且 `lastSourceName` 命中 [pending] 中某条同源 job
-  ///    的，取最低 workerId 者（保证它能复用 warm 同源 WebView，不会被
-  ///    非 affinity 的 idle worker 抢先把同源 channel 提走）。
-  /// 2. 否则取任意现有 idle worker（最低 workerId）——复用 WebView 实例本身
-  ///    就能省掉重建成本。
-  /// 3. 否则在 `_maxConcurrentWebViews` 容量内新建一个 worker（workerId 单调
-  ///    递增），新 worker 的 `lastSourceName` 为 null。
-  /// 4. 全满则返回 null（理论由 `_activeWebViewTaskCount` guard 避免）。
-  ///
-  /// Pool 模式专用。
-  /// 5B step 3：取一个 idle slot（[canAcceptJob]）用来跑 video job。
-  ///
-  /// 选取规则保持 Round 4 Stage 3 不变（先看 affinity 同源，再看任意 idle，
-  /// 再看 captcha 升 video，最后新创建）；底层数据源改为统一
-  /// [`_scheduler.slots`]。新创建的 slot 初始 `kind == null`（idle），
-  /// 派活时由 [`_startOneWebViewExtractionTask`] 切到
-  /// [WebViewWorkerKind.video]。
-  WebViewWorkerSlotSnapshot? _acquireIdleVideoWorkerSlotForAffinity(
-    List<SearchPlayResult> pending,
-  ) {
-    final pendingSourceNames = <String>{};
-    for (final p in pending) {
-      pendingSourceNames.add(p.sourceName);
-    }
-    final result = _scheduler.acquireIdleVideoWorkerSlot(
-      pendingSourceNames,
-      useWorkerPool: _useWorkerPool,
-      maxConcurrent: _maxConcurrentWebViews,
-    );
-    _logDisposedIdleSlots(result.disposedIdleSlots);
-    if (result.slot != null && result.createdNew) {
-      debugPrint(
-        '[WebViewScheduler] created worker=${result.slot!.workerId} for video '
-        '(${_webViewWorkerPoolLabel()})',
-      );
-    }
-    return result.slot;
-  }
-
   bool _pumpWebViewPoolNow() {
     var startedAny = false;
     while (_activeWebViewTaskCount < _maxConcurrentWebViews) {
@@ -1969,11 +1909,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           ? _scheduler.activeVideoJobs.isNotEmpty
           : _activeWebViews.isNotEmpty;
 
-      final canStartCaptcha = canStartCaptchaDecision(
-        hasPendingExtraction: hasPendingExtraction,
-        hasActiveExtraction: hasActiveExtraction,
-        slotsRemaining: slotsRemaining,
-      );
+      final canStartCaptcha =
+          PlayerWebViewScheduler.shouldStartCaptchaBeforeVideo(
+            hasPendingExtraction: hasPendingExtraction,
+            hasActiveExtraction: hasActiveExtraction,
+            slotsRemaining: slotsRemaining,
+          );
 
       if (canStartCaptcha && _startOneCaptchaTask()) {
         startedAny = true;
@@ -2336,11 +2277,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           ? _scheduler.activeVideoJobs.isNotEmpty
           : _activeWebViews.isNotEmpty;
 
-      final canStartCaptcha = canStartCaptchaDecision(
-        hasPendingExtraction: hasPendingExtraction,
-        hasActiveExtraction: hasActiveExtraction,
-        slotsRemaining: slotsRemaining,
-      );
+      final canStartCaptcha =
+          PlayerWebViewScheduler.shouldStartCaptchaBeforeVideo(
+            hasPendingExtraction: hasPendingExtraction,
+            hasActiveExtraction: hasActiveExtraction,
+            slotsRemaining: slotsRemaining,
+          );
 
       var didStart = false;
       if (canStartCaptcha && _startOneCaptchaTask()) {

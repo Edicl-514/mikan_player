@@ -4,8 +4,35 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-14 (updated after the player/download lifecycle smoke
-gate). Counts via `rg -c '^'` / `wc -l`. Latest checkpoint:
+Status date: 2026-07-15 (updated after scheduler dispatch planning). Counts
+via `rg -c '^'` / `wc -l`. Latest checkpoint:
+
+**Scheduler dispatch planning (2026-07-15)** — completes the unblocked Phase
+2 architectural step without moving WebView construction, request-gate timing,
+logging, `setState`, stats/status mutation, probing, playback, or callbacks
+off `PlayerPage`.
+
+- `PlayerWebViewScheduler` now accepts immutable
+  `PlayerWebViewPendingVideoJob` primitives and returns a
+  `PlayerWebViewVideoDispatchDecision` containing an executable command. The
+  scheduler owns tier/sequence ordering, warm-source affinity, active-worker
+  counts, the per-source soft limit, and idle-slot allocation/trim; the page
+  immediately commits the returned command with `startVideoJob`.
+- Captcha/video competition is exposed as the scheduler's pure priority
+  decision, while `SourceRequestGate` remains on the page: its cooldown scan,
+  delayed callback, and `markStarted` timing are unchanged. In particular, the
+  last-slot captcha guard still sees all pending video work before the gate
+  filters cooled-down sources.
+- The obsolete `webview_worker_pump_decisions.dart` helper and dedicated test
+  file were subsumed by scheduler composition tests. The new coverage locks
+  down no-work and legacy paths, tier/enqueue ordering (including full-tie
+  caller order), command-versus-start separation, affinity, soft limits,
+  single-source saturation, and captcha/video competition.
+- Current measured size: `player_page.dart` 6966 LOC;
+  `player_webview_scheduler.dart` 815 LOC. Validation: analyzer clean; full
+  suite passes 684 tests across 40 test files.
+
+Prior checkpoint:
 
 **Lifecycle smoke + request-gate stabilization (2026-07-14)** — closes the
 required manual smoke gate that blocked the next Phase 2 architectural
@@ -112,7 +139,7 @@ remain the primary completion criteria; line count is only a secondary signal.
 
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
-| `lib/ui/pages/player_page.dart` | 8318 | 7031 | -1287 | Playback + WebView/scheduler/captcha orchestration remain on page; lifecycle smoke + request-gate fixes landed 2026-07-14. Display trees extracted; **controllers #1–#3** own episode / Mikan+DMHY / sample-search **state mutations** only. Playback controller, scheduler dispatch planning still page-owned. |
+| `lib/ui/pages/player_page.dart` | 8318 | 6966 | -1352 | Playback + WebView/scheduler/captcha orchestration remain on page; lifecycle smoke + request-gate fixes landed 2026-07-14. Display trees extracted; **controllers #1–#3** own episode / Mikan+DMHY / sample-search **state mutations** only. Scheduler now owns immutable video-dispatch planning; the page still owns request-gate timing and all WebView/playback side effects. |
 | `lib/services/download_manager.dart` | 3285 | 2533 | -752 | HTTP + HLS extracted (segment/chunk boundary hardening this checkpoint); BT core ops use backend ports; `BtStreamRestoreCoordinator` owns delayed-job bookkeeping. Manager keeps slots/tasks/persistence + playback policy and background-restore mutation. |
 | `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | Fully decomposed: SettingsPanel + MobileGestureAndLockLayer + MobileFloatingLockButton + SystemTimeDisplay + EpisodeSidePanel + SourceListPanel are now separate files. No remaining coherent controls boundary. |
 | `↳ lib/ui/widgets/video_player_controls/settings_panel.dart` | 1141 | 977 | -164 | Source list extracted as `SourceListPanel`; panel keeps reactive source listener state for the menu subtitle. |
@@ -123,10 +150,17 @@ remain the primary completion criteria; line count is only a secondary signal.
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 692 tests passing across 41 test files.
+- `flutter test`: 684 tests passing across 40 test files.
 - **Manual smoke (2026-07-14) recorded complete:** rapid episode switch /
   leave-reenter (OCR captcha sources + autoplay), HLS/MP4 download,
   BT download + stream playback, comments and other leaf UI.
+- **Scheduler dispatch checkpoint (2026-07-15):** immutable video-job input
+  DTOs and command-returning scheduler planning now own tier/enqueue ordering,
+  affinity, soft-limit selection, and no-work decisions. Page-owned
+  `SourceRequestGate` timing, WebView creation, logging, status/stats, and
+  `startVideoJob` remain explicit. The previous pure decision helper was
+  fully subsumed; scheduler composition coverage is 39 tests and the full
+  suite passes.
 - Current checkpoint adds (over the 2026-07-11 source-list / sites /
   comments / bt-resource-list leaf-widget checkpoint): the comment-HTML
   rendering helpers `normalizeBangumiImageSrc` / `isBangumiSmileUrl` /
@@ -259,7 +293,7 @@ Phase status:
 | --- | --- | --- | --- |
 | Phase 0 | Complete | Analyzer/test baseline; **real player/WebView smoke 2026-07-11**; **lifecycle smoke gate re-recorded 2026-07-14** (rapid EP switch/re-enter, HLS/MP4 download, BT stream, comments/UI). | Re-record only after the next architectural checkpoint that touches WebView/playback/platform. |
 | Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, pure BT-tag helpers, and **comment HTML rendering helpers** — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
-| Phase 2 | Stabilizing | Scheduler B1-B6; display widgets; **controllers #1–#3**; **2026-07-14 lifecycle fixes** (in-page mobile EP switch, warm-worker reset, generation-aware jobs, autoplay loadToken, dispose cancel, captcha false-success, **`SourceRequestGate`**). Manual smoke gate open. | Scheduler dispatch planning into command DTOs; then `PlayerPlaybackController`. |
+| Phase 2 | Stabilizing | Scheduler B1-B6 plus immutable video-dispatch commands; display widgets; **controllers #1–#3**; **2026-07-14 lifecycle fixes** (in-page mobile EP switch, warm-worker reset, generation-aware jobs, autoplay loadToken, dispose cancel, captcha false-success, **`SourceRequestGate`**). Manual smoke gate open. | `PlayerPlaybackController`, then a new manual smoke gate. |
 | Phase 3 | Stabilizing | Task/queue/cleanup/store; HTTP + m3u8 boundaries (+ chunk/segment pause-remove tests); BT backend ports; `BtStreamCapability`; **`BtStreamRestoreCoordinator`**; **BT download+stream smoke recorded 2026-07-14**. Manager 2533 LOC. | Further stream-policy extraction optional; prefer characterization over more moves until dispatch planning lands. |
 | Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` / `SitesSection` / wide `CommentsSection`** display widgets + widget tests. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
@@ -1153,13 +1187,12 @@ containment and empty-parent cleanup of literal-backslash siblings.
    in-page EP switch, warm-worker reset, job generation, autoplay loadToken,
    dispose cancel, captcha false-success, `SourceRequestGate`) stay in the
    tree and are covered by unit/characterization tests.
-5. **Next architectural step (unblocked):** move scheduler dispatch planning
-   into command-returning methods. Require immutable input/output DTOs and
-   tests for tier/enqueue order, affinity, soft limits, captcha/video
-   competition, and no-work results. Do not move WebView construction or
-   page side effects in this step. Keep `SourceRequestGate` outside the
-   pure planner (it is a timing side effect owned by the page/pump).
-6. Only after dispatch planning, extract `PlayerPlaybackController`: inject
+5. ✅ **Scheduler dispatch planning (2026-07-15):** command-returning methods
+   now use immutable video inputs and keep tier/enqueue order, affinity,
+   soft limits, no-work, and captcha/video competition covered. WebView
+   construction and page side effects remain on the page; `SourceRequestGate`
+   remains outside the pure planner.
+6. **Next architectural step:** extract `PlayerPlaybackController`: inject
    `clock`/`timer`/`player` callbacks and characterize watchdog, fallback, and
    stale-callback behavior. Stop for review after this controller.
 7. Keep `BangumiDetailsController` and styling/token work deferred until the

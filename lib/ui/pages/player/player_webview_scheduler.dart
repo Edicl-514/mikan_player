@@ -19,12 +19,11 @@ import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 ///   - the monotonic worker-id counter (was `_nextWebViewWorkerId`)
 ///   - the pump-token/dedup coordinator (was `_pumpCoordinator`)
 ///
-/// The scheduler deliberately owns **state mutations only**. It does not
-/// perform the source-affinity *job* selection (that depends on the page's
-/// `SearchPlayResult` pending list / tiers / enqueue-seq), nor the pump loop,
-/// nor any side-effects (`debugPrint`, `_webviewStats`, `_webViewStatus`,
-/// `setState`). Those stay on the page, which drives the scheduler through the
-/// methods below and reads the read-only views.
+/// The scheduler owns worker-state mutation plus the pure planning needed to
+/// select the next pool video job. The page turns its `SearchPlayResult`s into
+/// immutable [PlayerWebViewPendingVideoJob] inputs, then executes the returned
+/// command. The pump loop and all side-effects (`debugPrint`, `_webviewStats`,
+/// `_webViewStatus`, `setState`) stay on the page.
 ///
 /// This keeps the scheduler free of Flutter, `BuildContext`, `Widget`,
 /// `InAppWebViewController`, `Player`, and the network / search services — it
@@ -55,6 +54,70 @@ class PlayerWebViewSchedulerAcquire {
   final WebViewWorkerSlotSnapshot? slot;
   final List<WebViewWorkerSlotSnapshot> disposedIdleSlots;
   final bool createdNew;
+}
+
+/// Immutable, page-facing description of a video extraction candidate.
+///
+/// Keeping this DTO independent from `SearchPlayResult` lets the scheduler
+/// stay free of Rust/Flutter data models. [pageKey] is the page-owned key used
+/// to start the worker once a command is selected; [priorityTier] and
+/// [enqueueSequence] preserve the historical tier-then-arrival ordering.
+class PlayerWebViewPendingVideoJob {
+  const PlayerWebViewPendingVideoJob({
+    required this.pageKey,
+    required this.sourceName,
+    required this.priorityTier,
+    required this.enqueueSequence,
+  });
+
+  final String pageKey;
+  final String sourceName;
+  final int priorityTier;
+  final int enqueueSequence;
+}
+
+/// A page-executable video dispatch command produced by the scheduler.
+///
+/// Planning may allocate or evict an *idle* slot, just as the previous page
+/// acquire path did, but it intentionally does not mark the job active. The
+/// page owns the visible effects and commits the job with [startVideoJob].
+class PlayerWebViewVideoDispatchCommand {
+  const PlayerWebViewVideoDispatchCommand({
+    required this.job,
+    required this.slot,
+    required this.createdNew,
+    required this.previousSourceName,
+  });
+
+  final PlayerWebViewPendingVideoJob job;
+  final WebViewWorkerSlotSnapshot slot;
+  final bool createdNew;
+
+  /// The slot's warm-source affinity before this command is executed.
+  final String? previousSourceName;
+
+  bool get usesSourceAffinity =>
+      previousSourceName != null && previousSourceName == job.sourceName;
+}
+
+/// The result of one pool-video dispatch planning pass.
+///
+/// The page logs [disposedIdleSlots], then either executes [command] or leaves
+/// the pump idle when it is `null` (no pending job / no acquirable worker).
+class PlayerWebViewVideoDispatchDecision {
+  const PlayerWebViewVideoDispatchDecision({
+    required this.command,
+    required this.disposedIdleSlots,
+  });
+
+  const PlayerWebViewVideoDispatchDecision.noWork()
+    : command = null,
+      disposedIdleSlots = const <WebViewWorkerSlotSnapshot>[];
+
+  final PlayerWebViewVideoDispatchCommand? command;
+  final List<WebViewWorkerSlotSnapshot> disposedIdleSlots;
+
+  bool get hasCommand => command != null;
 }
 
 /// Immutable page-facing view of a mutable scheduler-owned worker slot.
@@ -136,6 +199,149 @@ class PlayerWebViewScheduler {
   int get workerCount => _slots.length;
   int get activeVideoJobCount => _activeVideoJobs.length;
   int get activeCaptchaJobCount => _activeCaptchaJobs.length;
+
+  // ── Dispatch planning ────────────────────────────────────────────────────
+
+  /// Returns whether a pending captcha task should get first opportunity to
+  /// start before a video extraction in the current pump iteration.
+  ///
+  /// This is deliberately only a pure priority decision: request-gate timing,
+  /// captcha queue mutation, logging, and task startup remain page-owned.
+  static bool shouldStartCaptchaBeforeVideo({
+    required bool hasPendingExtraction,
+    required bool hasActiveExtraction,
+    required int slotsRemaining,
+  }) {
+    return !hasPendingExtraction || hasActiveExtraction || slotsRemaining > 1;
+  }
+
+  /// Plans the next pool-video dispatch using tier ordering, stable enqueue
+  /// ordering, warm-source affinity, and the per-source soft limit.
+  ///
+  /// The returned [PlayerWebViewVideoDispatchCommand] does not start a job;
+  /// callers must execute it with [startVideoJob] after performing page-owned
+  /// logging and status/stat updates. This preserves the page as the owner of
+  /// all widget and runtime side effects while moving the selection policy to
+  /// the scheduler.
+  PlayerWebViewVideoDispatchDecision planNextVideoDispatch(
+    Iterable<PlayerWebViewPendingVideoJob> pendingJobs, {
+    required bool useWorkerPool,
+    required int maxConcurrent,
+  }) {
+    if (!useWorkerPool) {
+      return const PlayerWebViewVideoDispatchDecision.noWork();
+    }
+    final pending = List<PlayerWebViewPendingVideoJob>.of(pendingJobs);
+    if (pending.isEmpty) {
+      return const PlayerWebViewVideoDispatchDecision.noWork();
+    }
+
+    final pendingSourceNames = <String>{
+      for (final job in pending) job.sourceName,
+    };
+    final acquire = acquireIdleVideoWorkerSlot(
+      pendingSourceNames,
+      useWorkerPool: useWorkerPool,
+      maxConcurrent: maxConcurrent,
+    );
+    final slot = acquire.slot;
+    if (slot == null) {
+      return PlayerWebViewVideoDispatchDecision(
+        command: null,
+        disposedIdleSlots: List<WebViewWorkerSlotSnapshot>.unmodifiable(
+          acquire.disposedIdleSlots,
+        ),
+      );
+    }
+
+    final selected = _selectVideoJobForSlot(
+      affinitySource: slot.lastSourceName,
+      pending: pending,
+      activeSourceWorkers: _activeVideoWorkerCounts(),
+      softLimit: maxConcurrent > 1 ? maxConcurrent - 1 : 1,
+    );
+    // [pending] was non-empty. The selector can only return null for an empty
+    // input, so reaching this branch would indicate an internal regression.
+    if (selected == null) {
+      throw StateError('Could not select a non-empty pending video job');
+    }
+
+    return PlayerWebViewVideoDispatchDecision(
+      command: PlayerWebViewVideoDispatchCommand(
+        job: selected,
+        slot: slot,
+        createdNew: acquire.createdNew,
+        previousSourceName: slot.lastSourceName,
+      ),
+      disposedIdleSlots: List<WebViewWorkerSlotSnapshot>.unmodifiable(
+        acquire.disposedIdleSlots,
+      ),
+    );
+  }
+
+  Map<String, int> _activeVideoWorkerCounts() {
+    final counts = <String, int>{};
+    for (final slot in _slots.values) {
+      if (slot.kind != WebViewWorkerKind.video) continue;
+      final sourceName = slot.lastSourceName;
+      if (sourceName == null) continue;
+      counts[sourceName] = (counts[sourceName] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  PlayerWebViewPendingVideoJob? _selectVideoJobForSlot({
+    required String? affinitySource,
+    required List<PlayerWebViewPendingVideoJob> pending,
+    required Map<String, int> activeSourceWorkers,
+    required int softLimit,
+  }) {
+    if (pending.isEmpty) return null;
+
+    if (affinitySource != null && affinitySource.isNotEmpty) {
+      final sameSource = pending
+          .where((job) => job.sourceName == affinitySource)
+          .toList();
+      if (sameSource.isNotEmpty) {
+        final otherSourcesPending = pending.any(
+          (job) => job.sourceName != affinitySource,
+        );
+        final currentActive = activeSourceWorkers[affinitySource] ?? 0;
+        final limited = otherSourcesPending && currentActive >= softLimit;
+        if (!limited) return _pickBestPendingVideoJob(sameSource);
+      }
+    }
+
+    final candidates = <PlayerWebViewPendingVideoJob>[];
+    for (final job in pending) {
+      final currentActive = activeSourceWorkers[job.sourceName] ?? 0;
+      final otherSourcesPending = pending.any(
+        (other) => other.sourceName != job.sourceName,
+      );
+      final limited = otherSourcesPending && currentActive >= softLimit;
+      if (!limited) candidates.add(job);
+    }
+    return _pickBestPendingVideoJob(candidates.isEmpty ? pending : candidates);
+  }
+
+  PlayerWebViewPendingVideoJob _pickBestPendingVideoJob(
+    Iterable<PlayerWebViewPendingVideoJob> candidates,
+  ) {
+    final indexed =
+        List<PlayerWebViewPendingVideoJob>.of(
+          candidates,
+        ).asMap().entries.toList()..sort((a, b) {
+          final tier = a.value.priorityTier.compareTo(b.value.priorityTier);
+          if (tier != 0) return tier;
+          final sequence = a.value.enqueueSequence.compareTo(
+            b.value.enqueueSequence,
+          );
+          // Dart's List.sort is not specified as stable. Make the historical
+          // caller-order fallback explicit for a full tier/sequence tie.
+          return sequence != 0 ? sequence : a.key.compareTo(b.key);
+        });
+    return indexed.first.value;
+  }
 
   // ── Start job ─────────────────────────────────────────────────────────────
 
@@ -388,9 +594,8 @@ class PlayerWebViewScheduler {
   /// worker (so its InAppWebView's session/cookie carries over to the next
   /// same-source channel). [pendingSourceNames] is the set of source names
   /// that still have pending extraction jobs — used only for the affinity
-  /// preference, not for job selection (the page keeps the `pickBestPending` /
-  /// `selectVideoJobForAffinitySlot` step because it depends on the page's
-  /// `SearchPlayResult` list + tiers + enqueue-seq).
+  /// preference. [planNextVideoDispatch] combines this acquire operation with
+  /// scheduler-owned job selection for the normal page pump path.
   ///
   /// Eviction of disposable idle slots is surfaced via
   /// [PlayerWebViewSchedulerAcquire.disposedIdleSlots] for logging; creation
