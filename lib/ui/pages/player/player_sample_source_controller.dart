@@ -50,7 +50,6 @@ class PlayerSampleSourceController {
   String? _sampleError;
   List<SearchPlayResult> _samplePlayPages = [];
   List<SearchPlayResult> _sampleSuccessfulSources = [];
-  int _selectedSourceIndex = 0;
   int _sampleLoadToken = 0;
   final Map<String, int> _pageEnqueueSeq = {};
   int _nextPageEnqueueSeq = 0;
@@ -72,8 +71,6 @@ class PlayerSampleSourceController {
   /// playable video URL (probe-accepted).
   List<SearchPlayResult> get sampleSuccessfulSources =>
       UnmodifiableListView<SearchPlayResult>(_sampleSuccessfulSources);
-
-  int get selectedSourceIndex => _selectedSourceIndex;
 
   int get sampleLoadToken => _sampleLoadToken;
 
@@ -144,8 +141,7 @@ class PlayerSampleSourceController {
   /// big `setState` reset:
   ///   isLoadingSample=true, sampleError=null, samplePlayPages=[],
   ///   sampleSuccessfulSources=[], pageEnqueueSeq clear + next=0,
-  ///   selectedSourceIndex=0, sourceProgressMap={}, enabledSourceNames=[],
-  ///   sourceTiers={}.
+  ///   sourceProgressMap={}, enabledSourceNames=[], sourceTiers={}.
   void beginNewSearchReset() {
     _isLoadingSample = true;
     _sampleError = null;
@@ -153,7 +149,6 @@ class PlayerSampleSourceController {
     _sampleSuccessfulSources = [];
     _pageEnqueueSeq.clear();
     _nextPageEnqueueSeq = 0;
-    _selectedSourceIndex = 0;
     _sourceProgressMap = {};
     _enabledSourceNames = [];
     _sourceTiers = {};
@@ -232,38 +227,12 @@ class PlayerSampleSourceController {
     return _sampleSuccessfulSources.any(test);
   }
 
-  // ── Selection ─────────────────────────────────────────────────────────────
-
-  void selectSource(int index) {
-    _selectedSourceIndex = index;
-  }
-
-  /// Sets selected index to [source]'s position in successful sources, or `0`
-  /// if not found. Mirrors `_playSource` index fixup.
-  void selectSourceOrZero(SearchPlayResult source) {
-    final index = _sampleSuccessfulSources.indexOf(source);
-    _selectedSourceIndex = index == -1 ? 0 : index;
-  }
-
-  /// Clamps [selectedSourceIndex] into range of successful sources (empty → 0).
-  /// Mirrors `_publishPlayerControlSourceState`.
-  void clampSelectedSourceIndex() {
-    if (_sampleSuccessfulSources.isEmpty) {
-      _selectedSourceIndex = 0;
-      return;
-    }
-    _selectedSourceIndex = _selectedSourceIndex.clamp(
-      0,
-      _sampleSuccessfulSources.length - 1,
-    );
-  }
-
   // ── Switch / dispose ──────────────────────────────────────────────────────
 
   /// Clears sample transient state on episode switch. Mirrors the sample-field
   /// subset of `player_page.dart` `_onEpisodeSelected` setState:
   ///   isLoadingSample=false, sampleError=null, play pages / successful empty,
-  ///   enqueue reset, selected=0, progress/enabled/tiers cleared.
+  ///   enqueue reset, progress/enabled/tiers cleared.
   void resetForSwitching() {
     _isLoadingSample = false;
     _sampleError = null;
@@ -271,7 +240,6 @@ class PlayerSampleSourceController {
     _sampleSuccessfulSources = [];
     _pageEnqueueSeq.clear();
     _nextPageEnqueueSeq = 0;
-    _selectedSourceIndex = 0;
     _sourceProgressMap = {};
     _enabledSourceNames = [];
     _sourceTiers = {};
@@ -289,28 +257,10 @@ class PlayerSampleSourceController {
   /// (empty = consistent). Composition tests call this after mutations.
   ///
   /// Checks:
-  ///   1. When successful sources is non-empty, selectedSourceIndex is in range.
-  ///   2. When successful sources is empty, selectedSourceIndex is 0
-  ///      (reset / default policy).
-  ///   3. Every pageEnqueueSeq value is `>= 0` and `< nextPageEnqueueSeq`.
-  ///   4. enabledSourceNames has no duplicate names.
+  ///   1. Every pageEnqueueSeq value is `>= 0` and `< nextPageEnqueueSeq`.
+  ///   2. enabledSourceNames has no duplicate names.
   List<String> validateInvariants() {
     final errors = <String>[];
-
-    if (_sampleSuccessfulSources.isEmpty) {
-      if (_selectedSourceIndex != 0) {
-        errors.add(
-          'selectedSourceIndex=$_selectedSourceIndex but '
-          'sampleSuccessfulSources is empty (expected 0)',
-        );
-      }
-    } else if (_selectedSourceIndex < 0 ||
-        _selectedSourceIndex >= _sampleSuccessfulSources.length) {
-      errors.add(
-        'selectedSourceIndex=$_selectedSourceIndex out of range for '
-        'sampleSuccessfulSources.length=${_sampleSuccessfulSources.length}',
-      );
-    }
 
     for (final entry in _pageEnqueueSeq.entries) {
       if (entry.value < 0 || entry.value >= _nextPageEnqueueSeq) {

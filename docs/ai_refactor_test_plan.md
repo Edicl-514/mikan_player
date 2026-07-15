@@ -4,8 +4,45 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-15 (updated after scheduler dispatch planning). Counts
+Status date: 2026-07-15 (updated after playback-controller checkpoint). Counts
 via `rg -c '^'` / `wc -l`. Latest checkpoint:
+
+**Player playback controller (2026-07-15)** — completes the planned final
+Phase 2 controller extraction and deliberately stops before the required new
+manual smoke/review gate.
+
+- New pure-Dart `PlayerPlaybackController` owns the online/current source,
+  selected playable-source index, intent/stream URLs, loading/error/label
+  state, playback/probe headers, direct-versus-header-proxy URL planning,
+  failed-source filtering, auto-play reservation, and startup watchdog. It
+  receives an injected clock, timer factory, and player/page callbacks; it has
+  no widget, `BuildContext`, WebView, or `media_kit` import.
+- The controller gives every online open both the existing sample load token
+  and a monotonic attempt id. Timer, stop/open completion, post-open speed /
+  pending-position work, reset, and disposal all reject stale attempts. A
+  timeout/open-error now retires its reservation *before* requesting the next
+  Tier-0 candidate, fixing the real historical latch bug where fallback called
+  itself while `_isAutoPlayFallbackInProgress` was still true and silently
+  returned. Pre-open global player events no longer clear a new watchdog.
+- `PlayerSampleSourceController` now owns only sample-search/list state; the
+  selected index moved to the playback controller so the two controllers cannot
+  diverge. Page-owned work remains explicit: Flutter lifecycle/`setState`,
+  `Player`/`Video` creation, header-proxy registration, WebView/captcha/probe
+  orchestration, scheduler cancellation, BT/download actions, and UI notifiers.
+- BT/local paths now invalidate online attempts through the controller and
+  bind delayed BT/HTTP completion to the current sample generation. A new
+  search clears a stale BT-card spinner so an invalidated start cannot block
+  the source panel indefinitely.
+- New controller composition tests cover headers/URL plans, Tier-0 selection,
+  reservation cancellation, direct-URL filtering, manual timeout, auto
+  timeout/open-error fallback, stale same-generation completions, cancelled
+  watchdog callbacks, generation reset, pre-open player events, and
+  stop→open→speed→resume ordering. The full suite passes **695 tests across 41
+  test files**; analyzer is clean. The platform player must retain
+  last-issued-open-wins semantics; the manual smoke below specifically covers
+  timeout→fallback media behavior.
+
+Prior checkpoint:
 
 **Scheduler dispatch planning (2026-07-15)** — completes the unblocked Phase
 2 architectural step without moving WebView construction, request-gate timing,
@@ -139,7 +176,7 @@ remain the primary completion criteria; line count is only a secondary signal.
 
 | File | Initial | Current | Change | Main remaining issue |
 | --- | ---: | ---: | ---: | --- |
-| `lib/ui/pages/player_page.dart` | 8318 | 6966 | -1352 | Playback + WebView/scheduler/captcha orchestration remain on page; lifecycle smoke + request-gate fixes landed 2026-07-14. Display trees extracted; **controllers #1–#3** own episode / Mikan+DMHY / sample-search **state mutations** only. Scheduler now owns immutable video-dispatch planning; the page still owns request-gate timing and all WebView/playback side effects. |
+| `lib/ui/pages/player_page.dart` | 8318 | 6840 | -1478 | WebView/scheduler/captcha orchestration and Flutter/player side effects remain on page. **Controllers #1–#4** now own episode, Mikan+DMHY, sample-search, and playback state/attempt planning; `PlayerPlaybackController` owns selection, headers/URL plan, watchdog, fallback and stale-attempt guards. Required manual playback smoke is next. |
 | `lib/services/download_manager.dart` | 3285 | 2533 | -752 | HTTP + HLS extracted (segment/chunk boundary hardening this checkpoint); BT core ops use backend ports; `BtStreamRestoreCoordinator` owns delayed-job bookkeeping. Manager keeps slots/tasks/persistence + playback policy and background-restore mutation. |
 | `lib/ui/widgets/video_player_controls.dart` | 3103 | 1121 | -1982 | Fully decomposed: SettingsPanel + MobileGestureAndLockLayer + MobileFloatingLockButton + SystemTimeDisplay + EpisodeSidePanel + SourceListPanel are now separate files. No remaining coherent controls boundary. |
 | `↳ lib/ui/widgets/video_player_controls/settings_panel.dart` | 1141 | 977 | -164 | Source list extracted as `SourceListPanel`; panel keeps reactive source listener state for the menu subtitle. |
@@ -150,7 +187,7 @@ remain the primary completion criteria; line count is only a secondary signal.
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 684 tests passing across 40 test files.
+- `flutter test`: 695 tests passing across 41 test files.
 - **Manual smoke (2026-07-14) recorded complete:** rapid episode switch /
   leave-reenter (OCR captcha sources + autoplay), HLS/MP4 download,
   BT download + stream playback, comments and other leaf UI.
@@ -161,6 +198,22 @@ Current validation baseline:
   `startVideoJob` remain explicit. The previous pure decision helper was
   fully subsumed; scheduler composition coverage is 39 tests and the full
   suite passes.
+- **Playback-controller checkpoint (2026-07-15):** new pure-Dart
+  `PlayerPlaybackController` (925 LOC) receives clock/timer/player/page
+  callbacks and owns online playback state, selected source index, headers /
+  URL plan, source-failure selection, auto reservation, attempt ids and the
+  startup watchdog. `player_page.dart` is 6840 LOC; it remains the owner of
+  Flutter lifecycle, `Player`/`Video`, WebView/probe/scheduler/captcha,
+  header-proxy registration, BT/download work and visual `setState` wiring.
+  `PlayerSampleSourceController` is now 281 LOC (14 tests) after moving its
+  selected index to the playback controller. New
+  `player_playback_controller_test.dart` has 12 deterministic composition
+  tests (fake clock/timers/player) covering header/URL plans, selection,
+  reservation rollback/replacement protection, direct-URL filtering,
+  timeout/error fallback, stale same-generation work, reset, old timer
+  callbacks, and pre-open event
+  protection. The test suite is 695 tests across 41 files. A real player
+  timeout→fallback smoke is required before the next architectural move.
 - Current checkpoint adds (over the 2026-07-11 source-list / sites /
   comments / bt-resource-list leaf-widget checkpoint): the comment-HTML
   rendering helpers `normalizeBangumiImageSrc` / `isBangumiSmileUrl` /
@@ -293,7 +346,7 @@ Phase status:
 | --- | --- | --- | --- |
 | Phase 0 | Complete | Analyzer/test baseline; **real player/WebView smoke 2026-07-11**; **lifecycle smoke gate re-recorded 2026-07-14** (rapid EP switch/re-enter, HLS/MP4 download, BT stream, comments/UI). | Re-record only after the next architectural checkpoint that touches WebView/playback/platform. |
 | Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, pure BT-tag helpers, and **comment HTML rendering helpers** — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
-| Phase 2 | Stabilizing | Scheduler B1-B6 plus immutable video-dispatch commands; display widgets; **controllers #1–#3**; **2026-07-14 lifecycle fixes** (in-page mobile EP switch, warm-worker reset, generation-aware jobs, autoplay loadToken, dispose cancel, captcha false-success, **`SourceRequestGate`**). Manual smoke gate open. | `PlayerPlaybackController`, then a new manual smoke gate. |
+| Phase 2 | Stabilizing | Scheduler B1-B6 plus immutable video-dispatch commands; display widgets; **controllers #1–#4** including `PlayerPlaybackController`; **2026-07-14 lifecycle fixes** (in-page mobile EP switch, warm-worker reset, generation-aware jobs, autoplay loadToken, dispose cancel, captcha false-success, **`SourceRequestGate`**). | Re-record the manual playback smoke gate, then stop for review; do not begin another architectural extraction first. |
 | Phase 3 | Stabilizing | Task/queue/cleanup/store; HTTP + m3u8 boundaries (+ chunk/segment pause-remove tests); BT backend ports; `BtStreamCapability`; **`BtStreamRestoreCoordinator`**; **BT download+stream smoke recorded 2026-07-14**. Manager 2533 LOC. | Further stream-policy extraction optional; prefer characterization over more moves until dispatch planning lands. |
 | Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` / `SitesSection` / wide `CommentsSection`** display widgets + widget tests. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
@@ -597,8 +650,11 @@ Target boundaries:
     worker health transitions.
   - Does not build widgets.
 - `PlayerPlaybackController`
-  - Owns selected source, playback headers, startup watchdog, fallback, and
-    playback URL selection.
+  - Owns selected source index/current online source, intent and stream URLs,
+    playback/probe headers, direct/proxy URL planning, startup watchdog,
+    failed-source filtering, auto-play reservation and fallback attempt state.
+  - Uses injected clock/timer/player/page callbacks; does not build widgets or
+    own `Player`, WebView, probe, header-proxy, DownloadManager, or `setState`.
 - `PlayerEpisodeController`
   - Owns current episode, playable episode list, skip next/previous, and episode
     selection.
@@ -642,10 +698,15 @@ the revised sequence below:
     `_sampleError` / `_samplePlayPages` / `_sampleSuccessfulSources` /
     `_pageEnqueueSeq` / …) deferred to **Sub-commit B**.
   5b. ✅ Extract sample-source state into sibling `PlayerSampleSourceController`
-    (2026-07-13, `1fc8f90`). 331 lines + 15 composition tests. 11 fields
-    moved; page keeps WebView/scheduler/captcha/stream side-effects.
-  6. Extract `PlayerPlaybackController` last, with injected clock/timer/player
-    callbacks for watchdog and fallback tests.
+    (2026-07-13, `1fc8f90`; selection migrated in the playback checkpoint).
+    It is now 281 lines + 14 composition tests and owns search/list state only;
+    page keeps WebView/scheduler/captcha/stream side-effects.
+  6. ✅ Extract `PlayerPlaybackController` (2026-07-15): 925-line pure-Dart
+    controller + 12 deterministic composition tests. It uses injected
+    clock/timer/player/page callbacks, owns selected source/current playback
+    state and URL/header plans, and gives every open a load-token + attempt-id
+    guard. The timeout/open-error fallback latch defect is explicitly fixed.
+    Stop for the manual smoke/review gate before another architecture move.
 7. Keep page wiring on existing Flutter primitives unless a local abstraction
    is already established.
 
@@ -835,7 +896,7 @@ Only add this after confirming the project benefits from it.
 
 ## Test Plan
 
-Current baseline: 692 tests across 41 test files.
+Current baseline: 695 tests across 41 test files.
 
 Covered areas:
 
@@ -865,10 +926,17 @@ Covered areas:
   pause / resume / remove / stats / isManaged / setFilePriorities /
   saveResumeData / applySpeedLimits; exception injection per method; callLog
   ordering; DTO field presence; `FakeBtBackend is BtBackend` conformance.
-- **`PlayerSampleSourceController` composition tests** (15 tests): defaults,
+- **`PlayerSampleSourceController` composition tests** (14 tests): defaults,
   load-token bump/isCurrent, beginNewSearchReset, appendPlayPage enqueue seq,
   progress map, successful sources, sort-by-tier, resetForSwitching,
   unmodifiable views, validateInvariants.
+- **`PlayerPlaybackController` composition tests** (12 tests): playback/probe
+  headers and direct/proxy URL plans; Tier-0 source selection, URL-less source
+  filtering and reservation rollback/replacement protection; manual timeout;
+  automatic timeout/open error fallback; old same-generation completion /
+  cancelled timer no-op;
+  reset during stop; pre-open player event guard; and
+  stop→open→speed→pending-position callback ordering.
 - **`RqbitBackend` / `LibtorrentBackend` unit tests** (~25 tests): injectable
   seams; init idempotency; add/pause/resume/remove; stats mapping; no-ops for
   rqbit priorities/resume/speed; libtorrent priorities + resumePath remove.
@@ -1192,10 +1260,16 @@ containment and empty-parent cleanup of literal-backslash siblings.
    soft limits, no-work, and captcha/video competition covered. WebView
    construction and page side effects remain on the page; `SourceRequestGate`
    remains outside the pure planner.
-6. **Next architectural step:** extract `PlayerPlaybackController`: inject
-   `clock`/`timer`/`player` callbacks and characterize watchdog, fallback, and
-   stale-callback behavior. Stop for review after this controller.
-7. Keep `BangumiDetailsController` and styling/token work deferred until the
+6. ✅ **Playback-controller checkpoint (2026-07-15):** injected
+   `clock`/`timer`/`player` callbacks now characterize watchdog, fallback,
+   reservation, and stale-attempt behavior. This also fixes the real fallback
+   latch bug and moves source selection out of the sample-search controller.
+7. **Required manual smoke/review gate:** rapid A timeout/open-error → B
+   fallback (including same source key across episode/search), manual source
+   select/start, BT card start then manual online search, HLS/MP4 and BT
+   leave/re-enter. Confirm media-kit honors last-issued-open-wins while the
+   controller ignores stale callbacks. Stop for review after recording it.
+8. Keep `BangumiDetailsController` and styling/token work deferred until the
    player and download lifecycle boundaries are stable.
 
 Use a new branch/checkpoint for each architectural stage. Do not measure

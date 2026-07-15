@@ -59,7 +59,6 @@ void main() {
       expect(c.sampleError, isNull);
       expect(c.samplePlayPages, isEmpty);
       expect(c.sampleSuccessfulSources, isEmpty);
-      expect(c.selectedSourceIndex, 0);
       expect(c.sampleLoadToken, 0);
       expect(c.enabledSourceNames, isEmpty);
       expect(c.sourceTiers, isEmpty);
@@ -129,7 +128,6 @@ void main() {
       c.initPendingProgressForEnabled();
       c.appendPlayPage(_page(sourceName: 'a'), pageKey: 'a');
       c.addSuccessfulSource(_page(sourceName: 'a', directVideoUrl: 'u'));
-      c.selectSource(0);
       c.setSampleError('old');
 
       c.beginNewSearchReset();
@@ -139,7 +137,6 @@ void main() {
       expect(c.sampleSuccessfulSources, isEmpty);
       expect(c.pageEnqueueSeq, isEmpty);
       expect(c.nextPageEnqueueSeq, 0);
-      expect(c.selectedSourceIndex, 0);
       expect(c.sourceProgressMap, isEmpty);
       expect(c.enabledSourceNames, isEmpty);
       expect(c.sourceTiers, isEmpty);
@@ -241,33 +238,6 @@ void main() {
     });
   });
 
-  group('selection', () {
-    test('selectSource / selectSourceOrZero / clampSelectedSourceIndex', () {
-      final c = _controller();
-      final a = _page(sourceName: 'a', directVideoUrl: 'u1');
-      final b = _page(sourceName: 'b', directVideoUrl: 'u2');
-      c.addSuccessfulSource(a);
-      c.addSuccessfulSource(b);
-
-      c.selectSource(1);
-      expect(c.selectedSourceIndex, 1);
-
-      c.selectSourceOrZero(a);
-      expect(c.selectedSourceIndex, 0);
-
-      final phantom = _page(sourceName: 'z', directVideoUrl: 'u3');
-      c.selectSourceOrZero(phantom);
-      expect(c.selectedSourceIndex, 0);
-
-      c.selectSource(99);
-      // intentionally out of range — clamp fixes it
-      expect(c.validateInvariants(), isNotEmpty);
-      c.clampSelectedSourceIndex();
-      expect(c.selectedSourceIndex, 1);
-      expectConsistent(c, 'after clamp');
-    });
-  });
-
   group('resetForSwitching', () {
     test('clears sample transient state like episode switch', () {
       final c = _controller();
@@ -277,7 +247,6 @@ void main() {
       c.initPendingProgressForEnabled();
       c.appendPlayPage(_page(), pageKey: 'a');
       c.addSuccessfulSource(_page(directVideoUrl: 'u'));
-      c.selectSource(0);
 
       c.resetForSwitching();
       expect(c.isLoadingSample, isFalse);
@@ -286,7 +255,6 @@ void main() {
       expect(c.sampleSuccessfulSources, isEmpty);
       expect(c.pageEnqueueSeq, isEmpty);
       expect(c.nextPageEnqueueSeq, 0);
-      expect(c.selectedSourceIndex, 0);
       expect(c.sourceProgressMap, isEmpty);
       expect(c.enabledSourceNames, isEmpty);
       expect(c.sourceTiers, isEmpty);
@@ -335,8 +303,6 @@ void main() {
       c.appendPlayPage(_page(sourceName: 'b'), pageKey: 'b');
       c.sortPlayPagesByTier();
       c.addSuccessfulSource(_page(sourceName: 'a', directVideoUrl: 'u'));
-      c.selectSourceOrZero(c.sampleSuccessfulSources.first);
-      c.clampSelectedSourceIndex();
       c.markSampleIdle();
       c.setSampleError(null);
       expectConsistent(c, 'full surface');
