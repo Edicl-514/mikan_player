@@ -39,6 +39,7 @@ import 'package:mikan_player/ui/pages/player/player_source_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_sample_source_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_playback_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_search_session_policy.dart';
+import 'package:mikan_player/ui/pages/player/sample_search_finish_policy.dart';
 import 'package:mikan_player/ui/pages/player/player_webview_scheduler.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_recommendations.dart';
@@ -1485,22 +1486,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
   }
 
-  bool _isSearchStepFinished(SearchStep step) {
-    return step == SearchStep.success || step == SearchStep.failed;
-  }
+  bool _isSearchStepFinished(SearchStep step) => isSearchStepTerminal(step);
 
-  bool _isSourceSearchFinished() {
-    if (_sampleSourceController.enabledSourceNames.isEmpty) {
-      return false;
-    }
-    for (final sourceName in _sampleSourceController.enabledSourceNames) {
-      final progress = _sampleSourceController.sourceProgressMap[sourceName];
-      if (progress == null || !_isSearchStepFinished(progress.step)) {
-        return false;
-      }
-    }
-    return true;
-  }
+  bool _isSourceSearchFinished() => allEnabledSourcesTerminal(
+    enabledSourceNames: _sampleSourceController.enabledSourceNames,
+    sourceProgressMap: _sampleSourceController.sourceProgressMap,
+  );
 
   /// Round 4 Stage 3：把 [page] 追加到 `_sampleSourceController.samplePlayPages` 的统一入口。
   ///
@@ -2782,33 +2773,26 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _maybeFinishSampleSearch() {
-    if (!mounted || !_sampleSourceController.isLoadingSample) {
-      return;
-    }
-    if (_searchSubscriptions.isNotEmpty) {
-      return;
-    }
-    if (_pendingCaptchaTasks.isNotEmpty || _activeCaptchaTasks.isNotEmpty) {
-      return;
-    }
     final activeExtraction = _useWorkerPool
         ? _scheduler.activeVideoJobs.isNotEmpty
         : _activeWebViews.isNotEmpty;
-    if (activeExtraction || _resolvingChannelPlayPageKeys.isNotEmpty) {
-      return;
-    }
     // Probes run asynchronously after a WebView extraction completes. The
     // search is not truly finished until every in-flight probe has resolved
     // (accepted -> registered as playable, or rejected -> marked failed),
     // otherwise the UI could briefly report "所有源都无法提取" right before a
     // late probe accepts a source.
-    if (_probingSourceKeys.isNotEmpty) {
-      return;
-    }
-    if (_hasPendingWebViewExtractionTasks()) {
-      return;
-    }
-    if (!_isSourceSearchFinished()) {
+    if (!mayMarkSampleSearchIdle(
+      isMounted: mounted,
+      isLoadingSample: _sampleSourceController.isLoadingSample,
+      searchSubscriptionsNonEmpty: _searchSubscriptions.isNotEmpty,
+      pendingOrActiveCaptcha:
+          _pendingCaptchaTasks.isNotEmpty || _activeCaptchaTasks.isNotEmpty,
+      activeExtraction: activeExtraction,
+      resolvingChannelKeysNonEmpty: _resolvingChannelPlayPageKeys.isNotEmpty,
+      probingSourceKeysNonEmpty: _probingSourceKeys.isNotEmpty,
+      hasPendingExtraction: _hasPendingWebViewExtractionTasks(),
+      allSourcesTerminal: _isSourceSearchFinished(),
+    )) {
       return;
     }
 

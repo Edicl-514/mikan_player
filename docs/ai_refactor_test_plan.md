@@ -161,9 +161,11 @@ god controller just to make PlayerPage shorter.
 **Wire checkpoint (2026-07-16):** `PlayerPage` now routes search-scoped stale
 guards through `player_search_session_policy.dart` (`isSearchGenerationCurrent`,
 `mayApplyCaptchaResult`, `mayProcessCaptchaWorkerIdle`,
-`mayProbeVideoExtractionResult`). `SourceRequestGate` cooldown timing, WebView
-creation, and captcha runner DOM refresh remain outside that module. A full
-session reducer is still not extracted.
+`mayProbeVideoExtractionResult`). Finish-idle policy lives in
+`sample_search_finish_policy.dart` (`mayMarkSampleSearchIdle`, terminal source
+checks). `SourceRequestGate` cooldown timing, WebView creation, and captcha
+runner DOM refresh remain outside those modules. A full session reducer is
+still not extracted.
 
 ## Test strategy
 
