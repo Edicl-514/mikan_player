@@ -1734,6 +1734,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (ready == null) {
       return false;
     }
+    if (!mayStartSearchScopedJob(
+      jobLoadToken: ready.loadToken,
+      currentLoadToken: _sampleSourceController.sampleLoadToken,
+      isDisposed: !mounted,
+    )) {
+      return false;
+    }
 
     if (_useWorkerPool) {
       final slot = _acquireIdleCaptchaWorkerSlot();
@@ -1791,12 +1798,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       )) {
         readyPending.add(page);
       } else if (coolingSources.add(page.sourceName)) {
+        final gateToken = _sampleSourceController.sampleLoadToken;
         gate.scheduleWhenReady(
           sourceName: page.sourceName,
           minInterval: SourceRequestGate.defaultVideoInterval,
-          token: _sampleSourceController.sampleLoadToken,
+          token: gateToken,
           onReady: () {
-            if (!mounted) return;
+            if (!isSearchGenerationCurrent(
+              resultLoadToken: gateToken,
+              currentLoadToken: _sampleSourceController.sampleLoadToken,
+              isDisposed: !mounted,
+            )) {
+              return;
+            }
             _scheduleWebViewPoolPump(immediate: true);
           },
         );
@@ -1837,6 +1851,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _logDisposedIdleSlots(decision.disposedIdleSlots);
       final command = decision.command;
       if (command == null) {
+        return false;
+      }
+      if (!mayStartSearchScopedJob(
+        jobLoadToken: _sampleSourceController.sampleLoadToken,
+        currentLoadToken: _sampleSourceController.sampleLoadToken,
+        isDisposed: !mounted,
+      )) {
         return false;
       }
       if (command.createdNew) {
