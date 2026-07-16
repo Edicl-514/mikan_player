@@ -38,6 +38,7 @@ import 'package:mikan_player/ui/pages/player/player_episode_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_source_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_sample_source_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_playback_controller.dart';
+import 'package:mikan_player/ui/pages/player/player_search_session_policy.dart';
 import 'package:mikan_player/ui/pages/player/player_webview_scheduler.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_recommendations.dart';
@@ -432,8 +433,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     if (btTask != null) {
       final streamUrl = await _downloadManager.getOrCreateStreamUrl(btTask.id);
-      if (!mounted ||
-          !_sampleSourceController.isCurrentLoadToken(loadToken) ||
+      if (!isSearchGenerationCurrent(
+            resultLoadToken: loadToken,
+            currentLoadToken: _sampleSourceController.sampleLoadToken,
+            isDisposed: !mounted,
+          ) ||
           streamUrl == null) {
         return false;
       }
@@ -453,8 +457,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final filePath = httpTask.localFilePath!;
       final file = File(filePath);
       if (await file.exists()) {
-        if (!mounted ||
-            !_sampleSourceController.isCurrentLoadToken(loadToken)) {
+        if (!isSearchGenerationCurrent(
+          resultLoadToken: loadToken,
+          currentLoadToken: _sampleSourceController.sampleLoadToken,
+          isDisposed: !mounted,
+        )) {
           return false;
         }
         debugPrint(
@@ -470,13 +477,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         _publishPlayerControlSourceState();
         _temporarilyAllowPositionReset();
         _player.open(Media(filePath), play: true).then((_) async {
-          if (!mounted ||
-              !_sampleSourceController.isCurrentLoadToken(loadToken)) {
+          if (!isSearchGenerationCurrent(
+            resultLoadToken: loadToken,
+            currentLoadToken: _sampleSourceController.sampleLoadToken,
+            isDisposed: !mounted,
+          )) {
             return;
           }
           await _applyPlaybackSpeed();
-          if (!mounted ||
-              !_sampleSourceController.isCurrentLoadToken(loadToken)) {
+          if (!isSearchGenerationCurrent(
+            resultLoadToken: loadToken,
+            currentLoadToken: _sampleSourceController.sampleLoadToken,
+            isDisposed: !mounted,
+          )) {
             return;
           }
           await _applyPendingStartPosition();
@@ -492,8 +505,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   void _playBtStreamUrl(String streamUrl, {int? loadToken}) {
     final expectedLoadToken =
         loadToken ?? _sampleSourceController.sampleLoadToken;
-    if (!mounted ||
-        !_sampleSourceController.isCurrentLoadToken(expectedLoadToken)) {
+    if (!isSearchGenerationCurrent(
+      resultLoadToken: expectedLoadToken,
+      currentLoadToken: _sampleSourceController.sampleLoadToken,
+      isDisposed: !mounted,
+    )) {
       return;
     }
     setState(() {
@@ -513,13 +529,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     debugPrint('[Player] Playing BT stream: $streamUrl');
     _temporarilyAllowPositionReset();
     _player.open(Media(streamUrl), play: true).then((_) async {
-      if (!mounted ||
-          !_sampleSourceController.isCurrentLoadToken(expectedLoadToken)) {
+      if (!isSearchGenerationCurrent(
+        resultLoadToken: expectedLoadToken,
+        currentLoadToken: _sampleSourceController.sampleLoadToken,
+        isDisposed: !mounted,
+      )) {
         return;
       }
       await _applyPlaybackSpeed();
-      if (!mounted ||
-          !_sampleSourceController.isCurrentLoadToken(expectedLoadToken)) {
+      if (!isSearchGenerationCurrent(
+        resultLoadToken: expectedLoadToken,
+        currentLoadToken: _sampleSourceController.sampleLoadToken,
+        isDisposed: !mounted,
+      )) {
         return;
       }
       await _applyPendingStartPosition();
@@ -1701,8 +1723,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           token: candidate.loadToken,
           onReady: () {
             if (!mounted) return;
-            if (candidate.loadToken !=
-                _sampleSourceController.sampleLoadToken) {
+            // Search generation must still match; gate timing stays outside
+            // pure policy (SourceRequestGate owns the delay).
+            if (!isSearchGenerationCurrent(
+              resultLoadToken: candidate.loadToken,
+              currentLoadToken: _sampleSourceController.sampleLoadToken,
+              isDisposed: !mounted,
+            )) {
               return;
             }
             _scheduleWebViewPoolPump(immediate: true);
@@ -2324,6 +2351,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _onCaptchaPreflightResult(String taskKey, CaptchaBypassResult result) {
+    // Snapshot active-task presence before remove so mayApplyCaptchaResult can
+    // distinguish "cancelled/missing bookkeeping" from a live completion.
+    final hadActiveTask = _activeCaptchaTasks.containsKey(taskKey);
     final task = _activeCaptchaTasks.remove(taskKey);
     _webViewStatus.remove(taskKey);
 
@@ -2335,7 +2365,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return;
     }
 
-    if (!mounted || task.loadToken != _sampleSourceController.sampleLoadToken) {
+    if (!mayApplyCaptchaResult(
+      resultLoadToken: task.loadToken,
+      currentLoadToken: _sampleSourceController.sampleLoadToken,
+      isDisposed: !mounted,
+      activeTaskPresent: hadActiveTask,
+      activeTaskKey: task.taskKey,
+      resultTaskKey: taskKey,
+    )) {
       _releaseCaptchaSlotForTask(taskKey);
       _webviewStats.onCaptchaJobStaleResult(taskKey);
       if (mounted) setState(() {});
@@ -2372,7 +2409,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // post-frame idle notification arrives. In that case the slot already
       // carries a new job; the stale notification must not mark it idle or
       // clear its fresh scheduler bookkeeping.
-      if (slot.kind != null) return;
+      if (!mayProcessCaptchaWorkerIdle(slotHasActiveKind: slot.kind != null)) {
+        return;
+      }
       final taskKey = slot.taskKey;
       if (shouldClearCaptchaSlotOnIdle(
         slotTaskKey: taskKey,
@@ -2645,8 +2684,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           runtimeOverrides: runtimeOverrides,
         ).listen(
           (progress) {
-            if (!mounted ||
-                loadToken != _sampleSourceController.sampleLoadToken) {
+            if (!isSearchGenerationCurrent(
+              resultLoadToken: loadToken,
+              currentLoadToken: _sampleSourceController.sampleLoadToken,
+              isDisposed: !mounted,
+            )) {
               return;
             }
             if (!targetSources.contains(progress.sourceName)) {
@@ -2667,8 +2709,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           onError: (error, _) {
             debugPrint('[SampleSearch][$streamTag] stream error: $error');
             _searchSubscriptions.remove(subscription);
-            if (!mounted ||
-                loadToken != _sampleSourceController.sampleLoadToken) {
+            if (!isSearchGenerationCurrent(
+              resultLoadToken: loadToken,
+              currentLoadToken: _sampleSourceController.sampleLoadToken,
+              isDisposed: !mounted,
+            )) {
               return;
             }
 
@@ -2702,8 +2747,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           },
           onDone: () {
             _searchSubscriptions.remove(subscription);
-            if (!mounted ||
-                loadToken != _sampleSourceController.sampleLoadToken) {
+            if (!isSearchGenerationCurrent(
+              resultLoadToken: loadToken,
+              currentLoadToken: _sampleSourceController.sampleLoadToken,
+              isDisposed: !mounted,
+            )) {
               return;
             }
             _maybeFinishSampleSearch();
@@ -2816,7 +2864,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final loadToken = _sampleSourceController.bumpLoadToken();
     await _cancelSearchSubscriptions();
 
-    if (!mounted || loadToken != _sampleSourceController.sampleLoadToken) {
+    if (!isSearchGenerationCurrent(
+      resultLoadToken: loadToken,
+      currentLoadToken: _sampleSourceController.sampleLoadToken,
+      isDisposed: !mounted,
+    )) {
       return;
     }
 
@@ -2828,7 +2880,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     if (btTask != null && _playbackController.currentStreamUrl == null) {
       final streamUrl = await _downloadManager.getOrCreateStreamUrl(btTask.id);
-      if (!mounted || loadToken != _sampleSourceController.sampleLoadToken) {
+      if (!isSearchGenerationCurrent(
+        resultLoadToken: loadToken,
+        currentLoadToken: _sampleSourceController.sampleLoadToken,
+        isDisposed: !mounted,
+      )) {
         return;
       }
       if (streamUrl != null) {
@@ -2874,7 +2930,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final sources = await getPlaybackSources();
       final enabledSources = sources.where((s) => s.enabled).toList();
       if (enabledSources.isEmpty) {
-        if (mounted && loadToken == _sampleSourceController.sampleLoadToken) {
+        if (isSearchGenerationCurrent(
+          resultLoadToken: loadToken,
+          currentLoadToken: _sampleSourceController.sampleLoadToken,
+          isDisposed: !mounted,
+        )) {
           setState(() {
             _sampleSourceController.setSampleErrorAndIdle('未启用任何播放源');
           });
@@ -2908,7 +2968,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final searchName = _buildSearchNameForSources();
       final captchaPreflightKeyword = _buildCaptchaPreflightKeyword();
 
-      if (!mounted || loadToken != _sampleSourceController.sampleLoadToken) {
+      if (!isSearchGenerationCurrent(
+        resultLoadToken: loadToken,
+        currentLoadToken: _sampleSourceController.sampleLoadToken,
+        isDisposed: !mounted,
+      )) {
         return;
       }
 
@@ -2963,8 +3027,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           searchKeyword: captchaPreflightKeyword,
           loadToken: loadToken,
           onCompleted: (runtimeOverride) {
-            if (!mounted ||
-                loadToken != _sampleSourceController.sampleLoadToken) {
+            if (!isSearchGenerationCurrent(
+              resultLoadToken: loadToken,
+              currentLoadToken: _sampleSourceController.sampleLoadToken,
+              isDisposed: !mounted,
+            )) {
               return;
             }
             if (runtimeOverride.skipSearchError != null) {
@@ -2987,7 +3054,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _maybeFinishSampleSearch();
     } catch (e) {
       debugPrint("Error loading Sample source: $e");
-      if (mounted && loadToken == _sampleSourceController.sampleLoadToken) {
+      if (isSearchGenerationCurrent(
+        resultLoadToken: loadToken,
+        currentLoadToken: _sampleSourceController.sampleLoadToken,
+        isDisposed: !mounted,
+      )) {
         setState(() {
           _sampleSourceController.setSampleErrorAndIdle(e.toString());
         });
@@ -3052,7 +3123,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
     _probingSourceKeys.remove(sourceKey);
 
-    if (!mounted || !_sampleSourceController.isCurrentLoadToken(loadToken)) {
+    if (!isSearchGenerationCurrent(
+      resultLoadToken: loadToken,
+      currentLoadToken: _sampleSourceController.sampleLoadToken,
+      isDisposed: !mounted,
+    )) {
       return;
     }
 
@@ -3097,8 +3172,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       source.channelIndex,
     );
 
-    if (!mounted ||
-        !_sampleSourceController.isCurrentLoadToken(expectedLoadToken)) {
+    if (!isSearchGenerationCurrent(
+      resultLoadToken: expectedLoadToken,
+      currentLoadToken: _sampleSourceController.sampleLoadToken,
+      isDisposed: !mounted,
+    )) {
       debugPrint(
         '[_openOnlineSource] drop stale open for $sourceKey '
         '(loadToken=$expectedLoadToken now=${_sampleSourceController.sampleLoadToken})',
@@ -3118,8 +3196,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       source,
       autoFallback: autoFallback,
       loadToken: expectedLoadToken,
-      isLoadTokenCurrent: (token) =>
-          mounted && _sampleSourceController.isCurrentLoadToken(token),
+      isLoadTokenCurrent: (token) => isSearchGenerationCurrent(
+        resultLoadToken: token,
+        currentLoadToken: _sampleSourceController.sampleLoadToken,
+        isDisposed: !mounted,
+      ),
       autoPlayReservationId: autoPlayReservationId,
       proxyUrlBuilder: (url, headers) => _headerProxy.registerUrl(url, headers),
       callbacks: PlayerPlaybackOpenCallbacks(
@@ -3131,8 +3212,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         applyPendingStartPosition: _applyPendingStartPosition,
         onStateChanged: _onPlaybackControllerStateChanged,
         onFallbackRequested: (request) {
-          if (!mounted ||
-              !_sampleSourceController.isCurrentLoadToken(request.loadToken)) {
+          if (!isSearchGenerationCurrent(
+            resultLoadToken: request.loadToken,
+            currentLoadToken: _sampleSourceController.sampleLoadToken,
+            isDisposed: !mounted,
+          )) {
             return;
           }
           _attemptAutoPlay(
@@ -3203,7 +3287,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         runtimeOverride: runtimeOverride,
       );
 
-      if (!mounted || !_sampleSourceController.isCurrentLoadToken(loadToken)) {
+      if (!isSearchGenerationCurrent(
+        resultLoadToken: loadToken,
+        currentLoadToken: _sampleSourceController.sampleLoadToken,
+        isDisposed: !mounted,
+      )) {
         return;
       }
 
@@ -3266,7 +3354,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       );
     } finally {
       _resolvingChannelPlayPageKeys.remove(pageKey);
-      if (mounted && _sampleSourceController.isCurrentLoadToken(loadToken)) {
+      if (isSearchGenerationCurrent(
+        resultLoadToken: loadToken,
+        currentLoadToken: _sampleSourceController.sampleLoadToken,
+        isDisposed: !mounted,
+      )) {
         _startNextWebViewExtraction();
       }
     }
@@ -3460,10 +3552,20 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // （含已接受源的其他 channel 与其他 Tier-0 源的 channel）的迟到结果仍按正常
       // 流程走 probe/register 以填充源列表作为后备。这里仍然清理上面的记账以释放
       // 并发槽位，然后只需更新状态、泵送任务池并提前返回。
+      // Note: video result callback has no per-job loadToken; generation is
+      // enforced on probe/open paths. Here we only apply the late-tier policy.
       final tier = _sampleSourceController.sourceTiers[sourceNameForKey] ?? 999;
-      if (isVideoResultLateAfterCancel(
+      final lateNonTier0 = isVideoResultLateAfterCancel(
         acceptedSourcePageKey: _acceptedSourcePageKey,
         tier: tier,
+      );
+      if (!mayProbeVideoExtractionResult(
+        // Pool jobs are built with current sampleLoadToken; without a
+        // per-result token, reuse current generation so only late-tier blocks.
+        resultLoadToken: _sampleSourceController.sampleLoadToken,
+        currentLoadToken: _sampleSourceController.sampleLoadToken,
+        isDisposed: !mounted,
+        isLateNonTier0AfterAccept: lateNonTier0,
       )) {
         _webviewStats.onVideoJobLateAfterCancel(pageKey, sourceNameForKey);
         _failedWebViewPageKeys.add(pageKey);
@@ -6584,8 +6686,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             episodeNumber: res.episode,
             forPlayback: true,
           );
-          if (!mounted ||
-              !_sampleSourceController.isCurrentLoadToken(loadToken)) {
+          if (!isSearchGenerationCurrent(
+            resultLoadToken: loadToken,
+            currentLoadToken: _sampleSourceController.sampleLoadToken,
+            isDisposed: !mounted,
+          )) {
             return;
           }
           if (streamUrl == null) {
@@ -6607,19 +6712,28 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
             );
           }
           await _player.stop();
-          if (!mounted ||
-              !_sampleSourceController.isCurrentLoadToken(loadToken)) {
+          if (!isSearchGenerationCurrent(
+            resultLoadToken: loadToken,
+            currentLoadToken: _sampleSourceController.sampleLoadToken,
+            isDisposed: !mounted,
+          )) {
             return;
           }
           await _player.open(Media(streamUrl));
-          if (!mounted ||
-              !_sampleSourceController.isCurrentLoadToken(loadToken)) {
+          if (!isSearchGenerationCurrent(
+            resultLoadToken: loadToken,
+            currentLoadToken: _sampleSourceController.sampleLoadToken,
+            isDisposed: !mounted,
+          )) {
             return;
           }
           await _applyPlaybackSpeed();
           await _applyPendingStartPosition();
-          if (!mounted ||
-              !_sampleSourceController.isCurrentLoadToken(loadToken)) {
+          if (!isSearchGenerationCurrent(
+            resultLoadToken: loadToken,
+            currentLoadToken: _sampleSourceController.sampleLoadToken,
+            isDisposed: !mounted,
+          )) {
             return;
           }
           setState(() {
@@ -6628,8 +6742,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _publishPlayerControlSourceState();
         } catch (e) {
           debugPrint('[Player] Error playing magnet: $e');
-          if (!mounted ||
-              !_sampleSourceController.isCurrentLoadToken(loadToken)) {
+          if (!isSearchGenerationCurrent(
+            resultLoadToken: loadToken,
+            currentLoadToken: _sampleSourceController.sampleLoadToken,
+            isDisposed: !mounted,
+          )) {
             return;
           }
           setState(() {

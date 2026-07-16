@@ -18,8 +18,8 @@ Status date: 2026-07-16 (Phase 4 controller wired).
 The following was re-verified on the status date:
 
 - flutter analyze: 0 issues.
-- flutter test: 723 passing tests (includes BangumiDetailsController characterization).
-- Working tree after Phase 4 extraction: controller + page wiring + tests.
+- flutter test: 736+ passing tests (includes search-session policy matrix).
+- Working tree after search-session policy wire: PlayerPage guards call pure policy helpers.
 
 Hotspot counts below use line counts. They are an inventory, not a completion
 metric.
@@ -156,8 +156,14 @@ Required characterization matrix:
 
 Only after this matrix is deterministic may a controller/reducer be extracted.
 That controller should remain small and command-oriented; do not create a new
-god controller just to make PlayerPage shorter. Do not wire the policy into
-PlayerPage until a follow-up task intentionally migrates individual guards.
+god controller just to make PlayerPage shorter.
+
+**Wire checkpoint (2026-07-16):** `PlayerPage` now routes search-scoped stale
+guards through `player_search_session_policy.dart` (`isSearchGenerationCurrent`,
+`mayApplyCaptchaResult`, `mayProcessCaptchaWorkerIdle`,
+`mayProbeVideoExtractionResult`). `SourceRequestGate` cooldown timing, WebView
+creation, and captcha runner DOM refresh remain outside that module. A full
+session reducer is still not extracted.
 
 ## Test strategy
 
