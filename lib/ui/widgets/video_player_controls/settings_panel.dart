@@ -371,9 +371,9 @@ class _SettingsPanelState extends State<SettingsPanel> {
     String subtitleStatus;
     if (widget.subtitleService.hasSubtitles) {
       if (widget.subtitleService.isSubtitleVisible) {
-        final currentTrack = widget.subtitleService.currentTrack;
-        subtitleStatus = currentTrack != null
-            ? widget.subtitleService.getTrackDisplayName(currentTrack)
+        final selected = widget.subtitleService.resolvedSelectedTrack;
+        subtitleStatus = selected != null
+            ? widget.subtitleService.getTrackDisplayName(selected)
             : '已开启';
       } else {
         subtitleStatus = '已关闭';
@@ -644,7 +644,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
               )
             else
               ...actualTracks.map((track) {
-                final isSelected = service.currentTrack?.id == track.id;
+                final isSelected = service.isTrackSelected(track);
                 return _buildTrackItem(
                   title: service.getTrackDisplayName(track),
                   subtitle: track.language ?? '',

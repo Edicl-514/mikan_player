@@ -4976,75 +4976,60 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }) {
     // If player is initialized and we have a stream, show actual player
     if (_isPlayerInitialized && _playbackController.currentStreamUrl != null) {
-      // Use ListenableBuilder to rebuild when subtitle settings change
-      return ListenableBuilder(
-        listenable: _subtitleService,
-        builder: (context, _) {
-          final subtitleSettings = _subtitleService.settings;
-          return Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (_) => _markUserInteraction(),
-            onPointerMove: (_) => _markUserInteraction(),
-            onPointerUp: (_) => _markUserInteraction(),
-            child: Video(
-              controller: _videoController,
-              subtitleViewConfiguration: SubtitleViewConfiguration(
-                visible: subtitleSettings.enabled,
-                style: subtitleSettings.toTextStyle(),
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  0,
-                  16,
-                  subtitleSettings.bottomPadding,
-                ),
-              ),
-              controls: (state) => CustomVideoControls(
-                state: state,
-                isMobile: isMobile,
-                danmakuService: _danmakuService,
-                subtitleService: _subtitleService,
-                currentVideoTimeListenable: _currentVideoTimeNotifier,
-                isVideoPausedListenable: _isVideoPausedNotifier,
-                showDanmakuSettingsListenable: _showDanmakuSettingsNotifier,
-                onToggleDanmakuSettings: () =>
-                    _showDanmakuSettingsNotifier.value =
-                        !_showDanmakuSettingsNotifier.value,
-                allEpisodes: _episodeController.playableEpisodes,
-                currentEpisode: _episodeController.currentEpisode,
-                currentEpisodeListenable:
-                    _episodeController.currentEpisodeListenable,
-                onEpisodeSelected: _onEpisodeSelected,
-                isAutoPlayNextEnabled: _isAutoPlayNextEnabled,
-                onToggleAutoPlayNext: () {
-                  final newValue = !_isAutoPlayNextEnabled;
-                  setState(() {
-                    _isAutoPlayNextEnabled = newValue;
-                  });
-                  _saveAutoPlaySetting(newValue);
-                },
-                playbackSpeed: _playbackSpeed,
-                onPlaybackSpeedChanged: _onPlaybackSpeedChanged,
-                availableSources:
-                    _sampleSourceController.sampleSuccessfulSources,
-                availableSourcesListenable: _availableSourcesNotifier,
-                sourceIndexNotifier: _selectedSourceIndexNotifier,
-                currentSourceLabel: _playbackController.playingSourceLabel,
-                currentSourceLabelListenable: _playingSourceLabelNotifier,
-                onSourceSelected: (index) {
-                  _onSourceSelected(index);
-                  _startPlaybackFromSelectedSource();
-                },
-                isLoading:
-                    _playbackController.isLoadingVideo ||
-                    _loadingMagnet != null,
-                onUserInteraction: _markUserInteraction,
-                mobilePlayerLockNotifier: _mobilePlayerLockNotifier,
-                videoTitle: _videoTitleNotifier.value,
-                videoTitleListenable: _videoTitleNotifier,
-              ),
-            ),
-          );
-        },
+      // 字幕由 CustomVideoControls 内的 SubtitleOverlay 渲染，
+      // 关闭 media_kit 自带 SubtitleView，避免全屏双层字幕且样式不刷新。
+      return Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _markUserInteraction(),
+        onPointerMove: (_) => _markUserInteraction(),
+        onPointerUp: (_) => _markUserInteraction(),
+        child: Video(
+          controller: _videoController,
+          subtitleViewConfiguration: const SubtitleViewConfiguration(
+            visible: false,
+          ),
+          controls: (state) => CustomVideoControls(
+            state: state,
+            isMobile: isMobile,
+            danmakuService: _danmakuService,
+            subtitleService: _subtitleService,
+            currentVideoTimeListenable: _currentVideoTimeNotifier,
+            isVideoPausedListenable: _isVideoPausedNotifier,
+            showDanmakuSettingsListenable: _showDanmakuSettingsNotifier,
+            onToggleDanmakuSettings: () => _showDanmakuSettingsNotifier.value =
+                !_showDanmakuSettingsNotifier.value,
+            allEpisodes: _episodeController.playableEpisodes,
+            currentEpisode: _episodeController.currentEpisode,
+            currentEpisodeListenable:
+                _episodeController.currentEpisodeListenable,
+            onEpisodeSelected: _onEpisodeSelected,
+            isAutoPlayNextEnabled: _isAutoPlayNextEnabled,
+            onToggleAutoPlayNext: () {
+              final newValue = !_isAutoPlayNextEnabled;
+              setState(() {
+                _isAutoPlayNextEnabled = newValue;
+              });
+              _saveAutoPlaySetting(newValue);
+            },
+            playbackSpeed: _playbackSpeed,
+            onPlaybackSpeedChanged: _onPlaybackSpeedChanged,
+            availableSources: _sampleSourceController.sampleSuccessfulSources,
+            availableSourcesListenable: _availableSourcesNotifier,
+            sourceIndexNotifier: _selectedSourceIndexNotifier,
+            currentSourceLabel: _playbackController.playingSourceLabel,
+            currentSourceLabelListenable: _playingSourceLabelNotifier,
+            onSourceSelected: (index) {
+              _onSourceSelected(index);
+              _startPlaybackFromSelectedSource();
+            },
+            isLoading:
+                _playbackController.isLoadingVideo || _loadingMagnet != null,
+            onUserInteraction: _markUserInteraction,
+            mobilePlayerLockNotifier: _mobilePlayerLockNotifier,
+            videoTitle: _videoTitleNotifier.value,
+            videoTitleListenable: _videoTitleNotifier,
+          ),
+        ),
       );
     }
 

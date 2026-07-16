@@ -8,6 +8,7 @@ import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/ui/widgets/danmaku_overlay.dart';
 import 'package:mikan_player/ui/widgets/danmaku_settings.dart';
+import 'package:mikan_player/ui/widgets/subtitle_overlay.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/episode_side_panel.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/mobile_gesture_and_lock_layer.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/settings_panel.dart';
@@ -15,7 +16,7 @@ import 'package:mikan_player/ui/widgets/video_player_controls/system_time_displa
 
 /// 自定义视频播放器控件 - 整合弹幕与播放控制
 /// 深度集成 media_kit_video 的 Material 风格控件
-class CustomVideoControls extends StatelessWidget {
+class CustomVideoControls extends StatefulWidget {
   final VideoState state;
   final bool isMobile;
 
@@ -92,11 +93,43 @@ class CustomVideoControls extends StatelessWidget {
   });
 
   @override
+  State<CustomVideoControls> createState() => _CustomVideoControlsState();
+}
+
+class _CustomVideoControlsState extends State<CustomVideoControls> {
+  BangumiEpisode get _resolvedCurrentEpisode =>
+      widget.currentEpisodeListenable?.value ?? widget.currentEpisode;
+
+  String? get _resolvedVideoTitle =>
+      widget.videoTitleListenable?.value ?? widget.videoTitle;
+
+  int get _resolvedCurrentEpisodeIndex {
+    final currentEpisode = _resolvedCurrentEpisode;
+    final idIndex = currentEpisode.id == 0
+        ? -1
+        : widget.allEpisodes.indexWhere(
+            (episode) => episode.id == currentEpisode.id,
+          );
+    if (idIndex != -1) {
+      return idIndex;
+    }
+
+    final sortIndex = widget.allEpisodes.indexWhere(
+      (episode) => episode.sort == currentEpisode.sort,
+    );
+    if (sortIndex != -1) {
+      return sortIndex;
+    }
+
+    return widget.allEpisodes.indexOf(currentEpisode);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final listenables = <Listenable>[
       ...[
-        currentEpisodeListenable,
-        videoTitleListenable,
+        widget.currentEpisodeListenable,
+        widget.videoTitleListenable,
       ].whereType<Listenable>(),
     ];
 
@@ -110,35 +143,22 @@ class CustomVideoControls extends StatelessWidget {
     );
   }
 
-  BangumiEpisode get _resolvedCurrentEpisode =>
-      currentEpisodeListenable?.value ?? currentEpisode;
-
-  String? get _resolvedVideoTitle => videoTitleListenable?.value ?? videoTitle;
-
-  int get _resolvedCurrentEpisodeIndex {
-    final currentEpisode = _resolvedCurrentEpisode;
-    final idIndex = currentEpisode.id == 0
-        ? -1
-        : allEpisodes.indexWhere((episode) => episode.id == currentEpisode.id);
-    if (idIndex != -1) {
-      return idIndex;
-    }
-
-    final sortIndex = allEpisodes.indexWhere(
-      (episode) => episode.sort == currentEpisode.sort,
-    );
-    if (sortIndex != -1) {
-      return sortIndex;
-    }
-
-    return allEpisodes.indexOf(currentEpisode);
-  }
-
   /// 选集按钮方向枚举保留在 controls 文件中；
   /// 选集高亮判断已随 `EpisodeSidePanel` 一并抽出。
 
   Widget _buildControls(BuildContext context) {
     final videoTitle = _resolvedVideoTitle;
+    final danmakuService = widget.danmakuService;
+    final subtitleService = widget.subtitleService;
+    final isMobile = widget.isMobile;
+    final isLoading = widget.isLoading;
+    final onUserInteraction = widget.onUserInteraction;
+    final mobilePlayerLockNotifier = widget.mobilePlayerLockNotifier;
+    final currentVideoTimeListenable = widget.currentVideoTimeListenable;
+    final isVideoPausedListenable = widget.isVideoPausedListenable;
+    final showDanmakuSettingsListenable = widget.showDanmakuSettingsListenable;
+    final onToggleDanmakuSettings = widget.onToggleDanmakuSettings;
+    final state = widget.state;
 
     // 计算当前集数索引，用于控制按钮显示
     // 移动端 - 非全屏顶部按钮栏
@@ -483,7 +503,14 @@ class CustomVideoControls extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    // 1. 弹幕渲染层 (在视频之后，控件之前)
+                    // 1. 应用侧字幕层（避开 media_kit 全屏路由里 SubtitleView 不刷新的问题）
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: SubtitleOverlay(subtitleService: subtitleService),
+                      ),
+                    ),
+
+                    // 2. 弹幕渲染层 (在视频/字幕之后，控件之前)
                     Positioned.fill(
                       child: IgnorePointer(
                         child: ValueListenableBuilder<double>(
@@ -506,7 +533,7 @@ class CustomVideoControls extends StatelessWidget {
                       ),
                     ),
 
-                    // 2. 加载选集提示
+                    // 3. 加载选集提示
                     if (isLoading)
                       Positioned.fill(
                         child: Container(
@@ -519,10 +546,10 @@ class CustomVideoControls extends StatelessWidget {
                         ),
                       ),
 
-                    // 3. 原生控制层
+                    // 4. 原生控制层
                     AdaptiveVideoControls(state),
 
-                    // 4. 移动端手势层 (在控制层之上，但不覆盖底部控件区域)
+                    // 5. 移动端手势层 (在控制层之上，但不覆盖底部控件区域)
                     if (isMobile)
                       MobileGestureAndLockLayer(
                         isEnabled: !isLocked,
@@ -537,7 +564,7 @@ class CustomVideoControls extends StatelessWidget {
                         onUserInteraction: onUserInteraction,
                       ),
 
-                    // 5. 移动端全屏锁屏：锁定时吃掉屏幕触摸，只保留解锁入口
+                    // 6. 移动端全屏锁屏：锁定时吃掉屏幕触摸，只保留解锁入口
                     if (isLocked) ...[
                       Positioned.fill(
                         child: GestureDetector(
@@ -606,12 +633,13 @@ class CustomVideoControls extends StatelessWidget {
       fontWeight: FontWeight.w500,
     );
 
+    final videoTitleListenable = widget.videoTitleListenable;
     if (videoTitleListenable == null) {
       return Text(fallback, style: style);
     }
 
     return ValueListenableBuilder<String>(
-      valueListenable: videoTitleListenable!,
+      valueListenable: videoTitleListenable,
       builder: (context, value, _) =>
           Text(value.isNotEmpty ? value : fallback, style: style),
     );
@@ -720,7 +748,7 @@ class CustomVideoControls extends StatelessWidget {
 
   /// 构建上一集/下一集按钮
   Widget _buildEpisodeSkipButton({required _EpisodeSkipDirection direction}) {
-    final listenable = currentEpisodeListenable;
+    final listenable = widget.currentEpisodeListenable;
     if (listenable == null) {
       return _buildEpisodeSkipButtonContent(direction);
     }
@@ -736,7 +764,7 @@ class CustomVideoControls extends StatelessWidget {
     final isVisible = switch (direction) {
       _EpisodeSkipDirection.previous => currentIndex > 0,
       _EpisodeSkipDirection.next =>
-        currentIndex >= 0 && currentIndex < allEpisodes.length - 1,
+        currentIndex >= 0 && currentIndex < widget.allEpisodes.length - 1,
     };
     if (!isVisible) {
       return const SizedBox.shrink();
@@ -779,22 +807,22 @@ class CustomVideoControls extends StatelessWidget {
   void _onSkipPrevious() {
     final currentIndex = _resolvedCurrentEpisodeIndex;
     if (currentIndex > 0) {
-      onEpisodeSelected(allEpisodes[currentIndex - 1]);
+      widget.onEpisodeSelected(widget.allEpisodes[currentIndex - 1]);
     }
   }
 
   /// 切换到下一集
   void _onSkipNext() {
     final currentIndex = _resolvedCurrentEpisodeIndex;
-    if (currentIndex >= 0 && currentIndex < allEpisodes.length - 1) {
-      onEpisodeSelected(allEpisodes[currentIndex + 1]);
+    if (currentIndex >= 0 && currentIndex < widget.allEpisodes.length - 1) {
+      widget.onEpisodeSelected(widget.allEpisodes[currentIndex + 1]);
     }
   }
 
   /// 跳转指定秒数（正数向前跳，负数向后跳）
   void _onSkipTime(int seconds) {
-    onUserInteraction();
-    final player = state.widget.controller.player;
+    widget.onUserInteraction();
+    final player = widget.state.widget.controller.player;
     final currentPosition = player.state.position;
     final newPosition = currentPosition + Duration(seconds: seconds);
 
@@ -807,8 +835,8 @@ class CustomVideoControls extends StatelessWidget {
   }
 
   void _togglePlayPause() {
-    onUserInteraction();
-    final player = state.widget.controller.player;
+    widget.onUserInteraction();
+    final player = widget.state.widget.controller.player;
     final isPlaying = player.state.playing;
     if (isPlaying) {
       player.pause();
@@ -818,11 +846,11 @@ class CustomVideoControls extends StatelessWidget {
   }
 
   double _resolveCurrentPlaybackSpeed() {
-    final rate = state.widget.controller.player.state.rate;
+    final rate = widget.state.widget.controller.player.state.rate;
     if (rate.isFinite && rate > 0) {
       return rate.clamp(0.25, 3.0).toDouble();
     }
-    return playbackSpeed.clamp(0.25, 3.0).toDouble();
+    return widget.playbackSpeed.clamp(0.25, 3.0).toDouble();
   }
 
   /// 移动端设置菜单
@@ -845,20 +873,21 @@ class CustomVideoControls extends StatelessWidget {
               color: Colors.transparent,
               child: SettingsPanel(
                 isFullscreen: true,
-                danmakuService: danmakuService,
-                subtitleService: subtitleService,
-                availableSources: availableSources,
-                availableSourcesListenable: availableSourcesListenable,
-                sourceIndexNotifier: sourceIndexNotifier,
-                currentSourceLabel: currentSourceLabel,
-                currentSourceLabelListenable: currentSourceLabelListenable,
-                isAutoPlayNextEnabled: isAutoPlayNextEnabled,
-                onToggleAutoPlayNext: onToggleAutoPlayNext,
+                danmakuService: widget.danmakuService,
+                subtitleService: widget.subtitleService,
+                availableSources: widget.availableSources,
+                availableSourcesListenable: widget.availableSourcesListenable,
+                sourceIndexNotifier: widget.sourceIndexNotifier,
+                currentSourceLabel: widget.currentSourceLabel,
+                currentSourceLabelListenable:
+                    widget.currentSourceLabelListenable,
+                isAutoPlayNextEnabled: widget.isAutoPlayNextEnabled,
+                onToggleAutoPlayNext: widget.onToggleAutoPlayNext,
                 playbackSpeed: _resolveCurrentPlaybackSpeed(),
-                onPlaybackSpeedChanged: onPlaybackSpeedChanged,
+                onPlaybackSpeedChanged: widget.onPlaybackSpeedChanged,
                 onSourceSelected: (index) {
                   Navigator.pop(context);
-                  onSourceSelected(index);
+                  widget.onSourceSelected(index);
                 },
               ),
             ),
@@ -889,20 +918,20 @@ class CustomVideoControls extends StatelessWidget {
           maxChildSize: 0.85,
           builder: (context, scrollController) => SettingsPanel(
             isFullscreen: false,
-            danmakuService: danmakuService,
-            subtitleService: subtitleService,
-            availableSources: availableSources,
-            availableSourcesListenable: availableSourcesListenable,
-            sourceIndexNotifier: sourceIndexNotifier,
-            currentSourceLabel: currentSourceLabel,
-            currentSourceLabelListenable: currentSourceLabelListenable,
-            isAutoPlayNextEnabled: isAutoPlayNextEnabled,
-            onToggleAutoPlayNext: onToggleAutoPlayNext,
+            danmakuService: widget.danmakuService,
+            subtitleService: widget.subtitleService,
+            availableSources: widget.availableSources,
+            availableSourcesListenable: widget.availableSourcesListenable,
+            sourceIndexNotifier: widget.sourceIndexNotifier,
+            currentSourceLabel: widget.currentSourceLabel,
+            currentSourceLabelListenable: widget.currentSourceLabelListenable,
+            isAutoPlayNextEnabled: widget.isAutoPlayNextEnabled,
+            onToggleAutoPlayNext: widget.onToggleAutoPlayNext,
             playbackSpeed: _resolveCurrentPlaybackSpeed(),
-            onPlaybackSpeedChanged: onPlaybackSpeedChanged,
+            onPlaybackSpeedChanged: widget.onPlaybackSpeedChanged,
             onSourceSelected: (index) {
               Navigator.pop(context);
-              onSourceSelected(index);
+              widget.onSourceSelected(index);
             },
             scrollController: scrollController,
           ),
@@ -926,20 +955,21 @@ class CustomVideoControls extends StatelessWidget {
             color: Colors.transparent,
             child: SettingsPanel(
               isFullscreen: true,
-              danmakuService: danmakuService,
-              subtitleService: subtitleService,
-              availableSources: availableSources,
-              availableSourcesListenable: availableSourcesListenable,
-              sourceIndexNotifier: sourceIndexNotifier,
-              currentSourceLabel: currentSourceLabel,
-              currentSourceLabelListenable: currentSourceLabelListenable,
-              isAutoPlayNextEnabled: isAutoPlayNextEnabled,
-              onToggleAutoPlayNext: onToggleAutoPlayNext,
+              danmakuService: widget.danmakuService,
+              subtitleService: widget.subtitleService,
+              availableSources: widget.availableSources,
+              availableSourcesListenable: widget.availableSourcesListenable,
+              sourceIndexNotifier: widget.sourceIndexNotifier,
+              currentSourceLabel: widget.currentSourceLabel,
+              currentSourceLabelListenable:
+                  widget.currentSourceLabelListenable,
+              isAutoPlayNextEnabled: widget.isAutoPlayNextEnabled,
+              onToggleAutoPlayNext: widget.onToggleAutoPlayNext,
               playbackSpeed: _resolveCurrentPlaybackSpeed(),
-              onPlaybackSpeedChanged: onPlaybackSpeedChanged,
+              onPlaybackSpeedChanged: widget.onPlaybackSpeedChanged,
               onSourceSelected: (index) {
                 Navigator.pop(context);
-                onSourceSelected(index);
+                widget.onSourceSelected(index);
               },
             ),
           ),
@@ -967,10 +997,10 @@ class CustomVideoControls extends StatelessWidget {
       transitionDuration: const Duration(milliseconds: 250),
       pageBuilder: (context, animation, secondaryAnimation) {
         return EpisodeSidePanel(
-          allEpisodes: allEpisodes,
-          currentEpisode: currentEpisode,
-          currentEpisodeListenable: currentEpisodeListenable,
-          onEpisodeSelected: onEpisodeSelected,
+          allEpisodes: widget.allEpisodes,
+          currentEpisode: _resolvedCurrentEpisode,
+          currentEpisodeListenable: widget.currentEpisodeListenable,
+          onEpisodeSelected: widget.onEpisodeSelected,
         );
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {

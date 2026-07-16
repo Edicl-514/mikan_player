@@ -4,8 +4,39 @@ This document is a working plan for AI agents that will refactor the Dart side
 and add tests. Treat it as the source of truth for task boundaries, validation,
 sequencing, and current progress.
 
-Status date: 2026-07-15 (updated after playback-controller checkpoint). Counts
+Status date: 2026-07-16 (updated after fullscreen-subtitle smoke + fix). Counts
 via `rg -c '^'` / `wc -l`. Latest checkpoint:
+
+**Fullscreen subtitle fix + playback smoke gate (2026-07-16)** — closes the
+manual smoke/review gate that followed the playback-controller extraction, and
+fixes the Android fullscreen subtitle settings failure found during smoke.
+
+- Root cause: media_kit fullscreen pushes a separate route with its own
+  `Video` / `SubtitleView`. Updating the parent tree's
+  `subtitleViewConfiguration` (or even `VideoState.update` from controls) did
+  not reliably refresh style/visibility/padding on the fullscreen instance —
+  changes only appeared after exiting fullscreen. Embedded MKV subtitles from
+  BT downloads still delivered text via `player.stream.subtitle`; the broken
+  path was the render ownership, not track discovery.
+- Fix: disable media_kit's built-in `SubtitleView`
+  (`subtitleViewConfiguration.visible: false`) and render subtitles in an
+  app-owned `SubtitleOverlay` inside `CustomVideoControls` (same layer
+  strategy as `DanmakuOverlay`). Style, color, bottom padding, enable switch,
+  and track changes now apply immediately in fullscreen because the overlay
+  listens to `SubtitleService` directly.
+- `SubtitleService` now exposes `resolvedSelectedTrack` / `isTrackSelected`
+  so the settings panel highlights a real track when media_kit reports
+  id=`auto`, and `setEnabled` / `disableSubtitle` keep `_currentTrack` and
+  the player track in sync (`no` vs concrete track). Subtitle cue updates
+  notify listeners again so the overlay refreshes live text.
+- Manual smoke recorded complete (Android fullscreen + BT MKV embedded
+  subs): toggle on/off, track switch, font size/color/padding all take effect
+  without leaving fullscreen; non-fullscreen selection highlight also fixed.
+- New coverage: `test/services/subtitle_service_test.dart` (track resolution +
+  `SubtitleOverlay` style rebuild / hide-on-disable). Analyzer clean; full
+  suite **699 tests across 42 test files**.
+
+Prior checkpoint:
 
 **Player playback controller (2026-07-15)** — completes the planned final
 Phase 2 controller extraction and deliberately stops before the required new
@@ -37,10 +68,8 @@ manual smoke/review gate.
   reservation cancellation, direct-URL filtering, manual timeout, auto
   timeout/open-error fallback, stale same-generation completions, cancelled
   watchdog callbacks, generation reset, pre-open player events, and
-  stop→open→speed→resume ordering. The full suite passes **695 tests across 41
-  test files**; analyzer is clean. The platform player must retain
-  last-issued-open-wins semantics; the manual smoke below specifically covers
-  timeout→fallback media behavior.
+  stop→open→speed→resume ordering. The full suite at that checkpoint was 695
+  tests across 41 test files; analyzer clean.
 
 Prior checkpoint:
 
@@ -187,10 +216,14 @@ remain the primary completion criteria; line count is only a secondary signal.
 Current validation baseline:
 
 - `flutter analyze`: 0 issues.
-- `flutter test`: 695 tests passing across 41 test files.
+- `flutter test`: 699 tests passing across 42 test files.
 - **Manual smoke (2026-07-14) recorded complete:** rapid episode switch /
   leave-reenter (OCR captcha sources + autoplay), HLS/MP4 download,
   BT download + stream playback, comments and other leaf UI.
+- **Manual playback/subtitle smoke (2026-07-16) recorded complete:** Android
+  fullscreen BT MKV embedded subtitles — toggle/track/style/color/padding
+  apply immediately without leaving fullscreen; track selection highlight
+  fixed when media_kit reports `auto`.
 - **Scheduler dispatch checkpoint (2026-07-15):** immutable video-job input
   DTOs and command-returning scheduler planning now own tier/enqueue ordering,
   affinity, soft-limit selection, and no-work decisions. Page-owned
@@ -202,18 +235,18 @@ Current validation baseline:
   `PlayerPlaybackController` (925 LOC) receives clock/timer/player/page
   callbacks and owns online playback state, selected source index, headers /
   URL plan, source-failure selection, auto reservation, attempt ids and the
-  startup watchdog. `player_page.dart` is 6840 LOC; it remains the owner of
-  Flutter lifecycle, `Player`/`Video`, WebView/probe/scheduler/captcha,
-  header-proxy registration, BT/download work and visual `setState` wiring.
-  `PlayerSampleSourceController` is now 281 LOC (14 tests) after moving its
-  selected index to the playback controller. New
-  `player_playback_controller_test.dart` has 12 deterministic composition
-  tests (fake clock/timers/player) covering header/URL plans, selection,
-  reservation rollback/replacement protection, direct-URL filtering,
-  timeout/error fallback, stale same-generation work, reset, old timer
-  callbacks, and pre-open event
-  protection. The test suite is 695 tests across 41 files. A real player
-  timeout→fallback smoke is required before the next architectural move.
+  startup watchdog. `player_page.dart` remains the owner of Flutter
+  lifecycle, `Player`/`Video`, WebView/probe/scheduler/captcha, header-proxy
+  registration, BT/download work and visual `setState` wiring.
+  `PlayerSampleSourceController` owns sample-search/list state only after
+  selection moved to the playback controller. Composition tests cover
+  header/URL plans, selection, reservation, timeout/error fallback, and
+  stale-attempt guards. The required post-extraction manual smoke gate is
+  now recorded (2026-07-16) together with the fullscreen subtitle fix.
+- **Fullscreen subtitle fix (2026-07-16):** app-owned `SubtitleOverlay`
+  (`lib/ui/widgets/subtitle_overlay.dart`) inside `CustomVideoControls`;
+  media_kit `SubtitleView` disabled; `SubtitleService` track-selection /
+  enable-state helpers; 4 new tests in `subtitle_service_test.dart`.
 - Current checkpoint adds (over the 2026-07-11 source-list / sites /
   comments / bt-resource-list leaf-widget checkpoint): the comment-HTML
   rendering helpers `normalizeBangumiImageSrc` / `isBangumiSmileUrl` /
@@ -344,9 +377,9 @@ Phase status:
 
 | Phase | Status | Completed | Main remaining work |
 | --- | --- | --- | --- |
-| Phase 0 | Complete | Analyzer/test baseline; **real player/WebView smoke 2026-07-11**; **lifecycle smoke gate re-recorded 2026-07-14** (rapid EP switch/re-enter, HLS/MP4 download, BT stream, comments/UI). | Re-record only after the next architectural checkpoint that touches WebView/playback/platform. |
+| Phase 0 | Complete | Analyzer/test baseline; **real player/WebView smoke 2026-07-11**; **lifecycle smoke gate re-recorded 2026-07-14** (rapid EP switch/re-enter, HLS/MP4 download, BT stream, comments/UI); **playback + fullscreen-subtitle smoke 2026-07-16**. | Re-record only after the next architectural checkpoint that touches WebView/playback/platform. |
 | Phase 1 | Partial | System time, mobile lock/gesture cluster, SettingsPanel, pure Bangumi helpers, **EpisodeSidePanel**, **PlayerRecommendations**, **PlayerComments**, **RelationsSection**, **SourceListPanel**, **SitesSection**, **CommentsSection**, **BtResource view-model + BtResourceList**, pure BT-tag helpers, and **comment HTML rendering helpers** — each with `testWidgets`/unit coverage. | Player data models/enums; mobile inline comment rendering unification (redesign, deferred). |
-| Phase 2 | Stabilizing | Scheduler B1-B6 plus immutable video-dispatch commands; display widgets; **controllers #1–#4** including `PlayerPlaybackController`; **2026-07-14 lifecycle fixes** (in-page mobile EP switch, warm-worker reset, generation-aware jobs, autoplay loadToken, dispose cancel, captcha false-success, **`SourceRequestGate`**). | Re-record the manual playback smoke gate, then stop for review; do not begin another architectural extraction first. |
+| Phase 2 | Stabilizing | Scheduler B1-B6 plus immutable video-dispatch commands; display widgets; **controllers #1–#4** including `PlayerPlaybackController`; **2026-07-14 lifecycle fixes**; **2026-07-16 fullscreen subtitle ownership fix** (`SubtitleOverlay`, media_kit `SubtitleView` disabled) with smoke recorded. | Prefer review stop; next architectural move only after any residual playback smoke findings are closed. |
 | Phase 3 | Stabilizing | Task/queue/cleanup/store; HTTP + m3u8 boundaries (+ chunk/segment pause-remove tests); BT backend ports; `BtStreamCapability`; **`BtStreamRestoreCoordinator`**; **BT download+stream smoke recorded 2026-07-14**. Manager 2533 LOC. | Further stream-policy extraction optional; prefer characterization over more moves until dispatch planning lands. |
 | Phase 4 | Partial | Pure parsing/sorting helpers and tests; **`RelationsSection` / `SitesSection` / wide `CommentsSection`** display widgets + widget tests. | Details controller; mobile inline comment rendering; header/characters/episodes section widgets. |
 | Phase 5 | Not started | None. | Start only after controller/widget boundaries are stable. |
@@ -896,7 +929,7 @@ Only add this after confirming the project benefits from it.
 
 ## Test Plan
 
-Current baseline: 695 tests across 41 test files.
+Current baseline: 699 tests across 42 test files.
 
 Covered areas:
 
@@ -904,6 +937,9 @@ Covered areas:
 - Scheduler statistics, worker selection, bookkeeping, pump decisions,
   state transitions, pump coordinator, and composed scheduler invariants.
 - Player source/BT/tag helper behavior.
+- **`SubtitleService` + `SubtitleOverlay`** (`subtitle_service_test.dart`):
+  `auto` → default/first track resolution, disabled selection hide,
+  overlay style rebuild on settings change, hide when disabled.
 - **`PlayerEpisodeController` composition tests** (pure Dart, `flutter_test`):
   seeding (released-initial preserved; unreleased-initial + released fallback;
   unreleased-initial + no released fallback), `selectEpisode` guards +
@@ -1264,18 +1300,34 @@ containment and empty-parent cleanup of literal-backslash siblings.
    `clock`/`timer`/`player` callbacks now characterize watchdog, fallback,
    reservation, and stale-attempt behavior. This also fixes the real fallback
    latch bug and moves source selection out of the sample-search controller.
-7. **Required manual smoke/review gate:** rapid A timeout/open-error → B
-   fallback (including same source key across episode/search), manual source
-   select/start, BT card start then manual online search, HLS/MP4 and BT
-   leave/re-enter. Confirm media-kit honors last-issued-open-wins while the
-   controller ignores stale callbacks. Stop for review after recording it.
+7. ✅ **Manual smoke/review gate (2026-07-16):** playback smoke plus Android
+   fullscreen BT MKV embedded-subtitle settings (toggle/track/style/color/
+   padding apply live). Fixed by app-owned `SubtitleOverlay`; media_kit
+   `SubtitleView` remains disabled for this path. Stop for review is now
+   satisfied for the playback-controller checkpoint.
 8. Keep `BangumiDetailsController` and styling/token work deferred until the
-   player and download lifecycle boundaries are stable.
+   player and download lifecycle boundaries are stable. Optional next moves
+   only after review: player data models/enums, further download stream
+   policy, or details controller.
 
 Use a new branch/checkpoint for each architectural stage. Do not measure
 completion by hotspot line count alone; require an owned responsibility,
 tests for its behavior, and a page/service boundary that no longer mutates the
 extracted state directly.
+
+## Lessons For Sub-Agents (2026-07-16 fullscreen subtitle)
+
+1. **Do not rely on media_kit's `SubtitleView` for app-owned style controls
+   under fullscreen.** Fullscreen rebuilds a separate `Video` route; parent
+   `subtitleViewConfiguration` / `VideoState.update` changes often only
+   appear after exit. For live style/toggle/padding, render an app-side
+   overlay from `player.stream.subtitle` (same pattern as danmaku).
+2. **media_kit's current subtitle track is often id=`auto`, not the list
+   entry ids (`1`/`2`…).** Settings UI that compares ids literally will show
+   "no track selected" while subtitles are visible. Resolve `auto` to the
+   default or first actual track for selection highlighting.
+3. **Disable the built-in `SubtitleView` when you own the overlay**, or
+   fullscreen will stack two subtitle layers (or keep a stale styled one).
 
 ## Lessons For Sub-Agents (2026-07-14 lifecycle smoke)
 

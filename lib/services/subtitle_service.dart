@@ -140,6 +140,38 @@ class SubtitleService extends ChangeNotifier {
   bool get isSubtitleVisible =>
       _settings.enabled && _currentTrack != null && _currentTrack!.id != 'no';
 
+  /// 将 media_kit 的 auto/no 轨道解析成设置面板中可勾选的实际轨道。
+  ///
+  /// 播放器默认常报告 id=`auto`，而轨道列表里是 `1`/`2`…，直接比 id 会导致
+  /// “有字幕却没有任何一项被选中”。
+  SubtitleTrack? get resolvedSelectedTrack {
+    final current = _currentTrack;
+    if (current == null || current.id == 'no' || !_settings.enabled) {
+      return null;
+    }
+    if (current.id != 'auto') {
+      for (final track in actualSubtitleTracks) {
+        if (track.id == current.id) return track;
+      }
+      return current;
+    }
+    // auto：优先默认轨，否则第一轨
+    for (final track in actualSubtitleTracks) {
+      if (track.isDefault == true) return track;
+    }
+    if (actualSubtitleTracks.isNotEmpty) {
+      return actualSubtitleTracks.first;
+    }
+    return current;
+  }
+
+  /// 判断设置面板中某一轨道是否应显示为选中。
+  bool isTrackSelected(SubtitleTrack track) {
+    final selected = resolvedSelectedTrack;
+    if (selected == null) return false;
+    return selected.id == track.id;
+  }
+
   SubtitleService() {
     _loadSettings();
   }
@@ -157,6 +189,13 @@ class SubtitleService extends ChangeNotifier {
           '[Subtitle]   - ${track.id}: ${track.title ?? "无标题"} (${track.language ?? "未知语言"})',
         );
       }
+      // 设置里关闭了字幕时，主动把播放器轨切到 no，避免仅靠 visible 隐藏
+      // 导致“看起来关了、轨却还在 auto”的状态不一致。
+      if (!_settings.enabled &&
+          _currentTrack != null &&
+          _currentTrack!.id != 'no') {
+        unawaited(_player?.setSubtitleTrack(SubtitleTrack.no()));
+      }
       if (_disposed) return;
       notifyListeners();
     });
@@ -171,7 +210,7 @@ class SubtitleService extends ChangeNotifier {
       notifyListeners();
     });
 
-    // 监听字幕文本变化
+    // 监听字幕文本变化：供应用侧 SubtitleOverlay 实时渲染
     _subtitleSubscription = player.stream.subtitle.listen((subtitle) {
       _currentSubtitleText = subtitle;
       if (_disposed) return;
@@ -198,28 +237,33 @@ class SubtitleService extends ChangeNotifier {
 
   /// 切换字幕开关
   void toggleEnabled() {
-    if (_settings.enabled) {
-      // 关闭字幕
-      _player?.setSubtitleTrack(SubtitleTrack.no());
-    } else {
-      // 开启字幕 - 如果有之前选中的轨道，使用它；否则使用自动
-      if (hasSubtitles) {
-        if (_currentTrack != null && _currentTrack!.id != 'no') {
-          _player?.setSubtitleTrack(_currentTrack!);
-        } else if (actualSubtitleTracks.isNotEmpty) {
-          _player?.setSubtitleTrack(actualSubtitleTracks.first);
-        }
-      }
-    }
-    _settings = _settings.copyWith(enabled: !_settings.enabled);
-    _saveSettings();
-    notifyListeners();
+    setEnabled(!_settings.enabled);
   }
 
   /// 设置启用状态
   void setEnabled(bool enabled) {
     if (_settings.enabled == enabled) return;
-    toggleEnabled();
+    if (enabled) {
+      // 开启字幕：优先恢复已解析的实际轨，避免重复 set auto 无效
+      final preferred = resolvedSelectedTrack;
+      if (preferred != null && preferred.id != 'auto' && preferred.id != 'no') {
+        unawaited(_player?.setSubtitleTrack(preferred));
+        _currentTrack = preferred;
+      } else if (actualSubtitleTracks.isNotEmpty) {
+        final first = actualSubtitleTracks.first;
+        unawaited(_player?.setSubtitleTrack(first));
+        _currentTrack = first;
+      } else {
+        unawaited(_player?.setSubtitleTrack(SubtitleTrack.auto()));
+        _currentTrack = SubtitleTrack.auto();
+      }
+    } else {
+      unawaited(_player?.setSubtitleTrack(SubtitleTrack.no()));
+      _currentTrack = SubtitleTrack.no();
+    }
+    _settings = _settings.copyWith(enabled: enabled);
+    _saveSettings();
+    notifyListeners();
   }
 
   /// 选择字幕轨道
@@ -238,6 +282,7 @@ class SubtitleService extends ChangeNotifier {
   Future<void> disableSubtitle() async {
     if (_player == null) return;
     await _player!.setSubtitleTrack(SubtitleTrack.no());
+    _currentTrack = SubtitleTrack.no();
     _settings = _settings.copyWith(enabled: false);
     _saveSettings();
     notifyListeners();
@@ -385,6 +430,24 @@ class SubtitleService extends ChangeNotifier {
     _disposed = true;
     unbindPlayer();
     super.dispose();
+  }
+
+  /// 仅用于单元测试注入轨道状态，避免依赖真实 Player 流。
+  @visibleForTesting
+  void debugSetTracksForTest({
+    required List<SubtitleTrack> available,
+    required SubtitleTrack? current,
+    required bool enabled,
+  }) {
+    _availableTracks = available;
+    _currentTrack = current;
+    _settings = _settings.copyWith(enabled: enabled);
+  }
+
+  /// 仅用于单元测试注入当前字幕文本。
+  @visibleForTesting
+  void debugSetSubtitleTextForTest(List<String> lines) {
+    _currentSubtitleText = lines;
   }
 }
 
