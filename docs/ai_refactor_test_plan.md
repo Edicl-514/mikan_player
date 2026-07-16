@@ -88,7 +88,7 @@ directory layout.
 | --- | --- | --- |
 | 0: baseline and smoke | Complete | Repeat only the affected manual cases after a WebView, playback, download, or platform change. |
 | 1: display-only extractions | Closed for now | Existing leaf widgets have focused widget tests. Do not extract more display code without a clear boundary. |
-| 2: player responsibility split | Stabilizing | Do not make another opportunistic PlayerPage extraction. First specify and characterize the search-session state machine below. |
+| 2: player responsibility split | Stabilizing | Search-session design note + pure policy characterization landed. Do not extract a page-owned session god controller yet. |
 | 3: download split | Stabilizing | Prefer characterization tests over further policy extraction. A new stream-policy module needs a concrete bug or independently testable policy. |
 | 4: Bangumi details split | Stabilizing | BangumiDetailsController extracted and wired; characterization tests land. Prefer smoke over further page thinning. |
 | 5: styling consistency | Deferred | Reconsider only after the active controller boundary is stable and repeated semantic values are demonstrated. |
@@ -124,16 +124,18 @@ unification. That is a UI redesign and remains deferred.
 ## Next high-risk track: Player search session
 
 The largest remaining PlayerPage risk is the search/WebView/captcha event
-region. Before extracting it, create a short design note and characterization
-tests for a PlayerSearchSession state machine. This preparatory work is a
-separate checkpoint; it is not permission to move all search code.
+region. Preparatory checkpoint (not full extraction):
 
-The state machine must define:
+- Design note: `docs/player_search_session_design.md`
+- Pure policy: `lib/ui/pages/player/player_search_session_policy.dart`
+- Characterization: `test/ui/pages/player/player_search_session_policy_test.dart`
+
+The state machine / policy must define:
 
 - Inputs: start/reset, cancel/dispose, source progress, captcha result,
   extraction result, timeout, and worker-idle events.
-- Identity: search generation plus stable job/task key. Every asynchronous
-  completion must be rejected when either is stale.
+- Identity: search generation (`sampleLoadToken`) plus stable job/task key.
+  Every asynchronous completion must be rejected when either is stale.
 - Outputs: immutable dispatch/cleanup/status decisions only. The page keeps
   InAppWebView creation, Rust stream subscription, logging, setState, probe,
   playback, and callback execution.
@@ -144,17 +146,18 @@ The state machine must define:
 
 Required characterization matrix:
 
-| Scenario | Expected contract |
-| --- | --- |
-| Start then immediate replacement | Old progress, captcha, and extraction results have no visible effect. |
-| Cancel then restart same source | A new generation/job identity is used; the old worker cannot claim the new job. |
-| Captcha refresh | Briefly missing DOM is not considered captcha success. |
-| Last worker slot | Existing captcha/video priority and source-gate timing are preserved. |
-| Dispose during search | Pending subscriptions, timers, and workers cannot re-arm playback or UI state. |
+| Scenario | Expected contract | Status |
+| --- | --- | --- |
+| Start then immediate replacement | Old progress, captcha, and extraction results have no visible effect. | Pure policy tests (load token reject) |
+| Cancel then restart same source | A new generation/job identity is used; the old worker cannot claim the new job. | Pure policy + existing gate/scheduler tests |
+| Captcha refresh | Briefly missing DOM is not considered captcha success. | Pure `shouldTreatMissingCaptchaAfterRefreshAsSuccess` |
+| Last worker slot | Existing captcha/video priority and source-gate timing are preserved. | Existing scheduler/gate tests; policy defers reordering |
+| Dispose during search | Pending subscriptions, timers, and workers cannot re-arm playback or UI state. | Pure dispose reject + idle reassignment guard |
 
 Only after this matrix is deterministic may a controller/reducer be extracted.
 That controller should remain small and command-oriented; do not create a new
-god controller just to make PlayerPage shorter.
+god controller just to make PlayerPage shorter. Do not wire the policy into
+PlayerPage until a follow-up task intentionally migrates individual guards.
 
 ## Test strategy
 
