@@ -644,6 +644,142 @@ void main() {
     );
 
     test(
+      'setActiveStream resolves stream id embedded in streamUrl when keys differ',
+      () async {
+        // Characterization for manager `_resolveStreamHash`: when the caller's
+        // token is not the task map key but appears in task.streamUrl path
+        // segments (/stream/, /streams/, /torrents/), stop/restore must target
+        // the owning task — not a no-op on an unknown hash.
+        const taskKey = 'task-alias-key';
+        const streamIdInUrl = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+        final task = DownloadTask(
+          id: taskKey,
+          name: 'Alias stream task',
+          magnet: _kMagnet,
+          startTime: DateTime.fromMillisecondsSinceEpoch(1_700_000_000_000),
+          taskType: DownloadTaskType.bt,
+          status: DownloadTaskStatus.downloading,
+          backend: BtBackendKind.libtorrent,
+          streamUrl: 'http://127.0.0.1:8181/torrents/$streamIdInUrl/1',
+          largestFileIdx: 1,
+          downloadDir: r'C:\mikan-test-downloads',
+        );
+        manager.seedBtTaskForTesting(task);
+
+        // Register a live stream under the alias key so stopStreamForHash
+        // has something to tear down once resolve maps streamIdInUrl → taskKey.
+        await backend.ensureInitialized();
+        session.torrents[1] = MikanLtTorrentStats(
+          torrentId: 1,
+          name: 'T1',
+          infoHash: taskKey,
+          errorMessage: '',
+          state: 3,
+          isPaused: false,
+          hasMetadata: true,
+          progress: 10,
+          totalWanted: 2048,
+          totalDone: 512,
+          downloadRate: 100,
+          uploadRate: 0,
+          numPeers: 1,
+          numSeeds: 0,
+        );
+        session.files[1] = [
+          const MikanLtFileInfo(
+            index: 0,
+            path: 'small.txt',
+            size: 100,
+            isStreamable: false,
+          ),
+          const MikanLtFileInfo(
+            index: 1,
+            path: 'video.mkv',
+            size: 2048,
+            isStreamable: true,
+          ),
+        ];
+        // Force backend maps: stream id tracked under taskKey.
+        // Prefer production start path if available; otherwise seed via session
+        // by calling restore which requires tracked id. Use addTorrent through
+        // backend with fallbackInfoHash=taskKey.
+        await backend.addTorrent(
+          _kMagnet,
+          fallbackInfoHash: taskKey,
+          startStream: true,
+        );
+        expect(backend.streamIdForHash(taskKey), isNotNull);
+
+        manager.setActiveStream(taskKey, active: true);
+        session.calls.clear();
+        // Deactivate using the URL-embedded id, not the task map key.
+        manager.setActiveStream(streamIdInUrl, active: false);
+        await manager.waitPendingStreamRestoresForTesting();
+
+        expect(manager.isActiveStreamForTesting(taskKey), isFalse);
+        expect(manager.isActiveStreamForTesting(streamIdInUrl), isFalse);
+        expect(backend.streamIdForHash(taskKey), isNull);
+        final updated = manager.tasks.firstWhere((t) => t.id == taskKey);
+        expect(updated.streamUrl, isNull);
+        expect(
+          session.calls.any((c) => c.startsWith('stopStream:')),
+          isTrue,
+          reason: 'resolved alias should stop the live stream',
+        );
+      },
+    );
+
+    test(
+      'user-paused libtorrent task does not auto-recover on paused stats',
+      () async {
+        await manager.startBtDownloadForTesting(
+          magnet: _kMagnet,
+          name: 'Episode 1',
+          forPlayback: false,
+        );
+        final paused = await manager.pauseBtTaskForTesting(_kHash);
+        expect(paused, isTrue);
+        final task = manager.tasks.firstWhere((t) => t.id == _kHash);
+        expect(task.status, DownloadTaskStatus.paused);
+
+        final torrentId = session.torrents.keys.first;
+        final t = session.torrents[torrentId]!;
+        session.torrents[torrentId] = MikanLtTorrentStats(
+          torrentId: t.torrentId,
+          name: t.name,
+          infoHash: t.infoHash,
+          errorMessage: t.errorMessage,
+          state: t.state,
+          isPaused: true,
+          hasMetadata: t.hasMetadata,
+          progress: 50,
+          totalWanted: t.totalWanted,
+          totalDone: t.totalDone,
+          downloadRate: 0,
+          uploadRate: 0,
+          numPeers: 4,
+          numSeeds: t.numSeeds,
+        );
+        session.calls.clear();
+
+        await manager.updateStatsForTesting();
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        final updated = manager.tasks.firstWhere((t) => t.id == _kHash);
+        expect(updated.status, DownloadTaskStatus.paused);
+        // Size/peer telemetry may still update, but restore must not resume.
+        expect(
+          session.calls.any((c) => c.startsWith('resumeTorrent:')),
+          isFalse,
+          reason: 'user-paused tasks must not auto-resume from stats poll',
+        );
+        // Peers may or may not be refreshed while user-paused depending on
+        // poll merge path; the critical contract is status stays paused.
+      },
+    );
+
+    test(
       'updateStats recovers auto-paused libtorrent into downloading',
       () async {
         // Characterization for manager `_updateStats` when backend reports
