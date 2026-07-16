@@ -37,6 +37,10 @@ class WebViewWorkerSlot {
   /// null）。两个字段并存的二选一，由 [kind] 决定。
   String? taskKey;
 
+  /// Search generation captured when the current job was dispatched.
+  /// Combined with [jobKey], it distinguishes same-key work across episodes.
+  int? generation;
+
   /// 上一任 job 的 sourceName。job 完成/取消后不清空，供下一轮 affinity
   /// 选取使用。worker 首次创建时为 null。
   String? lastSourceName;
@@ -72,6 +76,7 @@ class WebViewWorkerSlot {
   void clearCurrentJob() {
     pageKey = null;
     taskKey = null;
+    generation = null;
     kind = null;
   }
 }

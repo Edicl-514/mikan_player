@@ -132,6 +132,7 @@ class WebViewWorkerSlotSnapshot {
   int get workerId => _slot.workerId;
   String? get pageKey => _slot.pageKey;
   String? get taskKey => _slot.taskKey;
+  int? get generation => _slot.generation;
   String? get lastSourceName => _slot.lastSourceName;
   WebViewWorkerHealth get health => _slot.health;
   int get consecutiveFailures => _slot.consecutiveFailures;
@@ -352,10 +353,17 @@ class PlayerWebViewScheduler {
   void startVideoJob(
     WebViewWorkerSlotSnapshot slotView,
     String pageKey,
-    String sourceName,
-  ) {
+    String sourceName, {
+    int generation = 0,
+  }) {
     final slot = _requireOwnedSlot(slotView);
-    bk.startVideoJobOnSlot(slot, pageKey, sourceName, _activeVideoJobs);
+    bk.startVideoJobOnSlot(
+      slot,
+      pageKey,
+      sourceName,
+      _activeVideoJobs,
+      generation: generation,
+    );
   }
 
   /// Marks [slotView] as running a captcha job for [taskKey] from [sourceName] and
@@ -363,10 +371,41 @@ class PlayerWebViewScheduler {
   void startCaptchaJob(
     WebViewWorkerSlotSnapshot slotView,
     String taskKey,
-    String sourceName,
-  ) {
+    String sourceName, {
+    int generation = 0,
+  }) {
     final slot = _requireOwnedSlot(slotView);
-    bk.startCaptchaJobOnSlot(slot, taskKey, sourceName, _activeCaptchaJobs);
+    bk.startCaptchaJobOnSlot(
+      slot,
+      taskKey,
+      sourceName,
+      _activeCaptchaJobs,
+      generation: generation,
+    );
+  }
+
+  bool slotMatchesJobIdentity({
+    required int workerId,
+    required WebViewWorkerKind kind,
+    required String jobKey,
+    required int generation,
+  }) {
+    final slot = _slots[workerId];
+    return slot != null &&
+        slot.kind == kind &&
+        slot.jobKey == jobKey &&
+        slot.generation == generation;
+  }
+
+  bool isActiveVideoJobIdentity(String pageKey, int generation) {
+    final workerId = _activeVideoJobs[pageKey];
+    if (workerId == null) return false;
+    return slotMatchesJobIdentity(
+      workerId: workerId,
+      kind: WebViewWorkerKind.video,
+      jobKey: pageKey,
+      generation: generation,
+    );
   }
 
   WebViewWorkerSlot _requireOwnedSlot(WebViewWorkerSlotSnapshot slotView) {
@@ -412,6 +451,7 @@ class PlayerWebViewScheduler {
     if (slot != null) {
       slot.health = WebViewWorkerHealth.cancelling;
       slot.taskKey = null;
+      slot.generation = null;
       slot.kind = null;
       slot.preserveCaptchaSessionOnIdle = false;
     }
@@ -422,7 +462,12 @@ class PlayerWebViewScheduler {
   /// clears the slot's taskKey + kind (slot stays in the table, reusable).
   /// No-op if there is no active job or the slot's taskKey doesn't match
   /// (stale-callback guard). Reuses [bk.releaseCaptchaSlot].
-  void releaseCaptchaSlot(String taskKey) {
+  void releaseCaptchaSlot(String taskKey, {int? generation}) {
+    final workerId = _activeCaptchaJobs[taskKey];
+    if (generation != null && workerId != null) {
+      final slot = _slots[workerId];
+      if (slot?.generation != generation) return;
+    }
     bk.releaseCaptchaSlot(taskKey, _activeCaptchaJobs, _slots);
   }
 
@@ -450,6 +495,7 @@ class PlayerWebViewScheduler {
       );
     }
     slot.taskKey = null;
+    slot.generation = null;
     slot.kind = null;
     slot.preserveCaptchaSessionOnIdle = false;
     if (mappedWorkerId == workerId) _activeCaptchaJobs.remove(taskKey);
@@ -797,7 +843,19 @@ class PlayerWebViewScheduler {
             'idle worker ${slot.workerId} retains taskKey=${slot.taskKey}',
           );
         }
+        if (slot.generation != null) {
+          errors.add(
+            'idle worker ${slot.workerId} retains generation='
+            '${slot.generation}',
+          );
+        }
       } else {
+        if (slot.generation == null) {
+          errors.add(
+            'busy worker ${slot.workerId} (kind=${slot.kind}) has no '
+            'generation',
+          );
+        }
         final inVideo = _activeVideoJobs.containsValue(slot.workerId);
         final inCaptcha = _activeCaptchaJobs.containsValue(slot.workerId);
         final count = (inVideo ? 1 : 0) + (inCaptcha ? 1 : 0);

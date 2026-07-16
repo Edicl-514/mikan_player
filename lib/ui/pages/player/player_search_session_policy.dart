@@ -1,6 +1,6 @@
 /// Pure search-session acceptance / captcha-refresh policy for the player.
 ///
-/// Phase 4 preparatory seam for the PlayerSearchSession design note
+/// Phase 2 preparatory seam for the PlayerSearchSession design note
 /// (`docs/player_search_session_design.md`). These helpers pin cross-cutting
 /// stale-completion contracts without moving WebView, Rust, or page
 /// orchestration. Callers keep side effects; this file only answers

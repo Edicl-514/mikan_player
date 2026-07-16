@@ -59,6 +59,7 @@ class _FakeLibtorrentBtBackend extends FakeBtBackend
 
 class _StreamSession implements LibtorrentSessionPort {
   final List<String> calls = [];
+  Object? resumeError;
   int nextTorrentId = 1;
   int nextStreamId = 10;
   final Map<int, MikanLtTorrentStats> torrents = {};
@@ -151,6 +152,8 @@ class _StreamSession implements LibtorrentSessionPort {
   @override
   void resumeTorrent(int torrentId) {
     calls.add('resumeTorrent:$torrentId');
+    final error = resumeError;
+    if (error != null) throw error;
     final t = torrents[torrentId];
     if (t == null) return;
     torrents[torrentId] = MikanLtTorrentStats(
@@ -829,6 +832,40 @@ void main() {
         );
       },
     );
+
+    test('failed auto-paused recovery becomes an explicit error', () async {
+      await manager.startBtDownloadForTesting(
+        magnet: _kMagnet,
+        name: 'Episode 1',
+        forPlayback: false,
+      );
+      final torrentId = session.torrents.keys.first;
+      final t = session.torrents[torrentId]!;
+      session.torrents[torrentId] = MikanLtTorrentStats(
+        torrentId: t.torrentId,
+        name: t.name,
+        infoHash: t.infoHash,
+        errorMessage: t.errorMessage,
+        state: t.state,
+        isPaused: true,
+        hasMetadata: t.hasMetadata,
+        progress: t.progress,
+        totalWanted: t.totalWanted,
+        totalDone: t.totalDone,
+        downloadRate: 0,
+        uploadRate: 0,
+        numPeers: t.numPeers,
+        numSeeds: t.numSeeds,
+      );
+      session.resumeError = StateError('resume failed');
+
+      await manager.updateStatsForTesting();
+      await manager.waitPendingStreamRestoresForTesting();
+
+      final updated = manager.tasks.firstWhere((task) => task.id == _kHash);
+      expect(updated.status, DownloadTaskStatus.error);
+      expect(updated.errorMessage, contains('resume failed'));
+    });
 
     test('LibtorrentBackend implements BtStreamCapability surface', () async {
       await backend.ensureInitialized();

@@ -49,11 +49,12 @@ import 'package:mikan_player/services/webview_video_job_runner.dart';
 class ReusableBrowserWorker extends StatefulWidget {
   final int workerId;
   final WebViewJob? job;
-  final void Function(String taskKey, CaptchaBypassResult result)?
+  final void Function(CaptchaPreflightJob job, CaptchaBypassResult result)?
   onCaptchaResult;
-  final void Function(int workerId)? onCaptchaIdle;
-  final void Function(String pageKey, VideoExtractResult result)? onVideoResult;
-  final void Function(int workerId)? onVideoIdle;
+  final void Function(int workerId, CaptchaPreflightJob job)? onCaptchaIdle;
+  final void Function(VideoExtractionJob job, VideoExtractResult result)?
+  onVideoResult;
+  final void Function(int workerId, VideoExtractionJob job)? onVideoIdle;
   final void Function(String message)? onLog;
   final bool showWebView;
   final bool preserveCaptchaSessionOnIdle;
@@ -419,11 +420,11 @@ class _ReusableBrowserWorkerState extends State<ReusableBrowserWorker> {
     super.initState();
     widget.stats?.onBrowserWorkerCreated('worker_${widget.workerId}');
     _captchaSink = CaptchaJobRunnerSink(
-      onResult: (taskKey, result) {
-        widget.onCaptchaResult?.call(taskKey, result);
+      onResult: (job, result) {
+        widget.onCaptchaResult?.call(job, result);
       },
-      onIdle: (workerId) {
-        widget.onCaptchaIdle?.call(workerId);
+      onIdle: (workerId, job) {
+        widget.onCaptchaIdle?.call(workerId, job);
       },
       onLog: (msg) {
         widget.onLog?.call('[captcha] $msg');
@@ -436,11 +437,11 @@ class _ReusableBrowserWorkerState extends State<ReusableBrowserWorker> {
       clearVisitedHostsOnDispose: false,
     );
     _videoSink = VideoExtractionJobSink(
-      onResult: (pageKey, result) {
-        widget.onVideoResult?.call(pageKey, result);
+      onResult: (job, result) {
+        widget.onVideoResult?.call(job, result);
       },
-      onIdle: (workerId) {
-        widget.onVideoIdle?.call(workerId);
+      onIdle: (workerId, job) {
+        widget.onVideoIdle?.call(workerId, job);
       },
       onLog: (msg) {
         widget.onLog?.call('[video] $msg');
@@ -796,9 +797,9 @@ enum WebViewJobKind { captcha, video }
 class CaptchaJob extends WebViewJob {
   final CaptchaPreflightJob preflight;
   @override
-  final int generation;
+  int get generation => preflight.generation;
 
-  const CaptchaJob(this.preflight, {this.generation = 0});
+  const CaptchaJob(this.preflight);
 
   @override
   String get jobKey => preflight.jobKey;
@@ -810,9 +811,9 @@ class CaptchaJob extends WebViewJob {
 class VideoJob extends WebViewJob {
   final VideoExtractionJob extraction;
   @override
-  final int generation;
+  int get generation => extraction.generation;
 
-  const VideoJob(this.extraction, {this.generation = 0});
+  const VideoJob(this.extraction);
 
   @override
   String get jobKey => extraction.jobKey;

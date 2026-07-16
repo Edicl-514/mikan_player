@@ -11,27 +11,28 @@ Historical implementation detail belongs in Git history. Start a task by
 reading the files it will touch, this plan's relevant phase, and the existing
 tests beside those files.
 
-Status date: 2026-07-16 (Phase 4 controller wired).
+Status date: 2026-07-16 (search completion identity wired; manual smoke pending).
 
 ## Verified baseline
 
 The following was re-verified on the status date:
 
 - flutter analyze: 0 issues.
-- flutter test: 736+ passing tests (includes search-session policy matrix).
-- Working tree after search-session policy wire: PlayerPage guards call pure policy helpers.
+- flutter test: 757 passing tests after the completion-identity follow-up.
+- Search result/idle callbacks preserve their dispatched generation and job
+  key through pool and legacy paths; final validation is listed below.
 
 Hotspot counts below use line counts. They are an inventory, not a completion
 metric.
 
 | File | Initial LOC | Current LOC | Primary remaining responsibility |
 | --- | ---: | ---: | --- |
-| lib/ui/pages/player_page.dart | 8318 | 6374 | WebView search-session orchestration, captcha/result handling, and page-owned Flutter/media side effects. |
-| lib/services/download_manager.dart | 3285 | 2291 | Task persistence, queue/polling, playback policy, and background BT restore mutation. |
-| lib/ui/widgets/video_player_controls.dart | 3103 | 1081 | No currently justified extraction boundary. |
-| lib/ui/widgets/video_player_controls/settings_panel.dart | 1141 | 919 | Reactive menu state; leave local styles in place unless a new semantic boundary appears. |
-| lib/ui/pages/bangumi_details_page.dart | 3096 | 2333 | Layout, scroll, navigation, dialogs/SnackBars; data request state owned by BangumiDetailsController. |
-| lib/ui/pages/bangumi_details/bangumi_details_controller.dart | — | 494 | Cache/network details, comment paging, favorite status, generation tokens. |
+| lib/ui/pages/player_page.dart | 8318 | 7009 | WebView search-session orchestration, captcha/result handling, and page-owned Flutter/media side effects. |
+| lib/services/download_manager.dart | 3285 | 2567 | Task persistence, queue/polling, playback policy, and background BT restore mutation. |
+| lib/ui/widgets/video_player_controls.dart | 3103 | 1151 | No currently justified extraction boundary. |
+| lib/ui/widgets/video_player_controls/settings_panel.dart | 1141 | 977 | Reactive menu state; leave local styles in place unless a new semantic boundary appears. |
+| lib/ui/pages/bangumi_details_page.dart | 3096 | 2488 | Layout, scroll, navigation, dialogs/SnackBars; data request state owned by BangumiDetailsController. |
+| lib/ui/pages/bangumi_details/bangumi_details_controller.dart | — | 576 | Cache/network details, comment paging, favorite status, generation tokens. |
 
 ## Goals
 
@@ -88,9 +89,9 @@ directory layout.
 | --- | --- | --- |
 | 0: baseline and smoke | Complete | Repeat only the affected manual cases after a WebView, playback, download, or platform change. |
 | 1: display-only extractions | Closed for now | Existing leaf widgets have focused widget tests. Do not extract more display code without a clear boundary. |
-| 2: player responsibility split | Stabilizing | Search-session design note + pure policy characterization landed. Do not extract a page-owned session god controller yet. |
-| 3: download split | Stabilizing | Prefer characterization tests over further policy extraction. Libtorrent auto-paused stats recovery covered in bt_stream tests. |
-| 4: Bangumi details split | Stabilizing | BangumiDetailsController extracted and wired; characterization tests land. Prefer smoke over further page thinning. |
+| 2: player responsibility split | Stabilizing | Completion identity spans job payloads, runner callbacks, scheduler slots, and page guards. Run P1 smoke before considering a reducer/controller. |
+| 3: download split | Stabilizing | Auto-paused recovery success, user-pause protection, aliases, and explicit recovery failure state are characterized. Prefer failure/cancellation tests over extraction. |
+| 4: Bangumi details split | Stabilizing | Controller is wired, late cache cannot overwrite non-empty network data, and widget identity replacement resets the controller. P6 smoke remains required. |
 | 5: styling consistency | Deferred | Reconsider only after the active controller boundary is stable and repeated semantic values are demonstrated. |
 
 ## Completed checkpoint: BangumiDetailsController
@@ -109,11 +110,13 @@ Accepted ownership:
   page `setState` bridge.
 - Page retains BuildContext, ScrollControllers, layout, navigation, dialogs,
   and SnackBars.
+- `didUpdateWidget` resets and reloads the controller when anime identity
+  changes, invalidating delayed page-owned comment scheduling.
 
 Characterization coverage:
 
-- Cache-first then network success / empty-network merge / replacement /
-  dispose late completions.
+- Cache-first/network-first completion order, empty-network merge,
+  replacement, and dispose late completions.
 - Concurrent load-more dedupe; terminal page; error retry.
 - Favorite success and stale completion after dispose/reset.
 - Existing relations/sites/comments widget tests unchanged.
@@ -148,8 +151,8 @@ Required characterization matrix:
 
 | Scenario | Expected contract | Status |
 | --- | --- | --- |
-| Start then immediate replacement | Old progress, captcha, and extraction results have no visible effect. | Pure policy tests (load token reject) |
-| Cancel then restart same source | A new generation/job identity is used; the old worker cannot claim the new job. | Pure policy + existing gate/scheduler tests |
+| Start then immediate replacement | Old progress, captcha, and extraction results have no visible effect. | Original job generation returned by runner; page rejects before mutation |
+| Cancel then restart same source | A new generation/job identity is used; the old worker cannot claim or clear the new job. | Job payload + scheduler slot identity tests |
 | Captcha refresh | Briefly missing DOM is not considered captcha success. | Pure `shouldTreatMissingCaptchaAfterRefreshAsSuccess` |
 | Last worker slot | Existing captcha/video priority and source-gate timing are preserved. | Existing scheduler/gate tests; policy defers reordering |
 | Dispose during search | Pending subscriptions, timers, and workers cannot re-arm playback or UI state. | Pure dispose reject + idle reassignment guard |
@@ -158,10 +161,11 @@ Only after this matrix is deterministic may a controller/reducer be extracted.
 That controller should remain small and command-oriented; do not create a new
 god controller just to make PlayerPage shorter.
 
-**Wire checkpoint (2026-07-16):** `PlayerPage` now routes search-scoped stale
-guards through `player_search_session_policy.dart` (`isSearchGenerationCurrent`,
-`mayApplyCaptchaResult`, `mayProcessCaptchaWorkerIdle`,
-`mayProbeVideoExtractionResult`). Finish-idle policy lives in
+**Wire checkpoint (2026-07-16):** `PlayerPage` routes search-scoped stale
+guards through `player_search_session_policy.dart`. Captcha/video job payloads,
+runner result callbacks, runner idle callbacks, and scheduler slots carry the
+original generation plus stable job key; the page rejects that identity before
+mutating active maps, failed keys, probes, or UI. Finish-idle policy lives in
 `sample_search_finish_policy.dart` (`mayMarkSampleSearchIdle`, terminal source
 checks). `SourceRequestGate` cooldown timing, WebView creation, and captcha
 runner DOM refresh remain outside those modules. A full session reducer is
@@ -208,7 +212,9 @@ mechanical refactor.
 
 Use docs/ai_refactor_manual_smoke.md for the repeatable cases and result
 format. The 2026-07-14 lifecycle run and 2026-07-16 playback/fullscreen
-subtitle run are complete baselines.
+subtitle run remain historical baselines. They predate the latest
+search-identity and Bangumi ordering changes, so P1 and P6 must be repeated and
+recorded before merge.
 
 Repeat relevant cases before merging when a task changes:
 

@@ -273,8 +273,8 @@ class VideoExtractionJobRunner {
       '🎉 Extraction complete! videoUrl=${result.videoUrl}, '
       'error=${result.error}',
     );
-    sink.onResult?.call(job.jobKey, result);
-    sink.onIdle?.call(workerId);
+    sink.onResult?.call(job, result);
+    sink.onIdle?.call(workerId, job);
   }
 
   void _cancelCurrentJob({required bool silent}) {
@@ -287,7 +287,7 @@ class VideoExtractionJobRunner {
 
     if (!silent) {
       sink.onResult?.call(
-        job.jobKey,
+        job,
         VideoExtractResult(error: 'cancelled', timedOut: false),
       );
     }
@@ -303,7 +303,7 @@ class VideoExtractionJobRunner {
     _navigationCount = 0;
     _totalUrlsChecked = 0;
 
-    sink.onIdle?.call(workerId);
+    sink.onIdle?.call(workerId, job);
   }
 
   void _startTimeout(VideoExtractionJob job, int token) {
@@ -798,7 +798,8 @@ class VideoExtractionJobRunner {
 class VideoExtractionJobSink {
   VideoExtractionJobSink({this.onResult, this.onIdle, this.onLog});
 
-  final void Function(String pageKey, VideoExtractResult result)? onResult;
-  final void Function(int workerId)? onIdle;
+  final void Function(VideoExtractionJob job, VideoExtractResult result)?
+  onResult;
+  final void Function(int workerId, VideoExtractionJob job)? onIdle;
   final void Function(String message)? onLog;
 }

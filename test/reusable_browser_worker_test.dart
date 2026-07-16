@@ -22,12 +22,16 @@ void main() {
     test('acceptJob emits failure result for source with no initial URL or '
         'searchKeyword', () {
       CaptchaBypassResult? captured;
+      CaptchaPreflightJob? completedJob;
       bool idle = false;
       final runner = CaptchaJobRunner(
         workerId: 7,
         sink: CaptchaJobRunnerSink(
-          onResult: (taskKey, result) => captured = result,
-          onIdle: (id) => idle = true,
+          onResult: (job, result) {
+            completedJob = job;
+            captured = result;
+          },
+          onIdle: (id, job) => idle = true,
         ),
         stats: null,
       );
@@ -47,6 +51,7 @@ void main() {
       runner.acceptJob(
         CaptchaPreflightJob(
           jobKey: 'k1',
+          generation: 17,
           source: source,
           searchKeyword: null,
           initialUrl: null,
@@ -57,6 +62,8 @@ void main() {
       expect(captured!.success, isFalse);
       expect(captured!.sourceName, 'empty-source');
       expect(captured!.error, contains('Captcha bypass requires'));
+      expect(completedJob?.jobKey, 'k1');
+      expect(completedJob?.generation, 17);
       expect(idle, isTrue);
       runner.dispose();
     });
@@ -106,6 +113,28 @@ void main() {
       runner.dispose();
     });
 
+    test('cancel idle callback preserves the accepted job identity', () {
+      VideoExtractionJob? idleJob;
+      final runner = VideoExtractionJobRunner(
+        workerId: 3,
+        sink: VideoExtractionJobSink(onIdle: (workerId, job) => idleJob = job),
+        stats: null,
+      );
+      runner.acceptJob(
+        const VideoExtractionJob(
+          jobKey: 'same-key',
+          generation: 8,
+          url: 'https://example.com/video',
+        ),
+      );
+
+      runner.cancelCurrentJob();
+
+      expect(idleJob?.jobKey, 'same-key');
+      expect(idleJob?.generation, 8);
+      runner.dispose();
+    });
+
     test(
       'acceptJob sets currentJob but does not navigate without a '
       'controller (host widget handles initialUrlRequest on first build)',
@@ -151,24 +180,25 @@ void main() {
     });
 
     test('same stable task key in a new search generation is a new job', () {
-      const inner = CaptchaPreflightJob(
+      const oldJob = CaptchaPreflightJob(
         jobKey: 'search:source',
+        generation: 41,
+        source: _SourceStub(),
+        captchaConfig: CaptchaConfig(enable: true),
+      );
+      const newJob = CaptchaPreflightJob(
+        jobKey: 'search:source',
+        generation: 42,
         source: _SourceStub(),
         captchaConfig: CaptchaConfig(enable: true),
       );
 
       expect(
-        sameWebViewJob(
-          const CaptchaJob(inner, generation: 41),
-          const CaptchaJob(inner, generation: 42),
-        ),
+        sameWebViewJob(const CaptchaJob(oldJob), const CaptchaJob(newJob)),
         isFalse,
       );
       expect(
-        sameWebViewJob(
-          const CaptchaJob(inner, generation: 42),
-          const CaptchaJob(inner, generation: 42),
-        ),
+        sameWebViewJob(const CaptchaJob(newJob), const CaptchaJob(newJob)),
         isTrue,
       );
     });

@@ -45,6 +45,7 @@ class BangumiDetailsPage extends StatefulWidget {
 
 class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   late final BangumiDetailsController _detailsController;
+  int _detailsLoadToken = 0;
   late ScrollController _mobileDetailsScrollController;
   late ScrollController _wideLeftScrollController;
   late ScrollController _wideRightScrollController;
@@ -98,10 +99,31 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _charactersScrollController = createPlatformScrollController();
     _relationsScrollController = createPlatformScrollController();
     _sitesScrollController = createPlatformScrollController();
+    _startDetailsLoad();
+  }
+
+  @override
+  void didUpdateWidget(covariant BangumiDetailsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_sameAnimeIdentity(oldWidget.anime, widget.anime)) {
+      _detailsController.resetForAnime(widget.anime);
+      _showOriginalSummary = false;
+      _isInfoBoxExpanded = false;
+      _startDetailsLoad();
+    }
+  }
+
+  bool _sameAnimeIdentity(AnimeInfo a, AnimeInfo b) =>
+      a.bangumiId == b.bangumiId &&
+      a.mikanId == b.mikanId &&
+      a.title == b.title;
+
+  void _startDetailsLoad() {
+    final loadToken = ++_detailsLoadToken;
     _detailsController.seedFromAnimeFullJson();
     unawaited(_detailsController.refreshFavoriteStatus());
     unawaited(_detailsController.primeFromCache());
-    unawaited(_fetchBangumiData());
+    unawaited(_fetchBangumiData(loadToken));
   }
 
   bool _handleScrollNotification(ScrollNotification notification) {
@@ -127,12 +149,12 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   Future<void> _ensureCommentsLoaded() =>
       _detailsController.ensureCommentsLoaded();
 
-  Future<void> _fetchBangumiData() async {
+  Future<void> _fetchBangumiData(int loadToken) async {
     await _detailsController.refreshFromNetwork();
-    if (!mounted) return;
+    if (!mounted || loadToken != _detailsLoadToken) return;
     unawaited(
       Future<void>.delayed(const Duration(milliseconds: 250), () async {
-        if (!mounted) return;
+        if (!mounted || loadToken != _detailsLoadToken) return;
         await _ensureCommentsLoaded();
       }),
     );
@@ -224,6 +246,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   @override
   void dispose() {
+    _detailsLoadToken++;
     _detailsController.clearForDispose();
     _copyTimer?.cancel();
     _wideRightScrollController.removeListener(_handleWideRightScroll);

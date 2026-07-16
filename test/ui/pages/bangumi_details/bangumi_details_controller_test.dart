@@ -423,6 +423,42 @@ void main() {
       expectConsistent(c);
     });
 
+    test('late cache cannot overwrite non-empty network data', () async {
+      final data = _FakeDataPort(holdFutures: true);
+      final c = _controller(data: data);
+      final cacheFuture = c.primeFromCache();
+      final netFuture = c.refreshFromNetwork();
+
+      data.releaseNetwork(
+        _loadResult(
+          subjectData: {'name': 'network'},
+          episodes: [_episode(id: 2, name: 'network-ep')],
+          characters: [_character(id: 2, name: 'network-char')],
+          relations: [_relation(id: 2, name: 'network-rel')],
+          sites: [_site(title: 'NetworkSite')],
+        ),
+      );
+      await netFuture;
+
+      data.releaseCached(
+        _loadResult(
+          subjectData: {'name': 'stale-cache'},
+          episodes: [_episode(id: 1, name: 'cache-ep')],
+          characters: [_character(id: 1, name: 'cache-char')],
+          relations: [_relation(id: 1, name: 'cache-rel')],
+          sites: [_site(title: 'CacheSite')],
+        ),
+      );
+      await cacheFuture;
+
+      expect(c.subjectData?['name'], 'network');
+      expect(c.episodes?.single.name, 'network-ep');
+      expect(c.characters?.single.name, 'network-char');
+      expect(c.relations?.single.name, 'network-rel');
+      expect(c.sites?.single.title, 'NetworkSite');
+      expectConsistent(c);
+    });
+
     test('late cache after dispose is ignored', () async {
       final data = _FakeDataPort(holdFutures: true);
       final c = BangumiDetailsController(

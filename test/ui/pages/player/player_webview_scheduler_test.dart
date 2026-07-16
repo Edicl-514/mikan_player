@@ -130,6 +130,34 @@ void main() {
       expect(s.activeVideoJobs, isEmpty);
       expect(s.activeCaptchaJobs, {'taskB': cap.slot!.workerId});
     });
+
+    test('same job key is distinguished by its dispatched generation', () {
+      final s = newScheduler();
+      final slot = s
+          .acquireIdleVideoWorkerSlot(
+            {'srcA'},
+            useWorkerPool: true,
+            maxConcurrent: _maxConcurrent,
+          )
+          .slot!;
+      s.startVideoJob(slot, 'pageA', 'srcA', generation: 42);
+
+      expect(slot.generation, 42);
+      expect(s.isActiveVideoJobIdentity('pageA', 42), isTrue);
+      expect(s.isActiveVideoJobIdentity('pageA', 41), isFalse);
+      expect(
+        s.slotMatchesJobIdentity(
+          workerId: slot.workerId,
+          kind: WebViewWorkerKind.video,
+          jobKey: 'pageA',
+          generation: 42,
+        ),
+        isTrue,
+      );
+
+      s.releaseVideoSlotOnIdle(slot.workerId);
+      expect(slot.generation, isNull);
+    });
   });
 
   group('atomic start failures leave state untouched', () {

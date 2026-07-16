@@ -125,6 +125,7 @@ class CaptchaBypassResult {
 
 class CaptchaPreflightJob {
   final String jobKey;
+  final int generation;
   final SourceState source;
   final String? searchKeyword;
   final String? initialUrl;
@@ -135,6 +136,7 @@ class CaptchaPreflightJob {
 
   const CaptchaPreflightJob({
     required this.jobKey,
+    this.generation = 0,
     required this.source,
     this.searchKeyword,
     this.initialUrl,
@@ -165,7 +167,8 @@ class CaptchaPreflightJob {
 ///   [CaptchaJobRunner.acceptJob] / `transitionToIdle` 派发下去。
 ///
 /// 对外回调：
-/// - [onResult]：每次 job 结束（成功/失败/超时）触发一次，附带 jobKey。
+/// - [onResult]：每次 job 结束（成功/失败/超时）触发一次，附带原始 job
+///   （含 jobKey + generation）。
 /// - [onIdle]：每次 job 结束（含被 [cancelCurrentJob] 取消）后触发一次，
 ///   让调度器重新分配本 worker 槽。
 ///
@@ -174,8 +177,9 @@ class CaptchaPreflightJob {
 class ReusableCaptchaWebViewBypasser extends StatefulWidget {
   final int workerId;
   final CaptchaPreflightJob? job;
-  final void Function(String taskKey, CaptchaBypassResult result)? onResult;
-  final void Function(int workerId)? onIdle;
+  final void Function(CaptchaPreflightJob job, CaptchaBypassResult result)?
+  onResult;
+  final void Function(int workerId, CaptchaPreflightJob job)? onIdle;
   final void Function(String message)? onLog;
   final bool showWebView;
   final WebViewSchedulerStats? stats;
@@ -213,6 +217,7 @@ class CaptchaWebViewBypassWidget extends StatelessWidget {
   final String? initialCookies;
   final CaptchaConfig captchaConfig;
   final Duration timeout;
+  final int generation;
   final void Function(CaptchaBypassResult result) onResult;
   final void Function(String message)? onLog;
   final bool showWebView;
@@ -233,6 +238,7 @@ class CaptchaWebViewBypassWidget extends StatelessWidget {
     this.initialCookies,
     required this.captchaConfig,
     this.timeout = const Duration(seconds: 45),
+    this.generation = 0,
     required this.onResult,
     this.onLog,
     this.showWebView = false,
@@ -247,6 +253,7 @@ class CaptchaWebViewBypassWidget extends StatelessWidget {
       workerId: -1,
       job: CaptchaPreflightJob(
         jobKey: effectiveJobKey,
+        generation: generation,
         source: source,
         searchKeyword: searchKeyword,
         initialUrl: initialUrl,
@@ -649,6 +656,7 @@ class _ReusableCaptchaWebViewBypasserState
     if (identical(a, b)) return true;
     if (a == null || b == null) return false;
     return a.jobKey == b.jobKey &&
+        a.generation == b.generation &&
         a.source.name == b.source.name &&
         a.searchKeyword == b.searchKeyword &&
         a.initialUrl == b.initialUrl &&

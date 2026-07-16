@@ -123,8 +123,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   // Sample Source
   // 并发WebView管理
-  final Map<String, bool> _activeWebViews =
-      {}; // 正在运行的WebView (sourceName -> isActive)
+  final Map<String, int> _activeWebViews =
+      {}; // legacy WebView pageKey -> search generation
   final Map<String, String> _webViewStatus =
       {}; // WebView状态消息 (sourceName -> message)
   final Set<String> _failedWebViewPageKeys = {}; // 提取失败的WebView Key
@@ -1748,7 +1748,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         _pendingCaptchaTasks.addFirst(ready);
         return false;
       }
-      _scheduler.startCaptchaJob(slot, ready.taskKey, ready.source.name);
+      _scheduler.startCaptchaJob(
+        slot,
+        ready.taskKey,
+        ready.source.name,
+        generation: ready.loadToken,
+      );
     }
     SourceRequestGate.instance.markStarted(ready.source.name);
     _activeCaptchaTasks[ready.taskKey] = ready;
@@ -1776,6 +1781,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   bool _startOneWebViewExtractionTask() {
+    if (!mounted) return false;
+    final jobLoadToken = _sampleSourceController.sampleLoadToken;
     if (_activeWebViewTaskCount >= _maxConcurrentWebViews) {
       return false;
     }
@@ -1798,7 +1805,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       )) {
         readyPending.add(page);
       } else if (coolingSources.add(page.sourceName)) {
-        final gateToken = _sampleSourceController.sampleLoadToken;
+        final gateToken = jobLoadToken;
         gate.scheduleWhenReady(
           sourceName: page.sourceName,
           minInterval: SourceRequestGate.defaultVideoInterval,
@@ -1853,13 +1860,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (command == null) {
         return false;
       }
-      if (!mayStartSearchScopedJob(
-        jobLoadToken: _sampleSourceController.sampleLoadToken,
-        currentLoadToken: _sampleSourceController.sampleLoadToken,
-        isDisposed: !mounted,
-      )) {
-        return false;
-      }
       if (command.createdNew) {
         debugPrint(
           '[WebViewScheduler] created worker=${command.slot.workerId} for video '
@@ -1878,6 +1878,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         command.slot,
         command.job.pageKey,
         command.job.sourceName,
+        generation: jobLoadToken,
       );
       gate.markStarted(command.job.sourceName);
       _webViewStatus[command.job.pageKey] = '正在提取...';
@@ -1892,7 +1893,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // Fallback：per-task widget 路径（旧逻辑，行为等价于 Round 2 之前）。
     final page = readyPending.first;
     final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
-    _activeWebViews[pageKey] = true;
+    _activeWebViews[pageKey] = jobLoadToken;
     gate.markStarted(page.sourceName);
     _webViewStatus[pageKey] = '正在提取...';
     _webviewStats.onVideoJobStarted(
@@ -2362,30 +2363,40 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-  void _onCaptchaPreflightResult(String taskKey, CaptchaBypassResult result) {
-    // Snapshot active-task presence before remove so mayApplyCaptchaResult can
-    // distinguish "cancelled/missing bookkeeping" from a live completion.
-    final hadActiveTask = _activeCaptchaTasks.containsKey(taskKey);
-    final task = _activeCaptchaTasks.remove(taskKey);
-    _webViewStatus.remove(taskKey);
+  void _onCaptchaPreflightResult(
+    String taskKey,
+    int resultLoadToken,
+    CaptchaBypassResult result,
+  ) {
+    final task = _activeCaptchaTasks[taskKey];
 
     if (task == null) {
-      _releaseCaptchaSlotForTask(taskKey);
+      _releaseCaptchaSlotForTask(taskKey, generation: resultLoadToken);
       _webviewStats.onCaptchaJobLateAfterCancel(taskKey);
       if (mounted) setState(() {});
       _scheduleWebViewPoolPump(immediate: true);
       return;
     }
 
+    // A stable task key (for example search:<source>) can be reused by the
+    // next episode. Never remove or release that new task for an old result.
+    if (task.loadToken != resultLoadToken) {
+      _webviewStats.onCaptchaJobStaleResult(taskKey);
+      return;
+    }
+
+    _activeCaptchaTasks.remove(taskKey);
+    _webViewStatus.remove(taskKey);
+
     if (!mayApplyCaptchaResult(
-      resultLoadToken: task.loadToken,
+      resultLoadToken: resultLoadToken,
       currentLoadToken: _sampleSourceController.sampleLoadToken,
       isDisposed: !mounted,
-      activeTaskPresent: hadActiveTask,
+      activeTaskPresent: true,
       activeTaskKey: task.taskKey,
       resultTaskKey: taskKey,
     )) {
-      _releaseCaptchaSlotForTask(taskKey);
+      _releaseCaptchaSlotForTask(taskKey, generation: resultLoadToken);
       _webviewStats.onCaptchaJobStaleResult(taskKey);
       if (mounted) setState(() {});
       _scheduleWebViewPoolPump(immediate: true);
@@ -2393,7 +2404,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     _recordCaptchaWorkerResult(taskKey, result);
-    _releaseCaptchaSlotForTask(taskKey);
+    _releaseCaptchaSlotForTask(taskKey, generation: resultLoadToken);
     _webviewStats.onCaptchaJobCompleted(
       success: result.success,
       timedOut: result.timedOut,
@@ -2407,11 +2418,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _logSchedulerState('captchaResult');
   }
 
-  void _releaseCaptchaSlotForTask(String taskKey) {
-    _scheduler.releaseCaptchaSlot(taskKey);
+  void _releaseCaptchaSlotForTask(String taskKey, {int? generation}) {
+    _scheduler.releaseCaptchaSlot(taskKey, generation: generation);
   }
 
-  void _onCaptchaWorkerIdle(int workerId) {
+  void _onCaptchaWorkerIdle(int workerId, CaptchaPreflightJob _) {
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -3529,7 +3540,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   /// WebView 提取结果回调（并发版本）
-  void _onWebViewResult(String pageKey, VideoExtractResult result) {
+  void _onWebViewResult(
+    String pageKey,
+    int resultLoadToken,
+    VideoExtractResult result,
+  ) {
     debugPrint(
       '[_onWebViewResult] pageKey=$pageKey, success=${result.success}, '
       'timedOut=${result.timedOut}, videoUrl=${result.videoUrl}, '
@@ -3538,6 +3553,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (!mounted) return;
 
     final sourceNameForKey = SourceChannelKey.fromPageKey(pageKey).sourceName;
+    final isActiveIdentity = _useWorkerPool
+        ? _scheduler.isActiveVideoJobIdentity(pageKey, resultLoadToken)
+        : _activeWebViews[pageKey] == resultLoadToken;
+    if (!isSearchGenerationCurrent(
+          resultLoadToken: resultLoadToken,
+          currentLoadToken: _sampleSourceController.sampleLoadToken,
+          isDisposed: !mounted,
+        ) ||
+        !isActiveIdentity) {
+      _webviewStats.onVideoJobLateAfterCancel(pageKey, sourceNameForKey);
+      return;
+    }
 
     setState(() {
       _recordVideoWorkerResult(pageKey, result);
@@ -3557,17 +3584,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // （含已接受源的其他 channel 与其他 Tier-0 源的 channel）的迟到结果仍按正常
       // 流程走 probe/register 以填充源列表作为后备。这里仍然清理上面的记账以释放
       // 并发槽位，然后只需更新状态、泵送任务池并提前返回。
-      // Note: video result callback has no per-job loadToken; generation is
-      // enforced on probe/open paths. Here we only apply the late-tier policy.
       final tier = _sampleSourceController.sourceTiers[sourceNameForKey] ?? 999;
       final lateNonTier0 = isVideoResultLateAfterCancel(
         acceptedSourcePageKey: _acceptedSourcePageKey,
         tier: tier,
       );
       if (!mayProbeVideoExtractionResult(
-        // Pool jobs are built with current sampleLoadToken; without a
-        // per-result token, reuse current generation so only late-tier blocks.
-        resultLoadToken: _sampleSourceController.sampleLoadToken,
+        resultLoadToken: resultLoadToken,
         currentLoadToken: _sampleSourceController.sampleLoadToken,
         isDisposed: !mounted,
         isLateNonTier0AfterAccept: lateNonTier0,
@@ -3704,17 +3727,28 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 因为路径 2 可能发生在 **build 阶段**（`didUpdateWidget` 内同步），直接
   /// `setState` 会触发 "setState() called during build" 异常。所以统一用
   /// `addPostFrameCallback` 把状态修改 + pump 推迟到本帧结束之后。
-  void _onWorkerIdle(int workerId) {
+  void _onWorkerIdle(int workerId, VideoExtractionJob completedJob) {
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _onWorkerIdlePostFrame(workerId);
+      _onWorkerIdlePostFrame(workerId, completedJob);
     });
   }
 
-  void _onWorkerIdlePostFrame(int workerId) {
+  void _onWorkerIdlePostFrame(int workerId, VideoExtractionJob completedJob) {
     if (!mounted) return;
     final slot = _scheduler.slotOf(workerId);
     if (slot == null) return;
+    if (slot.kind != null &&
+        !_scheduler.slotMatchesJobIdentity(
+          workerId: workerId,
+          kind: WebViewWorkerKind.video,
+          jobKey: completedJob.jobKey,
+          generation: completedJob.generation,
+        )) {
+      // A post-frame idle from the previous generation must not clear a new
+      // same-key assignment already running on this retained worker.
+      return;
+    }
 
     // 释放 slot 记账（pageKey/taskKey 通常还没被移除：因为 _onWebViewResult
     // 在 pool 模式下不动它；_cancelLowerPriorityExtraction 已在 setState 内
@@ -3772,7 +3806,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         for (final task in _activeCaptchaTasks.values) {
           final slot = _acquireIdleCaptchaWorkerSlot();
           if (slot == null) continue;
-          _scheduler.startCaptchaJob(slot, task.taskKey, task.source.name);
+          _scheduler.startCaptchaJob(
+            slot,
+            task.taskKey,
+            task.source.name,
+            generation: task.loadToken,
+          );
         }
       }
       _webViewStatus.clear();
@@ -6395,9 +6434,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   VideoExtractionJob _buildVideoExtractionJob(
     SearchPlayResult page, {
     required String pageKey,
+    required int generation,
   }) {
     return VideoExtractionJob(
       jobKey: pageKey,
+      generation: generation,
       sourceName: page.sourceName,
       url: page.playPageUrl,
       customVideoRegex: page.videoRegex != r'$^' ? page.videoRegex : null,
@@ -6412,6 +6453,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   CaptchaPreflightJob _buildCaptchaPreflightJob(_CaptchaPreflightTask task) {
     return CaptchaPreflightJob(
       jobKey: task.taskKey,
+      generation: task.loadToken,
       source: task.source,
       searchKeyword: task.searchKeyword,
       initialUrl: task.initialUrl,
@@ -6436,24 +6478,24 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     for (final workerId in workerIds) {
       final slot = _scheduler.slots[workerId]!;
       WebViewJob? job;
-      void Function(String, CaptchaBypassResult)? onCaptchaResult;
-      void Function(int)? onCaptchaIdle;
-      void Function(String, VideoExtractResult)? onVideoResult;
-      void Function(int)? onVideoIdle;
+      void Function(CaptchaPreflightJob, CaptchaBypassResult)? onCaptchaResult;
+      void Function(int, CaptchaPreflightJob)? onCaptchaIdle;
+      void Function(VideoExtractionJob, VideoExtractResult)? onVideoResult;
+      void Function(int, VideoExtractionJob)? onVideoIdle;
 
       switch (slot.kind) {
         case WebViewWorkerKind.captcha:
           final taskKey = slot.taskKey;
           final task = taskKey == null ? null : _activeCaptchaTasks[taskKey];
           if (task != null) {
-            job = CaptchaJob(
-              _buildCaptchaPreflightJob(task),
-              generation: task.loadToken,
-            );
+            job = CaptchaJob(_buildCaptchaPreflightJob(task));
           }
-          onCaptchaResult = (key, result) =>
-              _onCaptchaPreflightResult(key, result);
-          onCaptchaIdle = (id) => _onCaptchaWorkerIdle(id);
+          onCaptchaResult = (completedJob, result) => _onCaptchaPreflightResult(
+            completedJob.jobKey,
+            completedJob.generation,
+            result,
+          );
+          onCaptchaIdle = _onCaptchaWorkerIdle;
         case WebViewWorkerKind.video:
           final pageKey = slot.pageKey;
           SearchPlayResult? matchedPage;
@@ -6469,14 +6511,22 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               }
             }
           }
-          if (matchedPage != null && pageKey != null) {
+          final generation = slot.generation;
+          if (matchedPage != null && pageKey != null && generation != null) {
             job = VideoJob(
-              _buildVideoExtractionJob(matchedPage, pageKey: pageKey),
-              generation: _sampleSourceController.sampleLoadToken,
+              _buildVideoExtractionJob(
+                matchedPage,
+                pageKey: pageKey,
+                generation: generation,
+              ),
             );
           }
-          onVideoResult = (key, result) => _onWebViewResult(key, result);
-          onVideoIdle = (id) => _onWorkerIdle(id);
+          onVideoResult = (completedJob, result) => _onWebViewResult(
+            completedJob.jobKey,
+            completedJob.generation,
+            result,
+          );
+          onVideoIdle = _onWorkerIdle;
         case null:
           // slot idle：emit null job，worker 内部保持当前页等下一 job。
           break;
@@ -6518,7 +6568,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final orphanPageKeys = <String>[];
 
     // 构建活动的视频提取 WebView
-    for (final pageKey in _activeWebViews.keys) {
+    for (final activeEntry in _activeWebViews.entries) {
+      final pageKey = activeEntry.key;
+      final generation = activeEntry.value;
       final key = SourceChannelKey.fromPageKey(pageKey);
       final sourceName = key.sourceName;
       final channelIndex = key.channelIndex?.toInt();
@@ -6555,8 +6607,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           headers: matchedPage.headers,
           cookies: matchedPage.cookies,
           timeout: const Duration(seconds: 20),
+          generation: generation,
           showWebView: _showWebView,
-          onResult: (result) => _onWebViewResult(pageKey, result),
+          onResult: (result) => _onWebViewResult(pageKey, generation, result),
           onLog: (msg) => debugPrint('[WebView][$pageKey] $msg'),
           stats: _webviewStats,
           jobKey: pageKey,
@@ -6607,7 +6660,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           initialCookies: task.initialCookies,
           captchaConfig: task.captchaConfig,
           timeout: const Duration(seconds: 45),
-          onResult: (result) => _onCaptchaPreflightResult(task.taskKey, result),
+          generation: task.loadToken,
+          onResult: (result) =>
+              _onCaptchaPreflightResult(task.taskKey, task.loadToken, result),
           onLog: (message) {
             debugPrint('[CaptchaBypass][${task.taskKey}] $message');
           },

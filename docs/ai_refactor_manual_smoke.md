@@ -99,3 +99,9 @@ widgets.
 | --- | --- | --- |
 | 2026-07-14 | P1, P3, P4, P6 | Pass: rapid episode switch/re-entry, HTTP/HLS download lifecycle, BT stream, and comments/leaf UI. |
 | 2026-07-16 | P2, P5 | Pass: playback smoke and Android fullscreen BT MKV embedded-subtitle settings. |
+
+## Pending verification
+
+- P1 and P6 must be repeated after the 2026-07-16 search completion-identity
+  and Bangumi cache-ordering fixes. They require a real WebView/device session
+  and were not claimed by the automated test run.

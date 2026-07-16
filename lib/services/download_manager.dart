@@ -2220,10 +2220,16 @@ class DownloadManager extends ChangeNotifier {
 
     _stopLibtorrentStreamForHash(hashLower);
 
-    final restored = await _libtorrentBackend.restoreBackgroundDownload(
-      hashLower,
-      preferredFileIdx: task.largestFileIdx,
-    );
+    BtTorrentHandle? restored;
+    try {
+      restored = await _libtorrentBackend.restoreBackgroundDownload(
+        hashLower,
+        preferredFileIdx: task.largestFileIdx,
+      );
+    } catch (error, stackTrace) {
+      await _recordLibtorrentRestoreFailure(hashLower, task, error, isCurrent);
+      Error.throwWithStackTrace(error, stackTrace);
+    }
     if (!_canContinueLibtorrentBackgroundRestore(hashLower, isCurrent) ||
         !identical(_tasks[hashLower], task)) {
       return;
@@ -2231,13 +2237,24 @@ class DownloadManager extends ChangeNotifier {
 
     if (restored == null) {
       if (task.magnet.isEmpty) return;
-      final result = await _startTorrentWithBackend(
-        task.magnet,
-        fallbackInfoHash: task.id,
-        backendKind: task.backend,
-        startStream: false,
-        downloadDir: task.downloadDir,
-      );
+      BtTorrentHandle result;
+      try {
+        result = await _startTorrentWithBackend(
+          task.magnet,
+          fallbackInfoHash: task.id,
+          backendKind: task.backend,
+          startStream: false,
+          downloadDir: task.downloadDir,
+        );
+      } catch (error, stackTrace) {
+        await _recordLibtorrentRestoreFailure(
+          hashLower,
+          task,
+          error,
+          isCurrent,
+        );
+        Error.throwWithStackTrace(error, stackTrace);
+      }
       if (!_canContinueLibtorrentBackgroundRestore(hashLower, isCurrent) ||
           !identical(_tasks[hashLower], task)) {
         return;
@@ -2259,6 +2276,7 @@ class DownloadManager extends ChangeNotifier {
         task.status != DownloadTaskStatus.completed) {
       task.status = DownloadTaskStatus.downloading;
     }
+    task.errorMessage = null;
     _ensureStatsPolling();
     await _saveTasks();
     if (!_canContinueLibtorrentBackgroundRestore(hashLower, isCurrent) ||
@@ -2269,6 +2287,22 @@ class DownloadManager extends ChangeNotifier {
     debugPrint(
       '[DownloadManager] Restored libtorrent background download: $hashLower',
     );
+  }
+
+  Future<void> _recordLibtorrentRestoreFailure(
+    String hashLower,
+    DownloadTask task,
+    Object error,
+    bool Function() isCurrent,
+  ) async {
+    if (!_canContinueLibtorrentBackgroundRestore(hashLower, isCurrent) ||
+        !identical(_tasks[hashLower], task)) {
+      return;
+    }
+    task.status = DownloadTaskStatus.error;
+    task.errorMessage = '后台下载恢复失败: $error';
+    await _saveTasks();
+    notifyListeners();
   }
 
   bool _canContinueLibtorrentBackgroundRestore(

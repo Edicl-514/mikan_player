@@ -443,8 +443,8 @@ class CaptchaJobRunner {
     _isCompleted = true;
     _timeoutTimer?.cancel();
     _log('Completed: success=${result.success}, error=${result.error}');
-    sink.onResult?.call(job.jobKey, result);
-    sink.onIdle?.call(workerId);
+    sink.onResult?.call(job, result);
+    sink.onIdle?.call(workerId, job);
   }
 
   void _cancelCurrentJob({bool preserveSession = false}) {
@@ -469,7 +469,7 @@ class CaptchaJobRunner {
     }
     _currentJob = null;
     _resetJobState(advanceToken: false);
-    sink.onIdle?.call(workerId);
+    sink.onIdle?.call(workerId, job);
   }
 
   void _maybeTransitionHostsAcrossSource({
@@ -1705,8 +1705,9 @@ class CaptchaJobRunner {
 class CaptchaJobRunnerSink {
   CaptchaJobRunnerSink({this.onResult, this.onIdle, this.onLog});
 
-  final void Function(String taskKey, CaptchaBypassResult result)? onResult;
-  final void Function(int workerId)? onIdle;
+  final void Function(CaptchaPreflightJob job, CaptchaBypassResult result)?
+  onResult;
+  final void Function(int workerId, CaptchaPreflightJob job)? onIdle;
   final void Function(String message)? onLog;
 }
 

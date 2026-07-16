@@ -224,6 +224,7 @@ class WebViewVideoExtractor {
 class VideoExtractionJob {
   /// 调度器记账 key（通常为 `sourceName\x00channelIndex`）。
   final String jobKey;
+  final int generation;
   final String? sourceName;
   final String url;
   final String? customVideoRegex;
@@ -235,6 +236,7 @@ class VideoExtractionJob {
 
   const VideoExtractionJob({
     required this.jobKey,
+    this.generation = 0,
     this.sourceName,
     required this.url,
     this.customVideoRegex,
@@ -264,7 +266,8 @@ class VideoExtractionJob {
 ///   [VideoExtractionJobRunner.acceptJob] / `transitionToIdle` 派发下去。
 ///
 /// 对外回调：
-/// - [onResult]：每次 job 结束（成功/失败/超时）触发一次，附带 jobKey。
+/// - [onResult]：每次 job 结束（成功/失败/超时）触发一次，附带原始 job
+///   （含 jobKey + generation）。
 /// - [onIdle]：每次 job 结束（含被 [cancelCurrentJob] 取消）后触发一次，
 ///   让调度器重新分配本 worker 槽。
 ///
@@ -273,8 +276,9 @@ class VideoExtractionJob {
 class ReusableWebViewVideoExtractor extends StatefulWidget {
   final int workerId;
   final VideoExtractionJob? job;
-  final void Function(String pageKey, VideoExtractResult result)? onResult;
-  final void Function(int workerId)? onIdle;
+  final void Function(VideoExtractionJob job, VideoExtractResult result)?
+  onResult;
+  final void Function(int workerId, VideoExtractionJob job)? onIdle;
   final void Function(String message)? onLog;
   final bool showWebView;
   final WebViewSchedulerStats? stats;
@@ -335,6 +339,7 @@ class _ReusableWebViewVideoExtractorState
     if (identical(a, b)) return true;
     if (a == null || b == null) return false;
     return a.jobKey == b.jobKey &&
+        a.generation == b.generation &&
         a.url == b.url &&
         a.customVideoRegex == b.customVideoRegex &&
         a.enableNestedUrl == b.enableNestedUrl &&
@@ -566,6 +571,7 @@ class WebViewVideoExtractorWidget extends StatefulWidget {
   final Map<String, String>? headers;
   final String? cookies;
   final Duration timeout;
+  final int generation;
   final void Function(VideoExtractResult result) onResult;
   final void Function(String message)? onLog;
   final bool showWebView; // 是否显示 WebView（调试用）
@@ -587,6 +593,7 @@ class WebViewVideoExtractorWidget extends StatefulWidget {
     this.headers,
     this.cookies,
     this.timeout = const Duration(seconds: 30),
+    this.generation = 0,
     required this.onResult,
     this.onLog,
     this.showWebView = false,
@@ -608,6 +615,7 @@ class _WebViewVideoExtractorWidgetState
     super.initState();
     _job = VideoExtractionJob(
       jobKey: widget.jobKey ?? widget.url,
+      generation: widget.generation,
       url: widget.url,
       customVideoRegex: widget.customVideoRegex,
       enableNestedUrl: widget.enableNestedUrl,

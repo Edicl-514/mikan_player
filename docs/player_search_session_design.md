@@ -1,6 +1,6 @@
 # PlayerSearchSession design note
 
-Status: preparatory checkpoint only (2026-07-16).  
+Status: completion identity wired; reducer extraction still deferred (2026-07-16).
 This document specifies a future pure state machine / command boundary. It is
 **not** permission to extract a god controller or move WebView / Rust / player
 execution off `PlayerPage`.
@@ -41,7 +41,9 @@ ties load token, dispose, replacement, and job keys together. That is the
 ## Identity model
 
 Every asynchronous completion must carry enough identity to be rejected when
-stale.
+stale. Captcha/video runner result and idle callbacks now return the original
+job object, including its captured generation; callers must never reconstruct
+completion identity from current page state.
 
 ### Search generation
 
@@ -60,6 +62,10 @@ stale.
 | Captcha preflight | `taskKey` (e.g. `search:${sourceName}`) | `_CaptchaPreflightTask`, scheduler captcha map |
 | Video extraction | `pageKey` (`SourceChannelKey`) | sample play pages, scheduler video map |
 | Worker | `workerId` | `WebViewWorkerSlot` |
+
+Worker slots also retain the dispatched generation while busy. A post-frame
+idle event is applied only when `{workerId, kind, jobKey, generation}` still
+matches, so an old worker cannot clear a same-key replacement job.
 
 A completion is current only when **both** generation (load token) **and** the
 job key still map to the active bookkeeping the page/scheduler expects.
@@ -130,8 +136,8 @@ A future session object returns **immutable decisions**; the page executes:
 
 | Scenario | Expected contract | Where pinned today / next |
 | --- | --- | --- |
-| Start then immediate replacement | Old progress, captcha, extraction have no visible effect | loadToken guards on page; pure policy tests for accept/reject |
-| Cancel then restart same source | New generation + job identity; old worker cannot claim new job | `bumpLoadToken` + scheduler `start*Job` keys; gate latest-wins |
+| Start then immediate replacement | Old progress, captcha, extraction have no visible effect | Runner callbacks carry original generation; page rejects stale identity before mutation |
+| Cancel then restart same source | New generation + job identity; old worker cannot claim or clear the new job | Job payload + scheduler slot store `{generation, jobKey}`; runner/scheduler tests |
 | Captcha refresh | Briefly missing DOM is not captcha success | Runner comment + pure `shouldTreatMissingCaptchaAfterRefreshAsSuccess` |
 | Last worker slot | Captcha/video priority and source-gate timing preserved | Scheduler selection tests + gate tests; session must not reorder |
 | Dispose during search | Pending work cannot re-arm playback or UI | dispose token bump + `PlayerPlaybackController.clearForDispose` |
@@ -146,11 +152,12 @@ A future session object returns **immutable decisions**; the page executes:
 
 ## Suggested extraction sequence (later)
 
-1. **Policy-only module** (this checkpoint): pure accept/reject + captcha-refresh
-   success rule + documented matrix tests.
-2. Optional thin **command planner** for "may finish search?" / "may apply
+1. **Policy-only module**: pure accept/reject + captcha-refresh success rule.
+2. **Completion identity wiring** (current checkpoint): job payloads, result
+   callbacks, idle callbacks, and scheduler slots preserve generation + key.
+3. Optional thin **command planner** for "may finish search?" / "may apply
    progress?" once matrix is green and stable.
-3. Only then consider moving mutator sequences from `_loadSampleSource` into a
+4. Only then consider moving mutator sequences from `_loadSampleSource` into a
    small command-oriented controller that still leaves execution on the page.
 
 ## Primary code references

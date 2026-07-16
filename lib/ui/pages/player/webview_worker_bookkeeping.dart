@@ -43,10 +43,12 @@ void startVideoJobOnSlot(
   WebViewWorkerSlot slot,
   String pageKey,
   String sourceName,
-  Map<String, int> activeVideoJobs,
-) {
+  Map<String, int> activeVideoJobs, {
+  int generation = 0,
+}) {
   _ensureSlotCanStartJob(slot, pageKey, activeVideoJobs);
   slot.pageKey = pageKey;
+  slot.generation = generation;
   slot.kind = WebViewWorkerKind.video;
   slot.lastSourceName = sourceName;
   slot.preserveCaptchaSessionOnIdle = false;
@@ -64,10 +66,12 @@ void startCaptchaJobOnSlot(
   WebViewWorkerSlot slot,
   String taskKey,
   String sourceName,
-  Map<String, int> activeCaptchaJobs,
-) {
+  Map<String, int> activeCaptchaJobs, {
+  int generation = 0,
+}) {
   _ensureSlotCanStartJob(slot, taskKey, activeCaptchaJobs);
   slot.taskKey = taskKey;
+  slot.generation = generation;
   slot.kind = WebViewWorkerKind.captcha;
   slot.lastSourceName = sourceName;
   slot.preserveCaptchaSessionOnIdle = false;
@@ -92,6 +96,7 @@ void releaseCaptchaSlot(
   final slot = slots[workerId];
   if (slot?.taskKey == taskKey) {
     slot?.taskKey = null;
+    slot?.generation = null;
     slot?.kind = null;
     slot?.preserveCaptchaSessionOnIdle = false;
   }
@@ -114,6 +119,7 @@ int? cancelVideoJob(
   if (slot != null) {
     slot.health = WebViewWorkerHealth.cancelling;
     slot.pageKey = null;
+    slot.generation = null;
     slot.kind = null;
     slot.preserveCaptchaSessionOnIdle = false;
   }
@@ -137,6 +143,7 @@ String? releaseVideoSlotOnIdle(
   final prevPageKey = slot.pageKey;
   if (prevPageKey != null) {
     slot.pageKey = null;
+    slot.generation = null;
     activeVideoJobs.remove(prevPageKey);
   }
   if (slot.kind != null) {

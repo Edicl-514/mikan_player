@@ -421,19 +421,25 @@ class BangumiDetailsController {
   void _applyCachedResult(BangumiDetailsLoadResult result) {
     final sortedCharacters = sortCharactersByRole(result.characters);
     _subjectData ??= result.subjectData;
-    if (result.episodes.isNotEmpty) {
+    // Cache and network loads are intentionally concurrent. A late cache read
+    // may fill an empty slot, but must never overwrite fresher non-empty data
+    // that the network path has already committed.
+    if (result.episodes.isNotEmpty &&
+        (_episodes == null || _episodes!.isEmpty)) {
       _episodes = List<BangumiEpisode>.from(result.episodes);
       _isLoadingEpisodes = false;
     }
-    if (sortedCharacters.isNotEmpty) {
+    if (sortedCharacters.isNotEmpty &&
+        (_characters == null || _characters!.isEmpty)) {
       _characters = sortedCharacters;
       _isLoadingCharacters = false;
     }
-    if (result.relations.isNotEmpty) {
+    if (result.relations.isNotEmpty &&
+        (_relations == null || _relations!.isEmpty)) {
       _relations = List<BangumiRelatedSubject>.from(result.relations);
       _isLoadingRelations = false;
     }
-    if (result.sites.isNotEmpty) {
+    if (result.sites.isNotEmpty && (_sites == null || _sites!.isEmpty)) {
       _sites = sortSitesByKind(result.sites);
     }
     _mergePersonIdMap(result.personIdMap);
