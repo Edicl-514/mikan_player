@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
-import 'package:mikan_player/services/bangumi_details_service.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
@@ -16,6 +15,7 @@ import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/pages/bangumi_details/bangumi_details_controller.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/comments_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/relations_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/sites_section.dart';
@@ -44,51 +44,52 @@ class BangumiDetailsPage extends StatefulWidget {
 }
 
 class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
-  final BangumiDetailsService _detailsService = BangumiDetailsService.instance;
-  Map<String, dynamic>? _data;
+  late final BangumiDetailsController _detailsController;
   late ScrollController _mobileDetailsScrollController;
   late ScrollController _wideLeftScrollController;
   late ScrollController _wideRightScrollController;
 
-  // Bangumi API data
-  List<BangumiEpisode>? _episodes;
-  List<BangumiCharacter>? _characters;
-  List<BangumiRelatedSubject>? _relations;
-  List<BangumiComment>? _comments;
-  List<BangumiDataSiteEntry>? _sites;
-
-  // Person name → id mapping (built from persons API + character actors)
-  final Map<String, int> _personIdMap = {};
-
-  bool _isLoadingEpisodes = false;
-  bool _isLoadingCharacters = false;
-  bool _isLoadingRelations = false;
-  bool _isLoadingComments = false;
-  bool _hasRequestedComments = false;
-  bool _isLocalFavorite = false;
   bool _isCopied = false;
   Timer? _copyTimer;
   bool _showOriginalSummary = false;
   bool _isInfoBoxExpanded = false;
 
-  // Pre-sorted characters to avoid sorting in build
-  List<BangumiCharacter>? _sortedCharacters;
-
-  // Pre-sorted sites: info → onair → resource
-  List<BangumiDataSiteEntry>? _sortedSites;
-
-  // Pagination State
-  int _commentPage = 1;
-  bool _hasMoreComments = true;
-  bool _isLoadingMoreComments = false;
   late ScrollController _episodesScrollController;
   late ScrollController _charactersScrollController;
   late ScrollController _relationsScrollController;
   late ScrollController _sitesScrollController;
 
+  // Convenience aliases for page render paths that previously read private
+  // fields. The controller owns the request state; these are read-only views.
+  Map<String, dynamic>? get _data => _detailsController.subjectData;
+  List<BangumiEpisode>? get _episodes => _detailsController.episodes;
+  List<BangumiCharacter>? get _characters => _detailsController.characters;
+  List<BangumiRelatedSubject>? get _relations => _detailsController.relations;
+  List<BangumiComment>? get _comments => _detailsController.comments;
+  List<BangumiDataSiteEntry>? get _sites => _detailsController.sites;
+  Map<String, int> get _personIdMap => _detailsController.personIdMap;
+  bool get _isLoadingEpisodes => _detailsController.isLoadingEpisodes;
+  bool get _isLoadingCharacters => _detailsController.isLoadingCharacters;
+  bool get _isLoadingRelations => _detailsController.isLoadingRelations;
+  bool get _isLoadingComments => _detailsController.isLoadingComments;
+  bool get _hasRequestedComments => _detailsController.hasRequestedComments;
+  bool get _isLocalFavorite => _detailsController.isLocalFavorite;
+  bool get _isLoadingMoreComments => _detailsController.isLoadingMoreComments;
+  List<BangumiCharacter>? get _sortedCharacters =>
+      _detailsController.characters;
+  List<BangumiDataSiteEntry>? get _sortedSites => _detailsController.sites;
+
   @override
   void initState() {
     super.initState();
+    _detailsController = BangumiDetailsController(
+      anime: widget.anime,
+      dataPort: bangumiDetailsServiceDataPort(),
+      favoritesPort: bangumiDetailsFavoritesPort(() => FavoritesManager()),
+      onStateChanged: () {
+        if (mounted) setState(() {});
+      },
+    );
     _mobileDetailsScrollController = createPlatformScrollController();
     _wideLeftScrollController = createPlatformScrollController();
     _wideRightScrollController = createPlatformScrollController();
@@ -97,10 +98,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _charactersScrollController = createPlatformScrollController();
     _relationsScrollController = createPlatformScrollController();
     _sitesScrollController = createPlatformScrollController();
-    _parseData();
-    _checkFavoriteStatus();
-    _primeInitialDataFromCache();
-    _fetchBangumiData();
+    _detailsController.seedFromAnimeFullJson();
+    unawaited(_detailsController.refreshFavoriteStatus());
+    unawaited(_detailsController.primeFromCache());
+    unawaited(_fetchBangumiData());
   }
 
   bool _handleScrollNotification(ScrollNotification notification) {
@@ -119,225 +120,22 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   void _tryLoadMoreComments(ScrollMetrics metrics) {
     if (metrics.pixels >= metrics.maxScrollExtent - 200) {
-      _loadMoreComments();
+      unawaited(_detailsController.loadMoreComments());
     }
   }
 
-  Future<void> _loadMoreComments() async {
-    if (_isLoadingMoreComments || !_hasMoreComments || !_hasRequestedComments) {
-      return;
-    }
-
-    setState(() {
-      _isLoadingMoreComments = true;
-    });
-
-    try {
-      final subjectIdStr = widget.anime.bangumiId;
-      if (subjectIdStr == null) {
-        setState(() => _isLoadingMoreComments = false);
-        return;
-      }
-      final subjectId = int.parse(subjectIdStr);
-
-      final newComments = await _detailsService.fetchCommentsPage(
-        subjectId: subjectId,
-        page: _commentPage + 1,
-      );
-
-      if (mounted) {
-        setState(() {
-          if (newComments.isEmpty) {
-            _hasMoreComments = false;
-          } else {
-            _comments?.addAll(newComments);
-            _commentPage++;
-          }
-          _isLoadingMoreComments = false;
-        });
-      }
-    } catch (e) {
-      debugPrint("Error loading more comments: $e");
-      if (mounted) {
-        setState(() {
-          _isLoadingMoreComments = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _ensureCommentsLoaded() async {
-    if (_hasRequestedComments || _isLoadingComments) return;
-
-    final subjectIdStr = widget.anime.bangumiId;
-    if (subjectIdStr == null) return;
-
-    final subjectId = int.tryParse(subjectIdStr);
-    if (subjectId == null) return;
-
-    setState(() {
-      _hasRequestedComments = true;
-      _isLoadingComments = true;
-      _commentPage = 1;
-      _hasMoreComments = true;
-      _isLoadingMoreComments = false;
-      _comments = null;
-    });
-
-    try {
-      final comments = await _detailsService.fetchCommentsPage(
-        subjectId: subjectId,
-        page: 1,
-      );
-      if (!mounted) return;
-      setState(() {
-        _comments = comments;
-        _hasMoreComments = comments.isNotEmpty;
-      });
-    } catch (e) {
-      debugPrint('Error fetching comments: $e');
-      if (mounted) {
-        setState(() {
-          _comments = [];
-          _hasMoreComments = false;
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingComments = false;
-        });
-      }
-    }
-  }
+  Future<void> _ensureCommentsLoaded() =>
+      _detailsController.ensureCommentsLoaded();
 
   Future<void> _fetchBangumiData() async {
-    final subjectIdStr = widget.anime.bangumiId;
-    if (subjectIdStr == null) {
-      if (mounted) {
-        setState(() {
-          _isLoadingEpisodes = false;
-          _isLoadingCharacters = false;
-          _isLoadingRelations = false;
-          _isLoadingComments = false;
-        });
-      }
-      return;
-    }
-
-    setState(() {
-      _isLoadingEpisodes = true;
-      _isLoadingCharacters = true;
-      _isLoadingRelations = true;
-      _isLoadingComments = false;
-      _hasRequestedComments = false;
-      _commentPage = 1;
-      _hasMoreComments = true;
-      _isLoadingMoreComments = false;
-      _episodes = null;
-      _characters = null;
-      _relations = null;
-      _comments = null;
-      _personIdMap.clear();
-    });
-
-    final result = await _detailsService.loadInitialData(
-      anime: widget.anime,
-      includeSubjectDetails: _data == null,
-    );
-
+    await _detailsController.refreshFromNetwork();
     if (!mounted) return;
-
-    final sortedCharacters = [...result.characters]
-      ..sort((a, b) {
-        final pa = _characterRolePriority(a);
-        final pb = _characterRolePriority(b);
-        return pa != pb ? pa.compareTo(pb) : a.name.compareTo(b.name);
-      });
-
-    setState(() {
-      _data ??= result.subjectData;
-      if (result.episodes.isNotEmpty ||
-          _episodes == null ||
-          _episodes!.isEmpty) {
-        _episodes = result.episodes;
-      }
-      if (sortedCharacters.isNotEmpty ||
-          _characters == null ||
-          _characters!.isEmpty) {
-        _characters = sortedCharacters;
-        _sortedCharacters = sortedCharacters;
-      }
-      if (result.relations.isNotEmpty ||
-          _relations == null ||
-          _relations!.isEmpty) {
-        _relations = result.relations;
-      }
-      if (result.sites.isNotEmpty) {
-        _sites = result.sites;
-        _sortSites();
-      }
-      _mergePersonIdMap(result.personIdMap);
-      _isLoadingEpisodes = false;
-      _isLoadingCharacters = false;
-      _isLoadingRelations = false;
-    });
-
-    if (mounted) {
-      unawaited(
-        Future<void>.delayed(const Duration(milliseconds: 250), () async {
-          if (!mounted) return;
-          await _ensureCommentsLoaded();
-        }),
-      );
-    }
-  }
-
-  Future<void> _primeInitialDataFromCache() async {
-    final result = await _detailsService.loadCachedInitialData(
-      anime: widget.anime,
-      includeSubjectDetails: _data == null,
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 250), () async {
+        if (!mounted) return;
+        await _ensureCommentsLoaded();
+      }),
     );
-    if (!mounted || result == null) return;
-
-    final sortedCharacters = [...result.characters]
-      ..sort((a, b) {
-        final pa = _characterRolePriority(a);
-        final pb = _characterRolePriority(b);
-        return pa != pb ? pa.compareTo(pb) : a.name.compareTo(b.name);
-      });
-
-    setState(() {
-      _data ??= result.subjectData;
-      if (result.episodes.isNotEmpty) {
-        _episodes = result.episodes;
-        _isLoadingEpisodes = false;
-      }
-      if (sortedCharacters.isNotEmpty) {
-        _characters = sortedCharacters;
-        _sortedCharacters = sortedCharacters;
-        _isLoadingCharacters = false;
-      }
-      if (result.relations.isNotEmpty) {
-        _relations = result.relations;
-        _isLoadingRelations = false;
-      }
-      if (result.sites.isNotEmpty) {
-        _sites = result.sites;
-        _sortSites();
-      }
-      _mergePersonIdMap(result.personIdMap);
-    });
-  }
-
-  void _parseData() {
-    if (widget.anime.fullJson != null) {
-      try {
-        _data = jsonDecode(widget.anime.fullJson!);
-      } catch (e) {
-        debugPrint('Error parsing fullJson: $e');
-      }
-    }
   }
 
   List<String> _extractCurrentTags() {
@@ -406,56 +204,27 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     return parsed['translation'] != null && parsed['original'] != null;
   }
 
-  Future<void> _checkFavoriteStatus() async {
-    final idStr = widget.anime.bangumiId;
-    if (idStr == null) return;
-    final id = int.tryParse(idStr);
-    if (id == null) return;
-
-    final isFav = await FavoritesManager().isFavorite(id);
-    if (mounted) {
-      setState(() {
-        _isLocalFavorite = isFav;
-      });
-    }
-  }
-
   Future<void> _toggleFavorite() async {
-    final idStr = widget.anime.bangumiId;
-    if (idStr == null) return;
-    final id = int.tryParse(idStr);
-    if (id == null) return;
-
-    final manager = FavoritesManager();
-    if (_isLocalFavorite) {
-      await manager.removeFavorite(id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).removeFromFavorites),
-          ),
-        );
-      }
-    } else {
-      await manager.addFavorite(
-        bangumiId: id,
-        title: widget.anime.title,
-        coverUrl: widget.anime.coverUrl ?? '',
-        score: widget.anime.score ?? 0.0,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).addToLocalFavorites),
-          ),
-        );
-      }
-    }
-    _checkFavoriteStatus();
+    final wasFavorite = await _detailsController.toggleLocalFavorite(
+      title: widget.anime.title,
+      coverUrl: widget.anime.coverUrl ?? '',
+      score: widget.anime.score ?? 0.0,
+    );
+    if (!mounted || wasFavorite == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          wasFavorite
+              ? AppLocalizations.of(context).removeFromFavorites
+              : AppLocalizations.of(context).addToLocalFavorites,
+        ),
+      ),
+    );
   }
 
   @override
   void dispose() {
+    _detailsController.clearForDispose();
     _copyTimer?.cancel();
     _wideRightScrollController.removeListener(_handleWideRightScroll);
     _mobileDetailsScrollController.dispose();
@@ -1533,13 +1302,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     );
   }
 
-  int _characterRolePriority(BangumiCharacter character) {
-    final roleName = character.roleName;
-    if (roleName.contains('主角')) return 0;
-    if (roleName.contains('配角')) return 1;
-    return 2;
-  }
-
   String? _characterRoleLabel(BangumiCharacter character) {
     final roleName = character.roleName;
     if (roleName.contains('主角')) return '主角';
@@ -1794,24 +1556,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         ),
       ),
     );
-  }
-
-  void _mergePersonIdMap(Map<String, int> entries) {
-    for (final entry in entries.entries) {
-      final id = entry.value;
-      final rawName = entry.key.trim();
-      if (id == 0 || rawName.isEmpty) continue;
-
-      _personIdMap.putIfAbsent(rawName, () => id);
-
-      final collapsedWhitespace = rawName.replaceAll(
-        RegExp(r'\s+', unicode: true),
-        ' ',
-      );
-      if (collapsedWhitespace != rawName) {
-        _personIdMap.putIfAbsent(collapsedWhitespace, () => id);
-      }
-    }
   }
 
   List<InlineSpan> _buildPersonInlineSpans(
@@ -2641,17 +2385,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       scrollController: _sitesScrollController,
       onSiteTap: (site) => launchBangumiSiteUrl(site.url),
     );
-  }
-
-  void _sortSites() {
-    if (_sites == null || _sites!.isEmpty) {
-      _sortedSites = _sites;
-      return;
-    }
-    _sortedSites = [..._sites!]
-      ..sort(
-        (a, b) => siteKindPriority(a.kind).compareTo(siteKindPriority(b.kind)),
-      );
   }
 
   Widget _buildCommentsSection(BuildContext context, {bool isDarkBg = false}) {

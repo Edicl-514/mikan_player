@@ -11,17 +11,17 @@ Historical implementation detail belongs in Git history. Start a task by
 reading the files it will touch, this plan's relevant phase, and the existing
 tests beside those files.
 
-Status date: 2026-07-16.
+Status date: 2026-07-16 (Phase 4 controller wired).
 
 ## Verified baseline
 
 The following was re-verified on the status date:
 
 - flutter analyze: 0 issues.
-- flutter test: 699 passing tests in 42 Dart test files.
-- The working tree was clean before this plan update.
+- flutter test: 723 passing tests (includes BangumiDetailsController characterization).
+- Working tree after Phase 4 extraction: controller + page wiring + tests.
 
-Hotspot counts below use rg -c '^'. They are an inventory, not a completion
+Hotspot counts below use line counts. They are an inventory, not a completion
 metric.
 
 | File | Initial LOC | Current LOC | Primary remaining responsibility |
@@ -30,7 +30,8 @@ metric.
 | lib/services/download_manager.dart | 3285 | 2291 | Task persistence, queue/polling, playback policy, and background BT restore mutation. |
 | lib/ui/widgets/video_player_controls.dart | 3103 | 1081 | No currently justified extraction boundary. |
 | lib/ui/widgets/video_player_controls/settings_panel.dart | 1141 | 919 | Reactive menu state; leave local styles in place unless a new semantic boundary appears. |
-| lib/ui/pages/bangumi_details_page.dart | 3096 | 2570 | Data load/cache state, favorites, comment paging, and page layout remain coupled. |
+| lib/ui/pages/bangumi_details_page.dart | 3096 | 2333 | Layout, scroll, navigation, dialogs/SnackBars; data request state owned by BangumiDetailsController. |
+| lib/ui/pages/bangumi_details/bangumi_details_controller.dart | — | 494 | Cache/network details, comment paging, favorite status, generation tokens. |
 
 ## Goals
 
@@ -89,37 +90,38 @@ directory layout.
 | 1: display-only extractions | Closed for now | Existing leaf widgets have focused widget tests. Do not extract more display code without a clear boundary. |
 | 2: player responsibility split | Stabilizing | Do not make another opportunistic PlayerPage extraction. First specify and characterize the search-session state machine below. |
 | 3: download split | Stabilizing | Prefer characterization tests over further policy extraction. A new stream-policy module needs a concrete bug or independently testable policy. |
-| 4: Bangumi details split | Next implementation track | Extract a narrowly scoped details data controller after characterization tests are in place. |
+| 4: Bangumi details split | Stabilizing | BangumiDetailsController extracted and wired; characterization tests land. Prefer smoke over further page thinning. |
 | 5: styling consistency | Deferred | Reconsider only after the active controller boundary is stable and repeated semantic values are demonstrated. |
 
-## Next implementation: BangumiDetailsController
+## Completed checkpoint: BangumiDetailsController
 
-This is the next recommended code refactor because it has a coherent boundary
-and is lower risk than moving more WebView/playback orchestration.
+Landed under `lib/ui/pages/bangumi_details/bangumi_details_controller.dart`
+with tests in `test/ui/pages/bangumi_details/bangumi_details_controller_test.dart`.
 
-Initial scope:
+Accepted ownership:
 
-- Own request state for cached/network Bangumi data, comment paging, and
+- Request state for cached/network Bangumi data, comment paging, and
   favorite-status requests.
-- Use injected repository/callback seams and request generation tokens so a
-  late result cannot update a replacement page or disposed state.
-- Expose immutable state or explicit commands that the page renders.
-- Keep BuildContext, ScrollControllers, layout, navigation, dialogs, and
-  widget construction on BangumiDetailsPage.
+- Injected `BangumiDetailsDataPort` / `BangumiDetailsFavoritesPort` plus
+  generation tokens so late results cannot update a disposed or replaced
+  instance.
+- Read-only unmodifiable list/map views; optional `onStateChanged` for the
+  page `setState` bridge.
+- Page retains BuildContext, ScrollControllers, layout, navigation, dialogs,
+  and SnackBars.
 
-Required tests before merging:
+Characterization coverage:
 
-- Cache-first followed by network success, error, and replacement-page cases.
-- Concurrent load-more deduplication; terminal page and error retry cases.
-- Favorite request success, failure, and stale completion semantics.
-- Dispose/replacement ignores late callbacks.
-- Existing relations/sites/comments widget tests remain unchanged unless their
-  public rendering contract changes.
+- Cache-first then network success / empty-network merge / replacement /
+  dispose late completions.
+- Concurrent load-more dedupe; terminal page; error retry.
+- Favorite success and stale completion after dispose/reset.
+- Existing relations/sites/comments widget tests unchanged.
 
-Do not combine this extraction with mobile inline comment rendering
+Do not combine further details work with mobile inline comment rendering
 unification. That is a UI redesign and remains deferred.
 
-## Future high-risk track: Player search session
+## Next high-risk track: Player search session
 
 The largest remaining PlayerPage risk is the search/WebView/captcha event
 region. Before extracting it, create a short design note and characterization
@@ -256,6 +258,7 @@ expressed as state/commands without widget/platform objects.
 
 The accepted checkpoints immediately preceding this plan are:
 
+- Phase 4 BangumiDetailsController extraction (this working tree).
 - bb609c4: app-owned fullscreen subtitle overlay and playback smoke fix.
 - 1cc5feb: PlayerPlaybackController extraction and fallback race fix.
 - 5c16696: immutable scheduler video dispatch decisions.
