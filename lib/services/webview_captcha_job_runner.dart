@@ -9,6 +9,7 @@ import 'package:mikan_player/services/captcha_ocr_service.dart';
 import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/services/webview_cookie_janitor.dart';
 import 'package:mikan_player/services/webview_scheduler_stats.dart';
+import 'package:mikan_player/ui/pages/player/player_search_session_policy.dart';
 
 /// Pure controller for a long-lived WebView captcha preflight slot.
 ///
@@ -866,13 +867,18 @@ class CaptchaJobRunner {
           // refresh is loading. That is NOT the same as a solved challenge —
           // treating it as success produced empty search HTML and a UI error
           // of "未找到匹配的动画" even though the job reported success=true.
+          // Policy: docs/player_search_session_design.md +
+          // shouldTreatMissingCaptchaAfterRefreshAsSuccess.
           final hasSuccess = await _checkSuccess(
             ctrl,
             config,
             allowEmptySelector: false,
           );
           if (_isCompleted || token != _currentJobToken) return;
-          if (hasSuccess) {
+          if (shouldTreatMissingCaptchaAfterRefreshAsSuccess(
+            captchaStillDetectable: stillHasCaptcha,
+            successSelectorPresent: hasSuccess,
+          )) {
             _log(
               'Captcha cleared after refresh and success selector is present',
             );

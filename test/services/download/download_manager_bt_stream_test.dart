@@ -643,6 +643,57 @@ void main() {
       },
     );
 
+    test(
+      'updateStats recovers auto-paused libtorrent into downloading',
+      () async {
+        // Characterization for manager `_updateStats` when backend reports
+        // state `paused` for a libtorrent task that is NOT user-paused
+        // (`_pausedTaskIds`). Contract (download_manager.dart ~1720-1731):
+        // - schedule background restore
+        // - set task.status → downloading (not paused)
+        await manager.startBtDownloadForTesting(
+          magnet: _kMagnet,
+          name: 'Episode 1',
+          forPlayback: false,
+        );
+        final task = manager.tasks.firstWhere((t) => t.id == _kHash);
+        expect(task.status, DownloadTaskStatus.downloading);
+
+        // Simulate engine auto-pause (isPaused=true ⇒ normalized 'paused').
+        final torrentId = session.torrents.keys.first;
+        final t = session.torrents[torrentId]!;
+        session.torrents[torrentId] = MikanLtTorrentStats(
+          torrentId: t.torrentId,
+          name: t.name,
+          infoHash: t.infoHash,
+          errorMessage: t.errorMessage,
+          state: t.state,
+          isPaused: true,
+          hasMetadata: t.hasMetadata,
+          progress: t.progress,
+          totalWanted: t.totalWanted,
+          totalDone: t.totalDone,
+          downloadRate: 0,
+          uploadRate: 0,
+          numPeers: t.numPeers,
+          numSeeds: t.numSeeds,
+        );
+
+        await manager.updateStatsForTesting();
+        // Allow unawaited restore to finish (delay is Duration.zero in setUp).
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        final updated = manager.tasks.firstWhere((t) => t.id == _kHash);
+        expect(updated.status, DownloadTaskStatus.downloading);
+        expect(
+          session.calls.any((c) => c.startsWith('resumeTorrent:')),
+          isTrue,
+          reason: 'auto-paused libtorrent should resume via restore path',
+        );
+      },
+    );
+
     test('LibtorrentBackend implements BtStreamCapability surface', () async {
       await backend.ensureInitialized();
       expect(backend.streamIdForHash(_kHash), isNull);

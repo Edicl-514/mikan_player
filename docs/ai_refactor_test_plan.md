@@ -89,7 +89,7 @@ directory layout.
 | 0: baseline and smoke | Complete | Repeat only the affected manual cases after a WebView, playback, download, or platform change. |
 | 1: display-only extractions | Closed for now | Existing leaf widgets have focused widget tests. Do not extract more display code without a clear boundary. |
 | 2: player responsibility split | Stabilizing | Search-session design note + pure policy characterization landed. Do not extract a page-owned session god controller yet. |
-| 3: download split | Stabilizing | Prefer characterization tests over further policy extraction. A new stream-policy module needs a concrete bug or independently testable policy. |
+| 3: download split | Stabilizing | Prefer characterization tests over further policy extraction. Libtorrent auto-paused stats recovery covered in bt_stream tests. |
 | 4: Bangumi details split | Stabilizing | BangumiDetailsController extracted and wired; characterization tests land. Prefer smoke over further page thinning. |
 | 5: styling consistency | Deferred | Reconsider only after the active controller boundary is stable and repeated semantic values are demonstrated. |
 
