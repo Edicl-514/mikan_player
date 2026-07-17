@@ -307,9 +307,9 @@ Phase 0 准备 → Phase 1 Player → Phase 2 Download
 
 **Phase 2 完成定义**
 
-- [ ] `download_manager.dart` 以 façade + 委托为主
-- [ ] `test/services/download/**` 全绿
-- [ ] 公共方法签名不变
+- [x] `download_manager.dart` 以 façade + 委托为主
+- [x] `test/services/download/**` 全绿
+- [x] 公共方法签名不变
 
 ---
 
@@ -473,13 +473,20 @@ Buffer:  Phase 6 + 7
 lifecycle host（search/autoplay/webview/playback/episode）仍保留为 part。
 
 ### Phase 2 Download
-- [ ] 2.1 path utils
-- [ ] 2.2 Android bridge
-- [ ] 2.3 stats poller
-- [ ] 2.4 BT session
-- [ ] 2.5 HTTP/m3u8 pipeline
-- [ ] 2.6 settings
-- [ ] 2.7 API 验收 + 全量 download 测
+- [x] 2.1 path utils
+- [x] 2.2 Android bridge
+- [x] 2.3 stats poller
+- [x] 2.4 BT session
+- [x] 2.5 HTTP/m3u8 pipeline
+- [x] 2.6 settings
+- [x] 2.7 API 验收 + 全量 download 测
+
+实现说明：`download_manager.dart` 已由约 2635 行降至约 609 行，只保留单例、
+状态、查询 API、生命周期、测试 seam 与公开 façade；设置、Android service、统计轮询、
+BT 会话、HTTP/HLS 管线分别迁入 `lib/services/download/` 下的同库 part extension，
+以保留原 private 状态边界和异步时序。hash / 文件名清理 / 扩展名与 m3u8 判断已迁入
+独立 pure 工具并补单测。`flutter analyze` 通过；`test/services/download/**` 共 292 项
+全绿；20 个生产公开方法签名与拆分前逐项比对一致。
 
 ### Phase 3 generic_scraper
 - [ ] 3.1 目录/mod 骨架
