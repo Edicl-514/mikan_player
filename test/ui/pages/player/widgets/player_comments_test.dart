@@ -9,12 +9,13 @@
 // with `MissingPluginException` on a Flutter test host; the error is
 // swallowed by the widget's own try/catch and never reaches the test Zone.
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
-import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
+import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 BangumiEpisodeComment _comment({
@@ -139,7 +140,9 @@ void main() {
       expect(find.text('SORT_BTN'), findsOneWidget);
     });
 
-    testWidgets('text_mask span renders BangumiMaskText', (tester) async {
+    testWidgets('text_mask span renders soft-wrapping BangumiCommentHtml', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -148,7 +151,7 @@ void main() {
                 _comment(
                   id: 1,
                   userName: 'SpoilerAuthor',
-                  contentHtml: '<span class="text_mask">剧透剧透</span>',
+                  contentHtml: 'before<span class="text_mask">剧透剧透</span>after',
                 ),
               ],
               isLoading: false,
@@ -159,11 +162,65 @@ void main() {
         ),
       );
 
-      expect(find.byType(BangumiMaskText), findsOneWidget);
-      // The widget renders the masked body and exposes the text once
-      // revealed, but the hidden state keeps the raw innerHtml inside the
-      // nested HtmlWidget (not directly findable as a plain Text node).
+      // Masks are soft-wrapping TextSpans inside BangumiCommentHtml, not a
+      // rigid InlineCustomWidget box. HtmlWidget may keep body text in nested
+      // Text.rich spans rather than plain Text widgets.
+      expect(find.byType(BangumiCommentHtml), findsOneWidget);
       expect(find.text('SpoilerAuthor'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('revealed mask follows its comment after sorting', (
+      tester,
+    ) async {
+      var comments = [
+        _comment(
+          id: 1,
+          userName: 'First',
+          contentHtml: '<span class="text_mask">secret-a</span>',
+        ),
+        _comment(
+          id: 2,
+          userName: 'Second',
+          contentHtml: '<span class="text_mask">secret-b</span>',
+        ),
+      ];
+      late StateSetter rebuild;
+      final scrollController = ScrollController();
+      addTearDown(scrollController.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                rebuild = setState;
+                return PlayerComments(
+                  comments: comments,
+                  isLoading: false,
+                  error: null,
+                  scrollController: scrollController,
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      var secretA = _textSpans(tester, 'secret-a').single;
+      expect(_isHiddenMask(secretA), isTrue);
+      (secretA.recognizer! as TapGestureRecognizer).onTap!();
+      await tester.pump();
+      expect(_isHiddenMask(_textSpans(tester, 'secret-a').single), isFalse);
+
+      rebuild(() {
+        comments = comments.reversed.toList();
+      });
+      await tester.pump();
+
+      secretA = _textSpans(tester, 'secret-a').single;
+      expect(_isHiddenMask(secretA), isFalse);
+      expect(_isHiddenMask(_textSpans(tester, 'secret-b').single), isTrue);
     });
 
     testWidgets(
@@ -195,16 +252,48 @@ void main() {
 
         // Only the smile <img> exercises CachedNetworkImage on this page
         // (the avatar fallback path is bypassed by the empty avatar above).
+        // Classic main-site smile hosts are rewritten to the lain CDN.
         final image = tester.widget<CachedNetworkImage>(
           find.byType(CachedNetworkImage),
         );
-        expect(image.imageUrl, 'https://bgm.tv/img/smiles/bgm/01.png');
+        expect(image.imageUrl, 'https://lain.bgm.tv/img/smiles/bgm/01.png');
         expect(image.fit, BoxFit.contain);
         // Smiles render inline at the resolved size.
         expect(image.width, 42);
         expect(image.height, 42);
       },
     );
+
+    testWidgets('quote block HTML is accepted without crashing', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PlayerComments(
+              comments: [
+                _comment(
+                  id: 1,
+                  userName: 'Quoter',
+                  contentHtml:
+                      '<div class="quote"><q><span style="font-weight:bold;">'
+                      'Alice</span> 说: hello</q></div>world',
+                ),
+              ],
+              isLoading: false,
+              error: null,
+              scrollController: ScrollController(),
+            ),
+          ),
+        ),
+      );
+
+      // Smoke test: HtmlWidget + quote styles don't throw; header still
+      // renders. Quote body may be nested inside package-internal widgets
+      // rather than plain Text nodes.
+      expect(find.text('Quoter'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('PlayerComments HTML helpers', () {
@@ -212,21 +301,45 @@ void main() {
       test('protocol-relative //bangumi host becomes an https URL', () {
         expect(
           normalizeBangumiImageSrc('//bgm.tv/img/smiles/bgm/01.png'),
-          'https://bgm.tv/img/smiles/bgm/01.png',
+          'https://lain.bgm.tv/img/smiles/bgm/01.png',
         );
       });
 
-      test('root-relative /img/ path is prefixed with bangumi.tv', () {
+      test('root-relative /img/smiles/ path is served from lain CDN', () {
         expect(
           normalizeBangumiImageSrc('/img/smiles/bgm/01.png'),
-          'https://bangumi.tv/img/smiles/bgm/01.png',
+          'https://lain.bgm.tv/img/smiles/bgm/01.png',
         );
       });
 
-      test('absolute URL is left intact when proxy is disabled', () {
+      test('root-relative non-smile /img/ path keeps bangumi.tv', () {
+        expect(
+          normalizeBangumiImageSrc('/img/cover/foo.png'),
+          'https://bangumi.tv/img/cover/foo.png',
+        );
+      });
+
+      test('classic main-site smile URL is rewritten to lain CDN', () {
         expect(
           normalizeBangumiImageSrc('https://bgm.tv/img/smiles/bgm/01.png'),
-          'https://bgm.tv/img/smiles/bgm/01.png',
+          'https://lain.bgm.tv/img/smiles/bgm/01.png',
+        );
+        expect(
+          normalizeBangumiImageSrc('https://chii.in/img/smiles/tv/15.gif'),
+          'https://lain.bgm.tv/img/smiles/tv/15.gif',
+        );
+        expect(
+          normalizeBangumiImageSrc('https://bangumi.tv/img/smiles/tv/15.gif'),
+          'https://lain.bgm.tv/img/smiles/tv/15.gif',
+        );
+      });
+
+      test('already-lain smile URL is left intact when proxy is disabled', () {
+        expect(
+          normalizeBangumiImageSrc(
+            'https://lain.bgm.tv/img/smiles/musume/musume_82.gif',
+          ),
+          'https://lain.bgm.tv/img/smiles/musume/musume_82.gif',
         );
       });
 
@@ -298,6 +411,39 @@ void main() {
       });
     });
 
+    group('bangumiCommentHtmlStyles', () {
+      test('img gets max size constraints', () {
+        final styles = bangumiCommentHtmlStyles(_FakeElement(localName: 'img'));
+        expect(styles?['max-width'], '100%');
+        expect(styles?['max-height'], '350px');
+      });
+
+      test('div.quote gets a left border and muted colors', () {
+        final styles = bangumiCommentHtmlStyles(
+          _FakeElement(localName: 'div', classes: {'quote'}),
+        );
+        expect(styles?['border-left'], contains('3px solid'));
+        expect(styles?['background-color'], isNotNull);
+        expect(styles?['color'], isNotNull);
+      });
+
+      test('q inside quotes drops default italic/quotes', () {
+        final styles = bangumiCommentHtmlStyles(_FakeElement(localName: 'q'));
+        expect(styles?['quotes'], 'none');
+        expect(styles?['font-style'], 'normal');
+      });
+
+      test('unrelated elements return null', () {
+        expect(bangumiCommentHtmlStyles(_FakeElement(localName: 'p')), isNull);
+        expect(
+          bangumiCommentHtmlStyles(
+            _FakeElement(localName: 'div', classes: {'other'}),
+          ),
+          isNull,
+        );
+      });
+    });
+
     group('bangumiSmileSize', () {
       test('both attributes null falls back to 42x42', () {
         const size = Size.square(42);
@@ -351,3 +497,33 @@ void main() {
     });
   });
 }
+
+/// Minimal stand-in for `package:html` elements used by
+/// [bangumiCommentHtmlStyles] unit tests (avoids spinning up HtmlWidget).
+class _FakeElement {
+  final String? localName;
+  final Set<String> classes;
+
+  _FakeElement({this.localName, this.classes = const {}});
+}
+
+List<TextSpan> _textSpans(WidgetTester tester, String text) {
+  final matches = <TextSpan>[];
+
+  void visit(InlineSpan span) {
+    if (span is! TextSpan) return;
+    if (span.text == text) matches.add(span);
+    for (final child in span.children ?? const <InlineSpan>[]) {
+      visit(child);
+    }
+  }
+
+  for (final richText in tester.widgetList<RichText>(find.byType(RichText))) {
+    visit(richText.text);
+  }
+  return matches;
+}
+
+bool _isHiddenMask(TextSpan span) =>
+    span.style?.background?.color.toARGB32() == 0xFF555555 &&
+    span.style?.color?.toARGB32() == 0xFF555555;

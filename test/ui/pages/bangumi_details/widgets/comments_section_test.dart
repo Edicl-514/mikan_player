@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/comments_section.dart';
-import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
+import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
 
 BangumiComment _comment({
   String userName = '',
@@ -249,7 +249,7 @@ void main() {
       expect(find.text('Html'), findsOneWidget);
     });
 
-    testWidgets('text_mask span renders BangumiMaskText', (tester) async {
+    testWidgets('text_mask span renders BangumiCommentHtml', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -271,9 +271,8 @@ void main() {
         ),
       );
 
-      // The wide-layout card routes `text_mask` through BangumiMaskText
-      // (the only custom widget CommentsSection's HtmlWidget knows).
-      expect(find.byType(BangumiMaskText), findsOneWidget);
+      // Masks soft-wrap as TextSpans via BangumiCommentHtml (not a block widget).
+      expect(find.byType(BangumiCommentHtml), findsOneWidget);
       expect(find.text('Masker'), findsOneWidget);
     });
   });

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart';
-import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
+import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
@@ -30,12 +30,39 @@ import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 /// `_buildBangumiSmileImage`.
 String normalizeBangumiImageSrc(String src) {
   if (src.startsWith('//')) {
-    return BangumiUrlRewriter.rewrite('https:$src');
+    return BangumiUrlRewriter.rewrite(_preferLainSmileHost('https:$src'));
+  }
+  if (src.startsWith('/img/smiles/')) {
+    // Classic relative smile paths on bangumi HTML pages resolve to the main
+    // site host, which is nginx-only and frequently fails under ECH. Serve
+    // them from the lain CDN (Cloudflare) instead; reverse-proxy rewrite still
+    // maps lain.bgm.tv → lain.bangumi.lol when enabled.
+    return BangumiUrlRewriter.rewrite('https://lain.bgm.tv$src');
   }
   if (src.startsWith('/img/')) {
     return BangumiUrlRewriter.rewrite('https://bangumi.tv$src');
   }
-  return BangumiUrlRewriter.rewrite(src);
+  return BangumiUrlRewriter.rewrite(_preferLainSmileHost(src));
+}
+
+/// Rewrite classic smile hosts (`bangumi.tv` / `bgm.tv` / `chii.in` / mirror
+/// main site) to `lain.bgm.tv` so legacy and API-rendered smile URLs share the
+/// same Cloudflare-friendly CDN. Dynamic musume/blake URLs already point at
+/// lain and are left alone.
+String _preferLainSmileHost(String src) {
+  final uri = Uri.tryParse(src);
+  if (uri == null || !uri.hasScheme || uri.host.isEmpty) return src;
+  if (!uri.path.startsWith('/img/smiles/')) return src;
+
+  final host = uri.host.toLowerCase();
+  final isClassicMainHost =
+      host == 'bangumi.tv' ||
+      host == 'bgm.tv' ||
+      host == 'chii.in' ||
+      host == 'bangumi.lol';
+  if (!isClassicMainHost) return src;
+
+  return uri.replace(host: 'lain.bgm.tv').toString();
 }
 
 bool isBangumiSmileUrl(String src) {
@@ -50,6 +77,33 @@ bool isBangumiSmileUrl(String src) {
           host == 'chii.in' ||
           host == 'bangumi.lol' ||
           host.endsWith('.bangumi.lol'));
+}
+
+/// CSS-ish styles for Bangumi comment HTML, shared by top-level comments and
+/// nested replies. Keeps quote blocks visually distinct from body text.
+Map<String, String>? bangumiCommentHtmlStyles(dynamic element) {
+  final name = element.localName as String?;
+  if (name == 'img') {
+    return {'max-width': '100%', 'max-height': '350px'};
+  }
+  if (name == 'div' && element.classes.contains('quote')) {
+    return {
+      'margin': '0 0 8px 0',
+      'padding': '8px 10px',
+      'border-left': '3px solid #9e9e9e',
+      'border-radius': '4px',
+      'background-color': 'rgba(158, 158, 158, 0.12)',
+      'color': '#9e9e9e',
+      'font-size': '0.92em',
+      'line-height': '1.4',
+    };
+  }
+  if (name == 'q') {
+    // Nested inside `.quote`; drop browser default italic/quotes so the
+    // parent block styles carry the visual weight.
+    return {'quotes': 'none', 'font-style': 'normal', 'color': 'inherit'};
+  }
+  return null;
 }
 
 /// Resolves the inline size for a Bangumi smile `<img>` from its `width`/
@@ -166,6 +220,13 @@ class PlayerComments extends StatelessWidget {
             controller: scrollController,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             itemCount: comments.length,
+            findChildIndexCallback: (key) {
+              if (key is! ValueKey<Object>) return null;
+              final index = comments.indexWhere(
+                (comment) => comment.id == key.value,
+              );
+              return index < 0 ? null : index;
+            },
             itemBuilder: (context, index) {
               return _buildCommentItem(context, comments[index]);
             },
@@ -185,6 +246,7 @@ class PlayerComments extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Padding(
+      key: ValueKey<Object>(comment.id),
       padding: const EdgeInsets.only(bottom: 24),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -244,8 +306,8 @@ class PlayerComments extends StatelessWidget {
                 const SizedBox(height: 6),
 
                 // Content
-                HtmlWidget(
-                  comment.contentHtml,
+                BangumiCommentHtml(
+                  html: comment.contentHtml,
                   textStyle: TextStyle(
                     color: isDark
                         ? Colors.white70
@@ -253,12 +315,7 @@ class PlayerComments extends StatelessWidget {
                     fontSize: 14,
                     height: 1.5,
                   ),
-                  customStylesBuilder: (element) {
-                    if (element.localName == 'img') {
-                      return {'max-width': '100%', 'max-height': '350px'};
-                    }
-                    return null;
-                  },
+                  customStylesBuilder: bangumiCommentHtmlStyles,
                   customWidgetBuilder: (element) {
                     return _buildCommentHtmlWidget(
                       element,
@@ -284,6 +341,7 @@ class PlayerComments extends StatelessWidget {
                         final reply = entry.value;
                         final isLast = index == comment.replies.length - 1;
                         return Padding(
+                          key: ValueKey<Object>(reply.id),
                           padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,8 +394,8 @@ class PlayerComments extends StatelessWidget {
                                       ],
                                     ),
                                     const SizedBox(height: 4),
-                                    HtmlWidget(
-                                      reply.contentHtml,
+                                    BangumiCommentHtml(
+                                      html: reply.contentHtml,
                                       textStyle: TextStyle(
                                         color: isDark
                                             ? Colors.white70
@@ -345,15 +403,8 @@ class PlayerComments extends StatelessWidget {
                                         fontSize: 13,
                                         height: 1.4,
                                       ),
-                                      customStylesBuilder: (element) {
-                                        if (element.localName == 'img') {
-                                          return {
-                                            'max-width': '100%',
-                                            'max-height': '350px',
-                                          };
-                                        }
-                                        return null;
-                                      },
+                                      customStylesBuilder:
+                                          bangumiCommentHtmlStyles,
                                       customWidgetBuilder: (element) {
                                         return _buildCommentHtmlWidget(
                                           element,
@@ -385,10 +436,8 @@ class PlayerComments extends StatelessWidget {
   // --- HTML-rendering helpers (private, identical to original) ---
 
   static Widget? _buildCommentHtmlWidget(dynamic element, TextStyle textStyle) {
-    if (element.classes.contains('text_mask')) {
-      return BangumiMaskText(html: element.innerHtml, textStyle: textStyle);
-    }
-
+    // `.text_mask` is handled by [BangumiCommentHtml] as soft-wrapping
+    // TextSpans; only smile images still need a custom widget.
     if (element.localName == 'img') {
       return _buildBangumiSmileImage(element);
     }

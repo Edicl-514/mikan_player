@@ -7,11 +7,10 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
-import 'package:mikan_player/ui/widgets/bangumi_mask_text.dart';
+import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
@@ -455,6 +454,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
                               final comment = _comments![commentIndex];
                               return Padding(
+                                key: ValueKey<BangumiComment>(comment),
                                 padding: const EdgeInsets.only(bottom: 16),
                                 child: _buildCommentCard(
                                   context,
@@ -721,8 +721,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                HtmlWidget(
-                  comment.contentHtml.isNotEmpty
+                BangumiCommentHtml(
+                  html: comment.contentHtml.isNotEmpty
                       ? comment.contentHtml
                       : comment.content,
                   textStyle: TextStyle(
@@ -730,19 +730,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
                     color: textColor.withValues(alpha: 0.8),
                     height: 1.4,
                   ),
-                  customWidgetBuilder: (element) {
-                    if (element.classes.contains('text_mask')) {
-                      return BangumiMaskText(
-                        html: element.innerHtml,
-                        textStyle: TextStyle(
-                          fontSize: 13,
-                          color: textColor.withValues(alpha: 0.8),
-                          height: 1.4,
-                        ),
-                      );
-                    }
-                    return null;
-                  },
                 ),
               ],
             ),

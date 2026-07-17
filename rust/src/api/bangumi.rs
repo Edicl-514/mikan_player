@@ -1049,6 +1049,10 @@ fn bangumi_smile_html(code: &str) -> Option<String> {
         return None;
     }
 
+    // All smile assets (classic `bgm`/`tv` and dynamic `musume`/`blake`) are
+    // served from the lain static CDN. The main site host (`bangumi.tv`) is
+    // nginx-only and commonly fails under the app's default ECH path; lain is
+    // Cloudflare-fronted and works with both ECH and reverse-proxy mode.
     let lain_url = crate::api::config::get_bangumi_lain_url();
     let (src, class_name) = if normalized.starts_with("musume_") {
         (
@@ -1066,44 +1070,28 @@ fn bangumi_smile_html(code: &str) -> Option<String> {
     {
         if number == 23 {
             (
-                format!(
-                    "{}/img/smiles/bgm/{number:02}.gif",
-                    crate::api::config::get_bangumi_url()
-                ),
+                format!("{lain_url}/img/smiles/bgm/{number:02}.gif"),
                 "smile",
             )
         } else if (1..=22).contains(&number) {
             (
-                format!(
-                    "{}/img/smiles/bgm/{number:02}.png",
-                    crate::api::config::get_bangumi_url()
-                ),
+                format!("{lain_url}/img/smiles/bgm/{number:02}.png"),
                 "smile",
             )
         } else if (24..=199).contains(&number) {
             (
-                format!(
-                    "{}/img/smiles/tv/{:02}.gif",
-                    crate::api::config::get_bangumi_url(),
-                    number - 23
-                ),
+                format!("{lain_url}/img/smiles/tv/{:02}.gif", number - 23),
                 "smile",
             )
         } else if (201..=220).contains(&number) {
             (
-                format!(
-                    "{}/img/smiles/tv_vs/bgm_{number}.png",
-                    crate::api::config::get_bangumi_url()
-                ),
+                format!("{lain_url}/img/smiles/tv_vs/bgm_{number}.png"),
                 "smile",
             )
         } else if (501..=599).contains(&number) {
             let ext = if number == 501 { "gif" } else { "png" };
             (
-                format!(
-                    "{}/img/smiles/tv_500/bgm_{number}.{ext}",
-                    crate::api::config::get_bangumi_url()
-                ),
+                format!("{lain_url}/img/smiles/tv_500/bgm_{number}.{ext}"),
                 "smile",
             )
         } else {
@@ -2240,5 +2228,42 @@ mod tests {
             // `lain.bangumi.lol` are valid for a `lain.*` host.
             extract_avatar_url(Some("background-image:url('//lain.bgm.tv/img/a.png')"))
         );
+    }
+
+    #[test]
+    fn bangumi_smile_html_serves_classic_codes_from_lain() {
+        let html = bangumi_smile_html("bgm38").expect("bgm38 should map");
+        assert!(
+            html.contains("/img/smiles/tv/15.gif"),
+            "bgm38 should map to tv/15.gif, got {html}"
+        );
+        assert!(
+            html.contains("lain."),
+            "classic smiles should use the lain CDN host, got {html}"
+        );
+        assert!(
+            !html.contains("://bangumi.tv/") && !html.contains("://bgm.tv/"),
+            "classic smiles must not use the main site host, got {html}"
+        );
+    }
+
+    #[test]
+    fn bangumi_smile_html_keeps_musume_on_lain() {
+        let html = bangumi_smile_html("musume_82").expect("musume_82 should map");
+        assert!(html.contains("/img/smiles/musume/musume_82.gif"));
+        assert!(html.contains("lain."));
+    }
+
+    #[test]
+    fn render_bangumi_markup_styles_quotes() {
+        let html = render_bangumi_markup(
+            "[quote][b]Alice[/b] 说: hello[/quote]\nworld(bgm38)",
+        );
+        assert!(
+            html.contains("<div class=\"quote\"><q>"),
+            "quote markup should wrap in div.quote > q, got {html}"
+        );
+        assert!(html.contains("/img/smiles/tv/15.gif"));
+        assert!(html.contains("lain."));
     }
 }
