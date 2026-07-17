@@ -452,14 +452,14 @@ Buffer:  Phase 6 + 7
 - [ ] 0.4（可选）职责注释分区
 
 ### Phase 1 Player
-- [ ] 1.1 side panel loader
-- [ ] 1.2 BT source loader
-- [ ] 1.3 captcha preflight coordinator
-- [ ] 1.4 search session coordinator
-- [ ] 1.5 webview pool glue 收敛
-- [ ] 1.6 autoplay coordinator
-- [ ] 1.7（可选）build section widgets
-- [ ] 1.8 清理与全量 player 测
+- [x] 1.1 side panel loader
+- [x] 1.2 BT source loader
+- [x] 1.3 captcha preflight coordinator
+- [x] 1.4 search session coordinator
+- [x] 1.5 webview pool glue 收敛（既有 scheduler 已承担；本轮未再机械拆 UI）
+- [x] 1.6 autoplay coordinator（cancel-after-accept pure policy）
+- [ ] 1.7（可选）build section widgets — 暂缓，page 仍 ~6.1k 以 build 为主
+- [x] 1.8 清理与全量 player 测（`test/ui/pages/player/**` 全绿）
 
 ### Phase 2 Download
 - [ ] 2.1 path utils
