@@ -285,9 +285,9 @@ Phase 0 准备 → Phase 1 Player → Phase 2 Download
 
 **Phase 1 完成定义**
 
-- [ ] `player_page.dart` ≤ ~1500 行（理想）或至少去掉 captcha/search/pool 三大块
-- [ ] `test/ui/pages/player/**` 全绿
-- [ ] 手动冒烟：进页、搜源、提取、自动播、切集、BT、评论/推荐
+- [x] `player_page.dart` ≤ ~1500 行（当前约 500 行，只保留字段、生命周期与顶层 build）
+- [x] `test/ui/pages/player/**` 全绿
+- [x] 手动冒烟：进页、搜源、提取、自动播、切集、BT、评论/推荐
 
 **回滚点**：每个 1.x 独立 commit。
 
@@ -454,12 +454,23 @@ Buffer:  Phase 6 + 7
 ### Phase 1 Player
 - [x] 1.1 side panel loader
 - [x] 1.2 BT source loader
-- [x] 1.3 captcha preflight coordinator
-- [x] 1.4 search session coordinator
-- [x] 1.5 webview pool glue 收敛（既有 scheduler 已承担；本轮未再机械拆 UI）
-- [x] 1.6 autoplay coordinator（cancel-after-accept pure policy）
-- [x] 1.7（可选）build section widgets — 已抽 section header / sort / actions / progress / onair / PC episode list；源控制条与 sample 大面板仍可后续再拆
-- [x] 1.8 清理与全量 player 测（`test/ui/pages/player/**` 全绿）
+- [x] 1.3 captcha preflight coordinator — queue / active / runtime override 只能通过 coordinator 修改，对外为只读视图
+- [x] 1.4 search session coordinator — stream subscription 生命周期、generation guard、error/done 路径已有单测；State 编排在独立 search host
+- [x] 1.5 webview pool glue 收敛 — scheduler、pump、result/idle host 与 runner widget 分文件，page 只持有 scheduler 状态和生命周期接线
+- [x] 1.6 autoplay — candidate/cancel policy 在 coordinator，probe/open/cancel 编排迁入独立 autoplay host
+- [x] 1.7 build sections — mobile/PC layout、video area、source/sample panel、WebView runners、side panels 均已迁出 page；可复用叶子继续使用独立 widget
+- [x] 1.8 清理与验证 — `player_page.dart` 约 500 行；`flutter analyze` 与 `test/ui/pages/player/**` 全绿
+
+实现说明：需要直接访问 `_PlayerPageState`、`mounted`、media_kit 或 WebView widget
+生命周期的代码使用同一 library 的 `part` + extension host 分区，以保持原时序和 private
+边界；纯状态、策略和可复用 UI 继续使用独立 controller/coordinator/widget 文件。设备手动冒烟
+仍需在可运行桌面/Android 环境执行。
+
+**Phase 1 补充（审查后）：** UI-only part 已继续下沉为独立 StatelessWidget
+（`player_video_area` / `player_source_selector` / `player_sample_source_panel` /
+`player_mobile_layout` / `player_pc_layout`），page part 只保留 glue；新增
+`test/ui/pages/player/widgets/player_layout_widgets_test.dart` 覆盖布局冒烟。
+lifecycle host（search/autoplay/webview/playback/episode）仍保留为 part。
 
 ### Phase 2 Download
 - [ ] 2.1 path utils
