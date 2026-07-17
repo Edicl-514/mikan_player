@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
@@ -38,6 +37,7 @@ import 'package:mikan_player/ui/pages/player/player_playback_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_search_session_policy.dart';
 import 'package:mikan_player/ui/pages/player/player_side_panel_loader.dart';
 import 'package:mikan_player/ui/pages/player/player_bt_source_loader.dart';
+import 'package:mikan_player/ui/pages/player/player_captcha_preflight_coordinator.dart';
 import 'package:mikan_player/ui/pages/player/sample_search_finish_policy.dart';
 import 'package:mikan_player/ui/pages/player/player_webview_scheduler.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
@@ -45,33 +45,6 @@ import 'package:mikan_player/ui/pages/player/widgets/player_recommendations.dart
 import 'package:mikan_player/ui/pages/player/widgets/player_resource_list.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_state_transitions.dart';
-
-class _CaptchaPreflightTask {
-  final String taskKey;
-  final String label;
-  final SourceState source;
-  final String? searchKeyword;
-  final String? initialUrl;
-  final String? referer;
-  final String? initialCookies;
-  final CaptchaConfig captchaConfig;
-  final int loadToken;
-  final void Function(_CaptchaPreflightTask task, CaptchaBypassResult result)
-  onResult;
-
-  const _CaptchaPreflightTask({
-    required this.taskKey,
-    required this.label,
-    required this.source,
-    this.searchKeyword,
-    this.initialUrl,
-    this.referer,
-    this.initialCookies,
-    required this.captchaConfig,
-    required this.loadToken,
-    required this.onResult,
-  });
-}
 
 class PlayerPage extends StatefulWidget {
   static int get kDefaultMaxConcurrentWebViews => Platform.isAndroid ? 2 : 3;
@@ -123,10 +96,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       {}; // WebView状态消息 (sourceName -> message)
   final Set<String> _failedWebViewPageKeys = {}; // 提取失败的WebView Key
   final Set<String> _resolvingChannelPlayPageKeys = {}; // 正在解析的频道播放页
-  final Queue<_CaptchaPreflightTask> _pendingCaptchaTasks =
-      Queue<_CaptchaPreflightTask>();
-  final Map<String, _CaptchaPreflightTask> _activeCaptchaTasks =
-      <String, _CaptchaPreflightTask>{};
+  // Phase 1.3: captcha preflight queue / active map / runtime overrides.
+  final PlayerCaptchaPreflightCoordinator _captchaCoordinator =
+      PlayerCaptchaPreflightCoordinator();
   final List<StreamSubscription<SourceSearchProgress>> _searchSubscriptions =
       <StreamSubscription<SourceSearchProgress>>[];
   int _maxConcurrentWebViews = PlayerPage.kDefaultMaxConcurrentWebViews;
@@ -199,9 +171,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   bool _disableAutoSourceSearchForCurrentEpisode = false;
   bool _autoPlaySearchedSource = true;
   double _playbackSpeed = 1.0;
-
-  // 每个源的搜索进度状态（progress map / enabled names / tiers → controller）
-  Map<String, SourceRuntimeOverride> _captchaRuntimeOverrides = {};
 
   // Active Source
   String _activeSource = 'bt'; // 'bt' or 'sample'
@@ -1072,76 +1041,21 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-  void _queueCaptchaPreflightTask({
-    required String taskKey,
-    required String label,
-    required SourceState source,
-    String? searchKeyword,
-    String? initialUrl,
-    String? referer,
-    String? initialCookies,
-    required int loadToken,
-    required void Function(
-      _CaptchaPreflightTask task,
-      CaptchaBypassResult result,
-    )
-    onResult,
-  }) {
-    final captchaConfig = CaptchaConfig.tryParse(source.captchaConfigJson);
-    if (captchaConfig == null) {
-      return;
-    }
-
-    final alreadyPending = _pendingCaptchaTasks.any(
-      (task) => task.taskKey == taskKey,
-    );
-    if (alreadyPending || _activeCaptchaTasks.containsKey(taskKey)) {
-      return;
-    }
-
-    _pendingCaptchaTasks.add(
-      _CaptchaPreflightTask(
-        taskKey: taskKey,
-        label: label,
-        source: source,
-        searchKeyword: searchKeyword,
-        initialUrl: initialUrl,
-        referer: referer,
-        initialCookies: initialCookies,
-        captchaConfig: captchaConfig,
-        loadToken: loadToken,
-        onResult: onResult,
-      ),
-    );
-  }
-
   void _queueSearchCaptchaPreflightTask({
     required SourceState source,
     required String searchKeyword,
     required int loadToken,
     required void Function(SourceRuntimeOverride runtimeOverride) onCompleted,
   }) {
-    _queueCaptchaPreflightTask(
-      taskKey: 'search:${source.name}',
-      label: source.name,
+    _captchaCoordinator.queueSearchTask(
       source: source,
       searchKeyword: searchKeyword,
       loadToken: loadToken,
       onResult: (task, result) {
-        final runtimeOverride = result.success
-            ? SourceRuntimeOverride(
-                sourceName: task.source.name,
-                cookies: result.cookies,
-                searchPageHtml: result.searchPageHtml,
-                searchPageUrl: result.searchPageUrl,
-                detailPageHtml: result.detailPageHtml,
-                detailPageUrl: result.detailPageUrl,
-              )
-            : SourceRuntimeOverride(
-                sourceName: task.source.name,
-                skipSearchError: result.error ?? 'Captcha preflight failed',
-              );
-
+        final runtimeOverride = buildSearchCaptchaRuntimeOverride(
+          source: task.source,
+          result: result,
+        );
         _handleSearchCaptchaPreflightResult(
           task: task,
           runtimeOverride: runtimeOverride,
@@ -1251,9 +1165,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   int get _activeWebViewTaskCount {
     if (_useWorkerPool) {
-      return _scheduler.activeVideoJobCount + _activeCaptchaTasks.length;
+      return _scheduler.activeVideoJobCount + _captchaCoordinator.activeTasks.length;
     }
-    return _activeWebViews.length + _activeCaptchaTasks.length;
+    return _activeWebViews.length + _captchaCoordinator.activeTasks.length;
   }
 
   int get _webViewWorkerSlotCount => _scheduler.workerCount;
@@ -1345,7 +1259,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   bool _startOneCaptchaTask() {
-    if (_pendingCaptchaTasks.isEmpty) {
+    if (!_captchaCoordinator.hasPending) {
       return false;
     }
     if (_activeWebViewTaskCount >= _maxConcurrentWebViews) {
@@ -1355,47 +1269,36 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // Per-source cooldown (latest-wins pending). Rapid EP switches / re-entry
     // used to cancel an in-flight captcha and immediately re-hit the same host,
     // which is exactly when OCR sources start returning blank images.
-    final stillPending = <_CaptchaPreflightTask>[];
-    final coolingSources = <String>{};
-    _CaptchaPreflightTask? ready;
-    while (_pendingCaptchaTasks.isNotEmpty) {
-      final candidate = _pendingCaptchaTasks.removeFirst();
-      final interval = SourceRequestGate.captchaIntervalMs(
-        candidate.captchaConfig.initialDelayMs,
+    final poll = _captchaCoordinator.pollNextReady(
+      canStartNow: SourceRequestGate.instance.canStartNow,
+      intervalFor: (task) =>
+          SourceRequestGate.captchaIntervalMs(task.captchaConfig.initialDelayMs),
+    );
+    for (final sourceName in poll.coolingSources) {
+      final coolingTask = poll.stillPending.firstWhere(
+        (t) => t.source.name == sourceName,
       );
-      final canStart = SourceRequestGate.instance.canStartNow(
-        candidate.source.name,
-        interval,
+      SourceRequestGate.instance.scheduleWhenReady(
+        sourceName: sourceName,
+        minInterval: SourceRequestGate.captchaIntervalMs(
+          coolingTask.captchaConfig.initialDelayMs,
+        ),
+        token: coolingTask.loadToken,
+        onReady: () {
+          if (!mounted) return;
+          if (!isSearchGenerationCurrent(
+            resultLoadToken: coolingTask.loadToken,
+            currentLoadToken: _sampleSourceController.sampleLoadToken,
+            isDisposed: !mounted,
+          )) {
+            return;
+          }
+          _scheduleWebViewPoolPump(immediate: true);
+        },
       );
-      if (ready == null && canStart) {
-        ready = candidate;
-        continue;
-      }
-      stillPending.add(candidate);
-      if (!canStart && coolingSources.add(candidate.source.name)) {
-        SourceRequestGate.instance.scheduleWhenReady(
-          sourceName: candidate.source.name,
-          minInterval: interval,
-          token: candidate.loadToken,
-          onReady: () {
-            if (!mounted) return;
-            // Search generation must still match; gate timing stays outside
-            // pure policy (SourceRequestGate owns the delay).
-            if (!isSearchGenerationCurrent(
-              resultLoadToken: candidate.loadToken,
-              currentLoadToken: _sampleSourceController.sampleLoadToken,
-              isDisposed: !mounted,
-            )) {
-              return;
-            }
-            _scheduleWebViewPoolPump(immediate: true);
-          },
-        );
-      }
     }
-    for (final task in stillPending) {
-      _pendingCaptchaTasks.add(task);
-    }
+    _captchaCoordinator.restorePending(poll.stillPending);
+    final ready = poll.ready;
     if (ready == null) {
       return false;
     }
@@ -1410,7 +1313,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (_useWorkerPool) {
       final slot = _acquireIdleCaptchaWorkerSlot();
       if (slot == null) {
-        _pendingCaptchaTasks.addFirst(ready);
+        _captchaCoordinator.requeueFront(ready);
         return false;
       }
       _scheduler.startCaptchaJob(
@@ -1421,7 +1324,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       );
     }
     SourceRequestGate.instance.markStarted(ready.source.name);
-    _activeCaptchaTasks[ready.taskKey] = ready;
+    _captchaCoordinator.markActive(ready);
     _webViewStatus[ready.taskKey] = '正在跳过验证码...';
     _webviewStats.onCaptchaJobStarted(ready.taskKey, ready.source.name);
     return true;
@@ -1659,7 +1562,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   String _captchaActiveLabel() {
-    return '验证码进行中 ${_activeCaptchaTasks.length}';
+    return '验证码进行中 ${_captchaCoordinator.activeTasks.length}';
   }
 
   String _extractionActiveLabel() {
@@ -1677,7 +1580,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// Phase 0: 按 sourceName 汇总 pending/active/completed 三个维度。
   /// 输出形如 `源A [2|1|0], 源B [0|0|1]`，方括号内依次为
   /// `pending|active|completed`。pending 复用 `_pageIsPendingForExtraction`，
-  /// active 计 `_activeWebViews` + `_activeCaptchaTasks`，completed 计
+  /// active 计 `_activeWebViews` + `_captchaCoordinator.activeTasks`，completed 计
   /// `_sampleSourceController.sampleSuccessfulSources`。仅用于调试，不参与调度。
   String _perSourceStatusLabel() {
     final pending = <String, int>{};
@@ -1694,7 +1597,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final src = SourceChannelKey.fromPageKey(key).sourceName;
       active[src] = (active[src] ?? 0) + 1;
     }
-    for (final task in _activeCaptchaTasks.values) {
+    for (final task in _captchaCoordinator.activeTasks.values) {
       active[task.source.name] = (active[task.source.name] ?? 0) + 1;
     }
     final completed = <String, int>{};
@@ -1792,7 +1695,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           }
         }
       } else if (isCaptchaBusy) {
-        final task = _activeCaptchaTasks[slot.taskKey];
+        final task = _captchaCoordinator.activeTasks[slot.taskKey];
         sourceName = task?.source.name ?? '';
         urlLine = '正在跳过验证码';
       }
@@ -2033,7 +1936,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     int resultLoadToken,
     CaptchaBypassResult result,
   ) {
-    final task = _activeCaptchaTasks[taskKey];
+    final task = _captchaCoordinator.activeTasks[taskKey];
 
     if (task == null) {
       _releaseCaptchaSlotForTask(taskKey, generation: resultLoadToken);
@@ -2050,7 +1953,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return;
     }
 
-    _activeCaptchaTasks.remove(taskKey);
+    _captchaCoordinator.removeActive(taskKey);
     _webViewStatus.remove(taskKey);
 
     if (!mayApplyCaptchaResult(
@@ -2103,7 +2006,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final taskKey = slot.taskKey;
       if (shouldClearCaptchaSlotOnIdle(
         slotTaskKey: taskKey,
-        activeCaptchaTasksContainsKey: _activeCaptchaTasks.containsKey(taskKey),
+        activeCaptchaTasksContainsKey: _captchaCoordinator.activeTasks.containsKey(taskKey),
       )) {
         _scheduler.clearStaleCaptchaSlotOnIdle(workerId);
       }
@@ -2126,7 +2029,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   void _handleSearchCaptchaPreflightResult({
-    required _CaptchaPreflightTask task,
+    required CaptchaPreflightTask task,
     required SourceRuntimeOverride runtimeOverride,
     required void Function(SourceRuntimeOverride runtimeOverride) onCompleted,
   }) {
@@ -2151,7 +2054,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         );
       });
     } else {
-      _captchaRuntimeOverrides[sourceName] = runtimeOverride;
+       _captchaCoordinator.setRuntimeOverride(sourceName, runtimeOverride);
       setState(() {
         _sampleSourceController.setSourceProgress(
           sourceName,
@@ -2221,7 +2124,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               i == 0 || selectedChannelIndex == channel.index;
 
           if (!isSelectedChannel) {
-            final savedOverride = _captchaRuntimeOverrides[progress.sourceName];
+            final savedOverride = _captchaCoordinator.runtimeOverrides[progress.sourceName];
             unawaited(
               _resolveChannelPlayPageUrl(
                 sourceName: progress.sourceName,
@@ -2337,8 +2240,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final completedCount = _sampleSourceController.sourceProgressMap.values
         .where((p) => _isSearchStepFinished(p.step))
         .length;
-    final activeCaptcha = _activeCaptchaTasks.length;
-    final pendingCaptcha = _pendingCaptchaTasks.length;
+    final activeCaptcha = _captchaCoordinator.activeTasks.length;
+    final pendingCaptcha = _captchaCoordinator.pendingTasks.length;
     _sampleStatusMessageNotifier.value =
         '搜索进度: $completedCount/${_sampleSourceController.enabledSourceNames.length}，'
         '验证码 $activeCaptcha 运行/$pendingCaptcha 排队';
@@ -2483,7 +2386,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       isLoadingSample: _sampleSourceController.isLoadingSample,
       searchSubscriptionsNonEmpty: _searchSubscriptions.isNotEmpty,
       pendingOrActiveCaptcha:
-          _pendingCaptchaTasks.isNotEmpty || _activeCaptchaTasks.isNotEmpty,
+          _captchaCoordinator.pendingTasks.isNotEmpty || _captchaCoordinator.activeTasks.isNotEmpty,
       activeExtraction: activeExtraction,
       resolvingChannelKeysNonEmpty: _resolvingChannelPlayPageKeys.isNotEmpty,
       probingSourceKeysNonEmpty: _probingSourceKeys.isNotEmpty,
@@ -2592,15 +2495,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // survive. resetForNewSearch clears job fields and returns slots to idle
       // so they are reacquired instead of minting new workers (which would
       // dispose the old ones and run the cookie janitor).
-      _activeCaptchaTasks.clear();
+      _captchaCoordinator.resetForNewSearch();
       _scheduler.resetForNewSearch();
-      _pendingCaptchaTasks.clear();
       _searchSubscriptions.clear();
       _webViewStatus.clear();
       _failedWebViewPageKeys.clear();
       _resolvingChannelPlayPageKeys.clear();
       _sampleStatusMessageNotifier.value = '正在获取播放源列表...';
-      _captchaRuntimeOverrides = {};
       _acceptedSourcePageKey = null;
       _webviewStats.reset();
     });
@@ -3093,7 +2994,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // (a) 清理待处理 captcha 任务。captcha taskKey 是 'search:源名' 格式，与
     //     WebView pageKey 命名空间不同，不能用 fromPageKey 反解；直接用
     //     task.source.name 查 tier。
-    final cancellablePendingCaptcha = _pendingCaptchaTasks
+    final cancellablePendingCaptcha = _captchaCoordinator.pendingTasks
         .where((task) => isCancellableBySourceName(task.source.name))
         .toList();
     for (final task in cancellablePendingCaptcha) {
@@ -3102,18 +3003,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         task.source.name,
       );
     }
-    _pendingCaptchaTasks.removeWhere(
+    _captchaCoordinator.pendingTasks.removeWhere(
       (task) => isCancellableBySourceName(task.source.name),
     );
 
     // (b) 取消活动 captcha 任务：从记账中移除，后续 onResult 因 task == null
     //     提前返回。仅取消非 Tier-0 源的任务。
-    final captchaKeys = _activeCaptchaTasks.entries
+    final captchaKeys = _captchaCoordinator.activeTasks.entries
         .where((e) => isCancellableBySourceName(e.value.source.name))
         .map((e) => e.key)
         .toList();
     for (final key in captchaKeys) {
-      final task = _activeCaptchaTasks.remove(key);
+      final task = _captchaCoordinator.removeActive(key);
       if (task != null) {
         _webviewStats.onCaptchaJobCancelled(key, task.source.name);
       }
@@ -3468,7 +3369,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // 负责 dispose；scheduler 侧不再引用已 dispose 的 state。
       _scheduler.clearForPoolToggle();
       if (next) {
-        for (final task in _activeCaptchaTasks.values) {
+        for (final task in _captchaCoordinator.activeTasks.values) {
           final slot = _acquireIdleCaptchaWorkerSlot();
           if (slot == null) continue;
           _scheduler.startCaptchaJob(
@@ -3577,8 +3478,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _playbackController.clearForDispose();
     _acceptedSourcePageKey = null;
     unawaited(_cancelSearchSubscriptions());
-    _activeCaptchaTasks.clear();
-    _pendingCaptchaTasks.clear();
+    _captchaCoordinator.clearForDispose();
     // Drop active jobs so runners stop loading; framework dispose of
     // ReusableBrowserWorker tears down InAppWebViews afterwards.
     _scheduler.resetForNewSearch();
@@ -3621,6 +3521,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _sourceController.clearForDispose();
     _sampleSourceController.clearForDispose();
     _sidePanelLoader.clearForDispose();
+    _captchaCoordinator.clearForDispose();
     _videoTitleNotifier.dispose();
     super.dispose();
   }
@@ -4615,14 +4516,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // Keep the pool slot table (warm InAppWebView + site cookies). Clearing
       // jobs + marking idle is enough for runners to cancel via didUpdateWidget
       // and accept the next captcha/video job without dispose/cookie wipe.
-      _activeCaptchaTasks.clear();
-      _pendingCaptchaTasks.clear();
+      _captchaCoordinator.resetForNewSearch();
       _scheduler.resetForNewSearch();
       _webViewStatus.clear();
       _failedWebViewPageKeys.clear();
       _resolvingChannelPlayPageKeys.clear();
       _sampleStatusMessageNotifier.value = '';
-      _captchaRuntimeOverrides = {};
       _acceptedSourcePageKey = null;
       _webviewStats.reset();
 
@@ -5430,7 +5329,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         if ((_useWorkerPool
                 ? _scheduler.activeVideoJobs.isNotEmpty
                 : _activeWebViews.isNotEmpty) ||
-            _activeCaptchaTasks.isNotEmpty) ...[
+            _captchaCoordinator.activeTasks.isNotEmpty) ...[
           Divider(
             color: Theme.of(context).brightness == Brightness.dark
                 ? Colors.white10
@@ -5494,7 +5393,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 8),
                 if (!_useWorkerPool)
-                  ..._activeCaptchaTasks.values.map((task) {
+                  ..._captchaCoordinator.activeTasks.values.map((task) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 6),
                       child: Row(
@@ -6052,7 +5951,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   ///   [`ReusableBrowserWorker`]（key 固定为
   ///   `ValueKey('worker_$workerId')`）。slot 的 [kind] 决定 build 时把
   ///   pageKey 反查的播放页打包成 [`VideoJob`] 还是把 taskKey 反查的
-  ///   [_CaptchaPreflightTask] 打包成 [`CaptchaJob`] 派给 worker；为空时
+  ///   [CaptchaPreflightTask] 打包成 [`CaptchaJob`] 派给 worker；为空时
   ///   emit `null` job，worker 内部保持当前页/`about:blank` 等下一 job，
   ///   避免重建 InAppWebView 实例。
   /// - **Legacy 模式**：把每个 `_activeWebViews` 的 pageKey 作为独立的一次性
@@ -6084,7 +5983,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
   }
 
-  CaptchaPreflightJob _buildCaptchaPreflightJob(_CaptchaPreflightTask task) {
+  CaptchaPreflightJob _buildCaptchaPreflightJob(CaptchaPreflightTask task) {
     return CaptchaPreflightJob(
       jobKey: task.taskKey,
       generation: task.loadToken,
@@ -6120,7 +6019,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       switch (slot.kind) {
         case WebViewWorkerKind.captcha:
           final taskKey = slot.taskKey;
-          final task = taskKey == null ? null : _activeCaptchaTasks[taskKey];
+          final task = taskKey == null ? null : _captchaCoordinator.activeTasks[taskKey];
           if (task != null) {
             job = CaptchaJob(_buildCaptchaPreflightJob(task));
           }
@@ -6194,7 +6093,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// Legacy per-task widget 实现（[WebViewVideoExtractorWidget] 一次性模型）。
   /// pool 模式下不调用，行为等价于 Round 2 之前。
   Widget _buildWebViewExtractorsLegacy() {
-    if (_activeWebViews.isEmpty && _activeCaptchaTasks.isEmpty) {
+    if (_activeWebViews.isEmpty && _captchaCoordinator.activeTasks.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -6283,7 +6182,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     // 构建活动的验证码预处理 WebView（与提取任务共用池子）
-    for (final task in _activeCaptchaTasks.values) {
+    for (final task in _captchaCoordinator.activeTasks.values) {
       children.add(
         CaptchaWebViewBypassWidget(
           key: ValueKey('captcha_pool_${task.taskKey}_${task.loadToken}'),
