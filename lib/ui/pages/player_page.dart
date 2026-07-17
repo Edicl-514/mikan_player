@@ -39,6 +39,7 @@ import 'package:mikan_player/ui/pages/player/player_source_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_sample_source_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_playback_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_search_session_policy.dart';
+import 'package:mikan_player/ui/pages/player/player_side_panel_loader.dart';
 import 'package:mikan_player/ui/pages/player/sample_search_finish_policy.dart';
 import 'package:mikan_player/ui/pages/player/player_webview_scheduler.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
@@ -111,15 +112,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   bool _isDescriptionExpanded = false;
   bool _isEpisodesExpanded = false;
 
-  List<BangumiEpisodeComment> _comments = [];
-  bool _isLoadingComments = false;
-  String? _commentsError;
-  String _commentSortMode = 'default'; // 'default' or 'time'
-
-  List<RankingAnime> _recommendations = [];
-  bool _isLoadingRecommendations = false;
-
-  List<BangumiDataSiteEntry> _onairSites = [];
+  // Side panel (comments / recommendations / onair sites) state.
+  // Phase 1.1: pure mutators live in PlayerSidePanelLoader; async fetch bodies
+  // and setState glue stay here.
+  final PlayerSidePanelLoader _sidePanelLoader = PlayerSidePanelLoader();
 
   // Sample Source
   // 并发WebView管理
@@ -826,8 +822,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (_episodeController.currentEpisode.id == 0) return;
 
     setState(() {
-      _isLoadingComments = true;
-      _commentsError = null;
+      _sidePanelLoader.beginCommentsLoad();
     });
 
     try {
@@ -836,27 +831,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       );
       if (mounted) {
         setState(() {
-          _comments = comments;
-          _sortComments();
-          _isLoadingComments = false;
+          _sidePanelLoader.setComments(comments);
         });
       }
     } catch (e) {
       debugPrint("Error loading comments: $e");
       if (mounted) {
         setState(() {
-          _commentsError = e.toString();
-          _isLoadingComments = false;
+          _sidePanelLoader.setCommentsError(e.toString());
         });
       }
-    }
-  }
-
-  void _sortComments() {
-    if (_commentSortMode == 'default') {
-      _comments.sort((a, b) => a.id.compareTo(b.id));
-    } else {
-      _comments.sort((a, b) => b.time.compareTo(a.time));
     }
   }
 
@@ -871,10 +855,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (sites.isEmpty && mikanId != null && mikanId.isNotEmpty) {
         sites = await BangumiDataService.getSitesByMikan(mikanId);
       }
-      final onair = sites.where((s) => s.kind == 'onair').toList();
+      final onair = filterOnairSites(sites);
       if (mounted && onair.isNotEmpty) {
         setState(() {
-          _onairSites = onair;
+          _sidePanelLoader.setOnairSites(onair);
         });
       }
     } catch (e) {
@@ -884,7 +868,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   Future<void> _loadRecommendations() async {
     setState(() {
-      _isLoadingRecommendations = true;
+      _sidePanelLoader.beginRecommendationsLoad();
     });
 
     try {
@@ -910,8 +894,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         if (id != null) {
           try {
             final relations = await fetchBangumiRelations(subjectId: id);
-
-            // Prioritize Prequel/Sequel
             final pres = relations
                 .where((r) => r.relation == '前传' || r.relation == '续集')
                 .toList();
@@ -922,24 +904,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
               '[Recommendations] Relations fetched for $id: total=${relations.length}, '
               'priority=${pres.length}, others=${others.length}',
             );
-
-            for (var r in [...pres, ...others]) {
-              final bid = r.id.toString();
-              if (addedIds.contains(bid)) continue;
-
-              results.add(
-                RankingAnime(
-                  title: r.nameCn.isNotEmpty ? r.nameCn : r.name,
-                  bangumiId: bid,
-                  coverUrl: r.image,
-                  info: r.relation,
-                  rank: null,
-                  score: null,
-                  originalTitle: null,
-                ),
-              );
-              addedIds.add(bid);
-            }
+            appendRelationRecommendations(
+              relations: relations,
+              results: results,
+              addedIds: addedIds,
+            );
           } catch (e) {
             debugPrint("[Recommendations] Error fetching relations: $e");
           }
@@ -954,10 +923,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       );
 
       if (validTags.isNotEmpty) {
-        // Limit results: more tags => fewer per tag
-        int limitPerTag = (12 / validTags.length).ceil();
-        if (limitPerTag < 2) limitPerTag = 2;
-        if (limitPerTag > 5) limitPerTag = 5;
+        final limitPerTag = recommendationLimitPerTag(validTags.length);
 
         // Take max 5 tags to search
         final searchTags = validTags.take(5).toList();
@@ -985,18 +951,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         });
 
         final tagGroups = await Future.wait(futures);
-
-        for (var group in tagGroups) {
-          int count = 0;
-          for (var item in group) {
-            if (count >= limitPerTag) break;
-            if (!addedIds.contains(item.bangumiId)) {
-              results.add(item);
-              addedIds.add(item.bangumiId);
-              count++;
-            }
-          }
-        }
+        appendTagRecommendations(
+          tagGroups: tagGroups,
+          limitPerTag: limitPerTag,
+          results: results,
+          addedIds: addedIds,
+        );
       } else {
         debugPrint(
           '[Recommendations] Skip tag search because resolved tags are empty',
@@ -1005,8 +965,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
       if (mounted) {
         setState(() {
-          _recommendations = results;
-          _isLoadingRecommendations = false;
+          _sidePanelLoader.setRecommendations(results);
         });
       }
       debugPrint(
@@ -1017,7 +976,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       debugPrint("[Recommendations] Error loading recommendations: $e");
       if (mounted) {
         setState(() {
-          _isLoadingRecommendations = false;
+          _sidePanelLoader.markRecommendationsLoadFailed();
         });
       }
     }
@@ -1295,56 +1254,6 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return widget.anime.title.trim();
   }
 
-  List<String> _extractRecommendationTagsFromBangumiJson(String? fullJson) {
-    if (fullJson == null || fullJson.isEmpty) return const [];
-
-    try {
-      final data = jsonDecode(fullJson);
-      if (data is! Map) return const [];
-
-      final tags = <String>[];
-
-      final metaTags = data['meta_tags'];
-      if (metaTags is List) {
-        for (final item in metaTags) {
-          final value = item?.toString().trim() ?? '';
-          if (value.isNotEmpty) {
-            tags.add(value);
-          }
-        }
-      }
-
-      final detailTags = data['tags'];
-      if (detailTags is List) {
-        for (final item in detailTags) {
-          if (item is Map) {
-            final value = item['name']?.toString().trim() ?? '';
-            if (value.isNotEmpty) {
-              tags.add(value);
-            }
-          } else {
-            final value = item?.toString().trim() ?? '';
-            if (value.isNotEmpty) {
-              tags.add(value);
-            }
-          }
-        }
-      }
-
-      final unique = <String>[];
-      final seen = <String>{};
-      for (final tag in tags) {
-        final key = tag.toLowerCase();
-        if (seen.add(key)) {
-          unique.add(tag);
-        }
-      }
-      return unique;
-    } catch (_) {
-      return const [];
-    }
-  }
-
   Future<List<String>> _resolveRecommendationTags() async {
     final directTags = normalizeRecommendationTags(widget.anime.tags);
     if (directTags.isNotEmpty) {
@@ -1355,7 +1264,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     final jsonTags = normalizeRecommendationTags(
-      _extractRecommendationTagsFromBangumiJson(widget.anime.fullJson),
+      extractRecommendationTagsFromBangumiJson(widget.anime.fullJson),
     );
     if (jsonTags.isNotEmpty) {
       debugPrint(
@@ -1376,7 +1285,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final detail = await fetchLightSubjectDetails(subjectId: subjectId);
       final resolvedTags = normalizeRecommendationTags([
         ...detail.tags,
-        ..._extractRecommendationTagsFromBangumiJson(detail.fullJson),
+        ...extractRecommendationTagsFromBangumiJson(detail.fullJson),
       ]);
       debugPrint(
         '[Recommendations] Using fetched detail tags for $subjectId: $resolvedTags',
@@ -3840,7 +3749,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
     if (animeChanged) {
       setState(() {
-        _onairSites = [];
+        _sidePanelLoader.clearOnairSites();
       });
       _loadRecommendations();
       _loadOnairSites();
@@ -3980,6 +3889,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _episodeController.clearForDispose();
     _sourceController.clearForDispose();
     _sampleSourceController.clearForDispose();
+    _sidePanelLoader.clearForDispose();
     _videoTitleNotifier.dispose();
     super.dispose();
   }
@@ -4053,7 +3963,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                   labelStyle: const TextStyle(fontWeight: FontWeight.bold),
                   tabs: [
                     const Tab(text: "简介 & 推荐"),
-                    Tab(text: "评论 (${_comments.length})"),
+                    Tab(text: "评论 (${_sidePanelLoader.comments.length})"),
                   ],
                 ),
               ),
@@ -4402,7 +4312,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _buildResourceList(),
           const SizedBox(height: 24),
 
-          if (_onairSites.isNotEmpty) ...[
+          if (_sidePanelLoader.onairSites.isNotEmpty) ...[
             _buildSectionHeader("官方播放源"),
             const SizedBox(height: 12),
             _buildOnairSitesList(),
@@ -4415,8 +4325,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: PlayerRecommendations(
-              recommendations: _recommendations,
-              isLoading: _isLoadingRecommendations,
+              recommendations: _sidePanelLoader.recommendations,
+              isLoading: _sidePanelLoader.isLoadingRecommendations,
               isVertical: false,
               onItemTap: _navigateToAnime,
             ),
@@ -4667,7 +4577,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                                 _buildPlaySourceSelector(isMobile: false),
                                 const SizedBox(height: 12),
                                 _buildResourceList(),
-                                if (_onairSites.isNotEmpty) ...[
+                                if (_sidePanelLoader.onairSites.isNotEmpty) ...[
                                   const SizedBox(height: 24),
                                   _buildSectionHeader("官方播放源"),
                                   const SizedBox(height: 12),
@@ -4700,7 +4610,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     ),
 
                     // Loading / Empty / List States
-                    if (_isLoadingComments)
+                    if (_sidePanelLoader.isLoadingComments)
                       const SliverToBoxAdapter(
                         child: Center(
                           child: Padding(
@@ -4709,19 +4619,19 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           ),
                         ),
                       )
-                    else if (_commentsError != null)
+                    else if (_sidePanelLoader.commentsError != null)
                       SliverToBoxAdapter(
                         child: Center(
                           child: Padding(
                             padding: const EdgeInsets.all(20),
                             child: Text(
-                              "加载失败: $_commentsError",
+                              "加载失败: ${_sidePanelLoader.commentsError}",
                               style: const TextStyle(color: Colors.redAccent),
                             ),
                           ),
                         ),
                       )
-                    else if (_comments.isEmpty)
+                    else if (_sidePanelLoader.comments.isEmpty)
                       SliverToBoxAdapter(
                         child: Center(
                           child: Padding(
@@ -4745,9 +4655,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                           ) {
                             return PlayerComments.buildItem(
                               context,
-                              _comments[index],
+                              _sidePanelLoader.comments[index],
                             );
-                          }, childCount: _comments.length),
+                          }, childCount: _sidePanelLoader.comments.length),
                         ),
                       ),
 
@@ -4803,8 +4713,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: PlayerRecommendations(
-                        recommendations: _recommendations,
-                        isLoading: _isLoadingRecommendations,
+                        recommendations: _sidePanelLoader.recommendations,
+                        isLoading: _sidePanelLoader.isLoadingRecommendations,
                         isVertical: true,
                         onItemTap: _navigateToAnime,
                       ),
@@ -4986,9 +4896,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       _webviewStats.reset();
 
       // Reset comments
-      _comments = [];
-      _isLoadingComments = false;
-      _commentsError = null;
+      _sidePanelLoader.resetComments();
     });
     _videoTitleNotifier.value = '${widget.anime.title} - 第${ep.sort.toInt()}集';
     _publishPlayerControlSourceState();
@@ -5320,11 +5228,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final isDark = theme.brightness == Brightness.dark;
     return PopupMenuButton<String>(
       onSelected: (value) {
-        if (_commentSortMode != value) {
-          setState(() {
-            _commentSortMode = value;
-            _sortComments();
-          });
+        if (_sidePanelLoader.setCommentSortMode(value)) {
+          setState(() {});
         }
       },
       position: PopupMenuPosition.under,
@@ -5383,7 +5288,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           ),
           const SizedBox(width: 4),
           Text(
-            _commentSortMode == 'default' ? "默认排序" : "按时间排序",
+            _sidePanelLoader.commentSortMode == 'default' ? "默认排序" : "按时间排序",
             style: TextStyle(
               color: isDark ? Colors.white54 : Colors.grey,
               fontSize: 12,
@@ -6818,9 +6723,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   Widget _buildCommentsTab(BuildContext context) {
     return PlayerComments(
-      comments: _comments,
-      isLoading: _isLoadingComments,
-      error: _commentsError,
+      comments: _sidePanelLoader.comments,
+      isLoading: _sidePanelLoader.isLoadingComments,
+      error: _sidePanelLoader.commentsError,
       scrollController: _commentsScrollController,
       sortButton: _buildSortButton(),
     );
@@ -6834,15 +6739,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ? Colors.white.withValues(alpha: 0.05)
         : Colors.grey[100];
     final borderColor = isDark ? Colors.white10 : Colors.grey[300]!;
+    final sites = _sidePanelLoader.onairSites;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          for (var i = 0; i < _onairSites.length; i++) ...[
+          for (var i = 0; i < sites.length; i++) ...[
             if (i > 0) const SizedBox(width: 12),
             GestureDetector(
-              onTap: () => launchBangumiSiteUrl(_onairSites[i].url),
+              onTap: () => launchBangumiSiteUrl(sites[i].url),
               child: SizedBox(
                 width: 112,
                 child: Column(
@@ -6858,13 +6764,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
                         border: Border.all(color: borderColor),
                       ),
                       child: _buildOnairSiteIcon(
-                        _onairSites[i].site,
+                        sites[i].site,
                         fallbackColor,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _onairSites[i].title,
+                      sites[i].title,
                       style: TextStyle(
                         fontSize: 12,
                         color: (isDark ? Colors.white : Colors.black87)
