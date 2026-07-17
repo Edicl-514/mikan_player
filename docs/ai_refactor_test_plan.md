@@ -11,27 +11,31 @@ Historical implementation detail belongs in Git history. Start a task by
 reading the files it will touch, this plan's relevant phase, and the existing
 tests beside those files.
 
-Status date: 2026-07-16 (search completion identity wired; manual smoke pending).
+Status date: 2026-07-17 (current refactor checkpoint complete; P1/P3/P6 smoke
+reported passing).
 
 ## Verified baseline
 
 The following was re-verified on the status date:
 
 - flutter analyze: 0 issues.
-- flutter test: 757 passing tests after the completion-identity follow-up.
+- flutter test: 788 passing tests after the HLS fallback/cancellation follow-up.
+- cargo test: 56 passing tests; 1 live-network test intentionally ignored.
 - Search result/idle callbacks preserve their dispatched generation and job
   key through pool and legacy paths; final validation is listed below.
+- HLS playlist and segment header fallback, winning-header reuse, and pause
+  during automatic retry backoff are characterized without real network IO.
 
 Hotspot counts below use line counts. They are an inventory, not a completion
 metric.
 
 | File | Initial LOC | Current LOC | Primary remaining responsibility |
 | --- | ---: | ---: | --- |
-| lib/ui/pages/player_page.dart | 8318 | 7009 | WebView search-session orchestration, captcha/result handling, and page-owned Flutter/media side effects. |
-| lib/services/download_manager.dart | 3285 | 2567 | Task persistence, queue/polling, playback policy, and background BT restore mutation. |
+| lib/ui/pages/player_page.dart | 8318 | 7007 | WebView search-session orchestration, captcha/result handling, and page-owned Flutter/media side effects. |
+| lib/services/download_manager.dart | 3285 | 2635 | Task persistence, queue/polling, retry policy, playback policy, and background BT restore mutation. |
 | lib/ui/widgets/video_player_controls.dart | 3103 | 1151 | No currently justified extraction boundary. |
 | lib/ui/widgets/video_player_controls/settings_panel.dart | 1141 | 977 | Reactive menu state; leave local styles in place unless a new semantic boundary appears. |
-| lib/ui/pages/bangumi_details_page.dart | 3096 | 2488 | Layout, scroll, navigation, dialogs/SnackBars; data request state owned by BangumiDetailsController. |
+| lib/ui/pages/bangumi_details_page.dart | 3096 | 2475 | Layout, scroll, navigation, dialogs/SnackBars; data request state owned by BangumiDetailsController. |
 | lib/ui/pages/bangumi_details/bangumi_details_controller.dart | — | 576 | Cache/network details, comment paging, favorite status, generation tokens. |
 
 ## Goals
@@ -89,10 +93,10 @@ directory layout.
 | --- | --- | --- |
 | 0: baseline and smoke | Complete | Repeat only the affected manual cases after a WebView, playback, download, or platform change. |
 | 1: display-only extractions | Closed for now | Existing leaf widgets have focused widget tests. Do not extract more display code without a clear boundary. |
-| 2: player responsibility split | Stabilizing | Completion identity spans job payloads, runner callbacks, scheduler slots, and page guards. Run P1 smoke before considering a reducer/controller. |
-| 3: download split | Stabilizing | Auto-paused recovery success, user-pause protection, aliases, and explicit recovery failure state are characterized. Prefer failure/cancellation tests over extraction. |
-| 4: Bangumi details split | Stabilizing | Controller is wired, late cache cannot overwrite non-empty network data, and widget identity replacement resets the controller. P6 smoke remains required. |
-| 5: styling consistency | Deferred | Reconsider only after the active controller boundary is stable and repeated semantic values are demonstrated. |
+| 2: player responsibility split | Complete for this pass | Completion identity spans job payloads, runner callbacks, scheduler slots, and page guards; P1 smoke passed. Reopen only for a demonstrated ownership defect. |
+| 3: download split | Complete for this pass | Recovery, cancellation, aliases, HTTP/HLS retry, and header fallback are characterized; P3 smoke passed. Keep the facade stable. |
+| 4: Bangumi details split | Complete for this pass | Controller ordering/identity and comment rendering are characterized; P6 smoke passed. |
+| 5: styling consistency | Deferred / not required | Reconsider only if repeated semantic values are demonstrated in future feature work. |
 
 ## Completed checkpoint: BangumiDetailsController
 
@@ -157,19 +161,20 @@ Required characterization matrix:
 | Last worker slot | Existing captcha/video priority and source-gate timing are preserved. | Existing scheduler/gate tests; policy defers reordering |
 | Dispose during search | Pending subscriptions, timers, and workers cannot re-arm playback or UI state. | Pure dispose reject + idle reassignment guard |
 
-Only after this matrix is deterministic may a controller/reducer be extracted.
-That controller should remain small and command-oriented; do not create a new
-god controller just to make PlayerPage shorter.
+The matrix is deterministic and P1 smoke has passed. A controller/reducer is
+not required for this pass. Reopen that option only if a future defect shows a
+cross-cutting state/command owner that the current policy, scheduler, and page
+guards cannot express cleanly.
 
-**Wire checkpoint (2026-07-16):** `PlayerPage` routes search-scoped stale
+**Wire checkpoint (2026-07-17):** `PlayerPage` routes search-scoped stale
 guards through `player_search_session_policy.dart`. Captcha/video job payloads,
 runner result callbacks, runner idle callbacks, and scheduler slots carry the
 original generation plus stable job key; the page rejects that identity before
 mutating active maps, failed keys, probes, or UI. Finish-idle policy lives in
 `sample_search_finish_policy.dart` (`mayMarkSampleSearchIdle`, terminal source
 checks). `SourceRequestGate` cooldown timing, WebView creation, and captcha
-runner DOM refresh remain outside those modules. A full session reducer is
-still not extracted.
+runner DOM refresh remain outside those modules. P1 smoke passed; a full
+session reducer is intentionally not part of the completed checkpoint.
 
 ## Test strategy
 
@@ -211,10 +216,9 @@ mechanical refactor.
 ## Manual smoke protocol
 
 Use docs/ai_refactor_manual_smoke.md for the repeatable cases and result
-format. The 2026-07-14 lifecycle run and 2026-07-16 playback/fullscreen
-subtitle run remain historical baselines. They predate the latest
-search-identity and Bangumi ordering changes, so P1 and P6 must be repeated and
-recorded before merge.
+format. The 2026-07-17 user-reported P1/P3/P6 run covers the latest search
+identity, HTTP/HLS resilience, and Bangumi comment-rendering changes. No manual
+case remains pending for this checkpoint.
 
 Repeat relevant cases before merging when a task changes:
 
@@ -250,10 +254,12 @@ For every Dart change, run:
     flutter test
     git diff --check
 
-For Rust-only work, run:
+For Rust changes, format and check only the touched hand-written Rust files so
+generated bindings remain untouched, then run:
 
+    rustfmt --edition 2021 <touched hand-written Rust files>
+    rustfmt --check --edition 2021 <touched hand-written Rust files>
     cd rust
-    cargo fmt
     cargo test
 
 ## Review and stop conditions
@@ -275,7 +281,10 @@ expressed as state/commands without widget/platform objects.
 
 The accepted checkpoints immediately preceding this plan are:
 
-- Phase 4 BangumiDetailsController extraction (this working tree).
+- f2e9976: resilient HTTP/HLS retries and header fallback.
+- b79dad1: Bangumi comment mask/smile rendering follow-up.
+- cb0c5ed: search completion identity enforcement.
+- 5510942: BangumiDetailsController extraction.
 - bb609c4: app-owned fullscreen subtitle overlay and playback smoke fix.
 - 1cc5feb: PlayerPlaybackController extraction and fallback race fix.
 - 5c16696: immutable scheduler video dispatch decisions.

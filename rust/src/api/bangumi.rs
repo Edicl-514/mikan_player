@@ -187,10 +187,11 @@ async fn fetch_bangumi_episodes_next(subject_id: i64) -> anyhow::Result<Vec<Bang
             offset
         );
 
-        let resp = crate::api::network::retry_request_bangumi("fetch_bangumi_episodes.next", |client| {
-            client.get(&url).header("accept", "application/json")
-        })
-        .await?;
+        let resp =
+            crate::api::network::retry_request_bangumi("fetch_bangumi_episodes.next", |client| {
+                client.get(&url).header("accept", "application/json")
+            })
+            .await?;
 
         if !resp.status().is_success() {
             anyhow::bail!(
@@ -335,10 +336,11 @@ async fn fetch_bangumi_characters_next(subject_id: i64) -> anyhow::Result<Vec<Ba
         subject_id
     );
 
-    let resp = crate::api::network::retry_request_bangumi("fetch_bangumi_characters.next", |client| {
-        client.get(&url).header("accept", "application/json")
-    })
-    .await?;
+    let resp =
+        crate::api::network::retry_request_bangumi("fetch_bangumi_characters.next", |client| {
+            client.get(&url).header("accept", "application/json")
+        })
+        .await?;
 
     if !resp.status().is_success() {
         anyhow::bail!(
@@ -498,11 +500,11 @@ async fn fetch_bangumi_comments_legacy(
         page
     );
 
-    let resp =
-        crate::api::network::retry_request_bangumi(BANGUMI_SUBJECT_COMMENTS_LEGACY_LABEL, |client| {
-            client.get(&url)
-        })
-        .await?;
+    let resp = crate::api::network::retry_request_bangumi(
+        BANGUMI_SUBJECT_COMMENTS_LEGACY_LABEL,
+        |client| client.get(&url),
+    )
+    .await?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
@@ -749,11 +751,11 @@ async fn fetch_bangumi_episode_comments_legacy(
         crate::api::config::get_bangumi_url(),
         episode_id
     );
-    let resp =
-        crate::api::network::retry_request_bangumi(BANGUMI_EPISODE_COMMENTS_LEGACY_LABEL, |client| {
-            client.get(&url)
-        })
-        .await?;
+    let resp = crate::api::network::retry_request_bangumi(
+        BANGUMI_EPISODE_COMMENTS_LEGACY_LABEL,
+        |client| client.get(&url),
+    )
+    .await?;
 
     if !resp.status().is_success() {
         return Ok(Vec::new());
@@ -990,7 +992,6 @@ fn normalize_avatar_url(value: Option<&str>) -> String {
 }
 
 fn normalize_bangumi_url(value: &str) -> String {
-
     if value.is_empty() {
         return value.to_string();
     }
@@ -1838,12 +1839,16 @@ pub async fn fetch_character_subjects(character_id: i64) -> anyhow::Result<Vec<C
     );
 
     let (subjects_resp, persons_resp) = tokio::join!(
-        crate::api::network::retry_request_bangumi("fetch_character_subjects/subjects", |client| client
-            .get(&subjects_url)
-            .header("accept", "application/json"),),
-        crate::api::network::retry_request_bangumi("fetch_character_subjects/persons", |client| client
-            .get(&persons_url)
-            .header("accept", "application/json"),)
+        crate::api::network::retry_request_bangumi("fetch_character_subjects/subjects", |client| {
+            client
+                .get(&subjects_url)
+                .header("accept", "application/json")
+        },),
+        crate::api::network::retry_request_bangumi("fetch_character_subjects/persons", |client| {
+            client
+                .get(&persons_url)
+                .header("accept", "application/json")
+        },)
     );
 
     // Parse subjects (only type=2 anime)
@@ -1993,11 +1998,26 @@ pub async fn fetch_bangumi_user_info(username: String) -> anyhow::Result<Bangumi
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string(),
-        sign: json.get("sign").and_then(|v| v.as_str()).map(|s| s.to_string()),
-        url: json.get("url").and_then(|v| v.as_str()).map(|s| s.to_string()),
-        avatar_large: avatar.get("large").and_then(|v| v.as_str()).map(str::to_string),
-        avatar_medium: avatar.get("medium").and_then(|v| v.as_str()).map(str::to_string),
-        avatar_small: avatar.get("small").and_then(|v| v.as_str()).map(str::to_string),
+        sign: json
+            .get("sign")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        url: json
+            .get("url")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        avatar_large: avatar
+            .get("large")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+        avatar_medium: avatar
+            .get("medium")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+        avatar_small: avatar
+            .get("small")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
     })
 }
 
@@ -2113,11 +2133,31 @@ pub async fn fetch_bangumi_user_collections(
                 .get("collection_total")
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0) as i32,
-            image_small: images.get("small").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            image_grid: images.get("grid").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            image_large: images.get("large").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            image_medium: images.get("medium").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            image_common: images.get("common").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            image_small: images
+                .get("small")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            image_grid: images
+                .get("grid")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            image_large: images
+                .get("large")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            image_medium: images
+                .get("medium")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            image_common: images
+                .get("common")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
         });
     }
     Ok(out)
@@ -2159,10 +2199,7 @@ pub async fn fetch_bangumi_image_url(url: String) -> anyhow::Result<Vec<u8>> {
     let normalized = normalize_bangumi_url(&url);
     let parsed = reqwest::Url::parse(&normalized)
         .with_context(|| format!("bangumi.image.url invalid URL: {normalized}"))?;
-    let host = parsed
-        .host_str()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
+    let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
     let is_bangumi_host = matches!(
         host.as_str(),
         "bgm.tv" | "bangumi.tv" | "chii.in" | "bangumi.lol"
@@ -2256,9 +2293,7 @@ mod tests {
 
     #[test]
     fn render_bangumi_markup_styles_quotes() {
-        let html = render_bangumi_markup(
-            "[quote][b]Alice[/b] 说: hello[/quote]\nworld(bgm38)",
-        );
+        let html = render_bangumi_markup("[quote][b]Alice[/b] 说: hello[/quote]\nworld(bgm38)");
         assert!(
             html.contains("<div class=\"quote\"><q>"),
             "quote markup should wrap in div.quote > q, got {html}"

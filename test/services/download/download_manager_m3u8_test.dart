@@ -26,6 +26,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/services/download/http_file_download_port.dart';
 import 'package:mikan_player/services/download/m3u8_downloader.dart';
+import 'package:mikan_player/services/download/m3u8_playlist_port.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -280,6 +281,58 @@ seg1.ts
         }
       },
     );
+
+    test('falls back after playlist HTTP 403 and keeps the winning headers for '
+        'the nested media playlist', () async {
+      const masterText = '''
+#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1000
+media.m3u8
+''';
+      const mediaText = '''
+#EXTM3U
+#EXTINF:10.0,
+seg1.ts
+#EXT-X-ENDLIST
+''';
+      final masterUri = Uri.parse('https://hls.example.com/master.m3u8');
+      final mediaUri = Uri.parse('https://hls.example.com/media.m3u8');
+      final fallbackPort = _SequencedM3u8PlaylistPort([
+        Exception('HTTP 403'),
+        masterText,
+        mediaText,
+      ]);
+      final localManager = DownloadManager.forTesting(m3u8Port: fallbackPort);
+      const headers = {
+        'User-Agent': 'ua-1',
+        'Referer': 'https://play.example/watch',
+        'Origin': 'https://play.example',
+      };
+
+      try {
+        final segments = await localManager.resolveHlsSegmentsForTesting(
+          masterUri,
+          headers: headers,
+        );
+
+        expect(segments, [Uri.parse('https://hls.example.com/seg1.ts')]);
+        expect(fallbackPort.calls.length, 3);
+        expect(fallbackPort.calls[0].url, masterUri);
+        expect(fallbackPort.calls[0].headers, headers);
+        expect(fallbackPort.calls[1].url, masterUri);
+        expect(fallbackPort.calls[1].headers, {
+          'User-Agent': 'ua-1',
+          'Origin': 'https://play.example',
+        });
+        expect(fallbackPort.calls[2].url, mediaUri);
+        expect(fallbackPort.calls[2].headers, {
+          'User-Agent': 'ua-1',
+          'Origin': 'https://play.example',
+        });
+      } finally {
+        localManager.dispose();
+      }
+    });
   });
 
   group('DownloadManager HLS segment download (via HTTP port)', () {
@@ -357,6 +410,144 @@ seg2.ts
         expect(task.progress, 100.0);
         expect(await outFile.readAsBytes(), [1, 2, 3, 4, 5, 6]);
         expect(fake.callCount, 1);
+      },
+    );
+
+    test(
+      'segment HTTP 403 falls back once and pins the winning headers for the '
+      'remaining segments',
+      () async {
+        const mediaText = '''
+#EXTM3U
+#EXTINF:10.0,
+seg1.ts
+#EXTINF:10.0,
+seg2.ts
+#EXT-X-ENDLIST
+''';
+        final mediaUri = Uri.parse('https://hls.example.com/fallback.m3u8');
+        fake.register(mediaUri, mediaText);
+        final fallbackHttp = FakeHttpFileDownloadPort(
+          contentLength: 3,
+          startExceptionsByCall: [Exception('HTTP 403'), null, null],
+        );
+        final localManager = DownloadManager.forTesting(
+          httpPort: fallbackHttp,
+          m3u8Port: fake,
+        );
+        localManager.setDownloadDirForTesting(tempRoot.path);
+        final outFile = File('${tempRoot.path}/fallback_hls.ts');
+        final task = DownloadTask(
+          id: 'fallback_hls_test',
+          name: 'Fallback HLS Episode',
+          magnet: '',
+          animeName: 'Test',
+          episodeNumber: 1,
+          startTime: DateTime.fromMillisecondsSinceEpoch(1_700_000_000_000),
+          taskType: DownloadTaskType.http,
+          status: DownloadTaskStatus.downloading,
+          progress: 0.0,
+          videoUrl: mediaUri.toString(),
+          localFilePath: outFile.path,
+          headers: {
+            'User-Agent': 'ua-1',
+            'Referer': 'https://play.example/watch',
+            'Origin': 'https://play.example',
+          },
+        );
+        localManager.seedHttpTaskForTesting(task);
+
+        try {
+          final downloadFuture = localManager.downloadHttpFileForTesting(task);
+          await pumpSlots();
+
+          expect(fallbackHttp.startCallCount, 2);
+          expect(fallbackHttp.allHeaders[0], {
+            'User-Agent': 'ua-1',
+            'Referer': 'https://play.example/watch',
+            'Origin': 'https://play.example',
+          });
+          expect(fallbackHttp.allHeaders[1], {
+            'User-Agent': 'ua-1',
+            'Origin': 'https://play.example',
+          });
+          expect(task.headers, {
+            'User-Agent': 'ua-1',
+            'Origin': 'https://play.example',
+          });
+
+          fallbackHttp
+            ..emit([1, 2, 3])
+            ..done();
+          await pumpSlots();
+
+          expect(fallbackHttp.startCallCount, 3);
+          expect(fallbackHttp.allHeaders[2], {
+            'User-Agent': 'ua-1',
+            'Origin': 'https://play.example',
+          });
+          fallbackHttp
+            ..emit([4, 5, 6])
+            ..done();
+          await downloadFuture;
+
+          expect(task.status, DownloadTaskStatus.completed);
+          expect(await outFile.readAsBytes(), [1, 2, 3, 4, 5, 6]);
+        } finally {
+          localManager.dispose();
+        }
+      },
+    );
+
+    test(
+      'pause during HLS auto-retry backoff prevents another playlist fetch',
+      () async {
+        final mediaUri = Uri.parse('https://hls.example.com/retry.m3u8');
+        final failingPort = _SequencedM3u8PlaylistPort([
+          Exception('SocketException: Connection reset by peer'),
+        ]);
+        final backoffStarted = Completer<Duration>();
+        final releaseBackoff = Completer<void>();
+        final localManager = DownloadManager.forTesting(
+          m3u8Port: failingPort,
+          sleep: (duration) {
+            if (!backoffStarted.isCompleted) {
+              backoffStarted.complete(duration);
+            }
+            return releaseBackoff.future;
+          },
+        );
+        localManager.setDownloadDirForTesting(tempRoot.path);
+        final task = DownloadTask(
+          id: 'retry_pause_hls_test',
+          name: 'Retry Pause HLS Episode',
+          magnet: '',
+          animeName: 'Test',
+          episodeNumber: 1,
+          startTime: DateTime.fromMillisecondsSinceEpoch(1_700_000_000_000),
+          taskType: DownloadTaskType.http,
+          status: DownloadTaskStatus.downloading,
+          progress: 0.0,
+          videoUrl: mediaUri.toString(),
+          localFilePath: '${tempRoot.path}/retry_pause_hls.ts',
+        );
+        localManager.seedHttpTaskForTesting(task);
+
+        try {
+          final downloadFuture = localManager.downloadHttpFileForTesting(task);
+          expect(await backoffStarted.future, greaterThan(Duration.zero));
+          expect(failingPort.calls.length, 1);
+
+          expect(await localManager.pauseTask(task.id), isTrue);
+          releaseBackoff.complete();
+          await downloadFuture;
+
+          expect(failingPort.calls.length, 1);
+          expect(task.status, DownloadTaskStatus.paused);
+        } finally {
+          if (!releaseBackoff.isCompleted) releaseBackoff.complete();
+          localManager.dispose();
+        }
       },
     );
 
@@ -566,6 +757,34 @@ seg2.ts
       expect(estimateHlsResumeSegmentIndex(100, 4), 4);
     });
   });
+}
+
+class _SequencedM3u8PlaylistPort implements M3u8PlaylistPort {
+  _SequencedM3u8PlaylistPort(this.responses);
+
+  final List<Object> responses;
+  final List<({Uri url, Map<String, String>? headers, String? cookies})> calls =
+      [];
+
+  @override
+  Future<String> fetchText({
+    required Uri url,
+    Map<String, String>? headers,
+    String? cookies,
+  }) async {
+    calls.add((
+      url: url,
+      headers: headers == null ? null : Map<String, String>.from(headers),
+      cookies: cookies,
+    ));
+    final index = calls.length - 1;
+    if (index >= responses.length) {
+      throw StateError('Unexpected playlist fetch #${index + 1}: $url');
+    }
+    final response = responses[index];
+    if (response is String) return response;
+    throw response;
+  }
 }
 
 /// A two-segment test port that pauses immediately after the first segment's

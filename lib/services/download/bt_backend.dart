@@ -411,8 +411,7 @@ final class BtTorrentStats {
 /// future file-listing ops; the current interface selects the largest
 /// streamable file internally inside [BtBackend.addTorrent] and reports its
 /// `index` / `size` / `path` back via [BtTorrentHandle], so this DTO is a
-/// forward-compatibility placeholder (circumvents a TODO in commit 3 when
-/// the manager may want to list files explicitly).
+/// compatibility placeholder if explicit torrent file listing is added later.
 final class BtFileInfo {
   final int index;
   final String path;

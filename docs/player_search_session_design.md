@@ -1,6 +1,7 @@
 # PlayerSearchSession design note
 
-Status: completion identity wired; reducer extraction still deferred (2026-07-16).
+Status: completion identity and P1 smoke verified; reducer extraction is not
+required for the current pass (2026-07-17).
 This document specifies a future pure state machine / command boundary. It is
 **not** permission to extract a god controller or move WebView / Rust / player
 execution off `PlayerPage`.
