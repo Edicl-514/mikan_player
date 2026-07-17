@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:mikan_player/services/captcha_webview_bypasser.dart';
@@ -10,8 +11,8 @@ import 'package:mikan_player/ui/pages/player/sample_search_finish_policy.dart';
 ///
 /// Owns the list of in-flight [SourceSearchProgress] stream subscriptions and
 /// pure partition / status helpers. Does **not** open media, pump WebViews, or
-/// call `setState` — the page injects stream listen side effects via callbacks
-/// on [PlayerSearchSessionCoordinator.launchStream].
+/// call `setState` — the player-page search host injects stream listen side
+/// effects via callbacks on [PlayerSearchSessionCoordinator.launchStream].
 
 /// Partition enabled sources into captcha-preflight vs direct-search cohorts.
 /// Captcha sources are sorted by tier ascending (historic load order).
@@ -29,7 +30,8 @@ SampleSourceCohorts partitionEnabledSources(List<SourceState> enabledSources) {
   final captchaSources =
       enabledSources
           .where(
-            (source) => CaptchaConfig.tryParse(source.captchaConfigJson) != null,
+            (source) =>
+                CaptchaConfig.tryParse(source.captchaConfigJson) != null,
           )
           .toList()
         ..sort((a, b) => a.tier.compareTo(b.tier));
@@ -94,7 +96,9 @@ class PlayerSearchSessionCoordinator {
       <StreamSubscription<SourceSearchProgress>>[];
 
   List<StreamSubscription<SourceSearchProgress>> get subscriptions =>
-      _subscriptions;
+      UnmodifiableListView<StreamSubscription<SourceSearchProgress>>(
+        _subscriptions,
+      );
 
   bool get hasSubscriptions => _subscriptions.isNotEmpty;
 

@@ -2,9 +2,9 @@ import 'package:mikan_player/utils/source_channel_key.dart';
 
 /// Phase 1.6: pure helpers for autoplay accept + cancel-lower-priority policy.
 ///
-/// The page still owns scheduler cancel / stats / WebView bookkeeping. These
-/// helpers answer "which captcha task keys / webview page keys are cancellable
-/// once [acceptedPageKey] is playing?"
+/// The player-page autoplay host still owns scheduler cancel / stats / WebView
+/// bookkeeping. These helpers answer "which captcha task keys / webview page
+/// keys are cancellable once [acceptedPageKey] is playing?"
 
 /// Whether a source may be cancelled after a Tier-0 (or accepted) source starts.
 ///

@@ -1,5 +1,7 @@
 // Phase 1.4 / 1.6 unit tests for search session + autoplay pure helpers.
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:mikan_player/ui/pages/player/player_autoplay_coordinator.dart';
@@ -10,24 +12,30 @@ SourceState _src({
   required String name,
   int tier = 1,
   String? captchaConfigJson,
-}) =>
-    SourceState(
-      name: name,
-      description: '',
-      iconUrl: '',
-      tier: tier,
-      defaultSubtitleLanguage: '',
-      defaultResolution: '',
-      searchUrl: 'https://example.com',
-      searchConfigJson: '{}',
-      captchaConfigJson: captchaConfigJson,
-      enabled: true,
-    );
+}) => SourceState(
+  name: name,
+  description: '',
+  iconUrl: '',
+  tier: tier,
+  defaultSubtitleLanguage: '',
+  defaultResolution: '',
+  searchUrl: 'https://example.com',
+  searchConfigJson: '{}',
+  captchaConfigJson: captchaConfigJson,
+  enabled: true,
+);
 
 String _pageKey(String source, [int? channel]) => SourceChannelKey(
   sourceName: source,
   channelIndex: channel == null ? null : BigInt.from(channel),
 ).toPageKey();
+
+SourceSearchProgress _progress(String sourceName, SearchStep step) =>
+    SourceSearchProgress(
+      sourceName: sourceName,
+      step: step,
+      enableNestedUrl: false,
+    );
 
 void main() {
   group('partitionEnabledSources', () {
@@ -155,5 +163,118 @@ void main() {
       await c.cancelAll();
       expect(c.subscriptionCount, 0);
     });
+
+    test(
+      'forwards current target progress and removes subscription on done',
+      () async {
+        final c = PlayerSearchSessionCoordinator();
+        final stream = StreamController<SourceSearchProgress>(sync: true);
+        final received = <SourceSearchProgress>[];
+        var doneCount = 0;
+
+        c.launchStream(
+          stream: stream.stream,
+          targetSources: const {'wanted'},
+          loadToken: 7,
+          currentLoadToken: () => 7,
+          isDisposed: () => false,
+          onProgress: received.add,
+          onStreamError: (_, _) => fail('unexpected stream error'),
+          onDoneOrMaybeFinish: () => doneCount++,
+          streamTag: 'test',
+        );
+
+        expect(c.subscriptionCount, 1);
+        expect(() => c.subscriptions.clear(), throwsUnsupportedError);
+        stream.add(_progress('ignored', SearchStep.searching));
+        stream.add(_progress('wanted', SearchStep.success));
+        await stream.close();
+
+        expect(received.map((progress) => progress.sourceName), ['wanted']);
+        expect(doneCount, 1);
+        expect(c.subscriptionCount, 0);
+      },
+    );
+
+    test('drops stale generation progress and completion callbacks', () async {
+      final c = PlayerSearchSessionCoordinator();
+      final stream = StreamController<SourceSearchProgress>(sync: true);
+      var currentToken = 1;
+      final received = <SourceSearchProgress>[];
+      var doneCount = 0;
+
+      c.launchStream(
+        stream: stream.stream,
+        targetSources: const {'source'},
+        loadToken: 1,
+        currentLoadToken: () => currentToken,
+        isDisposed: () => false,
+        onProgress: received.add,
+        onStreamError: (_, _) => fail('unexpected stream error'),
+        onDoneOrMaybeFinish: () => doneCount++,
+        streamTag: 'stale',
+      );
+
+      currentToken = 2;
+      stream.add(_progress('source', SearchStep.success));
+      await stream.close();
+
+      expect(received, isEmpty);
+      expect(doneCount, 0);
+      expect(c.subscriptionCount, 0);
+    });
+
+    test(
+      'reports stream errors and cancelAll cancels active subscriptions',
+      () async {
+        final errorCoordinator = PlayerSearchSessionCoordinator();
+        final errorStream = StreamController<SourceSearchProgress>(sync: true);
+        Object? reportedError;
+        Iterable<String>? reportedSources;
+
+        errorCoordinator.launchStream(
+          stream: errorStream.stream,
+          targetSources: const {'a', 'b'},
+          loadToken: 3,
+          currentLoadToken: () => 3,
+          isDisposed: () => false,
+          onProgress: (_) {},
+          onStreamError: (error, sources) {
+            reportedError = error;
+            reportedSources = sources;
+          },
+          onDoneOrMaybeFinish: () =>
+              fail('error stream must not complete normally'),
+          streamTag: 'error',
+        );
+        errorStream.addError(StateError('boom'));
+        await errorStream.close();
+
+        expect(reportedError, isA<StateError>());
+        expect(reportedSources, unorderedEquals(['a', 'b']));
+        expect(errorCoordinator.subscriptionCount, 0);
+
+        final cancelCoordinator = PlayerSearchSessionCoordinator();
+        final cancelStream = StreamController<SourceSearchProgress>();
+        var wasCancelled = false;
+        cancelStream.onCancel = () => wasCancelled = true;
+        cancelCoordinator.launchStream(
+          stream: cancelStream.stream,
+          targetSources: const {'source'},
+          loadToken: 1,
+          currentLoadToken: () => 1,
+          isDisposed: () => false,
+          onProgress: (_) {},
+          onStreamError: (_, _) {},
+          onDoneOrMaybeFinish: () {},
+          streamTag: 'cancel',
+        );
+
+        await cancelCoordinator.cancelAll();
+        expect(wasCancelled, isTrue);
+        expect(cancelCoordinator.subscriptionCount, 0);
+        await cancelStream.close();
+      },
+    );
   });
 }

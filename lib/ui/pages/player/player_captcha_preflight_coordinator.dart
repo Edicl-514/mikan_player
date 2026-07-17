@@ -67,11 +67,14 @@ class PlayerCaptchaPreflightCoordinator {
   final Map<String, SourceRuntimeOverride> _runtimeOverrides =
       <String, SourceRuntimeOverride>{};
 
-  Queue<CaptchaPreflightTask> get pendingTasks => _pending;
+  List<CaptchaPreflightTask> get pendingTasks =>
+      UnmodifiableListView<CaptchaPreflightTask>(_pending);
 
-  Map<String, CaptchaPreflightTask> get activeTasks => _active;
+  Map<String, CaptchaPreflightTask> get activeTasks =>
+      UnmodifiableMapView<String, CaptchaPreflightTask>(_active);
 
-  Map<String, SourceRuntimeOverride> get runtimeOverrides => _runtimeOverrides;
+  Map<String, SourceRuntimeOverride> get runtimeOverrides =>
+      UnmodifiableMapView<String, SourceRuntimeOverride>(_runtimeOverrides);
 
   int get pendingCount => _pending.length;
 
@@ -95,7 +98,10 @@ class PlayerCaptchaPreflightCoordinator {
     String? referer,
     String? initialCookies,
     required int loadToken,
-    required void Function(CaptchaPreflightTask task, CaptchaBypassResult result)
+    required void Function(
+      CaptchaPreflightTask task,
+      CaptchaBypassResult result,
+    )
     onResult,
   }) {
     final captchaConfig = CaptchaConfig.tryParse(source.captchaConfigJson);
@@ -130,7 +136,10 @@ class PlayerCaptchaPreflightCoordinator {
     required SourceState source,
     required String searchKeyword,
     required int loadToken,
-    required void Function(CaptchaPreflightTask task, CaptchaBypassResult result)
+    required void Function(
+      CaptchaPreflightTask task,
+      CaptchaBypassResult result,
+    )
     onResult,
   }) {
     return queueTask(
@@ -196,8 +205,12 @@ class PlayerCaptchaPreflightCoordinator {
   }
 
   /// Remove pending tasks matching [test] (used by cancel-lower-priority).
-  void removePendingWhere(bool Function(CaptchaPreflightTask task) test) {
+  List<CaptchaPreflightTask> removePendingWhere(
+    bool Function(CaptchaPreflightTask task) test,
+  ) {
+    final removed = _pending.where(test).toList(growable: false);
     _pending.removeWhere(test);
+    return removed;
   }
 
   /// Mark [task] as active (started).

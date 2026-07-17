@@ -6,10 +6,7 @@ import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/ui/pages/player/player_side_panel_loader.dart';
 
-BangumiEpisodeComment _comment({
-  int id = 1,
-  String time = '2024-01-01',
-}) =>
+BangumiEpisodeComment _comment({int id = 1, String time = '2024-01-01'}) =>
     BangumiEpisodeComment(
       id: id,
       userName: 'u',
@@ -26,19 +23,15 @@ BangumiRelatedSubject _rel({
   String nameCn = '',
   String relation = '其他',
   String image = '',
-}) =>
-    BangumiRelatedSubject(
-      id: id,
-      name: name,
-      nameCn: nameCn,
-      relation: relation,
-      image: image,
-    );
+}) => BangumiRelatedSubject(
+  id: id,
+  name: name,
+  nameCn: nameCn,
+  relation: relation,
+  image: image,
+);
 
-RankingAnime _rank({
-  String title = 't',
-  String bangumiId = '1',
-}) =>
+RankingAnime _rank({String title = 't', String bangumiId = '1'}) =>
     RankingAnime(
       title: title,
       bangumiId: bangumiId,
@@ -85,7 +78,10 @@ void main() {
 
       expect(l.setCommentSortMode('time'), isTrue);
       expect(l.commentSortMode, 'time');
-      expect(l.comments.map((c) => c.id).toList(), [1, 2]); // id1 later time first? id1 time Feb, id2 Jan → [1,2]
+      expect(l.comments.map((c) => c.id).toList(), [
+        1,
+        2,
+      ]); // id1 later time first? id1 time Feb, id2 Jan → [1,2]
       // Actually id1=Feb > id2=Jan so time desc → id1 then id2. Same order.
       // Swap times for a clearer assertion:
       l.setComments([
@@ -144,10 +140,11 @@ void main() {
   ]
 }
 ''';
-      expect(
-        extractRecommendationTagsFromBangumiJson(json),
-        ['SF', '冒险', '机战'],
-      );
+      expect(extractRecommendationTagsFromBangumiJson(json), [
+        'SF',
+        '冒险',
+        '机战',
+      ]);
     });
   });
 

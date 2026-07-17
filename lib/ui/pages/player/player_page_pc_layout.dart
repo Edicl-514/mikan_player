@@ -1,0 +1,33 @@
+part of '../player_page.dart';
+
+extension _PlayerPagePcLayout on _PlayerPageState {
+  Widget _buildPCLayout(BuildContext context) {
+    return PlayerPcLayout(
+      animeTitle: widget.anime.title,
+      currentEpisode: _episodeController.currentEpisode,
+      currentSourceActions: _buildCurrentSourceActionButtons(),
+      videoArea: _buildVideoPlayerPlaceholder(context, isMobile: false),
+      isDescriptionExpanded: _isDescriptionExpanded,
+      onToggleDescription: () {
+        _updateState(() {
+          _isDescriptionExpanded = !_isDescriptionExpanded;
+        });
+      },
+      playSourceSelector: _buildPlaySourceSelector(isMobile: false),
+      resourceList: _buildResourceList(),
+      onairSites: _sidePanelLoader.onairSites,
+      commentSortButton: _buildSortButton(),
+      comments: _sidePanelLoader.comments,
+      isLoadingComments: _sidePanelLoader.isLoadingComments,
+      commentsError: _sidePanelLoader.commentsError,
+      playableEpisodes: _episodeController.playableEpisodes,
+      episodeScrollController: _pcEpisodeScrollController,
+      onEpisodeSelected: _onEpisodeSelected,
+      recommendations: _sidePanelLoader.recommendations,
+      isLoadingRecommendations: _sidePanelLoader.isLoadingRecommendations,
+      onRecommendationTap: _navigateToAnime,
+      mainScrollController: _pcMainScrollController,
+      sidebarScrollController: _pcSidebarScrollController,
+    );
+  }
+}

@@ -288,8 +288,6 @@ void appendTagRecommendations({
 }
 
 /// Keep only sites whose [BangumiDataSiteEntry.kind] is `'onair'`.
-List<BangumiDataSiteEntry> filterOnairSites(
-  List<BangumiDataSiteEntry> sites,
-) {
+List<BangumiDataSiteEntry> filterOnairSites(List<BangumiDataSiteEntry> sites) {
   return sites.where((s) => s.kind == 'onair').toList();
 }

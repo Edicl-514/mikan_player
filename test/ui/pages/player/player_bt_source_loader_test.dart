@@ -72,9 +72,7 @@ void main() {
         'abcdef0123456789',
       );
       expect(
-        extractBtHashFromStreamUrl(
-          'http://127.0.0.1:8080/streams/ABCDEF/1',
-        ),
+        extractBtHashFromStreamUrl('http://127.0.0.1:8080/streams/ABCDEF/1'),
         'ABCDEF',
       );
       expect(
@@ -83,7 +81,10 @@ void main() {
         ),
         'deadbeef',
       );
-      expect(extractBtHashFromStreamUrl('http://example.com/video.mp4'), isNull);
+      expect(
+        extractBtHashFromStreamUrl('http://example.com/video.mp4'),
+        isNull,
+      );
     });
   });
 }

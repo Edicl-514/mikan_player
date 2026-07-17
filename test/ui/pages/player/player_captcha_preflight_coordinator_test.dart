@@ -32,17 +32,16 @@ CaptchaBypassResult _result({
   String? searchPageUrl,
   String? detailPageHtml,
   String? detailPageUrl,
-}) =>
-    CaptchaBypassResult(
-      sourceName: sourceName,
-      success: success,
-      error: error,
-      cookies: cookies,
-      searchPageHtml: searchPageHtml,
-      searchPageUrl: searchPageUrl,
-      detailPageHtml: detailPageHtml,
-      detailPageUrl: detailPageUrl,
-    );
+}) => CaptchaBypassResult(
+  sourceName: sourceName,
+  success: success,
+  error: error,
+  cookies: cookies,
+  searchPageHtml: searchPageHtml,
+  searchPageUrl: searchPageUrl,
+  detailPageHtml: detailPageHtml,
+  detailPageUrl: detailPageUrl,
+);
 
 void main() {
   group('buildSearchCaptchaRuntimeOverride', () {
@@ -169,6 +168,44 @@ void main() {
       expect(c.runtimeOverrideFor('s')?.cookies, 'x');
       c.resetForNewSearch();
       expect(c.runtimeOverrideFor('s'), isNull);
+    });
+
+    test('exposes read-only views and removes pending through coordinator', () {
+      final c = PlayerCaptchaPreflightCoordinator();
+      void onResult(CaptchaPreflightTask t, CaptchaBypassResult r) {}
+
+      c.queueTask(
+        taskKey: 'keep',
+        label: 'keep',
+        source: _source(name: 'keep'),
+        loadToken: 1,
+        onResult: onResult,
+      );
+      c.queueTask(
+        taskKey: 'remove',
+        label: 'remove',
+        source: _source(name: 'remove'),
+        loadToken: 1,
+        onResult: onResult,
+      );
+
+      expect(() => c.pendingTasks.clear(), throwsUnsupportedError);
+      final removed = c.removePendingWhere((task) => task.taskKey == 'remove');
+      expect(removed.map((task) => task.taskKey), ['remove']);
+      expect(c.pendingTasks.map((task) => task.taskKey), ['keep']);
+
+      final poll = c.pollNextReady(
+        canStartNow: (_, _) => true,
+        intervalFor: (_) => Duration.zero,
+      );
+      c.markActive(poll.ready!);
+      expect(() => c.activeTasks.clear(), throwsUnsupportedError);
+
+      c.setRuntimeOverride(
+        'keep',
+        const SourceRuntimeOverride(sourceName: 'keep', cookies: 'a=1'),
+      );
+      expect(() => c.runtimeOverrides.clear(), throwsUnsupportedError);
     });
   });
 }
