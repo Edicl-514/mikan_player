@@ -38,6 +38,8 @@ import 'package:mikan_player/ui/pages/player/player_search_session_policy.dart';
 import 'package:mikan_player/ui/pages/player/player_side_panel_loader.dart';
 import 'package:mikan_player/ui/pages/player/player_bt_source_loader.dart';
 import 'package:mikan_player/ui/pages/player/player_captcha_preflight_coordinator.dart';
+import 'package:mikan_player/ui/pages/player/player_search_session_coordinator.dart';
+import 'package:mikan_player/ui/pages/player/player_autoplay_coordinator.dart';
 import 'package:mikan_player/ui/pages/player/sample_search_finish_policy.dart';
 import 'package:mikan_player/ui/pages/player/player_webview_scheduler.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
@@ -99,8 +101,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // Phase 1.3: captcha preflight queue / active map / runtime overrides.
   final PlayerCaptchaPreflightCoordinator _captchaCoordinator =
       PlayerCaptchaPreflightCoordinator();
-  final List<StreamSubscription<SourceSearchProgress>> _searchSubscriptions =
-      <StreamSubscription<SourceSearchProgress>>[];
+  final PlayerSearchSessionCoordinator _searchSessionCoordinator =
+      PlayerSearchSessionCoordinator();
   int _maxConcurrentWebViews = PlayerPage.kDefaultMaxConcurrentWebViews;
   bool _cancelLowPrioritySourcesOnPlay = true;
   int _webViewLaunchInterval = 200;
@@ -1024,22 +1026,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _cancelSearchSubscriptions() async {
-    if (_searchSubscriptions.isEmpty) {
-      return;
-    }
-    final pending = List<StreamSubscription<SourceSearchProgress>>.from(
-      _searchSubscriptions,
-    );
-    _searchSubscriptions.clear();
-    for (final subscription in pending) {
-      try {
-        await subscription.cancel();
-      } catch (e) {
-        debugPrint('[SampleSearch] cancel subscription failed: $e');
-      }
-    }
-  }
+  Future<void> _cancelSearchSubscriptions() =>
+      _searchSessionCoordinator.cancelAll();
 
   void _queueSearchCaptchaPreflightTask({
     required SourceState source,
@@ -2237,14 +2225,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     }
 
     // 更新状态消息
-    final completedCount = _sampleSourceController.sourceProgressMap.values
-        .where((p) => _isSearchStepFinished(p.step))
-        .length;
+    final completedCount = completedSearchSourceCount(
+      _sampleSourceController.sourceProgressMap,
+    );
     final activeCaptcha = _captchaCoordinator.activeTasks.length;
     final pendingCaptcha = _captchaCoordinator.pendingTasks.length;
-    _sampleStatusMessageNotifier.value =
-        '搜索进度: $completedCount/${_sampleSourceController.enabledSourceNames.length}，'
-        '验证码 $activeCaptcha 运行/$pendingCaptcha 排队';
+    _sampleStatusMessageNotifier.value = sampleSearchProgressLabel(
+      completedCount: completedCount,
+      enabledCount: _sampleSourceController.enabledSourceNames.length,
+      activeCaptcha: activeCaptcha,
+      pendingCaptcha: pendingCaptcha,
+    );
 
     // 手动触发搜索后不自动播放，等待用户主动点击“播放”
     if (_autoPlaySearchedSource) {
@@ -2261,96 +2252,61 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     required int loadToken,
     required String streamTag,
   }) {
-    if (targetSources.isEmpty) {
-      return;
-    }
-
-    late final StreamSubscription<SourceSearchProgress> subscription;
-    subscription =
-        genericSearchWithProgressRuntime(
-          animeName: searchName,
-          absoluteEpisode: currentEpNumber,
-          relativeEpisode: relativeEpNumber,
-          targetSourceNames: targetSources.toList(),
-          runtimeOverrides: runtimeOverrides,
-        ).listen(
-          (progress) {
-            if (!isSearchGenerationCurrent(
-              resultLoadToken: loadToken,
-              currentLoadToken: _sampleSourceController.sampleLoadToken,
-              isDisposed: !mounted,
-            )) {
-              return;
+    _searchSessionCoordinator.launchStream(
+      stream: genericSearchWithProgressRuntime(
+        animeName: searchName,
+        absoluteEpisode: currentEpNumber,
+        relativeEpisode: relativeEpNumber,
+        targetSourceNames: targetSources.toList(),
+        runtimeOverrides: runtimeOverrides,
+      ),
+      targetSources: targetSources,
+      loadToken: loadToken,
+      currentLoadToken: () => _sampleSourceController.sampleLoadToken,
+      isDisposed: () => !mounted,
+      streamTag: streamTag,
+      onProgress: (progress) {
+        setState(() {
+          _handleSearchProgressUpdate(
+            progress: progress,
+            searchName: searchName,
+            currentEpNumber: currentEpNumber,
+          );
+        });
+        _scheduleWebViewPoolPump(immediate: true);
+        _maybeFinishSampleSearch();
+      },
+      onStreamError: (error, unfinishedSources) {
+        setState(() {
+          for (final sourceName in unfinishedSources) {
+            final current =
+                _sampleSourceController.sourceProgressMap[sourceName];
+            final isFinished =
+                current != null && _isSearchStepFinished(current.step);
+            if (isFinished) {
+              continue;
             }
-            if (!targetSources.contains(progress.sourceName)) {
-              return;
-            }
-
-            setState(() {
-              _handleSearchProgressUpdate(
-                progress: progress,
-                searchName: searchName,
-                currentEpNumber: currentEpNumber,
-              );
-            });
-
-            _scheduleWebViewPoolPump(immediate: true);
-            _maybeFinishSampleSearch();
-          },
-          onError: (error, _) {
-            debugPrint('[SampleSearch][$streamTag] stream error: $error');
-            _searchSubscriptions.remove(subscription);
-            if (!isSearchGenerationCurrent(
-              resultLoadToken: loadToken,
-              currentLoadToken: _sampleSourceController.sampleLoadToken,
-              isDisposed: !mounted,
-            )) {
-              return;
-            }
-
-            setState(() {
-              for (final sourceName in targetSources) {
-                final current =
-                    _sampleSourceController.sourceProgressMap[sourceName];
-                final isFinished =
-                    current != null && _isSearchStepFinished(current.step);
-                if (isFinished) {
-                  continue;
-                }
-                _sampleSourceController.setSourceProgress(
-                  sourceName,
-                  SourceSearchProgress(
-                    sourceName: sourceName,
-                    step: SearchStep.failed,
-                    error: error.toString(),
-                    playPageUrl: null,
-                    videoRegex: null,
-                    directVideoUrl: null,
-                    cookies: null,
-                    headers: null,
-                    enableNestedUrl: false,
-                  ),
-                );
-              }
-            });
-            _scheduleWebViewPoolPump();
-            _maybeFinishSampleSearch();
-          },
-          onDone: () {
-            _searchSubscriptions.remove(subscription);
-            if (!isSearchGenerationCurrent(
-              resultLoadToken: loadToken,
-              currentLoadToken: _sampleSourceController.sampleLoadToken,
-              isDisposed: !mounted,
-            )) {
-              return;
-            }
-            _maybeFinishSampleSearch();
-          },
-          cancelOnError: true,
-        );
-
-    _searchSubscriptions.add(subscription);
+            _sampleSourceController.setSourceProgress(
+              sourceName,
+              SourceSearchProgress(
+                sourceName: sourceName,
+                step: SearchStep.failed,
+                error: error.toString(),
+                playPageUrl: null,
+                videoRegex: null,
+                directVideoUrl: null,
+                cookies: null,
+                headers: null,
+                enableNestedUrl: false,
+              ),
+            );
+          }
+        });
+        _scheduleWebViewPoolPump();
+        _maybeFinishSampleSearch();
+      },
+      onDoneOrMaybeFinish: _maybeFinishSampleSearch,
+    );
   }
 
   void _startCaptchaSourceSearch({
@@ -2384,9 +2340,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     if (!mayMarkSampleSearchIdle(
       isMounted: mounted,
       isLoadingSample: _sampleSourceController.isLoadingSample,
-      searchSubscriptionsNonEmpty: _searchSubscriptions.isNotEmpty,
-      pendingOrActiveCaptcha:
-          _captchaCoordinator.pendingTasks.isNotEmpty || _captchaCoordinator.activeTasks.isNotEmpty,
+      searchSubscriptionsNonEmpty: _searchSessionCoordinator.hasSubscriptions,
+      pendingOrActiveCaptcha: _captchaCoordinator.pendingTasks.isNotEmpty ||
+          _captchaCoordinator.activeTasks.isNotEmpty,
       activeExtraction: activeExtraction,
       resolvingChannelKeysNonEmpty: _resolvingChannelPlayPageKeys.isNotEmpty,
       probingSourceKeysNonEmpty: _probingSourceKeys.isNotEmpty,
@@ -2396,15 +2352,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return;
     }
 
+    final finish = sampleSearchFinishMessage(
+      playPageCount: _sampleSourceController.samplePlayPages.length,
+      successfulSourceCount:
+          _sampleSourceController.sampleSuccessfulSources.length,
+    );
     setState(() {
       _sampleSourceController.markSampleIdle();
-      if (_sampleSourceController.samplePlayPages.isEmpty) {
-        _sampleSourceController.setSampleError('未在任何源中找到该动画');
-      } else if (_sampleSourceController.sampleSuccessfulSources.isEmpty) {
-        _sampleSourceController.setSampleError('所有源都无法提取视频链接');
-      } else {
-        _sampleStatusMessageNotifier.value =
-            '搜索完成，共找到 ${_sampleSourceController.sampleSuccessfulSources.length} 个可用源';
+      if (finish.error != null) {
+        _sampleSourceController.setSampleError(finish.error);
+      } else if (finish.status != null) {
+        _sampleStatusMessageNotifier.value = finish.status!;
       }
     });
   }
@@ -2497,7 +2455,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // dispose the old ones and run the cookie janitor).
       _captchaCoordinator.resetForNewSearch();
       _scheduler.resetForNewSearch();
-      _searchSubscriptions.clear();
+      _searchSessionCoordinator.clearTracking();
       _webViewStatus.clear();
       _failedWebViewPageKeys.clear();
       _resolvingChannelPlayPageKeys.clear();
@@ -2525,20 +2483,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       }
 
       final enabledNames = enabledSources.map((s) => s.name).toList();
-      final captchaSources =
-          enabledSources
-              .where(
-                (source) =>
-                    CaptchaConfig.tryParse(source.captchaConfigJson) != null,
-              )
-              .toList()
-            ..sort((a, b) => a.tier.compareTo(b.tier));
-      final captchaSourceNameSet = captchaSources
-          .map((source) => source.name)
-          .toSet();
-      final nonCaptchaSources = enabledSources
-          .where((source) => !captchaSourceNameSet.contains(source.name))
-          .toList();
+      final cohorts = partitionEnabledSources(enabledSources);
+      final captchaSources = cohorts.captchaSources;
+      final nonCaptchaSources = cohorts.nonCaptchaSources;
 
       // 使用带进度的流式API，传入当前集号
       final n = _episodeController.currentEpisodeNumbersAgainst(
@@ -2982,14 +2929,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// `State.dispose` 取消 `_timeoutTimer` 并清理 cookie）。worker 上新增的
   /// `cancel()` 方法为未来可拿到句柄时预留，本步骤不调用。
   void _cancelLowerPriorityExtraction({required String except}) {
-    // 按 sourceName 查 tier 决定是否取消。Tier-0 源（包括 accepted 同源其他 channel
-    // 和其他 Tier-0 源）永不取消，仅取消 tier >= 1 的非 Tier-0 源。
-    bool isCancellableBySourceName(String sourceName) {
-      if (sourceName == SourceChannelKey.fromPageKey(except).sourceName) {
-        return false;
-      }
-      return (_sampleSourceController.sourceTiers[sourceName] ?? 999) != 0;
-    }
+    bool isCancellableBySourceName(String sourceName) =>
+        isCancellableSourceAfterAccept(
+          sourceName: sourceName,
+          acceptedPageKey: except,
+          sourceTiers: _sampleSourceController.sourceTiers,
+        );
 
     // (a) 清理待处理 captcha 任务。captcha taskKey 是 'search:源名' 格式，与
     //     WebView pageKey 命名空间不同，不能用 fromPageKey 反解；直接用
@@ -3009,10 +2954,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
     // (b) 取消活动 captcha 任务：从记账中移除，后续 onResult 因 task == null
     //     提前返回。仅取消非 Tier-0 源的任务。
-    final captchaKeys = _captchaCoordinator.activeTasks.entries
-        .where((e) => isCancellableBySourceName(e.value.source.name))
-        .map((e) => e.key)
-        .toList();
+    final captchaKeys = captchaTaskKeysToCancelAfterAccept(
+      activeTaskKeyToSourceName: {
+        for (final e in _captchaCoordinator.activeTasks.entries)
+          e.key: e.value.source.name,
+      },
+      acceptedPageKey: except,
+      sourceTiers: _sampleSourceController.sourceTiers,
+    );
     for (final key in captchaKeys) {
       final task = _captchaCoordinator.removeActive(key);
       if (task != null) {
@@ -3025,12 +2974,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     // (c) 取消活动 WebView 提取任务：从记账中移除并标记为失败键，防止
     //     `_collectPendingWebViewExtractionTasks` 通过 `alreadyFailed` 检查
     //     重新排队。WebView key 是 pageKey 格式，用 fromPageKey 反解 sourceName。
-    bool isCancellableWebViewKey(String pageKey) {
-      if (pageKey == except) return false;
-      return isCancellableBySourceName(
-        SourceChannelKey.fromPageKey(pageKey).sourceName,
-      );
-    }
+    bool isCancellableWebViewKey(String pageKey) =>
+        isCancellableWebViewPageKeyAfterAccept(
+          pageKey: pageKey,
+          acceptedPageKey: except,
+          sourceTiers: _sampleSourceController.sourceTiers,
+        );
 
     if (_useWorkerPool) {
       // Pool 模式：把对应 slot 的 pageKey 清 null。下一次 build 时
@@ -3039,9 +2988,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       // 后者通过 post-frame 调 [`_onWorkerIdlePostFrame`] 完成空 pump。
       // 调度器侧此处同步移除 `_scheduler.activeVideoJobs[pageKey]` 让后续
       // pump/统计立刻看到槽位空闲，避免一帧延迟期间重复派活。
-      final videoPageKeys = _scheduler.activeVideoJobs.keys
-          .where(isCancellableWebViewKey)
-          .toList();
+      final videoPageKeys = videoPageKeysToCancelAfterAccept(
+        activeVideoPageKeys: _scheduler.activeVideoJobs.keys,
+        acceptedPageKey: except,
+        sourceTiers: _sampleSourceController.sourceTiers,
+      );
       for (final pageKey in videoPageKeys) {
         _scheduler.cancelVideoJob(pageKey);
         _webViewStatus.remove(pageKey);
@@ -3522,6 +3473,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _sampleSourceController.clearForDispose();
     _sidePanelLoader.clearForDispose();
     _captchaCoordinator.clearForDispose();
+    _searchSessionCoordinator.clearForDispose();
     _videoTitleNotifier.dispose();
     super.dispose();
   }
