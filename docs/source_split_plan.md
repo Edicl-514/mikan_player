@@ -489,14 +489,21 @@ BT 会话、HTTP/HLS 管线分别迁入 `lib/services/download/` 下的同库 pa
 全绿；20 个生产公开方法签名与拆分前逐项比对一致。
 
 ### Phase 3 generic_scraper
-- [ ] 3.1 目录/mod 骨架
-- [ ] 3.2 types
-- [ ] 3.3 matching + tests
-- [ ] 3.4 region / headers
-- [ ] 3.5 episode table / source config
-- [ ] 3.6 search_* 模块
-- [ ] 3.7 re-export
-- [ ] 3.8 cargo + 冒烟
+- [x] 3.1 目录/mod 骨架
+- [x] 3.2 types
+- [x] 3.3 matching + tests
+- [x] 3.4 region / headers
+- [x] 3.5 episode table / source config
+- [x] 3.6 search_* 模块
+- [x] 3.7 re-export
+- [x] 3.8 cargo + 冒烟
+
+实现说明：保留 `rust/src/api/generic_scraper.rs` 作为约 30 行的稳定门面，原实现按
+`types`、`matching`、`region`、`headers_cookies`、`episode_table`、`source_config`、
+`search_play`、`search_progress`、`search_channels` 九个职责模块下沉到同名目录；
+FRB 使用的公共函数与类型继续由原模块路径重导出。新增 matching、region、cookie
+合并和 episode table 选择逻辑单测；`cargo check` 与 `cargo test --lib` 通过（65 项
+通过，1 项 live-network 测试按原设置 ignored）。公共函数/类型名称集合与拆分前逐项一致。
 
 ### Phase 4 Rust API
 - [ ] 4a bangumi 模块化
