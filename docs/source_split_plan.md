@@ -458,7 +458,7 @@ Buffer:  Phase 6 + 7
 - [x] 1.4 search session coordinator
 - [x] 1.5 webview pool glue 收敛（既有 scheduler 已承担；本轮未再机械拆 UI）
 - [x] 1.6 autoplay coordinator（cancel-after-accept pure policy）
-- [ ] 1.7（可选）build section widgets — 暂缓，page 仍 ~6.1k 以 build 为主
+- [x] 1.7（可选）build section widgets — 已抽 section header / sort / actions / progress / onair / PC episode list；源控制条与 sample 大面板仍可后续再拆
 - [x] 1.8 清理与全量 player 测（`test/ui/pages/player/**` 全绿）
 
 ### Phase 2 Download

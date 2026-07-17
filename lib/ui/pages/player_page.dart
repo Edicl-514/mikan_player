@@ -25,9 +25,6 @@ import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_data_service.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/utils/source_channel_key.dart';
-import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
-import 'package:mikan_player/ui/widgets/site_icon_map.dart';
-
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/pages/player/player_source_helpers.dart';
 import 'package:mikan_player/ui/pages/player/player_episode_controller.dart';
@@ -45,6 +42,12 @@ import 'package:mikan_player/ui/pages/player/player_webview_scheduler.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_recommendations.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_resource_list.dart';
+import 'package:mikan_player/ui/pages/player/widgets/player_section_header.dart';
+import 'package:mikan_player/ui/pages/player/widgets/player_comment_sort_button.dart';
+import 'package:mikan_player/ui/pages/player/widgets/player_current_source_actions.dart';
+import 'package:mikan_player/ui/pages/player/widgets/player_source_progress_item.dart';
+import 'package:mikan_player/ui/pages/player/widgets/player_onair_sites_list.dart';
+import 'package:mikan_player/ui/pages/player/widgets/player_pc_episode_list.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_state_transitions.dart';
 
@@ -586,66 +589,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildCurrentSourceActionButtons({bool compact = false}) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final canAct =
         _playbackController.currentOnlineSource != null &&
         _playbackController.currentOnlineSource!.directVideoUrl != null;
-    final iconColor = isDark ? Colors.white : theme.colorScheme.onSurface;
-    final bg = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : theme.colorScheme.surfaceContainerHigh;
-    final border = isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.3);
-    final fontSize = compact ? 12.0 : 13.0;
-    final iconSize = compact ? 14.0 : 16.0;
-    final pad = compact
-        ? const EdgeInsets.symmetric(horizontal: 10, vertical: 6)
-        : const EdgeInsets.symmetric(horizontal: 12, vertical: 8);
-
-    Widget btn({
-      required IconData icon,
-      required String label,
-      required VoidCallback? onTap,
-    }) {
-      return Opacity(
-        opacity: canAct ? 1.0 : 0.4,
-        child: InkWell(
-          onTap: canAct ? onTap : null,
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: pad,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: border),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: iconSize, color: iconColor),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: iconColor,
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        btn(icon: Icons.download, label: "下载", onTap: _onDownloadCurrentSource),
-        const SizedBox(width: 8),
-        btn(icon: Icons.link, label: "复制下载链接", onTap: _onCopyCurrentSourceUrl),
-      ],
+    return PlayerCurrentSourceActions(
+      canAct: canAct,
+      compact: compact,
+      onDownload: _onDownloadCurrentSource,
+      onCopyUrl: _onCopyCurrentSourceUrl,
     );
   }
 
@@ -4316,127 +4267,11 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // --- Shared Components ---
 
   Widget _buildPCEpisodeList() {
-    // Vertical list for PC
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final cardColor = isDark
-        ? const Color(0xFF1E1E2C)
-        : theme.colorScheme.surfaceContainer;
-    final textColor = isDark ? Colors.white : theme.colorScheme.onSurface;
-    final subTextColor = isDark
-        ? Colors.white70
-        : theme.colorScheme.onSurfaceVariant;
-    final mutedTextColor = isDark
-        ? Colors.white54
-        : theme.colorScheme.onSurfaceVariant;
-    final faintTextColor = isDark
-        ? Colors.white24
-        : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7);
-    return Scrollbar(
-      controller: _pcEpisodeScrollController,
-      thumbVisibility: true,
-      child: ListView.separated(
-        shrinkWrap: true,
-        controller: _pcEpisodeScrollController,
-        padding: const EdgeInsets.only(right: 12), // space for scrollbar
-        itemCount: _episodeController.playableEpisodes.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
-        itemBuilder: (context, index) {
-          final ep = _episodeController.playableEpisodes[index];
-          final isSelected = ep == _episodeController.currentEpisode;
-          final epCardColor = isSelected
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
-              : cardColor;
-
-          return Container(
-            decoration: BoxDecoration(
-              color: epCardColor,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isSelected
-                    ? Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.5)
-                    : Colors.transparent,
-                width: 1,
-              ),
-            ),
-            child: InkWell(
-              onTap: () => _onEpisodeSelected(ep),
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(4),
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.primary
-                            : (isDark
-                                  ? Colors.white.withValues(alpha: 0.08)
-                                  : Colors.grey.withValues(alpha: 0.2)),
-                      ),
-                      child: Text(
-                        "${ep.sort % 1 == 0 ? ep.sort.toInt() : ep.sort}",
-                        style: TextStyle(
-                          color: isSelected
-                              ? (isDark ? Colors.black : Colors.white)
-                              : subTextColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (ep.nameCn.isNotEmpty)
-                            Text(
-                              ep.nameCn,
-                              style: TextStyle(
-                                color: isSelected
-                                    ? Theme.of(context).colorScheme.primary
-                                    : textColor,
-                                fontSize: 13,
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          if (ep.name.isNotEmpty)
-                            Text(
-                              ep.name,
-                              style: TextStyle(
-                                color: mutedTextColor,
-                                fontSize: 11,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (ep.airdate.isNotEmpty)
-                      Text(
-                        ep.airdate,
-                        style: TextStyle(color: faintTextColor, fontSize: 10),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+    return PlayerPcEpisodeList(
+      episodes: _episodeController.playableEpisodes,
+      currentEpisode: _episodeController.currentEpisode,
+      scrollController: _pcEpisodeScrollController,
+      onEpisodeSelected: _onEpisodeSelected,
     );
   }
 
@@ -4806,111 +4641,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildSortButton() {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return PopupMenuButton<String>(
+    return PlayerCommentSortButton(
+      sortMode: _sidePanelLoader.commentSortMode,
       onSelected: (value) {
         if (_sidePanelLoader.setCommentSortMode(value)) {
           setState(() {});
         }
       },
-      position: PopupMenuPosition.under,
-      color: isDark
-          ? const Color(0xFF1E1E2C)
-          : theme.colorScheme.surfaceContainer,
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'default',
-          child: Row(
-            children: [
-              Icon(
-                Icons.sort,
-                size: 18,
-                color: isDark ? Colors.white70 : Colors.grey,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                "默认排序",
-                style: TextStyle(
-                  color: isDark ? Colors.white : theme.colorScheme.onSurface,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'time',
-          child: Row(
-            children: [
-              Icon(
-                Icons.access_time,
-                size: 18,
-                color: isDark ? Colors.white70 : Colors.grey,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                "按时间排序",
-                style: TextStyle(
-                  color: isDark ? Colors.white : theme.colorScheme.onSurface,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.sort,
-            color: isDark ? Colors.white54 : Colors.grey,
-            size: 16,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            _sidePanelLoader.commentSortMode == 'default' ? "默认排序" : "按时间排序",
-            style: TextStyle(
-              color: isDark ? Colors.white54 : Colors.grey,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
   Widget _buildSectionHeader(String title, {Widget? trailing}) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 16,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primary,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            color: isDark ? Colors.white : theme.colorScheme.onSurface,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        if (trailing != null) ...[
-          const Spacer(),
-          trailing,
-        ] else ...[
-          const Spacer(),
-        ],
-      ],
-    );
+    return PlayerSectionHeader(title, trailing: trailing);
   }
 
   Widget _buildPlaySourceSelector({required bool isMobile}) {
@@ -5758,141 +5500,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     String sourceName,
     SourceSearchProgress? progress,
   ) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final pendingColor = isDark
-        ? Colors.white24
-        : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7);
-    final idleTextColor = isDark
-        ? Colors.white70
-        : theme.colorScheme.onSurfaceVariant;
-    final activeTextColor = isDark ? Colors.white : theme.colorScheme.onSurface;
-
-    // 根据状态决定图标和颜色
-    IconData icon;
-    Color iconColor;
-    String statusText;
-    String? errorText;
-
-    if (progress == null) {
-      icon = Icons.hourglass_empty;
-      iconColor = pendingColor;
-      statusText = '等待中';
-    } else {
-      switch (progress.step) {
-        case SearchStep.pending:
-          icon = Icons.hourglass_empty;
-          iconColor = pendingColor;
-          statusText = '等待中';
-          break;
-        case SearchStep.searching:
-          icon = Icons.search;
-          iconColor = theme.colorScheme.primary;
-          statusText = '搜索中...';
-          break;
-        case SearchStep.fetchingDetail:
-          icon = Icons.article_outlined;
-          iconColor = theme.colorScheme.primary;
-          statusText = '获取详情页...';
-          break;
-        case SearchStep.fetchingEpisodes:
-          icon = Icons.list_alt;
-          iconColor = theme.colorScheme.primary;
-          statusText = '获取剧集列表...';
-          break;
-        case SearchStep.extractingVideo:
-          icon = Icons.video_library;
-          iconColor = theme.colorScheme.primary;
-          statusText = '提取视频链接...';
-          break;
-        case SearchStep.success:
-          icon = Icons.check_circle;
-          iconColor = Colors.green;
-          statusText = progress.directVideoUrl != null ? '成功' : '找到播放页';
-          break;
-        case SearchStep.failed:
-          icon = Icons.error_outline;
-          iconColor = Colors.redAccent;
-          statusText = '失败';
-          errorText = progress.error;
-          break;
-      }
-    }
-
-    final isActive =
-        progress != null &&
-        progress.step != SearchStep.pending &&
-        progress.step != SearchStep.success &&
-        progress.step != SearchStep.failed;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: isActive
-            ? theme.colorScheme.primary.withValues(alpha: 0.08)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        children: [
-          // 状态图标
-          if (isActive)
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.5,
-                color: iconColor,
-              ),
-            )
-          else
-            Icon(icon, size: 14, color: iconColor),
-          const SizedBox(width: 8),
-          // 源名称
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        sourceName,
-                        style: TextStyle(
-                          color: isActive ? activeTextColor : idleTextColor,
-                          fontSize: 11,
-                          fontWeight: isActive
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      statusText,
-                      style: TextStyle(color: iconColor, fontSize: 10),
-                    ),
-                  ],
-                ),
-                // 显示错误信息
-                if (errorText != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      errorText,
-                      style: const TextStyle(
-                        color: Colors.redAccent,
-                        fontSize: 9,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return PlayerSourceProgressItem(
+      sourceName: sourceName,
+      progress: progress,
     );
   }
 
@@ -6314,79 +5924,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   }
 
   Widget _buildOnairSitesList() {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final fallbackColor = isDark ? Colors.white24 : Colors.grey[400]!;
-    final cardColor = isDark
-        ? Colors.white.withValues(alpha: 0.05)
-        : Colors.grey[100];
-    final borderColor = isDark ? Colors.white10 : Colors.grey[300]!;
-    final sites = _sidePanelLoader.onairSites;
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (var i = 0; i < sites.length; i++) ...[
-            if (i > 0) const SizedBox(width: 12),
-            GestureDetector(
-              onTap: () => launchBangumiSiteUrl(sites[i].url),
-              child: SizedBox(
-                width: 112,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: borderColor),
-                      ),
-                      child: _buildOnairSiteIcon(
-                        sites[i].site,
-                        fallbackColor,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      sites[i].title,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: (isDark ? Colors.white : Colors.black87)
-                            .withValues(alpha: 0.9),
-                        fontWeight: FontWeight.w500,
-                        height: 1.3,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOnairSiteIcon(String siteKey, Color fallbackColor) {
-    final assetPath = siteIconAssetPath(siteKey);
-    if (assetPath == null) {
-      return Icon(Icons.public, color: fallbackColor, size: 36);
-    }
-    return Image.asset(
-      assetPath,
-      width: 80,
-      height: 80,
-      fit: BoxFit.contain,
-      errorBuilder: (_, _, _) =>
-          Icon(Icons.public, color: fallbackColor, size: 36),
-    );
+    return PlayerOnairSitesList(sites: _sidePanelLoader.onairSites);
   }
 
   void _markUserInteraction() {
