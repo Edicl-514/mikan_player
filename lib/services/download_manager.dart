@@ -10,6 +10,7 @@ import 'package:mikan_player/services/download/download_queue.dart';
 import 'package:mikan_player/services/download/download_task.dart';
 import 'package:mikan_player/services/download/download_task_store.dart';
 import 'package:mikan_player/services/download/http_download_job.dart';
+import 'package:mikan_player/services/download/http_download_retry.dart';
 import 'package:mikan_player/services/download/http_file_download_port.dart';
 import 'package:mikan_player/services/download/libtorrent_backend.dart';
 import 'package:mikan_player/services/download/m3u8_downloader.dart';
@@ -1500,14 +1501,16 @@ class DownloadManager extends ChangeNotifier {
     return normalizedPath.contains('.m3u8');
   }
 
-  Future<void> _downloadM3u8File(
+  Future<HttpDownloadJobResult> _downloadM3u8File(
     DownloadTask task, {
     required int runGeneration,
   }) async {
-    if (task.videoUrl == null) return;
+    if (task.videoUrl == null) {
+      return const HttpDownloadJobResult(HttpDownloadJobOutcome.removed);
+    }
     _syncAndroidDownloadService();
 
-    final result = await runM3u8Download(
+    return runM3u8Download(
       task: task,
       m3u8Port: _m3u8Port,
       httpPort: _httpPort,
@@ -1532,23 +1535,6 @@ class DownloadManager extends ChangeNotifier {
           _tasks.containsKey(task.id) &&
           _httpRunGeneration[task.id] == runGeneration,
     );
-
-    if (result.outcome == HttpDownloadJobOutcome.paused) {
-      // A late pause result from a superseded run must not re-pause a task
-      // that the user has already resumed (status back to downloading).
-      if (identical(_tasks[task.id], task) &&
-          _httpRunGeneration[task.id] == runGeneration &&
-          task.status != DownloadTaskStatus.downloading &&
-          task.status != DownloadTaskStatus.queued) {
-        _pausedTaskIds.add(task.id);
-      }
-    }
-    if (_tasks.containsKey(task.id) &&
-        _httpRunGeneration[task.id] == runGeneration) {
-      await _saveTasks();
-      notifyListeners();
-      _syncAndroidDownloadService();
-    }
   }
 
   Future<void> _downloadHttpFile(DownloadTask task) async {
@@ -1605,40 +1591,110 @@ class DownloadManager extends ChangeNotifier {
           notifyListeners();
         }
 
-        if (_isM3u8Url(url)) {
-          await _downloadM3u8File(task, runGeneration: runGeneration);
-          return;
-        }
-
-        final result = await runHttpFileDownload(
-          task: task,
-          httpPort: _httpPort,
-          throttle: _throttleHttpChunk,
-          isCancelled: () =>
-              (_httpDownloadJobs[task.id]?.cancelled ?? false) ||
-              task.status == DownloadTaskStatus.paused ||
-              _pausedTaskIds.contains(task.id) ||
-              _httpRunGeneration[task.id] != runGeneration,
-          registerJob: (job) => _httpDownloadJobs[task.id] = job,
-          clearJob: () {
-            if (_httpRunGeneration[task.id] == runGeneration) {
-              _httpDownloadJobs.remove(task.id);
-            }
-          },
-          onProgress: notifyListeners,
-          isTaskStillTracked: () =>
-              _tasks.containsKey(task.id) &&
-              _httpRunGeneration[task.id] == runGeneration,
-        );
-
-        if (result.outcome == HttpDownloadJobOutcome.paused) {
-          if (identical(_tasks[task.id], task) &&
-              _httpRunGeneration[task.id] == runGeneration &&
-              task.status != DownloadTaskStatus.downloading &&
-              task.status != DownloadTaskStatus.queued) {
-            _pausedTaskIds.add(task.id);
+        // Auto-retry transient network failures in-process so a blip does not
+        // force the user to delete and re-add the task. Permanent 4xx failures
+        // (after header-strategy fallback) still surface as error immediately.
+        // Manual resume via resumeTask remains available for any error.
+        var autoAttempt = 0;
+        while (true) {
+          if (!identical(_tasks[task.id], task) ||
+              _removedTaskIds.contains(task.id) ||
+              _httpRunGeneration[task.id] != runGeneration ||
+              (task.status != DownloadTaskStatus.downloading &&
+                  task.status != DownloadTaskStatus.queued)) {
+            return;
           }
+          if (task.status == DownloadTaskStatus.queued) {
+            task.status = DownloadTaskStatus.downloading;
+            await _saveTasks();
+            notifyListeners();
+          }
+
+          final HttpDownloadJobResult result;
+          if (_isM3u8Url(url)) {
+            result = await _downloadM3u8File(
+              task,
+              runGeneration: runGeneration,
+            );
+          } else {
+            result = await runHttpFileDownload(
+              task: task,
+              httpPort: _httpPort,
+              throttle: _throttleHttpChunk,
+              isCancelled: () =>
+                  (_httpDownloadJobs[task.id]?.cancelled ?? false) ||
+                  task.status == DownloadTaskStatus.paused ||
+                  _pausedTaskIds.contains(task.id) ||
+                  _httpRunGeneration[task.id] != runGeneration,
+              registerJob: (job) => _httpDownloadJobs[task.id] = job,
+              clearJob: () {
+                if (_httpRunGeneration[task.id] == runGeneration) {
+                  _httpDownloadJobs.remove(task.id);
+                }
+              },
+              onProgress: notifyListeners,
+              isTaskStillTracked: () =>
+                  _tasks.containsKey(task.id) &&
+                  _httpRunGeneration[task.id] == runGeneration,
+            );
+          }
+
+          if (result.outcome == HttpDownloadJobOutcome.paused) {
+            if (identical(_tasks[task.id], task) &&
+                _httpRunGeneration[task.id] == runGeneration &&
+                task.status != DownloadTaskStatus.downloading &&
+                task.status != DownloadTaskStatus.queued) {
+              _pausedTaskIds.add(task.id);
+            }
+            break;
+          }
+
+          if (result.outcome != HttpDownloadJobOutcome.error) {
+            break;
+          }
+
+          final errorText = result.errorMessage ?? task.errorMessage ?? '';
+          final canAutoRetry =
+              autoAttempt < kHttpDownloadMaxAutoRetries &&
+              isTransientHttpDownloadError(errorText) &&
+              identical(_tasks[task.id], task) &&
+              _httpRunGeneration[task.id] == runGeneration &&
+              !_pausedTaskIds.contains(task.id) &&
+              task.status != DownloadTaskStatus.paused;
+          if (!canAutoRetry) {
+            break;
+          }
+
+          final delay = httpDownloadAutoRetryDelay(autoAttempt);
+          autoAttempt++;
+          debugPrint(
+            '[DownloadManager] Transient HTTP failure for ${task.name} '
+            '($errorText); auto-retry $autoAttempt/'
+            '$kHttpDownloadMaxAutoRetries in ${delay.inSeconds}s',
+          );
+          task.status = DownloadTaskStatus.downloading;
+          task.errorMessage =
+              '网络中断，${delay.inSeconds}s 后自动重试 '
+              '($autoAttempt/$kHttpDownloadMaxAutoRetries)';
+          task.downloadSpeed = 0;
+          await _saveTasks();
+          notifyListeners();
+
+          // Use the injectable sleeper so tests can compress backoff without
+          // wall-clock waits, matching throttle / stream-restore seams.
+          await _sleep(delay);
+          if (!identical(_tasks[task.id], task) ||
+              _removedTaskIds.contains(task.id) ||
+              _httpRunGeneration[task.id] != runGeneration ||
+              _pausedTaskIds.contains(task.id) ||
+              task.status == DownloadTaskStatus.paused) {
+            return;
+          }
+          task.errorMessage = null;
+          task.status = DownloadTaskStatus.downloading;
+          notifyListeners();
         }
+
         if (_tasks.containsKey(task.id) &&
             _httpRunGeneration[task.id] == runGeneration) {
           await _saveTasks();
@@ -1950,8 +2006,13 @@ class DownloadManager extends ChangeNotifier {
     }
   }
 
-  /// Resume a paused download task
-  /// Uses the backend pause/unpause path when possible. If the app was
+  /// Resume a paused download task, or retry a failed HTTP download.
+  ///
+  /// HTTP/HLS: works for both [DownloadTaskStatus.paused] and
+  /// [DownloadTaskStatus.error]. Partial bytes / HLS segment checkpoints are
+  /// kept so a network blip does not force a full re-download.
+  ///
+  /// BT: uses the backend pause/unpause path when possible. If the app was
   /// restarted and the paused torrent is no longer in the backend session,
   /// it falls back to restarting the torrent from the saved magnet link.
   Future<bool> resumeTask(String id) async {
@@ -1959,10 +2020,17 @@ class DownloadManager extends ChangeNotifier {
 
     final task = _tasks[id]!;
 
-    // HTTP tasks resume in place. Plain files use a byte Range request and
-    // HLS skips completed segments; neither path deletes a valid partial
-    // file before it has had a chance to resume.
+    // HTTP tasks resume / retry in place. Plain files use a byte Range
+    // request and HLS skips completed segments; neither path deletes a
+    // valid partial file before it has had a chance to resume.
     if (task.taskType == DownloadTaskType.http) {
+      if (task.status != DownloadTaskStatus.paused &&
+          task.status != DownloadTaskStatus.error &&
+          task.status != DownloadTaskStatus.queued) {
+        // Already running (or completed/seeding) — nothing to resume.
+        if (task.status == DownloadTaskStatus.downloading) return true;
+        return false;
+      }
       _pausedTaskIds.remove(id);
       task.status = DownloadTaskStatus.downloading;
       task.downloadSpeed = 0;

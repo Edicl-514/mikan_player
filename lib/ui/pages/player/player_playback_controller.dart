@@ -270,6 +270,11 @@ class PlayerPlaybackController {
 
   /// Builds the browser-context headers historically used for online playback
   /// and downloading. It never mutates [source.headers].
+  ///
+  /// Always supplies a fallback UA and, when missing, the play-page Referer.
+  /// Download jobs additionally walk a header-strategy fallback chain (see
+  /// `http_header_strategies.dart`) so CDNs that ACL-deny a foreign Referer
+  /// still succeed without a host denylist.
   static Map<String, String> buildPlaybackHeaders(SearchPlayResult source) {
     final headers = <String, String>{
       if (source.headers != null) ...source.headers!,

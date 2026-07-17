@@ -577,11 +577,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       return;
     }
 
-    // Download with the same browser context used for playback. In
-    // particular, `PlayerPlaybackController.buildPlaybackHeaders` supplies
-    // the fallback UA and Referer that a raw extraction result may not
-    // contain; omitting them is enough for some CDN anti-hotlink checks to
-    // return 403 even though the video can play in-app.
+    // Start from the playback browser context (UA + play-page Referer). The
+    // download job walks a header-strategy fallback chain on 403/401 so CDNs
+    // that ACL-deny a foreign Referer still succeed without a host denylist.
     final headers = PlayerPlaybackController.buildPlaybackHeaders(source);
 
     final episodeName = _episodeController.currentEpisode.nameCn.isNotEmpty

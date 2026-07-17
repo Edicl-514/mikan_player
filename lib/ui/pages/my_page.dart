@@ -1197,7 +1197,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Pause/Resume button
+        // Pause / Resume / Retry button
         if (task.status == DownloadTaskStatus.downloading ||
             task.status == DownloadTaskStatus.metadata ||
             task.status == DownloadTaskStatus.checking ||
@@ -1216,10 +1216,19 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
               }
             },
           )
-        else if (task.status == DownloadTaskStatus.paused)
+        else if (task.status == DownloadTaskStatus.paused ||
+            task.status == DownloadTaskStatus.error)
           IconButton(
-            icon: const Icon(Icons.play_arrow, size: 20, color: Colors.green),
-            tooltip: AppLocalizations.of(context).resume,
+            icon: Icon(
+              task.status == DownloadTaskStatus.error
+                  ? Icons.refresh
+                  : Icons.play_arrow,
+              size: 20,
+              color: Colors.green,
+            ),
+            tooltip: task.status == DownloadTaskStatus.error
+                ? AppLocalizations.of(context).retry
+                : AppLocalizations.of(context).resume,
             onPressed: () async {
               final success = await _downloadManager.resumeTask(task.id);
               if (mounted && !success) {

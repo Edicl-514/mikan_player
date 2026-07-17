@@ -32,6 +32,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:mikan_player/services/download/http_file_download_port.dart';
+
 /// Result of parsing a single m3u8 playlist text via
 /// [parseM3u8Playlist].
 ///
@@ -221,13 +223,14 @@ class IoM3u8PlaylistPort implements M3u8PlaylistPort {
     Map<String, String>? headers,
     String? cookies,
   ) {
-    if (headers != null) {
-      for (final entry in headers.entries) {
-        request.headers.set(entry.key, entry.value);
-      }
-    }
-    if (cookies != null && cookies.isNotEmpty) {
-      request.headers.set(HttpHeaders.cookieHeader, cookies);
+    // Same normalisation as plain-file downloads: drop hop-by-hop / internal
+    // headers captured from WebView intercepts, and merge task cookies.
+    final effectiveHeaders = normalizeHttpRequestHeaders(
+      headers,
+      cookies: cookies,
+    );
+    for (final entry in effectiveHeaders.entries) {
+      request.headers.set(entry.key, entry.value);
     }
   }
 }

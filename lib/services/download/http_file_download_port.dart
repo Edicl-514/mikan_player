@@ -140,14 +140,44 @@ class IoHttpFileDownloadPort implements HttpFileDownloadPort {
     Map<String, String>? headers,
     String? cookies,
   ) {
+    // Capture intentional Range before normalisation. Captured WebView
+    // Range is stripped by the job / HLS callers; resume re-adds it on
+    // purpose and must survive the hop-by-hop denylist.
+    final intentionalRange = _findHeaderValue(headers, 'range');
     final effectiveHeaders = normalizeHttpRequestHeaders(
       headers,
       cookies: cookies,
     );
+    if (intentionalRange != null) {
+      effectiveHeaders['Range'] = intentionalRange;
+    }
     for (final entry in effectiveHeaders.entries) {
       request.headers.set(entry.key, entry.value);
     }
   }
+
+  static String? _findHeaderValue(Map<String, String>? headers, String name) {
+    if (headers == null) return null;
+    final target = name.toLowerCase();
+    for (final entry in headers.entries) {
+      if (entry.key.trim().toLowerCase() != target) continue;
+      final value = entry.value.trim();
+      if (value.isNotEmpty) return value;
+    }
+    return null;
+  }
+}
+
+/// Returns a copy of [headers] without any `Range` entry. Used by full-file
+/// and HLS paths so a captured WebView partial request is never replayed.
+Map<String, String>? headersWithoutHttpRange(Map<String, String>? headers) {
+  if (headers == null) return null;
+  final result = <String, String>{};
+  for (final entry in headers.entries) {
+    if (entry.key.trim().toLowerCase() == 'range') continue;
+    result[entry.key] = entry.value;
+  }
+  return result;
 }
 
 /// Makes captured browser headers safe and deterministic for a new
@@ -160,6 +190,13 @@ class IoHttpFileDownloadPort implements HttpFileDownloadPort {
 /// through the separately persisted [cookies] field; keep the cookie captured
 /// from the actual media request as the primary value and add only missing
 /// configured cookies behind it.
+///
+/// Captured WebView request headers often also include hop-by-hop fields,
+/// conditional validators, Accept-Encoding, and internal extractor flags.
+/// Replaying those on a fresh `dart:io` GET is a common reason a URL plays
+/// (media_kit / proxy path does not forward the full capture) but the
+/// download path returns HTTP 403. Drop those non-replayable headers here
+/// so every download/probe client sees the same safe browser context.
 Map<String, String> normalizeHttpRequestHeaders(
   Map<String, String>? headers, {
   String? cookies,
@@ -174,6 +211,7 @@ Map<String, String> normalizeHttpRequestHeaders(
       if (rawKey.isEmpty || value.isEmpty) continue;
 
       final key = _canonicalHttpHeaderName(rawKey);
+      if (_shouldDropHttpRequestHeader(key)) continue;
       if (key == 'Cookie') {
         // Later entries are closer to the final captured request, so they
         // take precedence for duplicate cookie names.
@@ -189,6 +227,41 @@ Map<String, String> normalizeHttpRequestHeaders(
     normalized['Cookie'] = mergedCookies;
   }
   return normalized;
+}
+
+/// Headers that must not be replayed onto a fresh download/probe request.
+///
+/// Kept as a pure helper so tests can pin the denylist without spinning up
+/// an [HttpClient]. Names are already canonicalised by
+/// [_canonicalHttpHeaderName] / compared case-insensitively.
+bool _shouldDropHttpRequestHeader(String key) {
+  final lower = key.toLowerCase();
+  if (lower.startsWith('x-opencode-')) return true;
+  if (lower.startsWith('sec-fetch-')) return true;
+  if (lower.startsWith('sec-ch-')) return true;
+  if (lower.startsWith('proxy-')) return true;
+  return switch (lower) {
+    'host' ||
+    'connection' ||
+    'keep-alive' ||
+    'te' ||
+    'trailer' ||
+    'transfer-encoding' ||
+    'upgrade' ||
+    'content-length' ||
+    'content-type' ||
+    'accept-encoding' ||
+    'if-match' ||
+    'if-none-match' ||
+    'if-modified-since' ||
+    'if-unmodified-since' ||
+    'if-range' ||
+    // Drop captured WebView Range so full / HLS downloads request the whole
+    // resource. Resume re-injects Range after normalisation via the port's
+    // intentional-range path (job layer adds `Range: bytes=N-`).
+    'range' => true,
+    _ => false,
+  };
 }
 
 /// Combines two request `Cookie` values without letting an older fallback

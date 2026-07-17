@@ -210,7 +210,11 @@ void main() {
           contentLength: 12,
           startException: Exception('HTTP 500'),
         );
-        final localManager = DownloadManager.forTesting(httpPort: port500);
+        // Compress auto-retry backoff so this characterization stays fast.
+        final localManager = DownloadManager.forTesting(
+          httpPort: port500,
+          sleep: (_) async {},
+        );
         localManager.setDownloadDirForTesting(tempRoot.path);
         localManager.seedHttpTaskForTesting(task);
         try {
@@ -219,6 +223,8 @@ void main() {
 
           expect(task.status, DownloadTaskStatus.error);
           expect(task.errorMessage, contains('500'));
+          // Auto-retry walks the full 3-attempt budget for 5xx.
+          expect(port500.startCallCount, 4);
           expect(outFile.existsSync(), isFalse);
         } finally {
           localManager.dispose();
@@ -228,30 +234,182 @@ void main() {
   });
 
   group('DownloadManager HTTP headers + cookies', () {
-    test('start receives the task headers and cookies verbatim', () async {
-      final outFile = File('${tempRoot.path}/with_headers.mp4');
-      final headers = {
-        'Range': 'bytes=0-',
-        'User-Agent': 'MikanPlayer/1.2 (Linux)',
-        'Referer': 'https://source.example.com/embed',
-      };
+    test(
+      'start receives task headers/cookies and strips a captured Range on a full download',
+      () async {
+        final outFile = File('${tempRoot.path}/with_headers.mp4');
+        // WebView intercept of a media request often captures Range:
+        // bytes=0-... A full download must not replay that partial request.
+        final headers = {
+          'Range': 'bytes=0-',
+          'User-Agent': 'MikanPlayer/1.2 (Linux)',
+          'Referer': 'https://source.example.com/embed',
+        };
+        final task = buildTask(
+          localFilePath: outFile.path,
+          headers: headers,
+          cookies: 'session=abc-123; token=xyz',
+        );
+        manager.seedHttpTaskForTesting(task);
+
+        final downloadFuture = manager.downloadHttpFileForTesting(task);
+        await pumpToAwaitFor();
+
+        expect(fake.startCallCount, 1);
+        expect(fake.lastUrl, Uri.parse('https://example.com/episode.mp4'));
+        expect(fake.lastHeaders, {
+          'User-Agent': 'MikanPlayer/1.2 (Linux)',
+          'Referer': 'https://source.example.com/embed',
+        });
+        expect(fake.lastHeaders, isNot(contains('Range')));
+        expect(fake.lastCookies, 'session=abc-123; token=xyz');
+
+        fake.done();
+        await downloadFuture;
+      },
+    );
+
+    test(
+      'falls back to a no-Referer strategy after HTTP 403 and pins the winner',
+      () async {
+        final outFile = File('${tempRoot.path}/strategy_fallback.mp4');
+        final fallbackFake = FakeHttpFileDownloadPort(
+          startExceptionsByCall: [Exception('HTTP 403'), null],
+        );
+        final localManager = DownloadManager.forTesting(httpPort: fallbackFake);
+        localManager.setDownloadDirForTesting(tempRoot.path);
+        try {
+          final task = buildTask(
+            localFilePath: outFile.path,
+            headers: {
+              'User-Agent': 'ua-1',
+              'Referer': 'https://play.example/watch',
+              'Origin': 'https://play.example',
+            },
+          );
+          localManager.seedHttpTaskForTesting(task);
+
+          final downloadFuture = localManager.downloadHttpFileForTesting(task);
+          await pumpToAwaitFor();
+
+          expect(fallbackFake.startCallCount, 2);
+          expect(fallbackFake.allHeaders[0], {
+            'User-Agent': 'ua-1',
+            'Referer': 'https://play.example/watch',
+            'Origin': 'https://play.example',
+          });
+          expect(fallbackFake.allHeaders[1], {
+            'User-Agent': 'ua-1',
+            'Origin': 'https://play.example',
+          });
+          // Winning strategy is pinned for resume / retries.
+          expect(task.headers, {
+            'User-Agent': 'ua-1',
+            'Origin': 'https://play.example',
+          });
+
+          fallbackFake.emit([1, 2, 3]);
+          fallbackFake.done();
+          await downloadFuture;
+          expect(task.status, DownloadTaskStatus.completed);
+        } finally {
+          localManager.dispose();
+        }
+      },
+    );
+
+    test('does not header-fallback on HTTP 404', () async {
+      final outFile = File('${tempRoot.path}/no_fallback_404.mp4');
+      final port404 = FakeHttpFileDownloadPort(
+        startException: Exception('HTTP 404'),
+      );
+      final localManager = DownloadManager.forTesting(httpPort: port404);
+      localManager.setDownloadDirForTesting(tempRoot.path);
+      try {
+        final task = buildTask(
+          localFilePath: outFile.path,
+          headers: {
+            'User-Agent': 'ua-1',
+            'Referer': 'https://play.example/watch',
+          },
+        );
+        localManager.seedHttpTaskForTesting(task);
+        await localManager.downloadHttpFileForTesting(task);
+        expect(port404.startCallCount, 1);
+        expect(task.status, DownloadTaskStatus.error);
+        expect(task.errorMessage, contains('404'));
+      } finally {
+        localManager.dispose();
+      }
+    });
+
+    test(
+      'auto-retries a transient open failure then completes without delete',
+      () async {
+        final outFile = File('${tempRoot.path}/auto_retry.mp4');
+        final retryFake = FakeHttpFileDownloadPort(
+          startExceptionsByCall: [
+            Exception('SocketException: Connection reset by peer'),
+            null,
+          ],
+        );
+        final localManager = DownloadManager.forTesting(
+          httpPort: retryFake,
+          sleep: (_) async {},
+        );
+        localManager.setDownloadDirForTesting(tempRoot.path);
+        try {
+          final task = buildTask(localFilePath: outFile.path);
+          localManager.seedHttpTaskForTesting(task);
+
+          final downloadFuture = localManager.downloadHttpFileForTesting(task);
+          await pumpToAwaitFor();
+          // After the first failure the manager sleeps (compressed to zero)
+          // and restarts; pump again for the second open.
+          await pumpToAwaitFor();
+
+          expect(retryFake.startCallCount, greaterThanOrEqualTo(2));
+          retryFake.emit([9, 9, 9]);
+          retryFake.done();
+          await downloadFuture;
+
+          expect(task.status, DownloadTaskStatus.completed);
+          expect(await outFile.readAsBytes(), [9, 9, 9]);
+        } finally {
+          localManager.dispose();
+        }
+      },
+    );
+
+    test('resumeTask restarts a failed HTTP task in place', () async {
+      final outFile = File('${tempRoot.path}/manual_retry.mp4')
+        ..writeAsBytesSync([1, 2, 3]);
       final task = buildTask(
         localFilePath: outFile.path,
-        headers: headers,
-        cookies: 'session=abc-123; token=xyz',
+        status: DownloadTaskStatus.error,
       );
+      task.errorMessage = 'SocketException: Connection reset';
+      task.downloaded = BigInt.from(3);
       manager.seedHttpTaskForTesting(task);
 
-      final downloadFuture = manager.downloadHttpFileForTesting(task);
+      final ok = await manager.resumeTask(task.id);
+      expect(ok, isTrue);
+      expect(task.status, DownloadTaskStatus.downloading);
+      expect(task.errorMessage, isNull);
+
       await pumpToAwaitFor();
-
       expect(fake.startCallCount, 1);
-      expect(fake.lastUrl, Uri.parse('https://example.com/episode.mp4'));
-      expect(fake.lastHeaders, headers);
-      expect(fake.lastCookies, 'session=abc-123; token=xyz');
-
+      // Resume from existing partial bytes.
+      expect(fake.lastHeaders?['Range'], 'bytes=3-');
+      fake.emit([4, 5]);
       fake.done();
-      await downloadFuture;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // Wait for the background download body started by resumeTask.
+      for (var i = 0; i < 20; i++) {
+        if (task.status == DownloadTaskStatus.completed) break;
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(task.status, DownloadTaskStatus.completed);
     });
   });
 

@@ -22,6 +22,8 @@ void main() {
       );
       final probeHeaders = PlayerPlaybackController.buildProbeHeaders(source);
 
+      // Playback/download base headers keep the captured Referer; download
+      // jobs walk a strategy fallback chain when a CDN ACL-denies it.
       expect(playbackHeaders, <String, String>{
         'useragent': 'source-agent',
         'referer': 'https://source.example/watch',
@@ -64,6 +66,41 @@ void main() {
       expect(proxied.playbackUrl, contains('127.0.0.1/proxy'));
       expect(proxyCalls, 1);
     });
+
+    test(
+      'injects play-page Referer when missing; keeps captured Referer otherwise',
+      () {
+        final missing = PlayerPlaybackController.buildPlaybackHeaders(
+          _source(
+            directUrl: 'https://cdn.example/video.mp4',
+            headers: const <String, String>{},
+          ),
+        );
+        expect(missing['Referer'], 'https://play.example/watch');
+        expect(
+          missing['User-Agent'],
+          PlayerPlaybackController.defaultUserAgent,
+        );
+
+        final captured = PlayerPlaybackController.buildPlaybackHeaders(
+          _source(
+            directUrl: 'https://v6.douyinvod.com/path/video.mp4?filename=1.mp4',
+            headers: const <String, String>{
+              'Referer': 'https://play.example/watch',
+              'Origin': 'https://play.example',
+            },
+          ),
+        );
+        // Base headers keep Referer; download-side strategy fallback strips
+        // it after a 403 without needing a host denylist.
+        expect(captured['Referer'], 'https://play.example/watch');
+        expect(captured['Origin'], 'https://play.example');
+        expect(
+          captured['User-Agent'],
+          PlayerPlaybackController.defaultUserAgent,
+        );
+      },
+    );
 
     test('selects only Tier-0 candidates and owns selected source index', () {
       final controller = PlayerPlaybackController();

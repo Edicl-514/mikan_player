@@ -12,6 +12,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:mikan_player/services/download/download_task.dart';
 import 'package:mikan_player/services/download/http_file_download_port.dart';
+import 'package:mikan_player/services/download/http_header_strategies.dart';
 
 /// Tracks an in-flight HTTP (or HLS-segment) write so pause/remove can abort.
 class ActiveHttpDownload {
@@ -87,11 +88,26 @@ Future<HttpDownloadJobResult> runHttpFileDownload({
       } catch (_) {}
     }
 
-    handle = await httpPort.start(
+    // Try header strategies until one opens a 2xx response. CDNs disagree on
+    // whether a play-page Referer is required or forbidden; a host denylist
+    // cannot keep up, so a short ordered fallback covers both.
+    handle = await _startHttpDownloadWithHeaderFallback(
+      httpPort: httpPort,
+      task: task,
       url: uri,
-      headers: _headersForHttpDownload(task.headers, resumeFrom: existingBytes),
-      cookies: task.cookies,
+      resumeFrom: existingBytes,
+      isCancelled: isCancelled,
+      isTaskStillTracked: isTaskStillTracked,
     );
+    if (handle == null) {
+      // Cancelled / removed while the open was in flight, or every strategy
+      // was abandoned after a cancel check. `_start…` already closed any
+      // transient handle it opened.
+      if (!isTaskStillTracked()) {
+        return const HttpDownloadJobResult(HttpDownloadJobOutcome.removed);
+      }
+      return _cancelledHttpDownloadResult(task);
+    }
 
     // A pause/remove can happen while the asynchronous HTTP connection is
     // opening, before an ActiveHttpDownload is registered for cancellation.
@@ -229,6 +245,69 @@ Future<HttpDownloadJobResult> runHttpFileDownload({
   }
 }
 
+/// Opens [url] with each header strategy until one succeeds.
+///
+/// On a retryable non-2xx (typically 403 referer ACL), the next strategy is
+/// tried. The winning header map is written back to [task.headers] so a later
+/// resume / HLS segment reuses it. Returns `null` when the task was cancelled
+/// or removed mid-open (caller maps that to paused/removed).
+Future<HttpFileDownloadHandle?> _startHttpDownloadWithHeaderFallback({
+  required HttpFileDownloadPort httpPort,
+  required DownloadTask task,
+  required Uri url,
+  required int resumeFrom,
+  required bool Function() isCancelled,
+  required bool Function() isTaskStillTracked,
+}) async {
+  final strategies = buildHttpDownloadHeaderStrategies(task.headers);
+  Object? lastError;
+
+  for (var i = 0; i < strategies.length; i++) {
+    if (!isTaskStillTracked()) return null;
+    if (isCancelled()) return null;
+
+    final strategy = strategies[i];
+    try {
+      final handle = await httpPort.start(
+        url: url,
+        headers: _headersForHttpDownload(
+          strategy.headers,
+          resumeFrom: resumeFrom,
+        ),
+        cookies: task.cookies,
+      );
+      if (i > 0 || !identical(strategy.headers, task.headers)) {
+        // Pin the strategy that actually opened so resume / retries do not
+        // re-walk a failing policy. Also pin on the first strategy when it
+        // is a de-duplicated rewrite of the original map.
+        task.headers = strategy.headers == null
+            ? null
+            : Map<String, String>.from(strategy.headers!);
+      }
+      if (i > 0) {
+        debugPrint(
+          '[DownloadManager] HTTP open succeeded with header strategy '
+          '${strategy.id.name} after $i failure(s): ${task.name}',
+        );
+      }
+      return handle;
+    } catch (e) {
+      lastError = e;
+      final canRetry =
+          isRetryableHttpHeaderStatusError(e) && i < strategies.length - 1;
+      if (!canRetry) rethrow;
+      debugPrint(
+        '[DownloadManager] HTTP open failed with strategy '
+        '${strategy.id.name} ($e); trying next header strategy for ${task.name}',
+      );
+    }
+  }
+
+  // Unreachable: the loop either returns, rethrows, or exhausts with rethrow
+  // on the last strategy. Keep a defensive throw for analyzer exhaustiveness.
+  throw lastError ?? Exception('HTTP open failed with no strategies');
+}
+
 HttpDownloadJobResult _cancelledHttpDownloadResult(DownloadTask task) {
   // A newer generation may already have changed the status back to
   // downloading. Its predecessor must not turn the resumed task back into a
@@ -248,10 +327,15 @@ Map<String, String>? _headersForHttpDownload(
   Map<String, String>? headers, {
   required int resumeFrom,
 }) {
-  if (resumeFrom <= 0) return headers;
+  // Always rebuild so a captured WebView `Range` never leaks into a full
+  // download. Resume is the only path that may send Range, and it is applied
+  // after any residual Range keys are stripped.
+  if (headers == null && resumeFrom <= 0) return null;
   final result = <String, String>{...?headers};
   result.removeWhere((key, _) => key.trim().toLowerCase() == 'range');
-  result['Range'] = 'bytes=$resumeFrom-';
+  if (resumeFrom > 0) {
+    result['Range'] = 'bytes=$resumeFrom-';
+  }
   return result;
 }
 

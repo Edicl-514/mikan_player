@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:mikan_player/services/download/download_task.dart';
 import 'package:mikan_player/services/download/http_download_job.dart';
 import 'package:mikan_player/services/download/http_file_download_port.dart';
+import 'package:mikan_player/services/download/http_header_strategies.dart';
 import 'package:mikan_player/services/download/m3u8_playlist_port.dart';
 
 /// Resolves a (possibly nested master) playlist into ordered segment URIs.
@@ -24,29 +25,59 @@ Future<List<Uri>> resolveHlsSegments({
   Map<String, String>? headers,
   String? cookies,
   int depth = 0,
+  void Function(Map<String, String>? winningHeaders)? onWinningHeaders,
 }) async {
   if (depth > 4) {
     throw Exception('m3u8层级过深，无法解析');
   }
 
-  final content = await m3u8Port.fetchText(
-    url: playlistUri,
-    headers: headers,
-    cookies: cookies,
-  );
-  final parsed = parseM3u8Playlist(content, playlistUri);
+  final strategies = buildHttpDownloadHeaderStrategies(headers);
+  Object? lastError;
+  for (var i = 0; i < strategies.length; i++) {
+    final strategy = strategies[i];
+    try {
+      final content = await m3u8Port.fetchText(
+        url: playlistUri,
+        headers: headersWithoutHttpRange(strategy.headers),
+        cookies: cookies,
+      );
+      if (i > 0) {
+        debugPrint(
+          '[DownloadManager] HLS playlist open succeeded with header strategy '
+          '${strategy.id.name} after $i failure(s)',
+        );
+      }
+      onWinningHeaders?.call(
+        strategy.headers == null
+            ? null
+            : Map<String, String>.from(strategy.headers!),
+      );
+      final parsed = parseM3u8Playlist(content, playlistUri);
 
-  if (parsed is M3u8MasterPlaylist) {
-    return resolveHlsSegments(
-      m3u8Port: m3u8Port,
-      playlistUri: parsed.variants.first.uri,
-      headers: headers,
-      cookies: cookies,
-      depth: depth + 1,
-    );
+      if (parsed is M3u8MasterPlaylist) {
+        return resolveHlsSegments(
+          m3u8Port: m3u8Port,
+          playlistUri: parsed.variants.first.uri,
+          headers: strategy.headers,
+          cookies: cookies,
+          depth: depth + 1,
+          onWinningHeaders: onWinningHeaders,
+        );
+      }
+
+      return (parsed as M3u8MediaPlaylist).segments;
+    } catch (e) {
+      lastError = e;
+      final canRetry =
+          isRetryableHttpHeaderStatusError(e) && i < strategies.length - 1;
+      if (!canRetry) rethrow;
+      debugPrint(
+        '[DownloadManager] HLS playlist open failed with strategy '
+        '${strategy.id.name} ($e); trying next header strategy',
+      );
+    }
   }
-
-  return (parsed as M3u8MediaPlaylist).segments;
+  throw lastError ?? Exception('HLS playlist open failed with no strategies');
 }
 
 /// Downloads every HLS segment into [task.localFilePath], concatenating
@@ -80,6 +111,9 @@ Future<HttpDownloadJobResult> runM3u8Download({
       playlistUri: playlistUri,
       headers: task.headers,
       cookies: task.cookies,
+      onWinningHeaders: (winning) {
+        task.headers = winning;
+      },
     );
 
     if (!isTaskStillTracked()) {
@@ -157,11 +191,21 @@ Future<HttpDownloadJobResult> runM3u8Download({
         break;
       }
 
-      final handle = await httpPort.start(
-        url: segmentUri,
-        headers: task.headers,
-        cookies: task.cookies,
+      final handle = await _startHlsSegmentWithHeaderFallback(
+        httpPort: httpPort,
+        task: task,
+        segmentUri: segmentUri,
+        isCancelled: isCancelled,
+        isTaskStillTracked: isTaskStillTracked,
       );
+      if (handle == null) {
+        if (!isTaskStillTracked()) {
+          wasRemoved = true;
+        } else {
+          wasCancelled = true;
+        }
+        break;
+      }
 
       if (!isTaskStillTracked()) {
         wasRemoved = true;
@@ -290,6 +334,54 @@ Future<HttpDownloadJobResult> runM3u8Download({
   } finally {
     clearJob();
   }
+}
+
+/// Opens one HLS segment with the same header-strategy fallback as plain HTTP
+/// downloads. Pins the winning map onto [task.headers] so remaining segments
+/// reuse it. Returns `null` when cancelled / removed mid-open.
+Future<HttpFileDownloadHandle?> _startHlsSegmentWithHeaderFallback({
+  required HttpFileDownloadPort httpPort,
+  required DownloadTask task,
+  required Uri segmentUri,
+  required bool Function() isCancelled,
+  required bool Function() isTaskStillTracked,
+}) async {
+  final strategies = buildHttpDownloadHeaderStrategies(task.headers);
+  Object? lastError;
+  for (var i = 0; i < strategies.length; i++) {
+    if (!isTaskStillTracked()) return null;
+    if (isCancelled()) return null;
+    final strategy = strategies[i];
+    try {
+      final handle = await httpPort.start(
+        url: segmentUri,
+        headers: headersWithoutHttpRange(strategy.headers),
+        cookies: task.cookies,
+      );
+      if (i > 0 || !identical(strategy.headers, task.headers)) {
+        task.headers = strategy.headers == null
+            ? null
+            : Map<String, String>.from(strategy.headers!);
+      }
+      if (i > 0) {
+        debugPrint(
+          '[DownloadManager] HLS segment open succeeded with header strategy '
+          '${strategy.id.name} after $i failure(s): ${task.name}',
+        );
+      }
+      return handle;
+    } catch (e) {
+      lastError = e;
+      final canRetry =
+          isRetryableHttpHeaderStatusError(e) && i < strategies.length - 1;
+      if (!canRetry) rethrow;
+      debugPrint(
+        '[DownloadManager] HLS segment open failed with strategy '
+        '${strategy.id.name} ($e); trying next header strategy for ${task.name}',
+      );
+    }
+  }
+  throw lastError ?? Exception('HLS segment open failed with no strategies');
 }
 
 /// Maps persisted segment progress to the next segment index to download.

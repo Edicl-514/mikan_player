@@ -32,6 +32,7 @@ class FakeHttpFileDownloadPort implements HttpFileDownloadPort {
     this.contentRange,
     this.startException,
     this.cancelClosesStream = true,
+    this.startExceptionsByCall,
   });
 
   /// Value returned as the handle's `contentLength`. `null` mimics a missing
@@ -48,6 +49,11 @@ class FakeHttpFileDownloadPort implements HttpFileDownloadPort {
   /// paths without a real `HttpClient`).
   final Object? startException;
 
+  /// Optional per-call exceptions. When set, call N (1-based) uses
+  /// `startExceptionsByCall[N-1]` if in range and non-null; a null entry
+  /// succeeds. Used by header-strategy fallback tests.
+  final List<Object?>? startExceptionsByCall;
+
   /// When true (the default), `cancel()` closes the underlying
   /// [StreamController] so the manager's `await for` exits promptly, mirroring
   /// the prod `request.abort()` that stops the HTTP response stream. Set to
@@ -60,6 +66,7 @@ class FakeHttpFileDownloadPort implements HttpFileDownloadPort {
   int startCallCount = 0;
   bool cancelCalled = false;
   bool closeCalled = false;
+  final List<Map<String, String>?> allHeaders = <Map<String, String>?>[];
 
   StreamController<List<int>>? _chunkController;
 
@@ -73,7 +80,15 @@ class FakeHttpFileDownloadPort implements HttpFileDownloadPort {
     lastUrl = url;
     lastHeaders = headers;
     lastCookies = cookies;
-    if (startException != null) {
+    allHeaders.add(headers == null ? null : Map<String, String>.from(headers));
+    final sequenced = startExceptionsByCall;
+    if (sequenced != null) {
+      final index = startCallCount - 1;
+      if (index < sequenced.length) {
+        final exception = sequenced[index];
+        if (exception != null) throw exception;
+      }
+    } else if (startException != null) {
       throw startException!;
     }
     _chunkController = StreamController<List<int>>();
@@ -157,6 +172,56 @@ void main() {
         headers.keys.where((key) => key.toLowerCase() == 'cookie'),
         hasLength(1),
       );
+    });
+
+    test(
+      'drops hop-by-hop, conditional, Accept-Encoding, and internal flags',
+      () {
+        final headers = normalizeHttpRequestHeaders(const {
+          'User-Agent': 'captured-agent',
+          'Referer': 'https://embed.example/watch/1',
+          'Host': 'cdn.example',
+          'Connection': 'keep-alive',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'If-None-Match': '"etag-1"',
+          'If-Range': 'bytes',
+          'sec-fetch-mode': 'no-cors',
+          'sec-ch-ua': '"Chromium"',
+          'x-opencode-skip-parser-navigation': '1',
+          'Range': 'bytes=0-1023',
+          'Origin': 'https://embed.example',
+        });
+
+        expect(headers, {
+          'User-Agent': 'captured-agent',
+          'Referer': 'https://embed.example/watch/1',
+          'Origin': 'https://embed.example',
+        });
+        expect(headers.containsKey('Range'), isFalse);
+        expect(headers.containsKey('Host'), isFalse);
+        expect(headers.containsKey('Connection'), isFalse);
+        expect(headers.containsKey('Accept-Encoding'), isFalse);
+        expect(headers.containsKey('If-None-Match'), isFalse);
+        expect(headers.containsKey('If-Range'), isFalse);
+        expect(headers.containsKey('sec-fetch-mode'), isFalse);
+        expect(headers.containsKey('sec-ch-ua'), isFalse);
+        expect(
+          headers.containsKey('x-opencode-skip-parser-navigation'),
+          isFalse,
+        );
+      },
+    );
+
+    test('headersWithoutHttpRange strips only Range keys', () {
+      expect(
+        headersWithoutHttpRange({
+          'Range': 'bytes=0-',
+          'range': 'bytes=1-',
+          'User-Agent': 'ua',
+        }),
+        {'User-Agent': 'ua'},
+      );
+      expect(headersWithoutHttpRange(null), isNull);
     });
   });
 
