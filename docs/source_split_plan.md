@@ -506,8 +506,16 @@ FRB 使用的公共函数与类型继续由原模块路径重导出。新增 mat
 通过，1 项 live-network 测试按原设置 ignored）。公共函数/类型名称集合与拆分前逐项一致。
 
 ### Phase 4 Rust API
-- [ ] 4a bangumi 模块化
-- [ ] 4b crawler 模块化
+- [x] 4a bangumi 模块化
+- [x] 4b crawler 模块化
+
+实现说明：保留 `rust/src/api/bangumi.rs` 与 `rust/src/api/crawler.rs` 作为稳定门面，
+FRB 使用的公共函数、类型和字段继续从原模块路径重导出。`bangumi` 已按 `types`、
+`util`、`markup`、各资源 fetch、character/person detail 与 `user` 拆分；评论 legacy/next
+双路径及 markup 测试原样保留。`crawler` 已按 `types`、`parse_time`、`schedule_api`、
+`bangumi_data_store`、`sites_index`、`fill_details` 拆分；下载/失败 marker/mmap 缓存、
+single-flight、generation 失效、sites index 与平台条件编译的原有时序保持不变。
+`cargo check` 与 `cargo test --lib` 通过；公共函数/类型名称集合及公开签名/字段与拆分前一致。
 
 ### Phase 5–7
 - [ ] 5 bangumi details UI
