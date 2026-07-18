@@ -24,14 +24,12 @@ void main() {
 
     expect(find.text('下载设置'), findsOneWidget);
     expect(find.text('BT 引擎'), findsOneWidget);
-    // The dropdown only renders the currently selected option ("rqbit" by
-    // default), so we cannot see "libtorrent" without first tapping the
-    // dropdown. The product-name ignore comment is the meaningful check
-    // here — both literal strings still appear in the source.
     expect(find.text('rqbit'), findsOneWidget);
-    // The engine description rendered under the dropdown is the localized
-    // rqbit one (default backend).
     expect(find.textContaining('rqbit 基于 Rust'), findsOneWidget);
+
+    await tester.tap(find.text('rqbit'));
+    await tester.pumpAndSettle();
+    expect(find.text('libtorrent'), findsOneWidget);
   });
 
   testWidgets('en: AppBar, engine card, and the two product-name backend '
@@ -47,5 +45,11 @@ void main() {
     expect(find.text('BT Engine'), findsOneWidget);
     expect(find.text('rqbit'), findsOneWidget);
     expect(find.textContaining('rqbit is built in Rust'), findsOneWidget);
+    expect(
+      localizedOf(tester).downloadEngineLibtorrentDescription,
+      'libtorrent is a mature C++ BT engine known for stable, efficient '
+      'downloads and broad compatibility. It is well suited for full '
+      'downloads and long-term seeding.',
+    );
   });
 }

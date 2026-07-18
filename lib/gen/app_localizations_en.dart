@@ -350,6 +350,18 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String cacheStatsSummary(
+    int subjects,
+    int characters,
+    int relations,
+    int timetables,
+    int rankings,
+    String imageSize,
+  ) {
+    return 'Subjects: $subjects, Characters: $characters, Relations: $relations\nSchedule: $timetables, Rankings: $rankings\nImage cache: $imageSize';
+  }
+
+  @override
   String get refresh => 'Refresh';
 
   @override
@@ -899,6 +911,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dataSourceConfigIntegerRequired => 'Please enter an integer';
 
   @override
+  String dataSourceConfigIntegerRange(int min, int max) {
+    return 'Enter an integer from $min to $max';
+  }
+
+  @override
   String get dataSourceConfigJsonPreviewSub =>
       'Used to review the saved content';
 
@@ -1248,6 +1265,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subscriptionDebugTitle => 'Subscription debug';
+
+  @override
+  String get subscriptionDebugEntryTitle => 'Subscription debug (local JSON)';
+
+  @override
+  String get subscriptionDebugEntrySubtitle =>
+      'Manually test subscription-source search and playable URL extraction';
 
   @override
   String get subscriptionDebugJsonTitle => 'Subscription JSON debug';

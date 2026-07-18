@@ -131,6 +131,18 @@
   "clearCacheMessage": "This will delete all cached data, including anime info, images, and WebView cookies. Continue?",
   "cacheCleared": "Cache cleared",
   "cacheClearedFailed": "Failed to clear cache: {error}",
+  "cacheStatsSummary": "Subjects: {subjects}, Characters: {characters}, Relations: {relations}\nSchedule: {timetables}, Rankings: {rankings}\nImage cache: {imageSize}",
+  "@cacheStatsSummary": {
+    "description": "Summary of the cached Bangumi data and image cache size shown in Settings.",
+    "placeholders": {
+      "subjects": { "type": "int" },
+      "characters": { "type": "int" },
+      "relations": { "type": "int" },
+      "timetables": { "type": "int" },
+      "rankings": { "type": "int" },
+      "imageSize": { "type": "String" }
+    }
+  },
   "refresh": "Refresh",
   "loading": "Loading...",
   "language": "Language",
@@ -304,6 +316,14 @@
   "dataSourceConfigImageSelector": "Captcha image selector",
   "dataSourceConfigInputSelector": "Input selector",
   "dataSourceConfigIntegerRequired": "Please enter an integer",
+  "dataSourceConfigIntegerRange": "Enter an integer from {min} to {max}",
+  "@dataSourceConfigIntegerRange": {
+    "description": "Validation error when a numeric source configuration field is outside the range Rust accepts.",
+    "placeholders": {
+      "min": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
   "dataSourceConfigJsonPreviewSub": "Used to review the saved content",
   "dataSourceConfigJsonPreviewTitle": "Generated JSON",
   "dataSourceConfigJsonSchemaCaptcha": "captchaConfig",
@@ -424,6 +444,8 @@
   "extractSuccess": "Extraction succeeded: {url}",
   "logsEmpty": "No logs yet",
   "subscriptionDebugTitle": "Subscription debug",
+  "subscriptionDebugEntryTitle": "Subscription debug (local JSON)",
+  "subscriptionDebugEntrySubtitle": "Manually test subscription-source search and playable URL extraction",
   "subscriptionDebugJsonTitle": "Subscription JSON debug",
   "subscriptionDebugDisabled": "This build does not have subscription debug enabled.\nStart the app with --dart-define=ENABLE_SUBSCRIPTION_DEBUG=true.",
   "subscriptionDebugInfo": "This page is for debugging only: it prefers local JSON, falls back to the cached JSON when left empty, and will not modify cache files, override subscription settings, or affect the normal playback flow.",

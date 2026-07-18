@@ -704,6 +704,19 @@ abstract class AppLocalizations {
   /// **'清除缓存失败: {error}'**
   String cacheClearedFailed(Object error);
 
+  /// Summary of the cached Bangumi data and image cache size shown in Settings.
+  ///
+  /// In zh, this message translates to:
+  /// **'条目: {subjects}, 角色: {characters}, 关联: {relations}\n时间表: {timetables}, 排行榜: {rankings}\n图片缓存: {imageSize}'**
+  String cacheStatsSummary(
+    int subjects,
+    int characters,
+    int relations,
+    int timetables,
+    int rankings,
+    String imageSize,
+  );
+
   /// No description provided for @refresh.
   ///
   /// In zh, this message translates to:
@@ -1706,6 +1719,12 @@ abstract class AppLocalizations {
   /// **'请输入整数'**
   String get dataSourceConfigIntegerRequired;
 
+  /// Validation error when a numeric source configuration field is outside the range Rust accepts.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入范围为 {min} 到 {max} 的整数'**
+  String dataSourceConfigIntegerRange(int min, int max);
+
   /// No description provided for @dataSourceConfigJsonPreviewSub.
   ///
   /// In zh, this message translates to:
@@ -2317,6 +2336,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'订阅源调试'**
   String get subscriptionDebugTitle;
+
+  /// No description provided for @subscriptionDebugEntryTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'订阅调试（本地JSON）'**
+  String get subscriptionDebugEntryTitle;
+
+  /// No description provided for @subscriptionDebugEntrySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动测试订阅源搜索和可播放URL提取'**
+  String get subscriptionDebugEntrySubtitle;
 
   /// No description provided for @subscriptionDebugJsonTitle.
   ///

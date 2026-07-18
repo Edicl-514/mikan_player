@@ -4,10 +4,9 @@
 // (`BaseUrlListService`, `BangumiEchService`, `BangumiDataService`, FRB
 // `rust` `simple` `ping_url` etc.). The bulk of these services are
 // short-circuited by `catchError` fallbacks inside `_loadSettings`, so the
-// page renders an empty "no DoH endpoints / no broadcast data" state. We
-// exercise only the AppBar, the Bangumi request mode dropdown labels, and
-// the "Offline broadcast data" list tile in both locales — the remaining
-// 700+ lines are out of scope for an L10N smoke test.
+// page renders an empty "no DoH endpoints / no broadcast data" state. These
+// tests cover the AppBar plus every L10N-1 string added to the request-mode
+// dropdown and offline broadcast-data tile in both locales.
 //
 // The save path is not exercised: it calls FRB (`rust.setEchEnabled`,
 // `rust.setReverseProxyEnabled`, ...) and the snackbars are already covered
@@ -17,6 +16,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:mikan_player/src/rust/api/crawler.dart'
+    show BangumiDataCacheStatus;
 import 'package:mikan_player/ui/pages/network_settings_page.dart';
 
 import '../../../support/localized_widget_tester.dart';
@@ -26,7 +27,9 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  testWidgets('zh: AppBar and section title are localized', (tester) async {
+  testWidgets('zh: request mode and offline broadcast data are localized', (
+    tester,
+  ) async {
     await pumpLocalizedWidget(
       tester,
       const NetworkSettingsPage(),
@@ -42,9 +45,42 @@ void main() {
     }
 
     expect(find.text('网络设置'), findsOneWidget);
+    expect(find.text('Bangumi 请求方式'), findsWidgets);
+
+    await tester.tap(find.text('混合（推荐）').first);
+    await tester.pumpAndSettle();
+    expect(find.text('旧版'), findsOneWidget);
+    expect(find.text('混合（推荐）'), findsWidgets);
+    expect(find.text('新版'), findsOneWidget);
+    await tester.tap(find.text('旧版'));
+    await tester.pumpAndSettle();
+
+    await tester.dragUntilVisible(
+      find.text('离线放送数据'),
+      find.byType(ListView),
+      const Offset(0, -300),
+    );
+    await tester.pump();
+    expect(find.text('离线放送数据'), findsOneWidget);
+    final l10n = localizedOf(tester);
+    expect(bangumiDataStatusSubtitle(null, l10n), '加载中…');
+    expect(
+      bangumiDataStatusSubtitle(
+        BangumiDataCacheStatus(
+          cached: true,
+          fileSize: BigInt.from(1024 * 1024),
+          version: '1',
+          lastFailedSecs: BigInt.from(30),
+        ),
+        l10n,
+      ),
+      '已缓存 1.0 MB · v1 · 1分钟前同步失败',
+    );
   });
 
-  testWidgets('en: AppBar and section title are localized', (tester) async {
+  testWidgets('en: request mode and offline broadcast data are localized', (
+    tester,
+  ) async {
     await pumpLocalizedWidget(
       tester,
       const NetworkSettingsPage(),
@@ -55,5 +91,36 @@ void main() {
     }
 
     expect(find.text('Network Settings'), findsOneWidget);
+    expect(find.text('Bangumi request mode'), findsWidgets);
+
+    await tester.tap(find.text('Hybrid (recommended)').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Legacy'), findsOneWidget);
+    expect(find.text('Hybrid (recommended)'), findsWidgets);
+    expect(find.text('Modern'), findsOneWidget);
+    await tester.tap(find.text('Legacy'));
+    await tester.pumpAndSettle();
+
+    await tester.dragUntilVisible(
+      find.text('Offline broadcast data'),
+      find.byType(ListView),
+      const Offset(0, -300),
+    );
+    await tester.pump();
+    expect(find.text('Offline broadcast data'), findsOneWidget);
+    final l10n = localizedOf(tester);
+    expect(bangumiDataStatusSubtitle(null, l10n), 'Loading…');
+    expect(
+      bangumiDataStatusSubtitle(
+        BangumiDataCacheStatus(
+          cached: true,
+          fileSize: BigInt.from(1024 * 1024),
+          version: '1',
+          lastFailedSecs: BigInt.from(30),
+        ),
+        l10n,
+      ),
+      'Cached 1.0 MB · v1 · Last sync failed 1 min ago',
+    );
   });
 }

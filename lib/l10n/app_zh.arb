@@ -131,6 +131,18 @@
   "clearCacheMessage": "这将删除所有缓存数据，包括番剧信息、图片缓存和 WebView 的 Cookie。确定要继续吗？",
   "cacheCleared": "缓存已清除",
   "cacheClearedFailed": "清除缓存失败: {error}",
+  "cacheStatsSummary": "条目: {subjects}, 角色: {characters}, 关联: {relations}\n时间表: {timetables}, 排行榜: {rankings}\n图片缓存: {imageSize}",
+  "@cacheStatsSummary": {
+    "description": "Summary of the cached Bangumi data and image cache size shown in Settings.",
+    "placeholders": {
+      "subjects": { "type": "int" },
+      "characters": { "type": "int" },
+      "relations": { "type": "int" },
+      "timetables": { "type": "int" },
+      "rankings": { "type": "int" },
+      "imageSize": { "type": "String" }
+    }
+  },
   "refresh": "刷新",
   "loading": "加载中...",
   "language": "语言",
@@ -304,6 +316,14 @@
   "dataSourceConfigImageSelector": "验证码图片选择器",
   "dataSourceConfigInputSelector": "输入框选择器",
   "dataSourceConfigIntegerRequired": "请输入整数",
+  "dataSourceConfigIntegerRange": "请输入范围为 {min} 到 {max} 的整数",
+  "@dataSourceConfigIntegerRange": {
+    "description": "Validation error when a numeric source configuration field is outside the range Rust accepts.",
+    "placeholders": {
+      "min": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
   "dataSourceConfigJsonPreviewSub": "用于核对保存内容",
   "dataSourceConfigJsonPreviewTitle": "生成的 JSON",
   "dataSourceConfigJsonSchemaCaptcha": "captchaConfig",
@@ -424,6 +444,8 @@
   "extractSuccess": "提取成功: {url}",
   "logsEmpty": "暂无日志",
   "subscriptionDebugTitle": "订阅源调试",
+  "subscriptionDebugEntryTitle": "订阅调试（本地JSON）",
+  "subscriptionDebugEntrySubtitle": "手动测试订阅源搜索和可播放URL提取",
   "subscriptionDebugJsonTitle": "订阅源 JSON 调试",
   "subscriptionDebugDisabled": "当前构建未启用订阅调试。\n请使用 --dart-define=ENABLE_SUBSCRIPTION_DEBUG=true 启动。",
   "subscriptionDebugInfo": "此页面仅用于调试：优先读取本地 JSON，留空时读取程序缓存中的 JSON，不会修改缓存文件、不会覆盖订阅设置、不会影响正式播放流程。",

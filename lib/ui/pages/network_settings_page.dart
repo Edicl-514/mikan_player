@@ -13,6 +13,45 @@ import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/utils/url_latency.dart';
 import 'package:mikan_player/ui/widgets/url_dropdown_field.dart';
 
+String bangumiDataStatusSubtitle(
+  BangumiDataCacheStatus? status,
+  AppLocalizations l10n,
+) {
+  if (status == null) {
+    return l10n.networkBangumiDataLoading;
+  }
+  if (!status.cached) {
+    return l10n.networkBangumiDataNotCached;
+  }
+  final sizeMB = (status.fileSize.toInt()) / (1024 * 1024);
+  final sizeStr = sizeMB >= 1
+      ? '${sizeMB.toStringAsFixed(1)} MB'
+      : '${(status.fileSize.toInt() / 1024).toStringAsFixed(0)} KB';
+  final parts = <String>[l10n.networkBangumiDataCachedSize(sizeStr)];
+  if (status.lastModifiedSecs != null) {
+    final mtime = DateTime.fromMillisecondsSinceEpoch(
+      status.lastModifiedSecs!.toInt() * 1000,
+      isUtc: true,
+    ).toLocal();
+    parts.add(
+      l10n.networkBangumiDataSyncTime(
+        DateFormat('yyyy-MM-dd HH:mm').format(mtime),
+      ),
+    );
+  }
+  parts.add(l10n.networkBangumiDataVersion(status.version));
+  if (status.lastFailedSecs != null) {
+    final ageMins = status.lastFailedSecs!.toInt() / 60;
+    if (ageMins < 60) {
+      parts.add(l10n.networkBangumiDataFailedMins(ageMins.round()));
+    } else {
+      final ageHours = ageMins / 60;
+      parts.add(l10n.networkBangumiDataFailedHours(ageHours.round()));
+    }
+  }
+  return parts.join(' · ');
+}
+
 class NetworkSettingsPage extends StatefulWidget {
   const NetworkSettingsPage({super.key});
 
@@ -415,43 +454,6 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     });
   }
 
-  String _bangumiDataStatusSubtitle(AppLocalizations l10n) {
-    final status = _bangumiDataStatus;
-    if (status == null) {
-      return l10n.networkBangumiDataLoading;
-    }
-    if (!status.cached) {
-      return l10n.networkBangumiDataNotCached;
-    }
-    final sizeMB = (status.fileSize.toInt()) / (1024 * 1024);
-    final sizeStr = sizeMB >= 1
-        ? '${sizeMB.toStringAsFixed(1)} MB'
-        : '${(status.fileSize.toInt() / 1024).toStringAsFixed(0)} KB';
-    final parts = <String>[l10n.networkBangumiDataCachedSize(sizeStr)];
-    if (status.lastModifiedSecs != null) {
-      final mtime = DateTime.fromMillisecondsSinceEpoch(
-        status.lastModifiedSecs!.toInt() * 1000,
-        isUtc: true,
-      ).toLocal();
-      parts.add(
-        l10n.networkBangumiDataSyncTime(
-          DateFormat('yyyy-MM-dd HH:mm').format(mtime),
-        ),
-      );
-    }
-    parts.add(l10n.networkBangumiDataVersion(status.version.toString()));
-    if (status.lastFailedSecs != null) {
-      final ageMins = status.lastFailedSecs!.toInt() / 60;
-      if (ageMins < 60) {
-        parts.add(l10n.networkBangumiDataFailedMins(ageMins.round()));
-      } else {
-        final ageHours = ageMins / 60;
-        parts.add(l10n.networkBangumiDataFailedHours(ageHours.round()));
-      }
-    }
-    return parts.join(' · ');
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -653,7 +655,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                     title: Text(l10n.networkBangumiOfflineBroadcastData),
                     subtitle: Text(
                       _bangumiDataRefreshResult ??
-                          _bangumiDataStatusSubtitle(l10n),
+                          bangumiDataStatusSubtitle(_bangumiDataStatus, l10n),
                       style: const TextStyle(fontSize: 12),
                     ),
                     trailing: _isRefreshingBangumiData

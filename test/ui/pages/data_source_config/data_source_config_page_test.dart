@@ -28,7 +28,24 @@ SourceState _existingSource() {
     defaultSubtitleLanguage: 'CHS',
     defaultResolution: '1080P',
     searchUrl: 'https://example.com/search?wd={keyword}',
-    searchConfigJson: '{}',
+    searchConfigJson: r'''{
+      "searchUrl": "https://example.com/search?wd={keyword}",
+      "subjectFormatId": "a",
+      "selectorSubjectFormatA": {
+        "selectLists": ".subject",
+        "preferShorterName": true
+      },
+      "channelFormatId": "no-channel",
+      "selectorChannelFormatNoChannel": {
+        "selectEpisodes": ".episode",
+        "selectEpisodeLinks": "a"
+      },
+      "matchVideo": {
+        "matchVideoUrl": "(?<v>https?://.+)",
+        "enableNestedUrl": true,
+        "matchNestedUrl": "$^"
+      }
+    }''',
     captchaConfigJson: null,
     enabled: true,
   );
@@ -38,10 +55,16 @@ Future<void> _pumpPage(
   WidgetTester tester, {
   SourceState? source,
   Locale locale = const Locale('zh'),
+  SourceConfigPersistCallback? onCreateSourceConfig,
+  SourceConfigPersistCallback? onUpdateSourceConfig,
 }) async {
   await pumpLocalizedWidget(
     tester,
-    DataSourceConfigPage(source: source),
+    DataSourceConfigPage(
+      source: source,
+      onCreateSourceConfig: onCreateSourceConfig,
+      onUpdateSourceConfig: onUpdateSourceConfig,
+    ),
     locale: locale,
   );
   // Two pumps: first lets the async localizations resolve, the second flushes
@@ -104,8 +127,9 @@ void main() {
       expect(find.text('Edit: sample-source'), findsOneWidget);
     });
 
-    testWidgets('edit mode in zh shows the localized "配置: {name}" title',
-        (tester) async {
+    testWidgets('edit mode in zh shows the localized "配置: {name}" title', (
+      tester,
+    ) async {
       await _pumpPage(
         tester,
         source: _existingSource(),
@@ -127,8 +151,9 @@ void main() {
       expect(find.byTooltip('保存'), findsOneWidget);
     });
 
-    testWidgets('required validator shows localized message in zh/en',
-        (tester) async {
+    testWidgets('required validator shows localized message in zh/en', (
+      tester,
+    ) async {
       // Leave "Name" empty and tap save — the validator should produce a
       // localized error message. We do not need the save itself to succeed
       // (it would call FRB), only that validation runs and emits the right
@@ -157,6 +182,65 @@ void main() {
       await tester.tap(find.byTooltip('保存'));
       await tester.pump();
       expect(find.text('请输入整数'), findsWidgets);
+    });
+
+    testWidgets('integer validator rejects values outside Rust i32 range', (
+      tester,
+    ) async {
+      await _pumpPage(
+        tester,
+        source: _existingSource(),
+        locale: const Locale('en'),
+      );
+      final tierFinder = find.widgetWithText(TextFormField, 'Priority');
+      await tester.enterText(tierFinder, '2147483648');
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pump();
+
+      expect(
+        find.text('Enter an integer from -2147483648 to 2147483647'),
+        findsWidgets,
+      );
+    });
+
+    testWidgets('save success uses the persistence callback with a valid '
+        'configuration', (tester) async {
+      SourceConfigUpdate? persisted;
+      await _pumpPage(
+        tester,
+        source: _existingSource(),
+        locale: const Locale('en'),
+        onUpdateSourceConfig: (update) async => persisted = update,
+      );
+
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+
+      expect(persisted, isNotNull);
+      expect(persisted!.name, 'sample-source');
+      expect(persisted!.tier, 1);
+    });
+
+    testWidgets('save failure shows the localized error message', (
+      tester,
+    ) async {
+      await _pumpPage(
+        tester,
+        source: _existingSource(),
+        locale: const Locale('en'),
+        onUpdateSourceConfig: (update) async {
+          throw StateError('simulated persistence failure');
+        },
+      );
+
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+
+      expect(
+        find.text('Save failed: Bad state: simulated persistence failure'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('preview section shows the localized "Not configured" '

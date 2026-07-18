@@ -339,6 +339,18 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String cacheStatsSummary(
+    int subjects,
+    int characters,
+    int relations,
+    int timetables,
+    int rankings,
+    String imageSize,
+  ) {
+    return '条目: $subjects, 角色: $characters, 关联: $relations\n时间表: $timetables, 排行榜: $rankings\n图片缓存: $imageSize';
+  }
+
+  @override
   String get refresh => '刷新';
 
   @override
@@ -861,6 +873,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dataSourceConfigIntegerRequired => '请输入整数';
 
   @override
+  String dataSourceConfigIntegerRange(int min, int max) {
+    return '请输入范围为 $min 到 $max 的整数';
+  }
+
+  @override
   String get dataSourceConfigJsonPreviewSub => '用于核对保存内容';
 
   @override
@@ -1184,6 +1201,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get subscriptionDebugTitle => '订阅源调试';
+
+  @override
+  String get subscriptionDebugEntryTitle => '订阅调试（本地JSON）';
+
+  @override
+  String get subscriptionDebugEntrySubtitle => '手动测试订阅源搜索和可播放URL提取';
 
   @override
   String get subscriptionDebugJsonTitle => '订阅源 JSON 调试';

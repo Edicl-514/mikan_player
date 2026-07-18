@@ -94,18 +94,24 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   String _formatCacheStats(BuildContext context) {
-    if (_cacheStats == null) return AppLocalizations.of(context).loading;
+    final l10n = AppLocalizations.of(context);
+    if (_cacheStats == null) return l10n.loading;
 
-    final subjects = _cacheStats!['subjects'] ?? 0;
-    final characters = _cacheStats!['characters'] ?? 0;
-    final relations = _cacheStats!['relations'] ?? 0;
-    final timetables = _cacheStats!['timetables'] ?? 0;
-    final rankings = _cacheStats!['rankings'] ?? 0;
-    final imageSize = _cacheStats!['imageSizeFormatted'] ?? '0 B';
+    final subjects = (_cacheStats!['subjects'] as num?)?.toInt() ?? 0;
+    final characters = (_cacheStats!['characters'] as num?)?.toInt() ?? 0;
+    final relations = (_cacheStats!['relations'] as num?)?.toInt() ?? 0;
+    final timetables = (_cacheStats!['timetables'] as num?)?.toInt() ?? 0;
+    final rankings = (_cacheStats!['rankings'] as num?)?.toInt() ?? 0;
+    final imageSize = _cacheStats!['imageSizeFormatted']?.toString() ?? '0 B';
 
-    return '条目: $subjects, 角色: $characters, 关联: $relations\n'
-        '时间表: $timetables, 排行榜: $rankings\n'
-        '图片缓存: $imageSize';
+    return l10n.cacheStatsSummary(
+      subjects,
+      characters,
+      relations,
+      timetables,
+      rankings,
+      imageSize,
+    );
   }
 
   @override
@@ -161,8 +167,8 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildSettingTile(
               context,
               Icons.bug_report,
-              '订阅调试（本地JSON）',
-              '手动测试订阅源搜索和可播放URL提取',
+              AppLocalizations.of(context).subscriptionDebugEntryTitle,
+              AppLocalizations.of(context).subscriptionDebugEntrySubtitle,
               () {
                 Navigator.push(
                   context,

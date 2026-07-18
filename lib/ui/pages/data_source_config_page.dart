@@ -5,10 +5,20 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 
+typedef SourceConfigPersistCallback =
+    Future<void> Function(SourceConfigUpdate update);
+
 class DataSourceConfigPage extends StatefulWidget {
   final SourceState? source;
+  final SourceConfigPersistCallback? onCreateSourceConfig;
+  final SourceConfigPersistCallback? onUpdateSourceConfig;
 
-  const DataSourceConfigPage({super.key, this.source});
+  const DataSourceConfigPage({
+    super.key,
+    this.source,
+    this.onCreateSourceConfig,
+    this.onUpdateSourceConfig,
+  });
 
   @override
   State<DataSourceConfigPage> createState() => _DataSourceConfigPageState();
@@ -84,10 +94,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
     'jsonpath-indexed',
   };
 
-  static const _channelFormatKeys = <String>{
-    'index-grouped',
-    'no-channel',
-  };
+  static const _channelFormatKeys = <String>{'index-grouped', 'no-channel'};
 
   Map<String, String> _subjectFormats(AppLocalizations l10n) {
     return <String, String>{
@@ -625,9 +632,19 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
       );
 
       if (widget.source == null) {
-        await addSourceConfig(newConfig: update);
+        final create = widget.onCreateSourceConfig;
+        if (create != null) {
+          await create(update);
+        } else {
+          await addSourceConfig(newConfig: update);
+        }
       } else {
-        await updateSingleSourceConfig(update: update);
+        final updateExisting = widget.onUpdateSourceConfig;
+        if (updateExisting != null) {
+          await updateExisting(update);
+        } else {
+          await updateSingleSourceConfig(update: update);
+        }
       }
 
       if (mounted) {
@@ -641,7 +658,9 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
       if (mounted) {
         final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.dataSourceConfigSaveFailed(e.toString()))),
+          SnackBar(
+            content: Text(l10n.dataSourceConfigSaveFailed(e.toString())),
+          ),
         );
       }
     } finally {
@@ -654,20 +673,30 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
   }
 
   String? _required(AppLocalizations l10n, String? value) {
-    if (value == null || value.trim().isEmpty) return l10n.dataSourceConfigRequired;
+    if (value == null || value.trim().isEmpty) {
+      return l10n.dataSourceConfigRequired;
+    }
     return null;
   }
 
   String? _integer(AppLocalizations l10n, String? value) {
-    if (value == null || value.trim().isEmpty) return l10n.dataSourceConfigRequired;
-    if (int.tryParse(value.trim()) == null) {
+    if (value == null || value.trim().isEmpty) {
+      return l10n.dataSourceConfigRequired;
+    }
+    final parsed = int.tryParse(value.trim());
+    if (parsed == null) {
       return l10n.dataSourceConfigIntegerRequired;
+    }
+    if (parsed < -2147483648 || parsed > 2147483647) {
+      return l10n.dataSourceConfigIntegerRange(-2147483648, 2147483647);
     }
     return null;
   }
 
   String? _optionalInteger(AppLocalizations l10n, String? value) {
-    if (value == null || value.trim().isEmpty) return null;
+    if (value == null || value.trim().isEmpty) {
+      return null;
+    }
     if (int.tryParse(value.trim()) == null) {
       return l10n.dataSourceConfigIntegerRequired;
     }
@@ -722,9 +751,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
         for (final item in items)
           DropdownMenuItem(
             value: item,
-            child: Text(
-              item.isEmpty ? (emptyLabel ?? item) : item,
-            ),
+            child: Text(item.isEmpty ? (emptyLabel ?? item) : item),
           ),
       ],
       onChanged: (value) {
