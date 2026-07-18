@@ -43,6 +43,22 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
     final result = _episodeController.selectEpisode(ep);
     if (!result.changed) return;
 
+    // Persist progress for the episode we are leaving before zeroing trackers.
+    final leavingPosMs = (_currentVideoTimeNotifier.value * 1000).toInt();
+    final leaveSaveMs = leavingPosMs > 1000
+        ? leavingPosMs
+        : (_lastSavedPositionMs > 0 ? _lastSavedPositionMs : leavingPosMs);
+    if (leaveSaveMs > 0) {
+      unawaited(
+        _historyManager.addOrUpdate(
+          anime: widget.anime,
+          currentEpisode: result.previous,
+          allEpisodes: widget.allEpisodes,
+          lastPositionMs: leaveSaveMs,
+        ),
+      );
+    }
+
     // Stop current player and invalidate in-flight online-source work.
     _player.stop();
     _sampleSourceController.bumpLoadToken();
@@ -77,7 +93,20 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
     _videoTitleNotifier.value = '${widget.anime.title} - 第${ep.sort.toInt()}集';
     _publishPlayerControlSourceState();
 
-    _savePlaybackHistory();
+    // New episode: clear in-page time trackers and any pending seek from the
+    // previous source. Bump generation so an in-flight resume seek from the
+    // previous open cannot re-apply the old target.
+    _currentVideoTimeNotifier.value = 0;
+    _pendingStartPositionMs = null;
+    _resumeSeekGeneration++;
+    _lastSavedPositionMs = 0;
+    _furthestObservedPosition = Duration.zero;
+    _isRecoveringUnexpectedJump = false;
+
+    // Mark the new episode in history. History is one entry per anime, so a
+    // different episode starts at 0 unless we later find a matching record
+    // (not expected with the current schema).
+    _savePlaybackHistory(positionMs: 0);
 
     // Clear and reload danmaku
     _danmakuService.clearDanmaku();
@@ -116,22 +145,54 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
     _loadSampleSource();
   }
 
-  void _savePlaybackHistory() {
+  /// Persist the current episode in history.
+  ///
+  /// When [positionMs] is null, [PlaybackHistoryManager] keeps the previous
+  /// progress for the same episode instead of resetting it to 0. Pass `0`
+  /// explicitly when switching to a brand-new episode.
+  void _savePlaybackHistory({int? positionMs}) {
     try {
-      final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
-      _historyManager.addOrUpdate(
-        anime: widget.anime,
-        currentEpisode: _episodeController.currentEpisode,
-        allEpisodes: widget.allEpisodes,
-        lastPositionMs: posMs,
+      if (positionMs != null) {
+        _lastSavedPositionMs = positionMs;
+      }
+      unawaited(
+        _historyManager.addOrUpdate(
+          anime: widget.anime,
+          currentEpisode: _episodeController.currentEpisode,
+          allEpisodes: widget.allEpisodes,
+          lastPositionMs: positionMs,
+        ),
       );
-      _lastSavedPositionMs = posMs;
     } catch (e) {
-      _historyManager.addOrUpdate(
-        anime: widget.anime,
-        currentEpisode: _episodeController.currentEpisode,
-        allEpisodes: widget.allEpisodes,
+      debugPrint('Error saving playback history: $e');
+      unawaited(
+        _historyManager.addOrUpdate(
+          anime: widget.anime,
+          currentEpisode: _episodeController.currentEpisode,
+          allEpisodes: widget.allEpisodes,
+          lastPositionMs: positionMs,
+        ),
       );
+    }
+  }
+
+  Future<void> _hydrateResumePositionFromHistory() async {
+    try {
+      final resumeMs = await _historyManager.resumePositionMsFor(
+        anime: widget.anime,
+        episode: _episodeController.currentEpisode,
+      );
+      if (!mounted || resumeMs == null || resumeMs <= 0) return;
+      // Only apply if nothing else (source switch / explicit start) has already
+      // set a pending seek target.
+      if (_pendingStartPositionMs != null && _pendingStartPositionMs! > 0) {
+        return;
+      }
+      _pendingStartPositionMs = resumeMs;
+      _lastSavedPositionMs = resumeMs;
+      debugPrint('[History] Hydrated resume position: ${resumeMs}ms');
+    } catch (e) {
+      debugPrint('Error hydrating resume position: $e');
     }
   }
 

@@ -127,6 +127,10 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
     }
 
     _temporarilyAllowPositionReset();
+    // Invalidate in-flight resume seeks from a previous open before capturing
+    // the generation for this open's post-open seek.
+    _resumeSeekGeneration++;
+    final openGeneration = _resumeSeekGeneration;
     final result = await _playbackController.openOnlineSource(
       source,
       autoFallback: autoFallback,
@@ -140,11 +144,13 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
       proxyUrlBuilder: (url, headers) => _headerProxy.registerUrl(url, headers),
       callbacks: PlayerPlaybackOpenCallbacks(
         stopPlayer: _player.stop,
-        openUrl: (url) => _player.open(Media(url), play: true),
+        openUrl: (url) =>
+            _player.open(_mediaForPlayback(url), play: true),
         hasPlaybackStarted: () =>
             _player.state.playing || _player.state.position > Duration.zero,
         applyPlaybackSpeed: _applyPlaybackSpeed,
-        applyPendingStartPosition: _applyPendingStartPosition,
+        applyPendingStartPosition: () =>
+            _applyPendingStartPosition(generation: openGeneration),
         onStateChanged: _onPlaybackControllerStateChanged,
         onFallbackRequested: (request) {
           if (!isSearchGenerationCurrent(

@@ -228,6 +228,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // Playback History
   final PlaybackHistoryManager _historyManager = PlaybackHistoryManager();
   int? _pendingStartPositionMs;
+  /// Bumped when the intended resume target is intentionally discarded so an
+  /// in-flight [_applyPendingStartPosition] from an older open cannot re-seek.
+  int _resumeSeekGeneration = 0;
   int _lastSavedPositionMs = 0;
   static const int _saveIntervalMs = 5000;
   static const Duration _manualSeekGracePeriod = Duration(seconds: 3);
@@ -271,9 +274,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
     _playingSourceLabelNotifier.value = _playbackController.playingSourceLabel;
 
-    _pendingStartPositionMs = widget.startPositionMs;
+    // Prefer the explicit resume position. When null, hydrate from history in
+    // the deferred entry path (before any media open) so seek is not missed.
+    final explicitStart = widget.startPositionMs;
+    if (explicitStart != null && explicitStart > 0) {
+      _pendingStartPositionMs = explicitStart;
+      _lastSavedPositionMs = explicitStart;
+    }
 
-    _savePlaybackHistory();
+    // Touch history on entry without wiping a previously saved position.
+    // Passing null keeps the existing lastPositionMs for the same episode.
+    _savePlaybackHistory(positionMs: explicitStart);
 
     // Initialize video player
     _player = Player();
@@ -293,17 +304,25 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
           _playbackController.notifyPlaybackStarted();
         }
         _handleUnexpectedPositionJump(position);
-        _currentVideoTimeNotifier.value = position.inMilliseconds / 1000.0;
+        final posMs = position.inMilliseconds;
+        _currentVideoTimeNotifier.value = posMs / 1000.0;
+
+        // Skip near-zero ticks before the user has actually progressed so a
+        // pre-seek position stream cannot zero out a restored resume point.
+        if (posMs < 1000 && _lastSavedPositionMs > 1000) {
+          return;
+        }
 
         try {
-          final posMs = position.inMilliseconds;
           if ((posMs - _lastSavedPositionMs).abs() >= _saveIntervalMs) {
             _lastSavedPositionMs = posMs;
-            _historyManager.addOrUpdate(
-              anime: widget.anime,
-              currentEpisode: _episodeController.currentEpisode,
-              allEpisodes: widget.allEpisodes,
-              lastPositionMs: posMs,
+            unawaited(
+              _historyManager.addOrUpdate(
+                anime: widget.anime,
+                currentEpisode: _episodeController.currentEpisode,
+                allEpisodes: widget.allEpisodes,
+                lastPositionMs: posMs,
+              ),
             );
           }
         } catch (e) {
@@ -319,15 +338,20 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         if (playing) {
           _playbackController.notifyPlaybackStarted();
         }
-        // Save position when paused
+        // Save position when paused (only after real progress).
         if (!playing) {
           try {
             final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
-            _historyManager.addOrUpdate(
-              anime: widget.anime,
-              currentEpisode: _episodeController.currentEpisode,
-              allEpisodes: widget.allEpisodes,
-              lastPositionMs: posMs,
+            if (posMs < 1000 && _lastSavedPositionMs > 1000) {
+              return;
+            }
+            unawaited(
+              _historyManager.addOrUpdate(
+                anime: widget.anime,
+                currentEpisode: _episodeController.currentEpisode,
+                allEpisodes: widget.allEpisodes,
+                lastPositionMs: posMs,
+              ),
             );
             _lastSavedPositionMs = posMs;
           } catch (e) {
@@ -397,11 +421,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _sourceController.invalidatePendingRequests();
     try {
       final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
-      _historyManager.addOrUpdate(
-        anime: widget.anime,
-        currentEpisode: _episodeController.currentEpisode,
-        allEpisodes: widget.allEpisodes,
-        lastPositionMs: posMs,
+      // Prefer the furthest known progress so a late zero tick cannot wipe
+      // the resume position when the page is closed mid-seek / mid-load.
+      final saveMs = posMs > 1000
+          ? posMs
+          : (_lastSavedPositionMs > 0 ? _lastSavedPositionMs : posMs);
+      unawaited(
+        _historyManager.addOrUpdate(
+          anime: widget.anime,
+          currentEpisode: _episodeController.currentEpisode,
+          allEpisodes: widget.allEpisodes,
+          lastPositionMs: saveMs,
+        ),
       );
     } catch (e) {
       debugPrint('Error saving final playback position: $e');

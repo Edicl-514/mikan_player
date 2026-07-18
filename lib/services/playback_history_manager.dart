@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -150,7 +151,15 @@ class PlaybackHistoryManager {
   static const String _storageKey = 'playback_history_v1';
   static const int _maxItems = 200;
 
-  String _buildKey(AnimeInfo anime) {
+  /// In-memory snapshot so dispose/pause can update progress even if the
+  /// SharedPreferences write has not completed yet.
+  List<PlaybackHistoryItem>? _cache;
+
+  /// Serializes load/mutate/persist so concurrent position ticks cannot clobber
+  /// each other (last-write-wins with stale getHistory() reads).
+  Future<void> _writeChain = Future<void>.value();
+
+  String buildKey(AnimeInfo anime) {
     if (anime.bangumiId != null && anime.bangumiId!.isNotEmpty) {
       return 'bgm:${anime.bangumiId}';
     }
@@ -177,7 +186,7 @@ class PlaybackHistoryManager {
     return jsonEncode(list);
   }
 
-  Future<List<PlaybackHistoryItem>> getHistory() async {
+  Future<List<PlaybackHistoryItem>> _loadFromDisk() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKey);
     if (raw == null || raw.isEmpty) return <PlaybackHistoryItem>[];
@@ -191,102 +200,178 @@ class PlaybackHistoryManager {
     }
   }
 
+  Future<List<PlaybackHistoryItem>> _ensureCache() async {
+    final existing = _cache;
+    if (existing != null) return List<PlaybackHistoryItem>.from(existing);
+    final loaded = await _loadFromDisk();
+    _cache = loaded;
+    return List<PlaybackHistoryItem>.from(loaded);
+  }
+
+  Future<void> _persist(List<PlaybackHistoryItem> history) async {
+    _cache = List<PlaybackHistoryItem>.from(history);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _storageKey,
+      jsonEncode(history.map((e) => e.toJson()).toList()),
+    );
+  }
+
+  Future<T> _runSerialized<T>(Future<T> Function() action) {
+    final completer = Completer<T>();
+    _writeChain = _writeChain
+        .catchError((_) {})
+        .then((_) => action())
+        .then((value) {
+          if (!completer.isCompleted) completer.complete(value);
+        })
+        .catchError((Object e, StackTrace st) {
+          if (!completer.isCompleted) completer.completeError(e, st);
+        });
+    return completer.future;
+  }
+
+  Future<List<PlaybackHistoryItem>> getHistory() {
+    return _runSerialized(() async {
+      return _ensureCache();
+    });
+  }
+
+  Future<PlaybackHistoryItem?> findByAnime(AnimeInfo anime) async {
+    final key = buildKey(anime);
+    final history = await getHistory();
+    for (final item in history) {
+      if (item.key == key) return item;
+    }
+    return null;
+  }
+
+  /// Returns a resume position for [episode] when history matches that episode.
+  Future<int?> resumePositionMsFor({
+    required AnimeInfo anime,
+    required BangumiEpisode episode,
+  }) async {
+    final item = await findByAnime(anime);
+    if (item == null) return null;
+    final sameEpisode =
+        item.episodeId == episode.id ||
+        (item.episodeId == 0 && item.episodeSort == episode.sort) ||
+        item.episodeSort == episode.sort;
+    if (!sameEpisode) return null;
+    if (item.lastPositionMs <= 0) return null;
+    return item.lastPositionMs;
+  }
+
+  /// Upsert the anime's history entry.
+  ///
+  /// When [lastPositionMs] is null, the previous position is preserved if the
+  /// entry still refers to the same episode; otherwise position resets to 0.
+  /// Pass an explicit 0 when switching to a new episode.
   Future<void> addOrUpdate({
     required AnimeInfo anime,
     required BangumiEpisode currentEpisode,
     required List<BangumiEpisode> allEpisodes,
     int? lastPositionMs,
-  }) async {
-    final history = await getHistory();
-    final key = _buildKey(anime);
-    history.removeWhere((item) => item.key == key);
+  }) {
+    return _runSerialized(() async {
+      final history = await _ensureCache();
+      final key = buildKey(anime);
+      final existingIdx = history.indexWhere((item) => item.key == key);
+      final existing = existingIdx == -1 ? null : history[existingIdx];
 
-    final item = PlaybackHistoryItem(
-      key: key,
-      title: anime.title,
-      subTitle: anime.subTitle,
-      bangumiId: anime.bangumiId,
-      mikanId: anime.mikanId,
-      coverUrl: anime.coverUrl,
-      siteUrl: anime.siteUrl,
-      broadcastDay: anime.broadcastDay,
-      broadcastTime: anime.broadcastTime,
-      score: anime.score,
-      rank: anime.rank,
-      tags: anime.tags,
-      fullJson: anime.fullJson,
-      episodeId: currentEpisode.id,
-      episodeSort: currentEpisode.sort,
-      episodeName: currentEpisode.name,
-      episodeNameCn: currentEpisode.nameCn,
-      episodesJson: _encodeEpisodes(allEpisodes),
-      updatedAt: DateTime.now().millisecondsSinceEpoch,
-      lastPositionMs: lastPositionMs ?? 0,
-    );
+      final sameEpisode =
+          existing != null &&
+          (existing.episodeId == currentEpisode.id ||
+              existing.episodeSort == currentEpisode.sort);
 
-    history.insert(0, item);
-    if (history.length > _maxItems) {
-      history.removeRange(_maxItems, history.length);
-    }
+      final resolvedPosition = lastPositionMs ??
+          (sameEpisode ? existing.lastPositionMs : 0);
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _storageKey,
-      jsonEncode(history.map((e) => e.toJson()).toList()),
-    );
+      if (existingIdx != -1) {
+        history.removeAt(existingIdx);
+      }
+
+      final item = PlaybackHistoryItem(
+        key: key,
+        title: anime.title,
+        subTitle: anime.subTitle,
+        bangumiId: anime.bangumiId,
+        mikanId: anime.mikanId,
+        coverUrl: anime.coverUrl,
+        siteUrl: anime.siteUrl,
+        broadcastDay: anime.broadcastDay,
+        broadcastTime: anime.broadcastTime,
+        score: anime.score,
+        rank: anime.rank,
+        tags: anime.tags,
+        fullJson: anime.fullJson,
+        episodeId: currentEpisode.id,
+        episodeSort: currentEpisode.sort,
+        episodeName: currentEpisode.name,
+        episodeNameCn: currentEpisode.nameCn,
+        episodesJson: _encodeEpisodes(allEpisodes),
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        lastPositionMs: resolvedPosition < 0 ? 0 : resolvedPosition,
+      );
+
+      history.insert(0, item);
+      if (history.length > _maxItems) {
+        history.removeRange(_maxItems, history.length);
+      }
+
+      await _persist(history);
+    });
   }
 
-  Future<void> remove(String key) async {
-    final history = await getHistory();
-    history.removeWhere((item) => item.key == key);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _storageKey,
-      jsonEncode(history.map((e) => e.toJson()).toList()),
-    );
+  Future<void> remove(String key) {
+    return _runSerialized(() async {
+      final history = await _ensureCache();
+      history.removeWhere((item) => item.key == key);
+      await _persist(history);
+    });
   }
 
-  /// Update only the playback position for an existing history item
-  Future<void> updatePosition(String key, int positionMs) async {
-    final history = await getHistory();
-    final idx = history.indexWhere((i) => i.key == key);
-    if (idx == -1) return;
-    final item = history[idx];
-    final updated = PlaybackHistoryItem(
-      key: item.key,
-      title: item.title,
-      subTitle: item.subTitle,
-      bangumiId: item.bangumiId,
-      mikanId: item.mikanId,
-      coverUrl: item.coverUrl,
-      siteUrl: item.siteUrl,
-      broadcastDay: item.broadcastDay,
-      broadcastTime: item.broadcastTime,
-      score: item.score,
-      rank: item.rank,
-      tags: item.tags,
-      fullJson: item.fullJson,
-      episodeId: item.episodeId,
-      episodeSort: item.episodeSort,
-      episodeName: item.episodeName,
-      episodeNameCn: item.episodeNameCn,
-      episodesJson: item.episodesJson,
-      updatedAt: DateTime.now().millisecondsSinceEpoch,
-      lastPositionMs: positionMs,
-    );
+  /// Update only the playback position for an existing history item.
+  Future<void> updatePosition(String key, int positionMs) {
+    return _runSerialized(() async {
+      final history = await _ensureCache();
+      final idx = history.indexWhere((i) => i.key == key);
+      if (idx == -1) return;
+      final item = history[idx];
+      final updated = PlaybackHistoryItem(
+        key: item.key,
+        title: item.title,
+        subTitle: item.subTitle,
+        bangumiId: item.bangumiId,
+        mikanId: item.mikanId,
+        coverUrl: item.coverUrl,
+        siteUrl: item.siteUrl,
+        broadcastDay: item.broadcastDay,
+        broadcastTime: item.broadcastTime,
+        score: item.score,
+        rank: item.rank,
+        tags: item.tags,
+        fullJson: item.fullJson,
+        episodeId: item.episodeId,
+        episodeSort: item.episodeSort,
+        episodeName: item.episodeName,
+        episodeNameCn: item.episodeNameCn,
+        episodesJson: item.episodesJson,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        lastPositionMs: positionMs < 0 ? 0 : positionMs,
+      );
 
-    history.removeAt(idx);
-    history.insert(0, updated);
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _storageKey,
-      jsonEncode(history.map((e) => e.toJson()).toList()),
-    );
+      history.removeAt(idx);
+      history.insert(0, updated);
+      await _persist(history);
+    });
   }
 
-  Future<void> clear() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_storageKey);
+  Future<void> clear() {
+    return _runSerialized(() async {
+      _cache = <PlaybackHistoryItem>[];
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_storageKey);
+    });
   }
 }

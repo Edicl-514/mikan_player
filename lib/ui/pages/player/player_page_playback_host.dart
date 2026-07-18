@@ -18,6 +18,14 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
   }
 
   Future<void> _initializePlaybackAndSourceLoading() async {
+    // Resolve resume position before opening any media so applyPendingStartPosition
+    // runs with a real target on the first open.
+    if ((_pendingStartPositionMs == null || _pendingStartPositionMs! <= 0) &&
+        (widget.startPositionMs == null || widget.startPositionMs! <= 0)) {
+      await _hydrateResumePositionFromHistory();
+      if (!mounted) return;
+    }
+
     var hasDownloadedPlayback = false;
 
     // Check if we have a direct BT stream URL to play
@@ -105,24 +113,28 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
         });
         _publishPlayerControlSourceState();
         _temporarilyAllowPositionReset();
-        _player.open(Media(filePath), play: true).then((_) async {
-          if (!isSearchGenerationCurrent(
-            resultLoadToken: loadToken,
-            currentLoadToken: _sampleSourceController.sampleLoadToken,
-            isDisposed: !mounted,
-          )) {
-            return;
-          }
-          await _applyPlaybackSpeed();
-          if (!isSearchGenerationCurrent(
-            resultLoadToken: loadToken,
-            currentLoadToken: _sampleSourceController.sampleLoadToken,
-            isDisposed: !mounted,
-          )) {
-            return;
-          }
-          await _applyPendingStartPosition();
-        });
+        _resumeSeekGeneration++;
+        final openGeneration = _resumeSeekGeneration;
+        unawaited(
+          _player.open(_mediaForPlayback(filePath), play: true).then((_) async {
+            if (!isSearchGenerationCurrent(
+              resultLoadToken: loadToken,
+              currentLoadToken: _sampleSourceController.sampleLoadToken,
+              isDisposed: !mounted,
+            )) {
+              return;
+            }
+            await _applyPlaybackSpeed();
+            if (!isSearchGenerationCurrent(
+              resultLoadToken: loadToken,
+              currentLoadToken: _sampleSourceController.sampleLoadToken,
+              isDisposed: !mounted,
+            )) {
+              return;
+            }
+            await _applyPendingStartPosition(generation: openGeneration);
+          }),
+        );
         return true;
       }
     }
@@ -157,24 +169,28 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
 
     debugPrint('[Player] Playing BT stream: $streamUrl');
     _temporarilyAllowPositionReset();
-    _player.open(Media(streamUrl), play: true).then((_) async {
-      if (!isSearchGenerationCurrent(
-        resultLoadToken: expectedLoadToken,
-        currentLoadToken: _sampleSourceController.sampleLoadToken,
-        isDisposed: !mounted,
-      )) {
-        return;
-      }
-      await _applyPlaybackSpeed();
-      if (!isSearchGenerationCurrent(
-        resultLoadToken: expectedLoadToken,
-        currentLoadToken: _sampleSourceController.sampleLoadToken,
-        isDisposed: !mounted,
-      )) {
-        return;
-      }
-      await _applyPendingStartPosition();
-    });
+    _resumeSeekGeneration++;
+    final openGeneration = _resumeSeekGeneration;
+    unawaited(
+      _player.open(_mediaForPlayback(streamUrl), play: true).then((_) async {
+        if (!isSearchGenerationCurrent(
+          resultLoadToken: expectedLoadToken,
+          currentLoadToken: _sampleSourceController.sampleLoadToken,
+          isDisposed: !mounted,
+        )) {
+          return;
+        }
+        await _applyPlaybackSpeed();
+        if (!isSearchGenerationCurrent(
+          resultLoadToken: expectedLoadToken,
+          currentLoadToken: _sampleSourceController.sampleLoadToken,
+          isDisposed: !mounted,
+        )) {
+          return;
+        }
+        await _applyPendingStartPosition(generation: openGeneration);
+      }),
+    );
   }
 
   /// 从BT流URL中提取info hash
@@ -260,25 +276,172 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
     );
   }
 
-  Future<void> _applyPendingStartPosition() async {
-    if (_pendingStartPositionMs != null) {
-      final targetPosition = _pendingStartPositionMs!;
-      _pendingStartPositionMs = null;
+  /// Builds a [Media] that asks the native player to open at the resume point.
+  ///
+  /// media_kit maps [Media.start] to mpv's `start` property, which is more
+  /// reliable than a post-open seek for many local/HTTP sources. The pending
+  /// position is intentionally NOT consumed here — [_applyPendingStartPosition]
+  /// still verifies and falls back to an explicit seek.
+  Media _mediaForPlayback(String url) {
+    final startMs = _pendingStartPositionMs;
+    if (startMs != null && startMs > 0) {
+      return Media(url, start: Duration(milliseconds: startMs));
+    }
+    return Media(url);
+  }
 
-      try {
-        // Wait for media to be ready (duration > 0)
-        await for (final duration in _player.stream.duration) {
-          if (duration.inMilliseconds > 0) {
-            // Media is ready, now seek
-            _temporarilyAllowPositionReset();
-            await _player.seek(Duration(milliseconds: targetPosition));
-            debugPrint('[Seek] Applied start position: ${targetPosition}ms');
-            break;
-          }
-        }
-      } catch (e) {
-        debugPrint('Error applying start position: $e');
+  /// Waits until the player reports a positive duration (or [timeout] elapses).
+  ///
+  /// Important: `player.stream.duration` is a broadcast stream and does not
+  /// replay the latest value. Always check [Player.state.duration] first, and
+  /// re-check after subscribing, or a late subscriber can miss the emission
+  /// that landed between the state read and the listen.
+  Future<bool> _waitForSeekableMedia({
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    if (_player.state.duration.inMilliseconds > 0) {
+      return true;
+    }
+
+    final completer = Completer<bool>();
+    late final StreamSubscription<Duration> sub;
+    sub = _player.stream.duration.listen((duration) {
+      if (duration.inMilliseconds > 0 && !completer.isCompleted) {
+        completer.complete(true);
       }
+    });
+
+    // Close the race window: duration may have arrived between the initial
+    // state read and the subscription above.
+    if (_player.state.duration.inMilliseconds > 0) {
+      await sub.cancel();
+      return true;
+    }
+
+    try {
+      return await completer.future.timeout(timeout);
+    } on TimeoutException {
+      return _player.state.duration.inMilliseconds > 0;
+    } catch (_) {
+      return _player.state.duration.inMilliseconds > 0;
+    } finally {
+      await sub.cancel();
+    }
+  }
+
+  bool _isNearResumeTarget(Duration target, {int toleranceMs = 2500}) {
+    final posMs = _player.state.position.inMilliseconds;
+    return (posMs - target.inMilliseconds).abs() <= toleranceMs;
+  }
+
+  /// Seeks to the pending resume position after media open.
+  ///
+  /// [generation] must match the page's current [_resumeSeekGeneration] so an
+  /// older open (source switch / episode switch) cannot steal a newer target
+  /// or apply a seek after the pending value was intentionally cleared.
+  Future<void> _applyPendingStartPosition({int? generation}) async {
+    final targetMs = _pendingStartPositionMs;
+    if (targetMs == null || targetMs <= 0) {
+      return;
+    }
+    if (generation != null && generation != _resumeSeekGeneration) {
+      debugPrint(
+        '[Seek] Drop stale resume apply '
+        '(gen=$generation current=$_resumeSeekGeneration)',
+      );
+      return;
+    }
+
+    final target = Duration(milliseconds: targetMs);
+    try {
+      final ready = await _waitForSeekableMedia();
+      if (!mounted) return;
+      if (generation != null && generation != _resumeSeekGeneration) {
+        return;
+      }
+      // Pending was replaced while we waited (e.g. source switch).
+      if (_pendingStartPositionMs != targetMs) {
+        debugPrint(
+          '[Seek] Resume target changed while waiting '
+          '($targetMs -> $_pendingStartPositionMs)',
+        );
+        return;
+      }
+      if (!ready) {
+        debugPrint(
+          '[Seek] Duration not ready; keeping pending resume at ${targetMs}ms',
+        );
+        return;
+      }
+
+      final duration = _player.state.duration;
+      var seekTarget = target;
+      if (duration > Duration.zero && seekTarget >= duration) {
+        // Avoid landing on EOF / completed; leave a small tail.
+        final clamped = duration - const Duration(seconds: 3);
+        seekTarget = clamped > Duration.zero ? clamped : Duration.zero;
+      }
+      if (seekTarget <= Duration.zero) {
+        _pendingStartPositionMs = null;
+        return;
+      }
+
+      // Media.start may already have landed us near the target.
+      if (_isNearResumeTarget(seekTarget)) {
+        _pendingStartPositionMs = null;
+        _lastSavedPositionMs = seekTarget.inMilliseconds;
+        _furthestObservedPosition = seekTarget;
+        debugPrint(
+          '[Seek] Resume already near target: '
+          '${_player.state.position.inMilliseconds}ms '
+          '(wanted ${seekTarget.inMilliseconds}ms)',
+        );
+        return;
+      }
+
+      // A few attempts: some streams ignore the first seek while still probing.
+      for (var attempt = 0; attempt < 3; attempt++) {
+        if (!mounted) return;
+        if (generation != null && generation != _resumeSeekGeneration) {
+          return;
+        }
+        if (_pendingStartPositionMs != targetMs) {
+          return;
+        }
+
+        _temporarilyAllowPositionReset();
+        // Keep anti-ad baseline from snapping the resume seek back to 0 after
+        // the short grace window ends with furthest still near zero.
+        _furthestObservedPosition = seekTarget;
+        await _player.seek(seekTarget);
+        debugPrint(
+          '[Seek] Applied start position attempt ${attempt + 1}: '
+          '${seekTarget.inMilliseconds}ms',
+        );
+
+        // Give the player a beat to report the new position.
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+        if (!mounted) return;
+
+        if (_isNearResumeTarget(seekTarget)) {
+          _pendingStartPositionMs = null;
+          _lastSavedPositionMs = seekTarget.inMilliseconds;
+          _furthestObservedPosition = seekTarget;
+          debugPrint(
+            '[Seek] Resume confirmed at '
+            '${_player.state.position.inMilliseconds}ms',
+          );
+          return;
+        }
+      }
+
+      debugPrint(
+        '[Seek] Resume seek did not stick '
+        '(pos=${_player.state.position.inMilliseconds}ms, '
+        'wanted=${seekTarget.inMilliseconds}ms); keeping pending',
+      );
+    } catch (e) {
+      debugPrint('Error applying start position: $e');
     }
   }
 

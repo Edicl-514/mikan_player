@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
+import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/bangumi_details_controller.dart';
@@ -205,13 +206,25 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     );
   }
 
-  void _openEpisodePlayer(BangumiEpisode ep) {
+  Future<void> _openEpisodePlayer(BangumiEpisode ep) async {
+    final anime = _buildAnimeForPlayer();
+    int? startPositionMs;
+    try {
+      startPositionMs = await PlaybackHistoryManager().resumePositionMsFor(
+        anime: anime,
+        episode: ep,
+      );
+    } catch (_) {
+      startPositionMs = null;
+    }
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => PlayerPage(
-          anime: _buildAnimeForPlayer(),
+          anime: anime,
           currentEpisode: ep,
           allEpisodes: _episodes!,
+          startPositionMs: startPositionMs,
         ),
       ),
     );

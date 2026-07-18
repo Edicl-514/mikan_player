@@ -1362,6 +1362,18 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
 
     if (!mounted) return;
 
+    int? startPositionMs;
+    try {
+      startPositionMs = await historyManager.resumePositionMsFor(
+        anime: anime,
+        episode: currentEpisode,
+      );
+    } catch (_) {
+      startPositionMs = null;
+    }
+
+    if (!mounted) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1370,6 +1382,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
           currentEpisode: currentEpisode!,
           allEpisodes: allEpisodes,
           btStreamUrl: streamUrl,
+          startPositionMs: startPositionMs,
         ),
       ),
     );

@@ -100,7 +100,9 @@ extension _PlayerPageSidePanelWidgets on _PlayerPageState {
           )) {
             return;
           }
-          await _player.open(Media(streamUrl));
+          _resumeSeekGeneration++;
+          final openGeneration = _resumeSeekGeneration;
+          await _player.open(_mediaForPlayback(streamUrl));
           if (!isSearchGenerationCurrent(
             resultLoadToken: loadToken,
             currentLoadToken: _sampleSourceController.sampleLoadToken,
@@ -109,7 +111,7 @@ extension _PlayerPageSidePanelWidgets on _PlayerPageState {
             return;
           }
           await _applyPlaybackSpeed();
-          await _applyPendingStartPosition();
+          await _applyPendingStartPosition(generation: openGeneration);
           if (!isSearchGenerationCurrent(
             resultLoadToken: loadToken,
             currentLoadToken: _sampleSourceController.sampleLoadToken,
