@@ -32,12 +32,13 @@ class BangumiSummarySection extends StatelessWidget {
         ? Colors.white70
         : Theme.of(context).textTheme.bodyMedium?.color;
     final hintColor = isDarkBg ? Colors.white38 : Colors.grey;
+    final l10n = AppLocalizations.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SectionTitle(
-          title: AppLocalizations.of(context).bangumiDetailsStory,
+          title: l10n.bangumiDetailsStory,
           isDarkBg: isDarkBg,
         ),
         const SizedBox(height: 12),
@@ -54,7 +55,9 @@ class BangumiSummarySection extends StatelessWidget {
               if (hasBothTranslationAndOriginal) ...[
                 const SizedBox(height: 8),
                 Text(
-                  showOriginal ? "点击显示翻译" : "点击显示原文",
+                  showOriginal
+                      ? l10n.bangumiDetailsShowTranslation
+                      : l10n.bangumiDetailsShowOriginal,
                   style: TextStyle(fontSize: 12, color: hintColor),
                 ),
               ],
@@ -217,6 +220,7 @@ class BangumiInfoBoxList extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final l10n = AppLocalizations.of(context);
     final textColor = isDarkBg ? Colors.white : Colors.black87;
     final keyColor = isDarkBg ? Colors.white54 : Colors.grey;
     final bgColor = isDarkBg
@@ -241,7 +245,7 @@ class BangumiInfoBoxList extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    "Information",
+                    l10n.bangumiDetailsInformation,
                     style: TextStyle(
                       color: textColor,
                       fontWeight: FontWeight.bold,
@@ -260,7 +264,11 @@ class BangumiInfoBoxList extends StatelessWidget {
                         vertical: 4,
                       ),
                     ),
-                    child: Text(isExpanded ? "收起" : "展开"),
+                    child: Text(
+                      isExpanded
+                          ? l10n.bangumiDetailsCollapse
+                          : l10n.bangumiDetailsExpand,
+                    ),
                   ),
               ],
             ),
@@ -286,7 +294,7 @@ class BangumiInfoBoxList extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        "还有 $hiddenCount 项，点击展开查看完整信息",
+                        l10n.bangumiDetailsMoreInfoItems(hiddenCount),
                         style: TextStyle(color: keyColor, fontSize: 12),
                       ),
                     ),

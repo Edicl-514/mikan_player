@@ -2,7 +2,13 @@
 // These are top-level functions so they can be unit tested without a
 // Flutter binding or a page instance.
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
+
+/// Bangumi-style summary separator marker. Kept as protocol token for
+/// matching server payloads; never show this token as UI chrome.
+// i18n-ignore: upstream Bangumi summary separator used for matching
+const bangumiSummaryOriginalSeparator = '[简介原文]';
 
 /// Splits a bangumi summary into the user-facing translation and the
 /// original Chinese text using the `[简介原文]` separator.
@@ -12,7 +18,7 @@ Map<String, String?> parseBangumiSummary(String? summary) {
   }
 
   // Check if summary contains the separator
-  final separatorIndex = summary.indexOf('[简介原文]');
+  final separatorIndex = summary.indexOf(bangumiSummaryOriginalSeparator);
   if (separatorIndex == -1) {
     // No separator, treat entire text as translation
     return {'translation': summary, 'original': null};
@@ -20,7 +26,9 @@ Map<String, String?> parseBangumiSummary(String? summary) {
 
   // Split into translation and original
   final translation = summary.substring(0, separatorIndex).trim();
-  final original = summary.substring(separatorIndex + '[简介原文]'.length).trim();
+  final original = summary
+      .substring(separatorIndex + bangumiSummaryOriginalSeparator.length)
+      .trim();
 
   return {'translation': translation, 'original': original};
 }
@@ -83,12 +91,12 @@ int siteKindPriority(String kind) {
   }
 }
 
-/// Formats a `YYYY-MM-DD` (or ISO 8601) date string into `YYYY年 M月` for
-/// compact display. Returns the input unchanged when it cannot be parsed.
-String formatDateToMonth(String dateStr) {
+/// Formats a `YYYY-MM-DD` (or ISO 8601) date string into a locale-aware
+/// year-month label. Returns the input unchanged when it cannot be parsed.
+String formatDateToMonth(String dateStr, AppLocalizations l10n) {
   try {
     final date = DateTime.parse(dateStr);
-    return "${date.year}年 ${date.month}月";
+    return l10n.bangumiDetailsYearMonth(date.year, date.month);
   } catch (_) {
     return dateStr;
   }
@@ -106,12 +114,16 @@ int? readIntValue(dynamic value) {
 /// Composes a human-readable episode status string such as "全 12 话" or
 /// "0话" used in the mobile header. Pure function over the (possibly null)
 /// subject data and the optional episode list from the controller.
-String getEpisodeStatusText(Map<String, dynamic>? data, List<BangumiEpisode>? episodes) {
+String getEpisodeStatusText(
+  Map<String, dynamic>? data,
+  List<BangumiEpisode>? episodes,
+  AppLocalizations l10n,
+) {
   final total = getTotalEpisodeCount(data, episodes);
   if (total != null && total > 0) {
-    return "全 $total 话";
+    return l10n.bangumiDetailsTotalEpisodes(total);
   }
-  return "0话";
+  return l10n.bangumiDetailsZeroEpisodes;
 }
 
 /// Resolves the total episode count for [getEpisodeStatusText].

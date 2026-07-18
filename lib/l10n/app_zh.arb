@@ -493,8 +493,8 @@
   "stepExtractingVideo": "提取播放页",
   "stepSuccess": "成功",
   "stepFailed": "失败",
-  "characterDetailsLoadFailed": "Failed to load character details",
-  "personDetailsLoadFailed": "Failed to load person details",
+  "characterDetailsLoadFailed": "角色详情加载失败",
+  "personDetailsLoadFailed": "人物详情加载失败",
   "retryButton": "Retry",
   "favoritesTabLocal": "本地收藏",
   "favoritesTabBangumi": "Bangumi 同步",
@@ -751,5 +751,285 @@
   "longPressFastForward": "长按快进 2x",
   "@longPressFastForward": {
     "description": "Mobile long-press 2x speed overlay label."
+  },
+  "bangumiDetailsTabDetails": "详情",
+  "@bangumiDetailsTabDetails": {
+    "description": "Mobile bangumi details tab label."
+  },
+  "bangumiDetailsTabComments": "评论",
+  "@bangumiDetailsTabComments": {
+    "description": "Mobile bangumi comments tab label."
+  },
+  "bangumiDetailsCharacters": "角色",
+  "@bangumiDetailsCharacters": {
+    "description": "Bangumi details characters section title."
+  },
+  "bangumiDetailsComments": "评论",
+  "@bangumiDetailsComments": {
+    "description": "Bangumi details comments section title."
+  },
+  "bangumiDetailsNoComments": "暂无评论",
+  "@bangumiDetailsNoComments": {
+    "description": "Empty comments state on bangumi details."
+  },
+  "bangumiDetailsNoSummary": "暂无简介",
+  "@bangumiDetailsNoSummary": {
+    "description": "Fallback when subject summary is missing."
+  },
+  "bangumiDetailsFavorite": "收藏",
+  "@bangumiDetailsFavorite": {
+    "description": "Favorite action when the subject is not favorited."
+  },
+  "bangumiDetailsFavorited": "已收藏",
+  "@bangumiDetailsFavorited": {
+    "description": "Favorite action when the subject is already favorited."
+  },
+  "bangumiDetailsCollectionStats": "{wish} 收藏 / {doing} 在看 / {dropped} 抛弃",
+  "@bangumiDetailsCollectionStats": {
+    "description": "Mobile header collection totals row.",
+    "placeholders": {
+      "wish": { "type": "int" },
+      "doing": { "type": "int" },
+      "dropped": { "type": "int" }
+    }
+  },
+  "bangumiDetailsRatingVotes": "{count} 人评",
+  "@bangumiDetailsRatingVotes": {
+    "description": "Mobile rating vote count without rank.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "bangumiDetailsRatingVotesWithRank": "{count} 人评 | #{rank}",
+  "@bangumiDetailsRatingVotesWithRank": {
+    "description": "Mobile rating vote count with rank.",
+    "placeholders": {
+      "count": { "type": "int" },
+      "rank": { "type": "int" }
+    }
+  },
+  "bangumiDetailsVotes": "{count} 人评分",
+  "@bangumiDetailsVotes": {
+    "description": "Wide layout rating card vote count.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "bangumiDetailsRanked": "排名 #{rank}",
+  "@bangumiDetailsRanked": {
+    "description": "Wide layout ranking label.",
+    "placeholders": {
+      "rank": { "type": "int" }
+    }
+  },
+  "bangumiDetailsCollectWish": "收藏",
+  "@bangumiDetailsCollectWish": {
+    "description": "Collection bucket label for wish."
+  },
+  "bangumiDetailsCollectDoing": "在看",
+  "@bangumiDetailsCollectDoing": {
+    "description": "Collection bucket label for currently watching."
+  },
+  "bangumiDetailsCollectDropped": "抛弃",
+  "@bangumiDetailsCollectDropped": {
+    "description": "Collection bucket label for dropped."
+  },
+  "bangumiDetailsLoadingSection": "正在加载{title}...",
+  "@bangumiDetailsLoadingSection": {
+    "description": "Section loading placeholder body.",
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "bangumiDetailsComingSoon": "（即将推出）",
+  "@bangumiDetailsComingSoon": {
+    "description": "Secondary line under section loading placeholders."
+  },
+  "bangumiDetailsShowTranslation": "点击显示翻译",
+  "@bangumiDetailsShowTranslation": {
+    "description": "Summary toggle hint when original text is shown."
+  },
+  "bangumiDetailsShowOriginal": "点击显示原文",
+  "@bangumiDetailsShowOriginal": {
+    "description": "Summary toggle hint when translation is shown."
+  },
+  "bangumiDetailsCollapse": "收起",
+  "@bangumiDetailsCollapse": {
+    "description": "Infobox collapse control."
+  },
+  "bangumiDetailsExpand": "展开",
+  "@bangumiDetailsExpand": {
+    "description": "Infobox expand control."
+  },
+  "bangumiDetailsInformation": "资料",
+  "@bangumiDetailsInformation": {
+    "description": "Infobox section heading on bangumi details."
+  },
+  "bangumiDetailsMoreInfoItems": "还有 {count} 项，点击展开查看完整信息",
+  "@bangumiDetailsMoreInfoItems": {
+    "description": "Infobox hidden-item count hint.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "bangumiDetailsYearMonth": "{year}年 {month}月",
+  "@bangumiDetailsYearMonth": {
+    "description": "Compact air date shown as year + month.",
+    "placeholders": {
+      "year": { "type": "int" },
+      "month": { "type": "int" }
+    }
+  },
+  "bangumiDetailsTotalEpisodes": "全 {count} 话",
+  "@bangumiDetailsTotalEpisodes": {
+    "description": "Episode total status when count is positive.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "bangumiDetailsZeroEpisodes": "0话",
+  "@bangumiDetailsZeroEpisodes": {
+    "description": "Episode total status when count is unknown/zero."
+  },
+  "bangumiDetailsSiteOnair": "放送",
+  "@bangumiDetailsSiteOnair": {
+    "description": "Related site kind badge for on-air sources."
+  },
+  "bangumiDetailsSiteInfo": "资料",
+  "@bangumiDetailsSiteInfo": {
+    "description": "Related site kind badge for info sources."
+  },
+  "bangumiDetailsSiteResource": "资源",
+  "@bangumiDetailsSiteResource": {
+    "description": "Related site kind badge for resource sources."
+  },
+  "bangumiDetailsRoleMain": "主角",
+  "@bangumiDetailsRoleMain": {
+    "description": "Displayed character role badge for main cast."
+  },
+  "bangumiDetailsRoleSupporting": "配角",
+  "@bangumiDetailsRoleSupporting": {
+    "description": "Displayed character role badge for supporting cast."
+  },
+  "bangumiDetailsRoleMinor": "闲角",
+  "@bangumiDetailsRoleMinor": {
+    "description": "Displayed character role badge for minor cast."
+  },
+  "bangumiDetailsCvPrefix": "CV: ",
+  "@bangumiDetailsCvPrefix": {
+    "description": "Voice actor prefix before the person name."
+  },
+  "detailsCommentsCount": "{count} 评论",
+  "@detailsCommentsCount": {
+    "description": "Character/person header comments chip.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "detailsCollectsCount": "{count} 收藏",
+  "@detailsCollectsCount": {
+    "description": "Character/person header collects chip.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "detailsCommentsLabel": "评论",
+  "@detailsCommentsLabel": {
+    "description": "Character/person stat column label for comments."
+  },
+  "detailsCollectsLabel": "收藏",
+  "@detailsCollectsLabel": {
+    "description": "Character/person stat column label for collects."
+  },
+  "detailsSectionSummary": "简介",
+  "@detailsSectionSummary": {
+    "description": "Summary section title on character/person details."
+  },
+  "detailsSectionInfo": "资料",
+  "@detailsSectionInfo": {
+    "description": "Infobox section title on character/person details."
+  },
+  "detailsSectionAppearances": "出演作品",
+  "@detailsSectionAppearances": {
+    "description": "Appearances section title for seiyuu/character works."
+  },
+  "detailsSectionRelatedWorks": "相关作品",
+  "@detailsSectionRelatedWorks": {
+    "description": "Related works section title for non-seiyuu persons."
+  },
+  "detailsSectionVoiceRoles": "配音角色",
+  "@detailsSectionVoiceRoles": {
+    "description": "Voice roles section title on person details."
+  },
+  "detailsWorksCount": "{count} 部作品",
+  "@detailsWorksCount": {
+    "description": "Number of works under a character group on person details.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "detailsCvName": "CV: {name}",
+  "@detailsCvName": {
+    "description": "CV chip showing the voice actor name.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "detailsGenderMale": "男性",
+  "@detailsGenderMale": {
+    "description": "Displayed male gender label."
+  },
+  "detailsGenderFemale": "女性",
+  "@detailsGenderFemale": {
+    "description": "Displayed female gender label."
+  },
+  "detailsBirthdayYear": "{year}年",
+  "@detailsBirthdayYear": {
+    "description": "Birthday year fragment.",
+    "placeholders": {
+      "year": { "type": "int" }
+    }
+  },
+  "detailsBirthdayMonth": "{month}月",
+  "@detailsBirthdayMonth": {
+    "description": "Birthday month fragment.",
+    "placeholders": {
+      "month": { "type": "int" }
+    }
+  },
+  "detailsBirthdayDay": "{day}日",
+  "@detailsBirthdayDay": {
+    "description": "Birthday day fragment.",
+    "placeholders": {
+      "day": { "type": "int" }
+    }
+  },
+  "detailsBirthdaySeparator": "",
+  "@detailsBirthdaySeparator": {
+    "description": "Separator placed between birthday year/month/day fragments. Empty for locales whose fragments already include the unit, otherwise a short readable separator such as '-'."
+  },
+  "personCareerSeiyu": "声优",
+  "@personCareerSeiyu": {
+    "description": "Person career badge for voice actor."
+  },
+  "personCareerProducer": "制作人",
+  "@personCareerProducer": {
+    "description": "Person career badge for producer."
+  },
+  "personCareerMangaka": "漫画家",
+  "@personCareerMangaka": {
+    "description": "Person career badge for mangaka."
+  },
+  "personCareerArtist": "音乐人",
+  "@personCareerArtist": {
+    "description": "Person career badge for music artist."
+  },
+  "personCareerWriter": "作者",
+  "@personCareerWriter": {
+    "description": "Person career badge for writer."
+  },
+  "personCareerIllustrator": "插画家",
+  "@personCareerIllustrator": {
+    "description": "Person career badge for illustrator."
   }
 }

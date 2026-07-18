@@ -1252,10 +1252,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get stepFailed => '失败';
 
   @override
-  String get characterDetailsLoadFailed => 'Failed to load character details';
+  String get characterDetailsLoadFailed => '角色详情加载失败';
 
   @override
-  String get personDetailsLoadFailed => 'Failed to load person details';
+  String get personDetailsLoadFailed => '人物详情加载失败';
 
   @override
   String get retryButton => 'Retry';
@@ -1757,4 +1757,207 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get longPressFastForward => '长按快进 2x';
+
+  @override
+  String get bangumiDetailsTabDetails => '详情';
+
+  @override
+  String get bangumiDetailsTabComments => '评论';
+
+  @override
+  String get bangumiDetailsCharacters => '角色';
+
+  @override
+  String get bangumiDetailsComments => '评论';
+
+  @override
+  String get bangumiDetailsNoComments => '暂无评论';
+
+  @override
+  String get bangumiDetailsNoSummary => '暂无简介';
+
+  @override
+  String get bangumiDetailsFavorite => '收藏';
+
+  @override
+  String get bangumiDetailsFavorited => '已收藏';
+
+  @override
+  String bangumiDetailsCollectionStats(int wish, int doing, int dropped) {
+    return '$wish 收藏 / $doing 在看 / $dropped 抛弃';
+  }
+
+  @override
+  String bangumiDetailsRatingVotes(int count) {
+    return '$count 人评';
+  }
+
+  @override
+  String bangumiDetailsRatingVotesWithRank(int count, int rank) {
+    return '$count 人评 | #$rank';
+  }
+
+  @override
+  String bangumiDetailsVotes(int count) {
+    return '$count 人评分';
+  }
+
+  @override
+  String bangumiDetailsRanked(int rank) {
+    return '排名 #$rank';
+  }
+
+  @override
+  String get bangumiDetailsCollectWish => '收藏';
+
+  @override
+  String get bangumiDetailsCollectDoing => '在看';
+
+  @override
+  String get bangumiDetailsCollectDropped => '抛弃';
+
+  @override
+  String bangumiDetailsLoadingSection(String title) {
+    return '正在加载$title...';
+  }
+
+  @override
+  String get bangumiDetailsComingSoon => '（即将推出）';
+
+  @override
+  String get bangumiDetailsShowTranslation => '点击显示翻译';
+
+  @override
+  String get bangumiDetailsShowOriginal => '点击显示原文';
+
+  @override
+  String get bangumiDetailsCollapse => '收起';
+
+  @override
+  String get bangumiDetailsExpand => '展开';
+
+  @override
+  String get bangumiDetailsInformation => '资料';
+
+  @override
+  String bangumiDetailsMoreInfoItems(int count) {
+    return '还有 $count 项，点击展开查看完整信息';
+  }
+
+  @override
+  String bangumiDetailsYearMonth(int year, int month) {
+    return '$year年 $month月';
+  }
+
+  @override
+  String bangumiDetailsTotalEpisodes(int count) {
+    return '全 $count 话';
+  }
+
+  @override
+  String get bangumiDetailsZeroEpisodes => '0话';
+
+  @override
+  String get bangumiDetailsSiteOnair => '放送';
+
+  @override
+  String get bangumiDetailsSiteInfo => '资料';
+
+  @override
+  String get bangumiDetailsSiteResource => '资源';
+
+  @override
+  String get bangumiDetailsRoleMain => '主角';
+
+  @override
+  String get bangumiDetailsRoleSupporting => '配角';
+
+  @override
+  String get bangumiDetailsRoleMinor => '闲角';
+
+  @override
+  String get bangumiDetailsCvPrefix => 'CV: ';
+
+  @override
+  String detailsCommentsCount(int count) {
+    return '$count 评论';
+  }
+
+  @override
+  String detailsCollectsCount(int count) {
+    return '$count 收藏';
+  }
+
+  @override
+  String get detailsCommentsLabel => '评论';
+
+  @override
+  String get detailsCollectsLabel => '收藏';
+
+  @override
+  String get detailsSectionSummary => '简介';
+
+  @override
+  String get detailsSectionInfo => '资料';
+
+  @override
+  String get detailsSectionAppearances => '出演作品';
+
+  @override
+  String get detailsSectionRelatedWorks => '相关作品';
+
+  @override
+  String get detailsSectionVoiceRoles => '配音角色';
+
+  @override
+  String detailsWorksCount(int count) {
+    return '$count 部作品';
+  }
+
+  @override
+  String detailsCvName(String name) {
+    return 'CV: $name';
+  }
+
+  @override
+  String get detailsGenderMale => '男性';
+
+  @override
+  String get detailsGenderFemale => '女性';
+
+  @override
+  String detailsBirthdayYear(int year) {
+    return '$year年';
+  }
+
+  @override
+  String detailsBirthdayMonth(int month) {
+    return '$month月';
+  }
+
+  @override
+  String detailsBirthdayDay(int day) {
+    return '$day日';
+  }
+
+  @override
+  String get detailsBirthdaySeparator => '';
+
+  @override
+  String get personCareerSeiyu => '声优';
+
+  @override
+  String get personCareerProducer => '制作人';
+
+  @override
+  String get personCareerMangaka => '漫画家';
+
+  @override
+  String get personCareerArtist => '音乐人';
+
+  @override
+  String get personCareerWriter => '作者';
+
+  @override
+  String get personCareerIllustrator => '插画家';
 }

@@ -1832,4 +1832,207 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get longPressFastForward => 'Hold for 2x';
+
+  @override
+  String get bangumiDetailsTabDetails => 'Details';
+
+  @override
+  String get bangumiDetailsTabComments => 'Comments';
+
+  @override
+  String get bangumiDetailsCharacters => 'Characters';
+
+  @override
+  String get bangumiDetailsComments => 'Comments';
+
+  @override
+  String get bangumiDetailsNoComments => 'No comments yet';
+
+  @override
+  String get bangumiDetailsNoSummary => 'No summary';
+
+  @override
+  String get bangumiDetailsFavorite => 'Favorite';
+
+  @override
+  String get bangumiDetailsFavorited => 'Favorited';
+
+  @override
+  String bangumiDetailsCollectionStats(int wish, int doing, int dropped) {
+    return '$wish wish / $doing watching / $dropped dropped';
+  }
+
+  @override
+  String bangumiDetailsRatingVotes(int count) {
+    return '$count votes';
+  }
+
+  @override
+  String bangumiDetailsRatingVotesWithRank(int count, int rank) {
+    return '$count votes | #$rank';
+  }
+
+  @override
+  String bangumiDetailsVotes(int count) {
+    return '$count votes';
+  }
+
+  @override
+  String bangumiDetailsRanked(int rank) {
+    return 'Ranked #$rank';
+  }
+
+  @override
+  String get bangumiDetailsCollectWish => 'Wish';
+
+  @override
+  String get bangumiDetailsCollectDoing => 'Watching';
+
+  @override
+  String get bangumiDetailsCollectDropped => 'Dropped';
+
+  @override
+  String bangumiDetailsLoadingSection(String title) {
+    return 'Loading $title...';
+  }
+
+  @override
+  String get bangumiDetailsComingSoon => '(Coming Soon)';
+
+  @override
+  String get bangumiDetailsShowTranslation => 'Tap to show translation';
+
+  @override
+  String get bangumiDetailsShowOriginal => 'Tap to show original';
+
+  @override
+  String get bangumiDetailsCollapse => 'Collapse';
+
+  @override
+  String get bangumiDetailsExpand => 'Expand';
+
+  @override
+  String get bangumiDetailsInformation => 'Information';
+
+  @override
+  String bangumiDetailsMoreInfoItems(int count) {
+    return '$count more items — tap Expand for full info';
+  }
+
+  @override
+  String bangumiDetailsYearMonth(int year, int month) {
+    return '$month/$year';
+  }
+
+  @override
+  String bangumiDetailsTotalEpisodes(int count) {
+    return '$count episodes';
+  }
+
+  @override
+  String get bangumiDetailsZeroEpisodes => '0 episodes';
+
+  @override
+  String get bangumiDetailsSiteOnair => 'On air';
+
+  @override
+  String get bangumiDetailsSiteInfo => 'Info';
+
+  @override
+  String get bangumiDetailsSiteResource => 'Resource';
+
+  @override
+  String get bangumiDetailsRoleMain => 'Main';
+
+  @override
+  String get bangumiDetailsRoleSupporting => 'Supporting';
+
+  @override
+  String get bangumiDetailsRoleMinor => 'Minor';
+
+  @override
+  String get bangumiDetailsCvPrefix => 'CV: ';
+
+  @override
+  String detailsCommentsCount(int count) {
+    return '$count comments';
+  }
+
+  @override
+  String detailsCollectsCount(int count) {
+    return '$count collects';
+  }
+
+  @override
+  String get detailsCommentsLabel => 'Comments';
+
+  @override
+  String get detailsCollectsLabel => 'Collects';
+
+  @override
+  String get detailsSectionSummary => 'Summary';
+
+  @override
+  String get detailsSectionInfo => 'Information';
+
+  @override
+  String get detailsSectionAppearances => 'Appearances';
+
+  @override
+  String get detailsSectionRelatedWorks => 'Related works';
+
+  @override
+  String get detailsSectionVoiceRoles => 'Voice roles';
+
+  @override
+  String detailsWorksCount(int count) {
+    return '$count works';
+  }
+
+  @override
+  String detailsCvName(String name) {
+    return 'CV: $name';
+  }
+
+  @override
+  String get detailsGenderMale => 'Male';
+
+  @override
+  String get detailsGenderFemale => 'Female';
+
+  @override
+  String detailsBirthdayYear(int year) {
+    return '$year';
+  }
+
+  @override
+  String detailsBirthdayMonth(int month) {
+    return '$month';
+  }
+
+  @override
+  String detailsBirthdayDay(int day) {
+    return '$day';
+  }
+
+  @override
+  String get detailsBirthdaySeparator => '-';
+
+  @override
+  String get personCareerSeiyu => 'Voice actor';
+
+  @override
+  String get personCareerProducer => 'Producer';
+
+  @override
+  String get personCareerMangaka => 'Mangaka';
+
+  @override
+  String get personCareerArtist => 'Musician';
+
+  @override
+  String get personCareerWriter => 'Writer';
+
+  @override
+  String get personCareerIllustrator => 'Illustrator';
 }

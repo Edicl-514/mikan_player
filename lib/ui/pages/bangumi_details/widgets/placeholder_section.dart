@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/section_title.dart';
 
 /// "Loading…" placeholder used when a section's data has not landed yet.
@@ -44,7 +45,7 @@ class PlaceholderSection extends StatelessWidget {
               Icon(icon, size: 48, color: iconColor),
               const SizedBox(height: 8),
               Text(
-                "Loading $title...",
+                AppLocalizations.of(context).bangumiDetailsLoadingSection(title),
                 style: TextStyle(
                   color: iconColor,
                   fontWeight: FontWeight.w500,
@@ -52,7 +53,7 @@ class PlaceholderSection extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                "(Coming Soon)",
+                AppLocalizations.of(context).bangumiDetailsComingSoon,
                 style: TextStyle(color: iconColor, fontSize: 10),
               ),
             ],

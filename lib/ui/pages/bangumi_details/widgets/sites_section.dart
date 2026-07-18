@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/widgets/site_icon_map.dart';
 
@@ -175,7 +176,7 @@ class _SiteKindBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = siteKindLabel(kind);
+    final label = siteKindLabel(kind, AppLocalizations.of(context));
     final badgeColor = siteKindColor(kind);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
@@ -203,14 +204,14 @@ class _SiteKindBadge extends StatelessWidget {
   }
 }
 
-String siteKindLabel(String kind) {
+String siteKindLabel(String kind, AppLocalizations l10n) {
   switch (kind) {
     case 'onair':
-      return '放送';
+      return l10n.bangumiDetailsSiteOnair;
     case 'info':
-      return '资料';
+      return l10n.bangumiDetailsSiteInfo;
     case 'resource':
-      return '资源';
+      return l10n.bangumiDetailsSiteResource;
     default:
       return kind;
   }

@@ -751,5 +751,285 @@
   "longPressFastForward": "Hold for 2x",
   "@longPressFastForward": {
     "description": "Mobile long-press 2x speed overlay label."
+  },
+  "bangumiDetailsTabDetails": "Details",
+  "@bangumiDetailsTabDetails": {
+    "description": "Mobile bangumi details tab label."
+  },
+  "bangumiDetailsTabComments": "Comments",
+  "@bangumiDetailsTabComments": {
+    "description": "Mobile bangumi comments tab label."
+  },
+  "bangumiDetailsCharacters": "Characters",
+  "@bangumiDetailsCharacters": {
+    "description": "Bangumi details characters section title."
+  },
+  "bangumiDetailsComments": "Comments",
+  "@bangumiDetailsComments": {
+    "description": "Bangumi details comments section title."
+  },
+  "bangumiDetailsNoComments": "No comments yet",
+  "@bangumiDetailsNoComments": {
+    "description": "Empty comments state on bangumi details."
+  },
+  "bangumiDetailsNoSummary": "No summary",
+  "@bangumiDetailsNoSummary": {
+    "description": "Fallback when subject summary is missing."
+  },
+  "bangumiDetailsFavorite": "Favorite",
+  "@bangumiDetailsFavorite": {
+    "description": "Favorite action when the subject is not favorited."
+  },
+  "bangumiDetailsFavorited": "Favorited",
+  "@bangumiDetailsFavorited": {
+    "description": "Favorite action when the subject is already favorited."
+  },
+  "bangumiDetailsCollectionStats": "{wish} wish / {doing} watching / {dropped} dropped",
+  "@bangumiDetailsCollectionStats": {
+    "description": "Mobile header collection totals row.",
+    "placeholders": {
+      "wish": { "type": "int" },
+      "doing": { "type": "int" },
+      "dropped": { "type": "int" }
+    }
+  },
+  "bangumiDetailsRatingVotes": "{count} votes",
+  "@bangumiDetailsRatingVotes": {
+    "description": "Mobile rating vote count without rank.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "bangumiDetailsRatingVotesWithRank": "{count} votes | #{rank}",
+  "@bangumiDetailsRatingVotesWithRank": {
+    "description": "Mobile rating vote count with rank.",
+    "placeholders": {
+      "count": { "type": "int" },
+      "rank": { "type": "int" }
+    }
+  },
+  "bangumiDetailsVotes": "{count} votes",
+  "@bangumiDetailsVotes": {
+    "description": "Wide layout rating card vote count.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "bangumiDetailsRanked": "Ranked #{rank}",
+  "@bangumiDetailsRanked": {
+    "description": "Wide layout ranking label.",
+    "placeholders": {
+      "rank": { "type": "int" }
+    }
+  },
+  "bangumiDetailsCollectWish": "Wish",
+  "@bangumiDetailsCollectWish": {
+    "description": "Collection bucket label for wish."
+  },
+  "bangumiDetailsCollectDoing": "Watching",
+  "@bangumiDetailsCollectDoing": {
+    "description": "Collection bucket label for currently watching."
+  },
+  "bangumiDetailsCollectDropped": "Dropped",
+  "@bangumiDetailsCollectDropped": {
+    "description": "Collection bucket label for dropped."
+  },
+  "bangumiDetailsLoadingSection": "Loading {title}...",
+  "@bangumiDetailsLoadingSection": {
+    "description": "Section loading placeholder body.",
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "bangumiDetailsComingSoon": "(Coming Soon)",
+  "@bangumiDetailsComingSoon": {
+    "description": "Secondary line under section loading placeholders."
+  },
+  "bangumiDetailsShowTranslation": "Tap to show translation",
+  "@bangumiDetailsShowTranslation": {
+    "description": "Summary toggle hint when original text is shown."
+  },
+  "bangumiDetailsShowOriginal": "Tap to show original",
+  "@bangumiDetailsShowOriginal": {
+    "description": "Summary toggle hint when translation is shown."
+  },
+  "bangumiDetailsCollapse": "Collapse",
+  "@bangumiDetailsCollapse": {
+    "description": "Infobox collapse control."
+  },
+  "bangumiDetailsExpand": "Expand",
+  "@bangumiDetailsExpand": {
+    "description": "Infobox expand control."
+  },
+  "bangumiDetailsInformation": "Information",
+  "@bangumiDetailsInformation": {
+    "description": "Infobox section heading on bangumi details."
+  },
+  "bangumiDetailsMoreInfoItems": "{count} more items — tap Expand for full info",
+  "@bangumiDetailsMoreInfoItems": {
+    "description": "Infobox hidden-item count hint.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "bangumiDetailsYearMonth": "{month}/{year}",
+  "@bangumiDetailsYearMonth": {
+    "description": "Compact air date shown as year + month.",
+    "placeholders": {
+      "year": { "type": "int" },
+      "month": { "type": "int" }
+    }
+  },
+  "bangumiDetailsTotalEpisodes": "{count} episodes",
+  "@bangumiDetailsTotalEpisodes": {
+    "description": "Episode total status when count is positive.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "bangumiDetailsZeroEpisodes": "0 episodes",
+  "@bangumiDetailsZeroEpisodes": {
+    "description": "Episode total status when count is unknown/zero."
+  },
+  "bangumiDetailsSiteOnair": "On air",
+  "@bangumiDetailsSiteOnair": {
+    "description": "Related site kind badge for on-air sources."
+  },
+  "bangumiDetailsSiteInfo": "Info",
+  "@bangumiDetailsSiteInfo": {
+    "description": "Related site kind badge for info sources."
+  },
+  "bangumiDetailsSiteResource": "Resource",
+  "@bangumiDetailsSiteResource": {
+    "description": "Related site kind badge for resource sources."
+  },
+  "bangumiDetailsRoleMain": "Main",
+  "@bangumiDetailsRoleMain": {
+    "description": "Displayed character role badge for main cast."
+  },
+  "bangumiDetailsRoleSupporting": "Supporting",
+  "@bangumiDetailsRoleSupporting": {
+    "description": "Displayed character role badge for supporting cast."
+  },
+  "bangumiDetailsRoleMinor": "Minor",
+  "@bangumiDetailsRoleMinor": {
+    "description": "Displayed character role badge for minor cast."
+  },
+  "bangumiDetailsCvPrefix": "CV: ",
+  "@bangumiDetailsCvPrefix": {
+    "description": "Voice actor prefix before the person name."
+  },
+  "detailsCommentsCount": "{count} comments",
+  "@detailsCommentsCount": {
+    "description": "Character/person header comments chip.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "detailsCollectsCount": "{count} collects",
+  "@detailsCollectsCount": {
+    "description": "Character/person header collects chip.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "detailsCommentsLabel": "Comments",
+  "@detailsCommentsLabel": {
+    "description": "Character/person stat column label for comments."
+  },
+  "detailsCollectsLabel": "Collects",
+  "@detailsCollectsLabel": {
+    "description": "Character/person stat column label for collects."
+  },
+  "detailsSectionSummary": "Summary",
+  "@detailsSectionSummary": {
+    "description": "Summary section title on character/person details."
+  },
+  "detailsSectionInfo": "Information",
+  "@detailsSectionInfo": {
+    "description": "Infobox section title on character/person details."
+  },
+  "detailsSectionAppearances": "Appearances",
+  "@detailsSectionAppearances": {
+    "description": "Appearances section title for seiyuu/character works."
+  },
+  "detailsSectionRelatedWorks": "Related works",
+  "@detailsSectionRelatedWorks": {
+    "description": "Related works section title for non-seiyuu persons."
+  },
+  "detailsSectionVoiceRoles": "Voice roles",
+  "@detailsSectionVoiceRoles": {
+    "description": "Voice roles section title on person details."
+  },
+  "detailsWorksCount": "{count} works",
+  "@detailsWorksCount": {
+    "description": "Number of works under a character group on person details.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "detailsCvName": "CV: {name}",
+  "@detailsCvName": {
+    "description": "CV chip showing the voice actor name.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "detailsGenderMale": "Male",
+  "@detailsGenderMale": {
+    "description": "Displayed male gender label."
+  },
+  "detailsGenderFemale": "Female",
+  "@detailsGenderFemale": {
+    "description": "Displayed female gender label."
+  },
+  "detailsBirthdayYear": "{year}",
+  "@detailsBirthdayYear": {
+    "description": "Birthday year fragment.",
+    "placeholders": {
+      "year": { "type": "int" }
+    }
+  },
+  "detailsBirthdayMonth": "{month}",
+  "@detailsBirthdayMonth": {
+    "description": "Birthday month fragment.",
+    "placeholders": {
+      "month": { "type": "int" }
+    }
+  },
+  "detailsBirthdayDay": "{day}",
+  "@detailsBirthdayDay": {
+    "description": "Birthday day fragment.",
+    "placeholders": {
+      "day": { "type": "int" }
+    }
+  },
+  "detailsBirthdaySeparator": "-",
+  "@detailsBirthdaySeparator": {
+    "description": "Separator placed between birthday year/month/day fragments. Empty for locales whose fragments already include the unit, otherwise a short readable separator such as '-'."
+  },
+  "personCareerSeiyu": "Voice actor",
+  "@personCareerSeiyu": {
+    "description": "Person career badge for voice actor."
+  },
+  "personCareerProducer": "Producer",
+  "@personCareerProducer": {
+    "description": "Person career badge for producer."
+  },
+  "personCareerMangaka": "Mangaka",
+  "@personCareerMangaka": {
+    "description": "Person career badge for mangaka."
+  },
+  "personCareerArtist": "Musician",
+  "@personCareerArtist": {
+    "description": "Person career badge for music artist."
+  },
+  "personCareerWriter": "Writer",
+  "@personCareerWriter": {
+    "description": "Person career badge for writer."
+  },
+  "personCareerIllustrator": "Illustrator",
+  "@personCareerIllustrator": {
+    "description": "Person career badge for illustrator."
   }
 }

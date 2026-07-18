@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
+
 /// Collection-stats row with a compact favorite button used in the mobile
 /// header. Stateless presentational widget extracted from
 /// `_buildCollectionStatsRow` in `bangumi_details_page.dart`.
@@ -21,9 +23,10 @@ class BangumiCollectionStatsRow extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final wish = collection!['wish'] ?? 0;
-    final doing = collection!['doing'] ?? 0;
-    final dropped = collection!['dropped'] ?? 0;
+    final l10n = AppLocalizations.of(context);
+    final wish = (collection!['wish'] as num?)?.toInt() ?? 0;
+    final doing = (collection!['doing'] as num?)?.toInt() ?? 0;
+    final dropped = (collection!['dropped'] as num?)?.toInt() ?? 0;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -49,12 +52,16 @@ class BangumiCollectionStatsRow extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.5),
                     ),
                     const SizedBox(width: 6),
-                    Text(
-                      "$wish 收藏 / $doing 在看 / $dropped 抛弃",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontWeight: FontWeight.w500,
+                    Flexible(
+                      child: Text(
+                        l10n.bangumiDetailsCollectionStats(wish, doing, dropped),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -98,7 +105,9 @@ class BangumiCollectionStatsRow extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      isLocalFavorite ? "已收藏" : "收藏",
+                      isLocalFavorite
+                          ? l10n.bangumiDetailsFavorited
+                          : l10n.bangumiDetailsFavorite,
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,

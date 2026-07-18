@@ -57,3 +57,23 @@
 - 修复：标题与计数各包 `Flexible`，并加 `TextOverflow.ellipsis`。
 - 回归测试：`EpisodeSidePanel renders localized header in en`。
 - 迁移/回滚：不涉及。
+
+### L10N-3-001 — Bangumi 详情页缺日期时展示虚假占位日期
+
+- 工作包：L10N-3（2026-07-18）
+- 现象：`data['date']` 为空时，移动端详情 header 仍显示硬编码 `2026年 1月`。
+- 根因：`mobile_layout.dart` 把未知日期回退到固定字面量，而不是隐藏日期芯片。
+- 影响：无播出日期的作品会显示错误日期，用户可能误判放送信息。
+- 修复：仅在 `data['date']` 存在时渲染日期徽章，并走 locale-aware `formatDateToMonth`。
+- 回归测试：helpers 的 `formatDateToMonth` 单测 + 详情 widget 本地化 smoke；该分支为缺字段 UI 隐藏，无额外 mock 数据页测试。
+- 迁移/回滚：不涉及。
+
+### L10N-3-002 — ARB 中文错误文案误写英文
+
+- 工作包：L10N-3（2026-07-18）
+- 现象：`app_zh.arb` 的 `characterDetailsLoadFailed` / `personDetailsLoadFailed` 值为英文。
+- 根因：早期占位文案未按模板 locale 补中文。
+- 影响：中文 locale 下角色/人物详情加载失败提示显示英文。
+- 修复：改为「角色详情加载失败」「人物详情加载失败」。
+- 回归测试：`arb_consistency_test.dart`。
+- 迁移/回滚：不涉及。

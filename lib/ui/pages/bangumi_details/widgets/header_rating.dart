@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
+
 /// Compact rating row used in the mobile header.
 ///
 /// Stateless presentational widget extracted from `_buildHeaderRatingRow` in
@@ -14,9 +16,10 @@ class BangumiRatingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     if (rating == null) return const SizedBox.shrink();
 
-    final score = rating['score'] ?? 0.0;
-    final total = rating['total'] ?? 0;
-    final rank = rating['rank'] ?? 0;
+    final l10n = AppLocalizations.of(context);
+    final score = (rating['score'] as num?)?.toDouble() ?? 0.0;
+    final total = (rating['total'] as num?)?.toInt() ?? 0;
+    final rank = (rating['rank'] as num?)?.toInt() ?? 0;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -44,7 +47,9 @@ class BangumiRatingRow extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              (rank != null && rank > 0) ? "$total 人评 | #$rank" : "$total 人评",
+              rank > 0
+                  ? l10n.bangumiDetailsRatingVotesWithRank(total, rank)
+                  : l10n.bangumiDetailsRatingVotes(total),
               style: const TextStyle(fontSize: 11, color: Colors.white70),
             ),
           ],
@@ -74,13 +79,14 @@ class BangumiRatingCard extends StatelessWidget {
     if (rating == null) {
       return const SizedBox.shrink();
     }
+    final l10n = AppLocalizations.of(context);
     final score = rating!['score'];
-    final rank = rating!['rank'];
-    final count = rating!['total'];
+    final rank = (rating!['rank'] as num?)?.toInt() ?? 0;
+    final count = (rating!['total'] as num?)?.toInt() ?? 0;
 
-    final wish = collection?['wish'] ?? 0;
-    final doing = collection?['doing'] ?? 0;
-    final dropped = collection?['dropped'] ?? 0;
+    final wish = (collection?['wish'] as num?)?.toInt() ?? 0;
+    final doing = (collection?['doing'] as num?)?.toInt() ?? 0;
+    final dropped = (collection?['dropped'] as num?)?.toInt() ?? 0;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -108,13 +114,13 @@ class BangumiRatingCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            "$count votes",
+            l10n.bangumiDetailsVotes(count),
             style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
-          if (rank != null && rank > 0) ...[
+          if (rank > 0) ...[
             const Divider(color: Colors.white24, height: 24),
             Text(
-              "Ranked #$rank",
+              l10n.bangumiDetailsRanked(rank),
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -127,9 +133,12 @@ class BangumiRatingCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildCompactStatItem("收藏", wish),
-                _buildCompactStatItem("在看", doing),
-                _buildCompactStatItem("抛弃", dropped),
+                _buildCompactStatItem(l10n.bangumiDetailsCollectWish, wish),
+                _buildCompactStatItem(l10n.bangumiDetailsCollectDoing, doing),
+                _buildCompactStatItem(
+                  l10n.bangumiDetailsCollectDropped,
+                  dropped,
+                ),
               ],
             ),
           ],

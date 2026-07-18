@@ -109,6 +109,7 @@ class EpisodesSection extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
+                            // i18n-ignore: product lexicon episode index prefix
                             'EP ${ep.sort % 1 == 0 ? ep.sort.toInt() : ep.sort}',
                             style: TextStyle(
                               fontSize: 12,

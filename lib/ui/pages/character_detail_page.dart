@@ -133,7 +133,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     );
   }
 
-  String? _getDisplayBirthday() {
+  String? _getDisplayBirthday(AppLocalizations l10n) {
     if (_characterDetails == null) return null;
     final year = _characterDetails!.birthYear;
     final month = _characterDetails!.birthMon;
@@ -142,11 +142,11 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     if (year == null && month == null && day == null) return null;
 
     final parts = <String>[];
-    if (year != null) parts.add('$year年');
-    if (month != null) parts.add('$month月');
-    if (day != null) parts.add('$day日');
+    if (year != null) parts.add(l10n.detailsBirthdayYear(year));
+    if (month != null) parts.add(l10n.detailsBirthdayMonth(month));
+    if (day != null) parts.add(l10n.detailsBirthdayDay(day));
 
-    return parts.join('');
+    return parts.join(l10n.detailsBirthdaySeparator);
   }
 
   @override
@@ -484,7 +484,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                     ),
                   ),
                   child: Text(
-                    _getGenderText(_characterDetails!.gender!),
+                    _getGenderText(context, _characterDetails!.gender!),
                     style: TextStyle(
                       fontSize: 12,
                       color: _getGenderColor(_characterDetails!.gender!),
@@ -501,7 +501,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                   radius: 4,
                   isDark: isDark,
                 )
-              else if (_getDisplayBirthday() != null)
+              else if (_getDisplayBirthday(AppLocalizations.of(context)) != null)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -513,7 +513,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      _getDisplayBirthday()!,
+                      _getDisplayBirthday(AppLocalizations.of(context))!,
                       style: TextStyle(
                         fontSize: 14,
                         color: (isDark ? Colors.white : Colors.black87)
@@ -549,13 +549,17 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                   children: [
                     _buildStatChip(
                       Icons.comment_outlined,
-                      '${_characterDetails?.stat.comments ?? 0} 评论',
+                      AppLocalizations.of(context).detailsCommentsCount(
+                        _characterDetails?.stat.comments ?? 0,
+                      ),
                       isDark: isDark,
                     ),
                     const SizedBox(width: 12),
                     _buildStatChip(
                       Icons.favorite_outline,
-                      '${_characterDetails?.stat.collects ?? 0} 收藏',
+                      AppLocalizations.of(context).detailsCollectsCount(
+                        _characterDetails?.stat.collects ?? 0,
+                      ),
                       isDark: isDark,
                     ),
                   ],
@@ -658,13 +662,13 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
           _buildStatColumn(
             Icons.comment_outlined,
             '${_characterDetails?.stat.comments ?? 0}',
-            '评论',
+            AppLocalizations.of(context).detailsCommentsLabel,
           ),
           Container(width: 1, height: 40, color: Colors.white10),
           _buildStatColumn(
             Icons.favorite_outline,
             '${_characterDetails?.stat.collects ?? 0}',
-            '收藏',
+            AppLocalizations.of(context).detailsCollectsLabel,
           ),
         ],
       ),
@@ -767,7 +771,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                   ),
                 ),
                 child: Text(
-                  _getGenderText(_characterDetails!.gender!),
+                  _getGenderText(context, _characterDetails!.gender!),
                   style: TextStyle(
                     fontSize: 14,
                     color: _getGenderColor(_characterDetails!.gender!),
@@ -776,9 +780,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                 ),
               ),
             if (_characterDetails?.gender != null &&
-                _getDisplayBirthday() != null)
+                _getDisplayBirthday(AppLocalizations.of(context)) != null)
               const SizedBox(width: 12),
-            if (_getDisplayBirthday() != null)
+            if (_getDisplayBirthday(AppLocalizations.of(context)) != null)
               Row(
                 children: [
                   Icon(
@@ -788,7 +792,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    _getDisplayBirthday()!,
+                    _getDisplayBirthday(AppLocalizations.of(context))!,
                     style: TextStyle(
                       fontSize: 14,
                       color: textColor.withValues(alpha: 0.7),
@@ -843,7 +847,11 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(context, '简介', isDarkBg: isDarkBg),
+        _buildSectionTitle(
+          context,
+          AppLocalizations.of(context).detailsSectionSummary,
+          isDarkBg: isDarkBg,
+        ),
         const SizedBox(height: 12),
         HtmlWidget(
           processedSummary,
@@ -868,7 +876,11 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(context, '资料', isDarkBg: isDarkBg),
+        _buildSectionTitle(
+          context,
+          AppLocalizations.of(context).detailsSectionInfo,
+          isDarkBg: isDarkBg,
+        ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(16),
@@ -882,6 +894,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
           child: Column(
             children: infobox.map((item) {
               // Handle aliases specially - display one per line
+              // i18n-ignore: upstream Bangumi infobox key token used for matching
               final isAlias = item.key == '别名';
               final valueWidget = isAlias
                   ? Column(
@@ -943,7 +956,11 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionTitle(context, '出演作品', isDarkBg: isDarkBg),
+          _buildSectionTitle(
+            context,
+            AppLocalizations.of(context).detailsSectionAppearances,
+            isDarkBg: isDarkBg,
+          ),
           const SizedBox(height: 12),
           const Center(child: CircularProgressIndicator(color: Colors.amber)),
         ],
@@ -963,7 +980,11 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(context, '出演作品', isDarkBg: isDarkBg),
+        _buildSectionTitle(
+          context,
+          AppLocalizations.of(context).detailsSectionAppearances,
+          isDarkBg: isDarkBg,
+        ),
         const SizedBox(height: 12),
         ..._subjects.map((subject) {
           return Container(
@@ -1018,6 +1039,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
+                                // i18n-ignore: upstream Bangumi role token used for matching
                                 color: subject.staff.contains('主角')
                                     ? Colors.amber.withValues(alpha: 0.2)
                                     : Colors.blue.withValues(alpha: 0.2),
@@ -1027,6 +1049,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                                 subject.staff,
                                 style: TextStyle(
                                   fontSize: 11,
+                                  // i18n-ignore: upstream Bangumi role token used for matching
                                   color: subject.staff.contains('主角')
                                       ? Colors.amber[300]
                                       : Colors.blue[300],
@@ -1111,7 +1134,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                                               person.images!.small.isNotEmpty)
                                             const SizedBox(width: 4),
                                           Text(
-                                            'CV: ${person.name}',
+                                            AppLocalizations.of(context)
+                                                .detailsCvName(person.name),
                                             style: TextStyle(
                                               fontSize: 11,
                                               color: textColor.withValues(
@@ -1170,9 +1194,11 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
   Color _getGenderColor(String gender) {
     switch (gender.toLowerCase()) {
       case 'male':
+      // i18n-ignore: upstream Bangumi gender token used for matching
       case '男':
         return Colors.blue;
       case 'female':
+      // i18n-ignore: upstream Bangumi gender token used for matching
       case '女':
         return Colors.pink;
       default:
@@ -1180,12 +1206,17 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     }
   }
 
-  String _getGenderText(String gender) {
+  String _getGenderText(BuildContext context, String gender) {
+    final l10n = AppLocalizations.of(context);
     switch (gender.toLowerCase()) {
       case 'male':
-        return '男性';
+      // i18n-ignore: upstream Bangumi gender token used for matching
+      case '男':
+        return l10n.detailsGenderMale;
       case 'female':
-        return '女性';
+      // i18n-ignore: upstream Bangumi gender token used for matching
+      case '女':
+        return l10n.detailsGenderFemale;
       default:
         return gender;
     }

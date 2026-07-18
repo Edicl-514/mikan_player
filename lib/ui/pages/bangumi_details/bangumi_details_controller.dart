@@ -510,7 +510,9 @@ class BangumiDetailsController {
 /// Mirrors the page's former `_characterRolePriority`.
 int characterRolePriority(BangumiCharacter character) {
   final roleName = character.roleName;
+  // i18n-ignore: upstream Bangumi role token used for matching
   if (roleName.contains('主角')) return 0;
+  // i18n-ignore: upstream Bangumi role token used for matching
   if (roleName.contains('配角')) return 1;
   return 2;
 }

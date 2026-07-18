@@ -4,12 +4,17 @@
 // No network, no WebView, no media player — all data passed via constructor.
 // Test instances use unknown `site` keys so `siteIconAssetPath` returns null
 // and `_SiteIcon` returns `Icons.public` directly (no `Image.asset` decode).
+//
+// After L10N-3, kind badges resolve via AppLocalizations, so the widget tree
+// is pumped through `pumpLocalizedWidget`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/sites_section.dart';
+
+import '../../../../support/localized_widget_tester.dart';
 
 BangumiDataSiteEntry _site({
   String site = 'unknown',
@@ -30,23 +35,39 @@ Widget _buildSectionTitleStub(String text, bool isDarkBg) => Text(
   style: TextStyle(color: isDarkBg ? Colors.white : Colors.black87),
 );
 
+Future<void> _pumpSection(
+  WidgetTester tester, {
+  required List<BangumiDataSiteEntry> sites,
+  required Widget sectionTitle,
+  required bool isDarkBg,
+  void Function(BangumiDataSiteEntry site)? onSiteTap,
+  Locale locale = const Locale('zh'),
+}) async {
+  await pumpLocalizedWidget(
+    tester,
+    Scaffold(
+      body: SitesSection(
+        sites: sites,
+        isDarkBg: isDarkBg,
+        sectionTitle: sectionTitle,
+        scrollController: ScrollController(),
+        onSiteTap: onSiteTap ?? (_) {},
+      ),
+    ),
+    locale: locale,
+  );
+}
+
 void main() {
   group('SitesSection', () {
     testWidgets('empty state renders nothing (SizedBox.shrink)', (
       tester,
     ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SitesSection(
-              sites: const [],
-              isDarkBg: false,
-              sectionTitle: _buildSectionTitleStub('站', false),
-              scrollController: ScrollController(),
-              onSiteTap: (_) {},
-            ),
-          ),
-        ),
+      await _pumpSection(
+        tester,
+        sites: const [],
+        isDarkBg: false,
+        sectionTitle: _buildSectionTitleStub('站', false),
       );
 
       // The widget returns SizedBox.shrink BEFORE building the Column, so the
@@ -62,18 +83,11 @@ void main() {
         _site(site: 'unknown_c', title: 'Site Three'),
       ];
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SitesSection(
-              sites: sites,
-              isDarkBg: false,
-              sectionTitle: _buildSectionTitleStub('站', false),
-              scrollController: ScrollController(),
-              onSiteTap: (_) {},
-            ),
-          ),
-        ),
+      await _pumpSection(
+        tester,
+        sites: sites,
+        isDarkBg: false,
+        sectionTitle: _buildSectionTitleStub('站', false),
       );
 
       expect(find.text('SECTION_TITLE:站'), findsOneWidget);
@@ -92,23 +106,30 @@ void main() {
         _site(site: 'unknown_d', title: 'D', kind: 'unknown'),
       ];
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SitesSection(
-              sites: sites,
-              isDarkBg: false,
-              sectionTitle: _buildSectionTitleStub('站', false),
-              scrollController: ScrollController(),
-              onSiteTap: (_) {},
-            ),
-          ),
-        ),
+      await _pumpSection(
+        tester,
+        sites: sites,
+        isDarkBg: false,
+        sectionTitle: _buildSectionTitleStub('站', false),
+        locale: const Locale('zh'),
       );
 
       expect(find.text('放送'), findsOneWidget);
       expect(find.text('资料'), findsOneWidget);
       expect(find.text('资源'), findsOneWidget);
+      expect(find.text('unknown'), findsOneWidget);
+
+      await _pumpSection(
+        tester,
+        sites: sites,
+        isDarkBg: false,
+        sectionTitle: _buildSectionTitleStub('站', false),
+        locale: const Locale('en'),
+      );
+
+      expect(find.text('On air'), findsOneWidget);
+      expect(find.text('Info'), findsOneWidget);
+      expect(find.text('Resource'), findsOneWidget);
       expect(find.text('unknown'), findsOneWidget);
     });
 
@@ -119,18 +140,12 @@ void main() {
       ];
       BangumiDataSiteEntry? captured;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SitesSection(
-              sites: sites,
-              isDarkBg: false,
-              sectionTitle: _buildSectionTitleStub('站', false),
-              scrollController: ScrollController(),
-              onSiteTap: (site) => captured = site,
-            ),
-          ),
-        ),
+      await _pumpSection(
+        tester,
+        sites: sites,
+        isDarkBg: false,
+        sectionTitle: _buildSectionTitleStub('站', false),
+        onSiteTap: (site) => captured = site,
       );
 
       await tester.tap(find.text('Tap Second'));
@@ -144,18 +159,11 @@ void main() {
     testWidgets('isDarkBg true renders without exception', (tester) async {
       final sites = [_site(site: 'unknown_a', title: 'Dark', kind: 'info')];
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SitesSection(
-              sites: sites,
-              isDarkBg: true,
-              sectionTitle: _buildSectionTitleStub('站', true),
-              scrollController: ScrollController(),
-              onSiteTap: (_) {},
-            ),
-          ),
-        ),
+      await _pumpSection(
+        tester,
+        sites: sites,
+        isDarkBg: true,
+        sectionTitle: _buildSectionTitleStub('站', true),
       );
 
       expect(find.text('SECTION_TITLE:站'), findsOneWidget);
@@ -165,18 +173,11 @@ void main() {
     testWidgets('populated case wires a Scrollbar', (tester) async {
       final sites = [_site(site: 'unknown_a', title: 'One')];
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SitesSection(
-              sites: sites,
-              isDarkBg: false,
-              sectionTitle: _buildSectionTitleStub('站', false),
-              scrollController: ScrollController(),
-              onSiteTap: (_) {},
-            ),
-          ),
-        ),
+      await _pumpSection(
+        tester,
+        sites: sites,
+        isDarkBg: false,
+        sectionTitle: _buildSectionTitleStub('站', false),
       );
 
       expect(find.byType(Scrollbar), findsOneWidget);

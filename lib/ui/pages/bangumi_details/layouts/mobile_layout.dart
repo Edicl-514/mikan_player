@@ -166,9 +166,9 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
                         fontSize: 16,
                         fontWeight: FontWeight.normal,
                       ),
-                      tabs: const [
-                        Tab(text: "详情"),
-                        Tab(text: "评论"),
+                      tabs: [
+                        Tab(text: AppLocalizations.of(context).bangumiDetailsTabDetails),
+                        Tab(text: AppLocalizations.of(context).bangumiDetailsTabComments),
                       ],
                     ),
                   ),
@@ -188,6 +188,7 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
   }
 
   Widget _buildMobileHeaderContent(BuildContext context, bool isDark, Color bgColor) {
+    final l10n = AppLocalizations.of(context);
     final imgUrl = getImageUrl(data, anime.coverUrl);
     final displayTitle = getDisplayTitle(data, anime.title);
     final rating = data?['rating'];
@@ -279,29 +280,31 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: Colors.white24),
-                            ),
-                            child: Text(
-                              data?['date'] != null
-                                  ? formatDateToMonth(data!['date'])
-                                  : "2026年 1月",
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.white,
+                          if (data?['date'] != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.white24),
+                              ),
+                              child: Text(
+                                formatDateToMonth(
+                                  data!['date'].toString(),
+                                  l10n,
+                                ),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
+                          if (data?['date'] != null) const SizedBox(height: 8),
                           Text(
-                            getEpisodeStatusText(data, episodes),
+                            getEpisodeStatusText(data, episodes, l10n),
                             style: const TextStyle(
                               fontSize: 13,
                               color: Colors.white70,
@@ -330,6 +333,7 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
   }
 
   Widget _buildMobileDetailsTab(BuildContext context, bool isDark) {
+    final l10n = AppLocalizations.of(context);
     final infobox = (data?['infobox'] as List?)
             ?.where((item) => !isInfoboxItemEmpty(item))
             .toList() ??
@@ -357,7 +361,7 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
                   data?['summary']?.toString(),
                   showOriginal: showOriginalSummary,
                 ) ??
-                "暂无简介",
+                l10n.bangumiDetailsNoSummary,
             showOriginal: showOriginalSummary,
             hasBothTranslationAndOriginal: hasBothTranslationAndOriginal(
               data?['summary']?.toString(),
@@ -394,11 +398,11 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
             onPersonTap: onPersonTap,
             personIdMap: personIdMap,
             loadingPlaceholder: (context) => PlaceholderSection(
-              title: "Characters",
+              title: l10n.bangumiDetailsCharacters,
               icon: Icons.person,
               isDarkBg: isDark,
             ),
-            sectionTitle: "角色",
+            sectionTitle: l10n.bangumiDetailsCharacters,
           ),
           if (relations != null && relations!.isNotEmpty) ...[
             const SizedBox(height: 40),
@@ -415,6 +419,7 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
   }
 
   Widget _buildMobileCommentsTab(BuildContext context, bool isDark) {
+    final l10n = AppLocalizations.of(context);
     if (!hasRequestedComments && !isLoadingComments) {
       onEnsureCommentsLoaded();
     }
@@ -426,7 +431,10 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: SectionTitle(title: "评论", isDarkBg: isDark),
+            child: SectionTitle(
+              title: l10n.bangumiDetailsComments,
+              isDarkBg: isDark,
+            ),
           ),
           const SizedBox(height: 96),
           Center(
@@ -442,7 +450,7 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
           const SizedBox(height: 12),
           Center(
             child: Text(
-              '加载中...',
+              l10n.loading,
               style: TextStyle(
                 color: isDark
                     ? Colors.white.withValues(alpha: 0.6)
@@ -462,12 +470,15 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: SectionTitle(title: "评论", isDarkBg: isDark),
+            child: SectionTitle(
+              title: l10n.bangumiDetailsComments,
+              isDarkBg: isDark,
+            ),
           ),
           const SizedBox(height: 96),
           Center(
             child: Text(
-              '暂无评论',
+              l10n.bangumiDetailsNoComments,
               style: TextStyle(
                 color: isDark
                     ? Colors.white.withValues(alpha: 0.6)
@@ -502,7 +513,10 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
           isLoading: false,
           isLoadingMore: isLoadingMoreComments,
           isDarkBg: isDark,
-          sectionTitle: SectionTitle(title: "评论", isDarkBg: isDark),
+          sectionTitle: SectionTitle(
+            title: l10n.bangumiDetailsComments,
+            isDarkBg: isDark,
+          ),
           loadingPlaceholder: (_) => const SizedBox.shrink(),
         ),
       ),

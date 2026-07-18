@@ -1,8 +1,44 @@
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/section_title.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+
+/// Classification of a character's role in the cast. Drives both badge color
+/// and the localized label, so badge chrome never compares display strings.
+enum _CharacterRole { main, supporting, minor }
+
+/// Upstream Bangumi role tokens used for matching. Display strings go through
+/// [AppLocalizations]; these protocol tokens must stay stable for sorting and
+/// badge color decisions.
+// i18n-ignore: upstream Bangumi role token used for matching
+const bangumiRoleTokenMain = '主角';
+// i18n-ignore: upstream Bangumi role token used for matching
+const bangumiRoleTokenSupporting = '配角';
+
+_CharacterRole? _characterRoleOf(BangumiCharacter character) {
+  final roleName = character.roleName;
+  if (roleName.isEmpty) return null;
+  // i18n-ignore: upstream Bangumi role token used for matching
+  if (roleName.contains(bangumiRoleTokenMain)) return _CharacterRole.main;
+  // i18n-ignore: upstream Bangumi role token used for matching
+  if (roleName.contains(bangumiRoleTokenSupporting)) {
+    return _CharacterRole.supporting;
+  }
+  return _CharacterRole.minor;
+}
+
+String _characterRoleLabel(_CharacterRole role, AppLocalizations l10n) {
+  switch (role) {
+    case _CharacterRole.main:
+      return l10n.bangumiDetailsRoleMain;
+    case _CharacterRole.supporting:
+      return l10n.bangumiDetailsRoleSupporting;
+    case _CharacterRole.minor:
+      return l10n.bangumiDetailsRoleMinor;
+  }
+}
 
 /// Horizontal-scrolling list of characters for the Bangumi details page.
 ///
@@ -81,7 +117,7 @@ class CharactersSection extends StatelessWidget {
                               ? char.actors.first.name
                               : '';
                           final canOpenCharacterPage = char.id != 0;
-                          final roleLabel = _characterRoleLabel(char);
+                          final role = _characterRoleOf(char);
 
                           return SizedBox(
                             width: 120,
@@ -94,7 +130,7 @@ class CharactersSection extends StatelessWidget {
                                   canOpenCharacterPage: canOpenCharacterPage,
                                   enableHero: enableCharacterHero,
                                   heroTag: 'character_${char.id.toInt()}',
-                                  roleLabel: roleLabel,
+                                  role: role,
                                   cardColor: cardColor,
                                   isDarkBg: isDarkBg,
                                   onTap: canOpenCharacterPage
@@ -143,14 +179,6 @@ class CharactersSection extends StatelessWidget {
       ],
     );
   }
-
-  String? _characterRoleLabel(BangumiCharacter character) {
-    final roleName = character.roleName;
-    if (roleName.contains('主角')) return '主角';
-    if (roleName.contains('配角')) return '配角';
-    if (roleName.isNotEmpty) return '闲角';
-    return null;
-  }
 }
 
 class _CharacterImage extends StatelessWidget {
@@ -158,7 +186,7 @@ class _CharacterImage extends StatelessWidget {
   final bool canOpenCharacterPage;
   final bool enableHero;
   final String heroTag;
-  final String? roleLabel;
+  final _CharacterRole? role;
   final Color? cardColor;
   final bool isDarkBg;
   final VoidCallback? onTap;
@@ -168,7 +196,7 @@ class _CharacterImage extends StatelessWidget {
     required this.canOpenCharacterPage,
     required this.enableHero,
     required this.heroTag,
-    required this.roleLabel,
+    required this.role,
     required this.cardColor,
     required this.isDarkBg,
     required this.onTap,
@@ -220,12 +248,12 @@ class _CharacterImage extends StatelessWidget {
                           size: 40,
                         ),
                       ),
-                if (roleLabel != null)
+                if (role != null)
                   Positioned(
                     left: 6,
                     top: 6,
                     child: _CharacterRoleBadge(
-                      label: roleLabel!,
+                      role: role!,
                       isDarkBg: isDarkBg,
                     ),
                   ),
@@ -303,10 +331,11 @@ class _CharacterCvName extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final linkColor = isDarkBg ? Colors.cyanAccent : Colors.blue.shade800;
+    final l10n = AppLocalizations.of(context);
     return Row(
       children: [
         Text(
-          'CV: ',
+          l10n.bangumiDetailsCvPrefix,
           style: TextStyle(
             fontSize: 10,
             color: textColor.withValues(alpha: 0.5),
@@ -344,20 +373,21 @@ class _CharacterCvName extends StatelessWidget {
 }
 
 class _CharacterRoleBadge extends StatelessWidget {
-  final String label;
+  final _CharacterRole role;
   final bool isDarkBg;
 
-  const _CharacterRoleBadge({required this.label, required this.isDarkBg});
+  const _CharacterRoleBadge({required this.role, required this.isDarkBg});
+
+  static const _colors = {
+    _CharacterRole.main: Colors.amber,
+    _CharacterRole.supporting: Colors.blue,
+    _CharacterRole.minor: Colors.grey,
+  };
 
   @override
   Widget build(BuildContext context) {
-    final isMain = label == '主角';
-    final isSupporting = label == '配角';
-    final badgeColor = isMain
-        ? Colors.amber
-        : isSupporting
-        ? Colors.blue
-        : Colors.grey;
+    final l10n = AppLocalizations.of(context);
+    final badgeColor = _colors[role]!;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -374,7 +404,7 @@ class _CharacterRoleBadge extends StatelessWidget {
         ],
       ),
       child: Text(
-        label,
+        _characterRoleLabel(role, l10n),
         style: const TextStyle(
           fontSize: 10,
           color: Colors.white,

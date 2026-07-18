@@ -34,7 +34,11 @@ class BangumiActionButtons extends StatelessWidget {
             icon: Icon(
               isLocalFavorite ? Icons.favorite : Icons.favorite_border,
             ),
-            label: Text(isLocalFavorite ? "已收藏" : "收藏"),
+            label: Text(
+              isLocalFavorite
+                  ? l10n.bangumiDetailsFavorited
+                  : l10n.bangumiDetailsFavorite,
+            ),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
               backgroundColor: Colors.pinkAccent,

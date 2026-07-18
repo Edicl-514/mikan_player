@@ -2430,13 +2430,13 @@ abstract class AppLocalizations {
   /// No description provided for @characterDetailsLoadFailed.
   ///
   /// In zh, this message translates to:
-  /// **'Failed to load character details'**
+  /// **'角色详情加载失败'**
   String get characterDetailsLoadFailed;
 
   /// No description provided for @personDetailsLoadFailed.
   ///
   /// In zh, this message translates to:
-  /// **'Failed to load person details'**
+  /// **'人物详情加载失败'**
   String get personDetailsLoadFailed;
 
   /// No description provided for @retryButton.
@@ -3362,6 +3362,348 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'长按快进 2x'**
   String get longPressFastForward;
+
+  /// Mobile bangumi details tab label.
+  ///
+  /// In zh, this message translates to:
+  /// **'详情'**
+  String get bangumiDetailsTabDetails;
+
+  /// Mobile bangumi comments tab label.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论'**
+  String get bangumiDetailsTabComments;
+
+  /// Bangumi details characters section title.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色'**
+  String get bangumiDetailsCharacters;
+
+  /// Bangumi details comments section title.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论'**
+  String get bangumiDetailsComments;
+
+  /// Empty comments state on bangumi details.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无评论'**
+  String get bangumiDetailsNoComments;
+
+  /// Fallback when subject summary is missing.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无简介'**
+  String get bangumiDetailsNoSummary;
+
+  /// Favorite action when the subject is not favorited.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏'**
+  String get bangumiDetailsFavorite;
+
+  /// Favorite action when the subject is already favorited.
+  ///
+  /// In zh, this message translates to:
+  /// **'已收藏'**
+  String get bangumiDetailsFavorited;
+
+  /// Mobile header collection totals row.
+  ///
+  /// In zh, this message translates to:
+  /// **'{wish} 收藏 / {doing} 在看 / {dropped} 抛弃'**
+  String bangumiDetailsCollectionStats(int wish, int doing, int dropped);
+
+  /// Mobile rating vote count without rank.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 人评'**
+  String bangumiDetailsRatingVotes(int count);
+
+  /// Mobile rating vote count with rank.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 人评 | #{rank}'**
+  String bangumiDetailsRatingVotesWithRank(int count, int rank);
+
+  /// Wide layout rating card vote count.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 人评分'**
+  String bangumiDetailsVotes(int count);
+
+  /// Wide layout ranking label.
+  ///
+  /// In zh, this message translates to:
+  /// **'排名 #{rank}'**
+  String bangumiDetailsRanked(int rank);
+
+  /// Collection bucket label for wish.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏'**
+  String get bangumiDetailsCollectWish;
+
+  /// Collection bucket label for currently watching.
+  ///
+  /// In zh, this message translates to:
+  /// **'在看'**
+  String get bangumiDetailsCollectDoing;
+
+  /// Collection bucket label for dropped.
+  ///
+  /// In zh, this message translates to:
+  /// **'抛弃'**
+  String get bangumiDetailsCollectDropped;
+
+  /// Section loading placeholder body.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在加载{title}...'**
+  String bangumiDetailsLoadingSection(String title);
+
+  /// Secondary line under section loading placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'（即将推出）'**
+  String get bangumiDetailsComingSoon;
+
+  /// Summary toggle hint when original text is shown.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击显示翻译'**
+  String get bangumiDetailsShowTranslation;
+
+  /// Summary toggle hint when translation is shown.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击显示原文'**
+  String get bangumiDetailsShowOriginal;
+
+  /// Infobox collapse control.
+  ///
+  /// In zh, this message translates to:
+  /// **'收起'**
+  String get bangumiDetailsCollapse;
+
+  /// Infobox expand control.
+  ///
+  /// In zh, this message translates to:
+  /// **'展开'**
+  String get bangumiDetailsExpand;
+
+  /// Infobox section heading on bangumi details.
+  ///
+  /// In zh, this message translates to:
+  /// **'资料'**
+  String get bangumiDetailsInformation;
+
+  /// Infobox hidden-item count hint.
+  ///
+  /// In zh, this message translates to:
+  /// **'还有 {count} 项，点击展开查看完整信息'**
+  String bangumiDetailsMoreInfoItems(int count);
+
+  /// Compact air date shown as year + month.
+  ///
+  /// In zh, this message translates to:
+  /// **'{year}年 {month}月'**
+  String bangumiDetailsYearMonth(int year, int month);
+
+  /// Episode total status when count is positive.
+  ///
+  /// In zh, this message translates to:
+  /// **'全 {count} 话'**
+  String bangumiDetailsTotalEpisodes(int count);
+
+  /// Episode total status when count is unknown/zero.
+  ///
+  /// In zh, this message translates to:
+  /// **'0话'**
+  String get bangumiDetailsZeroEpisodes;
+
+  /// Related site kind badge for on-air sources.
+  ///
+  /// In zh, this message translates to:
+  /// **'放送'**
+  String get bangumiDetailsSiteOnair;
+
+  /// Related site kind badge for info sources.
+  ///
+  /// In zh, this message translates to:
+  /// **'资料'**
+  String get bangumiDetailsSiteInfo;
+
+  /// Related site kind badge for resource sources.
+  ///
+  /// In zh, this message translates to:
+  /// **'资源'**
+  String get bangumiDetailsSiteResource;
+
+  /// Displayed character role badge for main cast.
+  ///
+  /// In zh, this message translates to:
+  /// **'主角'**
+  String get bangumiDetailsRoleMain;
+
+  /// Displayed character role badge for supporting cast.
+  ///
+  /// In zh, this message translates to:
+  /// **'配角'**
+  String get bangumiDetailsRoleSupporting;
+
+  /// Displayed character role badge for minor cast.
+  ///
+  /// In zh, this message translates to:
+  /// **'闲角'**
+  String get bangumiDetailsRoleMinor;
+
+  /// Voice actor prefix before the person name.
+  ///
+  /// In zh, this message translates to:
+  /// **'CV: '**
+  String get bangumiDetailsCvPrefix;
+
+  /// Character/person header comments chip.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 评论'**
+  String detailsCommentsCount(int count);
+
+  /// Character/person header collects chip.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 收藏'**
+  String detailsCollectsCount(int count);
+
+  /// Character/person stat column label for comments.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论'**
+  String get detailsCommentsLabel;
+
+  /// Character/person stat column label for collects.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏'**
+  String get detailsCollectsLabel;
+
+  /// Summary section title on character/person details.
+  ///
+  /// In zh, this message translates to:
+  /// **'简介'**
+  String get detailsSectionSummary;
+
+  /// Infobox section title on character/person details.
+  ///
+  /// In zh, this message translates to:
+  /// **'资料'**
+  String get detailsSectionInfo;
+
+  /// Appearances section title for seiyuu/character works.
+  ///
+  /// In zh, this message translates to:
+  /// **'出演作品'**
+  String get detailsSectionAppearances;
+
+  /// Related works section title for non-seiyuu persons.
+  ///
+  /// In zh, this message translates to:
+  /// **'相关作品'**
+  String get detailsSectionRelatedWorks;
+
+  /// Voice roles section title on person details.
+  ///
+  /// In zh, this message translates to:
+  /// **'配音角色'**
+  String get detailsSectionVoiceRoles;
+
+  /// Number of works under a character group on person details.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 部作品'**
+  String detailsWorksCount(int count);
+
+  /// CV chip showing the voice actor name.
+  ///
+  /// In zh, this message translates to:
+  /// **'CV: {name}'**
+  String detailsCvName(String name);
+
+  /// Displayed male gender label.
+  ///
+  /// In zh, this message translates to:
+  /// **'男性'**
+  String get detailsGenderMale;
+
+  /// Displayed female gender label.
+  ///
+  /// In zh, this message translates to:
+  /// **'女性'**
+  String get detailsGenderFemale;
+
+  /// Birthday year fragment.
+  ///
+  /// In zh, this message translates to:
+  /// **'{year}年'**
+  String detailsBirthdayYear(int year);
+
+  /// Birthday month fragment.
+  ///
+  /// In zh, this message translates to:
+  /// **'{month}月'**
+  String detailsBirthdayMonth(int month);
+
+  /// Birthday day fragment.
+  ///
+  /// In zh, this message translates to:
+  /// **'{day}日'**
+  String detailsBirthdayDay(int day);
+
+  /// Separator placed between birthday year/month/day fragments. Empty for locales whose fragments already include the unit, otherwise a short readable separator such as '-'.
+  ///
+  /// In zh, this message translates to:
+  /// **''**
+  String get detailsBirthdaySeparator;
+
+  /// Person career badge for voice actor.
+  ///
+  /// In zh, this message translates to:
+  /// **'声优'**
+  String get personCareerSeiyu;
+
+  /// Person career badge for producer.
+  ///
+  /// In zh, this message translates to:
+  /// **'制作人'**
+  String get personCareerProducer;
+
+  /// Person career badge for mangaka.
+  ///
+  /// In zh, this message translates to:
+  /// **'漫画家'**
+  String get personCareerMangaka;
+
+  /// Person career badge for music artist.
+  ///
+  /// In zh, this message translates to:
+  /// **'音乐人'**
+  String get personCareerArtist;
+
+  /// Person career badge for writer.
+  ///
+  /// In zh, this message translates to:
+  /// **'作者'**
+  String get personCareerWriter;
+
+  /// Person career badge for illustrator.
+  ///
+  /// In zh, this message translates to:
+  /// **'插画家'**
+  String get personCareerIllustrator;
 }
 
 class _AppLocalizationsDelegate

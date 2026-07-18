@@ -285,6 +285,7 @@ class BangumiDetailsWideLayout extends StatelessWidget {
   }
 
   Widget _buildCharactersCard(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return CharactersSection(
       characters: characters ?? const [],
       isLoading: isLoadingCharacters,
@@ -295,11 +296,11 @@ class BangumiDetailsWideLayout extends StatelessWidget {
       onPersonTap: onPersonTap,
       personIdMap: personIdMap,
       loadingPlaceholder: (context) => PlaceholderSection(
-        title: "Characters",
+        title: l10n.bangumiDetailsCharacters,
         icon: Icons.person,
         isDarkBg: true,
       ),
-      sectionTitle: "角色",
+      sectionTitle: l10n.bangumiDetailsCharacters,
     );
   }
 
@@ -340,6 +341,7 @@ class BangumiDetailsWideLayout extends StatelessWidget {
   }
 
   Widget _buildCommentsCard(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (!hasRequestedComments && !isLoadingComments) {
       onEnsureCommentsLoaded();
     }
@@ -348,9 +350,12 @@ class BangumiDetailsWideLayout extends StatelessWidget {
       isLoading: isLoadingComments,
       isLoadingMore: isLoadingMoreComments,
       isDarkBg: true,
-      sectionTitle: SectionTitle(title: "评论", isDarkBg: true),
+      sectionTitle: SectionTitle(
+        title: l10n.bangumiDetailsComments,
+        isDarkBg: true,
+      ),
       loadingPlaceholder: (ctx) => PlaceholderSection(
-        title: "Comments",
+        title: l10n.bangumiDetailsComments,
         icon: Icons.comment,
         isDarkBg: true,
       ),

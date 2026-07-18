@@ -220,20 +220,37 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   }
 
   bool get _isSeiyu =>
+      // i18n-ignore: upstream Bangumi career token used for matching
       _details?.career.contains('seiyu') == true ||
+      // i18n-ignore: upstream Bangumi career token used for matching
       _details?.career.contains('voice_actor') == true;
 
-  String _careerLabel(String career) {
-    const map = {
-      'seiyu': '声优',
-      'voice_actor': '声优',
-      'producer': '制作人',
-      'mangaka': '漫画家',
-      'artist': '音乐人',
-      'writer': '作者',
-      'illustrator': '插画家',
-    };
-    return map[career] ?? career;
+  String _careerLabel(BuildContext context, String career) {
+    final l10n = AppLocalizations.of(context);
+    switch (career) {
+      // i18n-ignore: upstream Bangumi career token used for matching
+      case 'seiyu':
+      // i18n-ignore: upstream Bangumi career token used for matching
+      case 'voice_actor':
+        return l10n.personCareerSeiyu;
+      // i18n-ignore: upstream Bangumi career token used for matching
+      case 'producer':
+        return l10n.personCareerProducer;
+      // i18n-ignore: upstream Bangumi career token used for matching
+      case 'mangaka':
+        return l10n.personCareerMangaka;
+      // i18n-ignore: upstream Bangumi career token used for matching
+      case 'artist':
+        return l10n.personCareerArtist;
+      // i18n-ignore: upstream Bangumi career token used for matching
+      case 'writer':
+        return l10n.personCareerWriter;
+      // i18n-ignore: upstream Bangumi career token used for matching
+      case 'illustrator':
+        return l10n.personCareerIllustrator;
+      default:
+        return career;
+    }
   }
 
   @override
@@ -529,13 +546,17 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                   children: [
                     _buildStatChip(
                       Icons.comment_outlined,
-                      '${_details?.stat.comments ?? 0} 评论',
+                      AppLocalizations.of(context).detailsCommentsCount(
+                        _details?.stat.comments ?? 0,
+                      ),
                       isDarkBg: isDark,
                     ),
                     const SizedBox(width: 12),
                     _buildStatChip(
                       Icons.favorite_outline,
-                      '${_details?.stat.collects ?? 0} 收藏',
+                      AppLocalizations.of(context).detailsCollectsCount(
+                        _details?.stat.collects ?? 0,
+                      ),
                       isDarkBg: isDark,
                     ),
                   ],
@@ -664,13 +685,13 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
           _buildStatColumn(
             Icons.comment_outlined,
             '${_details?.stat.comments ?? 0}',
-            '评论',
+            AppLocalizations.of(context).detailsCommentsLabel,
           ),
           Container(width: 1, height: 40, color: Colors.white10),
           _buildStatColumn(
             Icons.favorite_outline,
             '${_details?.stat.collects ?? 0}',
-            '收藏',
+            AppLocalizations.of(context).detailsCollectsLabel,
           ),
         ],
       ),
@@ -737,7 +758,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
             border: Border.all(color: Colors.teal.withValues(alpha: 0.5)),
           ),
           child: Text(
-            _careerLabel(c),
+            _careerLabel(context, c),
             style: const TextStyle(
               fontSize: 12,
               color: Colors.tealAccent,
@@ -784,7 +805,11 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle(context, '简介', isDarkBg: isDarkBg),
+        _sectionTitle(
+          context,
+          AppLocalizations.of(context).detailsSectionSummary,
+          isDarkBg: isDarkBg,
+        ),
         const SizedBox(height: 12),
         HtmlWidget(
           processed,
@@ -820,7 +845,11 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle(context, '资料', isDarkBg: isDarkBg),
+        _sectionTitle(
+          context,
+          AppLocalizations.of(context).detailsSectionInfo,
+          isDarkBg: isDarkBg,
+        ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(16),
@@ -831,6 +860,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
           ),
           child: Column(
             children: infobox.map((item) {
+              // i18n-ignore: upstream Bangumi infobox key token used for matching
               final isAlias = item.key == '别名';
               Widget valueWidget = isAlias
                   ? Column(
@@ -896,7 +926,11 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _sectionTitle(context, '配音角色', isDarkBg: isDarkBg),
+                _sectionTitle(
+                  context,
+                  AppLocalizations.of(context).detailsSectionVoiceRoles,
+                  isDarkBg: isDarkBg,
+                ),
                 const SizedBox(height: 12),
                 const Center(
                   child: CircularProgressIndicator(color: Colors.amber),
@@ -921,7 +955,11 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionTitle(context, '配音角色', isDarkBg: isDarkBg),
+              _sectionTitle(
+                context,
+                AppLocalizations.of(context).detailsSectionVoiceRoles,
+                isDarkBg: isDarkBg,
+              ),
               const SizedBox(height: 12),
             ],
           ),
@@ -1059,7 +1097,9 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                         const SizedBox(height: 6),
                         // Appearance count
                         Text(
-                          '${uniqueAppearances.length} 部作品',
+                          AppLocalizations.of(context).detailsWorksCount(
+                            uniqueAppearances.length,
+                          ),
                           style: TextStyle(
                             fontSize: 12,
                             color: isDarkBg
@@ -1161,6 +1201,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     required String staff,
     required String heroTag,
   }) {
+    // i18n-ignore: upstream Bangumi role token used for matching
     final isMain = staff.contains('主角');
     final badgeColor = isMain ? Colors.amber : Colors.blue;
 
@@ -1258,7 +1299,10 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     EdgeInsets padding = EdgeInsets.zero,
     bool isDarkBg = true,
   }) {
-    final sectionLabel = _isSeiyu ? '出演作品' : '相关作品';
+    final l10n = AppLocalizations.of(context);
+    final sectionLabel = _isSeiyu
+        ? l10n.detailsSectionAppearances
+        : l10n.detailsSectionRelatedWorks;
 
     if (_isLoadingSubjects) {
       return [

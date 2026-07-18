@@ -1,8 +1,12 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/bangumi_details_helpers.dart';
 
 void main() {
+  final zh = lookupAppLocalizations(const Locale('zh'));
+  final en = lookupAppLocalizations(const Locale('en'));
   group('parseBangumiSummary', () {
     test('null summary returns both fields as null', () {
       final parsed = parseBangumiSummary(null);
@@ -181,17 +185,18 @@ void main() {
   });
 
   group('formatDateToMonth', () {
-    test('parses YYYY-MM-DD into YYYY年 M月', () {
-      expect(formatDateToMonth('2026-01-15'), '2026年 1月');
-      expect(formatDateToMonth('2024-12-31'), '2024年 12月');
+    test('parses YYYY-MM-DD with locale-aware formatting', () {
+      expect(formatDateToMonth('2026-01-15', zh), '2026年 1月');
+      expect(formatDateToMonth('2024-12-31', zh), '2024年 12月');
+      expect(formatDateToMonth('2026-01-15', en), '1/2026');
     });
 
     test('returns input unchanged for unparseable strings', () {
-      expect(formatDateToMonth('not a date'), 'not a date');
+      expect(formatDateToMonth('not a date', zh), 'not a date');
     });
 
     test('empty string returns empty', () {
-      expect(formatDateToMonth(''), '');
+      expect(formatDateToMonth('', zh), '');
     });
   });
 
@@ -268,12 +273,20 @@ void main() {
   });
 
   group('getEpisodeStatusText', () {
-    test('returns "全 N 话" when total is positive', () {
-      expect(getEpisodeStatusText({'total_episodes': 12}, null), '全 12 话');
+    test('returns localized total when count is positive', () {
+      expect(
+        getEpisodeStatusText({'total_episodes': 12}, null, zh),
+        '全 12 话',
+      );
+      expect(
+        getEpisodeStatusText({'total_episodes': 12}, null, en),
+        '12 episodes',
+      );
     });
 
-    test('returns "0话" when nothing is available', () {
-      expect(getEpisodeStatusText({}, null), '0话');
+    test('returns localized zero status when nothing is available', () {
+      expect(getEpisodeStatusText({}, null, zh), '0话');
+      expect(getEpisodeStatusText({}, null, en), '0 episodes');
     });
   });
 
