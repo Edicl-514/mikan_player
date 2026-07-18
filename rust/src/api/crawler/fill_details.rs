@@ -1,7 +1,7 @@
 use super::types::*;
 use std::collections::HashSet;
 
-pub async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<AnimeInfo>> {
+pub(crate) async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<AnimeInfo>> {
     let mode = crate::api::config::get_bangumi_request_mode();
     let mut results = animes;
 
@@ -266,7 +266,7 @@ pub(super) fn apply_subject_details(anime: &mut AnimeInfo, json: &serde_json::Va
     anime.full_json = Some(json.to_string());
 }
 
-pub async fn fetch_light_subject_details(subject_id: i64) -> anyhow::Result<AnimeInfo> {
+pub(crate) async fn fetch_light_subject_details(subject_id: i64) -> anyhow::Result<AnimeInfo> {
     let mode = crate::api::config::get_bangumi_request_mode();
     log::debug!(
         "fetch_light_subject_details mode={} subject_id={}",
@@ -415,7 +415,7 @@ pub(super) fn build_light_subject_from_json(
     }
 }
 
-pub async fn fetch_extra_subjects(
+pub(crate) async fn fetch_extra_subjects(
     year_quarter: String,
     existing_ids: Vec<String>,
 ) -> anyhow::Result<Vec<AnimeInfo>> {

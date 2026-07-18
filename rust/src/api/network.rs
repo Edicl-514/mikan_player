@@ -5,9 +5,9 @@ use std::os::windows::process::CommandExt;
 use log::warn;
 use reqwest::{Client, Proxy};
 use rustls::{ClientConfig, RootCertStore};
+use std::net::SocketAddr;
 #[cfg(target_os = "windows")]
 use std::process::Command;
-use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, RwLock};
 use std::time::Duration;
@@ -15,12 +15,7 @@ use std::time::Duration;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-#[derive(Debug)]
-pub struct ProxyConfig {
-    pub url: String,
-}
-
-pub fn get_system_proxy() -> Option<String> {
+pub(crate) fn get_system_proxy() -> Option<String> {
     #[cfg(target_os = "windows")]
     {
         let output = Command::new("reg")
@@ -84,7 +79,7 @@ pub fn get_system_proxy() -> Option<String> {
 static SHARED_CLIENT: LazyLock<Client> =
     LazyLock::new(|| create_client().expect("Failed to create shared HTTP client"));
 
-pub fn get_shared_client() -> &'static Client {
+pub(crate) fn get_shared_client() -> &'static Client {
     &SHARED_CLIENT
 }
 
@@ -96,7 +91,7 @@ struct EchClientSlot {
 static ECH_CLIENT_SLOT: RwLock<Option<EchClientSlot>> = RwLock::new(None);
 static ECH_EPOCH: AtomicU64 = AtomicU64::new(0);
 
-pub fn invalidate_ech_client() {
+pub(crate) fn invalidate_ech_client() {
     ECH_EPOCH.fetch_add(1, Ordering::SeqCst);
 }
 
@@ -113,7 +108,7 @@ pub fn invalidate_ech_client() {
 /// Each rebuilt client is leaked into `'static` — this is acceptable because
 /// there are at most a handful of rebuilds per process lifetime (one per
 /// ECHConfig key rotation, roughly daily).
-pub fn get_ech_client() -> &'static Client {
+pub(crate) fn get_ech_client() -> &'static Client {
     let current_epoch = ECH_EPOCH.load(Ordering::SeqCst);
 
     let needs_rebuild = {
@@ -220,7 +215,7 @@ fn build_ech_client() -> anyhow::Result<Client> {
 }
 
 #[flutter_rust_bridge::frb(ignore)]
-pub fn create_client() -> reqwest::Result<Client> {
+pub(crate) fn create_client() -> reqwest::Result<Client> {
     let roots = RootCertStore {
         roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
     };
@@ -265,29 +260,22 @@ fn is_transient_error(e: &reqwest::Error) -> bool {
 /// otherwise the plain shared client. The caller **must** only use this for
 /// bangumi-domain requests — the embedded `EchConfig` targets Cloudflare's
 /// shared `cloudflare-ech.com` public name.
-pub fn client_for_bangumi() -> &'static Client {
-    if crate::api::config::get_bangumi_use_ech()
-        && crate::api::ech::has_ech_config()
-    {
+pub(crate) fn client_for_bangumi() -> &'static Client {
+    if crate::api::config::get_bangumi_use_ech() && crate::api::ech::has_ech_config() {
         get_ech_client()
     } else {
         get_shared_client()
     }
 }
 
-#[deprecated(note = "Use client_for_bangumi or retry_request_bangumi instead")]
-pub fn select_client() -> &'static Client {
-    get_shared_client()
-}
-
-pub async fn retry_request(
+pub(crate) async fn retry_request(
     label: &str,
     request_fn: impl Fn(&Client) -> reqwest::RequestBuilder,
 ) -> anyhow::Result<reqwest::Response> {
     retry_request_with_status(label, request_fn, false).await
 }
 
-pub async fn retry_request_with_status(
+pub(crate) async fn retry_request_with_status(
     label: &str,
     request_fn: impl Fn(&Client) -> reqwest::RequestBuilder,
     allow_error_status: bool,
@@ -299,14 +287,14 @@ pub async fn retry_request_with_status(
 /// Like [`retry_request`] but routes through the ECH-capable client when
 /// ECH is enabled. **Only use this for bangumi-domain requests** (bgm.tv,
 /// bangumi.tv, chii.in, api.bgm.tv, next.bgm.tv, lain.bgm.tv, etc.).
-pub async fn retry_request_bangumi(
+pub(crate) async fn retry_request_bangumi(
     label: &str,
     request_fn: impl Fn(&Client) -> reqwest::RequestBuilder,
 ) -> anyhow::Result<reqwest::Response> {
     retry_request_bangumi_with_status(label, request_fn, false).await
 }
 
-pub async fn retry_request_bangumi_with_status(
+pub(crate) async fn retry_request_bangumi_with_status(
     label: &str,
     request_fn: impl Fn(&Client) -> reqwest::RequestBuilder,
     allow_error_status: bool,

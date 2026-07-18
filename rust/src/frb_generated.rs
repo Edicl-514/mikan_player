@@ -28,7 +28,7 @@
 
 use crate::api::bangumi_graphql::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
-use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
+use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
 
 // Section: boilerplate
@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -126704644;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 816112892;
 
 // Section: executor
 
@@ -117,7 +117,7 @@ fn wire__crate__api__simple__add_bangumi_doh_endpoint_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__add_source_config_impl(
+fn wire__crate__frb_api__generic_scraper__add_source_config_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -140,13 +140,16 @@ fn wire__crate__api__generic_scraper__add_source_config_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_new_config =
-                <crate::api::generic_scraper::SourceConfigUpdate>::sse_decode(&mut deserializer);
+                <crate::api::generic_scraper::types::SourceConfigUpdate>::sse_decode(
+                    &mut deserializer,
+                );
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::generic_scraper::add_source_config(api_new_config).await?;
+                            crate::frb_api::generic_scraper::add_source_config(api_new_config)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -155,7 +158,7 @@ fn wire__crate__api__generic_scraper__add_source_config_impl(
         },
     )
 }
-fn wire__crate__api__crawler__build_sites_index_impl(
+fn wire__crate__frb_api__crawler__build_sites_index_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -181,45 +184,11 @@ fn wire__crate__api__crawler__build_sites_index_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::crawler::build_sites_index().await?;
+                        let output_ok = crate::frb_api::crawler::build_sites_index().await?;
                         Ok(output_ok)
                     })()
                     .await,
                 )
-            }
-        },
-    )
-}
-fn wire__crate__api__network__client_for_bangumi_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "client_for_bangumi",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok({
-                        crate::api::network::client_for_bangumi();
-                    })?;
-                    Ok(output_ok)
-                })())
             }
         },
     )
@@ -498,7 +467,7 @@ fn wire__crate__api__danmaku__danmaku_search_anime_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__debug_search_with_local_json_impl(
+fn wire__crate__frb_api__generic_scraper__debug_search_with_local_json_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -526,22 +495,23 @@ fn wire__crate__api__generic_scraper__debug_search_with_local_json_impl(
             let api_relative_episode = <Option<u32>>::sse_decode(&mut deserializer);
             let api_source_name_filter = <Option<String>>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                crate::api::generic_scraper::SourceSearchProgress,
+                crate::api::generic_scraper::types::SourceSearchProgress,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::generic_scraper::debug_search_with_local_json(
-                            api_json_path,
-                            api_anime_name,
-                            api_absolute_episode,
-                            api_relative_episode,
-                            api_source_name_filter,
-                            api_sink,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::frb_api::generic_scraper::debug_search_with_local_json(
+                                api_json_path,
+                                api_anime_name,
+                                api_absolute_episode,
+                                api_relative_episode,
+                                api_source_name_filter,
+                                api_sink,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -550,7 +520,7 @@ fn wire__crate__api__generic_scraper__debug_search_with_local_json_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__debug_search_with_local_json_runtime_impl(
+fn wire__crate__frb_api__generic_scraper__debug_search_with_local_json_runtime_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -577,12 +547,11 @@ fn wire__crate__api__generic_scraper__debug_search_with_local_json_runtime_impl(
             let api_absolute_episode = <Option<u32>>::sse_decode(&mut deserializer);
             let api_relative_episode = <Option<u32>>::sse_decode(&mut deserializer);
             let api_source_name_filter = <Option<String>>::sse_decode(&mut deserializer);
-            let api_runtime_overrides =
-                <Vec<crate::api::generic_scraper::SourceRuntimeOverride>>::sse_decode(
-                    &mut deserializer,
-                );
+            let api_runtime_overrides = <Vec<
+                crate::api::generic_scraper::types::SourceRuntimeOverride,
+            >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                crate::api::generic_scraper::SourceSearchProgress,
+                crate::api::generic_scraper::types::SourceSearchProgress,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -590,7 +559,7 @@ fn wire__crate__api__generic_scraper__debug_search_with_local_json_runtime_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::generic_scraper::debug_search_with_local_json_runtime(
+                            crate::frb_api::generic_scraper::debug_search_with_local_json_runtime(
                                 api_json_path,
                                 api_anime_name,
                                 api_absolute_episode,
@@ -608,7 +577,7 @@ fn wire__crate__api__generic_scraper__debug_search_with_local_json_runtime_impl(
         },
     )
 }
-fn wire__crate__api__crawler__ensure_bangumi_data_cache_impl(
+fn wire__crate__frb_api__crawler__ensure_bangumi_data_cache_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -636,7 +605,7 @@ fn wire__crate__api__crawler__ensure_bangumi_data_cache_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::crawler::ensure_bangumi_data_cache(api_max_age_secs)
+                            crate::frb_api::crawler::ensure_bangumi_data_cache(api_max_age_secs)
                                 .await?;
                         Ok(output_ok)
                     })()
@@ -689,7 +658,7 @@ fn wire__crate__api__bangumi_graphql__execute_bangumi_graphql_impl(
         },
     )
 }
-fn wire__crate__api__crawler__fetch_archive_list_impl(
+fn wire__crate__frb_api__crawler__fetch_archive_list_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -715,7 +684,7 @@ fn wire__crate__api__crawler__fetch_archive_list_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::crawler::fetch_archive_list().await?;
+                        let output_ok = crate::frb_api::crawler::fetch_archive_list().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -769,7 +738,7 @@ fn wire__crate__api__ranking__fetch_bangumi_browser_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_bangumi_characters_impl(
+fn wire__crate__frb_api__bangumi__fetch_bangumi_characters_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -797,7 +766,8 @@ fn wire__crate__api__bangumi__fetch_bangumi_characters_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::bangumi::fetch_bangumi_characters(api_subject_id).await?;
+                            crate::frb_api::bangumi::fetch_bangumi_characters(api_subject_id)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -806,7 +776,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_characters_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_bangumi_comments_impl(
+fn wire__crate__frb_api__bangumi__fetch_bangumi_comments_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -834,9 +804,11 @@ fn wire__crate__api__bangumi__fetch_bangumi_comments_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok =
-                            crate::api::bangumi::fetch_bangumi_comments(api_subject_id, api_page)
-                                .await?;
+                        let output_ok = crate::frb_api::bangumi::fetch_bangumi_comments(
+                            api_subject_id,
+                            api_page,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -845,7 +817,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_comments_impl(
         },
     )
 }
-fn wire__crate__api__crawler__fetch_bangumi_data_sites_impl(
+fn wire__crate__frb_api__crawler__fetch_bangumi_data_sites_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -873,7 +845,7 @@ fn wire__crate__api__crawler__fetch_bangumi_data_sites_impl(
                 transform_result_sse::<_, ()>(
                     (move || async move {
                         let output_ok = Result::<_, ()>::Ok(
-                            crate::api::crawler::fetch_bangumi_data_sites(api_bangumi_id).await,
+                            crate::frb_api::crawler::fetch_bangumi_data_sites(api_bangumi_id).await,
                         )?;
                         Ok(output_ok)
                     })()
@@ -883,7 +855,7 @@ fn wire__crate__api__crawler__fetch_bangumi_data_sites_impl(
         },
     )
 }
-fn wire__crate__api__crawler__fetch_bangumi_data_sites_by_mikan_impl(
+fn wire__crate__frb_api__crawler__fetch_bangumi_data_sites_by_mikan_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -911,8 +883,10 @@ fn wire__crate__api__crawler__fetch_bangumi_data_sites_by_mikan_impl(
                 transform_result_sse::<_, ()>(
                     (move || async move {
                         let output_ok = Result::<_, ()>::Ok(
-                            crate::api::crawler::fetch_bangumi_data_sites_by_mikan(api_mikan_id)
-                                .await,
+                            crate::frb_api::crawler::fetch_bangumi_data_sites_by_mikan(
+                                api_mikan_id,
+                            )
+                            .await,
                         )?;
                         Ok(output_ok)
                     })()
@@ -922,7 +896,7 @@ fn wire__crate__api__crawler__fetch_bangumi_data_sites_by_mikan_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_bangumi_episode_comments_impl(
+fn wire__crate__frb_api__bangumi__fetch_bangumi_episode_comments_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -950,7 +924,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_episode_comments_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::bangumi::fetch_bangumi_episode_comments(api_episode_id)
+                            crate::frb_api::bangumi::fetch_bangumi_episode_comments(api_episode_id)
                                 .await?;
                         Ok(output_ok)
                     })()
@@ -960,7 +934,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_episode_comments_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
+fn wire__crate__frb_api__bangumi__fetch_bangumi_episodes_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -988,7 +962,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::bangumi::fetch_bangumi_episodes(api_subject_id).await?;
+                            crate::frb_api::bangumi::fetch_bangumi_episodes(api_subject_id).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -997,7 +971,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_bangumi_image_url_impl(
+fn wire__crate__frb_api__bangumi__fetch_bangumi_image_url_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1025,7 +999,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_image_url_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::bangumi::fetch_bangumi_image_url(api_url).await?;
+                            crate::frb_api::bangumi::fetch_bangumi_image_url(api_url).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1034,7 +1008,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_image_url_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_bangumi_persons_impl(
+fn wire__crate__frb_api__bangumi__fetch_bangumi_persons_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1062,7 +1036,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_persons_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::bangumi::fetch_bangumi_persons(api_subject_id).await?;
+                            crate::frb_api::bangumi::fetch_bangumi_persons(api_subject_id).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1110,7 +1084,7 @@ fn wire__crate__api__ranking__fetch_bangumi_ranking_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_bangumi_relations_impl(
+fn wire__crate__frb_api__bangumi__fetch_bangumi_relations_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1138,7 +1112,8 @@ fn wire__crate__api__bangumi__fetch_bangumi_relations_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::bangumi::fetch_bangumi_relations(api_subject_id).await?;
+                            crate::frb_api::bangumi::fetch_bangumi_relations(api_subject_id)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1147,7 +1122,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_relations_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_bangumi_subject_image_impl(
+fn wire__crate__frb_api__bangumi__fetch_bangumi_subject_image_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1175,7 +1150,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_subject_image_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::bangumi::fetch_bangumi_subject_image(
+                        let output_ok = crate::frb_api::bangumi::fetch_bangumi_subject_image(
                             api_subject_id,
                             api_image_type,
                         )
@@ -1188,7 +1163,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_subject_image_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_bangumi_user_collections_impl(
+fn wire__crate__frb_api__bangumi__fetch_bangumi_user_collections_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1218,7 +1193,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_user_collections_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::bangumi::fetch_bangumi_user_collections(
+                        let output_ok = crate::frb_api::bangumi::fetch_bangumi_user_collections(
                             api_username,
                             api_subject_type,
                             api_limit,
@@ -1233,7 +1208,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_user_collections_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_bangumi_user_info_impl(
+fn wire__crate__frb_api__bangumi__fetch_bangumi_user_info_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1261,7 +1236,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_user_info_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::bangumi::fetch_bangumi_user_info(api_username).await?;
+                            crate::frb_api::bangumi::fetch_bangumi_user_info(api_username).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1270,7 +1245,7 @@ fn wire__crate__api__bangumi__fetch_bangumi_user_info_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_character_details_impl(
+fn wire__crate__frb_api__bangumi__fetch_character_details_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1298,7 +1273,8 @@ fn wire__crate__api__bangumi__fetch_character_details_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::bangumi::fetch_character_details(api_character_id).await?;
+                            crate::frb_api::bangumi::fetch_character_details(api_character_id)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1307,7 +1283,7 @@ fn wire__crate__api__bangumi__fetch_character_details_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_character_subjects_impl(
+fn wire__crate__frb_api__bangumi__fetch_character_subjects_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1335,7 +1311,8 @@ fn wire__crate__api__bangumi__fetch_character_subjects_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::bangumi::fetch_character_subjects(api_character_id).await?;
+                            crate::frb_api::bangumi::fetch_character_subjects(api_character_id)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1420,7 +1397,7 @@ fn wire__crate__api__dmhy__fetch_dmhy_resources_impl(
         },
     )
 }
-fn wire__crate__api__crawler__fetch_extra_subjects_impl(
+fn wire__crate__frb_api__crawler__fetch_extra_subjects_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1448,7 +1425,7 @@ fn wire__crate__api__crawler__fetch_extra_subjects_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::crawler::fetch_extra_subjects(
+                        let output_ok = crate::frb_api::crawler::fetch_extra_subjects(
                             api_year_quarter,
                             api_existing_ids,
                         )
@@ -1461,7 +1438,7 @@ fn wire__crate__api__crawler__fetch_extra_subjects_impl(
         },
     )
 }
-fn wire__crate__api__crawler__fetch_light_subject_details_impl(
+fn wire__crate__frb_api__crawler__fetch_light_subject_details_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1489,7 +1466,7 @@ fn wire__crate__api__crawler__fetch_light_subject_details_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::crawler::fetch_light_subject_details(api_subject_id)
+                            crate::frb_api::crawler::fetch_light_subject_details(api_subject_id)
                                 .await?;
                         Ok(output_ok)
                     })()
@@ -1539,7 +1516,7 @@ fn wire__crate__api__bangumi_graphql__fetch_light_subject_details_graphql_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_person_characters_impl(
+fn wire__crate__frb_api__bangumi__fetch_person_characters_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1567,7 +1544,7 @@ fn wire__crate__api__bangumi__fetch_person_characters_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::bangumi::fetch_person_characters(api_person_id).await?;
+                            crate::frb_api::bangumi::fetch_person_characters(api_person_id).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1576,7 +1553,7 @@ fn wire__crate__api__bangumi__fetch_person_characters_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_person_details_impl(
+fn wire__crate__frb_api__bangumi__fetch_person_details_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1604,7 +1581,7 @@ fn wire__crate__api__bangumi__fetch_person_details_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::bangumi::fetch_person_details(api_person_id).await?;
+                            crate::frb_api::bangumi::fetch_person_details(api_person_id).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1613,7 +1590,7 @@ fn wire__crate__api__bangumi__fetch_person_details_impl(
         },
     )
 }
-fn wire__crate__api__bangumi__fetch_person_subjects_impl(
+fn wire__crate__frb_api__bangumi__fetch_person_subjects_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1641,7 +1618,7 @@ fn wire__crate__api__bangumi__fetch_person_subjects_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::bangumi::fetch_person_subjects(api_person_id).await?;
+                            crate::frb_api::bangumi::fetch_person_subjects(api_person_id).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1650,7 +1627,7 @@ fn wire__crate__api__bangumi__fetch_person_subjects_impl(
         },
     )
 }
-fn wire__crate__api__crawler__fetch_schedule_basic_impl(
+fn wire__crate__frb_api__crawler__fetch_schedule_basic_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1678,7 +1655,7 @@ fn wire__crate__api__crawler__fetch_schedule_basic_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::crawler::fetch_schedule_basic(api_year_quarter).await?;
+                            crate::frb_api::crawler::fetch_schedule_basic(api_year_quarter).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1687,7 +1664,7 @@ fn wire__crate__api__crawler__fetch_schedule_basic_impl(
         },
     )
 }
-fn wire__crate__api__crawler__fetch_schedule_basic_api_only_impl(
+fn wire__crate__frb_api__crawler__fetch_schedule_basic_api_only_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1714,9 +1691,10 @@ fn wire__crate__api__crawler__fetch_schedule_basic_api_only_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok =
-                            crate::api::crawler::fetch_schedule_basic_api_only(api_year_quarter)
-                                .await?;
+                        let output_ok = crate::frb_api::crawler::fetch_schedule_basic_api_only(
+                            api_year_quarter,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1725,7 +1703,7 @@ fn wire__crate__api__crawler__fetch_schedule_basic_api_only_impl(
         },
     )
 }
-fn wire__crate__api__crawler__fetch_schedule_basic_from_local_json_impl(
+fn wire__crate__frb_api__crawler__fetch_schedule_basic_from_local_json_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1752,10 +1730,11 @@ fn wire__crate__api__crawler__fetch_schedule_basic_from_local_json_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::crawler::fetch_schedule_basic_from_local_json(
-                            api_year_quarter,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::frb_api::crawler::fetch_schedule_basic_from_local_json(
+                                api_year_quarter,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1764,7 +1743,7 @@ fn wire__crate__api__crawler__fetch_schedule_basic_from_local_json_impl(
         },
     )
 }
-fn wire__crate__api__crawler__fetch_schedule_basic_from_local_json_nodl_impl(
+fn wire__crate__frb_api__crawler__fetch_schedule_basic_from_local_json_nodl_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1792,7 +1771,7 @@ fn wire__crate__api__crawler__fetch_schedule_basic_from_local_json_nodl_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || {
                         let output_ok =
-                            crate::api::crawler::fetch_schedule_basic_from_local_json_nodl(
+                            crate::frb_api::crawler::fetch_schedule_basic_from_local_json_nodl(
                                 api_year_quarter,
                             )?;
                         Ok(output_ok)
@@ -1843,7 +1822,7 @@ fn wire__crate__api__bangumi_graphql__fetch_subject_details_graphql_batch_impl(
         },
     )
 }
-fn wire__crate__api__crawler__fill_anime_details_impl(
+fn wire__crate__frb_api__crawler__fill_anime_details_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1865,12 +1844,14 @@ fn wire__crate__api__crawler__fill_anime_details_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_animes = <Vec<crate::api::crawler::AnimeInfo>>::sse_decode(&mut deserializer);
+            let api_animes =
+                <Vec<crate::api::crawler::types::AnimeInfo>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::crawler::fill_anime_details(api_animes).await?;
+                        let output_ok =
+                            crate::frb_api::crawler::fill_anime_details(api_animes).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1879,7 +1860,7 @@ fn wire__crate__api__crawler__fill_anime_details_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__generic_search_and_play_impl(
+fn wire__crate__frb_api__generic_scraper__generic_search_and_play_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1906,9 +1887,10 @@ fn wire__crate__api__generic_scraper__generic_search_and_play_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok =
-                            crate::api::generic_scraper::generic_search_and_play(api_anime_name)
-                                .await?;
+                        let output_ok = crate::frb_api::generic_scraper::generic_search_and_play(
+                            api_anime_name,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1917,7 +1899,7 @@ fn wire__crate__api__generic_scraper__generic_search_and_play_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__generic_search_and_play_with_episode_impl(
+fn wire__crate__frb_api__generic_scraper__generic_search_and_play_with_episode_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1947,7 +1929,7 @@ fn wire__crate__api__generic_scraper__generic_search_and_play_with_episode_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::generic_scraper::generic_search_and_play_with_episode(
+                            crate::frb_api::generic_scraper::generic_search_and_play_with_episode(
                                 api_anime_name,
                                 api_absolute_episode,
                                 api_relative_episode,
@@ -1961,7 +1943,7 @@ fn wire__crate__api__generic_scraper__generic_search_and_play_with_episode_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__generic_search_play_pages_impl(
+fn wire__crate__frb_api__generic_scraper__generic_search_play_pages_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1990,7 +1972,7 @@ fn wire__crate__api__generic_scraper__generic_search_play_pages_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::generic_scraper::generic_search_play_pages(
+                        let output_ok = crate::frb_api::generic_scraper::generic_search_play_pages(
                             api_anime_name,
                             api_absolute_episode,
                             api_relative_episode,
@@ -2004,7 +1986,7 @@ fn wire__crate__api__generic_scraper__generic_search_play_pages_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
+fn wire__crate__frb_api__generic_scraper__generic_search_play_pages_stream_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2030,7 +2012,7 @@ fn wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
             let api_absolute_episode = <Option<u32>>::sse_decode(&mut deserializer);
             let api_relative_episode = <Option<u32>>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                crate::api::generic_scraper::SearchPlayResult,
+                crate::api::generic_scraper::types::SearchPlayResult,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -2038,7 +2020,7 @@ fn wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::generic_scraper::generic_search_play_pages_stream(
+                            crate::frb_api::generic_scraper::generic_search_play_pages_stream(
                                 api_anime_name,
                                 api_absolute_episode,
                                 api_relative_episode,
@@ -2053,7 +2035,7 @@ fn wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__generic_search_with_channels_impl(
+fn wire__crate__frb_api__generic_scraper__generic_search_with_channels_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2080,10 +2062,11 @@ fn wire__crate__api__generic_scraper__generic_search_with_channels_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::generic_scraper::generic_search_with_channels(
-                            api_anime_name,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::frb_api::generic_scraper::generic_search_with_channels(
+                                api_anime_name,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -2092,7 +2075,7 @@ fn wire__crate__api__generic_scraper__generic_search_with_channels_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__generic_search_with_channels_stream_impl(
+fn wire__crate__frb_api__generic_scraper__generic_search_with_channels_stream_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2116,7 +2099,7 @@ fn wire__crate__api__generic_scraper__generic_search_with_channels_stream_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_anime_name = <String>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                crate::api::generic_scraper::SearchResultWithChannels,
+                crate::api::generic_scraper::types::SearchResultWithChannels,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -2124,7 +2107,7 @@ fn wire__crate__api__generic_scraper__generic_search_with_channels_stream_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::generic_scraper::generic_search_with_channels_stream(
+                            crate::frb_api::generic_scraper::generic_search_with_channels_stream(
                                 api_anime_name,
                                 api_sink,
                             )
@@ -2137,7 +2120,7 @@ fn wire__crate__api__generic_scraper__generic_search_with_channels_stream_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__generic_search_with_progress_impl(
+fn wire__crate__frb_api__generic_scraper__generic_search_with_progress_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2163,20 +2146,21 @@ fn wire__crate__api__generic_scraper__generic_search_with_progress_impl(
             let api_absolute_episode = <Option<u32>>::sse_decode(&mut deserializer);
             let api_relative_episode = <Option<u32>>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                crate::api::generic_scraper::SourceSearchProgress,
+                crate::api::generic_scraper::types::SourceSearchProgress,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::generic_scraper::generic_search_with_progress(
-                            api_anime_name,
-                            api_absolute_episode,
-                            api_relative_episode,
-                            api_sink,
-                        )
-                        .await?;
+                        let output_ok =
+                            crate::frb_api::generic_scraper::generic_search_with_progress(
+                                api_anime_name,
+                                api_absolute_episode,
+                                api_relative_episode,
+                                api_sink,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -2185,7 +2169,7 @@ fn wire__crate__api__generic_scraper__generic_search_with_progress_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__generic_search_with_progress_runtime_impl(
+fn wire__crate__frb_api__generic_scraper__generic_search_with_progress_runtime_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2211,12 +2195,11 @@ fn wire__crate__api__generic_scraper__generic_search_with_progress_runtime_impl(
             let api_absolute_episode = <Option<u32>>::sse_decode(&mut deserializer);
             let api_relative_episode = <Option<u32>>::sse_decode(&mut deserializer);
             let api_target_source_names = <Option<Vec<String>>>::sse_decode(&mut deserializer);
-            let api_runtime_overrides =
-                <Vec<crate::api::generic_scraper::SourceRuntimeOverride>>::sse_decode(
-                    &mut deserializer,
-                );
+            let api_runtime_overrides = <Vec<
+                crate::api::generic_scraper::types::SourceRuntimeOverride,
+            >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                crate::api::generic_scraper::SourceSearchProgress,
+                crate::api::generic_scraper::types::SourceSearchProgress,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -2224,7 +2207,7 @@ fn wire__crate__api__generic_scraper__generic_search_with_progress_runtime_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::generic_scraper::generic_search_with_progress_runtime(
+                            crate::frb_api::generic_scraper::generic_search_with_progress_runtime(
                                 api_anime_name,
                                 api_absolute_episode,
                                 api_relative_episode,
@@ -2309,7 +2292,7 @@ fn wire__crate__api__config__get_bangumi_api_url_impl(
         },
     )
 }
-fn wire__crate__api__crawler__get_bangumi_data_cache_status_impl(
+fn wire__crate__frb_api__crawler__get_bangumi_data_cache_status_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2334,8 +2317,9 @@ fn wire__crate__api__crawler__get_bangumi_data_cache_status_impl(
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
-                    let output_ok =
-                        Result::<_, ()>::Ok(crate::api::crawler::get_bangumi_data_cache_status())?;
+                    let output_ok = Result::<_, ()>::Ok(
+                        crate::frb_api::crawler::get_bangumi_data_cache_status(),
+                    )?;
                     Ok(output_ok)
                 })())
             }
@@ -2830,41 +2814,7 @@ fn wire__crate__api__config__get_download_dir_impl(
         },
     )
 }
-fn wire__crate__api__network__get_ech_client_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "get_ech_client",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok({
-                        crate::api::network::get_ech_client();
-                    })?;
-                    Ok(output_ok)
-                })())
-            }
-        },
-    )
-}
-fn wire__crate__api__generic_scraper__get_enabled_source_names_impl(
+fn wire__crate__frb_api__generic_scraper__get_enabled_source_names_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2891,7 +2841,7 @@ fn wire__crate__api__generic_scraper__get_enabled_source_names_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::generic_scraper::get_enabled_source_names().await?;
+                            crate::frb_api::generic_scraper::get_enabled_source_names().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -2900,7 +2850,7 @@ fn wire__crate__api__generic_scraper__get_enabled_source_names_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__get_episode_play_url_impl(
+fn wire__crate__frb_api__generic_scraper__get_episode_play_url_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2926,15 +2876,14 @@ fn wire__crate__api__generic_scraper__get_episode_play_url_impl(
             let api_anime_name = <String>::sse_decode(&mut deserializer);
             let api_channel_index = <usize>::sse_decode(&mut deserializer);
             let api_episode_number = <Option<u32>>::sse_decode(&mut deserializer);
-            let api_runtime_override =
-                <Option<crate::api::generic_scraper::SourceRuntimeOverride>>::sse_decode(
-                    &mut deserializer,
-                );
+            let api_runtime_override = <Option<
+                crate::api::generic_scraper::types::SourceRuntimeOverride,
+            >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::generic_scraper::get_episode_play_url(
+                        let output_ok = crate::frb_api::generic_scraper::get_episode_play_url(
                             api_source_name,
                             api_anime_name,
                             api_channel_index,
@@ -3056,41 +3005,6 @@ fn wire__crate__api__config__get_mikan_url_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__get_playback_sources_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "get_playback_sources",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                    (move || async move {
-                        let output_ok = crate::api::generic_scraper::get_playback_sources().await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
 fn wire__crate__api__simple__get_playback_sources_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -3119,6 +3033,42 @@ fn wire__crate__api__simple__get_playback_sources_impl(
                     (move || async move {
                         let output_ok =
                             Result::<_, ()>::Ok(crate::api::simple::get_playback_sources().await)?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__frb_api__generic_scraper__get_playback_sources_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "get_playback_sources",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::frb_api::generic_scraper::get_playback_sources().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -3160,41 +3110,7 @@ fn wire__crate__api__config__get_playback_sub_url_impl(
         },
     )
 }
-fn wire__crate__api__network__get_shared_client_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "get_shared_client",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok({
-                        crate::api::network::get_shared_client();
-                    })?;
-                    Ok(output_ok)
-                })())
-            }
-        },
-    )
-}
-fn wire__crate__api__network__get_system_proxy_impl(
+fn wire__crate__frb_api__network__get_system_proxy_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3219,7 +3135,8 @@ fn wire__crate__api__network__get_system_proxy_impl(
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok(crate::api::network::get_system_proxy())?;
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::frb_api::network::get_system_proxy())?;
                     Ok(output_ok)
                 })())
             }
@@ -3446,41 +3363,7 @@ fn wire__crate__api__captcha__initialize_captcha_ocr_impl(
         },
     )
 }
-fn wire__crate__api__network__invalidate_ech_client_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "invalidate_ech_client",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok({
-                        crate::api::network::invalidate_ech_client();
-                    })?;
-                    Ok(output_ok)
-                })())
-            }
-        },
-    )
-}
-fn wire__crate__api__crawler__invalidate_sites_index_impl(
+fn wire__crate__frb_api__crawler__invalidate_sites_index_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3507,7 +3390,7 @@ fn wire__crate__api__crawler__invalidate_sites_index_impl(
                 transform_result_sse::<_, ()>(
                     (move || async move {
                         let output_ok = Result::<_, ()>::Ok({
-                            crate::api::crawler::invalidate_sites_index().await;
+                            crate::frb_api::crawler::invalidate_sites_index().await;
                         })?;
                         Ok(output_ok)
                     })()
@@ -3517,7 +3400,7 @@ fn wire__crate__api__crawler__invalidate_sites_index_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__invalidate_source_config_cache_impl(
+fn wire__crate__frb_api__generic_scraper__invalidate_source_config_cache_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3543,7 +3426,7 @@ fn wire__crate__api__generic_scraper__invalidate_source_config_cache_impl(
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::generic_scraper::invalidate_source_config_cache();
+                        crate::frb_api::generic_scraper::invalidate_source_config_cache();
                     })?;
                     Ok(output_ok)
                 })())
@@ -3618,7 +3501,7 @@ fn wire__crate__api__config__is_source_enabled_impl(
         },
     )
 }
-fn wire__crate__api__crawler__lookup_mikan_id_impl(
+fn wire__crate__frb_api__crawler__lookup_mikan_id_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3646,7 +3529,7 @@ fn wire__crate__api__crawler__lookup_mikan_id_impl(
                 transform_result_sse::<_, ()>(
                     (move || async move {
                         let output_ok = Result::<_, ()>::Ok(
-                            crate::api::crawler::lookup_mikan_id(api_bangumi_id).await,
+                            crate::frb_api::crawler::lookup_mikan_id(api_bangumi_id).await,
                         )?;
                         Ok(output_ok)
                     })()
@@ -3913,7 +3796,7 @@ fn wire__crate__api__simple__preload_playback_source_config_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__preload_playback_sources_impl(
+fn wire__crate__frb_api__generic_scraper__preload_playback_sources_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3940,7 +3823,7 @@ fn wire__crate__api__generic_scraper__preload_playback_sources_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::generic_scraper::preload_playback_sources().await?;
+                            crate::frb_api::generic_scraper::preload_playback_sources().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -4032,7 +3915,7 @@ fn wire__crate__api__captcha__recognize_captcha_with_constraints_impl(
         },
     )
 }
-fn wire__crate__api__crawler__refresh_bangumi_data_cache_impl(
+fn wire__crate__frb_api__crawler__refresh_bangumi_data_cache_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4058,7 +3941,8 @@ fn wire__crate__api__crawler__refresh_bangumi_data_cache_impl(
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::crawler::refresh_bangumi_data_cache().await?;
+                        let output_ok =
+                            crate::frb_api::crawler::refresh_bangumi_data_cache().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -4139,42 +4023,6 @@ fn wire__crate__api__simple__refresh_bangumi_ech_config_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__refresh_playback_source_config_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "refresh_playback_source_config",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::generic_scraper::refresh_playback_source_config().await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
 fn wire__crate__api__simple__refresh_playback_source_config_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -4204,6 +4052,43 @@ fn wire__crate__api__simple__refresh_playback_source_config_impl(
                         let output_ok = Result::<_, ()>::Ok(
                             crate::api::simple::refresh_playback_source_config().await,
                         )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__frb_api__generic_scraper__refresh_playback_source_config_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "refresh_playback_source_config",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::frb_api::generic_scraper::refresh_playback_source_config()
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -4614,40 +4499,6 @@ fn wire__crate__api__mikan__search_mikan_anime_impl(
                     })()
                     .await,
                 )
-            }
-        },
-    )
-}
-fn wire__crate__api__network__select_client_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "select_client",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok({
-                        crate::api::network::select_client();
-                    })?;
-                    Ok(output_ok)
-                })())
             }
         },
     )
@@ -5107,7 +4958,7 @@ fn wire__crate__api__simple__set_max_concurrent_searches_impl(
         },
     )
 }
-fn wire__crate__api__crawler__spawn_sites_index_background_impl(
+fn wire__crate__frb_api__crawler__spawn_sites_index_background_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5133,7 +4984,7 @@ fn wire__crate__api__crawler__spawn_sites_index_background_impl(
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::crawler::spawn_sites_index_background();
+                        crate::frb_api::crawler::spawn_sites_index_background();
                     })?;
                     Ok(output_ok)
                 })())
@@ -5308,7 +5159,7 @@ fn wire__crate__api__simple__update_config_impl(
         },
     )
 }
-fn wire__crate__api__generic_scraper__update_single_source_config_impl(
+fn wire__crate__frb_api__generic_scraper__update_single_source_config_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5330,15 +5181,18 @@ fn wire__crate__api__generic_scraper__update_single_source_config_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_update =
-                <crate::api::generic_scraper::SourceConfigUpdate>::sse_decode(&mut deserializer);
+            let api_update = <crate::api::generic_scraper::types::SourceConfigUpdate>::sse_decode(
+                &mut deserializer,
+            );
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok =
-                            crate::api::generic_scraper::update_single_source_config(api_update)
-                                .await?;
+                            crate::frb_api::generic_scraper::update_single_source_config(
+                                api_update,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5437,7 +5291,7 @@ impl SseDecode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpa
 
 impl SseDecode
     for StreamSink<
-        crate::api::generic_scraper::SearchPlayResult,
+        crate::api::generic_scraper::types::SearchPlayResult,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -5450,7 +5304,7 @@ impl SseDecode
 
 impl SseDecode
     for StreamSink<
-        crate::api::generic_scraper::SearchResultWithChannels,
+        crate::api::generic_scraper::types::SearchResultWithChannels,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -5463,7 +5317,7 @@ impl SseDecode
 
 impl SseDecode
     for StreamSink<
-        crate::api::generic_scraper::SourceSearchProgress,
+        crate::api::generic_scraper::types::SourceSearchProgress,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -5482,7 +5336,7 @@ impl SseDecode for String {
     }
 }
 
-impl SseDecode for crate::api::crawler::AnimeInfo {
+impl SseDecode for crate::api::crawler::types::AnimeInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_title = <String>::sse_decode(deserializer);
@@ -5497,7 +5351,7 @@ impl SseDecode for crate::api::crawler::AnimeInfo {
         let mut var_rank = <Option<i32>>::sse_decode(deserializer);
         let mut var_tags = <Vec<String>>::sse_decode(deserializer);
         let mut var_fullJson = <Option<String>>::sse_decode(deserializer);
-        return crate::api::crawler::AnimeInfo {
+        return crate::api::crawler::types::AnimeInfo {
             title: var_title,
             sub_title: var_subTitle,
             bangumi_id: var_bangumiId,
@@ -5514,13 +5368,13 @@ impl SseDecode for crate::api::crawler::AnimeInfo {
     }
 }
 
-impl SseDecode for crate::api::crawler::ArchiveQuarter {
+impl SseDecode for crate::api::crawler::types::ArchiveQuarter {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_year = <String>::sse_decode(deserializer);
         let mut var_quarter = <String>::sse_decode(deserializer);
         let mut var_title = <String>::sse_decode(deserializer);
-        return crate::api::crawler::ArchiveQuarter {
+        return crate::api::crawler::types::ArchiveQuarter {
             year: var_year,
             quarter: var_quarter,
             title: var_title,
@@ -5528,27 +5382,29 @@ impl SseDecode for crate::api::crawler::ArchiveQuarter {
     }
 }
 
-impl SseDecode for crate::api::bangumi::BangumiActor {
+impl SseDecode for crate::api::bangumi::types::BangumiActor {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
-        return crate::api::bangumi::BangumiActor {
+        return crate::api::bangumi::types::BangumiActor {
             id: var_id,
             name: var_name,
         };
     }
 }
 
-impl SseDecode for crate::api::bangumi::BangumiCharacter {
+impl SseDecode for crate::api::bangumi::types::BangumiCharacter {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_roleName = <String>::sse_decode(deserializer);
-        let mut var_images = <Option<crate::api::bangumi::BangumiImages>>::sse_decode(deserializer);
-        let mut var_actors = <Vec<crate::api::bangumi::BangumiActor>>::sse_decode(deserializer);
-        return crate::api::bangumi::BangumiCharacter {
+        let mut var_images =
+            <Option<crate::api::bangumi::types::BangumiImages>>::sse_decode(deserializer);
+        let mut var_actors =
+            <Vec<crate::api::bangumi::types::BangumiActor>>::sse_decode(deserializer);
+        return crate::api::bangumi::types::BangumiCharacter {
             id: var_id,
             name: var_name,
             role_name: var_roleName,
@@ -5558,7 +5414,7 @@ impl SseDecode for crate::api::bangumi::BangumiCharacter {
     }
 }
 
-impl SseDecode for crate::api::bangumi::BangumiComment {
+impl SseDecode for crate::api::bangumi::types::BangumiComment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_userName = <String>::sse_decode(deserializer);
@@ -5567,7 +5423,7 @@ impl SseDecode for crate::api::bangumi::BangumiComment {
         let mut var_contentHtml = <String>::sse_decode(deserializer);
         let mut var_time = <String>::sse_decode(deserializer);
         let mut var_avatar = <String>::sse_decode(deserializer);
-        return crate::api::bangumi::BangumiComment {
+        return crate::api::bangumi::types::BangumiComment {
             user_name: var_userName,
             rate: var_rate,
             content: var_content,
@@ -5578,7 +5434,7 @@ impl SseDecode for crate::api::bangumi::BangumiComment {
     }
 }
 
-impl SseDecode for crate::api::crawler::BangumiDataCacheStatus {
+impl SseDecode for crate::api::crawler::types::BangumiDataCacheStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_cached = <bool>::sse_decode(deserializer);
@@ -5586,7 +5442,7 @@ impl SseDecode for crate::api::crawler::BangumiDataCacheStatus {
         let mut var_lastModifiedSecs = <Option<u64>>::sse_decode(deserializer);
         let mut var_version = <String>::sse_decode(deserializer);
         let mut var_lastFailedSecs = <Option<u64>>::sse_decode(deserializer);
-        return crate::api::crawler::BangumiDataCacheStatus {
+        return crate::api::crawler::types::BangumiDataCacheStatus {
             cached: var_cached,
             file_size: var_fileSize,
             last_modified_secs: var_lastModifiedSecs,
@@ -5596,7 +5452,7 @@ impl SseDecode for crate::api::crawler::BangumiDataCacheStatus {
     }
 }
 
-impl SseDecode for crate::api::crawler::BangumiDataSiteEntry {
+impl SseDecode for crate::api::crawler::types::BangumiDataSiteEntry {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_site = <String>::sse_decode(deserializer);
@@ -5604,7 +5460,7 @@ impl SseDecode for crate::api::crawler::BangumiDataSiteEntry {
         let mut var_url = <String>::sse_decode(deserializer);
         let mut var_kind = <String>::sse_decode(deserializer);
         let mut var_comment = <Option<String>>::sse_decode(deserializer);
-        return crate::api::crawler::BangumiDataSiteEntry {
+        return crate::api::crawler::types::BangumiDataSiteEntry {
             site: var_site,
             title: var_title,
             url: var_url,
@@ -5614,7 +5470,7 @@ impl SseDecode for crate::api::crawler::BangumiDataSiteEntry {
     }
 }
 
-impl SseDecode for crate::api::bangumi::BangumiEpisode {
+impl SseDecode for crate::api::bangumi::types::BangumiEpisode {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
@@ -5624,7 +5480,7 @@ impl SseDecode for crate::api::bangumi::BangumiEpisode {
         let mut var_airdate = <String>::sse_decode(deserializer);
         let mut var_duration = <String>::sse_decode(deserializer);
         let mut var_sort = <f64>::sse_decode(deserializer);
-        return crate::api::bangumi::BangumiEpisode {
+        return crate::api::bangumi::types::BangumiEpisode {
             id: var_id,
             name: var_name,
             name_cn: var_nameCn,
@@ -5636,7 +5492,7 @@ impl SseDecode for crate::api::bangumi::BangumiEpisode {
     }
 }
 
-impl SseDecode for crate::api::bangumi::BangumiEpisodeComment {
+impl SseDecode for crate::api::bangumi::types::BangumiEpisodeComment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
@@ -5646,8 +5502,8 @@ impl SseDecode for crate::api::bangumi::BangumiEpisodeComment {
         let mut var_time = <String>::sse_decode(deserializer);
         let mut var_contentHtml = <String>::sse_decode(deserializer);
         let mut var_replies =
-            <Vec<crate::api::bangumi::BangumiEpisodeComment>>::sse_decode(deserializer);
-        return crate::api::bangumi::BangumiEpisodeComment {
+            <Vec<crate::api::bangumi::types::BangumiEpisodeComment>>::sse_decode(deserializer);
+        return crate::api::bangumi::types::BangumiEpisodeComment {
             id: var_id,
             user_name: var_userName,
             user_id: var_userId,
@@ -5659,7 +5515,7 @@ impl SseDecode for crate::api::bangumi::BangumiEpisodeComment {
     }
 }
 
-impl SseDecode for crate::api::bangumi::BangumiImages {
+impl SseDecode for crate::api::bangumi::types::BangumiImages {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_small = <String>::sse_decode(deserializer);
@@ -5667,7 +5523,7 @@ impl SseDecode for crate::api::bangumi::BangumiImages {
         let mut var_large = <String>::sse_decode(deserializer);
         let mut var_medium = <String>::sse_decode(deserializer);
         let mut var_common = <String>::sse_decode(deserializer);
-        return crate::api::bangumi::BangumiImages {
+        return crate::api::bangumi::types::BangumiImages {
             small: var_small,
             grid: var_grid,
             large: var_large,
@@ -5677,7 +5533,7 @@ impl SseDecode for crate::api::bangumi::BangumiImages {
     }
 }
 
-impl SseDecode for crate::api::bangumi::BangumiPerson {
+impl SseDecode for crate::api::bangumi::types::BangumiPerson {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
@@ -5685,8 +5541,9 @@ impl SseDecode for crate::api::bangumi::BangumiPerson {
         let mut var_relation = <String>::sse_decode(deserializer);
         let mut var_career = <Vec<String>>::sse_decode(deserializer);
         let mut var_personType = <i32>::sse_decode(deserializer);
-        let mut var_images = <Option<crate::api::bangumi::BangumiImages>>::sse_decode(deserializer);
-        return crate::api::bangumi::BangumiPerson {
+        let mut var_images =
+            <Option<crate::api::bangumi::types::BangumiImages>>::sse_decode(deserializer);
+        return crate::api::bangumi::types::BangumiPerson {
             id: var_id,
             name: var_name,
             relation: var_relation,
@@ -5697,7 +5554,7 @@ impl SseDecode for crate::api::bangumi::BangumiPerson {
     }
 }
 
-impl SseDecode for crate::api::bangumi::BangumiRelatedSubject {
+impl SseDecode for crate::api::bangumi::types::BangumiRelatedSubject {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
@@ -5705,7 +5562,7 @@ impl SseDecode for crate::api::bangumi::BangumiRelatedSubject {
         let mut var_nameCn = <String>::sse_decode(deserializer);
         let mut var_relation = <String>::sse_decode(deserializer);
         let mut var_image = <String>::sse_decode(deserializer);
-        return crate::api::bangumi::BangumiRelatedSubject {
+        return crate::api::bangumi::types::BangumiRelatedSubject {
             id: var_id,
             name: var_name,
             name_cn: var_nameCn,
@@ -5731,7 +5588,7 @@ impl SseDecode for crate::api::danmaku::BangumiTvEpisode {
     }
 }
 
-impl SseDecode for crate::api::bangumi::BangumiUserCollectionEntry {
+impl SseDecode for crate::api::bangumi::types::BangumiUserCollectionEntry {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_updatedAt = <String>::sse_decode(deserializer);
@@ -5752,7 +5609,7 @@ impl SseDecode for crate::api::bangumi::BangumiUserCollectionEntry {
         let mut var_imageLarge = <String>::sse_decode(deserializer);
         let mut var_imageMedium = <String>::sse_decode(deserializer);
         let mut var_imageCommon = <String>::sse_decode(deserializer);
-        return crate::api::bangumi::BangumiUserCollectionEntry {
+        return crate::api::bangumi::types::BangumiUserCollectionEntry {
             updated_at: var_updatedAt,
             comment: var_comment,
             tags: var_tags,
@@ -5775,7 +5632,7 @@ impl SseDecode for crate::api::bangumi::BangumiUserCollectionEntry {
     }
 }
 
-impl SseDecode for crate::api::bangumi::BangumiUserInfo {
+impl SseDecode for crate::api::bangumi::types::BangumiUserInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
@@ -5786,7 +5643,7 @@ impl SseDecode for crate::api::bangumi::BangumiUserInfo {
         let mut var_avatarLarge = <Option<String>>::sse_decode(deserializer);
         let mut var_avatarMedium = <Option<String>>::sse_decode(deserializer);
         let mut var_avatarSmall = <Option<String>>::sse_decode(deserializer);
-        return crate::api::bangumi::BangumiUserInfo {
+        return crate::api::bangumi::types::BangumiUserInfo {
             id: var_id,
             username: var_username,
             nickname: var_nickname,
@@ -5820,33 +5677,35 @@ impl SseDecode for crate::api::captcha::CaptchaConstraintOptions {
     }
 }
 
-impl SseDecode for crate::api::generic_scraper::ChannelInfo {
+impl SseDecode for crate::api::generic_scraper::types::ChannelInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_index = <usize>::sse_decode(deserializer);
-        return crate::api::generic_scraper::ChannelInfo {
+        return crate::api::generic_scraper::types::ChannelInfo {
             name: var_name,
             index: var_index,
         };
     }
 }
 
-impl SseDecode for crate::api::bangumi::CharacterDetails {
+impl SseDecode for crate::api::bangumi::types::CharacterDetails {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_summary = <String>::sse_decode(deserializer);
-        let mut var_images = <Option<crate::api::bangumi::BangumiImages>>::sse_decode(deserializer);
+        let mut var_images =
+            <Option<crate::api::bangumi::types::BangumiImages>>::sse_decode(deserializer);
         let mut var_gender = <Option<String>>::sse_decode(deserializer);
         let mut var_birthYear = <Option<i32>>::sse_decode(deserializer);
         let mut var_birthMon = <Option<i32>>::sse_decode(deserializer);
         let mut var_birthDay = <Option<i32>>::sse_decode(deserializer);
         let mut var_bloodType = <Option<String>>::sse_decode(deserializer);
-        let mut var_stat = <crate::api::bangumi::CharacterStat>::sse_decode(deserializer);
-        let mut var_infobox = <Vec<crate::api::bangumi::InfoboxItem>>::sse_decode(deserializer);
-        return crate::api::bangumi::CharacterDetails {
+        let mut var_stat = <crate::api::bangumi::types::CharacterStat>::sse_decode(deserializer);
+        let mut var_infobox =
+            <Vec<crate::api::bangumi::types::InfoboxItem>>::sse_decode(deserializer);
+        return crate::api::bangumi::types::CharacterDetails {
             id: var_id,
             name: var_name,
             summary: var_summary,
@@ -5862,19 +5721,19 @@ impl SseDecode for crate::api::bangumi::CharacterDetails {
     }
 }
 
-impl SseDecode for crate::api::bangumi::CharacterStat {
+impl SseDecode for crate::api::bangumi::types::CharacterStat {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_comments = <i32>::sse_decode(deserializer);
         let mut var_collects = <i32>::sse_decode(deserializer);
-        return crate::api::bangumi::CharacterStat {
+        return crate::api::bangumi::types::CharacterStat {
             comments: var_comments,
             collects: var_collects,
         };
     }
 }
 
-impl SseDecode for crate::api::bangumi::CharacterSubject {
+impl SseDecode for crate::api::bangumi::types::CharacterSubject {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
@@ -5883,8 +5742,8 @@ impl SseDecode for crate::api::bangumi::CharacterSubject {
         let mut var_image = <String>::sse_decode(deserializer);
         let mut var_staff = <String>::sse_decode(deserializer);
         let mut var_persons =
-            <Vec<crate::api::bangumi::CharacterSubjectPerson>>::sse_decode(deserializer);
-        return crate::api::bangumi::CharacterSubject {
+            <Vec<crate::api::bangumi::types::CharacterSubjectPerson>>::sse_decode(deserializer);
+        return crate::api::bangumi::types::CharacterSubject {
             id: var_id,
             name: var_name,
             name_cn: var_nameCn,
@@ -5895,13 +5754,14 @@ impl SseDecode for crate::api::bangumi::CharacterSubject {
     }
 }
 
-impl SseDecode for crate::api::bangumi::CharacterSubjectPerson {
+impl SseDecode for crate::api::bangumi::types::CharacterSubjectPerson {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
-        let mut var_images = <Option<crate::api::bangumi::BangumiImages>>::sse_decode(deserializer);
-        return crate::api::bangumi::CharacterSubjectPerson {
+        let mut var_images =
+            <Option<crate::api::bangumi::types::BangumiImages>>::sse_decode(deserializer);
+        return crate::api::bangumi::types::CharacterSubjectPerson {
             id: var_id,
             name: var_name,
             images: var_images,
@@ -5991,14 +5851,14 @@ impl SseDecode for crate::api::dmhy::DmhyResource {
     }
 }
 
-impl SseDecode for crate::api::generic_scraper::EpisodeInfo {
+impl SseDecode for crate::api::generic_scraper::types::EpisodeInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_url = <String>::sse_decode(deserializer);
         let mut var_episodeNumber = <Option<u32>>::sse_decode(deserializer);
         let mut var_channelIndex = <usize>::sse_decode(deserializer);
-        return crate::api::generic_scraper::EpisodeInfo {
+        return crate::api::generic_scraper::types::EpisodeInfo {
             name: var_name,
             url: var_url,
             episode_number: var_episodeNumber,
@@ -6028,12 +5888,12 @@ impl SseDecode for i64 {
     }
 }
 
-impl SseDecode for crate::api::bangumi::InfoboxItem {
+impl SseDecode for crate::api::bangumi::types::InfoboxItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_key = <String>::sse_decode(deserializer);
         let mut var_value = <String>::sse_decode(deserializer);
-        return crate::api::bangumi::InfoboxItem {
+        return crate::api::bangumi::types::InfoboxItem {
             key: var_key,
             value: var_value,
         };
@@ -6052,25 +5912,13 @@ impl SseDecode for Vec<String> {
     }
 }
 
-impl SseDecode for Vec<crate::api::crawler::AnimeInfo> {
+impl SseDecode for Vec<crate::api::crawler::types::AnimeInfo> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::crawler::AnimeInfo>::sse_decode(deserializer));
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for Vec<crate::api::crawler::ArchiveQuarter> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::crawler::ArchiveQuarter>::sse_decode(
+            ans_.push(<crate::api::crawler::types::AnimeInfo>::sse_decode(
                 deserializer,
             ));
         }
@@ -6078,13 +5926,13 @@ impl SseDecode for Vec<crate::api::crawler::ArchiveQuarter> {
     }
 }
 
-impl SseDecode for Vec<crate::api::bangumi::BangumiActor> {
+impl SseDecode for Vec<crate::api::crawler::types::ArchiveQuarter> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::BangumiActor>::sse_decode(
+            ans_.push(<crate::api::crawler::types::ArchiveQuarter>::sse_decode(
                 deserializer,
             ));
         }
@@ -6092,13 +5940,13 @@ impl SseDecode for Vec<crate::api::bangumi::BangumiActor> {
     }
 }
 
-impl SseDecode for Vec<crate::api::bangumi::BangumiCharacter> {
+impl SseDecode for Vec<crate::api::bangumi::types::BangumiActor> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::BangumiCharacter>::sse_decode(
+            ans_.push(<crate::api::bangumi::types::BangumiActor>::sse_decode(
                 deserializer,
             ));
         }
@@ -6106,13 +5954,13 @@ impl SseDecode for Vec<crate::api::bangumi::BangumiCharacter> {
     }
 }
 
-impl SseDecode for Vec<crate::api::bangumi::BangumiComment> {
+impl SseDecode for Vec<crate::api::bangumi::types::BangumiCharacter> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::BangumiComment>::sse_decode(
+            ans_.push(<crate::api::bangumi::types::BangumiCharacter>::sse_decode(
                 deserializer,
             ));
         }
@@ -6120,13 +5968,13 @@ impl SseDecode for Vec<crate::api::bangumi::BangumiComment> {
     }
 }
 
-impl SseDecode for Vec<crate::api::crawler::BangumiDataSiteEntry> {
+impl SseDecode for Vec<crate::api::bangumi::types::BangumiComment> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::crawler::BangumiDataSiteEntry>::sse_decode(
+            ans_.push(<crate::api::bangumi::types::BangumiComment>::sse_decode(
                 deserializer,
             ));
         }
@@ -6134,13 +5982,25 @@ impl SseDecode for Vec<crate::api::crawler::BangumiDataSiteEntry> {
     }
 }
 
-impl SseDecode for Vec<crate::api::bangumi::BangumiEpisode> {
+impl SseDecode for Vec<crate::api::crawler::types::BangumiDataSiteEntry> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::BangumiEpisode>::sse_decode(
+            ans_.push(<crate::api::crawler::types::BangumiDataSiteEntry>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::bangumi::types::BangumiEpisode> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::bangumi::types::BangumiEpisode>::sse_decode(
                 deserializer,
             ));
         }
@@ -6148,13 +6008,27 @@ impl SseDecode for Vec<crate::api::bangumi::BangumiEpisode> {
     }
 }
 
-impl SseDecode for Vec<crate::api::bangumi::BangumiEpisodeComment> {
+impl SseDecode for Vec<crate::api::bangumi::types::BangumiEpisodeComment> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::BangumiEpisodeComment>::sse_decode(
+            ans_.push(
+                <crate::api::bangumi::types::BangumiEpisodeComment>::sse_decode(deserializer),
+            );
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::bangumi::types::BangumiPerson> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::bangumi::types::BangumiPerson>::sse_decode(
                 deserializer,
             ));
         }
@@ -6162,29 +6036,15 @@ impl SseDecode for Vec<crate::api::bangumi::BangumiEpisodeComment> {
     }
 }
 
-impl SseDecode for Vec<crate::api::bangumi::BangumiPerson> {
+impl SseDecode for Vec<crate::api::bangumi::types::BangumiRelatedSubject> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::BangumiPerson>::sse_decode(
-                deserializer,
-            ));
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for Vec<crate::api::bangumi::BangumiRelatedSubject> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::BangumiRelatedSubject>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(
+                <crate::api::bangumi::types::BangumiRelatedSubject>::sse_decode(deserializer),
+            );
         }
         return ans_;
     }
@@ -6204,25 +6064,39 @@ impl SseDecode for Vec<crate::api::danmaku::BangumiTvEpisode> {
     }
 }
 
-impl SseDecode for Vec<crate::api::bangumi::BangumiUserCollectionEntry> {
+impl SseDecode for Vec<crate::api::bangumi::types::BangumiUserCollectionEntry> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::BangumiUserCollectionEntry>::sse_decode(deserializer));
+            ans_.push(
+                <crate::api::bangumi::types::BangumiUserCollectionEntry>::sse_decode(deserializer),
+            );
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<crate::api::generic_scraper::ChannelInfo> {
+impl SseDecode for Vec<crate::api::generic_scraper::types::ChannelInfo> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::generic_scraper::ChannelInfo>::sse_decode(
+            ans_.push(<crate::api::generic_scraper::types::ChannelInfo>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::bangumi::types::CharacterSubject> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::bangumi::types::CharacterSubject>::sse_decode(
                 deserializer,
             ));
         }
@@ -6230,29 +6104,15 @@ impl SseDecode for Vec<crate::api::generic_scraper::ChannelInfo> {
     }
 }
 
-impl SseDecode for Vec<crate::api::bangumi::CharacterSubject> {
+impl SseDecode for Vec<crate::api::bangumi::types::CharacterSubjectPerson> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::CharacterSubject>::sse_decode(
-                deserializer,
-            ));
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for Vec<crate::api::bangumi::CharacterSubjectPerson> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::CharacterSubjectPerson>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(
+                <crate::api::bangumi::types::CharacterSubjectPerson>::sse_decode(deserializer),
+            );
         }
         return ans_;
     }
@@ -6324,27 +6184,27 @@ impl SseDecode for Vec<crate::api::dmhy::DmhyResource> {
     }
 }
 
-impl SseDecode for Vec<crate::api::generic_scraper::EpisodeInfo> {
+impl SseDecode for Vec<crate::api::generic_scraper::types::EpisodeInfo> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::generic_scraper::EpisodeInfo>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(<crate::api::generic_scraper::types::EpisodeInfo>::sse_decode(deserializer));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<crate::api::bangumi::InfoboxItem> {
+impl SseDecode for Vec<crate::api::bangumi::types::InfoboxItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::InfoboxItem>::sse_decode(deserializer));
+            ans_.push(<crate::api::bangumi::types::InfoboxItem>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -6364,13 +6224,13 @@ impl SseDecode for Vec<crate::api::mikan::MikanEpisodeResource> {
     }
 }
 
-impl SseDecode for Vec<crate::api::bangumi::PersonCharacter> {
+impl SseDecode for Vec<crate::api::bangumi::types::PersonCharacter> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::PersonCharacter>::sse_decode(
+            ans_.push(<crate::api::bangumi::types::PersonCharacter>::sse_decode(
                 deserializer,
             ));
         }
@@ -6378,13 +6238,13 @@ impl SseDecode for Vec<crate::api::bangumi::PersonCharacter> {
     }
 }
 
-impl SseDecode for Vec<crate::api::bangumi::PersonSubject> {
+impl SseDecode for Vec<crate::api::bangumi::types::PersonSubject> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::bangumi::PersonSubject>::sse_decode(
+            ans_.push(<crate::api::bangumi::types::PersonSubject>::sse_decode(
                 deserializer,
             ));
         }
@@ -6454,57 +6314,59 @@ impl SseDecode for Vec<(String, String)> {
     }
 }
 
-impl SseDecode for Vec<crate::api::generic_scraper::SearchPlayResult> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::generic_scraper::SearchPlayResult>::sse_decode(
-                deserializer,
-            ));
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for Vec<crate::api::generic_scraper::SearchResultWithChannels> {
+impl SseDecode for Vec<crate::api::generic_scraper::types::SearchPlayResult> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(
-                <crate::api::generic_scraper::SearchResultWithChannels>::sse_decode(deserializer),
+                <crate::api::generic_scraper::types::SearchPlayResult>::sse_decode(deserializer),
             );
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<crate::api::generic_scraper::SourceRuntimeOverride> {
+impl SseDecode for Vec<crate::api::generic_scraper::types::SearchResultWithChannels> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(
-                <crate::api::generic_scraper::SourceRuntimeOverride>::sse_decode(deserializer),
+                <crate::api::generic_scraper::types::SearchResultWithChannels>::sse_decode(
+                    deserializer,
+                ),
             );
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<crate::api::generic_scraper::SourceState> {
+impl SseDecode for Vec<crate::api::generic_scraper::types::SourceRuntimeOverride> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::generic_scraper::SourceState>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(
+                <crate::api::generic_scraper::types::SourceRuntimeOverride>::sse_decode(
+                    deserializer,
+                ),
+            );
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::generic_scraper::types::SourceState> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::generic_scraper::types::SourceState>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -6590,11 +6452,11 @@ impl SseDecode for Option<String> {
     }
 }
 
-impl SseDecode for Option<crate::api::bangumi::BangumiImages> {
+impl SseDecode for Option<crate::api::bangumi::types::BangumiImages> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::bangumi::BangumiImages>::sse_decode(
+            return Some(<crate::api::bangumi::types::BangumiImages>::sse_decode(
                 deserializer,
             ));
         } else {
@@ -6649,12 +6511,14 @@ impl SseDecode for Option<crate::api::mikan::MikanSearchResult> {
     }
 }
 
-impl SseDecode for Option<crate::api::generic_scraper::SourceRuntimeOverride> {
+impl SseDecode for Option<crate::api::generic_scraper::types::SourceRuntimeOverride> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(
-                <crate::api::generic_scraper::SourceRuntimeOverride>::sse_decode(deserializer),
+                <crate::api::generic_scraper::types::SourceRuntimeOverride>::sse_decode(
+                    deserializer,
+                ),
             );
         } else {
             return None;
@@ -6706,30 +6570,31 @@ impl SseDecode for Option<Vec<String>> {
     }
 }
 
-impl SseDecode for Option<Vec<crate::api::generic_scraper::ChannelInfo>> {
+impl SseDecode for Option<Vec<crate::api::generic_scraper::types::ChannelInfo>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<Vec<crate::api::generic_scraper::ChannelInfo>>::sse_decode(
-                deserializer,
-            ));
+            return Some(
+                <Vec<crate::api::generic_scraper::types::ChannelInfo>>::sse_decode(deserializer),
+            );
         } else {
             return None;
         }
     }
 }
 
-impl SseDecode for crate::api::bangumi::PersonCharacter {
+impl SseDecode for crate::api::bangumi::types::PersonCharacter {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
-        let mut var_images = <Option<crate::api::bangumi::BangumiImages>>::sse_decode(deserializer);
+        let mut var_images =
+            <Option<crate::api::bangumi::types::BangumiImages>>::sse_decode(deserializer);
         let mut var_subjectId = <i64>::sse_decode(deserializer);
         let mut var_subjectName = <String>::sse_decode(deserializer);
         let mut var_subjectNameCn = <String>::sse_decode(deserializer);
         let mut var_staff = <String>::sse_decode(deserializer);
-        return crate::api::bangumi::PersonCharacter {
+        return crate::api::bangumi::types::PersonCharacter {
             id: var_id,
             name: var_name,
             images: var_images,
@@ -6741,7 +6606,7 @@ impl SseDecode for crate::api::bangumi::PersonCharacter {
     }
 }
 
-impl SseDecode for crate::api::bangumi::PersonDetails {
+impl SseDecode for crate::api::bangumi::types::PersonDetails {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
@@ -6750,10 +6615,11 @@ impl SseDecode for crate::api::bangumi::PersonDetails {
         let mut var_img = <String>::sse_decode(deserializer);
         let mut var_career = <Vec<String>>::sse_decode(deserializer);
         let mut var_personType = <i32>::sse_decode(deserializer);
-        let mut var_stat = <crate::api::bangumi::CharacterStat>::sse_decode(deserializer);
-        let mut var_infobox = <Vec<crate::api::bangumi::InfoboxItem>>::sse_decode(deserializer);
+        let mut var_stat = <crate::api::bangumi::types::CharacterStat>::sse_decode(deserializer);
+        let mut var_infobox =
+            <Vec<crate::api::bangumi::types::InfoboxItem>>::sse_decode(deserializer);
         let mut var_locked = <bool>::sse_decode(deserializer);
-        return crate::api::bangumi::PersonDetails {
+        return crate::api::bangumi::types::PersonDetails {
             id: var_id,
             name: var_name,
             summary: var_summary,
@@ -6767,7 +6633,7 @@ impl SseDecode for crate::api::bangumi::PersonDetails {
     }
 }
 
-impl SseDecode for crate::api::bangumi::PersonSubject {
+impl SseDecode for crate::api::bangumi::types::PersonSubject {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <i64>::sse_decode(deserializer);
@@ -6776,7 +6642,7 @@ impl SseDecode for crate::api::bangumi::PersonSubject {
         let mut var_image = <String>::sse_decode(deserializer);
         let mut var_staff = <String>::sse_decode(deserializer);
         let mut var_eps = <String>::sse_decode(deserializer);
-        return crate::api::bangumi::PersonSubject {
+        return crate::api::bangumi::types::PersonSubject {
             id: var_id,
             name: var_name,
             name_cn: var_nameCn,
@@ -6827,7 +6693,7 @@ impl SseDecode for (String, String) {
     }
 }
 
-impl SseDecode for crate::api::generic_scraper::SearchPlayResult {
+impl SseDecode for crate::api::generic_scraper::types::SearchPlayResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_sourceName = <String>::sse_decode(deserializer);
@@ -6842,7 +6708,7 @@ impl SseDecode for crate::api::generic_scraper::SearchPlayResult {
         let mut var_captchaConfigJson = <Option<String>>::sse_decode(deserializer);
         let mut var_enableNestedUrl = <bool>::sse_decode(deserializer);
         let mut var_matchNestedUrl = <Option<String>>::sse_decode(deserializer);
-        return crate::api::generic_scraper::SearchPlayResult {
+        return crate::api::generic_scraper::types::SearchPlayResult {
             source_name: var_sourceName,
             play_page_url: var_playPageUrl,
             video_regex: var_videoRegex,
@@ -6858,23 +6724,23 @@ impl SseDecode for crate::api::generic_scraper::SearchPlayResult {
     }
 }
 
-impl SseDecode for crate::api::generic_scraper::SearchResultWithChannels {
+impl SseDecode for crate::api::generic_scraper::types::SearchResultWithChannels {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_sourceName = <String>::sse_decode(deserializer);
         let mut var_detailUrl = <String>::sse_decode(deserializer);
         let mut var_matchedTitle = <String>::sse_decode(deserializer);
         let mut var_channels =
-            <Vec<crate::api::generic_scraper::ChannelInfo>>::sse_decode(deserializer);
+            <Vec<crate::api::generic_scraper::types::ChannelInfo>>::sse_decode(deserializer);
         let mut var_episodes =
-            <Vec<crate::api::generic_scraper::EpisodeInfo>>::sse_decode(deserializer);
+            <Vec<crate::api::generic_scraper::types::EpisodeInfo>>::sse_decode(deserializer);
         let mut var_videoRegex = <String>::sse_decode(deserializer);
         let mut var_cookies = <Option<String>>::sse_decode(deserializer);
         let mut var_headers =
             <Option<std::collections::HashMap<String, String>>>::sse_decode(deserializer);
         let mut var_defaultSubtitleLanguage = <Option<String>>::sse_decode(deserializer);
         let mut var_defaultResolution = <Option<String>>::sse_decode(deserializer);
-        return crate::api::generic_scraper::SearchResultWithChannels {
+        return crate::api::generic_scraper::types::SearchResultWithChannels {
             source_name: var_sourceName,
             detail_url: var_detailUrl,
             matched_title: var_matchedTitle,
@@ -6889,24 +6755,24 @@ impl SseDecode for crate::api::generic_scraper::SearchResultWithChannels {
     }
 }
 
-impl SseDecode for crate::api::generic_scraper::SearchStep {
+impl SseDecode for crate::api::generic_scraper::types::SearchStep {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::api::generic_scraper::SearchStep::Pending,
-            1 => crate::api::generic_scraper::SearchStep::Searching,
-            2 => crate::api::generic_scraper::SearchStep::FetchingDetail,
-            3 => crate::api::generic_scraper::SearchStep::FetchingEpisodes,
-            4 => crate::api::generic_scraper::SearchStep::ExtractingVideo,
-            5 => crate::api::generic_scraper::SearchStep::Success,
-            6 => crate::api::generic_scraper::SearchStep::Failed,
+            0 => crate::api::generic_scraper::types::SearchStep::Pending,
+            1 => crate::api::generic_scraper::types::SearchStep::Searching,
+            2 => crate::api::generic_scraper::types::SearchStep::FetchingDetail,
+            3 => crate::api::generic_scraper::types::SearchStep::FetchingEpisodes,
+            4 => crate::api::generic_scraper::types::SearchStep::ExtractingVideo,
+            5 => crate::api::generic_scraper::types::SearchStep::Success,
+            6 => crate::api::generic_scraper::types::SearchStep::Failed,
             _ => unreachable!("Invalid variant for SearchStep: {}", inner),
         };
     }
 }
 
-impl SseDecode for crate::api::generic_scraper::SourceConfigUpdate {
+impl SseDecode for crate::api::generic_scraper::types::SourceConfigUpdate {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_name = <String>::sse_decode(deserializer);
@@ -6919,7 +6785,7 @@ impl SseDecode for crate::api::generic_scraper::SourceConfigUpdate {
         let mut var_description = <Option<String>>::sse_decode(deserializer);
         let mut var_searchConfigJson = <Option<String>>::sse_decode(deserializer);
         let mut var_captchaConfigJson = <Option<String>>::sse_decode(deserializer);
-        return crate::api::generic_scraper::SourceConfigUpdate {
+        return crate::api::generic_scraper::types::SourceConfigUpdate {
             name: var_name,
             new_name: var_newName,
             tier: var_tier,
@@ -6934,7 +6800,7 @@ impl SseDecode for crate::api::generic_scraper::SourceConfigUpdate {
     }
 }
 
-impl SseDecode for crate::api::generic_scraper::SourceRuntimeOverride {
+impl SseDecode for crate::api::generic_scraper::types::SourceRuntimeOverride {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_sourceName = <String>::sse_decode(deserializer);
@@ -6944,7 +6810,7 @@ impl SseDecode for crate::api::generic_scraper::SourceRuntimeOverride {
         let mut var_detailPageHtml = <Option<String>>::sse_decode(deserializer);
         let mut var_detailPageUrl = <Option<String>>::sse_decode(deserializer);
         let mut var_skipSearchError = <Option<String>>::sse_decode(deserializer);
-        return crate::api::generic_scraper::SourceRuntimeOverride {
+        return crate::api::generic_scraper::types::SourceRuntimeOverride {
             source_name: var_sourceName,
             cookies: var_cookies,
             search_page_html: var_searchPageHtml,
@@ -6956,11 +6822,12 @@ impl SseDecode for crate::api::generic_scraper::SourceRuntimeOverride {
     }
 }
 
-impl SseDecode for crate::api::generic_scraper::SourceSearchProgress {
+impl SseDecode for crate::api::generic_scraper::types::SourceSearchProgress {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_sourceName = <String>::sse_decode(deserializer);
-        let mut var_step = <crate::api::generic_scraper::SearchStep>::sse_decode(deserializer);
+        let mut var_step =
+            <crate::api::generic_scraper::types::SearchStep>::sse_decode(deserializer);
         let mut var_error = <Option<String>>::sse_decode(deserializer);
         let mut var_playPageUrl = <Option<String>>::sse_decode(deserializer);
         let mut var_videoRegex = <Option<String>>::sse_decode(deserializer);
@@ -6971,11 +6838,13 @@ impl SseDecode for crate::api::generic_scraper::SourceSearchProgress {
         let mut var_channelName = <Option<String>>::sse_decode(deserializer);
         let mut var_channelIndex = <Option<usize>>::sse_decode(deserializer);
         let mut var_allChannels =
-            <Option<Vec<crate::api::generic_scraper::ChannelInfo>>>::sse_decode(deserializer);
+            <Option<Vec<crate::api::generic_scraper::types::ChannelInfo>>>::sse_decode(
+                deserializer,
+            );
         let mut var_captchaConfigJson = <Option<String>>::sse_decode(deserializer);
         let mut var_enableNestedUrl = <bool>::sse_decode(deserializer);
         let mut var_matchNestedUrl = <Option<String>>::sse_decode(deserializer);
-        return crate::api::generic_scraper::SourceSearchProgress {
+        return crate::api::generic_scraper::types::SourceSearchProgress {
             source_name: var_sourceName,
             step: var_step,
             error: var_error,
@@ -6994,7 +6863,7 @@ impl SseDecode for crate::api::generic_scraper::SourceSearchProgress {
     }
 }
 
-impl SseDecode for crate::api::generic_scraper::SourceState {
+impl SseDecode for crate::api::generic_scraper::types::SourceState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_name = <String>::sse_decode(deserializer);
@@ -7007,7 +6876,7 @@ impl SseDecode for crate::api::generic_scraper::SourceState {
         let mut var_searchConfigJson = <String>::sse_decode(deserializer);
         let mut var_captchaConfigJson = <Option<String>>::sse_decode(deserializer);
         let mut var_enabled = <bool>::sse_decode(deserializer);
-        return crate::api::generic_scraper::SourceState {
+        return crate::api::generic_scraper::types::SourceState {
             name: var_name,
             description: var_description,
             icon_url: var_iconUrl,
@@ -7120,584 +6989,608 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        3 => wire__crate__api__generic_scraper__add_source_config_impl(
+        3 => wire__crate__frb_api__generic_scraper__add_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        4 => wire__crate__api__crawler__build_sites_index_impl(port, ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__network__client_for_bangumi_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__danmaku__danmaku_get_bangumi_episodes_impl(
+        4 => {
+            wire__crate__frb_api__crawler__build_sites_index_impl(port, ptr, rust_vec_len, data_len)
+        }
+        5 => wire__crate__api__danmaku__danmaku_get_bangumi_episodes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        7 => wire__crate__api__danmaku__danmaku_get_by_bangumi_id_impl(
+        6 => wire__crate__api__danmaku__danmaku_get_by_bangumi_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        8 => {
+        7 => {
             wire__crate__api__danmaku__danmaku_get_by_title_impl(port, ptr, rust_vec_len, data_len)
         }
-        9 => {
+        8 => {
             wire__crate__api__danmaku__danmaku_get_comments_impl(port, ptr, rust_vec_len, data_len)
         }
-        10 => {
+        9 => {
             wire__crate__api__danmaku__danmaku_get_episodes_impl(port, ptr, rust_vec_len, data_len)
         }
-        11 => {
+        10 => {
             wire__crate__api__danmaku__danmaku_match_anime_impl(port, ptr, rust_vec_len, data_len)
         }
-        12 => {
+        11 => {
             wire__crate__api__danmaku__danmaku_search_anime_impl(port, ptr, rust_vec_len, data_len)
         }
-        13 => wire__crate__api__generic_scraper__debug_search_with_local_json_impl(
+        12 => wire__crate__frb_api__generic_scraper__debug_search_with_local_json_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__generic_scraper__debug_search_with_local_json_runtime_impl(
+        13 => wire__crate__frb_api__generic_scraper__debug_search_with_local_json_runtime_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        15 => wire__crate__api__crawler__ensure_bangumi_data_cache_impl(
+        14 => wire__crate__frb_api__crawler__ensure_bangumi_data_cache_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        16 => wire__crate__api__bangumi_graphql__execute_bangumi_graphql_impl(
+        15 => wire__crate__api__bangumi_graphql__execute_bangumi_graphql_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        17 => wire__crate__api__crawler__fetch_archive_list_impl(port, ptr, rust_vec_len, data_len),
-        18 => {
+        16 => wire__crate__frb_api__crawler__fetch_archive_list_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        17 => {
             wire__crate__api__ranking__fetch_bangumi_browser_impl(port, ptr, rust_vec_len, data_len)
         }
-        19 => wire__crate__api__bangumi__fetch_bangumi_characters_impl(
+        18 => wire__crate__frb_api__bangumi__fetch_bangumi_characters_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        20 => wire__crate__api__bangumi__fetch_bangumi_comments_impl(
+        19 => wire__crate__frb_api__bangumi__fetch_bangumi_comments_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__crawler__fetch_bangumi_data_sites_impl(
+        20 => wire__crate__frb_api__crawler__fetch_bangumi_data_sites_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => wire__crate__api__crawler__fetch_bangumi_data_sites_by_mikan_impl(
+        21 => wire__crate__frb_api__crawler__fetch_bangumi_data_sites_by_mikan_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__bangumi__fetch_bangumi_episode_comments_impl(
+        22 => wire__crate__frb_api__bangumi__fetch_bangumi_episode_comments_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__bangumi__fetch_bangumi_episodes_impl(
+        23 => wire__crate__frb_api__bangumi__fetch_bangumi_episodes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__bangumi__fetch_bangumi_image_url_impl(
+        24 => wire__crate__frb_api__bangumi__fetch_bangumi_image_url_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        25 => wire__crate__frb_api__bangumi__fetch_bangumi_persons_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
         26 => {
-            wire__crate__api__bangumi__fetch_bangumi_persons_impl(port, ptr, rust_vec_len, data_len)
-        }
-        27 => {
             wire__crate__api__ranking__fetch_bangumi_ranking_impl(port, ptr, rust_vec_len, data_len)
         }
-        28 => wire__crate__api__bangumi__fetch_bangumi_relations_impl(
+        27 => wire__crate__frb_api__bangumi__fetch_bangumi_relations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => wire__crate__api__bangumi__fetch_bangumi_subject_image_impl(
+        28 => wire__crate__frb_api__bangumi__fetch_bangumi_subject_image_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__bangumi__fetch_bangumi_user_collections_impl(
+        29 => wire__crate__frb_api__bangumi__fetch_bangumi_user_collections_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => wire__crate__api__bangumi__fetch_bangumi_user_info_impl(
+        30 => wire__crate__frb_api__bangumi__fetch_bangumi_user_info_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        32 => wire__crate__api__bangumi__fetch_character_details_impl(
+        31 => wire__crate__frb_api__bangumi__fetch_character_details_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => wire__crate__api__bangumi__fetch_character_subjects_impl(
+        32 => wire__crate__frb_api__bangumi__fetch_character_subjects_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        34 => wire__crate__api__ech__fetch_cloudflare_ech_bytes_impl(
+        33 => wire__crate__api__ech__fetch_cloudflare_ech_bytes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        35 => wire__crate__api__dmhy__fetch_dmhy_resources_impl(port, ptr, rust_vec_len, data_len),
-        36 => {
-            wire__crate__api__crawler__fetch_extra_subjects_impl(port, ptr, rust_vec_len, data_len)
-        }
-        37 => wire__crate__api__crawler__fetch_light_subject_details_impl(
+        34 => wire__crate__api__dmhy__fetch_dmhy_resources_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__frb_api__crawler__fetch_extra_subjects_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        38 => wire__crate__api__bangumi_graphql__fetch_light_subject_details_graphql_impl(
+        36 => wire__crate__frb_api__crawler__fetch_light_subject_details_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__crate__api__bangumi__fetch_person_characters_impl(
+        37 => wire__crate__api__bangumi_graphql__fetch_light_subject_details_graphql_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        40 => {
-            wire__crate__api__bangumi__fetch_person_details_impl(port, ptr, rust_vec_len, data_len)
-        }
-        41 => {
-            wire__crate__api__bangumi__fetch_person_subjects_impl(port, ptr, rust_vec_len, data_len)
-        }
-        42 => {
-            wire__crate__api__crawler__fetch_schedule_basic_impl(port, ptr, rust_vec_len, data_len)
-        }
-        43 => wire__crate__api__crawler__fetch_schedule_basic_api_only_impl(
+        38 => wire__crate__frb_api__bangumi__fetch_person_characters_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        44 => wire__crate__api__crawler__fetch_schedule_basic_from_local_json_impl(
+        39 => wire__crate__frb_api__bangumi__fetch_person_details_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        45 => wire__crate__api__crawler__fetch_schedule_basic_from_local_json_nodl_impl(
+        40 => wire__crate__frb_api__bangumi__fetch_person_subjects_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        46 => wire__crate__api__bangumi_graphql__fetch_subject_details_graphql_batch_impl(
+        41 => wire__crate__frb_api__crawler__fetch_schedule_basic_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => wire__crate__api__crawler__fill_anime_details_impl(port, ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__generic_scraper__generic_search_and_play_impl(
+        42 => wire__crate__frb_api__crawler__fetch_schedule_basic_api_only_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        49 => wire__crate__api__generic_scraper__generic_search_and_play_with_episode_impl(
+        43 => wire__crate__frb_api__crawler__fetch_schedule_basic_from_local_json_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        50 => wire__crate__api__generic_scraper__generic_search_play_pages_impl(
+        44 => wire__crate__frb_api__crawler__fetch_schedule_basic_from_local_json_nodl_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__crate__api__generic_scraper__generic_search_play_pages_stream_impl(
+        45 => wire__crate__api__bangumi_graphql__fetch_subject_details_graphql_batch_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        52 => wire__crate__api__generic_scraper__generic_search_with_channels_impl(
+        46 => wire__crate__frb_api__crawler__fill_anime_details_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__crate__api__generic_scraper__generic_search_with_channels_stream_impl(
+        47 => wire__crate__frb_api__generic_scraper__generic_search_and_play_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        54 => wire__crate__api__generic_scraper__generic_search_with_progress_impl(
+        48 => wire__crate__frb_api__generic_scraper__generic_search_and_play_with_episode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__crate__api__generic_scraper__generic_search_with_progress_runtime_impl(
+        49 => wire__crate__frb_api__generic_scraper__generic_search_play_pages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        56 => {
+        50 => wire__crate__frb_api__generic_scraper__generic_search_play_pages_stream_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        51 => wire__crate__frb_api__generic_scraper__generic_search_with_channels_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        52 => wire__crate__frb_api__generic_scraper__generic_search_with_channels_stream_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        53 => wire__crate__frb_api__generic_scraper__generic_search_with_progress_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        54 => wire__crate__frb_api__generic_scraper__generic_search_with_progress_runtime_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        55 => {
             wire__crate__api__simple__get_all_torrents_info_impl(port, ptr, rust_vec_len, data_len)
         }
-        57 => wire__crate__api__config__get_bangumi_api_url_impl(port, ptr, rust_vec_len, data_len),
-        58 => wire__crate__api__crawler__get_bangumi_data_cache_status_impl(
+        56 => wire__crate__api__config__get_bangumi_api_url_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__frb_api__crawler__get_bangumi_data_cache_status_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__crate__api__config__get_bangumi_doh_endpoints_impl(
+        58 => wire__crate__api__config__get_bangumi_doh_endpoints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        60 => wire__crate__api__simple__get_bangumi_doh_endpoints_impl(
+        59 => wire__crate__api__simple__get_bangumi_doh_endpoints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        61 => {
+        60 => {
             wire__crate__api__config__get_bangumi_lain_url_impl(port, ptr, rust_vec_len, data_len)
         }
-        62 => {
+        61 => {
             wire__crate__api__config__get_bangumi_next_url_impl(port, ptr, rust_vec_len, data_len)
         }
-        63 => wire__crate__api__config__get_bangumi_request_mode_impl(
+        62 => wire__crate__api__config__get_bangumi_request_mode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        64 => wire__crate__api__config__get_bangumi_reverse_proxy_impl(
+        63 => wire__crate__api__config__get_bangumi_reverse_proxy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        65 => wire__crate__api__simple__get_bangumi_reverse_proxy_impl(
+        64 => wire__crate__api__simple__get_bangumi_reverse_proxy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        66 => wire__crate__api__config__get_bangumi_url_impl(port, ptr, rust_vec_len, data_len),
-        67 => wire__crate__api__config__get_bangumi_use_ech_impl(port, ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__simple__get_bangumi_use_ech_impl(port, ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__config__get_bgmlist_api_url_impl(port, ptr, rust_vec_len, data_len),
-        70 => wire__crate__api__config__get_bgmlist_url_impl(port, ptr, rust_vec_len, data_len),
-        71 => wire__crate__api__config__get_cache_dir_impl(port, ptr, rust_vec_len, data_len),
-        72 => wire__crate__api__captcha__get_captcha_ocr_model_info_impl(
+        65 => wire__crate__api__config__get_bangumi_url_impl(port, ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__config__get_bangumi_use_ech_impl(port, ptr, rust_vec_len, data_len),
+        67 => wire__crate__api__simple__get_bangumi_use_ech_impl(port, ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__config__get_bgmlist_api_url_impl(port, ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__config__get_bgmlist_url_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__config__get_cache_dir_impl(port, ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__captcha__get_captcha_ocr_model_info_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        73 => wire__crate__api__config__get_download_dir_impl(port, ptr, rust_vec_len, data_len),
-        74 => wire__crate__api__network__get_ech_client_impl(port, ptr, rust_vec_len, data_len),
-        75 => wire__crate__api__generic_scraper__get_enabled_source_names_impl(
+        72 => wire__crate__api__config__get_download_dir_impl(port, ptr, rust_vec_len, data_len),
+        73 => wire__crate__frb_api__generic_scraper__get_enabled_source_names_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        76 => wire__crate__api__generic_scraper__get_episode_play_url_impl(
+        74 => wire__crate__frb_api__generic_scraper__get_episode_play_url_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        77 => wire__crate__api__config__get_max_concurrent_searches_impl(
+        75 => wire__crate__api__config__get_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        78 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
-        79 => wire__crate__api__config__get_mikan_url_impl(port, ptr, rust_vec_len, data_len),
-        80 => wire__crate__api__generic_scraper__get_playback_sources_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        81 => {
+        76 => wire__crate__api__mikan__get_mikan_resources_impl(port, ptr, rust_vec_len, data_len),
+        77 => wire__crate__api__config__get_mikan_url_impl(port, ptr, rust_vec_len, data_len),
+        78 => {
             wire__crate__api__simple__get_playback_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        82 => {
+        79 => wire__crate__frb_api__generic_scraper__get_playback_sources_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        80 => {
             wire__crate__api__config__get_playback_sub_url_impl(port, ptr, rust_vec_len, data_len)
         }
-        83 => wire__crate__api__network__get_shared_client_impl(port, ptr, rust_vec_len, data_len),
-        84 => wire__crate__api__network__get_system_proxy_impl(port, ptr, rust_vec_len, data_len),
-        85 => wire__crate__api__simple__get_torrent_stats_impl(port, ptr, rust_vec_len, data_len),
-        86 => wire__crate__api__simple__get_tracker_info_impl(port, ptr, rust_vec_len, data_len),
-        87 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
-        88 => wire__crate__api__config__init_config_impl(port, ptr, rust_vec_len, data_len),
-        89 => wire__crate__api__simple__init_engine_impl(port, ptr, rust_vec_len, data_len),
-        90 => wire__crate__api__captcha__initialize_captcha_ocr_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        91 => {
-            wire__crate__api__network__invalidate_ech_client_impl(port, ptr, rust_vec_len, data_len)
+        81 => {
+            wire__crate__frb_api__network__get_system_proxy_impl(port, ptr, rust_vec_len, data_len)
         }
-        92 => wire__crate__api__crawler__invalidate_sites_index_impl(
+        82 => wire__crate__api__simple__get_torrent_stats_impl(port, ptr, rust_vec_len, data_len),
+        83 => wire__crate__api__simple__get_tracker_info_impl(port, ptr, rust_vec_len, data_len),
+        84 => wire__crate__api__simple__greet_impl(port, ptr, rust_vec_len, data_len),
+        85 => wire__crate__api__config__init_config_impl(port, ptr, rust_vec_len, data_len),
+        86 => wire__crate__api__simple__init_engine_impl(port, ptr, rust_vec_len, data_len),
+        87 => wire__crate__api__captcha__initialize_captcha_ocr_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        93 => wire__crate__api__generic_scraper__invalidate_source_config_cache_impl(
+        88 => wire__crate__frb_api__crawler__invalidate_sites_index_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        94 => wire__crate__api__captcha__is_captcha_ocr_initialized_impl(
+        89 => wire__crate__frb_api__generic_scraper__invalidate_source_config_cache_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        95 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
-        96 => wire__crate__api__crawler__lookup_mikan_id_impl(port, ptr, rust_vec_len, data_len),
-        97 => wire__crate__api__config__move_bangumi_doh_endpoint_impl(
+        90 => wire__crate__api__captcha__is_captcha_ocr_initialized_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        98 => wire__crate__api__simple__move_bangumi_doh_endpoint_impl(
+        91 => wire__crate__api__config__is_source_enabled_impl(port, ptr, rust_vec_len, data_len),
+        92 => {
+            wire__crate__frb_api__crawler__lookup_mikan_id_impl(port, ptr, rust_vec_len, data_len)
+        }
+        93 => wire__crate__api__config__move_bangumi_doh_endpoint_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        99 => wire__crate__api__bangumi_graphql__normalize_graphql_subject_json_impl(
+        94 => wire__crate__api__simple__move_bangumi_doh_endpoint_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        100 => wire__crate__api__bangumi_graphql__normalize_light_subject_graphql_json_impl(
+        95 => wire__crate__api__bangumi_graphql__normalize_graphql_subject_json_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        101 => wire__crate__api__simple__pause_torrent_impl(port, ptr, rust_vec_len, data_len),
-        102 => wire__crate__api__simple__preload_playback_source_config_impl(
+        96 => wire__crate__api__bangumi_graphql__normalize_light_subject_graphql_json_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        103 => wire__crate__api__generic_scraper__preload_playback_sources_impl(
+        97 => wire__crate__api__simple__pause_torrent_impl(port, ptr, rust_vec_len, data_len),
+        98 => wire__crate__api__simple__preload_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        104 => wire__crate__api__captcha__recognize_captcha_impl(port, ptr, rust_vec_len, data_len),
-        105 => wire__crate__api__captcha__recognize_captcha_with_constraints_impl(
+        99 => wire__crate__frb_api__generic_scraper__preload_playback_sources_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        106 => wire__crate__api__crawler__refresh_bangumi_data_cache_impl(
+        100 => wire__crate__api__captcha__recognize_captcha_impl(port, ptr, rust_vec_len, data_len),
+        101 => wire__crate__api__captcha__recognize_captcha_with_constraints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        107 => wire__crate__api__ech__refresh_bangumi_ech_config_impl(
+        102 => wire__crate__frb_api__crawler__refresh_bangumi_data_cache_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        108 => wire__crate__api__simple__refresh_bangumi_ech_config_impl(
+        103 => wire__crate__api__ech__refresh_bangumi_ech_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        109 => wire__crate__api__generic_scraper__refresh_playback_source_config_impl(
+        104 => wire__crate__api__simple__refresh_bangumi_ech_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        110 => wire__crate__api__simple__refresh_playback_source_config_impl(
+        105 => wire__crate__api__simple__refresh_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        111 => wire__crate__api__config__remap_bangumi_host_impl(port, ptr, rust_vec_len, data_len),
-        112 => wire__crate__api__config__remove_bangumi_doh_endpoint_impl(
+        106 => wire__crate__frb_api__generic_scraper__refresh_playback_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        113 => wire__crate__api__simple__remove_bangumi_doh_endpoint_impl(
+        107 => wire__crate__api__config__remap_bangumi_host_impl(port, ptr, rust_vec_len, data_len),
+        108 => wire__crate__api__config__remove_bangumi_doh_endpoint_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        114 => wire__crate__api__config__reset_bangumi_doh_endpoints_impl(
+        109 => wire__crate__api__simple__remove_bangumi_doh_endpoint_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        115 => wire__crate__api__simple__reset_bangumi_doh_endpoints_impl(
+        110 => wire__crate__api__config__reset_bangumi_doh_endpoints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        116 => wire__crate__api__simple__resume_torrent_impl(port, ptr, rust_vec_len, data_len),
-        117 => {
+        111 => wire__crate__api__simple__reset_bangumi_doh_endpoints_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        112 => wire__crate__api__simple__resume_torrent_impl(port, ptr, rust_vec_len, data_len),
+        113 => {
             wire__crate__api__config__rewrite_bangumi_url_impl(port, ptr, rust_vec_len, data_len)
         }
-        118 => wire__crate__api__config__rewrite_bangumi_url_if_proxied_impl(
+        114 => wire__crate__api__config__rewrite_bangumi_url_if_proxied_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        119 => wire__crate__api__ranking__search_bangumi_subject_impl(
+        115 => wire__crate__api__ranking__search_bangumi_subject_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        120 => {
+        116 => {
             wire__crate__api__ranking__search_bangumi_tag_impl(port, ptr, rust_vec_len, data_len)
         }
-        121 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
-        122 => wire__crate__api__network__select_client_impl(port, ptr, rust_vec_len, data_len),
-        123 => wire__crate__api__config__set_bangumi_doh_endpoints_impl(
+        117 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
+        118 => wire__crate__api__config__set_bangumi_doh_endpoints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        124 => wire__crate__api__simple__set_bangumi_doh_endpoints_impl(
+        119 => wire__crate__api__simple__set_bangumi_doh_endpoints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        125 => wire__crate__api__config__set_bangumi_request_mode_impl(
+        120 => wire__crate__api__config__set_bangumi_request_mode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        126 => wire__crate__api__config__set_bangumi_reverse_proxy_impl(
+        121 => wire__crate__api__config__set_bangumi_reverse_proxy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        127 => wire__crate__api__simple__set_bangumi_reverse_proxy_impl(
+        122 => wire__crate__api__simple__set_bangumi_reverse_proxy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        128 => {
+        123 => {
             wire__crate__api__config__set_bangumi_use_ech_impl(port, ptr, rust_vec_len, data_len)
         }
-        129 => {
+        124 => {
             wire__crate__api__simple__set_bangumi_use_ech_impl(port, ptr, rust_vec_len, data_len)
         }
-        130 => {
+        125 => {
             wire__crate__api__config__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        131 => {
+        126 => {
             wire__crate__api__simple__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        132 => wire__crate__api__config__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
-        133 => wire__crate__api__simple__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
-        134 => wire__crate__api__config__set_max_concurrent_searches_impl(
+        127 => wire__crate__api__config__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
+        128 => wire__crate__api__simple__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
+        129 => wire__crate__api__config__set_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        135 => wire__crate__api__simple__set_max_concurrent_searches_impl(
+        130 => wire__crate__api__simple__set_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        136 => wire__crate__api__crawler__spawn_sites_index_background_impl(
+        131 => wire__crate__frb_api__crawler__spawn_sites_index_background_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        137 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
-        138 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
-        139 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
-        140 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
-        141 => wire__crate__api__generic_scraper__update_single_source_config_impl(
+        132 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
+        133 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
+        134 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
+        135 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
+        136 => wire__crate__frb_api__generic_scraper__update_single_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        142 => wire__crate__api__simple__warmup_bangumi_ech_config_impl(
+        137 => wire__crate__api__simple__warmup_bangumi_ech_config_impl(
             port,
             ptr,
             rust_vec_len,
@@ -7737,7 +7630,7 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Value>> for Value {
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::crawler::AnimeInfo {
+impl flutter_rust_bridge::IntoDart for crate::api::crawler::types::AnimeInfo {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.title.into_into_dart().into_dart(),
@@ -7757,18 +7650,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::crawler::AnimeInfo {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::crawler::AnimeInfo
+    for crate::api::crawler::types::AnimeInfo
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::crawler::AnimeInfo>
-    for crate::api::crawler::AnimeInfo
+impl flutter_rust_bridge::IntoIntoDart<crate::api::crawler::types::AnimeInfo>
+    for crate::api::crawler::types::AnimeInfo
 {
-    fn into_into_dart(self) -> crate::api::crawler::AnimeInfo {
+    fn into_into_dart(self) -> crate::api::crawler::types::AnimeInfo {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::crawler::ArchiveQuarter {
+impl flutter_rust_bridge::IntoDart for crate::api::crawler::types::ArchiveQuarter {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.year.into_into_dart().into_dart(),
@@ -7779,18 +7672,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::crawler::ArchiveQuarter {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::crawler::ArchiveQuarter
+    for crate::api::crawler::types::ArchiveQuarter
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::crawler::ArchiveQuarter>
-    for crate::api::crawler::ArchiveQuarter
+impl flutter_rust_bridge::IntoIntoDart<crate::api::crawler::types::ArchiveQuarter>
+    for crate::api::crawler::types::ArchiveQuarter
 {
-    fn into_into_dart(self) -> crate::api::crawler::ArchiveQuarter {
+    fn into_into_dart(self) -> crate::api::crawler::types::ArchiveQuarter {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiActor {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiActor {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -7800,18 +7693,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiActor {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::BangumiActor
+    for crate::api::bangumi::types::BangumiActor
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiActor>
-    for crate::api::bangumi::BangumiActor
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiActor>
+    for crate::api::bangumi::types::BangumiActor
 {
-    fn into_into_dart(self) -> crate::api::bangumi::BangumiActor {
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiActor {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiCharacter {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiCharacter {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -7824,18 +7717,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiCharacter {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::BangumiCharacter
+    for crate::api::bangumi::types::BangumiCharacter
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiCharacter>
-    for crate::api::bangumi::BangumiCharacter
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiCharacter>
+    for crate::api::bangumi::types::BangumiCharacter
 {
-    fn into_into_dart(self) -> crate::api::bangumi::BangumiCharacter {
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiCharacter {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiComment {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiComment {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.user_name.into_into_dart().into_dart(),
@@ -7849,18 +7742,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiComment {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::BangumiComment
+    for crate::api::bangumi::types::BangumiComment
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiComment>
-    for crate::api::bangumi::BangumiComment
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiComment>
+    for crate::api::bangumi::types::BangumiComment
 {
-    fn into_into_dart(self) -> crate::api::bangumi::BangumiComment {
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiComment {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::crawler::BangumiDataCacheStatus {
+impl flutter_rust_bridge::IntoDart for crate::api::crawler::types::BangumiDataCacheStatus {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.cached.into_into_dart().into_dart(),
@@ -7873,18 +7766,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::crawler::BangumiDataCacheStat
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::crawler::BangumiDataCacheStatus
+    for crate::api::crawler::types::BangumiDataCacheStatus
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::crawler::BangumiDataCacheStatus>
-    for crate::api::crawler::BangumiDataCacheStatus
+impl flutter_rust_bridge::IntoIntoDart<crate::api::crawler::types::BangumiDataCacheStatus>
+    for crate::api::crawler::types::BangumiDataCacheStatus
 {
-    fn into_into_dart(self) -> crate::api::crawler::BangumiDataCacheStatus {
+    fn into_into_dart(self) -> crate::api::crawler::types::BangumiDataCacheStatus {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::crawler::BangumiDataSiteEntry {
+impl flutter_rust_bridge::IntoDart for crate::api::crawler::types::BangumiDataSiteEntry {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.site.into_into_dart().into_dart(),
@@ -7897,18 +7790,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::crawler::BangumiDataSiteEntry
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::crawler::BangumiDataSiteEntry
+    for crate::api::crawler::types::BangumiDataSiteEntry
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::crawler::BangumiDataSiteEntry>
-    for crate::api::crawler::BangumiDataSiteEntry
+impl flutter_rust_bridge::IntoIntoDart<crate::api::crawler::types::BangumiDataSiteEntry>
+    for crate::api::crawler::types::BangumiDataSiteEntry
 {
-    fn into_into_dart(self) -> crate::api::crawler::BangumiDataSiteEntry {
+    fn into_into_dart(self) -> crate::api::crawler::types::BangumiDataSiteEntry {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiEpisode {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiEpisode {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -7923,18 +7816,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiEpisode {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::BangumiEpisode
+    for crate::api::bangumi::types::BangumiEpisode
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiEpisode>
-    for crate::api::bangumi::BangumiEpisode
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiEpisode>
+    for crate::api::bangumi::types::BangumiEpisode
 {
-    fn into_into_dart(self) -> crate::api::bangumi::BangumiEpisode {
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiEpisode {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiEpisodeComment {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiEpisodeComment {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -7949,18 +7842,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiEpisodeCommen
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::BangumiEpisodeComment
+    for crate::api::bangumi::types::BangumiEpisodeComment
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiEpisodeComment>
-    for crate::api::bangumi::BangumiEpisodeComment
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiEpisodeComment>
+    for crate::api::bangumi::types::BangumiEpisodeComment
 {
-    fn into_into_dart(self) -> crate::api::bangumi::BangumiEpisodeComment {
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiEpisodeComment {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiImages {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiImages {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.small.into_into_dart().into_dart(),
@@ -7973,18 +7866,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiImages {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::BangumiImages
+    for crate::api::bangumi::types::BangumiImages
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiImages>
-    for crate::api::bangumi::BangumiImages
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiImages>
+    for crate::api::bangumi::types::BangumiImages
 {
-    fn into_into_dart(self) -> crate::api::bangumi::BangumiImages {
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiImages {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiPerson {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiPerson {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -7998,18 +7891,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiPerson {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::BangumiPerson
+    for crate::api::bangumi::types::BangumiPerson
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiPerson>
-    for crate::api::bangumi::BangumiPerson
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiPerson>
+    for crate::api::bangumi::types::BangumiPerson
 {
-    fn into_into_dart(self) -> crate::api::bangumi::BangumiPerson {
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiPerson {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiRelatedSubject {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiRelatedSubject {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -8022,13 +7915,13 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiRelatedSubjec
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::BangumiRelatedSubject
+    for crate::api::bangumi::types::BangumiRelatedSubject
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiRelatedSubject>
-    for crate::api::bangumi::BangumiRelatedSubject
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiRelatedSubject>
+    for crate::api::bangumi::types::BangumiRelatedSubject
 {
-    fn into_into_dart(self) -> crate::api::bangumi::BangumiRelatedSubject {
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiRelatedSubject {
         self
     }
 }
@@ -8056,7 +7949,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::danmaku::BangumiTvEpisode>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiUserCollectionEntry {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiUserCollectionEntry {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.updated_at.into_into_dart().into_dart(),
@@ -8082,18 +7975,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiUserCollectio
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::BangumiUserCollectionEntry
+    for crate::api::bangumi::types::BangumiUserCollectionEntry
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiUserCollectionEntry>
-    for crate::api::bangumi::BangumiUserCollectionEntry
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiUserCollectionEntry>
+    for crate::api::bangumi::types::BangumiUserCollectionEntry
 {
-    fn into_into_dart(self) -> crate::api::bangumi::BangumiUserCollectionEntry {
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiUserCollectionEntry {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiUserInfo {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiUserInfo {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -8109,13 +8002,13 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::BangumiUserInfo {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::BangumiUserInfo
+    for crate::api::bangumi::types::BangumiUserInfo
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::BangumiUserInfo>
-    for crate::api::bangumi::BangumiUserInfo
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiUserInfo>
+    for crate::api::bangumi::types::BangumiUserInfo
 {
-    fn into_into_dart(self) -> crate::api::bangumi::BangumiUserInfo {
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiUserInfo {
         self
     }
 }
@@ -8142,7 +8035,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::captcha::CaptchaConstraintOpt
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::ChannelInfo {
+impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::types::ChannelInfo {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.name.into_into_dart().into_dart(),
@@ -8152,18 +8045,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::ChannelInfo 
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::generic_scraper::ChannelInfo
+    for crate::api::generic_scraper::types::ChannelInfo
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::ChannelInfo>
-    for crate::api::generic_scraper::ChannelInfo
+impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::types::ChannelInfo>
+    for crate::api::generic_scraper::types::ChannelInfo
 {
-    fn into_into_dart(self) -> crate::api::generic_scraper::ChannelInfo {
+    fn into_into_dart(self) -> crate::api::generic_scraper::types::ChannelInfo {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::CharacterDetails {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::CharacterDetails {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -8182,18 +8075,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::CharacterDetails {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::CharacterDetails
+    for crate::api::bangumi::types::CharacterDetails
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::CharacterDetails>
-    for crate::api::bangumi::CharacterDetails
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::CharacterDetails>
+    for crate::api::bangumi::types::CharacterDetails
 {
-    fn into_into_dart(self) -> crate::api::bangumi::CharacterDetails {
+    fn into_into_dart(self) -> crate::api::bangumi::types::CharacterDetails {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::CharacterStat {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::CharacterStat {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.comments.into_into_dart().into_dart(),
@@ -8203,18 +8096,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::CharacterStat {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::CharacterStat
+    for crate::api::bangumi::types::CharacterStat
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::CharacterStat>
-    for crate::api::bangumi::CharacterStat
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::CharacterStat>
+    for crate::api::bangumi::types::CharacterStat
 {
-    fn into_into_dart(self) -> crate::api::bangumi::CharacterStat {
+    fn into_into_dart(self) -> crate::api::bangumi::types::CharacterStat {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::CharacterSubject {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::CharacterSubject {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -8228,18 +8121,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::CharacterSubject {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::CharacterSubject
+    for crate::api::bangumi::types::CharacterSubject
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::CharacterSubject>
-    for crate::api::bangumi::CharacterSubject
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::CharacterSubject>
+    for crate::api::bangumi::types::CharacterSubject
 {
-    fn into_into_dart(self) -> crate::api::bangumi::CharacterSubject {
+    fn into_into_dart(self) -> crate::api::bangumi::types::CharacterSubject {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::CharacterSubjectPerson {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::CharacterSubjectPerson {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -8250,13 +8143,13 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::CharacterSubjectPers
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::CharacterSubjectPerson
+    for crate::api::bangumi::types::CharacterSubjectPerson
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::CharacterSubjectPerson>
-    for crate::api::bangumi::CharacterSubjectPerson
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::CharacterSubjectPerson>
+    for crate::api::bangumi::types::CharacterSubjectPerson
 {
-    fn into_into_dart(self) -> crate::api::bangumi::CharacterSubjectPerson {
+    fn into_into_dart(self) -> crate::api::bangumi::types::CharacterSubjectPerson {
         self
     }
 }
@@ -8374,7 +8267,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::dmhy::DmhyResource>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::EpisodeInfo {
+impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::types::EpisodeInfo {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.name.into_into_dart().into_dart(),
@@ -8386,18 +8279,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::EpisodeInfo 
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::generic_scraper::EpisodeInfo
+    for crate::api::generic_scraper::types::EpisodeInfo
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::EpisodeInfo>
-    for crate::api::generic_scraper::EpisodeInfo
+impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::types::EpisodeInfo>
+    for crate::api::generic_scraper::types::EpisodeInfo
 {
-    fn into_into_dart(self) -> crate::api::generic_scraper::EpisodeInfo {
+    fn into_into_dart(self) -> crate::api::generic_scraper::types::EpisodeInfo {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::InfoboxItem {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::InfoboxItem {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.key.into_into_dart().into_dart(),
@@ -8407,13 +8300,13 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::InfoboxItem {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::InfoboxItem
+    for crate::api::bangumi::types::InfoboxItem
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::InfoboxItem>
-    for crate::api::bangumi::InfoboxItem
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::InfoboxItem>
+    for crate::api::bangumi::types::InfoboxItem
 {
-    fn into_into_dart(self) -> crate::api::bangumi::InfoboxItem {
+    fn into_into_dart(self) -> crate::api::bangumi::types::InfoboxItem {
         self
     }
 }
@@ -8464,7 +8357,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::mikan::MikanSearchResult>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::PersonCharacter {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::PersonCharacter {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -8479,18 +8372,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::PersonCharacter {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::PersonCharacter
+    for crate::api::bangumi::types::PersonCharacter
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::PersonCharacter>
-    for crate::api::bangumi::PersonCharacter
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::PersonCharacter>
+    for crate::api::bangumi::types::PersonCharacter
 {
-    fn into_into_dart(self) -> crate::api::bangumi::PersonCharacter {
+    fn into_into_dart(self) -> crate::api::bangumi::types::PersonCharacter {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::PersonDetails {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::PersonDetails {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -8507,18 +8400,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::PersonDetails {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::PersonDetails
+    for crate::api::bangumi::types::PersonDetails
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::PersonDetails>
-    for crate::api::bangumi::PersonDetails
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::PersonDetails>
+    for crate::api::bangumi::types::PersonDetails
 {
-    fn into_into_dart(self) -> crate::api::bangumi::PersonDetails {
+    fn into_into_dart(self) -> crate::api::bangumi::types::PersonDetails {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::bangumi::PersonSubject {
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::PersonSubject {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
@@ -8532,13 +8425,13 @@ impl flutter_rust_bridge::IntoDart for crate::api::bangumi::PersonSubject {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::bangumi::PersonSubject
+    for crate::api::bangumi::types::PersonSubject
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::PersonSubject>
-    for crate::api::bangumi::PersonSubject
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::PersonSubject>
+    for crate::api::bangumi::types::PersonSubject
 {
-    fn into_into_dart(self) -> crate::api::bangumi::PersonSubject {
+    fn into_into_dart(self) -> crate::api::bangumi::types::PersonSubject {
         self
     }
 }
@@ -8569,7 +8462,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::ranking::RankingAnime>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SearchPlayResult {
+impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::types::SearchPlayResult {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.source_name.into_into_dart().into_dart(),
@@ -8588,18 +8481,20 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SearchPlayRe
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::generic_scraper::SearchPlayResult
+    for crate::api::generic_scraper::types::SearchPlayResult
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::SearchPlayResult>
-    for crate::api::generic_scraper::SearchPlayResult
+impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::types::SearchPlayResult>
+    for crate::api::generic_scraper::types::SearchPlayResult
 {
-    fn into_into_dart(self) -> crate::api::generic_scraper::SearchPlayResult {
+    fn into_into_dart(self) -> crate::api::generic_scraper::types::SearchPlayResult {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SearchResultWithChannels {
+impl flutter_rust_bridge::IntoDart
+    for crate::api::generic_scraper::types::SearchResultWithChannels
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.source_name.into_into_dart().into_dart(),
@@ -8617,18 +8512,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SearchResult
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::generic_scraper::SearchResultWithChannels
+    for crate::api::generic_scraper::types::SearchResultWithChannels
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::SearchResultWithChannels>
-    for crate::api::generic_scraper::SearchResultWithChannels
+impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::types::SearchResultWithChannels>
+    for crate::api::generic_scraper::types::SearchResultWithChannels
 {
-    fn into_into_dart(self) -> crate::api::generic_scraper::SearchResultWithChannels {
+    fn into_into_dart(self) -> crate::api::generic_scraper::types::SearchResultWithChannels {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SearchStep {
+impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::types::SearchStep {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             Self::Pending => 0.into_dart(),
@@ -8643,18 +8538,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SearchStep {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::generic_scraper::SearchStep
+    for crate::api::generic_scraper::types::SearchStep
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::SearchStep>
-    for crate::api::generic_scraper::SearchStep
+impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::types::SearchStep>
+    for crate::api::generic_scraper::types::SearchStep
 {
-    fn into_into_dart(self) -> crate::api::generic_scraper::SearchStep {
+    fn into_into_dart(self) -> crate::api::generic_scraper::types::SearchStep {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceConfigUpdate {
+impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::types::SourceConfigUpdate {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.name.into_into_dart().into_dart(),
@@ -8672,18 +8567,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceConfig
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::generic_scraper::SourceConfigUpdate
+    for crate::api::generic_scraper::types::SourceConfigUpdate
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::SourceConfigUpdate>
-    for crate::api::generic_scraper::SourceConfigUpdate
+impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::types::SourceConfigUpdate>
+    for crate::api::generic_scraper::types::SourceConfigUpdate
 {
-    fn into_into_dart(self) -> crate::api::generic_scraper::SourceConfigUpdate {
+    fn into_into_dart(self) -> crate::api::generic_scraper::types::SourceConfigUpdate {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceRuntimeOverride {
+impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::types::SourceRuntimeOverride {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.source_name.into_into_dart().into_dart(),
@@ -8698,18 +8593,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceRuntim
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::generic_scraper::SourceRuntimeOverride
+    for crate::api::generic_scraper::types::SourceRuntimeOverride
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::SourceRuntimeOverride>
-    for crate::api::generic_scraper::SourceRuntimeOverride
+impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::types::SourceRuntimeOverride>
+    for crate::api::generic_scraper::types::SourceRuntimeOverride
 {
-    fn into_into_dart(self) -> crate::api::generic_scraper::SourceRuntimeOverride {
+    fn into_into_dart(self) -> crate::api::generic_scraper::types::SourceRuntimeOverride {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceSearchProgress {
+impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::types::SourceSearchProgress {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.source_name.into_into_dart().into_dart(),
@@ -8731,18 +8626,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceSearch
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::generic_scraper::SourceSearchProgress
+    for crate::api::generic_scraper::types::SourceSearchProgress
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::SourceSearchProgress>
-    for crate::api::generic_scraper::SourceSearchProgress
+impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::types::SourceSearchProgress>
+    for crate::api::generic_scraper::types::SourceSearchProgress
 {
-    fn into_into_dart(self) -> crate::api::generic_scraper::SourceSearchProgress {
+    fn into_into_dart(self) -> crate::api::generic_scraper::types::SourceSearchProgress {
         self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceState {
+impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::types::SourceState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.name.into_into_dart().into_dart(),
@@ -8760,13 +8655,13 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::SourceState 
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::generic_scraper::SourceState
+    for crate::api::generic_scraper::types::SourceState
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::SourceState>
-    for crate::api::generic_scraper::SourceState
+impl flutter_rust_bridge::IntoIntoDart<crate::api::generic_scraper::types::SourceState>
+    for crate::api::generic_scraper::types::SourceState
 {
-    fn into_into_dart(self) -> crate::api::generic_scraper::SourceState {
+    fn into_into_dart(self) -> crate::api::generic_scraper::types::SourceState {
         self
     }
 }
@@ -8865,7 +8760,7 @@ impl SseEncode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpa
 
 impl SseEncode
     for StreamSink<
-        crate::api::generic_scraper::SearchPlayResult,
+        crate::api::generic_scraper::types::SearchPlayResult,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -8877,7 +8772,7 @@ impl SseEncode
 
 impl SseEncode
     for StreamSink<
-        crate::api::generic_scraper::SearchResultWithChannels,
+        crate::api::generic_scraper::types::SearchResultWithChannels,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -8889,7 +8784,7 @@ impl SseEncode
 
 impl SseEncode
     for StreamSink<
-        crate::api::generic_scraper::SourceSearchProgress,
+        crate::api::generic_scraper::types::SourceSearchProgress,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -8906,7 +8801,7 @@ impl SseEncode for String {
     }
 }
 
-impl SseEncode for crate::api::crawler::AnimeInfo {
+impl SseEncode for crate::api::crawler::types::AnimeInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.title, serializer);
@@ -8924,7 +8819,7 @@ impl SseEncode for crate::api::crawler::AnimeInfo {
     }
 }
 
-impl SseEncode for crate::api::crawler::ArchiveQuarter {
+impl SseEncode for crate::api::crawler::types::ArchiveQuarter {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.year, serializer);
@@ -8933,7 +8828,7 @@ impl SseEncode for crate::api::crawler::ArchiveQuarter {
     }
 }
 
-impl SseEncode for crate::api::bangumi::BangumiActor {
+impl SseEncode for crate::api::bangumi::types::BangumiActor {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
@@ -8941,18 +8836,18 @@ impl SseEncode for crate::api::bangumi::BangumiActor {
     }
 }
 
-impl SseEncode for crate::api::bangumi::BangumiCharacter {
+impl SseEncode for crate::api::bangumi::types::BangumiCharacter {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.name, serializer);
         <String>::sse_encode(self.role_name, serializer);
-        <Option<crate::api::bangumi::BangumiImages>>::sse_encode(self.images, serializer);
-        <Vec<crate::api::bangumi::BangumiActor>>::sse_encode(self.actors, serializer);
+        <Option<crate::api::bangumi::types::BangumiImages>>::sse_encode(self.images, serializer);
+        <Vec<crate::api::bangumi::types::BangumiActor>>::sse_encode(self.actors, serializer);
     }
 }
 
-impl SseEncode for crate::api::bangumi::BangumiComment {
+impl SseEncode for crate::api::bangumi::types::BangumiComment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.user_name, serializer);
@@ -8964,7 +8859,7 @@ impl SseEncode for crate::api::bangumi::BangumiComment {
     }
 }
 
-impl SseEncode for crate::api::crawler::BangumiDataCacheStatus {
+impl SseEncode for crate::api::crawler::types::BangumiDataCacheStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.cached, serializer);
@@ -8975,7 +8870,7 @@ impl SseEncode for crate::api::crawler::BangumiDataCacheStatus {
     }
 }
 
-impl SseEncode for crate::api::crawler::BangumiDataSiteEntry {
+impl SseEncode for crate::api::crawler::types::BangumiDataSiteEntry {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.site, serializer);
@@ -8986,7 +8881,7 @@ impl SseEncode for crate::api::crawler::BangumiDataSiteEntry {
     }
 }
 
-impl SseEncode for crate::api::bangumi::BangumiEpisode {
+impl SseEncode for crate::api::bangumi::types::BangumiEpisode {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
@@ -8999,7 +8894,7 @@ impl SseEncode for crate::api::bangumi::BangumiEpisode {
     }
 }
 
-impl SseEncode for crate::api::bangumi::BangumiEpisodeComment {
+impl SseEncode for crate::api::bangumi::types::BangumiEpisodeComment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
@@ -9008,11 +8903,14 @@ impl SseEncode for crate::api::bangumi::BangumiEpisodeComment {
         <String>::sse_encode(self.avatar, serializer);
         <String>::sse_encode(self.time, serializer);
         <String>::sse_encode(self.content_html, serializer);
-        <Vec<crate::api::bangumi::BangumiEpisodeComment>>::sse_encode(self.replies, serializer);
+        <Vec<crate::api::bangumi::types::BangumiEpisodeComment>>::sse_encode(
+            self.replies,
+            serializer,
+        );
     }
 }
 
-impl SseEncode for crate::api::bangumi::BangumiImages {
+impl SseEncode for crate::api::bangumi::types::BangumiImages {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.small, serializer);
@@ -9023,7 +8921,7 @@ impl SseEncode for crate::api::bangumi::BangumiImages {
     }
 }
 
-impl SseEncode for crate::api::bangumi::BangumiPerson {
+impl SseEncode for crate::api::bangumi::types::BangumiPerson {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
@@ -9031,11 +8929,11 @@ impl SseEncode for crate::api::bangumi::BangumiPerson {
         <String>::sse_encode(self.relation, serializer);
         <Vec<String>>::sse_encode(self.career, serializer);
         <i32>::sse_encode(self.person_type, serializer);
-        <Option<crate::api::bangumi::BangumiImages>>::sse_encode(self.images, serializer);
+        <Option<crate::api::bangumi::types::BangumiImages>>::sse_encode(self.images, serializer);
     }
 }
 
-impl SseEncode for crate::api::bangumi::BangumiRelatedSubject {
+impl SseEncode for crate::api::bangumi::types::BangumiRelatedSubject {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
@@ -9056,7 +8954,7 @@ impl SseEncode for crate::api::danmaku::BangumiTvEpisode {
     }
 }
 
-impl SseEncode for crate::api::bangumi::BangumiUserCollectionEntry {
+impl SseEncode for crate::api::bangumi::types::BangumiUserCollectionEntry {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.updated_at, serializer);
@@ -9080,7 +8978,7 @@ impl SseEncode for crate::api::bangumi::BangumiUserCollectionEntry {
     }
 }
 
-impl SseEncode for crate::api::bangumi::BangumiUserInfo {
+impl SseEncode for crate::api::bangumi::types::BangumiUserInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
@@ -9110,7 +9008,7 @@ impl SseEncode for crate::api::captcha::CaptchaConstraintOptions {
     }
 }
 
-impl SseEncode for crate::api::generic_scraper::ChannelInfo {
+impl SseEncode for crate::api::generic_scraper::types::ChannelInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.name, serializer);
@@ -9118,24 +9016,24 @@ impl SseEncode for crate::api::generic_scraper::ChannelInfo {
     }
 }
 
-impl SseEncode for crate::api::bangumi::CharacterDetails {
+impl SseEncode for crate::api::bangumi::types::CharacterDetails {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.name, serializer);
         <String>::sse_encode(self.summary, serializer);
-        <Option<crate::api::bangumi::BangumiImages>>::sse_encode(self.images, serializer);
+        <Option<crate::api::bangumi::types::BangumiImages>>::sse_encode(self.images, serializer);
         <Option<String>>::sse_encode(self.gender, serializer);
         <Option<i32>>::sse_encode(self.birth_year, serializer);
         <Option<i32>>::sse_encode(self.birth_mon, serializer);
         <Option<i32>>::sse_encode(self.birth_day, serializer);
         <Option<String>>::sse_encode(self.blood_type, serializer);
-        <crate::api::bangumi::CharacterStat>::sse_encode(self.stat, serializer);
-        <Vec<crate::api::bangumi::InfoboxItem>>::sse_encode(self.infobox, serializer);
+        <crate::api::bangumi::types::CharacterStat>::sse_encode(self.stat, serializer);
+        <Vec<crate::api::bangumi::types::InfoboxItem>>::sse_encode(self.infobox, serializer);
     }
 }
 
-impl SseEncode for crate::api::bangumi::CharacterStat {
+impl SseEncode for crate::api::bangumi::types::CharacterStat {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.comments, serializer);
@@ -9143,7 +9041,7 @@ impl SseEncode for crate::api::bangumi::CharacterStat {
     }
 }
 
-impl SseEncode for crate::api::bangumi::CharacterSubject {
+impl SseEncode for crate::api::bangumi::types::CharacterSubject {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
@@ -9151,16 +9049,19 @@ impl SseEncode for crate::api::bangumi::CharacterSubject {
         <String>::sse_encode(self.name_cn, serializer);
         <String>::sse_encode(self.image, serializer);
         <String>::sse_encode(self.staff, serializer);
-        <Vec<crate::api::bangumi::CharacterSubjectPerson>>::sse_encode(self.persons, serializer);
+        <Vec<crate::api::bangumi::types::CharacterSubjectPerson>>::sse_encode(
+            self.persons,
+            serializer,
+        );
     }
 }
 
-impl SseEncode for crate::api::bangumi::CharacterSubjectPerson {
+impl SseEncode for crate::api::bangumi::types::CharacterSubjectPerson {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.name, serializer);
-        <Option<crate::api::bangumi::BangumiImages>>::sse_encode(self.images, serializer);
+        <Option<crate::api::bangumi::types::BangumiImages>>::sse_encode(self.images, serializer);
     }
 }
 
@@ -9215,7 +9116,7 @@ impl SseEncode for crate::api::dmhy::DmhyResource {
     }
 }
 
-impl SseEncode for crate::api::generic_scraper::EpisodeInfo {
+impl SseEncode for crate::api::generic_scraper::types::EpisodeInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.name, serializer);
@@ -9246,7 +9147,7 @@ impl SseEncode for i64 {
     }
 }
 
-impl SseEncode for crate::api::bangumi::InfoboxItem {
+impl SseEncode for crate::api::bangumi::types::InfoboxItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.key, serializer);
@@ -9264,102 +9165,102 @@ impl SseEncode for Vec<String> {
     }
 }
 
-impl SseEncode for Vec<crate::api::crawler::AnimeInfo> {
+impl SseEncode for Vec<crate::api::crawler::types::AnimeInfo> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::crawler::AnimeInfo>::sse_encode(item, serializer);
+            <crate::api::crawler::types::AnimeInfo>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::crawler::ArchiveQuarter> {
+impl SseEncode for Vec<crate::api::crawler::types::ArchiveQuarter> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::crawler::ArchiveQuarter>::sse_encode(item, serializer);
+            <crate::api::crawler::types::ArchiveQuarter>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::BangumiActor> {
+impl SseEncode for Vec<crate::api::bangumi::types::BangumiActor> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::BangumiActor>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::BangumiActor>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::BangumiCharacter> {
+impl SseEncode for Vec<crate::api::bangumi::types::BangumiCharacter> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::BangumiCharacter>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::BangumiCharacter>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::BangumiComment> {
+impl SseEncode for Vec<crate::api::bangumi::types::BangumiComment> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::BangumiComment>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::BangumiComment>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::crawler::BangumiDataSiteEntry> {
+impl SseEncode for Vec<crate::api::crawler::types::BangumiDataSiteEntry> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::crawler::BangumiDataSiteEntry>::sse_encode(item, serializer);
+            <crate::api::crawler::types::BangumiDataSiteEntry>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::BangumiEpisode> {
+impl SseEncode for Vec<crate::api::bangumi::types::BangumiEpisode> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::BangumiEpisode>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::BangumiEpisode>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::BangumiEpisodeComment> {
+impl SseEncode for Vec<crate::api::bangumi::types::BangumiEpisodeComment> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::BangumiEpisodeComment>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::BangumiEpisodeComment>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::BangumiPerson> {
+impl SseEncode for Vec<crate::api::bangumi::types::BangumiPerson> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::BangumiPerson>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::BangumiPerson>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::BangumiRelatedSubject> {
+impl SseEncode for Vec<crate::api::bangumi::types::BangumiRelatedSubject> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::BangumiRelatedSubject>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::BangumiRelatedSubject>::sse_encode(item, serializer);
         }
     }
 }
@@ -9374,42 +9275,42 @@ impl SseEncode for Vec<crate::api::danmaku::BangumiTvEpisode> {
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::BangumiUserCollectionEntry> {
+impl SseEncode for Vec<crate::api::bangumi::types::BangumiUserCollectionEntry> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::BangumiUserCollectionEntry>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::BangumiUserCollectionEntry>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::generic_scraper::ChannelInfo> {
+impl SseEncode for Vec<crate::api::generic_scraper::types::ChannelInfo> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::generic_scraper::ChannelInfo>::sse_encode(item, serializer);
+            <crate::api::generic_scraper::types::ChannelInfo>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::CharacterSubject> {
+impl SseEncode for Vec<crate::api::bangumi::types::CharacterSubject> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::CharacterSubject>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::CharacterSubject>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::CharacterSubjectPerson> {
+impl SseEncode for Vec<crate::api::bangumi::types::CharacterSubjectPerson> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::CharacterSubjectPerson>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::CharacterSubjectPerson>::sse_encode(item, serializer);
         }
     }
 }
@@ -9464,22 +9365,22 @@ impl SseEncode for Vec<crate::api::dmhy::DmhyResource> {
     }
 }
 
-impl SseEncode for Vec<crate::api::generic_scraper::EpisodeInfo> {
+impl SseEncode for Vec<crate::api::generic_scraper::types::EpisodeInfo> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::generic_scraper::EpisodeInfo>::sse_encode(item, serializer);
+            <crate::api::generic_scraper::types::EpisodeInfo>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::InfoboxItem> {
+impl SseEncode for Vec<crate::api::bangumi::types::InfoboxItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::InfoboxItem>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::InfoboxItem>::sse_encode(item, serializer);
         }
     }
 }
@@ -9494,22 +9395,22 @@ impl SseEncode for Vec<crate::api::mikan::MikanEpisodeResource> {
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::PersonCharacter> {
+impl SseEncode for Vec<crate::api::bangumi::types::PersonCharacter> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::PersonCharacter>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::PersonCharacter>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::bangumi::PersonSubject> {
+impl SseEncode for Vec<crate::api::bangumi::types::PersonSubject> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::bangumi::PersonSubject>::sse_encode(item, serializer);
+            <crate::api::bangumi::types::PersonSubject>::sse_encode(item, serializer);
         }
     }
 }
@@ -9564,42 +9465,46 @@ impl SseEncode for Vec<(String, String)> {
     }
 }
 
-impl SseEncode for Vec<crate::api::generic_scraper::SearchPlayResult> {
+impl SseEncode for Vec<crate::api::generic_scraper::types::SearchPlayResult> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::generic_scraper::SearchPlayResult>::sse_encode(item, serializer);
+            <crate::api::generic_scraper::types::SearchPlayResult>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::generic_scraper::SearchResultWithChannels> {
+impl SseEncode for Vec<crate::api::generic_scraper::types::SearchResultWithChannels> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::generic_scraper::SearchResultWithChannels>::sse_encode(item, serializer);
+            <crate::api::generic_scraper::types::SearchResultWithChannels>::sse_encode(
+                item, serializer,
+            );
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::generic_scraper::SourceRuntimeOverride> {
+impl SseEncode for Vec<crate::api::generic_scraper::types::SourceRuntimeOverride> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::generic_scraper::SourceRuntimeOverride>::sse_encode(item, serializer);
+            <crate::api::generic_scraper::types::SourceRuntimeOverride>::sse_encode(
+                item, serializer,
+            );
         }
     }
 }
 
-impl SseEncode for Vec<crate::api::generic_scraper::SourceState> {
+impl SseEncode for Vec<crate::api::generic_scraper::types::SourceState> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::generic_scraper::SourceState>::sse_encode(item, serializer);
+            <crate::api::generic_scraper::types::SourceState>::sse_encode(item, serializer);
         }
     }
 }
@@ -9664,12 +9569,12 @@ impl SseEncode for Option<String> {
     }
 }
 
-impl SseEncode for Option<crate::api::bangumi::BangumiImages> {
+impl SseEncode for Option<crate::api::bangumi::types::BangumiImages> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <crate::api::bangumi::BangumiImages>::sse_encode(value, serializer);
+            <crate::api::bangumi::types::BangumiImages>::sse_encode(value, serializer);
         }
     }
 }
@@ -9714,12 +9619,14 @@ impl SseEncode for Option<crate::api::mikan::MikanSearchResult> {
     }
 }
 
-impl SseEncode for Option<crate::api::generic_scraper::SourceRuntimeOverride> {
+impl SseEncode for Option<crate::api::generic_scraper::types::SourceRuntimeOverride> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <crate::api::generic_scraper::SourceRuntimeOverride>::sse_encode(value, serializer);
+            <crate::api::generic_scraper::types::SourceRuntimeOverride>::sse_encode(
+                value, serializer,
+            );
         }
     }
 }
@@ -9764,22 +9671,22 @@ impl SseEncode for Option<Vec<String>> {
     }
 }
 
-impl SseEncode for Option<Vec<crate::api::generic_scraper::ChannelInfo>> {
+impl SseEncode for Option<Vec<crate::api::generic_scraper::types::ChannelInfo>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <Vec<crate::api::generic_scraper::ChannelInfo>>::sse_encode(value, serializer);
+            <Vec<crate::api::generic_scraper::types::ChannelInfo>>::sse_encode(value, serializer);
         }
     }
 }
 
-impl SseEncode for crate::api::bangumi::PersonCharacter {
+impl SseEncode for crate::api::bangumi::types::PersonCharacter {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.name, serializer);
-        <Option<crate::api::bangumi::BangumiImages>>::sse_encode(self.images, serializer);
+        <Option<crate::api::bangumi::types::BangumiImages>>::sse_encode(self.images, serializer);
         <i64>::sse_encode(self.subject_id, serializer);
         <String>::sse_encode(self.subject_name, serializer);
         <String>::sse_encode(self.subject_name_cn, serializer);
@@ -9787,7 +9694,7 @@ impl SseEncode for crate::api::bangumi::PersonCharacter {
     }
 }
 
-impl SseEncode for crate::api::bangumi::PersonDetails {
+impl SseEncode for crate::api::bangumi::types::PersonDetails {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
@@ -9796,13 +9703,13 @@ impl SseEncode for crate::api::bangumi::PersonDetails {
         <String>::sse_encode(self.img, serializer);
         <Vec<String>>::sse_encode(self.career, serializer);
         <i32>::sse_encode(self.person_type, serializer);
-        <crate::api::bangumi::CharacterStat>::sse_encode(self.stat, serializer);
-        <Vec<crate::api::bangumi::InfoboxItem>>::sse_encode(self.infobox, serializer);
+        <crate::api::bangumi::types::CharacterStat>::sse_encode(self.stat, serializer);
+        <Vec<crate::api::bangumi::types::InfoboxItem>>::sse_encode(self.infobox, serializer);
         <bool>::sse_encode(self.locked, serializer);
     }
 }
 
-impl SseEncode for crate::api::bangumi::PersonSubject {
+impl SseEncode for crate::api::bangumi::types::PersonSubject {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.id, serializer);
@@ -9843,7 +9750,7 @@ impl SseEncode for (String, String) {
     }
 }
 
-impl SseEncode for crate::api::generic_scraper::SearchPlayResult {
+impl SseEncode for crate::api::generic_scraper::types::SearchPlayResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.source_name, serializer);
@@ -9860,14 +9767,20 @@ impl SseEncode for crate::api::generic_scraper::SearchPlayResult {
     }
 }
 
-impl SseEncode for crate::api::generic_scraper::SearchResultWithChannels {
+impl SseEncode for crate::api::generic_scraper::types::SearchResultWithChannels {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.source_name, serializer);
         <String>::sse_encode(self.detail_url, serializer);
         <String>::sse_encode(self.matched_title, serializer);
-        <Vec<crate::api::generic_scraper::ChannelInfo>>::sse_encode(self.channels, serializer);
-        <Vec<crate::api::generic_scraper::EpisodeInfo>>::sse_encode(self.episodes, serializer);
+        <Vec<crate::api::generic_scraper::types::ChannelInfo>>::sse_encode(
+            self.channels,
+            serializer,
+        );
+        <Vec<crate::api::generic_scraper::types::EpisodeInfo>>::sse_encode(
+            self.episodes,
+            serializer,
+        );
         <String>::sse_encode(self.video_regex, serializer);
         <Option<String>>::sse_encode(self.cookies, serializer);
         <Option<std::collections::HashMap<String, String>>>::sse_encode(self.headers, serializer);
@@ -9876,18 +9789,18 @@ impl SseEncode for crate::api::generic_scraper::SearchResultWithChannels {
     }
 }
 
-impl SseEncode for crate::api::generic_scraper::SearchStep {
+impl SseEncode for crate::api::generic_scraper::types::SearchStep {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::api::generic_scraper::SearchStep::Pending => 0,
-                crate::api::generic_scraper::SearchStep::Searching => 1,
-                crate::api::generic_scraper::SearchStep::FetchingDetail => 2,
-                crate::api::generic_scraper::SearchStep::FetchingEpisodes => 3,
-                crate::api::generic_scraper::SearchStep::ExtractingVideo => 4,
-                crate::api::generic_scraper::SearchStep::Success => 5,
-                crate::api::generic_scraper::SearchStep::Failed => 6,
+                crate::api::generic_scraper::types::SearchStep::Pending => 0,
+                crate::api::generic_scraper::types::SearchStep::Searching => 1,
+                crate::api::generic_scraper::types::SearchStep::FetchingDetail => 2,
+                crate::api::generic_scraper::types::SearchStep::FetchingEpisodes => 3,
+                crate::api::generic_scraper::types::SearchStep::ExtractingVideo => 4,
+                crate::api::generic_scraper::types::SearchStep::Success => 5,
+                crate::api::generic_scraper::types::SearchStep::Failed => 6,
                 _ => {
                     unimplemented!("");
                 }
@@ -9897,7 +9810,7 @@ impl SseEncode for crate::api::generic_scraper::SearchStep {
     }
 }
 
-impl SseEncode for crate::api::generic_scraper::SourceConfigUpdate {
+impl SseEncode for crate::api::generic_scraper::types::SourceConfigUpdate {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.name, serializer);
@@ -9913,7 +9826,7 @@ impl SseEncode for crate::api::generic_scraper::SourceConfigUpdate {
     }
 }
 
-impl SseEncode for crate::api::generic_scraper::SourceRuntimeOverride {
+impl SseEncode for crate::api::generic_scraper::types::SourceRuntimeOverride {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.source_name, serializer);
@@ -9926,11 +9839,11 @@ impl SseEncode for crate::api::generic_scraper::SourceRuntimeOverride {
     }
 }
 
-impl SseEncode for crate::api::generic_scraper::SourceSearchProgress {
+impl SseEncode for crate::api::generic_scraper::types::SourceSearchProgress {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.source_name, serializer);
-        <crate::api::generic_scraper::SearchStep>::sse_encode(self.step, serializer);
+        <crate::api::generic_scraper::types::SearchStep>::sse_encode(self.step, serializer);
         <Option<String>>::sse_encode(self.error, serializer);
         <Option<String>>::sse_encode(self.play_page_url, serializer);
         <Option<String>>::sse_encode(self.video_regex, serializer);
@@ -9939,7 +9852,7 @@ impl SseEncode for crate::api::generic_scraper::SourceSearchProgress {
         <Option<std::collections::HashMap<String, String>>>::sse_encode(self.headers, serializer);
         <Option<String>>::sse_encode(self.channel_name, serializer);
         <Option<usize>>::sse_encode(self.channel_index, serializer);
-        <Option<Vec<crate::api::generic_scraper::ChannelInfo>>>::sse_encode(
+        <Option<Vec<crate::api::generic_scraper::types::ChannelInfo>>>::sse_encode(
             self.all_channels,
             serializer,
         );
@@ -9949,7 +9862,7 @@ impl SseEncode for crate::api::generic_scraper::SourceSearchProgress {
     }
 }
 
-impl SseEncode for crate::api::generic_scraper::SourceState {
+impl SseEncode for crate::api::generic_scraper::types::SourceState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.name, serializer);
@@ -10039,7 +9952,7 @@ mod io {
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
-    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
+    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate
@@ -10078,7 +9991,7 @@ mod web {
     };
     use flutter_rust_bridge::for_generated::wasm_bindgen;
     use flutter_rust_bridge::for_generated::wasm_bindgen::prelude::*;
-    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
+    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate

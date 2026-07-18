@@ -1,7 +1,9 @@
 use super::types::*;
 use super::util::*;
 
-pub async fn fetch_bangumi_characters(subject_id: i64) -> anyhow::Result<Vec<BangumiCharacter>> {
+pub(crate) async fn fetch_bangumi_characters(
+    subject_id: i64,
+) -> anyhow::Result<Vec<BangumiCharacter>> {
     let mode = crate::api::config::get_bangumi_request_mode();
     match mode.as_str() {
         "modern" => fetch_bangumi_characters_next(subject_id).await,

@@ -3,7 +3,7 @@ use super::util::*;
 
 /// Fetch persons (staff) for a subject
 /// API: GET https://api.bgm.tv/v0/subjects/{subject_id}/persons
-pub async fn fetch_bangumi_persons(subject_id: i64) -> anyhow::Result<Vec<BangumiPerson>> {
+pub(crate) async fn fetch_bangumi_persons(subject_id: i64) -> anyhow::Result<Vec<BangumiPerson>> {
     let url = format!(
         "{}/v0/subjects/{}/persons",
         crate::api::config::get_bangumi_api_url(),

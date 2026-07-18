@@ -6,6 +6,7 @@ use jni::objects::{JClass, JObject};
 use jni::sys::jboolean;
 
 pub mod api;
+pub(crate) mod frb_api;
 mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be accurate, and you can change it according to your needs. */
 
 #[cfg(target_os = "android")]

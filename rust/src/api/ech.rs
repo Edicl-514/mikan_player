@@ -105,7 +105,10 @@ fn doh_endpoints() -> Vec<String> {
     if !user_list.is_empty() {
         user_list
     } else {
-        DEFAULT_DOH_ENDPOINTS.iter().map(|s| s.to_string()).collect()
+        DEFAULT_DOH_ENDPOINTS
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
     }
 }
 
@@ -213,8 +216,8 @@ async fn fetch_from_single_doh(endpoint: &str) -> anyhow::Result<Vec<u8>> {
         .and_then(|d| d.as_str())
         .ok_or_else(|| anyhow::anyhow!("DoH response missing Answer[0].data"))?;
 
-    let params = parse_https_rr(ech_b64)
-        .ok_or_else(|| anyhow::anyhow!("could not parse HTTPS RR data"))?;
+    let params =
+        parse_https_rr(ech_b64).ok_or_else(|| anyhow::anyhow!("could not parse HTTPS RR data"))?;
     let bytes = params
         .ech
         .ok_or_else(|| anyhow::anyhow!("no ech= param in HTTPS RR data"))?;
@@ -422,9 +425,9 @@ fn extract_svcb_params(mut rdata: &[u8]) -> Option<HttpsRrParams> {
             4 => {
                 // SvcParamKey 4 == `ipv4hint`: N * 4-byte IPv4 addresses.
                 for chunk in value.chunks_exact(4) {
-                    params
-                        .ipv4hint
-                        .push(IpAddr::V4(Ipv4Addr::new(chunk[0], chunk[1], chunk[2], chunk[3])));
+                    params.ipv4hint.push(IpAddr::V4(Ipv4Addr::new(
+                        chunk[0], chunk[1], chunk[2], chunk[3],
+                    )));
                 }
             }
             _ => {}
@@ -473,7 +476,8 @@ mod tests {
     #[test]
     fn parses_doh_090227_presentation_format() {
         let data = r#"1 . alpn="h3,h2" ipv4hint="104.18.10.118,104.18.11.118" ech="AEX+DQBB+gAgACAsXf9D47eVAyQlFQRZGTLbiq3hjK2ixMlp5qllFb2sDAAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=" ipv6hint="2606:4700::6812:a76,2606:4700::6812:b76""#;
-        let parsed = parse_echconfig_from_https_svcb(data).expect("must parse doh.090227.xyz format");
+        let parsed =
+            parse_echconfig_from_https_svcb(data).expect("must parse doh.090227.xyz format");
         assert_eq!(parsed.len(), 71, "ech value length");
         assert_eq!(&parsed[0..2], &[0x00, 0x45], "ECHConfig length prefix");
         assert_eq!(&parsed[2..4], &[0xfe, 0x0d], "ECH version 0x0fe0d");
@@ -522,8 +526,14 @@ mod tests {
         let data = r#"1 . alpn="h3,h2" ipv4hint="104.18.10.118,104.18.11.118" ech="AEX+DQBBogAgACBP0V4z41o3ZTDwVyZZEUvDZgcE9Z/idhVHveCErWO9SAAEAAEAAQASY2xvdWRmbGFyZS1lY2guY29tAAA=" ipv6hint="2606:4700::6812:a76,2606:4700::6812:b76""#;
         let params = parse_https_rr(data).expect("must parse");
         assert_eq!(params.ipv4hint.len(), 2);
-        assert_eq!(params.ipv4hint[0], "104.18.10.118".parse::<IpAddr>().unwrap());
-        assert_eq!(params.ipv4hint[1], "104.18.11.118".parse::<IpAddr>().unwrap());
+        assert_eq!(
+            params.ipv4hint[0],
+            "104.18.10.118".parse::<IpAddr>().unwrap()
+        );
+        assert_eq!(
+            params.ipv4hint[1],
+            "104.18.11.118".parse::<IpAddr>().unwrap()
+        );
         assert!(params.ech.is_some());
     }
 

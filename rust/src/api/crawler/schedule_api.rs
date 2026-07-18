@@ -13,7 +13,7 @@ pub(super) fn is_legacy_mode() -> bool {
     crate::api::config::get_bangumi_request_mode() == "legacy"
 }
 
-pub async fn fetch_archive_list() -> anyhow::Result<Vec<ArchiveQuarter>> {
+pub(crate) async fn fetch_archive_list() -> anyhow::Result<Vec<ArchiveQuarter>> {
     if is_legacy_mode() {
         fetch_archive_list_html().await
     } else {
@@ -98,7 +98,7 @@ pub(super) async fn fetch_archive_list_html() -> anyhow::Result<Vec<ArchiveQuart
     Ok(archives)
 }
 
-pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<AnimeInfo>> {
+pub(crate) async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<AnimeInfo>> {
     if is_legacy_mode() {
         fetch_schedule_basic_html(year_quarter).await
     } else {
@@ -109,7 +109,9 @@ pub async fn fetch_schedule_basic(year_quarter: String) -> anyhow::Result<Vec<An
 /// API-only schedule fetch — no local-JSON fallback.
 /// Returns the API result directly; caller decides how to handle
 /// failure (e.g. a Dart-side racer can weight download/local separately).
-pub async fn fetch_schedule_basic_api_only(year_quarter: String) -> anyhow::Result<Vec<AnimeInfo>> {
+pub(crate) async fn fetch_schedule_basic_api_only(
+    year_quarter: String,
+) -> anyhow::Result<Vec<AnimeInfo>> {
     if is_legacy_mode() {
         fetch_schedule_basic_html(year_quarter).await
     } else {
@@ -242,7 +244,7 @@ pub(super) async fn fetch_schedule_basic_from_local_data_json(
 /// the bgmlist API to fail first). Semantics are identical: if the cached file
 /// is missing this function will attempt one download, and if the file is
 /// corrupt it will re-download once before giving up.
-pub async fn fetch_schedule_basic_from_local_json(
+pub(crate) async fn fetch_schedule_basic_from_local_json(
     year_quarter: String,
 ) -> anyhow::Result<Vec<AnimeInfo>> {
     fetch_schedule_basic_from_local_data_json(&year_quarter).await
@@ -257,7 +259,7 @@ pub async fn fetch_schedule_basic_from_local_json(
 ///   1. SQLite timetable cache  (fastest, ~ms)
 ///   2. This function           (mmap read, ~22ms)
 ///   3. Concurrent API + download (slowest, seconds)
-pub fn fetch_schedule_basic_from_local_json_nodl(
+pub(crate) fn fetch_schedule_basic_from_local_json_nodl(
     year_quarter: String,
 ) -> anyhow::Result<Vec<AnimeInfo>> {
     bangumi_data_trace(&format!(

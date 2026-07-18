@@ -4,7 +4,7 @@ use super::util::*;
 /// Fetch related subjects for a subject
 /// API: GET https://api.bgm.tv/v0/subjects/{subject_id}/subjects
 /// Only returns anime-related subjects (type 2) with specific relations
-pub async fn fetch_bangumi_relations(
+pub(crate) async fn fetch_bangumi_relations(
     subject_id: i64,
 ) -> anyhow::Result<Vec<BangumiRelatedSubject>> {
     let url = format!(

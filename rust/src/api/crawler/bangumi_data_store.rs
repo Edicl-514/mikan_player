@@ -405,7 +405,7 @@ pub(super) async fn download_bangumi_data_json_single_flight(
 // bangumi-data cache status / refresh / ensure
 // =====================================================================
 
-pub fn get_bangumi_data_cache_status() -> BangumiDataCacheStatus {
+pub(crate) fn get_bangumi_data_cache_status() -> BangumiDataCacheStatus {
     let cache_dir = crate::api::config::get_cache_dir();
     let local_path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
 
@@ -430,7 +430,7 @@ pub fn get_bangumi_data_cache_status() -> BangumiDataCacheStatus {
     }
 }
 
-pub async fn refresh_bangumi_data_cache() -> anyhow::Result<bool> {
+pub(crate) async fn refresh_bangumi_data_cache() -> anyhow::Result<bool> {
     let cache_dir = crate::api::config::get_cache_dir();
     let local_path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
     // force=true: this is a user-initiated refresh — always re-download
@@ -456,7 +456,7 @@ pub async fn refresh_bangumi_data_cache() -> anyhow::Result<bool> {
 /// exists (even if stale), we skip the download so we don't hammer the CDN
 /// every startup. As soon as `BANGUMI_DATA_RETRY_AFTER_SECS` has elapsed
 /// — *or* the cache is missing — the next call retries.
-pub async fn ensure_bangumi_data_cache(max_age_secs: u64) -> anyhow::Result<bool> {
+pub(crate) async fn ensure_bangumi_data_cache(max_age_secs: u64) -> anyhow::Result<bool> {
     let cache_dir = crate::api::config::get_cache_dir();
     let local_path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
     let max_age = Duration::from_secs(max_age_secs);

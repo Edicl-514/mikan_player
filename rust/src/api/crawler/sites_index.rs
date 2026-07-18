@@ -55,7 +55,7 @@ pub(super) fn spawn_build_sites_index_background() {
 /// Dart side can warm the sites index without blocking the calling future
 /// (e.g. after a Level 2 timetable hit). Safe to call repeatedly — single-
 /// flight inside the Rust layer ensures at most one in-flight build.
-pub fn spawn_sites_index_background() {
+pub(crate) fn spawn_sites_index_background() {
     spawn_build_sites_index_background();
 }
 
@@ -202,13 +202,13 @@ fn sites_index_slot() -> &'static RwLock<Option<Arc<SitesIndex>>> {
 /// Build the sites index from the cached JSON. Uses single-flight so
 /// concurrent callers share one build (acquire permit, re-check, build
 /// core). Delegates to `build_sites_index_singleflight`.
-pub async fn build_sites_index() -> anyhow::Result<usize> {
+pub(crate) async fn build_sites_index() -> anyhow::Result<usize> {
     build_sites_index_singleflight().await
 }
 
 /// Drop the in-memory index. Used when `bangumi-data.json` is replaced so
 /// the next `build_sites_index` call rebuilds against the new payload.
-pub async fn invalidate_sites_index() {
+pub(crate) async fn invalidate_sites_index() {
     let mut guard = sites_index_slot().write().await;
     *guard = None;
 }
@@ -219,7 +219,7 @@ pub async fn invalidate_sites_index() {
 /// treat an empty result as "data not ready yet" and re-query on the next
 /// user action / stream tick. Synchronously waiting here would block the UI
 /// on a ~370 ms parse+build on the first lookup in a process.
-pub async fn fetch_bangumi_data_sites(bangumi_id: i64) -> Vec<BangumiDataSiteEntry> {
+pub(crate) async fn fetch_bangumi_data_sites(bangumi_id: i64) -> Vec<BangumiDataSiteEntry> {
     {
         let guard = sites_index_slot().read().await;
         if let Some(idx) = guard.as_ref() {
@@ -238,7 +238,7 @@ pub async fn fetch_bangumi_data_sites(bangumi_id: i64) -> Vec<BangumiDataSiteEnt
 
 /// Optional helper for mikan-origin entries that don't carry a bangumi id.
 /// Self-heals like `fetch_bangumi_data_sites`.
-pub async fn fetch_bangumi_data_sites_by_mikan(mikan_id: i64) -> Vec<BangumiDataSiteEntry> {
+pub(crate) async fn fetch_bangumi_data_sites_by_mikan(mikan_id: i64) -> Vec<BangumiDataSiteEntry> {
     {
         let guard = sites_index_slot().read().await;
         if let Some(idx) = guard.as_ref() {
@@ -254,7 +254,7 @@ pub async fn fetch_bangumi_data_sites_by_mikan(mikan_id: i64) -> Vec<BangumiData
 
 /// Look up the mikan id for a given bangumi.tv subject id from the
 /// cached bangumi-data index. Self-heals like the site lookups.
-pub async fn lookup_mikan_id(bangumi_id: i64) -> Option<i64> {
+pub(crate) async fn lookup_mikan_id(bangumi_id: i64) -> Option<i64> {
     {
         let guard = sites_index_slot().read().await;
         if let Some(idx) = guard.as_ref() {

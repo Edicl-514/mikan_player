@@ -325,7 +325,7 @@ async fn search_single_source_with_channels(
 }
 /// 搜索所有源，返回包含多channel信息的完整结果
 /// 此API用于UI展示所有可用的线路和剧集供用户选择
-pub async fn generic_search_with_channels(
+pub(crate) async fn generic_search_with_channels(
     anime_name: String,
 ) -> anyhow::Result<Vec<SearchResultWithChannels>> {
     let client = crate::api::network::get_shared_client().clone();
@@ -361,7 +361,7 @@ pub async fn generic_search_with_channels(
 }
 
 /// 搜索所有源，以流的形式返回包含多channel信息的结果
-pub async fn generic_search_with_channels_stream(
+pub(crate) async fn generic_search_with_channels_stream(
     anime_name: String,
     sink: crate::frb_generated::StreamSink<SearchResultWithChannels>,
 ) -> anyhow::Result<()> {
@@ -406,7 +406,7 @@ pub async fn generic_search_with_channels_stream(
 
 /// 根据指定的channel和集号获取播放页面URL
 /// 此API用于在用户选择了具体的线路和集数后获取播放页面
-pub async fn get_episode_play_url(
+pub(crate) async fn get_episode_play_url(
     source_name: String,
     anime_name: String,
     channel_index: usize,

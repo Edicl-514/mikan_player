@@ -13,7 +13,7 @@ use scraper::{Html, Selector};
 /// * `anime_name` - 动画名称
 /// * `absolute_episode` - 绝对集号（如第15集），优先匹配
 /// * `relative_episode` - 相对集号（如当季第3集），绝对集号找不到时回退使用
-pub async fn generic_search_play_pages(
+pub(crate) async fn generic_search_play_pages(
     anime_name: String,
     absolute_episode: Option<u32>,
     relative_episode: Option<u32>,
@@ -57,7 +57,7 @@ pub async fn generic_search_play_pages(
 
 /// 搜索所有源，以流的形式返回结果（每个源搜索完成后立即返回）
 /// 这样可以让UI实时显示搜索结果，而不是等所有源都搜索完毕
-pub async fn generic_search_play_pages_stream(
+pub(crate) async fn generic_search_play_pages_stream(
     anime_name: String,
     absolute_episode: Option<u32>,
     relative_episode: Option<u32>,
@@ -316,7 +316,7 @@ async fn search_single_source(
 /// * `anime_name` - 动画名称
 /// * `absolute_episode` - 绝对集号（如第15集），优先匹配
 /// * `relative_episode` - 相对集号（如当季第3集），绝对集号找不到时回退使用
-pub async fn generic_search_and_play_with_episode(
+pub(crate) async fn generic_search_and_play_with_episode(
     anime_name: String,
     absolute_episode: Option<u32>,
     relative_episode: Option<u32>,
@@ -325,7 +325,7 @@ pub async fn generic_search_and_play_with_episode(
 }
 
 /// 搜索并播放动画（默认第一集，保持向后兼容）
-pub async fn generic_search_and_play(anime_name: String) -> anyhow::Result<String> {
+pub(crate) async fn generic_search_and_play(anime_name: String) -> anyhow::Result<String> {
     generic_search_and_play_internal(anime_name, None, None).await
 }
 

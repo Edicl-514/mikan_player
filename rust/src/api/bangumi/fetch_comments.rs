@@ -11,7 +11,7 @@ pub(super) const BANGUMI_EPISODE_COMMENTS_NEXT_LABEL: &str = "bangumi.comments.e
 
 /// Scrape comments from the Bangumi website
 /// URL: https://bgm.tv/subject/{subject_id}/comments?page={page}
-pub async fn fetch_bangumi_comments(
+pub(crate) async fn fetch_bangumi_comments(
     subject_id: i64,
     page: i32,
 ) -> anyhow::Result<Vec<BangumiComment>> {
@@ -189,7 +189,7 @@ pub(super) async fn fetch_bangumi_comments_legacy(
 }
 /// Scrape episode comments from Bangumi
 /// URL: https://bangumi.tv/ep/{episode_id}
-pub async fn fetch_bangumi_episode_comments(
+pub(crate) async fn fetch_bangumi_episode_comments(
     episode_id: i64,
 ) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
     let mode = crate::api::config::get_bangumi_request_mode();

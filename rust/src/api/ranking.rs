@@ -79,10 +79,11 @@ async fn fetch_bangumi_browser_html(
         .append_pair("page", &page.to_string());
 
     let url_str = url.to_string();
-    let resp =
-        crate::api::network::retry_request_bangumi("fetch_bangumi_browser", |client| client.get(&url_str))
-            .await?
-            .error_for_status()?;
+    let resp = crate::api::network::retry_request_bangumi("fetch_bangumi_browser", |client| {
+        client.get(&url_str)
+    })
+    .await?
+    .error_for_status()?;
     let html = resp.text().await?;
     let document = Html::parse_document(&html);
 
@@ -132,10 +133,11 @@ async fn search_bangumi_subject_html(
         page
     );
 
-    let resp =
-        crate::api::network::retry_request_bangumi("search_bangumi_subject", |client| client.get(&url))
-            .await?
-            .error_for_status()?;
+    let resp = crate::api::network::retry_request_bangumi("search_bangumi_subject", |client| {
+        client.get(&url)
+    })
+    .await?
+    .error_for_status()?;
     let html = resp.text().await?;
     let document = Html::parse_document(&html);
 
@@ -463,7 +465,8 @@ fn build_subject_info(item: &Value) -> String {
         has_legacy_detail = true;
     }
 
-    if let Some(character_design) = extract_infobox_value(infobox, &["人物设定", "角色设计"]) {
+    if let Some(character_design) = extract_infobox_value(infobox, &["人物设定", "角色设计"])
+    {
         parts.push(character_design);
         has_legacy_detail = true;
     }
@@ -774,7 +777,10 @@ mod tests {
         assert_eq!(results[0].bangumi_id, "543360");
         assert_eq!(results[0].title, "上伊那牡丹");
         assert_eq!(results[0].original_title.as_deref(), Some("Kamiina Botan"));
-        assert_eq!(results[0].info, "12话 / 2026年4月10日 / 佐久間貴史 / 塀 / 吉成鋼");
+        assert_eq!(
+            results[0].info,
+            "12话 / 2026年4月10日 / 佐久間貴史 / 塀 / 吉成鋼"
+        );
         assert_eq!(results[0].score, Some(7.58));
         assert_eq!(results[0].rank, Some(123));
     }
@@ -794,7 +800,10 @@ mod tests {
     #[test]
     fn parse_search_tags_splits_whitespace_for_multi_tag_queries() {
         assert_eq!(parse_search_tags("百合 喜剧"), vec!["百合", "喜剧"]);
-        assert_eq!(parse_search_tags("  百合\t喜剧  校园 "), vec!["百合", "喜剧", "校园"]);
+        assert_eq!(
+            parse_search_tags("  百合\t喜剧  校园 "),
+            vec!["百合", "喜剧", "校园"]
+        );
         assert!(parse_search_tags("全部").is_empty());
     }
 

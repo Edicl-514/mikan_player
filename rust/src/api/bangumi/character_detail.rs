@@ -3,7 +3,7 @@ use super::util::*;
 
 /// Fetch character details
 /// API: GET https://api.bgm.tv/v0/characters/{character_id}
-pub async fn fetch_character_details(character_id: i64) -> anyhow::Result<CharacterDetails> {
+pub(crate) async fn fetch_character_details(character_id: i64) -> anyhow::Result<CharacterDetails> {
     let url = format!(
         "{}/v0/characters/{}",
         crate::api::config::get_bangumi_api_url(),
@@ -97,7 +97,9 @@ pub async fn fetch_character_details(character_id: i64) -> anyhow::Result<Charac
 /// - GET https://api.bgm.tv/v0/characters/{character_id}/subjects
 /// - GET https://api.bgm.tv/v0/characters/{character_id}/persons
 /// Returns only anime subjects (type=2) with associated voice actors
-pub async fn fetch_character_subjects(character_id: i64) -> anyhow::Result<Vec<CharacterSubject>> {
+pub(crate) async fn fetch_character_subjects(
+    character_id: i64,
+) -> anyhow::Result<Vec<CharacterSubject>> {
     let subjects_url = format!(
         "{}/v0/characters/{}/subjects",
         crate::api::config::get_bangumi_api_url(),

@@ -4,7 +4,7 @@ use anyhow::Context;
 use serde_json::Value;
 
 /// `GET /v0/users/{username}` — public user profile lookup.
-pub async fn fetch_bangumi_user_info(username: String) -> anyhow::Result<BangumiUserInfo> {
+pub(crate) async fn fetch_bangumi_user_info(username: String) -> anyhow::Result<BangumiUserInfo> {
     let url = format!(
         "{}/v0/users/{}",
         crate::api::config::get_bangumi_api_url(),
@@ -61,7 +61,7 @@ pub async fn fetch_bangumi_user_info(username: String) -> anyhow::Result<Bangumi
     })
 }
 /// `GET /v0/users/{username}/collections?subject_type=&limit=&offset=`
-pub async fn fetch_bangumi_user_collections(
+pub(crate) async fn fetch_bangumi_user_collections(
     username: String,
     subject_type: i32,
     limit: i32,
@@ -183,7 +183,7 @@ pub async fn fetch_bangumi_user_collections(
 ///
 /// Returns the raw bytes (caller writes them to disk or hands them to an
 /// `Image.memory` widget). Pass-through byte stream — no caching here.
-pub async fn fetch_bangumi_subject_image(
+pub(crate) async fn fetch_bangumi_subject_image(
     subject_id: i64,
     image_type: String,
 ) -> anyhow::Result<Vec<u8>> {
@@ -211,7 +211,7 @@ pub async fn fetch_bangumi_subject_image(
 /// Fetch raw bytes from any bangumi-hosted image URL (avatars on `lain.*`,
 /// subject covers, protocol-relative CDN links, etc.) through the ECH-capable
 /// Rust HTTP client.
-pub async fn fetch_bangumi_image_url(url: String) -> anyhow::Result<Vec<u8>> {
+pub(crate) async fn fetch_bangumi_image_url(url: String) -> anyhow::Result<Vec<u8>> {
     let normalized = normalize_bangumi_url(&url);
     let parsed = reqwest::Url::parse(&normalized)
         .with_context(|| format!("bangumi.image.url invalid URL: {normalized}"))?;

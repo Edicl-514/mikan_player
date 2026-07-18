@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `build_air_date_filter`, `build_api_subject_filter`, `build_subject_info`, `extract_air_date`, `extract_episode_count`, `extract_infobox_value`, `fetch_bangumi_browser_api`, `fetch_bangumi_browser_html`, `fetch_bangumi_search_api`, `fetch_bangumi_subjects_v0`, `fetch_bangumi_trending_next`, `format_bangumi_date`, `next_year_month`, `normalize_api_sort_type`, `parse_bangumi_list`, `parse_bangumi_next_trending_results`, `parse_bangumi_search_item`, `parse_bangumi_search_results`, `parse_search_tags`, `parse_year_month`, `search_bangumi_subject_html`, `search_bangumi_tag_html`, `stringify_infobox_value`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `YearMonth`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `cmp`, `eq`, `fmt`, `fmt`, `partial_cmp`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `cmp`, `eq`, `fmt`, `fmt`, `partial_cmp`
 
 Future<List<RankingAnime>> fetchBangumiRanking({
   required String sortType,

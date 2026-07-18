@@ -3,22 +3,25 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
-import 'api/bangumi.dart';
+import 'api/bangumi/types.dart';
 import 'api/bangumi_graphql.dart';
 import 'api/captcha.dart';
 import 'api/config.dart';
-import 'api/crawler.dart';
+import 'api/crawler/types.dart';
 import 'api/danmaku.dart';
 import 'api/dmhy.dart';
 import 'api/ech.dart';
-import 'api/generic_scraper.dart';
+import 'api/generic_scraper/types.dart';
 import 'api/mikan.dart';
-import 'api/network.dart';
 import 'api/ranking.dart';
 import 'api/simple.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
+import 'frb_api/bangumi.dart';
+import 'frb_api/crawler.dart';
+import 'frb_api/generic_scraper.dart';
+import 'frb_api/network.dart';
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart';
 

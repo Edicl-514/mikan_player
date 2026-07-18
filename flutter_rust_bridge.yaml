@@ -1,4 +1,4 @@
 rust_root: rust
-rust_input: "crate::api"
+rust_input: "crate::frb_api, crate::api::bangumi_graphql, crate::api::captcha, crate::api::config, crate::api::danmaku, crate::api::dmhy, crate::api::ech, crate::api::mikan, crate::api::ranking, crate::api::simple"
 dart_root: .
 dart_output: lib/src/rust

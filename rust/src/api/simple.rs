@@ -747,4 +747,3 @@ pub fn reset_bangumi_doh_endpoints() -> Vec<String> {
     crate::api::config::reset_bangumi_doh_endpoints();
     crate::api::config::get_bangumi_doh_endpoints()
 }
-

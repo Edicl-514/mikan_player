@@ -3,21 +3,24 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
-import 'api/bangumi.dart';
+import 'api/bangumi/types.dart';
 import 'api/bangumi_graphql.dart';
 import 'api/captcha.dart';
 import 'api/config.dart';
-import 'api/crawler.dart';
+import 'api/crawler/types.dart';
 import 'api/danmaku.dart';
 import 'api/dmhy.dart';
 import 'api/ech.dart';
-import 'api/generic_scraper.dart';
+import 'api/generic_scraper/types.dart';
 import 'api/mikan.dart';
-import 'api/network.dart';
 import 'api/ranking.dart';
 import 'api/simple.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'frb_api/bangumi.dart';
+import 'frb_api/crawler.dart';
+import 'frb_api/generic_scraper.dart';
+import 'frb_api/network.dart';
 import 'frb_generated.dart';
 import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
@@ -76,7 +79,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -126704644;
+  int get rustContentHash => 816112892;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -96,13 +99,11 @@ abstract class RustLibApi extends BaseApi {
     required String endpoint,
   });
 
-  Future<void> crateApiGenericScraperAddSourceConfig({
+  Future<void> crateFrbApiGenericScraperAddSourceConfig({
     required SourceConfigUpdate newConfig,
   });
 
-  Future<BigInt> crateApiCrawlerBuildSitesIndex();
-
-  Future<void> crateApiNetworkClientForBangumi();
+  Future<BigInt> crateFrbApiCrawlerBuildSitesIndex();
 
   Future<List<BangumiTvEpisode>> crateApiDanmakuDanmakuGetBangumiEpisodes({
     required PlatformInt64 subjectId,
@@ -137,7 +138,8 @@ abstract class RustLibApi extends BaseApi {
     required String keyword,
   });
 
-  Stream<SourceSearchProgress> crateApiGenericScraperDebugSearchWithLocalJson({
+  Stream<SourceSearchProgress>
+  crateFrbApiGenericScraperDebugSearchWithLocalJson({
     required String jsonPath,
     required String animeName,
     int? absoluteEpisode,
@@ -146,7 +148,7 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Stream<SourceSearchProgress>
-  crateApiGenericScraperDebugSearchWithLocalJsonRuntime({
+  crateFrbApiGenericScraperDebugSearchWithLocalJsonRuntime({
     required String jsonPath,
     required String animeName,
     int? absoluteEpisode,
@@ -155,7 +157,7 @@ abstract class RustLibApi extends BaseApi {
     required List<SourceRuntimeOverride> runtimeOverrides,
   });
 
-  Future<bool> crateApiCrawlerEnsureBangumiDataCache({
+  Future<bool> crateFrbApiCrawlerEnsureBangumiDataCache({
     required BigInt maxAgeSecs,
   });
 
@@ -165,7 +167,7 @@ abstract class RustLibApi extends BaseApi {
     required Value variables,
   });
 
-  Future<List<ArchiveQuarter>> crateApiCrawlerFetchArchiveList();
+  Future<List<ArchiveQuarter>> crateFrbApiCrawlerFetchArchiveList();
 
   Future<List<RankingAnime>> crateApiRankingFetchBangumiBrowser({
     required String sortType,
@@ -174,34 +176,38 @@ abstract class RustLibApi extends BaseApi {
     required int page,
   });
 
-  Future<List<BangumiCharacter>> crateApiBangumiFetchBangumiCharacters({
+  Future<List<BangumiCharacter>> crateFrbApiBangumiFetchBangumiCharacters({
     required PlatformInt64 subjectId,
   });
 
-  Future<List<BangumiComment>> crateApiBangumiFetchBangumiComments({
+  Future<List<BangumiComment>> crateFrbApiBangumiFetchBangumiComments({
     required PlatformInt64 subjectId,
     required int page,
   });
 
-  Future<List<BangumiDataSiteEntry>> crateApiCrawlerFetchBangumiDataSites({
+  Future<List<BangumiDataSiteEntry>> crateFrbApiCrawlerFetchBangumiDataSites({
     required PlatformInt64 bangumiId,
   });
 
   Future<List<BangumiDataSiteEntry>>
-  crateApiCrawlerFetchBangumiDataSitesByMikan({required PlatformInt64 mikanId});
+  crateFrbApiCrawlerFetchBangumiDataSitesByMikan({
+    required PlatformInt64 mikanId,
+  });
 
   Future<List<BangumiEpisodeComment>>
-  crateApiBangumiFetchBangumiEpisodeComments({
+  crateFrbApiBangumiFetchBangumiEpisodeComments({
     required PlatformInt64 episodeId,
   });
 
-  Future<List<BangumiEpisode>> crateApiBangumiFetchBangumiEpisodes({
+  Future<List<BangumiEpisode>> crateFrbApiBangumiFetchBangumiEpisodes({
     required PlatformInt64 subjectId,
   });
 
-  Future<Uint8List> crateApiBangumiFetchBangumiImageUrl({required String url});
+  Future<Uint8List> crateFrbApiBangumiFetchBangumiImageUrl({
+    required String url,
+  });
 
-  Future<List<BangumiPerson>> crateApiBangumiFetchBangumiPersons({
+  Future<List<BangumiPerson>> crateFrbApiBangumiFetchBangumiPersons({
     required PlatformInt64 subjectId,
   });
 
@@ -210,32 +216,32 @@ abstract class RustLibApi extends BaseApi {
     required int page,
   });
 
-  Future<List<BangumiRelatedSubject>> crateApiBangumiFetchBangumiRelations({
+  Future<List<BangumiRelatedSubject>> crateFrbApiBangumiFetchBangumiRelations({
     required PlatformInt64 subjectId,
   });
 
-  Future<Uint8List> crateApiBangumiFetchBangumiSubjectImage({
+  Future<Uint8List> crateFrbApiBangumiFetchBangumiSubjectImage({
     required PlatformInt64 subjectId,
     required String imageType,
   });
 
   Future<List<BangumiUserCollectionEntry>>
-  crateApiBangumiFetchBangumiUserCollections({
+  crateFrbApiBangumiFetchBangumiUserCollections({
     required String username,
     required int subjectType,
     required int limit,
     required int offset,
   });
 
-  Future<BangumiUserInfo> crateApiBangumiFetchBangumiUserInfo({
+  Future<BangumiUserInfo> crateFrbApiBangumiFetchBangumiUserInfo({
     required String username,
   });
 
-  Future<CharacterDetails> crateApiBangumiFetchCharacterDetails({
+  Future<CharacterDetails> crateFrbApiBangumiFetchCharacterDetails({
     required PlatformInt64 characterId,
   });
 
-  Future<List<CharacterSubject>> crateApiBangumiFetchCharacterSubjects({
+  Future<List<CharacterSubject>> crateFrbApiBangumiFetchCharacterSubjects({
     required PlatformInt64 characterId,
   });
 
@@ -246,12 +252,12 @@ abstract class RustLibApi extends BaseApi {
     required int targetEpisode,
   });
 
-  Future<List<AnimeInfo>> crateApiCrawlerFetchExtraSubjects({
+  Future<List<AnimeInfo>> crateFrbApiCrawlerFetchExtraSubjects({
     required String yearQuarter,
     required List<String> existingIds,
   });
 
-  Future<AnimeInfo> crateApiCrawlerFetchLightSubjectDetails({
+  Future<AnimeInfo> crateFrbApiCrawlerFetchLightSubjectDetails({
     required PlatformInt64 subjectId,
   });
 
@@ -259,31 +265,32 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 subjectId,
   });
 
-  Future<List<PersonCharacter>> crateApiBangumiFetchPersonCharacters({
+  Future<List<PersonCharacter>> crateFrbApiBangumiFetchPersonCharacters({
     required PlatformInt64 personId,
   });
 
-  Future<PersonDetails> crateApiBangumiFetchPersonDetails({
+  Future<PersonDetails> crateFrbApiBangumiFetchPersonDetails({
     required PlatformInt64 personId,
   });
 
-  Future<List<PersonSubject>> crateApiBangumiFetchPersonSubjects({
+  Future<List<PersonSubject>> crateFrbApiBangumiFetchPersonSubjects({
     required PlatformInt64 personId,
   });
 
-  Future<List<AnimeInfo>> crateApiCrawlerFetchScheduleBasic({
+  Future<List<AnimeInfo>> crateFrbApiCrawlerFetchScheduleBasic({
     required String yearQuarter,
   });
 
-  Future<List<AnimeInfo>> crateApiCrawlerFetchScheduleBasicApiOnly({
+  Future<List<AnimeInfo>> crateFrbApiCrawlerFetchScheduleBasicApiOnly({
     required String yearQuarter,
   });
 
-  Future<List<AnimeInfo>> crateApiCrawlerFetchScheduleBasicFromLocalJson({
+  Future<List<AnimeInfo>> crateFrbApiCrawlerFetchScheduleBasicFromLocalJson({
     required String yearQuarter,
   });
 
-  Future<List<AnimeInfo>> crateApiCrawlerFetchScheduleBasicFromLocalJsonNodl({
+  Future<List<AnimeInfo>>
+  crateFrbApiCrawlerFetchScheduleBasicFromLocalJsonNodl({
     required String yearQuarter,
   });
 
@@ -292,48 +299,53 @@ abstract class RustLibApi extends BaseApi {
     required Int64List ids,
   });
 
-  Future<List<AnimeInfo>> crateApiCrawlerFillAnimeDetails({
+  Future<List<AnimeInfo>> crateFrbApiCrawlerFillAnimeDetails({
     required List<AnimeInfo> animes,
   });
 
-  Future<String> crateApiGenericScraperGenericSearchAndPlay({
+  Future<String> crateFrbApiGenericScraperGenericSearchAndPlay({
     required String animeName,
   });
 
-  Future<String> crateApiGenericScraperGenericSearchAndPlayWithEpisode({
-    required String animeName,
-    int? absoluteEpisode,
-    int? relativeEpisode,
-  });
-
-  Future<List<SearchPlayResult>> crateApiGenericScraperGenericSearchPlayPages({
+  Future<String> crateFrbApiGenericScraperGenericSearchAndPlayWithEpisode({
     required String animeName,
     int? absoluteEpisode,
     int? relativeEpisode,
   });
 
-  Stream<SearchPlayResult> crateApiGenericScraperGenericSearchPlayPagesStream({
+  Future<List<SearchPlayResult>>
+  crateFrbApiGenericScraperGenericSearchPlayPages({
+    required String animeName,
+    int? absoluteEpisode,
+    int? relativeEpisode,
+  });
+
+  Stream<SearchPlayResult>
+  crateFrbApiGenericScraperGenericSearchPlayPagesStream({
     required String animeName,
     int? absoluteEpisode,
     int? relativeEpisode,
   });
 
   Future<List<SearchResultWithChannels>>
-  crateApiGenericScraperGenericSearchWithChannels({required String animeName});
-
-  Stream<SearchResultWithChannels>
-  crateApiGenericScraperGenericSearchWithChannelsStream({
+  crateFrbApiGenericScraperGenericSearchWithChannels({
     required String animeName,
   });
 
-  Stream<SourceSearchProgress> crateApiGenericScraperGenericSearchWithProgress({
+  Stream<SearchResultWithChannels>
+  crateFrbApiGenericScraperGenericSearchWithChannelsStream({
+    required String animeName,
+  });
+
+  Stream<SourceSearchProgress>
+  crateFrbApiGenericScraperGenericSearchWithProgress({
     required String animeName,
     int? absoluteEpisode,
     int? relativeEpisode,
   });
 
   Stream<SourceSearchProgress>
-  crateApiGenericScraperGenericSearchWithProgressRuntime({
+  crateFrbApiGenericScraperGenericSearchWithProgressRuntime({
     required String animeName,
     int? absoluteEpisode,
     int? relativeEpisode,
@@ -345,7 +357,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiConfigGetBangumiApiUrl();
 
-  Future<BangumiDataCacheStatus> crateApiCrawlerGetBangumiDataCacheStatus();
+  Future<BangumiDataCacheStatus> crateFrbApiCrawlerGetBangumiDataCacheStatus();
 
   Future<List<String>> crateApiConfigGetBangumiDohEndpoints();
 
@@ -377,11 +389,9 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiConfigGetDownloadDir();
 
-  Future<void> crateApiNetworkGetEchClient();
+  Future<List<String>> crateFrbApiGenericScraperGetEnabledSourceNames();
 
-  Future<List<String>> crateApiGenericScraperGetEnabledSourceNames();
-
-  Future<SearchPlayResult> crateApiGenericScraperGetEpisodePlayUrl({
+  Future<SearchPlayResult> crateFrbApiGenericScraperGetEpisodePlayUrl({
     required String sourceName,
     required String animeName,
     required BigInt channelIndex,
@@ -398,15 +408,13 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiConfigGetMikanUrl();
 
-  Future<List<SourceState>> crateApiGenericScraperGetPlaybackSources();
-
   Future<List<SourceState>> crateApiSimpleGetPlaybackSources();
+
+  Future<List<SourceState>> crateFrbApiGenericScraperGetPlaybackSources();
 
   Future<String> crateApiConfigGetPlaybackSubUrl();
 
-  Future<void> crateApiNetworkGetSharedClient();
-
-  Future<String?> crateApiNetworkGetSystemProxy();
+  Future<String?> crateFrbApiNetworkGetSystemProxy();
 
   Future<List<TorrentStats>> crateApiSimpleGetTorrentStats();
 
@@ -431,17 +439,15 @@ abstract class RustLibApi extends BaseApi {
     required String charsetPath,
   });
 
-  Future<void> crateApiNetworkInvalidateEchClient();
+  Future<void> crateFrbApiCrawlerInvalidateSitesIndex();
 
-  Future<void> crateApiCrawlerInvalidateSitesIndex();
-
-  Future<void> crateApiGenericScraperInvalidateSourceConfigCache();
+  Future<void> crateFrbApiGenericScraperInvalidateSourceConfigCache();
 
   Future<bool> crateApiCaptchaIsCaptchaOcrInitialized();
 
   Future<bool> crateApiConfigIsSourceEnabled({required String name});
 
-  Future<PlatformInt64?> crateApiCrawlerLookupMikanId({
+  Future<PlatformInt64?> crateFrbApiCrawlerLookupMikanId({
     required PlatformInt64 bangumiId,
   });
 
@@ -467,7 +473,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiSimplePreloadPlaybackSourceConfig();
 
-  Future<void> crateApiGenericScraperPreloadPlaybackSources();
+  Future<void> crateFrbApiGenericScraperPreloadPlaybackSources();
 
   Future<String> crateApiCaptchaRecognizeCaptcha({
     required List<int> imageBytes,
@@ -480,15 +486,15 @@ abstract class RustLibApi extends BaseApi {
     required CaptchaConstraintOptions options,
   });
 
-  Future<bool> crateApiCrawlerRefreshBangumiDataCache();
+  Future<bool> crateFrbApiCrawlerRefreshBangumiDataCache();
 
   Future<BigInt> crateApiEchRefreshBangumiEchConfig();
 
   Future<BigInt> crateApiSimpleRefreshBangumiEchConfig();
 
-  Future<String> crateApiGenericScraperRefreshPlaybackSourceConfig();
-
   Future<String> crateApiSimpleRefreshPlaybackSourceConfig();
+
+  Future<String> crateFrbApiGenericScraperRefreshPlaybackSourceConfig();
 
   Future<String?> crateApiConfigRemapBangumiHost({
     required String host,
@@ -534,8 +540,6 @@ abstract class RustLibApi extends BaseApi {
     required String nameCn,
   });
 
-  Future<void> crateApiNetworkSelectClient();
-
   Future<void> crateApiConfigSetBangumiDohEndpoints({
     required List<String> endpoints,
   });
@@ -570,7 +574,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiSimpleSetMaxConcurrentSearches({required int limit});
 
-  Future<void> crateApiCrawlerSpawnSitesIndexBackground();
+  Future<void> crateFrbApiCrawlerSpawnSitesIndexBackground();
 
   Future<String> crateApiSimpleStartTorrent({required String magnet});
 
@@ -595,7 +599,7 @@ abstract class RustLibApi extends BaseApi {
     required bool useReverseProxy,
   });
 
-  Future<void> crateApiGenericScraperUpdateSingleSourceConfig({
+  Future<void> crateFrbApiGenericScraperUpdateSingleSourceConfig({
     required SourceConfigUpdate update,
   });
 
@@ -683,7 +687,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiGenericScraperAddSourceConfig({
+  Future<void> crateFrbApiGenericScraperAddSourceConfig({
     required SourceConfigUpdate newConfig,
   }) {
     return handler.executeNormal(
@@ -702,21 +706,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiGenericScraperAddSourceConfigConstMeta,
+        constMeta: kCrateFrbApiGenericScraperAddSourceConfigConstMeta,
         argValues: [newConfig],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiGenericScraperAddSourceConfigConstMeta =>
+  TaskConstMeta get kCrateFrbApiGenericScraperAddSourceConfigConstMeta =>
       const TaskConstMeta(
         debugName: "add_source_config",
         argNames: ["newConfig"],
       );
 
   @override
-  Future<BigInt> crateApiCrawlerBuildSitesIndex() {
+  Future<BigInt> crateFrbApiCrawlerBuildSitesIndex() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -732,42 +736,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_usize,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiCrawlerBuildSitesIndexConstMeta,
+        constMeta: kCrateFrbApiCrawlerBuildSitesIndexConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerBuildSitesIndexConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerBuildSitesIndexConstMeta =>
       const TaskConstMeta(debugName: "build_sites_index", argNames: []);
-
-  @override
-  Future<void> crateApiNetworkClientForBangumi() {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 5,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiNetworkClientForBangumiConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNetworkClientForBangumiConstMeta =>
-      const TaskConstMeta(debugName: "client_for_bangumi", argNames: []);
 
   @override
   Future<List<BangumiTvEpisode>> crateApiDanmakuDanmakuGetBangumiEpisodes({
@@ -781,7 +758,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 5,
             port: port_,
           );
         },
@@ -818,7 +795,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 6,
             port: port_,
           );
         },
@@ -855,7 +832,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 7,
             port: port_,
           );
         },
@@ -888,7 +865,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 8,
             port: port_,
           );
         },
@@ -921,7 +898,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 9,
             port: port_,
           );
         },
@@ -956,7 +933,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 10,
             port: port_,
           );
         },
@@ -989,7 +966,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 11,
             port: port_,
           );
         },
@@ -1011,7 +988,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Stream<SourceSearchProgress> crateApiGenericScraperDebugSearchWithLocalJson({
+  Stream<SourceSearchProgress>
+  crateFrbApiGenericScraperDebugSearchWithLocalJson({
     required String jsonPath,
     required String animeName,
     int? absoluteEpisode,
@@ -1033,7 +1011,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 13,
+              funcId: 12,
               port: port_,
             );
           },
@@ -1041,7 +1019,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeSuccessData: sse_decode_unit,
             decodeErrorData: sse_decode_AnyhowException,
           ),
-          constMeta: kCrateApiGenericScraperDebugSearchWithLocalJsonConstMeta,
+          constMeta:
+              kCrateFrbApiGenericScraperDebugSearchWithLocalJsonConstMeta,
           argValues: [
             jsonPath,
             animeName,
@@ -1057,7 +1036,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return sink.stream;
   }
 
-  TaskConstMeta get kCrateApiGenericScraperDebugSearchWithLocalJsonConstMeta =>
+  TaskConstMeta
+  get kCrateFrbApiGenericScraperDebugSearchWithLocalJsonConstMeta =>
       const TaskConstMeta(
         debugName: "debug_search_with_local_json",
         argNames: [
@@ -1072,7 +1052,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Stream<SourceSearchProgress>
-  crateApiGenericScraperDebugSearchWithLocalJsonRuntime({
+  crateFrbApiGenericScraperDebugSearchWithLocalJsonRuntime({
     required String jsonPath,
     required String animeName,
     int? absoluteEpisode,
@@ -1099,7 +1079,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 14,
+              funcId: 13,
               port: port_,
             );
           },
@@ -1108,7 +1088,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeErrorData: sse_decode_AnyhowException,
           ),
           constMeta:
-              kCrateApiGenericScraperDebugSearchWithLocalJsonRuntimeConstMeta,
+              kCrateFrbApiGenericScraperDebugSearchWithLocalJsonRuntimeConstMeta,
           argValues: [
             jsonPath,
             animeName,
@@ -1126,7 +1106,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiGenericScraperDebugSearchWithLocalJsonRuntimeConstMeta =>
+  get kCrateFrbApiGenericScraperDebugSearchWithLocalJsonRuntimeConstMeta =>
       const TaskConstMeta(
         debugName: "debug_search_with_local_json_runtime",
         argNames: [
@@ -1141,7 +1121,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<bool> crateApiCrawlerEnsureBangumiDataCache({
+  Future<bool> crateFrbApiCrawlerEnsureBangumiDataCache({
     required BigInt maxAgeSecs,
   }) {
     return handler.executeNormal(
@@ -1152,7 +1132,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 14,
             port: port_,
           );
         },
@@ -1160,14 +1140,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_bool,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiCrawlerEnsureBangumiDataCacheConstMeta,
+        constMeta: kCrateFrbApiCrawlerEnsureBangumiDataCacheConstMeta,
         argValues: [maxAgeSecs],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerEnsureBangumiDataCacheConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerEnsureBangumiDataCacheConstMeta =>
       const TaskConstMeta(
         debugName: "ensure_bangumi_data_cache",
         argNames: ["maxAgeSecs"],
@@ -1192,7 +1172,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 15,
             port: port_,
           );
         },
@@ -1215,7 +1195,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<List<ArchiveQuarter>> crateApiCrawlerFetchArchiveList() {
+  Future<List<ArchiveQuarter>> crateFrbApiCrawlerFetchArchiveList() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -1223,7 +1203,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 16,
             port: port_,
           );
         },
@@ -1231,14 +1211,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_archive_quarter,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiCrawlerFetchArchiveListConstMeta,
+        constMeta: kCrateFrbApiCrawlerFetchArchiveListConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerFetchArchiveListConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerFetchArchiveListConstMeta =>
       const TaskConstMeta(debugName: "fetch_archive_list", argNames: []);
 
   @override
@@ -1259,7 +1239,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 17,
             port: port_,
           );
         },
@@ -1281,7 +1261,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<List<BangumiCharacter>> crateApiBangumiFetchBangumiCharacters({
+  Future<List<BangumiCharacter>> crateFrbApiBangumiFetchBangumiCharacters({
     required PlatformInt64 subjectId,
   }) {
     return handler.executeNormal(
@@ -1292,7 +1272,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 18,
             port: port_,
           );
         },
@@ -1300,21 +1280,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_bangumi_character,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchBangumiCharactersConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchBangumiCharactersConstMeta,
         argValues: [subjectId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchBangumiCharactersConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchBangumiCharactersConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_bangumi_characters",
         argNames: ["subjectId"],
       );
 
   @override
-  Future<List<BangumiComment>> crateApiBangumiFetchBangumiComments({
+  Future<List<BangumiComment>> crateFrbApiBangumiFetchBangumiComments({
     required PlatformInt64 subjectId,
     required int page,
   }) {
@@ -1327,7 +1307,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 19,
             port: port_,
           );
         },
@@ -1335,21 +1315,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_bangumi_comment,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchBangumiCommentsConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchBangumiCommentsConstMeta,
         argValues: [subjectId, page],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchBangumiCommentsConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchBangumiCommentsConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_bangumi_comments",
         argNames: ["subjectId", "page"],
       );
 
   @override
-  Future<List<BangumiDataSiteEntry>> crateApiCrawlerFetchBangumiDataSites({
+  Future<List<BangumiDataSiteEntry>> crateFrbApiCrawlerFetchBangumiDataSites({
     required PlatformInt64 bangumiId,
   }) {
     return handler.executeNormal(
@@ -1357,6 +1337,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(bangumiId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 20,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_bangumi_data_site_entry,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFrbApiCrawlerFetchBangumiDataSitesConstMeta,
+        argValues: [bangumiId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiCrawlerFetchBangumiDataSitesConstMeta =>
+      const TaskConstMeta(
+        debugName: "fetch_bangumi_data_sites",
+        argNames: ["bangumiId"],
+      );
+
+  @override
+  Future<List<BangumiDataSiteEntry>>
+  crateFrbApiCrawlerFetchBangumiDataSitesByMikan({
+    required PlatformInt64 mikanId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(mikanId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1368,48 +1382,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_bangumi_data_site_entry,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiCrawlerFetchBangumiDataSitesConstMeta,
-        argValues: [bangumiId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiCrawlerFetchBangumiDataSitesConstMeta =>
-      const TaskConstMeta(
-        debugName: "fetch_bangumi_data_sites",
-        argNames: ["bangumiId"],
-      );
-
-  @override
-  Future<List<BangumiDataSiteEntry>>
-  crateApiCrawlerFetchBangumiDataSitesByMikan({
-    required PlatformInt64 mikanId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_i_64(mikanId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 22,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_bangumi_data_site_entry,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiCrawlerFetchBangumiDataSitesByMikanConstMeta,
+        constMeta: kCrateFrbApiCrawlerFetchBangumiDataSitesByMikanConstMeta,
         argValues: [mikanId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerFetchBangumiDataSitesByMikanConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerFetchBangumiDataSitesByMikanConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_bangumi_data_sites_by_mikan",
         argNames: ["mikanId"],
@@ -1417,7 +1397,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<BangumiEpisodeComment>>
-  crateApiBangumiFetchBangumiEpisodeComments({
+  crateFrbApiBangumiFetchBangumiEpisodeComments({
     required PlatformInt64 episodeId,
   }) {
     return handler.executeNormal(
@@ -1428,7 +1408,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 22,
             port: port_,
           );
         },
@@ -1436,21 +1416,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_bangumi_episode_comment,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchBangumiEpisodeCommentsConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchBangumiEpisodeCommentsConstMeta,
         argValues: [episodeId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchBangumiEpisodeCommentsConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchBangumiEpisodeCommentsConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_bangumi_episode_comments",
         argNames: ["episodeId"],
       );
 
   @override
-  Future<List<BangumiEpisode>> crateApiBangumiFetchBangumiEpisodes({
+  Future<List<BangumiEpisode>> crateFrbApiBangumiFetchBangumiEpisodes({
     required PlatformInt64 subjectId,
   }) {
     return handler.executeNormal(
@@ -1461,7 +1441,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1469,21 +1449,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_bangumi_episode,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchBangumiEpisodesConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchBangumiEpisodesConstMeta,
         argValues: [subjectId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchBangumiEpisodesConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchBangumiEpisodesConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_bangumi_episodes",
         argNames: ["subjectId"],
       );
 
   @override
-  Future<Uint8List> crateApiBangumiFetchBangumiImageUrl({required String url}) {
+  Future<Uint8List> crateFrbApiBangumiFetchBangumiImageUrl({
+    required String url,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -1492,7 +1474,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1500,21 +1482,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_prim_u_8_strict,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchBangumiImageUrlConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchBangumiImageUrlConstMeta,
         argValues: [url],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchBangumiImageUrlConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchBangumiImageUrlConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_bangumi_image_url",
         argNames: ["url"],
       );
 
   @override
-  Future<List<BangumiPerson>> crateApiBangumiFetchBangumiPersons({
+  Future<List<BangumiPerson>> crateFrbApiBangumiFetchBangumiPersons({
     required PlatformInt64 subjectId,
   }) {
     return handler.executeNormal(
@@ -1525,7 +1507,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1533,14 +1515,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_bangumi_person,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchBangumiPersonsConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchBangumiPersonsConstMeta,
         argValues: [subjectId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchBangumiPersonsConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchBangumiPersonsConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_bangumi_persons",
         argNames: ["subjectId"],
@@ -1560,7 +1542,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1582,7 +1564,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<List<BangumiRelatedSubject>> crateApiBangumiFetchBangumiRelations({
+  Future<List<BangumiRelatedSubject>> crateFrbApiBangumiFetchBangumiRelations({
     required PlatformInt64 subjectId,
   }) {
     return handler.executeNormal(
@@ -1593,7 +1575,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1601,21 +1583,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_bangumi_related_subject,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchBangumiRelationsConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchBangumiRelationsConstMeta,
         argValues: [subjectId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchBangumiRelationsConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchBangumiRelationsConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_bangumi_relations",
         argNames: ["subjectId"],
       );
 
   @override
-  Future<Uint8List> crateApiBangumiFetchBangumiSubjectImage({
+  Future<Uint8List> crateFrbApiBangumiFetchBangumiSubjectImage({
     required PlatformInt64 subjectId,
     required String imageType,
   }) {
@@ -1628,7 +1610,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1636,14 +1618,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_prim_u_8_strict,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchBangumiSubjectImageConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchBangumiSubjectImageConstMeta,
         argValues: [subjectId, imageType],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchBangumiSubjectImageConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchBangumiSubjectImageConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_bangumi_subject_image",
         argNames: ["subjectId", "imageType"],
@@ -1651,7 +1633,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<BangumiUserCollectionEntry>>
-  crateApiBangumiFetchBangumiUserCollections({
+  crateFrbApiBangumiFetchBangumiUserCollections({
     required String username,
     required int subjectType,
     required int limit,
@@ -1668,7 +1650,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1676,21 +1658,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_bangumi_user_collection_entry,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchBangumiUserCollectionsConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchBangumiUserCollectionsConstMeta,
         argValues: [username, subjectType, limit, offset],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchBangumiUserCollectionsConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchBangumiUserCollectionsConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_bangumi_user_collections",
         argNames: ["username", "subjectType", "limit", "offset"],
       );
 
   @override
-  Future<BangumiUserInfo> crateApiBangumiFetchBangumiUserInfo({
+  Future<BangumiUserInfo> crateFrbApiBangumiFetchBangumiUserInfo({
     required String username,
   }) {
     return handler.executeNormal(
@@ -1701,7 +1683,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1709,21 +1691,54 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_bangumi_user_info,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchBangumiUserInfoConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchBangumiUserInfoConstMeta,
         argValues: [username],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchBangumiUserInfoConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchBangumiUserInfoConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_bangumi_user_info",
         argNames: ["username"],
       );
 
   @override
-  Future<CharacterDetails> crateApiBangumiFetchCharacterDetails({
+  Future<CharacterDetails> crateFrbApiBangumiFetchCharacterDetails({
+    required PlatformInt64 characterId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(characterId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 31,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_character_details,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFrbApiBangumiFetchCharacterDetailsConstMeta,
+        argValues: [characterId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiBangumiFetchCharacterDetailsConstMeta =>
+      const TaskConstMeta(
+        debugName: "fetch_character_details",
+        argNames: ["characterId"],
+      );
+
+  @override
+  Future<List<CharacterSubject>> crateFrbApiBangumiFetchCharacterSubjects({
     required PlatformInt64 characterId,
   }) {
     return handler.executeNormal(
@@ -1739,50 +1754,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_character_details,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiBangumiFetchCharacterDetailsConstMeta,
-        argValues: [characterId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiBangumiFetchCharacterDetailsConstMeta =>
-      const TaskConstMeta(
-        debugName: "fetch_character_details",
-        argNames: ["characterId"],
-      );
-
-  @override
-  Future<List<CharacterSubject>> crateApiBangumiFetchCharacterSubjects({
-    required PlatformInt64 characterId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_i_64(characterId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 33,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
           decodeSuccessData: sse_decode_list_character_subject,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchCharacterSubjectsConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchCharacterSubjectsConstMeta,
         argValues: [characterId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchCharacterSubjectsConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchCharacterSubjectsConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_character_subjects",
         argNames: ["characterId"],
@@ -1797,7 +1779,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1832,7 +1814,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1854,7 +1836,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<List<AnimeInfo>> crateApiCrawlerFetchExtraSubjects({
+  Future<List<AnimeInfo>> crateFrbApiCrawlerFetchExtraSubjects({
     required String yearQuarter,
     required List<String> existingIds,
   }) {
@@ -1867,7 +1849,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1875,21 +1857,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_anime_info,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiCrawlerFetchExtraSubjectsConstMeta,
+        constMeta: kCrateFrbApiCrawlerFetchExtraSubjectsConstMeta,
         argValues: [yearQuarter, existingIds],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerFetchExtraSubjectsConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerFetchExtraSubjectsConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_extra_subjects",
         argNames: ["yearQuarter", "existingIds"],
       );
 
   @override
-  Future<AnimeInfo> crateApiCrawlerFetchLightSubjectDetails({
+  Future<AnimeInfo> crateFrbApiCrawlerFetchLightSubjectDetails({
     required PlatformInt64 subjectId,
   }) {
     return handler.executeNormal(
@@ -1900,7 +1882,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1908,14 +1890,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_anime_info,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiCrawlerFetchLightSubjectDetailsConstMeta,
+        constMeta: kCrateFrbApiCrawlerFetchLightSubjectDetailsConstMeta,
         argValues: [subjectId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerFetchLightSubjectDetailsConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerFetchLightSubjectDetailsConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_light_subject_details",
         argNames: ["subjectId"],
@@ -1933,7 +1915,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1958,7 +1940,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<List<PersonCharacter>> crateApiBangumiFetchPersonCharacters({
+  Future<List<PersonCharacter>> crateFrbApiBangumiFetchPersonCharacters({
+    required PlatformInt64 personId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(personId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 38,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_person_character,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFrbApiBangumiFetchPersonCharactersConstMeta,
+        argValues: [personId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiBangumiFetchPersonCharactersConstMeta =>
+      const TaskConstMeta(
+        debugName: "fetch_person_characters",
+        argNames: ["personId"],
+      );
+
+  @override
+  Future<PersonDetails> crateFrbApiBangumiFetchPersonDetails({
     required PlatformInt64 personId,
   }) {
     return handler.executeNormal(
@@ -1974,24 +1989,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_list_person_character,
+          decodeSuccessData: sse_decode_person_details,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchPersonCharactersConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchPersonDetailsConstMeta,
         argValues: [personId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchPersonCharactersConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchPersonDetailsConstMeta =>
       const TaskConstMeta(
-        debugName: "fetch_person_characters",
+        debugName: "fetch_person_details",
         argNames: ["personId"],
       );
 
   @override
-  Future<PersonDetails> crateApiBangumiFetchPersonDetails({
+  Future<List<PersonSubject>> crateFrbApiBangumiFetchPersonSubjects({
     required PlatformInt64 personId,
   }) {
     return handler.executeNormal(
@@ -2007,31 +2022,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_person_details,
+          decodeSuccessData: sse_decode_list_person_subject,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchPersonDetailsConstMeta,
+        constMeta: kCrateFrbApiBangumiFetchPersonSubjectsConstMeta,
         argValues: [personId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchPersonDetailsConstMeta =>
+  TaskConstMeta get kCrateFrbApiBangumiFetchPersonSubjectsConstMeta =>
       const TaskConstMeta(
-        debugName: "fetch_person_details",
+        debugName: "fetch_person_subjects",
         argNames: ["personId"],
       );
 
   @override
-  Future<List<PersonSubject>> crateApiBangumiFetchPersonSubjects({
-    required PlatformInt64 personId,
+  Future<List<AnimeInfo>> crateFrbApiCrawlerFetchScheduleBasic({
+    required String yearQuarter,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_i_64(personId, serializer);
+          sse_encode_String(yearQuarter, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2040,24 +2055,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_list_person_subject,
+          decodeSuccessData: sse_decode_list_anime_info,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiBangumiFetchPersonSubjectsConstMeta,
-        argValues: [personId],
+        constMeta: kCrateFrbApiCrawlerFetchScheduleBasicConstMeta,
+        argValues: [yearQuarter],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiBangumiFetchPersonSubjectsConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerFetchScheduleBasicConstMeta =>
       const TaskConstMeta(
-        debugName: "fetch_person_subjects",
-        argNames: ["personId"],
+        debugName: "fetch_schedule_basic",
+        argNames: ["yearQuarter"],
       );
 
   @override
-  Future<List<AnimeInfo>> crateApiCrawlerFetchScheduleBasic({
+  Future<List<AnimeInfo>> crateFrbApiCrawlerFetchScheduleBasicApiOnly({
     required String yearQuarter,
   }) {
     return handler.executeNormal(
@@ -2076,21 +2091,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_anime_info,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiCrawlerFetchScheduleBasicConstMeta,
+        constMeta: kCrateFrbApiCrawlerFetchScheduleBasicApiOnlyConstMeta,
         argValues: [yearQuarter],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerFetchScheduleBasicConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerFetchScheduleBasicApiOnlyConstMeta =>
       const TaskConstMeta(
-        debugName: "fetch_schedule_basic",
+        debugName: "fetch_schedule_basic_api_only",
         argNames: ["yearQuarter"],
       );
 
   @override
-  Future<List<AnimeInfo>> crateApiCrawlerFetchScheduleBasicApiOnly({
+  Future<List<AnimeInfo>> crateFrbApiCrawlerFetchScheduleBasicFromLocalJson({
     required String yearQuarter,
   }) {
     return handler.executeNormal(
@@ -2109,21 +2124,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_anime_info,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiCrawlerFetchScheduleBasicApiOnlyConstMeta,
+        constMeta: kCrateFrbApiCrawlerFetchScheduleBasicFromLocalJsonConstMeta,
         argValues: [yearQuarter],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerFetchScheduleBasicApiOnlyConstMeta =>
+  TaskConstMeta
+  get kCrateFrbApiCrawlerFetchScheduleBasicFromLocalJsonConstMeta =>
       const TaskConstMeta(
-        debugName: "fetch_schedule_basic_api_only",
+        debugName: "fetch_schedule_basic_from_local_json",
         argNames: ["yearQuarter"],
       );
 
   @override
-  Future<List<AnimeInfo>> crateApiCrawlerFetchScheduleBasicFromLocalJson({
+  Future<List<AnimeInfo>>
+  crateFrbApiCrawlerFetchScheduleBasicFromLocalJsonNodl({
     required String yearQuarter,
   }) {
     return handler.executeNormal(
@@ -2142,40 +2159,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_anime_info,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiCrawlerFetchScheduleBasicFromLocalJsonConstMeta,
-        argValues: [yearQuarter],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiCrawlerFetchScheduleBasicFromLocalJsonConstMeta =>
-      const TaskConstMeta(
-        debugName: "fetch_schedule_basic_from_local_json",
-        argNames: ["yearQuarter"],
-      );
-
-  @override
-  Future<List<AnimeInfo>> crateApiCrawlerFetchScheduleBasicFromLocalJsonNodl({
-    required String yearQuarter,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(yearQuarter, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 45,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_anime_info,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiCrawlerFetchScheduleBasicFromLocalJsonNodlConstMeta,
+        constMeta:
+            kCrateFrbApiCrawlerFetchScheduleBasicFromLocalJsonNodlConstMeta,
         argValues: [yearQuarter],
         apiImpl: this,
       ),
@@ -2183,7 +2168,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiCrawlerFetchScheduleBasicFromLocalJsonNodlConstMeta =>
+  get kCrateFrbApiCrawlerFetchScheduleBasicFromLocalJsonNodlConstMeta =>
       const TaskConstMeta(
         debugName: "fetch_schedule_basic_from_local_json_nodl",
         argNames: ["yearQuarter"],
@@ -2202,7 +2187,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 46,
+            funcId: 45,
             port: port_,
           );
         },
@@ -2227,7 +2212,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<List<AnimeInfo>> crateApiCrawlerFillAnimeDetails({
+  Future<List<AnimeInfo>> crateFrbApiCrawlerFillAnimeDetails({
     required List<AnimeInfo> animes,
   }) {
     return handler.executeNormal(
@@ -2238,7 +2223,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 47,
+            funcId: 46,
             port: port_,
           );
         },
@@ -2246,21 +2231,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_anime_info,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiCrawlerFillAnimeDetailsConstMeta,
+        constMeta: kCrateFrbApiCrawlerFillAnimeDetailsConstMeta,
         argValues: [animes],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerFillAnimeDetailsConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerFillAnimeDetailsConstMeta =>
       const TaskConstMeta(
         debugName: "fill_anime_details",
         argNames: ["animes"],
       );
 
   @override
-  Future<String> crateApiGenericScraperGenericSearchAndPlay({
+  Future<String> crateFrbApiGenericScraperGenericSearchAndPlay({
     required String animeName,
   }) {
     return handler.executeNormal(
@@ -2268,6 +2253,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(animeName, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 47,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFrbApiGenericScraperGenericSearchAndPlayConstMeta,
+        argValues: [animeName],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiGenericScraperGenericSearchAndPlayConstMeta =>
+      const TaskConstMeta(
+        debugName: "generic_search_and_play",
+        argNames: ["animeName"],
+      );
+
+  @override
+  Future<String> crateFrbApiGenericScraperGenericSearchAndPlayWithEpisode({
+    required String animeName,
+    int? absoluteEpisode,
+    int? relativeEpisode,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(animeName, serializer);
+          sse_encode_opt_box_autoadd_u_32(absoluteEpisode, serializer);
+          sse_encode_opt_box_autoadd_u_32(relativeEpisode, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2279,21 +2301,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_String,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiGenericScraperGenericSearchAndPlayConstMeta,
-        argValues: [animeName],
+        constMeta:
+            kCrateFrbApiGenericScraperGenericSearchAndPlayWithEpisodeConstMeta,
+        argValues: [animeName, absoluteEpisode, relativeEpisode],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiGenericScraperGenericSearchAndPlayConstMeta =>
+  TaskConstMeta
+  get kCrateFrbApiGenericScraperGenericSearchAndPlayWithEpisodeConstMeta =>
       const TaskConstMeta(
-        debugName: "generic_search_and_play",
-        argNames: ["animeName"],
+        debugName: "generic_search_and_play_with_episode",
+        argNames: ["animeName", "absoluteEpisode", "relativeEpisode"],
       );
 
   @override
-  Future<String> crateApiGenericScraperGenericSearchAndPlayWithEpisode({
+  Future<List<SearchPlayResult>>
+  crateFrbApiGenericScraperGenericSearchPlayPages({
     required String animeName,
     int? absoluteEpisode,
     int? relativeEpisode,
@@ -2313,63 +2338,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta:
-            kCrateApiGenericScraperGenericSearchAndPlayWithEpisodeConstMeta,
-        argValues: [animeName, absoluteEpisode, relativeEpisode],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiGenericScraperGenericSearchAndPlayWithEpisodeConstMeta =>
-      const TaskConstMeta(
-        debugName: "generic_search_and_play_with_episode",
-        argNames: ["animeName", "absoluteEpisode", "relativeEpisode"],
-      );
-
-  @override
-  Future<List<SearchPlayResult>> crateApiGenericScraperGenericSearchPlayPages({
-    required String animeName,
-    int? absoluteEpisode,
-    int? relativeEpisode,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(animeName, serializer);
-          sse_encode_opt_box_autoadd_u_32(absoluteEpisode, serializer);
-          sse_encode_opt_box_autoadd_u_32(relativeEpisode, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 50,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
           decodeSuccessData: sse_decode_list_search_play_result,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiGenericScraperGenericSearchPlayPagesConstMeta,
+        constMeta: kCrateFrbApiGenericScraperGenericSearchPlayPagesConstMeta,
         argValues: [animeName, absoluteEpisode, relativeEpisode],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiGenericScraperGenericSearchPlayPagesConstMeta =>
+  TaskConstMeta get kCrateFrbApiGenericScraperGenericSearchPlayPagesConstMeta =>
       const TaskConstMeta(
         debugName: "generic_search_play_pages",
         argNames: ["animeName", "absoluteEpisode", "relativeEpisode"],
       );
 
   @override
-  Stream<SearchPlayResult> crateApiGenericScraperGenericSearchPlayPagesStream({
+  Stream<SearchPlayResult>
+  crateFrbApiGenericScraperGenericSearchPlayPagesStream({
     required String animeName,
     int? absoluteEpisode,
     int? relativeEpisode,
@@ -2387,7 +2374,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 51,
+              funcId: 50,
               port: port_,
             );
           },
@@ -2396,7 +2383,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeErrorData: sse_decode_AnyhowException,
           ),
           constMeta:
-              kCrateApiGenericScraperGenericSearchPlayPagesStreamConstMeta,
+              kCrateFrbApiGenericScraperGenericSearchPlayPagesStreamConstMeta,
           argValues: [animeName, absoluteEpisode, relativeEpisode, sink],
           apiImpl: this,
         ),
@@ -2406,7 +2393,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiGenericScraperGenericSearchPlayPagesStreamConstMeta =>
+  get kCrateFrbApiGenericScraperGenericSearchPlayPagesStreamConstMeta =>
       const TaskConstMeta(
         debugName: "generic_search_play_pages_stream",
         argNames: ["animeName", "absoluteEpisode", "relativeEpisode", "sink"],
@@ -2414,7 +2401,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<SearchResultWithChannels>>
-  crateApiGenericScraperGenericSearchWithChannels({required String animeName}) {
+  crateFrbApiGenericScraperGenericSearchWithChannels({
+    required String animeName,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -2423,7 +2412,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 52,
+            funcId: 51,
             port: port_,
           );
         },
@@ -2431,14 +2420,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_search_result_with_channels,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiGenericScraperGenericSearchWithChannelsConstMeta,
+        constMeta: kCrateFrbApiGenericScraperGenericSearchWithChannelsConstMeta,
         argValues: [animeName],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiGenericScraperGenericSearchWithChannelsConstMeta =>
+  TaskConstMeta
+  get kCrateFrbApiGenericScraperGenericSearchWithChannelsConstMeta =>
       const TaskConstMeta(
         debugName: "generic_search_with_channels",
         argNames: ["animeName"],
@@ -2446,7 +2436,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Stream<SearchResultWithChannels>
-  crateApiGenericScraperGenericSearchWithChannelsStream({
+  crateFrbApiGenericScraperGenericSearchWithChannelsStream({
     required String animeName,
   }) {
     final sink = RustStreamSink<SearchResultWithChannels>();
@@ -2463,7 +2453,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 53,
+              funcId: 52,
               port: port_,
             );
           },
@@ -2472,7 +2462,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeErrorData: sse_decode_AnyhowException,
           ),
           constMeta:
-              kCrateApiGenericScraperGenericSearchWithChannelsStreamConstMeta,
+              kCrateFrbApiGenericScraperGenericSearchWithChannelsStreamConstMeta,
           argValues: [animeName, sink],
           apiImpl: this,
         ),
@@ -2482,14 +2472,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiGenericScraperGenericSearchWithChannelsStreamConstMeta =>
+  get kCrateFrbApiGenericScraperGenericSearchWithChannelsStreamConstMeta =>
       const TaskConstMeta(
         debugName: "generic_search_with_channels_stream",
         argNames: ["animeName", "sink"],
       );
 
   @override
-  Stream<SourceSearchProgress> crateApiGenericScraperGenericSearchWithProgress({
+  Stream<SourceSearchProgress>
+  crateFrbApiGenericScraperGenericSearchWithProgress({
     required String animeName,
     int? absoluteEpisode,
     int? relativeEpisode,
@@ -2507,7 +2498,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 54,
+              funcId: 53,
               port: port_,
             );
           },
@@ -2515,7 +2506,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeSuccessData: sse_decode_unit,
             decodeErrorData: sse_decode_AnyhowException,
           ),
-          constMeta: kCrateApiGenericScraperGenericSearchWithProgressConstMeta,
+          constMeta:
+              kCrateFrbApiGenericScraperGenericSearchWithProgressConstMeta,
           argValues: [animeName, absoluteEpisode, relativeEpisode, sink],
           apiImpl: this,
         ),
@@ -2524,7 +2516,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return sink.stream;
   }
 
-  TaskConstMeta get kCrateApiGenericScraperGenericSearchWithProgressConstMeta =>
+  TaskConstMeta
+  get kCrateFrbApiGenericScraperGenericSearchWithProgressConstMeta =>
       const TaskConstMeta(
         debugName: "generic_search_with_progress",
         argNames: ["animeName", "absoluteEpisode", "relativeEpisode", "sink"],
@@ -2532,7 +2525,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Stream<SourceSearchProgress>
-  crateApiGenericScraperGenericSearchWithProgressRuntime({
+  crateFrbApiGenericScraperGenericSearchWithProgressRuntime({
     required String animeName,
     int? absoluteEpisode,
     int? relativeEpisode,
@@ -2557,7 +2550,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 55,
+              funcId: 54,
               port: port_,
             );
           },
@@ -2566,7 +2559,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeErrorData: sse_decode_AnyhowException,
           ),
           constMeta:
-              kCrateApiGenericScraperGenericSearchWithProgressRuntimeConstMeta,
+              kCrateFrbApiGenericScraperGenericSearchWithProgressRuntimeConstMeta,
           argValues: [
             animeName,
             absoluteEpisode,
@@ -2583,7 +2576,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiGenericScraperGenericSearchWithProgressRuntimeConstMeta =>
+  get kCrateFrbApiGenericScraperGenericSearchWithProgressRuntimeConstMeta =>
       const TaskConstMeta(
         debugName: "generic_search_with_progress_runtime",
         argNames: [
@@ -2605,7 +2598,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 56,
+            funcId: 55,
             port: port_,
           );
         },
@@ -2632,7 +2625,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 57,
+            funcId: 56,
             port: port_,
           );
         },
@@ -2651,7 +2644,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_bangumi_api_url", argNames: []);
 
   @override
-  Future<BangumiDataCacheStatus> crateApiCrawlerGetBangumiDataCacheStatus() {
+  Future<BangumiDataCacheStatus> crateFrbApiCrawlerGetBangumiDataCacheStatus() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -2659,7 +2652,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 58,
+            funcId: 57,
             port: port_,
           );
         },
@@ -2667,14 +2660,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_bangumi_data_cache_status,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiCrawlerGetBangumiDataCacheStatusConstMeta,
+        constMeta: kCrateFrbApiCrawlerGetBangumiDataCacheStatusConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerGetBangumiDataCacheStatusConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerGetBangumiDataCacheStatusConstMeta =>
       const TaskConstMeta(
         debugName: "get_bangumi_data_cache_status",
         argNames: [],
@@ -2689,7 +2682,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 59,
+            funcId: 58,
             port: port_,
           );
         },
@@ -2716,7 +2709,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 60,
+            funcId: 59,
             port: port_,
           );
         },
@@ -2743,7 +2736,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 61,
+            funcId: 60,
             port: port_,
           );
         },
@@ -2770,7 +2763,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 62,
+            funcId: 61,
             port: port_,
           );
         },
@@ -2797,7 +2790,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 63,
+            funcId: 62,
             port: port_,
           );
         },
@@ -2824,7 +2817,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 64,
+            funcId: 63,
             port: port_,
           );
         },
@@ -2851,7 +2844,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 65,
+            funcId: 64,
             port: port_,
           );
         },
@@ -2878,7 +2871,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 66,
+            funcId: 65,
             port: port_,
           );
         },
@@ -2905,7 +2898,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 67,
+            funcId: 66,
             port: port_,
           );
         },
@@ -2932,7 +2925,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 68,
+            funcId: 67,
             port: port_,
           );
         },
@@ -2959,7 +2952,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 69,
+            funcId: 68,
             port: port_,
           );
         },
@@ -2986,7 +2979,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 70,
+            funcId: 69,
             port: port_,
           );
         },
@@ -3013,7 +3006,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 71,
+            funcId: 70,
             port: port_,
           );
         },
@@ -3040,7 +3033,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 72,
+            funcId: 71,
             port: port_,
           );
         },
@@ -3070,7 +3063,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 73,
+            funcId: 72,
             port: port_,
           );
         },
@@ -3089,7 +3082,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_download_dir", argNames: []);
 
   @override
-  Future<void> crateApiNetworkGetEchClient() {
+  Future<List<String>> crateFrbApiGenericScraperGetEnabledSourceNames() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -3097,34 +3090,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 74,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiNetworkGetEchClientConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNetworkGetEchClientConstMeta =>
-      const TaskConstMeta(debugName: "get_ech_client", argNames: []);
-
-  @override
-  Future<List<String>> crateApiGenericScraperGetEnabledSourceNames() {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 75,
+            funcId: 73,
             port: port_,
           );
         },
@@ -3132,18 +3098,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_String,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiGenericScraperGetEnabledSourceNamesConstMeta,
+        constMeta: kCrateFrbApiGenericScraperGetEnabledSourceNamesConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiGenericScraperGetEnabledSourceNamesConstMeta =>
+  TaskConstMeta get kCrateFrbApiGenericScraperGetEnabledSourceNamesConstMeta =>
       const TaskConstMeta(debugName: "get_enabled_source_names", argNames: []);
 
   @override
-  Future<SearchPlayResult> crateApiGenericScraperGetEpisodePlayUrl({
+  Future<SearchPlayResult> crateFrbApiGenericScraperGetEpisodePlayUrl({
     required String sourceName,
     required String animeName,
     required BigInt channelIndex,
@@ -3165,7 +3131,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 76,
+            funcId: 74,
             port: port_,
           );
         },
@@ -3173,7 +3139,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_search_play_result,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiGenericScraperGetEpisodePlayUrlConstMeta,
+        constMeta: kCrateFrbApiGenericScraperGetEpisodePlayUrlConstMeta,
         argValues: [
           sourceName,
           animeName,
@@ -3186,7 +3152,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kCrateApiGenericScraperGetEpisodePlayUrlConstMeta =>
+  TaskConstMeta get kCrateFrbApiGenericScraperGetEpisodePlayUrlConstMeta =>
       const TaskConstMeta(
         debugName: "get_episode_play_url",
         argNames: [
@@ -3207,7 +3173,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 77,
+            funcId: 75,
             port: port_,
           );
         },
@@ -3242,7 +3208,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 78,
+            funcId: 76,
             port: port_,
           );
         },
@@ -3272,7 +3238,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 79,
+            funcId: 77,
             port: port_,
           );
         },
@@ -3291,33 +3257,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_mikan_url", argNames: []);
 
   @override
-  Future<List<SourceState>> crateApiGenericScraperGetPlaybackSources() {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 80,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_source_state,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiGenericScraperGetPlaybackSourcesConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiGenericScraperGetPlaybackSourcesConstMeta =>
-      const TaskConstMeta(debugName: "get_playback_sources", argNames: []);
-
-  @override
   Future<List<SourceState>> crateApiSimpleGetPlaybackSources() {
     return handler.executeNormal(
       NormalTask(
@@ -3326,7 +3265,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 81,
+            funcId: 78,
             port: port_,
           );
         },
@@ -3345,6 +3284,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_playback_sources", argNames: []);
 
   @override
+  Future<List<SourceState>> crateFrbApiGenericScraperGetPlaybackSources() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 79,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_source_state,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFrbApiGenericScraperGetPlaybackSourcesConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiGenericScraperGetPlaybackSourcesConstMeta =>
+      const TaskConstMeta(debugName: "get_playback_sources", argNames: []);
+
+  @override
   Future<String> crateApiConfigGetPlaybackSubUrl() {
     return handler.executeNormal(
       NormalTask(
@@ -3353,7 +3319,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 82,
+            funcId: 80,
             port: port_,
           );
         },
@@ -3372,7 +3338,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_playback_sub_url", argNames: []);
 
   @override
-  Future<void> crateApiNetworkGetSharedClient() {
+  Future<String?> crateFrbApiNetworkGetSystemProxy() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -3380,34 +3346,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 83,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiNetworkGetSharedClientConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNetworkGetSharedClientConstMeta =>
-      const TaskConstMeta(debugName: "get_shared_client", argNames: []);
-
-  @override
-  Future<String?> crateApiNetworkGetSystemProxy() {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 84,
+            funcId: 81,
             port: port_,
           );
         },
@@ -3415,14 +3354,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_opt_String,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNetworkGetSystemProxyConstMeta,
+        constMeta: kCrateFrbApiNetworkGetSystemProxyConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNetworkGetSystemProxyConstMeta =>
+  TaskConstMeta get kCrateFrbApiNetworkGetSystemProxyConstMeta =>
       const TaskConstMeta(debugName: "get_system_proxy", argNames: []);
 
   @override
@@ -3434,7 +3373,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 85,
+            funcId: 82,
             port: port_,
           );
         },
@@ -3464,7 +3403,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 86,
+            funcId: 83,
             port: port_,
           );
         },
@@ -3495,7 +3434,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 87,
+            funcId: 84,
             port: port_,
           );
         },
@@ -3527,7 +3466,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 88,
+            funcId: 85,
             port: port_,
           );
         },
@@ -3561,7 +3500,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 89,
+            funcId: 86,
             port: port_,
           );
         },
@@ -3595,7 +3534,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 90,
+            funcId: 87,
             port: port_,
           );
         },
@@ -3617,7 +3556,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiNetworkInvalidateEchClient() {
+  Future<void> crateFrbApiCrawlerInvalidateSitesIndex() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -3625,7 +3564,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 91,
+            funcId: 88,
             port: port_,
           );
         },
@@ -3633,45 +3572,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiNetworkInvalidateEchClientConstMeta,
+        constMeta: kCrateFrbApiCrawlerInvalidateSitesIndexConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiNetworkInvalidateEchClientConstMeta =>
-      const TaskConstMeta(debugName: "invalidate_ech_client", argNames: []);
-
-  @override
-  Future<void> crateApiCrawlerInvalidateSitesIndex() {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 92,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiCrawlerInvalidateSitesIndexConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiCrawlerInvalidateSitesIndexConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerInvalidateSitesIndexConstMeta =>
       const TaskConstMeta(debugName: "invalidate_sites_index", argNames: []);
 
   @override
-  Future<void> crateApiGenericScraperInvalidateSourceConfigCache() {
+  Future<void> crateFrbApiGenericScraperInvalidateSourceConfigCache() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -3679,7 +3591,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 93,
+            funcId: 89,
             port: port_,
           );
         },
@@ -3687,7 +3599,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiGenericScraperInvalidateSourceConfigCacheConstMeta,
+        constMeta:
+            kCrateFrbApiGenericScraperInvalidateSourceConfigCacheConstMeta,
         argValues: [],
         apiImpl: this,
       ),
@@ -3695,7 +3608,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiGenericScraperInvalidateSourceConfigCacheConstMeta =>
+  get kCrateFrbApiGenericScraperInvalidateSourceConfigCacheConstMeta =>
       const TaskConstMeta(
         debugName: "invalidate_source_config_cache",
         argNames: [],
@@ -3710,7 +3623,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 94,
+            funcId: 90,
             port: port_,
           );
         },
@@ -3741,7 +3654,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 95,
+            funcId: 91,
             port: port_,
           );
         },
@@ -3760,7 +3673,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "is_source_enabled", argNames: ["name"]);
 
   @override
-  Future<PlatformInt64?> crateApiCrawlerLookupMikanId({
+  Future<PlatformInt64?> crateFrbApiCrawlerLookupMikanId({
     required PlatformInt64 bangumiId,
   }) {
     return handler.executeNormal(
@@ -3771,7 +3684,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 96,
+            funcId: 92,
             port: port_,
           );
         },
@@ -3779,14 +3692,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_opt_box_autoadd_i_64,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiCrawlerLookupMikanIdConstMeta,
+        constMeta: kCrateFrbApiCrawlerLookupMikanIdConstMeta,
         argValues: [bangumiId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerLookupMikanIdConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerLookupMikanIdConstMeta =>
       const TaskConstMeta(
         debugName: "lookup_mikan_id",
         argNames: ["bangumiId"],
@@ -3806,7 +3719,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 97,
+            funcId: 93,
             port: port_,
           );
         },
@@ -3841,7 +3754,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 98,
+            funcId: 94,
             port: port_,
           );
         },
@@ -3877,7 +3790,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 99,
+            funcId: 95,
             port: port_,
           );
         },
@@ -3915,7 +3828,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 100,
+            funcId: 96,
             port: port_,
           );
         },
@@ -3949,7 +3862,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 101,
+            funcId: 97,
             port: port_,
           );
         },
@@ -3976,7 +3889,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 102,
+            funcId: 98,
             port: port_,
           );
         },
@@ -3998,7 +3911,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiGenericScraperPreloadPlaybackSources() {
+  Future<void> crateFrbApiGenericScraperPreloadPlaybackSources() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -4006,7 +3919,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 103,
+            funcId: 99,
             port: port_,
           );
         },
@@ -4014,14 +3927,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiGenericScraperPreloadPlaybackSourcesConstMeta,
+        constMeta: kCrateFrbApiGenericScraperPreloadPlaybackSourcesConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiGenericScraperPreloadPlaybackSourcesConstMeta =>
+  TaskConstMeta get kCrateFrbApiGenericScraperPreloadPlaybackSourcesConstMeta =>
       const TaskConstMeta(debugName: "preload_playback_sources", argNames: []);
 
   @override
@@ -4038,7 +3951,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 104,
+            funcId: 100,
             port: port_,
           );
         },
@@ -4078,7 +3991,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 105,
+            funcId: 101,
             port: port_,
           );
         },
@@ -4100,7 +4013,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<bool> crateApiCrawlerRefreshBangumiDataCache() {
+  Future<bool> crateFrbApiCrawlerRefreshBangumiDataCache() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -4108,7 +4021,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 106,
+            funcId: 102,
             port: port_,
           );
         },
@@ -4116,14 +4029,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_bool,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiCrawlerRefreshBangumiDataCacheConstMeta,
+        constMeta: kCrateFrbApiCrawlerRefreshBangumiDataCacheConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerRefreshBangumiDataCacheConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerRefreshBangumiDataCacheConstMeta =>
       const TaskConstMeta(
         debugName: "refresh_bangumi_data_cache",
         argNames: [],
@@ -4138,7 +4051,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 107,
+            funcId: 103,
             port: port_,
           );
         },
@@ -4168,7 +4081,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 108,
+            funcId: 104,
             port: port_,
           );
         },
@@ -4190,37 +4103,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> crateApiGenericScraperRefreshPlaybackSourceConfig() {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 109,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiGenericScraperRefreshPlaybackSourceConfigConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiGenericScraperRefreshPlaybackSourceConfigConstMeta =>
-      const TaskConstMeta(
-        debugName: "refresh_playback_source_config",
-        argNames: [],
-      );
-
-  @override
   Future<String> crateApiSimpleRefreshPlaybackSourceConfig() {
     return handler.executeNormal(
       NormalTask(
@@ -4229,7 +4111,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 110,
+            funcId: 105,
             port: port_,
           );
         },
@@ -4251,6 +4133,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateFrbApiGenericScraperRefreshPlaybackSourceConfig() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 106,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kCrateFrbApiGenericScraperRefreshPlaybackSourceConfigConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateFrbApiGenericScraperRefreshPlaybackSourceConfigConstMeta =>
+      const TaskConstMeta(
+        debugName: "refresh_playback_source_config",
+        argNames: [],
+      );
+
+  @override
   Future<String?> crateApiConfigRemapBangumiHost({
     required String host,
     required bool toMirror,
@@ -4264,7 +4178,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 111,
+            funcId: 107,
             port: port_,
           );
         },
@@ -4297,7 +4211,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 112,
+            funcId: 108,
             port: port_,
           );
         },
@@ -4330,7 +4244,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 113,
+            funcId: 109,
             port: port_,
           );
         },
@@ -4360,7 +4274,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 114,
+            funcId: 110,
             port: port_,
           );
         },
@@ -4390,7 +4304,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 115,
+            funcId: 111,
             port: port_,
           );
         },
@@ -4421,7 +4335,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 116,
+            funcId: 112,
             port: port_,
           );
         },
@@ -4453,7 +4367,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 117,
+            funcId: 113,
             port: port_,
           );
         },
@@ -4486,7 +4400,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 118,
+            funcId: 114,
             port: port_,
           );
         },
@@ -4523,7 +4437,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 119,
+            funcId: 115,
             port: port_,
           );
         },
@@ -4560,7 +4474,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 120,
+            funcId: 116,
             port: port_,
           );
         },
@@ -4593,7 +4507,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 121,
+            funcId: 117,
             port: port_,
           );
         },
@@ -4615,33 +4529,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiNetworkSelectClient() {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 122,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiNetworkSelectClientConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiNetworkSelectClientConstMeta =>
-      const TaskConstMeta(debugName: "select_client", argNames: []);
-
-  @override
   Future<void> crateApiConfigSetBangumiDohEndpoints({
     required List<String> endpoints,
   }) {
@@ -4653,7 +4540,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 123,
+            funcId: 118,
             port: port_,
           );
         },
@@ -4686,7 +4573,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 124,
+            funcId: 119,
             port: port_,
           );
         },
@@ -4717,7 +4604,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 125,
+            funcId: 120,
             port: port_,
           );
         },
@@ -4748,7 +4635,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 126,
+            funcId: 121,
             port: port_,
           );
         },
@@ -4779,7 +4666,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 127,
+            funcId: 122,
             port: port_,
           );
         },
@@ -4810,7 +4697,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 128,
+            funcId: 123,
             port: port_,
           );
         },
@@ -4841,7 +4728,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 129,
+            funcId: 124,
             port: port_,
           );
         },
@@ -4874,7 +4761,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 130,
+            funcId: 125,
             port: port_,
           );
         },
@@ -4907,7 +4794,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 131,
+            funcId: 126,
             port: port_,
           );
         },
@@ -4938,7 +4825,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 132,
+            funcId: 127,
             port: port_,
           );
         },
@@ -4966,7 +4853,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 133,
+            funcId: 128,
             port: port_,
           );
         },
@@ -4994,7 +4881,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 134,
+            funcId: 129,
             port: port_,
           );
         },
@@ -5025,7 +4912,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 135,
+            funcId: 130,
             port: port_,
           );
         },
@@ -5047,7 +4934,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiCrawlerSpawnSitesIndexBackground() {
+  Future<void> crateFrbApiCrawlerSpawnSitesIndexBackground() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -5055,7 +4942,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 136,
+            funcId: 131,
             port: port_,
           );
         },
@@ -5063,14 +4950,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiCrawlerSpawnSitesIndexBackgroundConstMeta,
+        constMeta: kCrateFrbApiCrawlerSpawnSitesIndexBackgroundConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiCrawlerSpawnSitesIndexBackgroundConstMeta =>
+  TaskConstMeta get kCrateFrbApiCrawlerSpawnSitesIndexBackgroundConstMeta =>
       const TaskConstMeta(
         debugName: "spawn_sites_index_background",
         argNames: [],
@@ -5086,7 +4973,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 137,
+            funcId: 132,
             port: port_,
           );
         },
@@ -5118,7 +5005,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 138,
+            funcId: 133,
             port: port_,
           );
         },
@@ -5158,7 +5045,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 139,
+            funcId: 134,
             port: port_,
           );
         },
@@ -5198,7 +5085,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 140,
+            funcId: 135,
             port: port_,
           );
         },
@@ -5219,7 +5106,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  Future<void> crateApiGenericScraperUpdateSingleSourceConfig({
+  Future<void> crateFrbApiGenericScraperUpdateSingleSourceConfig({
     required SourceConfigUpdate update,
   }) {
     return handler.executeNormal(
@@ -5230,7 +5117,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 141,
+            funcId: 136,
             port: port_,
           );
         },
@@ -5238,14 +5125,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiGenericScraperUpdateSingleSourceConfigConstMeta,
+        constMeta: kCrateFrbApiGenericScraperUpdateSingleSourceConfigConstMeta,
         argValues: [update],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiGenericScraperUpdateSingleSourceConfigConstMeta =>
+  TaskConstMeta
+  get kCrateFrbApiGenericScraperUpdateSingleSourceConfigConstMeta =>
       const TaskConstMeta(
         debugName: "update_single_source_config",
         argNames: ["update"],
@@ -5260,7 +5148,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 142,
+            funcId: 137,
             port: port_,
           );
         },

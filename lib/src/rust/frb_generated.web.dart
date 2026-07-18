@@ -6,21 +6,24 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
-import 'api/bangumi.dart';
+import 'api/bangumi/types.dart';
 import 'api/bangumi_graphql.dart';
 import 'api/captcha.dart';
 import 'api/config.dart';
-import 'api/crawler.dart';
+import 'api/crawler/types.dart';
 import 'api/danmaku.dart';
 import 'api/dmhy.dart';
 import 'api/ech.dart';
-import 'api/generic_scraper.dart';
+import 'api/generic_scraper/types.dart';
 import 'api/mikan.dart';
-import 'api/network.dart';
 import 'api/ranking.dart';
 import 'api/simple.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'frb_api/bangumi.dart';
+import 'frb_api/crawler.dart';
+import 'frb_api/generic_scraper.dart';
+import 'frb_api/network.dart';
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
 

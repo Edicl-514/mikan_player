@@ -3,21 +3,23 @@ mod fill_details;
 mod parse_time;
 mod schedule_api;
 mod sites_index;
-mod types;
+pub(crate) mod types;
 
-pub use bangumi_data_store::{
+pub(crate) use bangumi_data_store::{
     ensure_bangumi_data_cache, get_bangumi_data_cache_status, refresh_bangumi_data_cache,
 };
-pub use fill_details::{fetch_extra_subjects, fetch_light_subject_details, fill_anime_details};
-pub use schedule_api::{
+pub(crate) use fill_details::{
+    fetch_extra_subjects, fetch_light_subject_details, fill_anime_details,
+};
+pub(crate) use schedule_api::{
     fetch_archive_list, fetch_schedule_basic, fetch_schedule_basic_api_only,
     fetch_schedule_basic_from_local_json, fetch_schedule_basic_from_local_json_nodl,
 };
-pub use sites_index::{
+pub(crate) use sites_index::{
     build_sites_index, fetch_bangumi_data_sites, fetch_bangumi_data_sites_by_mikan,
     invalidate_sites_index, lookup_mikan_id, spawn_sites_index_background,
 };
-pub use types::*;
+pub(crate) use types::*;
 
 #[cfg(test)]
 mod tests {

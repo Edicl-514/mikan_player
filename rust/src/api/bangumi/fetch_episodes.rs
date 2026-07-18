@@ -1,6 +1,6 @@
 use super::types::*;
 
-pub async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<BangumiEpisode>> {
+pub(crate) async fn fetch_bangumi_episodes(subject_id: i64) -> anyhow::Result<Vec<BangumiEpisode>> {
     let mode = crate::api::config::get_bangumi_request_mode();
     match mode.as_str() {
         "modern" => fetch_bangumi_episodes_next(subject_id).await,

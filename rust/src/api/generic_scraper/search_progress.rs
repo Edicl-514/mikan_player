@@ -8,14 +8,14 @@ use scraper::{Html, Selector};
 use std::fs;
 
 /// 获取所有已启用源的列表（用于初始化UI显示）
-pub async fn get_enabled_source_names() -> anyhow::Result<Vec<String>> {
+pub(crate) async fn get_enabled_source_names() -> anyhow::Result<Vec<String>> {
     let sources = load_enabled_sources().await?;
     let names: Vec<String> = sources.iter().map(|s| s.arguments.name.clone()).collect();
     Ok(names)
 }
 
 /// 搜索所有源，以流的形式返回详细进度（包含搜索步骤和错误信息）
-pub async fn generic_search_with_progress(
+pub(crate) async fn generic_search_with_progress(
     anime_name: String,
     absolute_episode: Option<u32>,
     relative_episode: Option<u32>,
@@ -38,7 +38,7 @@ pub async fn generic_search_with_progress(
 /// * `target_source_names` - 目标源名称列表。为 None 或空时搜索所有已启用源；
 ///   非空时只搜索列表中列出的源，跳过不在列表中的源（不创建 skip 异步任务）。
 /// * `runtime_overrides` - 运行时覆盖，仅对列表中的源生效。
-pub async fn generic_search_with_progress_runtime(
+pub(crate) async fn generic_search_with_progress_runtime(
     anime_name: String,
     absolute_episode: Option<u32>,
     relative_episode: Option<u32>,
@@ -158,7 +158,7 @@ pub async fn generic_search_with_progress_runtime(
 /// - 只读取指定本地 JSON 文件，不读取也不写入缓存文件
 /// - 不修改订阅设置，不影响正式播放流程
 /// - 可选按源名称过滤（大小写不敏感，包含匹配）
-pub async fn debug_search_with_local_json(
+pub(crate) async fn debug_search_with_local_json(
     json_path: String,
     anime_name: String,
     absolute_episode: Option<u32>,
@@ -178,7 +178,7 @@ pub async fn debug_search_with_local_json(
     .await
 }
 
-pub async fn debug_search_with_local_json_runtime(
+pub(crate) async fn debug_search_with_local_json_runtime(
     json_path: String,
     anime_name: String,
     absolute_episode: Option<u32>,

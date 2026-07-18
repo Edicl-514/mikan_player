@@ -3,7 +3,7 @@ use super::util::*;
 
 /// Fetch person details
 /// API: GET https://api.bgm.tv/v0/persons/{person_id}
-pub async fn fetch_person_details(person_id: i64) -> anyhow::Result<PersonDetails> {
+pub(crate) async fn fetch_person_details(person_id: i64) -> anyhow::Result<PersonDetails> {
     let url = format!(
         "{}/v0/persons/{}",
         crate::api::config::get_bangumi_api_url(),
@@ -90,7 +90,7 @@ pub async fn fetch_person_details(person_id: i64) -> anyhow::Result<PersonDetail
 
 /// Fetch subjects for a person (only anime, type=2)
 /// API: GET https://api.bgm.tv/v0/persons/{person_id}/subjects
-pub async fn fetch_person_subjects(person_id: i64) -> anyhow::Result<Vec<PersonSubject>> {
+pub(crate) async fn fetch_person_subjects(person_id: i64) -> anyhow::Result<Vec<PersonSubject>> {
     let url = format!(
         "{}/v0/persons/{}/subjects",
         crate::api::config::get_bangumi_api_url(),
@@ -137,7 +137,9 @@ pub async fn fetch_person_subjects(person_id: i64) -> anyhow::Result<Vec<PersonS
 
 /// Fetch characters voiced/played by a person (only anime subjects, subject_type=2)
 /// API: GET https://api.bgm.tv/v0/persons/{person_id}/characters
-pub async fn fetch_person_characters(person_id: i64) -> anyhow::Result<Vec<PersonCharacter>> {
+pub(crate) async fn fetch_person_characters(
+    person_id: i64,
+) -> anyhow::Result<Vec<PersonCharacter>> {
     let url = format!(
         "{}/v0/persons/{}/characters",
         crate::api::config::get_bangumi_api_url(),

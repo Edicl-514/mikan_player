@@ -138,14 +138,14 @@ pub(super) async fn load_enabled_sources() -> anyhow::Result<Vec<MediaSource>> {
 
 /// Invalidate the in-memory source config cache so the next
 /// `load_enabled_sources` call will re-read from disk.
-pub fn invalidate_source_config_cache() {
+pub(crate) fn invalidate_source_config_cache() {
     let mut guard = CACHED_SOURCE_CONFIG.write().unwrap();
     *guard = None;
     log::info!("Source config cache invalidated");
 }
 
 /// 从订阅地址刷新播放源配置并保存到本地缓存
-pub async fn refresh_playback_source_config() -> anyhow::Result<String> {
+pub(crate) async fn refresh_playback_source_config() -> anyhow::Result<String> {
     let sub_url = crate::api::config::get_playback_sub_url();
     log::info!("Refreshing playback source config from: {}", sub_url);
 
@@ -169,7 +169,7 @@ pub async fn refresh_playback_source_config() -> anyhow::Result<String> {
 
 /// 预加载播放源配置（应用启动时调用）
 /// 尝试从本地缓存加载配置，如果缓存不存在则从订阅地址拉取
-pub async fn preload_playback_sources() -> anyhow::Result<()> {
+pub(crate) async fn preload_playback_sources() -> anyhow::Result<()> {
     let _ = detect_current_region_with_retry(2).await;
 
     // 先尝试从缓存加载
@@ -190,7 +190,7 @@ pub async fn preload_playback_sources() -> anyhow::Result<()> {
 }
 
 /// 获取所有播放源的状态
-pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
+pub(crate) async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
     let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
     let root: SampleRoot = serde_json::from_str(&content)?;
@@ -238,7 +238,7 @@ pub async fn get_playback_sources() -> anyhow::Result<Vec<SourceState>> {
 }
 
 /// 更新单个源的配置
-pub async fn update_single_source_config(update: SourceConfigUpdate) -> anyhow::Result<()> {
+pub(crate) async fn update_single_source_config(update: SourceConfigUpdate) -> anyhow::Result<()> {
     let client = crate::api::network::get_shared_client().clone();
     let content = load_playback_source_config(&client).await?;
     let mut root: SampleRoot = serde_json::from_str(&content)?;
@@ -317,7 +317,7 @@ pub async fn update_single_source_config(update: SourceConfigUpdate) -> anyhow::
 }
 
 /// 添加新的源配置
-pub async fn add_source_config(new_config: SourceConfigUpdate) -> anyhow::Result<()> {
+pub(crate) async fn add_source_config(new_config: SourceConfigUpdate) -> anyhow::Result<()> {
     // 检查名称是否为空
     if new_config.name.is_empty() {
         return Err(anyhow::anyhow!("Source name cannot be empty"));
