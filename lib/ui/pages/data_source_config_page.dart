@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 
 class DataSourceConfigPage extends StatefulWidget {
@@ -77,16 +78,31 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
   String _subjectFormatId = 'indexed';
   String _channelFormatId = 'index-grouped';
 
-  static const _subjectFormats = <String, String>{
-    'a': '单标签',
-    'indexed': '多标签',
-    'jsonpath-indexed': 'JsonPath',
+  static const _subjectFormatKeys = <String>{
+    'a',
+    'indexed',
+    'jsonpath-indexed',
   };
 
-  static const _channelFormats = <String, String>{
-    'index-grouped': '线路分组',
-    'no-channel': '不区分线路',
+  static const _channelFormatKeys = <String>{
+    'index-grouped',
+    'no-channel',
   };
+
+  Map<String, String> _subjectFormats(AppLocalizations l10n) {
+    return <String, String>{
+      'a': l10n.dataSourceConfigSubjectFormatA,
+      'indexed': l10n.dataSourceConfigSubjectFormatIndexed,
+      'jsonpath-indexed': l10n.dataSourceConfigSubjectFormatJsonPath,
+    };
+  }
+
+  Map<String, String> _channelFormats(AppLocalizations l10n) {
+    return <String, String>{
+      'index-grouped': l10n.dataSourceConfigChannelFormatIndexGrouped,
+      'no-channel': l10n.dataSourceConfigChannelFormatNoChannel,
+    };
+  }
 
   static const _resolutionOptions = <String>[
     '',
@@ -165,7 +181,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
     );
 
     _subjectFormatId = _stringAt(_searchConfig, 'subjectFormatId', 'indexed');
-    if (!_subjectFormats.containsKey(_subjectFormatId)) {
+    if (!_subjectFormatKeys.contains(_subjectFormatId)) {
       _subjectFormatId = 'indexed';
     }
     _subjectASelectListsController = _controller(
@@ -204,7 +220,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
       'channelFormatId',
       'index-grouped',
     );
-    if (!_channelFormats.containsKey(_channelFormatId)) {
+    if (!_channelFormatKeys.contains(_channelFormatId)) {
       _channelFormatId = 'index-grouped';
     }
     _channelNamesController = _controller(
@@ -615,16 +631,18 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
       }
 
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('配置已保存')));
+        ).showSnackBar(SnackBar(content: Text(l10n.dataSourceConfigSaved)));
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('保存失败: $e')));
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.dataSourceConfigSaveFailed(e.toString()))),
+        );
       }
     } finally {
       if (mounted) {
@@ -635,20 +653,24 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
     }
   }
 
-  String? _required(String? value) {
-    if (value == null || value.trim().isEmpty) return '必填';
+  String? _required(AppLocalizations l10n, String? value) {
+    if (value == null || value.trim().isEmpty) return l10n.dataSourceConfigRequired;
     return null;
   }
 
-  String? _integer(String? value) {
-    if (value == null || value.trim().isEmpty) return '必填';
-    if (int.tryParse(value.trim()) == null) return '请输入整数';
+  String? _integer(AppLocalizations l10n, String? value) {
+    if (value == null || value.trim().isEmpty) return l10n.dataSourceConfigRequired;
+    if (int.tryParse(value.trim()) == null) {
+      return l10n.dataSourceConfigIntegerRequired;
+    }
     return null;
   }
 
-  String? _optionalInteger(String? value) {
+  String? _optionalInteger(AppLocalizations l10n, String? value) {
     if (value == null || value.trim().isEmpty) return null;
-    if (int.tryParse(value.trim()) == null) return '请输入整数';
+    if (int.tryParse(value.trim()) == null) {
+      return l10n.dataSourceConfigIntegerRequired;
+    }
     return null;
   }
 
@@ -681,6 +703,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
     required String label,
     required List<String> options,
     String? helper,
+    String? emptyLabel,
   }) {
     final value = controller.text;
     final items = {
@@ -699,7 +722,9 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
         for (final item in items)
           DropdownMenuItem(
             value: item,
-            child: Text(item.isEmpty ? '不标记' : item),
+            child: Text(
+              item.isEmpty ? (emptyLabel ?? item) : item,
+            ),
           ),
       ],
       onChanged: (value) {
@@ -789,57 +814,61 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
     );
   }
 
-  List<Widget> _buildGeneralSection(bool isWide) {
+  List<Widget> _buildGeneralSection(AppLocalizations l10n, bool isWide) {
     return [
       _responsivePair(
         isWide,
         _textField(
           controller: _nameController,
-          label: '名称',
-          helper: '显示在数据源列表中的名称',
-          validator: _required,
+          label: l10n.dataSourceConfigName,
+          helper: l10n.dataSourceConfigNameHelper,
+          validator: (value) => _required(l10n, value),
         ),
         _textField(
           controller: _tierController,
-          label: '优先级',
-          helper: '数字越小优先级越高',
+          label: l10n.dataSourceConfigTier,
+          helper: l10n.dataSourceConfigTierHelper,
           keyboardType: TextInputType.number,
-          validator: _integer,
+          validator: (value) => _integer(l10n, value),
         ),
       ),
       _textField(
         controller: _iconUrlController,
-        label: '图标链接',
-        hint: 'https://...',
+        label: l10n.dataSourceConfigIconUrl,
+        hint: l10n.dataSourceConfigIconUrlHint,
       ),
-      _textField(controller: _descController, label: '描述', maxLines: 3),
+      _textField(
+        controller: _descController,
+        label: l10n.dataSourceConfigDescription,
+        maxLines: 3,
+      ),
     ];
   }
 
-  List<Widget> _buildSearchSection(bool isWide) {
+  List<Widget> _buildSearchSection(AppLocalizations l10n, bool isWide) {
     return [
       _textField(
         controller: _searchUrlController,
-        label: '搜索链接',
-        hint: 'https://example.com/search?wd={keyword}',
-        helper: '{keyword} 会替换为条目名称',
+        label: l10n.dataSourceConfigSearchUrl,
+        hint: l10n.dataSourceConfigSearchUrlHint('{keyword}'),
+        helper: l10n.dataSourceConfigSearchUrlHelper('{keyword}'),
         maxLines: 2,
-        validator: _required,
+        validator: (value) => _required(l10n, value),
       ),
       _textField(
         controller: _rawBaseUrlController,
-        label: 'Base URL',
-        helper: '可选。用于拼接条目详情页链接，留空时通常从搜索链接推断',
+        label: l10n.dataSourceConfigUseRawBaseUrl,
+        helper: l10n.dataSourceConfigUseRawBaseUrlHelper,
       ),
       _switchTile(
-        title: '仅使用第一个词',
-        subtitle: '以空格分割条目名后只用第一个词搜索',
+        title: l10n.dataSourceConfigSubjectUseFirstWord,
+        subtitle: l10n.dataSourceConfigSubjectUseFirstWordSub,
         value: _searchUseOnlyFirstWord,
         onChanged: (value) => _searchUseOnlyFirstWord = value,
       ),
       _switchTile(
-        title: '去除特殊字符',
-        subtitle: '清理符号和部分常见干扰词，提升搜索兼容性',
+        title: l10n.dataSourceConfigSubjectRemoveSpecial,
+        subtitle: l10n.dataSourceConfigSubjectRemoveSpecialSub,
         value: _searchRemoveSpecial,
         onChanged: (value) => _searchRemoveSpecial = value,
       ),
@@ -847,38 +876,38 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
         isWide,
         _textField(
           controller: _searchUseSubjectNamesCountController,
-          label: '尝试条目名称数量',
-          helper: '留空使用默认值。1 表示仅使用主名称',
+          label: l10n.dataSourceConfigSubjectUseNamesCount,
+          helper: l10n.dataSourceConfigSubjectUseNamesCountHelper,
           keyboardType: TextInputType.number,
-          validator: _optionalInteger,
+          validator: (value) => _optionalInteger(l10n, value),
         ),
         _textField(
           controller: _requestIntervalController,
-          label: '请求间隔 (毫秒)',
-          helper: '每次请求后的等待时间',
+          label: l10n.dataSourceConfigRequestInterval,
+          helper: l10n.dataSourceConfigRequestIntervalHelper,
           keyboardType: TextInputType.number,
-          validator: _optionalInteger,
+          validator: (value) => _optionalInteger(l10n, value),
         ),
       ),
     ];
   }
 
-  List<Widget> _buildSubjectSection(bool isWide) {
+  List<Widget> _buildSubjectSection(AppLocalizations l10n, bool isWide) {
     return [
       _segmentedSelector(
         value: _subjectFormatId,
-        labels: _subjectFormats,
+        labels: _subjectFormats(l10n),
         onChanged: (value) => _subjectFormatId = value,
       ),
       if (_subjectFormatId == 'a') ...[
         _textField(
           controller: _subjectASelectListsController,
-          label: '条目链接选择器',
-          helper: '从搜索结果页选择条目详情链接',
-          validator: _required,
+          label: l10n.dataSourceConfigSubjectLinkSelector,
+          helper: l10n.dataSourceConfigSubjectLinkSelectorHelper,
+          validator: (value) => _required(l10n, value),
         ),
         _switchTile(
-          title: '优先匹配较短名称',
+          title: l10n.dataSourceConfigPreferShorterName,
           value: _preferSubjectAShorterName,
           onChanged: (value) => _preferSubjectAShorterName = value,
         ),
@@ -887,17 +916,17 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
           isWide,
           _textField(
             controller: _subjectJsonPathSelectNamesController,
-            label: '名称 JsonPath',
-            validator: _required,
+            label: l10n.dataSourceConfigNameJsonPath,
+            validator: (value) => _required(l10n, value),
           ),
           _textField(
             controller: _subjectJsonPathSelectLinksController,
-            label: '链接 JsonPath',
-            validator: _required,
+            label: l10n.dataSourceConfigLinkJsonPath,
+            validator: (value) => _required(l10n, value),
           ),
         ),
         _switchTile(
-          title: '优先匹配较短名称',
+          title: l10n.dataSourceConfigPreferShorterName,
           value: _preferSubjectJsonPathShorterName,
           onChanged: (value) => _preferSubjectJsonPathShorterName = value,
         ),
@@ -906,17 +935,17 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
           isWide,
           _textField(
             controller: _subjectIndexedSelectNamesController,
-            label: '条目名称选择器',
-            validator: _required,
+            label: l10n.dataSourceConfigSubjectNameSelector,
+            validator: (value) => _required(l10n, value),
           ),
           _textField(
             controller: _subjectIndexedSelectLinksController,
-            label: '条目链接选择器',
-            validator: _required,
+            label: l10n.dataSourceConfigSubjectLinkSelector,
+            validator: (value) => _required(l10n, value),
           ),
         ),
         _switchTile(
-          title: '优先匹配较短名称',
+          title: l10n.dataSourceConfigPreferShorterName,
           value: _preferSubjectIndexedShorterName,
           onChanged: (value) => _preferSubjectIndexedShorterName = value,
         ),
@@ -924,11 +953,11 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
     ];
   }
 
-  List<Widget> _buildChannelSection(bool isWide) {
+  List<Widget> _buildChannelSection(AppLocalizations l10n, bool isWide) {
     return [
       _segmentedSelector(
         value: _channelFormatId,
-        labels: _channelFormats,
+        labels: _channelFormats(l10n),
         onChanged: (value) => _channelFormatId = value,
       ),
       if (_channelFormatId == 'index-grouped') ...[
@@ -936,227 +965,241 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
           isWide,
           _textField(
             controller: _channelNamesController,
-            label: '线路名称选择器',
-            helper: '例如线路、字幕组、播放源 tab',
+            label: l10n.dataSourceConfigChannelNameSelector,
+            helper: l10n.dataSourceConfigChannelNameSelectorHelper,
           ),
           _textField(
             controller: _channelNameRegexController,
-            label: '线路名称正则',
-            helper: r'可用 (?<ch>...) 捕获最终名称',
+            label: l10n.dataSourceConfigChannelNameRegex,
+            helper: l10n.dataSourceConfigChannelNameRegexHelper,
           ),
         ),
         _textField(
           controller: _episodeListsController,
-          label: '剧集列表选择器',
-          validator: _required,
+          label: l10n.dataSourceConfigEpisodeListSelector,
+          validator: (value) => _required(l10n, value),
         ),
         _responsivePair(
           isWide,
           _textField(
             controller: _episodesFromListController,
-            label: '列表内剧集选择器',
-            validator: _required,
+            label: l10n.dataSourceConfigEpisodesFromListSelector,
+            validator: (value) => _required(l10n, value),
           ),
           _textField(
             controller: _episodeLinksFromListController,
-            label: '列表内链接选择器',
-            helper: '留空时使用剧集元素自身 href',
+            label: l10n.dataSourceConfigEpisodeLinkSelector,
+            helper: l10n.dataSourceConfigEpisodeLinkSelectorHelper,
           ),
         ),
         _textField(
           controller: _episodeSortRegexController,
-          label: '剧集序号正则',
-          helper: r'建议使用 (?<ep>...) 捕获集数',
+          label: l10n.dataSourceConfigSortRegex,
+          helper: l10n.dataSourceConfigSortRegexHelper,
         ),
       ] else ...[
         _textField(
           controller: _noChannelEpisodesController,
-          label: '剧集选择器',
-          validator: _required,
+          label: l10n.dataSourceConfigEpisodeSelector,
+          validator: (value) => _required(l10n, value),
         ),
         _responsivePair(
           isWide,
           _textField(
             controller: _noChannelEpisodeLinksController,
-            label: '剧集链接选择器',
-            helper: '留空时使用剧集元素自身 href',
+            label: l10n.dataSourceConfigFromListEpisodeLinkSelector,
+            helper: l10n.dataSourceConfigFromListEpisodeLinkSelectorHelper,
           ),
           _textField(
             controller: _noChannelEpisodeSortRegexController,
-            label: '剧集序号正则',
-            helper: r'建议使用 (?<ep>...) 捕获集数',
+            label: l10n.dataSourceConfigSortRegex,
+            helper: l10n.dataSourceConfigSortRegexHelper,
           ),
         ),
       ],
     ];
   }
 
-  List<Widget> _buildFilterAndPlayerSection(bool isWide) {
+  List<Widget> _buildFilterAndPlayerSection(
+    AppLocalizations l10n,
+    bool isWide,
+  ) {
     return [
       _responsivePair(
         isWide,
         _dropdownTextField(
           controller: _resolutionController,
-          label: '标记分辨率',
-          helper: '用于播放器内偏好和过滤',
+          label: l10n.dataSourceConfigResolutionLabel,
+          helper: l10n.dataSourceConfigResolutionHelper,
+          emptyLabel: l10n.dataSourceConfigNotMarked,
           options: _resolutionOptions,
         ),
         _dropdownTextField(
           controller: _subtitleController,
-          label: '标记字幕语言',
-          helper: '用于播放器内偏好和过滤',
+          label: l10n.dataSourceConfigSubtitleLabel,
+          helper: l10n.dataSourceConfigSubtitleHelper,
+          emptyLabel: l10n.dataSourceConfigNotMarked,
           options: _subtitleOptions,
         ),
       ),
       _switchTile(
-        title: '使用条目名称过滤',
-        subtitle: '要求资源标题包含条目名称',
+        title: l10n.dataSourceConfigFilterBySubjectName,
+        subtitle: l10n.dataSourceConfigFilterBySubjectNameSub,
         value: _filterBySubjectName,
         onChanged: (value) => _filterBySubjectName = value,
       ),
       _switchTile(
-        title: '使用剧集序号过滤',
-        subtitle: '要求资源标题包含剧集序号，通常建议开启',
+        title: l10n.dataSourceConfigFilterByEpisodeSort,
+        subtitle: l10n.dataSourceConfigFilterByEpisodeSortSub,
         value: _filterByEpisodeSort,
         onChanged: (value) => _filterByEpisodeSort = value,
       ),
       _switchTile(
-        title: '区分条目名称',
-        subtitle: '关闭后，不同搜索结果中同名剧集会被去重',
+        title: l10n.dataSourceConfigDistinguishSubjectName,
+        subtitle: l10n.dataSourceConfigDistinguishSubjectNameSub,
         value: _distinguishSubjectName,
         onChanged: (value) => _distinguishSubjectName = value,
       ),
       _switchTile(
-        title: '区分线路名称',
-        subtitle: '关闭后，不同线路中的同名剧集会被去重',
+        title: l10n.dataSourceConfigDistinguishChannelName,
+        subtitle: l10n.dataSourceConfigDistinguishChannelNameSub,
         value: _distinguishChannelName,
         onChanged: (value) => _distinguishChannelName = value,
       ),
     ];
   }
 
-  List<Widget> _buildVideoSection(bool isWide) {
+  List<Widget> _buildVideoSection(AppLocalizations l10n, bool isWide) {
     return [
       _textField(
         controller: _matchVideoUrlController,
-        label: '视频 URL 正则',
-        helper: r'可用 (?<v>...) 捕获最终播放地址',
+        label: l10n.dataSourceConfigMatchVideoUrl,
+        helper: l10n.dataSourceConfigMatchVideoUrlHelper,
         maxLines: 4,
-        validator: _required,
+        validator: (value) => _required(l10n, value),
       ),
       _switchTile(
-        title: '启用嵌套 URL 匹配',
-        subtitle: '先从播放器页找到内层播放页，再匹配视频地址',
+        title: l10n.dataSourceConfigEnableNestedUrl,
+        subtitle: l10n.dataSourceConfigEnableNestedUrlSub,
         value: _enableNestedUrl,
         onChanged: (value) => _enableNestedUrl = value,
       ),
       _textField(
         controller: _matchNestedUrlController,
-        label: '嵌套 URL 正则',
+        label: l10n.dataSourceConfigNestedUrlRegex,
         maxLines: 3,
       ),
       _textField(
         controller: _cookiesController,
-        label: 'Cookie',
-        helper: '播放视频请求携带的 Cookie，可留空',
+        label: l10n.dataSourceConfigCookie,
+        helper: l10n.dataSourceConfigCookieHelper,
         maxLines: 2,
       ),
       _responsivePair(
         isWide,
         _textField(
           controller: _refererController,
-          label: 'Referer',
-          helper: '播放视频请求的 Referer',
+          label: l10n.dataSourceConfigReferer,
+          helper: l10n.dataSourceConfigRefererHelper,
         ),
         _textField(
           controller: _userAgentController,
-          label: 'User-Agent',
-          helper: '播放视频请求的 User-Agent',
+          label: l10n.dataSourceConfigUserAgent,
+          helper: l10n.dataSourceConfigUserAgentHelper,
           maxLines: 2,
         ),
       ),
     ];
   }
 
-  List<Widget> _buildCaptchaSection(bool isWide) {
+  List<Widget> _buildCaptchaSection(AppLocalizations l10n, bool isWide) {
     return [
       _switchTile(
-        title: '启用验证码处理',
-        subtitle: '需要绕过详情页验证码时开启',
+        title: l10n.dataSourceConfigEnableCaptcha,
+        subtitle: l10n.dataSourceConfigEnableCaptchaSub,
         value: _captchaEnable,
         onChanged: (value) => _captchaEnable = value,
       ),
       if (_captchaEnable || _hadCaptchaConfig) ...[
         _responsivePair(
           isWide,
-          _textField(controller: _captchaTypeController, label: '类型'),
+          _textField(
+            controller: _captchaTypeController,
+            label: l10n.dataSourceConfigType,
+          ),
           _textField(
             controller: _captchaInitialDelayController,
-            label: '初始等待 (毫秒)',
+            label: l10n.dataSourceConfigCaptchaInitialDelay,
             keyboardType: TextInputType.number,
-            validator: _optionalInteger,
+            validator: (value) => _optionalInteger(l10n, value),
           ),
         ),
         _switchTile(
-          title: '详情页使用 WebView',
+          title: l10n.dataSourceConfigUseWebViewForCaptchaDetail,
           value: _captchaUseWebViewForDetail,
           onChanged: (value) => _captchaUseWebViewForDetail = value,
         ),
         _textField(
           controller: _captchaDetectSelectorController,
-          label: '验证码检测选择器',
+          label: l10n.dataSourceConfigDetectSelector,
           maxLines: 2,
         ),
         _textField(
           controller: _captchaSuccessSelectorController,
-          label: '成功页面选择器',
+          label: l10n.dataSourceConfigSuccessSelector,
           maxLines: 2,
         ),
         _responsivePair(
           isWide,
           _textField(
             controller: _captchaImageSelectorController,
-            label: '验证码图片选择器',
+            label: l10n.dataSourceConfigImageSelector,
           ),
           _textField(
             controller: _captchaRefreshSelectorController,
-            label: '刷新图片选择器',
+            label: l10n.dataSourceConfigRefreshSelector,
           ),
         ),
         _responsivePair(
           isWide,
           _textField(
             controller: _captchaInputSelectorController,
-            label: '输入框选择器',
+            label: l10n.dataSourceConfigInputSelector,
           ),
           _textField(
             controller: _captchaSubmitSelectorController,
-            label: '提交按钮选择器',
+            label: l10n.dataSourceConfigSubmitSelector,
           ),
         ),
         _responsivePair(
           isWide,
           _textField(
             controller: _captchaExpectedLengthController,
-            label: '验证码长度',
+            label: l10n.dataSourceConfigExpectedLength,
             keyboardType: TextInputType.number,
-            validator: _optionalInteger,
+            validator: (value) => _optionalInteger(l10n, value),
           ),
-          _textField(controller: _captchaAllowedCharsController, label: '允许字符'),
+          _textField(
+            controller: _captchaAllowedCharsController,
+            label: l10n.dataSourceConfigAllowedChars,
+          ),
         ),
       ],
     ];
   }
 
-  Widget _buildPreviewSection() {
+  Widget _buildPreviewSection(AppLocalizations l10n) {
     final searchJson = _jsonEncoder.convert(_buildSearchConfig());
     final captchaJson = _buildCaptchaConfigJson();
     return _section(
-      title: '生成的 JSON',
-      subtitle: '用于核对保存内容',
+      title: l10n.dataSourceConfigJsonPreviewTitle,
+      subtitle: l10n.dataSourceConfigJsonPreviewSub,
       initiallyExpanded: false,
       children: [
-        Text('searchConfig', style: Theme.of(context).textTheme.titleSmall),
+        Text(
+          l10n.dataSourceConfigJsonSchemaSearch,
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),
@@ -1166,7 +1209,10 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
           ),
           child: SelectableText(searchJson),
         ),
-        Text('captchaConfig', style: Theme.of(context).textTheme.titleSmall),
+        Text(
+          l10n.dataSourceConfigJsonSchemaCaptcha,
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),
@@ -1174,65 +1220,73 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
             borderRadius: BorderRadius.circular(8),
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
           ),
-          child: SelectableText(captchaJson ?? '未配置'),
+          child: SelectableText(
+            captchaJson ?? l10n.dataSourceConfigJsonSchemaNotConfigured,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildFormContent(bool isWide) {
+  Widget _buildFormContent(AppLocalizations l10n, bool isWide) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _section(title: '基本信息', children: _buildGeneralSection(isWide)),
         _section(
-          title: '步骤 1：搜索条目',
-          subtitle: '配置搜索链接和搜索词处理规则',
-          children: _buildSearchSection(isWide),
+          title: l10n.dataSourceConfigBasicInfo,
+          children: _buildGeneralSection(l10n, isWide),
         ),
         _section(
-          title: '步骤 1：解析搜索结果',
-          subtitle: '从搜索结果中提取条目名称和详情页链接',
-          children: _buildSubjectSection(isWide),
+          title: l10n.dataSourceConfigStep1Search,
+          subtitle: l10n.dataSourceConfigStep1SearchSub,
+          children: _buildSearchSection(l10n, isWide),
         ),
         _section(
-          title: '步骤 2：解析线路和剧集',
-          subtitle: '从详情页提取线路、剧集和播放页链接',
-          children: _buildChannelSection(isWide),
+          title: l10n.dataSourceConfigStep1ParseResults,
+          subtitle: l10n.dataSourceConfigStep1ParseResultsSub,
+          children: _buildSubjectSection(l10n, isWide),
         ),
         _section(
-          title: '过滤和播放器选择',
-          children: _buildFilterAndPlayerSection(isWide),
+          title: l10n.dataSourceConfigStep2Channels,
+          subtitle: l10n.dataSourceConfigStep2ChannelsSub,
+          children: _buildChannelSection(l10n, isWide),
         ),
         _section(
-          title: '步骤 3：匹配视频',
-          subtitle: '从播放页提取最终视频地址和请求头',
-          children: _buildVideoSection(isWide),
+          title: l10n.dataSourceConfigFilterAndPlayer,
+          children: _buildFilterAndPlayerSection(l10n, isWide),
         ),
         _section(
-          title: '验证码',
-          subtitle: '可选。仅数据源存在验证码时需要配置',
-          children: _buildCaptchaSection(isWide),
+          title: l10n.dataSourceConfigStep3MatchVideo,
+          subtitle: l10n.dataSourceConfigStep3MatchVideoSub,
+          children: _buildVideoSection(l10n, isWide),
+        ),
+        _section(
+          title: l10n.dataSourceConfigCaptcha,
+          subtitle: l10n.dataSourceConfigCaptchaSub,
+          children: _buildCaptchaSection(l10n, isWide),
           initiallyExpanded: _hadCaptchaConfig,
         ),
-        _buildPreviewSection(),
+        _buildPreviewSection(l10n),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final isPc = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
     final isWide = MediaQuery.sizeOf(context).width >= 760;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.source == null ? '新建数据源' : '配置: ${widget.source!.name}',
+          widget.source == null
+              ? l10n.dataSourceConfigNew
+              : l10n.dataSourceConfigEditing(widget.source!.name),
         ),
         actions: [
           IconButton(
-            tooltip: '保存',
+            tooltip: l10n.dataSourceConfigSave,
             icon: _isSaving
                 ? const SizedBox(
                     width: 24,
@@ -1254,7 +1308,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
                 constraints: BoxConstraints(
                   maxWidth: isPc ? 960 : double.infinity,
                 ),
-                child: _buildFormContent(isWide),
+                child: _buildFormContent(l10n, isWide),
               ),
             ),
           ],

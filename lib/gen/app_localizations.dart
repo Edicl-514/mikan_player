@@ -458,6 +458,84 @@ abstract class AppLocalizations {
   /// **'高级设置'**
   String get networkSectionAdvanced;
 
+  /// No description provided for @networkBangumiRequestModeLegacy.
+  ///
+  /// In zh, this message translates to:
+  /// **'旧版'**
+  String get networkBangumiRequestModeLegacy;
+
+  /// No description provided for @networkBangumiRequestModeHybrid.
+  ///
+  /// In zh, this message translates to:
+  /// **'混合（推荐）'**
+  String get networkBangumiRequestModeHybrid;
+
+  /// No description provided for @networkBangumiRequestModeModern.
+  ///
+  /// In zh, this message translates to:
+  /// **'新版'**
+  String get networkBangumiRequestModeModern;
+
+  /// No description provided for @networkBangumiOfflineBroadcastData.
+  ///
+  /// In zh, this message translates to:
+  /// **'离线放送数据'**
+  String get networkBangumiOfflineBroadcastData;
+
+  /// No description provided for @networkBangumiDataLoading.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载中…'**
+  String get networkBangumiDataLoading;
+
+  /// No description provided for @networkBangumiDataNotCached.
+  ///
+  /// In zh, this message translates to:
+  /// **'未缓存 · 点击下载离线兜底数据'**
+  String get networkBangumiDataNotCached;
+
+  /// Status line for cached broadcast data, where {size} is a localized size like '1.2 MB' or '512 KB'.
+  ///
+  /// In zh, this message translates to:
+  /// **'已缓存 {size}'**
+  String networkBangumiDataCachedSize(String size);
+
+  /// Status line shown after the cached size, where {time} is a localized date-time string.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步于 {time}'**
+  String networkBangumiDataSyncTime(String time);
+
+  /// Version suffix shown after the cached size and sync time.
+  ///
+  /// In zh, this message translates to:
+  /// **'v{version}'**
+  String networkBangumiDataVersion(String version);
+
+  /// Status suffix shown when the last sync failed less than an hour ago.
+  ///
+  /// In zh, this message translates to:
+  /// **'{minutes}分钟前同步失败'**
+  String networkBangumiDataFailedMins(int minutes);
+
+  /// Status suffix shown when the last sync failed an hour or more ago.
+  ///
+  /// In zh, this message translates to:
+  /// **'{hours}小时前同步失败'**
+  String networkBangumiDataFailedHours(int hours);
+
+  /// No description provided for @networkBangumiDataRefreshSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'已更新离线放送数据'**
+  String get networkBangumiDataRefreshSuccess;
+
+  /// No description provided for @networkBangumiDataRefreshFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新失败，请检查网络'**
+  String get networkBangumiDataRefreshFailed;
+
   /// No description provided for @searchSettings.
   ///
   /// In zh, this message translates to:
@@ -505,6 +583,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'新建和自动恢复的 BT 任务会使用所选后端'**
   String get downloadEngineSubtitle;
+
+  /// No description provided for @downloadEngineRqbitDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'rqbit 基于 Rust 构建，内存占用低，启动快速，擅长边下边播（串流）场景，适合快速预览视频内容。'**
+  String get downloadEngineRqbitDescription;
+
+  /// No description provided for @downloadEngineLibtorrentDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'libtorrent 是成熟的 C++ BT 引擎，下载稳定高效，兼容性好，擅长完整下载和资源做种，适合长期保种场景。'**
+  String get downloadEngineLibtorrentDescription;
 
   /// No description provided for @downloadParallelTasks.
   ///
@@ -1381,6 +1471,630 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'保存'**
   String get dataSourceConfigSave;
+
+  /// No description provided for @dataSourceConfigAllowedChars.
+  ///
+  /// In zh, this message translates to:
+  /// **'允许字符'**
+  String get dataSourceConfigAllowedChars;
+
+  /// No description provided for @dataSourceConfigBasicInfo.
+  ///
+  /// In zh, this message translates to:
+  /// **'基本信息'**
+  String get dataSourceConfigBasicInfo;
+
+  /// No description provided for @dataSourceConfigCaptcha.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证码'**
+  String get dataSourceConfigCaptcha;
+
+  /// No description provided for @dataSourceConfigCaptchaSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'可选。仅数据源存在验证码时需要配置'**
+  String get dataSourceConfigCaptchaSub;
+
+  /// No description provided for @dataSourceConfigChannelNameRegex.
+  ///
+  /// In zh, this message translates to:
+  /// **'线路名称正则'**
+  String get dataSourceConfigChannelNameRegex;
+
+  /// No description provided for @dataSourceConfigChannelNameRegexHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'可用 (?<ch>...) 捕获最终名称'**
+  String get dataSourceConfigChannelNameRegexHelper;
+
+  /// No description provided for @dataSourceConfigChannelNameSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'线路名称选择器'**
+  String get dataSourceConfigChannelNameSelector;
+
+  /// No description provided for @dataSourceConfigChannelNameSelectorHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'例如线路、字幕组、播放源 tab'**
+  String get dataSourceConfigChannelNameSelectorHelper;
+
+  /// No description provided for @dataSourceConfigCookie.
+  ///
+  /// In zh, this message translates to:
+  /// **'Cookie'**
+  String get dataSourceConfigCookie;
+
+  /// No description provided for @dataSourceConfigCookieHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放视频请求携带的 Cookie，可留空'**
+  String get dataSourceConfigCookieHelper;
+
+  /// No description provided for @dataSourceConfigDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'描述'**
+  String get dataSourceConfigDescription;
+
+  /// No description provided for @dataSourceConfigDetectSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证码检测选择器'**
+  String get dataSourceConfigDetectSelector;
+
+  /// No description provided for @dataSourceConfigDistinguishChannelName.
+  ///
+  /// In zh, this message translates to:
+  /// **'区分线路名称'**
+  String get dataSourceConfigDistinguishChannelName;
+
+  /// No description provided for @dataSourceConfigDistinguishChannelNameSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭后，不同线路中的同名剧集会被去重'**
+  String get dataSourceConfigDistinguishChannelNameSub;
+
+  /// No description provided for @dataSourceConfigDistinguishSubjectName.
+  ///
+  /// In zh, this message translates to:
+  /// **'区分条目名称'**
+  String get dataSourceConfigDistinguishSubjectName;
+
+  /// No description provided for @dataSourceConfigDistinguishSubjectNameSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭后，不同搜索结果中同名剧集会被去重'**
+  String get dataSourceConfigDistinguishSubjectNameSub;
+
+  /// AppBar title when editing an existing data source.
+  ///
+  /// In zh, this message translates to:
+  /// **'配置: {name}'**
+  String dataSourceConfigEditing(String name);
+
+  /// No description provided for @dataSourceConfigEnableCaptcha.
+  ///
+  /// In zh, this message translates to:
+  /// **'启用验证码处理'**
+  String get dataSourceConfigEnableCaptcha;
+
+  /// No description provided for @dataSourceConfigEnableCaptchaSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要绕过详情页验证码时开启'**
+  String get dataSourceConfigEnableCaptchaSub;
+
+  /// No description provided for @dataSourceConfigEnableNestedUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'启用嵌套 URL 匹配'**
+  String get dataSourceConfigEnableNestedUrl;
+
+  /// No description provided for @dataSourceConfigEnableNestedUrlSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'先从播放器页找到内层播放页，再匹配视频地址'**
+  String get dataSourceConfigEnableNestedUrlSub;
+
+  /// No description provided for @dataSourceConfigEpisodeLinkSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'列表内链接选择器'**
+  String get dataSourceConfigEpisodeLinkSelector;
+
+  /// No description provided for @dataSourceConfigEpisodeLinkSelectorHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'留空时使用剧集元素自身 href'**
+  String get dataSourceConfigEpisodeLinkSelectorHelper;
+
+  /// No description provided for @dataSourceConfigEpisodeListSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧集列表选择器'**
+  String get dataSourceConfigEpisodeListSelector;
+
+  /// No description provided for @dataSourceConfigEpisodeSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧集选择器'**
+  String get dataSourceConfigEpisodeSelector;
+
+  /// No description provided for @dataSourceConfigEpisodesFromListSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'列表内剧集选择器'**
+  String get dataSourceConfigEpisodesFromListSelector;
+
+  /// No description provided for @dataSourceConfigExpectedLength.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证码长度'**
+  String get dataSourceConfigExpectedLength;
+
+  /// No description provided for @dataSourceConfigFilterAndPlayer.
+  ///
+  /// In zh, this message translates to:
+  /// **'过滤和播放器选择'**
+  String get dataSourceConfigFilterAndPlayer;
+
+  /// No description provided for @dataSourceConfigFilterByEpisodeSort.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用剧集序号过滤'**
+  String get dataSourceConfigFilterByEpisodeSort;
+
+  /// No description provided for @dataSourceConfigFilterByEpisodeSortSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'要求资源标题包含剧集序号，通常建议开启'**
+  String get dataSourceConfigFilterByEpisodeSortSub;
+
+  /// No description provided for @dataSourceConfigFilterBySubjectName.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用条目名称过滤'**
+  String get dataSourceConfigFilterBySubjectName;
+
+  /// No description provided for @dataSourceConfigFilterBySubjectNameSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'要求资源标题包含条目名称'**
+  String get dataSourceConfigFilterBySubjectNameSub;
+
+  /// No description provided for @dataSourceConfigFromListEpisodeLinkSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧集链接选择器'**
+  String get dataSourceConfigFromListEpisodeLinkSelector;
+
+  /// No description provided for @dataSourceConfigFromListEpisodeLinkSelectorHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'留空时使用剧集元素自身 href'**
+  String get dataSourceConfigFromListEpisodeLinkSelectorHelper;
+
+  /// No description provided for @dataSourceConfigIconUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'图标链接'**
+  String get dataSourceConfigIconUrl;
+
+  /// No description provided for @dataSourceConfigIconUrlHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'https://...'**
+  String get dataSourceConfigIconUrlHint;
+
+  /// No description provided for @dataSourceConfigImageSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证码图片选择器'**
+  String get dataSourceConfigImageSelector;
+
+  /// No description provided for @dataSourceConfigInputSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入框选择器'**
+  String get dataSourceConfigInputSelector;
+
+  /// No description provided for @dataSourceConfigIntegerRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入整数'**
+  String get dataSourceConfigIntegerRequired;
+
+  /// No description provided for @dataSourceConfigJsonPreviewSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'用于核对保存内容'**
+  String get dataSourceConfigJsonPreviewSub;
+
+  /// No description provided for @dataSourceConfigJsonPreviewTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'生成的 JSON'**
+  String get dataSourceConfigJsonPreviewTitle;
+
+  /// No description provided for @dataSourceConfigJsonSchemaCaptcha.
+  ///
+  /// In zh, this message translates to:
+  /// **'captchaConfig'**
+  String get dataSourceConfigJsonSchemaCaptcha;
+
+  /// No description provided for @dataSourceConfigJsonSchemaSearch.
+  ///
+  /// In zh, this message translates to:
+  /// **'searchConfig'**
+  String get dataSourceConfigJsonSchemaSearch;
+
+  /// No description provided for @dataSourceConfigJsonSchemaNotConfigured.
+  ///
+  /// In zh, this message translates to:
+  /// **'未配置'**
+  String get dataSourceConfigJsonSchemaNotConfigured;
+
+  /// No description provided for @dataSourceConfigLinkJsonPath.
+  ///
+  /// In zh, this message translates to:
+  /// **'链接 JsonPath'**
+  String get dataSourceConfigLinkJsonPath;
+
+  /// No description provided for @dataSourceConfigMatchVideoUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'视频 URL 正则'**
+  String get dataSourceConfigMatchVideoUrl;
+
+  /// No description provided for @dataSourceConfigMatchVideoUrlHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'可用 (?<v>...) 捕获最终播放地址'**
+  String get dataSourceConfigMatchVideoUrlHelper;
+
+  /// No description provided for @dataSourceConfigName.
+  ///
+  /// In zh, this message translates to:
+  /// **'名称'**
+  String get dataSourceConfigName;
+
+  /// No description provided for @dataSourceConfigNameHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示在数据源列表中的名称'**
+  String get dataSourceConfigNameHelper;
+
+  /// No description provided for @dataSourceConfigNameJsonPath.
+  ///
+  /// In zh, this message translates to:
+  /// **'名称 JsonPath'**
+  String get dataSourceConfigNameJsonPath;
+
+  /// No description provided for @dataSourceConfigNestedUrlRegex.
+  ///
+  /// In zh, this message translates to:
+  /// **'嵌套 URL 正则'**
+  String get dataSourceConfigNestedUrlRegex;
+
+  /// No description provided for @dataSourceConfigNew.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建数据源'**
+  String get dataSourceConfigNew;
+
+  /// No description provided for @dataSourceConfigNotMarked.
+  ///
+  /// In zh, this message translates to:
+  /// **'不标记'**
+  String get dataSourceConfigNotMarked;
+
+  /// No description provided for @dataSourceConfigPreferShorterName.
+  ///
+  /// In zh, this message translates to:
+  /// **'优先匹配较短名称'**
+  String get dataSourceConfigPreferShorterName;
+
+  /// No description provided for @dataSourceConfigRefreshSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新图片选择器'**
+  String get dataSourceConfigRefreshSelector;
+
+  /// No description provided for @dataSourceConfigReferer.
+  ///
+  /// In zh, this message translates to:
+  /// **'Referer'**
+  String get dataSourceConfigReferer;
+
+  /// No description provided for @dataSourceConfigRefererHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放视频请求的 Referer'**
+  String get dataSourceConfigRefererHelper;
+
+  /// No description provided for @dataSourceConfigRequestInterval.
+  ///
+  /// In zh, this message translates to:
+  /// **'请求间隔 (毫秒)'**
+  String get dataSourceConfigRequestInterval;
+
+  /// No description provided for @dataSourceConfigRequestIntervalHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'每次请求后的等待时间'**
+  String get dataSourceConfigRequestIntervalHelper;
+
+  /// No description provided for @dataSourceConfigRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'必填'**
+  String get dataSourceConfigRequired;
+
+  /// No description provided for @dataSourceConfigResolutionLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'标记分辨率'**
+  String get dataSourceConfigResolutionLabel;
+
+  /// No description provided for @dataSourceConfigResolutionHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'用于播放器内偏好和过滤'**
+  String get dataSourceConfigResolutionHelper;
+
+  /// No description provided for @dataSourceConfigSaved.
+  ///
+  /// In zh, this message translates to:
+  /// **'配置已保存'**
+  String get dataSourceConfigSaved;
+
+  /// SnackBar message shown when saving the data source fails.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存失败: {error}'**
+  String dataSourceConfigSaveFailed(String error);
+
+  /// No description provided for @dataSourceConfigSearchUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索链接'**
+  String get dataSourceConfigSearchUrl;
+
+  /// Helper text under the search URL field explaining the {keyword} placeholder.
+  ///
+  /// In zh, this message translates to:
+  /// **'{keyword} 会替换为条目名称'**
+  String dataSourceConfigSearchUrlHelper(String keyword);
+
+  /// Example URL shown as the hint of the search URL field.
+  ///
+  /// In zh, this message translates to:
+  /// **'https://example.com/search?wd={keyword}'**
+  String dataSourceConfigSearchUrlHint(String keyword);
+
+  /// No description provided for @dataSourceConfigSortRegex.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧集序号正则'**
+  String get dataSourceConfigSortRegex;
+
+  /// No description provided for @dataSourceConfigSortRegexHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'建议使用 (?<ep>...) 捕获集数'**
+  String get dataSourceConfigSortRegexHelper;
+
+  /// No description provided for @dataSourceConfigStep1ParseResults.
+  ///
+  /// In zh, this message translates to:
+  /// **'步骤 1：解析搜索结果'**
+  String get dataSourceConfigStep1ParseResults;
+
+  /// No description provided for @dataSourceConfigStep1ParseResultsSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'从搜索结果中提取条目名称和详情页链接'**
+  String get dataSourceConfigStep1ParseResultsSub;
+
+  /// No description provided for @dataSourceConfigStep1Search.
+  ///
+  /// In zh, this message translates to:
+  /// **'步骤 1：搜索条目'**
+  String get dataSourceConfigStep1Search;
+
+  /// No description provided for @dataSourceConfigStep1SearchSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'配置搜索链接和搜索词处理规则'**
+  String get dataSourceConfigStep1SearchSub;
+
+  /// No description provided for @dataSourceConfigStep2Channels.
+  ///
+  /// In zh, this message translates to:
+  /// **'步骤 2：解析线路和剧集'**
+  String get dataSourceConfigStep2Channels;
+
+  /// No description provided for @dataSourceConfigStep2ChannelsSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'从详情页提取线路、剧集和播放页链接'**
+  String get dataSourceConfigStep2ChannelsSub;
+
+  /// No description provided for @dataSourceConfigStep3MatchVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'步骤 3：匹配视频'**
+  String get dataSourceConfigStep3MatchVideo;
+
+  /// No description provided for @dataSourceConfigStep3MatchVideoSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'从播放页提取最终视频地址和请求头'**
+  String get dataSourceConfigStep3MatchVideoSub;
+
+  /// No description provided for @dataSourceConfigSubjectFormatA.
+  ///
+  /// In zh, this message translates to:
+  /// **'单标签'**
+  String get dataSourceConfigSubjectFormatA;
+
+  /// No description provided for @dataSourceConfigSubjectFormatIndexed.
+  ///
+  /// In zh, this message translates to:
+  /// **'多标签'**
+  String get dataSourceConfigSubjectFormatIndexed;
+
+  /// No description provided for @dataSourceConfigSubjectFormatJsonPath.
+  ///
+  /// In zh, this message translates to:
+  /// **'JsonPath'**
+  String get dataSourceConfigSubjectFormatJsonPath;
+
+  /// No description provided for @dataSourceConfigChannelFormatIndexGrouped.
+  ///
+  /// In zh, this message translates to:
+  /// **'线路分组'**
+  String get dataSourceConfigChannelFormatIndexGrouped;
+
+  /// No description provided for @dataSourceConfigChannelFormatNoChannel.
+  ///
+  /// In zh, this message translates to:
+  /// **'不区分线路'**
+  String get dataSourceConfigChannelFormatNoChannel;
+
+  /// No description provided for @dataSourceConfigSubjectLinkSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'条目链接选择器'**
+  String get dataSourceConfigSubjectLinkSelector;
+
+  /// No description provided for @dataSourceConfigSubjectLinkSelectorHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'从搜索结果页选择条目详情链接'**
+  String get dataSourceConfigSubjectLinkSelectorHelper;
+
+  /// No description provided for @dataSourceConfigSubjectNameSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'条目名称选择器'**
+  String get dataSourceConfigSubjectNameSelector;
+
+  /// No description provided for @dataSourceConfigSubjectRemoveSpecial.
+  ///
+  /// In zh, this message translates to:
+  /// **'去除特殊字符'**
+  String get dataSourceConfigSubjectRemoveSpecial;
+
+  /// No description provided for @dataSourceConfigSubjectRemoveSpecialSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'清理符号和部分常见干扰词，提升搜索兼容性'**
+  String get dataSourceConfigSubjectRemoveSpecialSub;
+
+  /// No description provided for @dataSourceConfigSubjectUseFirstWord.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅使用第一个词'**
+  String get dataSourceConfigSubjectUseFirstWord;
+
+  /// No description provided for @dataSourceConfigSubjectUseFirstWordSub.
+  ///
+  /// In zh, this message translates to:
+  /// **'以空格分割条目名后只用第一个词搜索'**
+  String get dataSourceConfigSubjectUseFirstWordSub;
+
+  /// No description provided for @dataSourceConfigSubjectUseNamesCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'尝试条目名称数量'**
+  String get dataSourceConfigSubjectUseNamesCount;
+
+  /// No description provided for @dataSourceConfigSubjectUseNamesCountHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'留空使用默认值。1 表示仅使用主名称'**
+  String get dataSourceConfigSubjectUseNamesCountHelper;
+
+  /// No description provided for @dataSourceConfigSubmitSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'提交按钮选择器'**
+  String get dataSourceConfigSubmitSelector;
+
+  /// No description provided for @dataSourceConfigSubtitleLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'标记字幕语言'**
+  String get dataSourceConfigSubtitleLabel;
+
+  /// No description provided for @dataSourceConfigSubtitleHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'用于播放器内偏好和过滤'**
+  String get dataSourceConfigSubtitleHelper;
+
+  /// No description provided for @dataSourceConfigSuccessSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'成功页面选择器'**
+  String get dataSourceConfigSuccessSelector;
+
+  /// No description provided for @dataSourceConfigTier.
+  ///
+  /// In zh, this message translates to:
+  /// **'优先级'**
+  String get dataSourceConfigTier;
+
+  /// No description provided for @dataSourceConfigTierHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'数字越小优先级越高'**
+  String get dataSourceConfigTierHelper;
+
+  /// No description provided for @dataSourceConfigType.
+  ///
+  /// In zh, this message translates to:
+  /// **'类型'**
+  String get dataSourceConfigType;
+
+  /// No description provided for @dataSourceConfigUseRawBaseUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'Base URL'**
+  String get dataSourceConfigUseRawBaseUrl;
+
+  /// No description provided for @dataSourceConfigUseRawBaseUrlHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'可选。用于拼接条目详情页链接，留空时通常从搜索链接推断'**
+  String get dataSourceConfigUseRawBaseUrlHelper;
+
+  /// No description provided for @dataSourceConfigUserAgent.
+  ///
+  /// In zh, this message translates to:
+  /// **'User-Agent'**
+  String get dataSourceConfigUserAgent;
+
+  /// No description provided for @dataSourceConfigUserAgentHelper.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放视频请求的 User-Agent'**
+  String get dataSourceConfigUserAgentHelper;
+
+  /// No description provided for @dataSourceConfigUseWebViewForCaptchaDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'详情页使用 WebView'**
+  String get dataSourceConfigUseWebViewForCaptchaDetail;
+
+  /// No description provided for @dataSourceConfigCaptchaInitialDelay.
+  ///
+  /// In zh, this message translates to:
+  /// **'初始等待 (毫秒)'**
+  String get dataSourceConfigCaptchaInitialDelay;
 
   /// No description provided for @searchSettingsTitle.
   ///

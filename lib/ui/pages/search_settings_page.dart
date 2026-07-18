@@ -105,11 +105,11 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
                 ),
                 const SizedBox(height: 16),
                 const Divider(),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Text(
-                    'WebView Scraper设置 (仅针对Dynamic Webview源)',
-                    style: TextStyle(
+                    l10n.webviewScraperSettingsTitle,
+                    style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: Colors.grey,

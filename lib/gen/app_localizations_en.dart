@@ -204,6 +204,58 @@ class AppLocalizationsEn extends AppLocalizations {
   String get networkSectionAdvanced => 'Advanced';
 
   @override
+  String get networkBangumiRequestModeLegacy => 'Legacy';
+
+  @override
+  String get networkBangumiRequestModeHybrid => 'Hybrid (recommended)';
+
+  @override
+  String get networkBangumiRequestModeModern => 'Modern';
+
+  @override
+  String get networkBangumiOfflineBroadcastData => 'Offline broadcast data';
+
+  @override
+  String get networkBangumiDataLoading => 'Loading…';
+
+  @override
+  String get networkBangumiDataNotCached =>
+      'Not cached — tap to download the offline fallback data';
+
+  @override
+  String networkBangumiDataCachedSize(String size) {
+    return 'Cached $size';
+  }
+
+  @override
+  String networkBangumiDataSyncTime(String time) {
+    return 'Synced at $time';
+  }
+
+  @override
+  String networkBangumiDataVersion(String version) {
+    return 'v$version';
+  }
+
+  @override
+  String networkBangumiDataFailedMins(int minutes) {
+    return 'Last sync failed $minutes min ago';
+  }
+
+  @override
+  String networkBangumiDataFailedHours(int hours) {
+    return 'Last sync failed $hours h ago';
+  }
+
+  @override
+  String get networkBangumiDataRefreshSuccess =>
+      'Offline broadcast data updated';
+
+  @override
+  String get networkBangumiDataRefreshFailed =>
+      'Update failed — please check your network';
+
+  @override
   String get searchSettings => 'Search Settings';
 
   @override
@@ -228,6 +280,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get downloadEngineSubtitle =>
       'New and auto-resumed BT tasks will use the selected backend';
+
+  @override
+  String get downloadEngineRqbitDescription =>
+      'rqbit is built in Rust with low memory usage and fast startup. It excels at stream-while-downloading, making it a good fit for quickly previewing video content.';
+
+  @override
+  String get downloadEngineLibtorrentDescription =>
+      'libtorrent is a mature C++ BT engine known for stable, efficient downloads and broad compatibility. It is well suited for full downloads and long-term seeding.';
 
   @override
   String get downloadParallelTasks => 'Parallel download tasks';
@@ -701,6 +761,365 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dataSourceConfigSave => 'Save';
+
+  @override
+  String get dataSourceConfigAllowedChars => 'Allowed characters';
+
+  @override
+  String get dataSourceConfigBasicInfo => 'Basic information';
+
+  @override
+  String get dataSourceConfigCaptcha => 'Captcha';
+
+  @override
+  String get dataSourceConfigCaptchaSub =>
+      'Optional. Configure only if the data source uses a captcha';
+
+  @override
+  String get dataSourceConfigChannelNameRegex => 'Channel name regex';
+
+  @override
+  String get dataSourceConfigChannelNameRegexHelper =>
+      'You can use (?<ch>...) to capture the final name';
+
+  @override
+  String get dataSourceConfigChannelNameSelector => 'Channel name selector';
+
+  @override
+  String get dataSourceConfigChannelNameSelectorHelper =>
+      'For example: channel, subtitle group, or play source tab';
+
+  @override
+  String get dataSourceConfigCookie => 'Cookie';
+
+  @override
+  String get dataSourceConfigCookieHelper =>
+      'Cookie sent with video requests; can be left empty';
+
+  @override
+  String get dataSourceConfigDescription => 'Description';
+
+  @override
+  String get dataSourceConfigDetectSelector => 'Captcha detect selector';
+
+  @override
+  String get dataSourceConfigDistinguishChannelName =>
+      'Distinguish channel names';
+
+  @override
+  String get dataSourceConfigDistinguishChannelNameSub =>
+      'When disabled, same-named episodes from different channels are deduplicated';
+
+  @override
+  String get dataSourceConfigDistinguishSubjectName =>
+      'Distinguish subject names';
+
+  @override
+  String get dataSourceConfigDistinguishSubjectNameSub =>
+      'When disabled, same-named episodes from different search results are deduplicated';
+
+  @override
+  String dataSourceConfigEditing(String name) {
+    return 'Edit: $name';
+  }
+
+  @override
+  String get dataSourceConfigEnableCaptcha => 'Enable captcha handling';
+
+  @override
+  String get dataSourceConfigEnableCaptchaSub =>
+      'Turn on to bypass a captcha on the detail page';
+
+  @override
+  String get dataSourceConfigEnableNestedUrl => 'Enable nested URL matching';
+
+  @override
+  String get dataSourceConfigEnableNestedUrlSub =>
+      'First find the inner play page from the player page, then match the video URL';
+
+  @override
+  String get dataSourceConfigEpisodeLinkSelector =>
+      'Episode link selector (inside list)';
+
+  @override
+  String get dataSourceConfigEpisodeLinkSelectorHelper =>
+      'When empty, the episode element\'s own href is used';
+
+  @override
+  String get dataSourceConfigEpisodeListSelector => 'Episode list selector';
+
+  @override
+  String get dataSourceConfigEpisodeSelector => 'Episode selector';
+
+  @override
+  String get dataSourceConfigEpisodesFromListSelector =>
+      'Episode selector (inside list)';
+
+  @override
+  String get dataSourceConfigExpectedLength => 'Captcha length';
+
+  @override
+  String get dataSourceConfigFilterAndPlayer => 'Filter and player selection';
+
+  @override
+  String get dataSourceConfigFilterByEpisodeSort => 'Filter by episode number';
+
+  @override
+  String get dataSourceConfigFilterByEpisodeSortSub =>
+      'Resource titles must include the episode number; usually recommended on';
+
+  @override
+  String get dataSourceConfigFilterBySubjectName => 'Filter by subject name';
+
+  @override
+  String get dataSourceConfigFilterBySubjectNameSub =>
+      'Resource titles must include the subject name';
+
+  @override
+  String get dataSourceConfigFromListEpisodeLinkSelector =>
+      'Episode link selector';
+
+  @override
+  String get dataSourceConfigFromListEpisodeLinkSelectorHelper =>
+      'When empty, the episode element\'s own href is used';
+
+  @override
+  String get dataSourceConfigIconUrl => 'Icon URL';
+
+  @override
+  String get dataSourceConfigIconUrlHint => 'https://...';
+
+  @override
+  String get dataSourceConfigImageSelector => 'Captcha image selector';
+
+  @override
+  String get dataSourceConfigInputSelector => 'Input selector';
+
+  @override
+  String get dataSourceConfigIntegerRequired => 'Please enter an integer';
+
+  @override
+  String get dataSourceConfigJsonPreviewSub =>
+      'Used to review the saved content';
+
+  @override
+  String get dataSourceConfigJsonPreviewTitle => 'Generated JSON';
+
+  @override
+  String get dataSourceConfigJsonSchemaCaptcha => 'captchaConfig';
+
+  @override
+  String get dataSourceConfigJsonSchemaSearch => 'searchConfig';
+
+  @override
+  String get dataSourceConfigJsonSchemaNotConfigured => 'Not configured';
+
+  @override
+  String get dataSourceConfigLinkJsonPath => 'Link JsonPath';
+
+  @override
+  String get dataSourceConfigMatchVideoUrl => 'Video URL regex';
+
+  @override
+  String get dataSourceConfigMatchVideoUrlHelper =>
+      'You can use (?<v>...) to capture the final play URL';
+
+  @override
+  String get dataSourceConfigName => 'Name';
+
+  @override
+  String get dataSourceConfigNameHelper => 'Name shown in the data source list';
+
+  @override
+  String get dataSourceConfigNameJsonPath => 'Name JsonPath';
+
+  @override
+  String get dataSourceConfigNestedUrlRegex => 'Nested URL regex';
+
+  @override
+  String get dataSourceConfigNew => 'New data source';
+
+  @override
+  String get dataSourceConfigNotMarked => 'Not tagged';
+
+  @override
+  String get dataSourceConfigPreferShorterName => 'Prefer shorter names';
+
+  @override
+  String get dataSourceConfigRefreshSelector => 'Refresh image selector';
+
+  @override
+  String get dataSourceConfigReferer => 'Referer';
+
+  @override
+  String get dataSourceConfigRefererHelper =>
+      'Referer sent with the video request';
+
+  @override
+  String get dataSourceConfigRequestInterval => 'Request interval (ms)';
+
+  @override
+  String get dataSourceConfigRequestIntervalHelper =>
+      'Wait time between requests';
+
+  @override
+  String get dataSourceConfigRequired => 'Required';
+
+  @override
+  String get dataSourceConfigResolutionLabel => 'Tag resolution';
+
+  @override
+  String get dataSourceConfigResolutionHelper =>
+      'Used for player preferences and filtering';
+
+  @override
+  String get dataSourceConfigSaved => 'Configuration saved';
+
+  @override
+  String dataSourceConfigSaveFailed(String error) {
+    return 'Save failed: $error';
+  }
+
+  @override
+  String get dataSourceConfigSearchUrl => 'Search URL';
+
+  @override
+  String dataSourceConfigSearchUrlHelper(String keyword) {
+    return '$keyword is replaced with the subject name';
+  }
+
+  @override
+  String dataSourceConfigSearchUrlHint(String keyword) {
+    return 'https://example.com/search?wd=$keyword';
+  }
+
+  @override
+  String get dataSourceConfigSortRegex => 'Episode number regex';
+
+  @override
+  String get dataSourceConfigSortRegexHelper =>
+      'Recommended: use (?<ep>...) to capture the episode number';
+
+  @override
+  String get dataSourceConfigStep1ParseResults =>
+      'Step 1: parse search results';
+
+  @override
+  String get dataSourceConfigStep1ParseResultsSub =>
+      'Extract subject names and detail page links from the search results';
+
+  @override
+  String get dataSourceConfigStep1Search => 'Step 1: search subjects';
+
+  @override
+  String get dataSourceConfigStep1SearchSub =>
+      'Configure the search URL and search-term processing rules';
+
+  @override
+  String get dataSourceConfigStep2Channels =>
+      'Step 2: parse channels and episodes';
+
+  @override
+  String get dataSourceConfigStep2ChannelsSub =>
+      'Extract channels, episodes, and play page links from the detail page';
+
+  @override
+  String get dataSourceConfigStep3MatchVideo => 'Step 3: match video';
+
+  @override
+  String get dataSourceConfigStep3MatchVideoSub =>
+      'Extract the final video URL and request headers from the play page';
+
+  @override
+  String get dataSourceConfigSubjectFormatA => 'Single label';
+
+  @override
+  String get dataSourceConfigSubjectFormatIndexed => 'Multiple labels';
+
+  @override
+  String get dataSourceConfigSubjectFormatJsonPath => 'JsonPath';
+
+  @override
+  String get dataSourceConfigChannelFormatIndexGrouped => 'Channel grouped';
+
+  @override
+  String get dataSourceConfigChannelFormatNoChannel => 'No channel';
+
+  @override
+  String get dataSourceConfigSubjectLinkSelector => 'Subject link selector';
+
+  @override
+  String get dataSourceConfigSubjectLinkSelectorHelper =>
+      'Choose the subject detail page link from the search results';
+
+  @override
+  String get dataSourceConfigSubjectNameSelector => 'Subject name selector';
+
+  @override
+  String get dataSourceConfigSubjectRemoveSpecial =>
+      'Remove special characters';
+
+  @override
+  String get dataSourceConfigSubjectRemoveSpecialSub =>
+      'Strip symbols and common noise words to improve search compatibility';
+
+  @override
+  String get dataSourceConfigSubjectUseFirstWord => 'Use only the first word';
+
+  @override
+  String get dataSourceConfigSubjectUseFirstWordSub =>
+      'Split the subject name on spaces and use only the first word for searching';
+
+  @override
+  String get dataSourceConfigSubjectUseNamesCount =>
+      'Number of subject name attempts';
+
+  @override
+  String get dataSourceConfigSubjectUseNamesCountHelper =>
+      'Leave empty to use the default. 1 means only the primary name is used';
+
+  @override
+  String get dataSourceConfigSubmitSelector => 'Submit button selector';
+
+  @override
+  String get dataSourceConfigSubtitleLabel => 'Tag subtitle language';
+
+  @override
+  String get dataSourceConfigSubtitleHelper =>
+      'Used for player preferences and filtering';
+
+  @override
+  String get dataSourceConfigSuccessSelector => 'Success page selector';
+
+  @override
+  String get dataSourceConfigTier => 'Priority';
+
+  @override
+  String get dataSourceConfigTierHelper => 'Lower numbers have higher priority';
+
+  @override
+  String get dataSourceConfigType => 'Type';
+
+  @override
+  String get dataSourceConfigUseRawBaseUrl => 'Base URL';
+
+  @override
+  String get dataSourceConfigUseRawBaseUrlHelper =>
+      'Optional. Used to build subject detail page links; usually inferred from the search URL when empty';
+
+  @override
+  String get dataSourceConfigUserAgent => 'User-Agent';
+
+  @override
+  String get dataSourceConfigUserAgentHelper =>
+      'User-Agent sent with the video request';
+
+  @override
+  String get dataSourceConfigUseWebViewForCaptchaDetail =>
+      'Use WebView for the detail page';
+
+  @override
+  String get dataSourceConfigCaptchaInitialDelay => 'Initial wait (ms)';
 
   @override
   String get searchSettingsTitle => 'Search settings';

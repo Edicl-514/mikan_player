@@ -201,6 +201,55 @@ class AppLocalizationsZh extends AppLocalizations {
   String get networkSectionAdvanced => '高级设置';
 
   @override
+  String get networkBangumiRequestModeLegacy => '旧版';
+
+  @override
+  String get networkBangumiRequestModeHybrid => '混合（推荐）';
+
+  @override
+  String get networkBangumiRequestModeModern => '新版';
+
+  @override
+  String get networkBangumiOfflineBroadcastData => '离线放送数据';
+
+  @override
+  String get networkBangumiDataLoading => '加载中…';
+
+  @override
+  String get networkBangumiDataNotCached => '未缓存 · 点击下载离线兜底数据';
+
+  @override
+  String networkBangumiDataCachedSize(String size) {
+    return '已缓存 $size';
+  }
+
+  @override
+  String networkBangumiDataSyncTime(String time) {
+    return '同步于 $time';
+  }
+
+  @override
+  String networkBangumiDataVersion(String version) {
+    return 'v$version';
+  }
+
+  @override
+  String networkBangumiDataFailedMins(int minutes) {
+    return '$minutes分钟前同步失败';
+  }
+
+  @override
+  String networkBangumiDataFailedHours(int hours) {
+    return '$hours小时前同步失败';
+  }
+
+  @override
+  String get networkBangumiDataRefreshSuccess => '已更新离线放送数据';
+
+  @override
+  String get networkBangumiDataRefreshFailed => '更新失败，请检查网络';
+
+  @override
   String get searchSettings => '搜索设置';
 
   @override
@@ -223,6 +272,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get downloadEngineSubtitle => '新建和自动恢复的 BT 任务会使用所选后端';
+
+  @override
+  String get downloadEngineRqbitDescription =>
+      'rqbit 基于 Rust 构建，内存占用低，启动快速，擅长边下边播（串流）场景，适合快速预览视频内容。';
+
+  @override
+  String get downloadEngineLibtorrentDescription =>
+      'libtorrent 是成熟的 C++ BT 引擎，下载稳定高效，兼容性好，擅长完整下载和资源做种，适合长期保种场景。';
 
   @override
   String get downloadParallelTasks => '并行下载任务数';
@@ -682,6 +739,328 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get dataSourceConfigSave => '保存';
+
+  @override
+  String get dataSourceConfigAllowedChars => '允许字符';
+
+  @override
+  String get dataSourceConfigBasicInfo => '基本信息';
+
+  @override
+  String get dataSourceConfigCaptcha => '验证码';
+
+  @override
+  String get dataSourceConfigCaptchaSub => '可选。仅数据源存在验证码时需要配置';
+
+  @override
+  String get dataSourceConfigChannelNameRegex => '线路名称正则';
+
+  @override
+  String get dataSourceConfigChannelNameRegexHelper => '可用 (?<ch>...) 捕获最终名称';
+
+  @override
+  String get dataSourceConfigChannelNameSelector => '线路名称选择器';
+
+  @override
+  String get dataSourceConfigChannelNameSelectorHelper => '例如线路、字幕组、播放源 tab';
+
+  @override
+  String get dataSourceConfigCookie => 'Cookie';
+
+  @override
+  String get dataSourceConfigCookieHelper => '播放视频请求携带的 Cookie，可留空';
+
+  @override
+  String get dataSourceConfigDescription => '描述';
+
+  @override
+  String get dataSourceConfigDetectSelector => '验证码检测选择器';
+
+  @override
+  String get dataSourceConfigDistinguishChannelName => '区分线路名称';
+
+  @override
+  String get dataSourceConfigDistinguishChannelNameSub => '关闭后，不同线路中的同名剧集会被去重';
+
+  @override
+  String get dataSourceConfigDistinguishSubjectName => '区分条目名称';
+
+  @override
+  String get dataSourceConfigDistinguishSubjectNameSub => '关闭后，不同搜索结果中同名剧集会被去重';
+
+  @override
+  String dataSourceConfigEditing(String name) {
+    return '配置: $name';
+  }
+
+  @override
+  String get dataSourceConfigEnableCaptcha => '启用验证码处理';
+
+  @override
+  String get dataSourceConfigEnableCaptchaSub => '需要绕过详情页验证码时开启';
+
+  @override
+  String get dataSourceConfigEnableNestedUrl => '启用嵌套 URL 匹配';
+
+  @override
+  String get dataSourceConfigEnableNestedUrlSub => '先从播放器页找到内层播放页，再匹配视频地址';
+
+  @override
+  String get dataSourceConfigEpisodeLinkSelector => '列表内链接选择器';
+
+  @override
+  String get dataSourceConfigEpisodeLinkSelectorHelper => '留空时使用剧集元素自身 href';
+
+  @override
+  String get dataSourceConfigEpisodeListSelector => '剧集列表选择器';
+
+  @override
+  String get dataSourceConfigEpisodeSelector => '剧集选择器';
+
+  @override
+  String get dataSourceConfigEpisodesFromListSelector => '列表内剧集选择器';
+
+  @override
+  String get dataSourceConfigExpectedLength => '验证码长度';
+
+  @override
+  String get dataSourceConfigFilterAndPlayer => '过滤和播放器选择';
+
+  @override
+  String get dataSourceConfigFilterByEpisodeSort => '使用剧集序号过滤';
+
+  @override
+  String get dataSourceConfigFilterByEpisodeSortSub => '要求资源标题包含剧集序号，通常建议开启';
+
+  @override
+  String get dataSourceConfigFilterBySubjectName => '使用条目名称过滤';
+
+  @override
+  String get dataSourceConfigFilterBySubjectNameSub => '要求资源标题包含条目名称';
+
+  @override
+  String get dataSourceConfigFromListEpisodeLinkSelector => '剧集链接选择器';
+
+  @override
+  String get dataSourceConfigFromListEpisodeLinkSelectorHelper =>
+      '留空时使用剧集元素自身 href';
+
+  @override
+  String get dataSourceConfigIconUrl => '图标链接';
+
+  @override
+  String get dataSourceConfigIconUrlHint => 'https://...';
+
+  @override
+  String get dataSourceConfigImageSelector => '验证码图片选择器';
+
+  @override
+  String get dataSourceConfigInputSelector => '输入框选择器';
+
+  @override
+  String get dataSourceConfigIntegerRequired => '请输入整数';
+
+  @override
+  String get dataSourceConfigJsonPreviewSub => '用于核对保存内容';
+
+  @override
+  String get dataSourceConfigJsonPreviewTitle => '生成的 JSON';
+
+  @override
+  String get dataSourceConfigJsonSchemaCaptcha => 'captchaConfig';
+
+  @override
+  String get dataSourceConfigJsonSchemaSearch => 'searchConfig';
+
+  @override
+  String get dataSourceConfigJsonSchemaNotConfigured => '未配置';
+
+  @override
+  String get dataSourceConfigLinkJsonPath => '链接 JsonPath';
+
+  @override
+  String get dataSourceConfigMatchVideoUrl => '视频 URL 正则';
+
+  @override
+  String get dataSourceConfigMatchVideoUrlHelper => '可用 (?<v>...) 捕获最终播放地址';
+
+  @override
+  String get dataSourceConfigName => '名称';
+
+  @override
+  String get dataSourceConfigNameHelper => '显示在数据源列表中的名称';
+
+  @override
+  String get dataSourceConfigNameJsonPath => '名称 JsonPath';
+
+  @override
+  String get dataSourceConfigNestedUrlRegex => '嵌套 URL 正则';
+
+  @override
+  String get dataSourceConfigNew => '新建数据源';
+
+  @override
+  String get dataSourceConfigNotMarked => '不标记';
+
+  @override
+  String get dataSourceConfigPreferShorterName => '优先匹配较短名称';
+
+  @override
+  String get dataSourceConfigRefreshSelector => '刷新图片选择器';
+
+  @override
+  String get dataSourceConfigReferer => 'Referer';
+
+  @override
+  String get dataSourceConfigRefererHelper => '播放视频请求的 Referer';
+
+  @override
+  String get dataSourceConfigRequestInterval => '请求间隔 (毫秒)';
+
+  @override
+  String get dataSourceConfigRequestIntervalHelper => '每次请求后的等待时间';
+
+  @override
+  String get dataSourceConfigRequired => '必填';
+
+  @override
+  String get dataSourceConfigResolutionLabel => '标记分辨率';
+
+  @override
+  String get dataSourceConfigResolutionHelper => '用于播放器内偏好和过滤';
+
+  @override
+  String get dataSourceConfigSaved => '配置已保存';
+
+  @override
+  String dataSourceConfigSaveFailed(String error) {
+    return '保存失败: $error';
+  }
+
+  @override
+  String get dataSourceConfigSearchUrl => '搜索链接';
+
+  @override
+  String dataSourceConfigSearchUrlHelper(String keyword) {
+    return '$keyword 会替换为条目名称';
+  }
+
+  @override
+  String dataSourceConfigSearchUrlHint(String keyword) {
+    return 'https://example.com/search?wd=$keyword';
+  }
+
+  @override
+  String get dataSourceConfigSortRegex => '剧集序号正则';
+
+  @override
+  String get dataSourceConfigSortRegexHelper => '建议使用 (?<ep>...) 捕获集数';
+
+  @override
+  String get dataSourceConfigStep1ParseResults => '步骤 1：解析搜索结果';
+
+  @override
+  String get dataSourceConfigStep1ParseResultsSub => '从搜索结果中提取条目名称和详情页链接';
+
+  @override
+  String get dataSourceConfigStep1Search => '步骤 1：搜索条目';
+
+  @override
+  String get dataSourceConfigStep1SearchSub => '配置搜索链接和搜索词处理规则';
+
+  @override
+  String get dataSourceConfigStep2Channels => '步骤 2：解析线路和剧集';
+
+  @override
+  String get dataSourceConfigStep2ChannelsSub => '从详情页提取线路、剧集和播放页链接';
+
+  @override
+  String get dataSourceConfigStep3MatchVideo => '步骤 3：匹配视频';
+
+  @override
+  String get dataSourceConfigStep3MatchVideoSub => '从播放页提取最终视频地址和请求头';
+
+  @override
+  String get dataSourceConfigSubjectFormatA => '单标签';
+
+  @override
+  String get dataSourceConfigSubjectFormatIndexed => '多标签';
+
+  @override
+  String get dataSourceConfigSubjectFormatJsonPath => 'JsonPath';
+
+  @override
+  String get dataSourceConfigChannelFormatIndexGrouped => '线路分组';
+
+  @override
+  String get dataSourceConfigChannelFormatNoChannel => '不区分线路';
+
+  @override
+  String get dataSourceConfigSubjectLinkSelector => '条目链接选择器';
+
+  @override
+  String get dataSourceConfigSubjectLinkSelectorHelper => '从搜索结果页选择条目详情链接';
+
+  @override
+  String get dataSourceConfigSubjectNameSelector => '条目名称选择器';
+
+  @override
+  String get dataSourceConfigSubjectRemoveSpecial => '去除特殊字符';
+
+  @override
+  String get dataSourceConfigSubjectRemoveSpecialSub => '清理符号和部分常见干扰词，提升搜索兼容性';
+
+  @override
+  String get dataSourceConfigSubjectUseFirstWord => '仅使用第一个词';
+
+  @override
+  String get dataSourceConfigSubjectUseFirstWordSub => '以空格分割条目名后只用第一个词搜索';
+
+  @override
+  String get dataSourceConfigSubjectUseNamesCount => '尝试条目名称数量';
+
+  @override
+  String get dataSourceConfigSubjectUseNamesCountHelper => '留空使用默认值。1 表示仅使用主名称';
+
+  @override
+  String get dataSourceConfigSubmitSelector => '提交按钮选择器';
+
+  @override
+  String get dataSourceConfigSubtitleLabel => '标记字幕语言';
+
+  @override
+  String get dataSourceConfigSubtitleHelper => '用于播放器内偏好和过滤';
+
+  @override
+  String get dataSourceConfigSuccessSelector => '成功页面选择器';
+
+  @override
+  String get dataSourceConfigTier => '优先级';
+
+  @override
+  String get dataSourceConfigTierHelper => '数字越小优先级越高';
+
+  @override
+  String get dataSourceConfigType => '类型';
+
+  @override
+  String get dataSourceConfigUseRawBaseUrl => 'Base URL';
+
+  @override
+  String get dataSourceConfigUseRawBaseUrlHelper =>
+      '可选。用于拼接条目详情页链接，留空时通常从搜索链接推断';
+
+  @override
+  String get dataSourceConfigUserAgent => 'User-Agent';
+
+  @override
+  String get dataSourceConfigUserAgentHelper => '播放视频请求的 User-Agent';
+
+  @override
+  String get dataSourceConfigUseWebViewForCaptchaDetail => '详情页使用 WebView';
+
+  @override
+  String get dataSourceConfigCaptchaInitialDelay => '初始等待 (毫秒)';
 
   @override
   String get searchSettingsTitle => '搜索设置';

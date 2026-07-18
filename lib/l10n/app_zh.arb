@@ -60,6 +60,49 @@
   "networkSectionBaseUrl": "Base URL",
   "networkSectionBangumiMode": "Bangumi 请求方式",
   "networkSectionAdvanced": "高级设置",
+  "networkBangumiRequestModeLegacy": "旧版",
+  "networkBangumiRequestModeHybrid": "混合（推荐）",
+  "networkBangumiRequestModeModern": "新版",
+  "networkBangumiOfflineBroadcastData": "离线放送数据",
+  "networkBangumiDataLoading": "加载中…",
+  "networkBangumiDataNotCached": "未缓存 · 点击下载离线兜底数据",
+  "networkBangumiDataCachedSize": "已缓存 {size}",
+  "@networkBangumiDataCachedSize": {
+    "description": "Status line for cached broadcast data, where {size} is a localized size like '1.2 MB' or '512 KB'.",
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "networkBangumiDataSyncTime": "同步于 {time}",
+  "@networkBangumiDataSyncTime": {
+    "description": "Status line shown after the cached size, where {time} is a localized date-time string.",
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "networkBangumiDataVersion": "v{version}",
+  "@networkBangumiDataVersion": {
+    "description": "Version suffix shown after the cached size and sync time.",
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "networkBangumiDataFailedMins": "{minutes}分钟前同步失败",
+  "@networkBangumiDataFailedMins": {
+    "description": "Status suffix shown when the last sync failed less than an hour ago.",
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "networkBangumiDataFailedHours": "{hours}小时前同步失败",
+  "@networkBangumiDataFailedHours": {
+    "description": "Status suffix shown when the last sync failed an hour or more ago.",
+    "placeholders": {
+      "hours": { "type": "int" }
+    }
+  },
+  "networkBangumiDataRefreshSuccess": "已更新离线放送数据",
+  "networkBangumiDataRefreshFailed": "更新失败，请检查网络",
   "searchSettings": "搜索设置",
   "searchSubtitle": "设置并发布数量及相关参数",
   "downloadSettingsTitle": "下载设置",
@@ -68,6 +111,8 @@
   "downloadSettingsInvalidNumber": "请输入有效的限速数值",
   "downloadEngineTitle": "BT 引擎",
   "downloadEngineSubtitle": "新建和自动恢复的 BT 任务会使用所选后端",
+  "downloadEngineRqbitDescription": "rqbit 基于 Rust 构建，内存占用低，启动快速，擅长边下边播（串流）场景，适合快速预览视频内容。",
+  "downloadEngineLibtorrentDescription": "libtorrent 是成熟的 C++ BT 引擎，下载稳定高效，兼容性好，擅长完整下载和资源做种，适合长期保种场景。",
   "downloadParallelTasks": "并行下载任务数",
   "downloadParallelHint": "1-10，默认3",
   "downloadSpeedLimitsHeader": "速度限制 (0 = 不限速)",
@@ -214,6 +259,134 @@
   "searchConfigTitle": "searchConfig",
   "captchaConfigTitle": "captchaConfig",
   "dataSourceConfigSave": "保存",
+  "dataSourceConfigAllowedChars": "允许字符",
+  "dataSourceConfigBasicInfo": "基本信息",
+  "dataSourceConfigCaptcha": "验证码",
+  "dataSourceConfigCaptchaSub": "可选。仅数据源存在验证码时需要配置",
+  "dataSourceConfigChannelNameRegex": "线路名称正则",
+  "dataSourceConfigChannelNameRegexHelper": "可用 (?<ch>...) 捕获最终名称",
+  "dataSourceConfigChannelNameSelector": "线路名称选择器",
+  "dataSourceConfigChannelNameSelectorHelper": "例如线路、字幕组、播放源 tab",
+  "dataSourceConfigCookie": "Cookie",
+  "dataSourceConfigCookieHelper": "播放视频请求携带的 Cookie，可留空",
+  "dataSourceConfigDescription": "描述",
+  "dataSourceConfigDetectSelector": "验证码检测选择器",
+  "dataSourceConfigDistinguishChannelName": "区分线路名称",
+  "dataSourceConfigDistinguishChannelNameSub": "关闭后，不同线路中的同名剧集会被去重",
+  "dataSourceConfigDistinguishSubjectName": "区分条目名称",
+  "dataSourceConfigDistinguishSubjectNameSub": "关闭后，不同搜索结果中同名剧集会被去重",
+  "dataSourceConfigEditing": "配置: {name}",
+  "@dataSourceConfigEditing": {
+    "description": "AppBar title when editing an existing data source.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "dataSourceConfigEnableCaptcha": "启用验证码处理",
+  "dataSourceConfigEnableCaptchaSub": "需要绕过详情页验证码时开启",
+  "dataSourceConfigEnableNestedUrl": "启用嵌套 URL 匹配",
+  "dataSourceConfigEnableNestedUrlSub": "先从播放器页找到内层播放页，再匹配视频地址",
+  "dataSourceConfigEpisodeLinkSelector": "列表内链接选择器",
+  "dataSourceConfigEpisodeLinkSelectorHelper": "留空时使用剧集元素自身 href",
+  "dataSourceConfigEpisodeListSelector": "剧集列表选择器",
+  "dataSourceConfigEpisodeSelector": "剧集选择器",
+  "dataSourceConfigEpisodesFromListSelector": "列表内剧集选择器",
+  "dataSourceConfigExpectedLength": "验证码长度",
+  "dataSourceConfigFilterAndPlayer": "过滤和播放器选择",
+  "dataSourceConfigFilterByEpisodeSort": "使用剧集序号过滤",
+  "dataSourceConfigFilterByEpisodeSortSub": "要求资源标题包含剧集序号，通常建议开启",
+  "dataSourceConfigFilterBySubjectName": "使用条目名称过滤",
+  "dataSourceConfigFilterBySubjectNameSub": "要求资源标题包含条目名称",
+  "dataSourceConfigFromListEpisodeLinkSelector": "剧集链接选择器",
+  "dataSourceConfigFromListEpisodeLinkSelectorHelper": "留空时使用剧集元素自身 href",
+  "dataSourceConfigIconUrl": "图标链接",
+  "dataSourceConfigIconUrlHint": "https://...",
+  "dataSourceConfigImageSelector": "验证码图片选择器",
+  "dataSourceConfigInputSelector": "输入框选择器",
+  "dataSourceConfigIntegerRequired": "请输入整数",
+  "dataSourceConfigJsonPreviewSub": "用于核对保存内容",
+  "dataSourceConfigJsonPreviewTitle": "生成的 JSON",
+  "dataSourceConfigJsonSchemaCaptcha": "captchaConfig",
+  "dataSourceConfigJsonSchemaSearch": "searchConfig",
+  "dataSourceConfigJsonSchemaNotConfigured": "未配置",
+  "dataSourceConfigLinkJsonPath": "链接 JsonPath",
+  "dataSourceConfigMatchVideoUrl": "视频 URL 正则",
+  "dataSourceConfigMatchVideoUrlHelper": "可用 (?<v>...) 捕获最终播放地址",
+  "dataSourceConfigName": "名称",
+  "dataSourceConfigNameHelper": "显示在数据源列表中的名称",
+  "dataSourceConfigNameJsonPath": "名称 JsonPath",
+  "dataSourceConfigNestedUrlRegex": "嵌套 URL 正则",
+  "dataSourceConfigNew": "新建数据源",
+  "dataSourceConfigNotMarked": "不标记",
+  "dataSourceConfigPreferShorterName": "优先匹配较短名称",
+  "dataSourceConfigRefreshSelector": "刷新图片选择器",
+  "dataSourceConfigReferer": "Referer",
+  "dataSourceConfigRefererHelper": "播放视频请求的 Referer",
+  "dataSourceConfigRequestInterval": "请求间隔 (毫秒)",
+  "dataSourceConfigRequestIntervalHelper": "每次请求后的等待时间",
+  "dataSourceConfigRequired": "必填",
+  "dataSourceConfigResolutionLabel": "标记分辨率",
+  "dataSourceConfigResolutionHelper": "用于播放器内偏好和过滤",
+  "dataSourceConfigSaved": "配置已保存",
+  "dataSourceConfigSaveFailed": "保存失败: {error}",
+  "@dataSourceConfigSaveFailed": {
+    "description": "SnackBar message shown when saving the data source fails.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "dataSourceConfigSearchUrl": "搜索链接",
+  "dataSourceConfigSearchUrlHelper": "{keyword} 会替换为条目名称",
+  "@dataSourceConfigSearchUrlHelper": {
+    "description": "Helper text under the search URL field explaining the {keyword} placeholder.",
+    "placeholders": {
+      "keyword": { "type": "String" }
+    }
+  },
+  "dataSourceConfigSearchUrlHint": "https://example.com/search?wd={keyword}",
+  "@dataSourceConfigSearchUrlHint": {
+    "description": "Example URL shown as the hint of the search URL field.",
+    "placeholders": {
+      "keyword": { "type": "String" }
+    }
+  },
+  "dataSourceConfigSortRegex": "剧集序号正则",
+  "dataSourceConfigSortRegexHelper": "建议使用 (?<ep>...) 捕获集数",
+  "dataSourceConfigStep1ParseResults": "步骤 1：解析搜索结果",
+  "dataSourceConfigStep1ParseResultsSub": "从搜索结果中提取条目名称和详情页链接",
+  "dataSourceConfigStep1Search": "步骤 1：搜索条目",
+  "dataSourceConfigStep1SearchSub": "配置搜索链接和搜索词处理规则",
+  "dataSourceConfigStep2Channels": "步骤 2：解析线路和剧集",
+  "dataSourceConfigStep2ChannelsSub": "从详情页提取线路、剧集和播放页链接",
+  "dataSourceConfigStep3MatchVideo": "步骤 3：匹配视频",
+  "dataSourceConfigStep3MatchVideoSub": "从播放页提取最终视频地址和请求头",
+  "dataSourceConfigSubjectFormatA": "单标签",
+  "dataSourceConfigSubjectFormatIndexed": "多标签",
+  "dataSourceConfigSubjectFormatJsonPath": "JsonPath",
+  "dataSourceConfigChannelFormatIndexGrouped": "线路分组",
+  "dataSourceConfigChannelFormatNoChannel": "不区分线路",
+  "dataSourceConfigSubjectLinkSelector": "条目链接选择器",
+  "dataSourceConfigSubjectLinkSelectorHelper": "从搜索结果页选择条目详情链接",
+  "dataSourceConfigSubjectNameSelector": "条目名称选择器",
+  "dataSourceConfigSubjectRemoveSpecial": "去除特殊字符",
+  "dataSourceConfigSubjectRemoveSpecialSub": "清理符号和部分常见干扰词，提升搜索兼容性",
+  "dataSourceConfigSubjectUseFirstWord": "仅使用第一个词",
+  "dataSourceConfigSubjectUseFirstWordSub": "以空格分割条目名后只用第一个词搜索",
+  "dataSourceConfigSubjectUseNamesCount": "尝试条目名称数量",
+  "dataSourceConfigSubjectUseNamesCountHelper": "留空使用默认值。1 表示仅使用主名称",
+  "dataSourceConfigSubmitSelector": "提交按钮选择器",
+  "dataSourceConfigSubtitleLabel": "标记字幕语言",
+  "dataSourceConfigSubtitleHelper": "用于播放器内偏好和过滤",
+  "dataSourceConfigSuccessSelector": "成功页面选择器",
+  "dataSourceConfigTier": "优先级",
+  "dataSourceConfigTierHelper": "数字越小优先级越高",
+  "dataSourceConfigType": "类型",
+  "dataSourceConfigUseRawBaseUrl": "Base URL",
+  "dataSourceConfigUseRawBaseUrlHelper": "可选。用于拼接条目详情页链接，留空时通常从搜索链接推断",
+  "dataSourceConfigUserAgent": "User-Agent",
+  "dataSourceConfigUserAgentHelper": "播放视频请求的 User-Agent",
+  "dataSourceConfigUseWebViewForCaptchaDetail": "详情页使用 WebView",
+  "dataSourceConfigCaptchaInitialDelay": "初始等待 (毫秒)",
   "searchSettingsTitle": "搜索设置",
   "maxParallelSearchSources": "最大并行搜索源数量",
   "maxParallelSearchSourcesHint": "默认为3，0为不限制（Generic Scraper）",

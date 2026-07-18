@@ -196,8 +196,11 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
         status = await BangumiDataService.getStatus();
       } catch (_) {}
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         setState(() {
-          _bangumiDataRefreshResult = ok ? '已更新离线放送数据' : '更新失败，请检查网络';
+          _bangumiDataRefreshResult = ok
+              ? l10n.networkBangumiDataRefreshSuccess
+              : l10n.networkBangumiDataRefreshFailed;
           _bangumiDataStatus = status;
         });
       }
@@ -412,34 +415,38 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     });
   }
 
-  String _bangumiDataStatusSubtitle() {
+  String _bangumiDataStatusSubtitle(AppLocalizations l10n) {
     final status = _bangumiDataStatus;
     if (status == null) {
-      return '加载中…';
+      return l10n.networkBangumiDataLoading;
     }
     if (!status.cached) {
-      return '未缓存 · 点击下载离线兜底数据';
+      return l10n.networkBangumiDataNotCached;
     }
     final sizeMB = (status.fileSize.toInt()) / (1024 * 1024);
     final sizeStr = sizeMB >= 1
         ? '${sizeMB.toStringAsFixed(1)} MB'
         : '${(status.fileSize.toInt() / 1024).toStringAsFixed(0)} KB';
-    final parts = <String>['已缓存 $sizeStr'];
+    final parts = <String>[l10n.networkBangumiDataCachedSize(sizeStr)];
     if (status.lastModifiedSecs != null) {
       final mtime = DateTime.fromMillisecondsSinceEpoch(
         status.lastModifiedSecs!.toInt() * 1000,
         isUtc: true,
       ).toLocal();
-      parts.add('同步于 ${DateFormat('yyyy-MM-dd HH:mm').format(mtime)}');
+      parts.add(
+        l10n.networkBangumiDataSyncTime(
+          DateFormat('yyyy-MM-dd HH:mm').format(mtime),
+        ),
+      );
     }
-    parts.add('v${status.version}');
+    parts.add(l10n.networkBangumiDataVersion(status.version.toString()));
     if (status.lastFailedSecs != null) {
       final ageMins = status.lastFailedSecs!.toInt() / 60;
       if (ageMins < 60) {
-        parts.add('${ageMins.round()}分钟前同步失败');
+        parts.add(l10n.networkBangumiDataFailedMins(ageMins.round()));
       } else {
         final ageHours = ageMins / 60;
-        parts.add('${ageHours.round()}小时前同步失败');
+        parts.add(l10n.networkBangumiDataFailedHours(ageHours.round()));
       }
     }
     return parts.join(' · ');
@@ -545,24 +552,23 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                 _sectionTitle(l10n.networkSectionBangumiMode),
                 DropdownButtonFormField<BangumiRequestMode>(
                   initialValue: _bangumiRequestMode,
-                  decoration: const InputDecoration(
-                    labelText: 'Bangumi 请求方式',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.networkSectionBangumiMode,
+                    border: const OutlineInputBorder(),
                     filled: true,
-                    // helperText: '评论优先走 next.bgm.tv，失败时回退旧实现',
                   ),
-                  items: const [
+                  items: [
                     DropdownMenuItem(
                       value: BangumiRequestMode.legacy,
-                      child: Text('旧版'),
+                      child: Text(l10n.networkBangumiRequestModeLegacy),
                     ),
                     DropdownMenuItem(
                       value: BangumiRequestMode.hybrid,
-                      child: Text('混合（推荐）'),
+                      child: Text(l10n.networkBangumiRequestModeHybrid),
                     ),
                     DropdownMenuItem(
                       value: BangumiRequestMode.modern,
-                      child: Text('新版'),
+                      child: Text(l10n.networkBangumiRequestModeModern),
                     ),
                   ],
                   onChanged: (value) {
@@ -644,9 +650,10 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           ? Icons.cloud_done_outlined
                           : Icons.cloud_download_outlined,
                     ),
-                    title: const Text('离线放送数据'),
+                    title: Text(l10n.networkBangumiOfflineBroadcastData),
                     subtitle: Text(
-                      _bangumiDataRefreshResult ?? _bangumiDataStatusSubtitle(),
+                      _bangumiDataRefreshResult ??
+                          _bangumiDataStatusSubtitle(l10n),
                       style: const TextStyle(fontSize: 12),
                     ),
                     trailing: _isRefreshingBangumiData

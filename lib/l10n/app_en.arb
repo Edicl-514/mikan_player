@@ -60,6 +60,49 @@
   "networkSectionBaseUrl": "Base URL",
   "networkSectionBangumiMode": "Bangumi request mode",
   "networkSectionAdvanced": "Advanced",
+  "networkBangumiRequestModeLegacy": "Legacy",
+  "networkBangumiRequestModeHybrid": "Hybrid (recommended)",
+  "networkBangumiRequestModeModern": "Modern",
+  "networkBangumiOfflineBroadcastData": "Offline broadcast data",
+  "networkBangumiDataLoading": "Loading…",
+  "networkBangumiDataNotCached": "Not cached — tap to download the offline fallback data",
+  "networkBangumiDataCachedSize": "Cached {size}",
+  "@networkBangumiDataCachedSize": {
+    "description": "Status line for cached broadcast data, where {size} is a localized size like '1.2 MB' or '512 KB'.",
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "networkBangumiDataSyncTime": "Synced at {time}",
+  "@networkBangumiDataSyncTime": {
+    "description": "Status line shown after the cached size, where {time} is a localized date-time string.",
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "networkBangumiDataVersion": "v{version}",
+  "@networkBangumiDataVersion": {
+    "description": "Version suffix shown after the cached size and sync time.",
+    "placeholders": {
+      "version": { "type": "String" }
+    }
+  },
+  "networkBangumiDataFailedMins": "Last sync failed {minutes} min ago",
+  "@networkBangumiDataFailedMins": {
+    "description": "Status suffix shown when the last sync failed less than an hour ago.",
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "networkBangumiDataFailedHours": "Last sync failed {hours} h ago",
+  "@networkBangumiDataFailedHours": {
+    "description": "Status suffix shown when the last sync failed an hour or more ago.",
+    "placeholders": {
+      "hours": { "type": "int" }
+    }
+  },
+  "networkBangumiDataRefreshSuccess": "Offline broadcast data updated",
+  "networkBangumiDataRefreshFailed": "Update failed — please check your network",
   "searchSettings": "Search Settings",
   "searchSubtitle": "WebView concurrency and search parameters",
   "downloadSettingsTitle": "Download Settings",
@@ -68,6 +111,8 @@
   "downloadSettingsInvalidNumber": "Please enter a valid speed limit",
   "downloadEngineTitle": "BT Engine",
   "downloadEngineSubtitle": "New and auto-resumed BT tasks will use the selected backend",
+  "downloadEngineRqbitDescription": "rqbit is built in Rust with low memory usage and fast startup. It excels at stream-while-downloading, making it a good fit for quickly previewing video content.",
+  "downloadEngineLibtorrentDescription": "libtorrent is a mature C++ BT engine known for stable, efficient downloads and broad compatibility. It is well suited for full downloads and long-term seeding.",
   "downloadParallelTasks": "Parallel download tasks",
   "downloadParallelHint": "1-10, default 3",
   "downloadSpeedLimitsHeader": "Speed Limits (0 = unlimited)",
@@ -214,6 +259,134 @@
   "searchConfigTitle": "searchConfig",
   "captchaConfigTitle": "captchaConfig",
   "dataSourceConfigSave": "Save",
+  "dataSourceConfigAllowedChars": "Allowed characters",
+  "dataSourceConfigBasicInfo": "Basic information",
+  "dataSourceConfigCaptcha": "Captcha",
+  "dataSourceConfigCaptchaSub": "Optional. Configure only if the data source uses a captcha",
+  "dataSourceConfigChannelNameRegex": "Channel name regex",
+  "dataSourceConfigChannelNameRegexHelper": "You can use (?<ch>...) to capture the final name",
+  "dataSourceConfigChannelNameSelector": "Channel name selector",
+  "dataSourceConfigChannelNameSelectorHelper": "For example: channel, subtitle group, or play source tab",
+  "dataSourceConfigCookie": "Cookie",
+  "dataSourceConfigCookieHelper": "Cookie sent with video requests; can be left empty",
+  "dataSourceConfigDescription": "Description",
+  "dataSourceConfigDetectSelector": "Captcha detect selector",
+  "dataSourceConfigDistinguishChannelName": "Distinguish channel names",
+  "dataSourceConfigDistinguishChannelNameSub": "When disabled, same-named episodes from different channels are deduplicated",
+  "dataSourceConfigDistinguishSubjectName": "Distinguish subject names",
+  "dataSourceConfigDistinguishSubjectNameSub": "When disabled, same-named episodes from different search results are deduplicated",
+  "dataSourceConfigEditing": "Edit: {name}",
+  "@dataSourceConfigEditing": {
+    "description": "AppBar title when editing an existing data source.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "dataSourceConfigEnableCaptcha": "Enable captcha handling",
+  "dataSourceConfigEnableCaptchaSub": "Turn on to bypass a captcha on the detail page",
+  "dataSourceConfigEnableNestedUrl": "Enable nested URL matching",
+  "dataSourceConfigEnableNestedUrlSub": "First find the inner play page from the player page, then match the video URL",
+  "dataSourceConfigEpisodeLinkSelector": "Episode link selector (inside list)",
+  "dataSourceConfigEpisodeLinkSelectorHelper": "When empty, the episode element's own href is used",
+  "dataSourceConfigEpisodeListSelector": "Episode list selector",
+  "dataSourceConfigEpisodeSelector": "Episode selector",
+  "dataSourceConfigEpisodesFromListSelector": "Episode selector (inside list)",
+  "dataSourceConfigExpectedLength": "Captcha length",
+  "dataSourceConfigFilterAndPlayer": "Filter and player selection",
+  "dataSourceConfigFilterByEpisodeSort": "Filter by episode number",
+  "dataSourceConfigFilterByEpisodeSortSub": "Resource titles must include the episode number; usually recommended on",
+  "dataSourceConfigFilterBySubjectName": "Filter by subject name",
+  "dataSourceConfigFilterBySubjectNameSub": "Resource titles must include the subject name",
+  "dataSourceConfigFromListEpisodeLinkSelector": "Episode link selector",
+  "dataSourceConfigFromListEpisodeLinkSelectorHelper": "When empty, the episode element's own href is used",
+  "dataSourceConfigIconUrl": "Icon URL",
+  "dataSourceConfigIconUrlHint": "https://...",
+  "dataSourceConfigImageSelector": "Captcha image selector",
+  "dataSourceConfigInputSelector": "Input selector",
+  "dataSourceConfigIntegerRequired": "Please enter an integer",
+  "dataSourceConfigJsonPreviewSub": "Used to review the saved content",
+  "dataSourceConfigJsonPreviewTitle": "Generated JSON",
+  "dataSourceConfigJsonSchemaCaptcha": "captchaConfig",
+  "dataSourceConfigJsonSchemaSearch": "searchConfig",
+  "dataSourceConfigJsonSchemaNotConfigured": "Not configured",
+  "dataSourceConfigLinkJsonPath": "Link JsonPath",
+  "dataSourceConfigMatchVideoUrl": "Video URL regex",
+  "dataSourceConfigMatchVideoUrlHelper": "You can use (?<v>...) to capture the final play URL",
+  "dataSourceConfigName": "Name",
+  "dataSourceConfigNameHelper": "Name shown in the data source list",
+  "dataSourceConfigNameJsonPath": "Name JsonPath",
+  "dataSourceConfigNestedUrlRegex": "Nested URL regex",
+  "dataSourceConfigNew": "New data source",
+  "dataSourceConfigNotMarked": "Not tagged",
+  "dataSourceConfigPreferShorterName": "Prefer shorter names",
+  "dataSourceConfigRefreshSelector": "Refresh image selector",
+  "dataSourceConfigReferer": "Referer",
+  "dataSourceConfigRefererHelper": "Referer sent with the video request",
+  "dataSourceConfigRequestInterval": "Request interval (ms)",
+  "dataSourceConfigRequestIntervalHelper": "Wait time between requests",
+  "dataSourceConfigRequired": "Required",
+  "dataSourceConfigResolutionLabel": "Tag resolution",
+  "dataSourceConfigResolutionHelper": "Used for player preferences and filtering",
+  "dataSourceConfigSaved": "Configuration saved",
+  "dataSourceConfigSaveFailed": "Save failed: {error}",
+  "@dataSourceConfigSaveFailed": {
+    "description": "SnackBar message shown when saving the data source fails.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "dataSourceConfigSearchUrl": "Search URL",
+  "dataSourceConfigSearchUrlHelper": "{keyword} is replaced with the subject name",
+  "@dataSourceConfigSearchUrlHelper": {
+    "description": "Helper text under the search URL field explaining the {keyword} placeholder.",
+    "placeholders": {
+      "keyword": { "type": "String" }
+    }
+  },
+  "dataSourceConfigSearchUrlHint": "https://example.com/search?wd={keyword}",
+  "@dataSourceConfigSearchUrlHint": {
+    "description": "Example URL shown as the hint of the search URL field.",
+    "placeholders": {
+      "keyword": { "type": "String" }
+    }
+  },
+  "dataSourceConfigSortRegex": "Episode number regex",
+  "dataSourceConfigSortRegexHelper": "Recommended: use (?<ep>...) to capture the episode number",
+  "dataSourceConfigStep1ParseResults": "Step 1: parse search results",
+  "dataSourceConfigStep1ParseResultsSub": "Extract subject names and detail page links from the search results",
+  "dataSourceConfigStep1Search": "Step 1: search subjects",
+  "dataSourceConfigStep1SearchSub": "Configure the search URL and search-term processing rules",
+  "dataSourceConfigStep2Channels": "Step 2: parse channels and episodes",
+  "dataSourceConfigStep2ChannelsSub": "Extract channels, episodes, and play page links from the detail page",
+  "dataSourceConfigStep3MatchVideo": "Step 3: match video",
+  "dataSourceConfigStep3MatchVideoSub": "Extract the final video URL and request headers from the play page",
+  "dataSourceConfigSubjectFormatA": "Single label",
+  "dataSourceConfigSubjectFormatIndexed": "Multiple labels",
+  "dataSourceConfigSubjectFormatJsonPath": "JsonPath",
+  "dataSourceConfigChannelFormatIndexGrouped": "Channel grouped",
+  "dataSourceConfigChannelFormatNoChannel": "No channel",
+  "dataSourceConfigSubjectLinkSelector": "Subject link selector",
+  "dataSourceConfigSubjectLinkSelectorHelper": "Choose the subject detail page link from the search results",
+  "dataSourceConfigSubjectNameSelector": "Subject name selector",
+  "dataSourceConfigSubjectRemoveSpecial": "Remove special characters",
+  "dataSourceConfigSubjectRemoveSpecialSub": "Strip symbols and common noise words to improve search compatibility",
+  "dataSourceConfigSubjectUseFirstWord": "Use only the first word",
+  "dataSourceConfigSubjectUseFirstWordSub": "Split the subject name on spaces and use only the first word for searching",
+  "dataSourceConfigSubjectUseNamesCount": "Number of subject name attempts",
+  "dataSourceConfigSubjectUseNamesCountHelper": "Leave empty to use the default. 1 means only the primary name is used",
+  "dataSourceConfigSubmitSelector": "Submit button selector",
+  "dataSourceConfigSubtitleLabel": "Tag subtitle language",
+  "dataSourceConfigSubtitleHelper": "Used for player preferences and filtering",
+  "dataSourceConfigSuccessSelector": "Success page selector",
+  "dataSourceConfigTier": "Priority",
+  "dataSourceConfigTierHelper": "Lower numbers have higher priority",
+  "dataSourceConfigType": "Type",
+  "dataSourceConfigUseRawBaseUrl": "Base URL",
+  "dataSourceConfigUseRawBaseUrlHelper": "Optional. Used to build subject detail page links; usually inferred from the search URL when empty",
+  "dataSourceConfigUserAgent": "User-Agent",
+  "dataSourceConfigUserAgentHelper": "User-Agent sent with the video request",
+  "dataSourceConfigUseWebViewForCaptchaDetail": "Use WebView for the detail page",
+  "dataSourceConfigCaptchaInitialDelay": "Initial wait (ms)",
   "searchSettingsTitle": "Search settings",
   "maxParallelSearchSources": "Max parallel search sources",
   "maxParallelSearchSourcesHint": "Default 3, 0 means unlimited (Generic Scraper)",

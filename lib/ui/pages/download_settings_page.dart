@@ -112,9 +112,10 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppLocalizations.of(context).downloadSettingsTitle),
+        title: Text(l10n.downloadSettingsTitle),
         actions: [
           IconButton(icon: const Icon(Icons.save), onPressed: _saveSettings),
         ],
@@ -138,11 +139,11 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
                 color: Theme.of(context).colorScheme.primary,
               ),
               title: Text(
-                AppLocalizations.of(context).downloadEngineTitle,
+                l10n.downloadEngineTitle,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               subtitle: Text(
-                AppLocalizations.of(context).downloadEngineSubtitle,
+                l10n.downloadEngineSubtitle,
               ),
               trailing: DropdownButton<BtBackendKind>(
                 value: _backendKind,
@@ -156,10 +157,12 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
                 items: const [
                   DropdownMenuItem(
                     value: BtBackendKind.rqbit,
+                    // i18n-ignore: product name
                     child: Text('rqbit'),
                   ),
                   DropdownMenuItem(
                     value: BtBackendKind.libtorrent,
+                    // i18n-ignore: product name
                     child: Text('libtorrent'),
                   ),
                 ],
@@ -182,8 +185,8 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
                 Expanded(
                   child: Text(
                     _backendKind == BtBackendKind.rqbit
-                        ? 'rqbit 基于 Rust 构建，内存占用低，启动快速，擅长边下边播（串流）场景，适合快速预览视频内容。'
-                        : 'libtorrent 是成熟的 C++ BT 引擎，下载稳定高效，兼容性好，擅长完整下载和资源做种，适合长期保种场景。',
+                        ? l10n.downloadEngineRqbitDescription
+                        : l10n.downloadEngineLibtorrentDescription,
                     style: TextStyle(
                       fontSize: 12,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -198,10 +201,8 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
 
           _buildSwitchCard(
             icon: Icons.cloud_download_outlined,
-            title: AppLocalizations.of(context).allowBackgroundDownload,
-            subtitle: AppLocalizations.of(
-              context,
-            ).allowBackgroundDownloadSubtitle,
+            title: l10n.allowBackgroundDownload,
+            subtitle: l10n.allowBackgroundDownloadSubtitle,
             value: _allowBackgroundDownload,
             onChanged: (value) async {
               setState(() {
@@ -220,8 +221,8 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
             const SizedBox(height: 8),
             _buildSwitchCard(
               icon: Icons.all_inclusive,
-              title: AppLocalizations.of(context).keepSeedingMode,
-              subtitle: AppLocalizations.of(context).keepSeedingModeSubtitle,
+              title: l10n.keepSeedingMode,
+              subtitle: l10n.keepSeedingModeSubtitle,
               value: _keepSeedingInBackground,
               onChanged: (value) async {
                 setState(() => _keepSeedingInBackground = value);
@@ -242,8 +243,8 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
           // 并行下载数
           _buildNumberField(
             controller: _concurrentController,
-            label: AppLocalizations.of(context).downloadParallelTasks,
-            hint: AppLocalizations.of(context).downloadParallelHint,
+            label: l10n.downloadParallelTasks,
+            hint: l10n.downloadParallelHint,
             icon: Icons.sync_alt,
             allowDecimal: false,
           ),
@@ -253,7 +254,7 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
           Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Text(
-              AppLocalizations.of(context).downloadSpeedLimitsHeader,
+              l10n.downloadSpeedLimitsHeader,
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
@@ -265,8 +266,8 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
           // 下载限速
           _buildNumberField(
             controller: _downloadLimitController,
-            label: AppLocalizations.of(context).downloadDownloadLimit,
-            hint: AppLocalizations.of(context).downloadDownloadLimitHint,
+            label: l10n.downloadDownloadLimit,
+            hint: l10n.downloadDownloadLimitHint,
             icon: Icons.download,
           ),
           const SizedBox(height: 16),
@@ -274,8 +275,8 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
           // 上传限速
           _buildNumberField(
             controller: _uploadLimitController,
-            label: AppLocalizations.of(context).downloadUploadLimit,
-            hint: AppLocalizations.of(context).downloadUploadLimitHint,
+            label: l10n.downloadUploadLimit,
+            hint: l10n.downloadUploadLimitHint,
             icon: Icons.upload,
           ),
         ],
