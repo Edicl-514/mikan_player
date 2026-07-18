@@ -1,5 +1,6 @@
 import 'dart:collection';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/main.dart' show webViewEnvironment;
@@ -384,6 +385,19 @@ class _ReusableBrowserWorkerState extends State<ReusableBrowserWorker> {
   ];
 
   static List<ContentBlocker> _buildContentBlockers() {
+    // flutter_inappwebview only implements content blockers on Android/iOS/macOS.
+    // On Windows/Linux, ContentBlockerActionType.BLOCK's native value is null and
+    // constructing it throws: type 'Null' is not a subtype of type 'String'.
+    // Do not even touch ContentBlockerActionType on unsupported platforms.
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.macOS:
+        break;
+      default:
+        return const [];
+    }
+
     final blockers = <ContentBlocker>[];
     for (final host in _blockedResourceHosts) {
       blockers.add(
