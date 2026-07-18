@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
@@ -60,6 +61,7 @@ class PlayerPcLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = isDark
         ? const Color(0xFF0F0F13)
@@ -198,7 +200,7 @@ class PlayerPcLayout extends StatelessWidget {
                                         Text(
                                           currentEpisode.description.isNotEmpty
                                               ? currentEpisode.description
-                                              : '暂无简介',
+                                              : l10n.playerNoDescription,
                                           maxLines: isDescriptionExpanded
                                               ? null
                                               : 2,
@@ -224,8 +226,8 @@ class PlayerPcLayout extends StatelessWidget {
                                               children: [
                                                 Text(
                                                   isDescriptionExpanded
-                                                      ? '收起'
-                                                      : '展开',
+                                                      ? l10n.playerCollapse
+                                                      : l10n.playerExpand,
                                                   style: TextStyle(
                                                     color: theme
                                                         .colorScheme
@@ -250,14 +252,16 @@ class PlayerPcLayout extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 24),
-                                const PlayerSectionHeader('播放源'),
+                                PlayerSectionHeader(l10n.playerMobilePlaySource),
                                 const SizedBox(height: 12),
                                 playSourceSelector,
                                 const SizedBox(height: 12),
                                 resourceList,
                                 if (onairSites.isNotEmpty) ...[
                                   const SizedBox(height: 24),
-                                  const PlayerSectionHeader('官方播放源'),
+                                  PlayerSectionHeader(
+                                    l10n.playerMobileOfficialPlaySource,
+                                  ),
                                   const SizedBox(height: 12),
                                   PlayerOnairSitesList(sites: onairSites),
                                 ],
@@ -275,7 +279,7 @@ class PlayerPcLayout extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             PlayerSectionHeader(
-                              '评论区',
+                              l10n.playerPcCommentsSection,
                               trailing: commentSortButton,
                             ),
                             const SizedBox(height: 16),
@@ -298,7 +302,9 @@ class PlayerPcLayout extends StatelessWidget {
                           child: Padding(
                             padding: const EdgeInsets.all(20),
                             child: Text(
-                              '加载失败: $commentsError',
+                              l10n.playerCommentsLoadFailedPc(
+                                commentsError!,
+                              ),
                               style: const TextStyle(color: Colors.redAccent),
                             ),
                           ),
@@ -310,7 +316,7 @@ class PlayerPcLayout extends StatelessWidget {
                           child: Padding(
                             padding: const EdgeInsets.all(20),
                             child: Text(
-                              '暂无评论',
+                              l10n.playerCommentsEmptyPc,
                               style: TextStyle(
                                 color: isDark ? Colors.white54 : Colors.grey,
                               ),
@@ -350,10 +356,10 @@ class PlayerPcLayout extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    const PlayerSectionHeader('播放列表'),
+                    PlayerSectionHeader(l10n.playerPcPlaylist),
                     const SizedBox(height: 12),
                     Text(
-                      '选集',
+                      l10n.playerPcEpisodeList,
                       style: TextStyle(
                         color: textColor,
                         fontWeight: FontWeight.bold,
@@ -385,7 +391,7 @@ class PlayerPcLayout extends StatelessWidget {
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     const SizedBox(height: 24),
-                    const PlayerSectionHeader('相关推荐'),
+                    PlayerSectionHeader(l10n.playerMobileRelated),
                     const SizedBox(height: 12),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),

@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
@@ -12,9 +13,20 @@ import 'package:mikan_player/ui/pages/player/widgets/player_pc_episode_list.dart
 import 'package:mikan_player/ui/pages/player/widgets/player_section_header.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_source_progress_item.dart';
 
-Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
+Widget _wrap(Widget child) => MaterialApp(
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  supportedLocales: AppLocalizations.supportedLocales,
+  locale: const Locale('zh'),
+  home: Scaffold(body: child),
+);
 
 void main() {
+  late AppLocalizations l10n;
+
+  setUpAll(() async {
+    l10n = await AppLocalizations.delegate.load(const Locale('zh'));
+  });
+
   testWidgets('PlayerSectionHeader shows title', (tester) async {
     await tester.pumpWidget(_wrap(const PlayerSectionHeader('播放源')));
     expect(find.text('播放源'), findsOneWidget);
@@ -32,10 +44,10 @@ void main() {
         ),
       ),
     );
-    expect(find.text('默认排序'), findsOneWidget);
+    expect(find.text(l10n.playerSortDefault), findsOneWidget);
     await tester.tap(find.byType(PlayerCommentSortButton));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('按时间排序').last);
+    await tester.tap(find.text(l10n.playerSortByTime).last);
     await tester.pumpAndSettle();
     expect(selected, 'time');
   });
@@ -52,7 +64,7 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('下载'));
+    await tester.tap(find.text(l10n.playerDownloadButton));
     await tester.pump();
     expect(tapped, isFalse);
   });
@@ -77,7 +89,7 @@ void main() {
       ),
     );
     expect(find.text('srcA'), findsOneWidget);
-    expect(find.text('失败'), findsOneWidget);
+    expect(find.text(l10n.playerSearchProgressStepFailed), findsOneWidget);
     expect(find.text('boom'), findsOneWidget);
   });
 

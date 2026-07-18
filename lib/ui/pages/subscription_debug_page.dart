@@ -105,6 +105,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       return;
     }
 
+    final l10n = AppLocalizations.of(context);
     setState(() {
       _probingSourceKeys.remove(sourceKey);
       _probeResultsByKey[sourceKey] = probeResult;
@@ -118,7 +119,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             ? _extractLogs
             : _searchLogs,
         '${logPrefix ?? 'Probe'} ${source.sourceName}: '
-        '${probeResult.playable ? '可播放' : '不可播放'}'
+        '${probeResult.playable ? l10n.playerSubscriptionDebugPlayable : l10n.playerSubscriptionDebugNotPlayable}'
         '${probeResult.statusCode != null ? ' | HTTP ${probeResult.statusCode}' : ''}'
         '${probeResult.contentType != null ? ' | ${probeResult.contentType}' : ''}'
         '${probeResult.error != null ? ' | ${probeResult.error}' : ''}',
@@ -145,26 +146,37 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       enableNestedUrl: progress.enableNestedUrl,
       matchNestedUrl: progress.matchNestedUrl,
     );
-    unawaited(_probeVideoUrl(source, logPrefix: '搜索直链 Probe'));
+    unawaited(
+      _probeVideoUrl(
+        source,
+        logPrefix: AppLocalizations.of(
+          context,
+        ).playerSubscriptionDebugSearchDirectProbe,
+      ),
+    );
   }
 
   String _probeStatusText(
     VideoUrlProbeResult? result, {
     required bool isProbing,
   }) {
+    final l10n = AppLocalizations.of(context);
     if (isProbing) {
-      return 'Probe 中...';
+      return l10n.playerSubscriptionDebugProbeInProgress;
     }
     if (result == null) {
-      return '未 Probe';
+      return l10n.playerSubscriptionDebugProbeNotDone;
     }
     final detail = <String>[
-      result.playable ? '可播放' : '不可播放',
+      result.playable
+          ? l10n.playerSubscriptionDebugPlayable
+          : l10n.playerSubscriptionDebugNotPlayable,
       if (result.statusCode != null) 'HTTP ${result.statusCode}',
       if (result.contentType != null && result.contentType!.isNotEmpty)
         result.contentType!,
       '${result.latency.inMilliseconds}ms',
     ];
+    // i18n-ignore: log format; the `Probe:` prefix is a debug-only header.
     return 'Probe: ${detail.join(' | ')}';
   }
 
@@ -264,6 +276,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
   }
 
   Future<void> _startDebugSearch() async {
+    final l10n = AppLocalizations.of(context);
     final jsonPath = _jsonPathController.text.trim();
     final animeName = _animeNameController.text.trim();
 
@@ -343,8 +356,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
         SnackBar(
           content: Text(
             jsonPath.isEmpty
-                ? '缓存 JSON 不存在: $resolvedJsonPath'
-                : '文件不存在: $resolvedJsonPath',
+                ? l10n.playerSubscriptionDebugCacheJsonMissing(resolvedJsonPath)
+                : l10n.playerSubscriptionDebugFileMissing(resolvedJsonPath),
           ),
         ),
       );
@@ -370,7 +383,15 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       _extractHeaders = const {};
       _appendLog(
         _searchLogs,
-        '开始调试搜索: anime=$animeName, abs=${absoluteEpisode ?? '-'}, rel=${relativeEpisode ?? '-'}, filter=${sourceFilter.isEmpty ? '-' : sourceFilter}, json=${jsonPath.isEmpty ? '缓存' : '本地'}',
+        l10n.playerSubscriptionDebugStartSearch(
+          animeName,
+          '${absoluteEpisode ?? '-'}',
+          '${relativeEpisode ?? '-'}',
+          sourceFilter.isEmpty ? '-' : sourceFilter,
+          jsonPath.isEmpty
+              ? l10n.playerSubscriptionDebugJsonCache
+              : l10n.playerSubscriptionDebugJsonLocal,
+        ),
       );
     });
 
@@ -378,6 +399,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       jsonPath: resolvedJsonPath,
       animeName: animeName,
       sourceFilter: sourceFilter,
+      l10n: l10n,
     );
 
     if (!mounted) return;
@@ -414,7 +436,10 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             setState(() {
               _isSearching = false;
               _searchError = error.toString();
-              _appendLog(_searchLogs, '搜索异常: $error');
+              _appendLog(
+                _searchLogs,
+                l10n.playerSubscriptionDebugSearchError(error.toString()),
+              );
             });
           },
           onDone: () {
@@ -423,7 +448,10 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             }
             setState(() {
               _isSearching = false;
-              _appendLog(_searchLogs, '搜索结束');
+              _appendLog(
+                _searchLogs,
+                l10n.playerSubscriptionDebugSearchFinished,
+              );
             });
           },
         );
@@ -431,6 +459,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
 
   Future<generic_scraper.SourceRuntimeOverride> _runCaptchaPreflight({
     required generic_scraper.SourceState source,
+    required AppLocalizations l10n,
     String? searchKeyword,
     String? initialUrl,
     String? referer,
@@ -448,7 +477,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
           completer.complete(
             generic_scraper.SourceRuntimeOverride(
               sourceName: source.name,
-              skipSearchError: '页面已关闭，无法完成验证码预处理',
+              skipSearchError: l10n.playerSubscriptionDebugCaptchaPageClosed,
             ),
           );
         }
@@ -493,7 +522,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               completer.complete(
                 generic_scraper.SourceRuntimeOverride(
                   sourceName: source.name,
-                  skipSearchError: result.error ?? 'Captcha preflight failed',
+                  skipSearchError:
+                      result.error ??
+                      l10n.playerSubscriptionDebugCaptchaPreflightFailed,
                 ),
               );
             }
@@ -519,6 +550,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
     required String jsonPath,
     required String animeName,
     required String sourceFilter,
+    required AppLocalizations l10n,
   }) async {
     final overrides = <generic_scraper.SourceRuntimeOverride>[];
 
@@ -594,13 +626,17 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
           );
           _appendLog(
             _searchLogs,
-            '${source.name} -> 正在进行验证码预处理 (${i + 1}/${captchaSources.length})',
+            l10n.playerSubscriptionDebugCaptchaPreflight(
+              source.name,
+              i + 1,
+              captchaSources.length,
+            ),
           );
         });
 
         final runtimeOverride = await _runCaptchaPreflight(
           source: source,
-          searchKeyword: animeName,
+          l10n: l10n,
         );
         overrides.add(runtimeOverride);
 
@@ -624,13 +660,17 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
         });
       }
     } catch (e) {
-      _appendLog(_searchLogs, '解析captcha源失败: $e');
+      _appendLog(
+        _searchLogs,
+        l10n.playerSubscriptionDebugCaptchaParseFailed(e.toString()),
+      );
     }
 
     return overrides;
   }
 
   void _startExtractVideoUrl(generic_scraper.SourceSearchProgress progress) {
+    final l10n = AppLocalizations.of(context);
     final playPageUrl = progress.playPageUrl;
     if (playPageUrl == null || playPageUrl.isEmpty) {
       return;
@@ -657,7 +697,10 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       _extractedVideoUrl = null;
       _extractHeaders = const {};
       _extractLogs.clear();
-      _appendLog(_extractLogs, '开始提取: ${progress.sourceName}');
+      _appendLog(
+        _extractLogs,
+        l10n.playerSubscriptionDebugExtractStart(progress.sourceName),
+      );
     });
   }
 
@@ -693,7 +736,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               controller: _jsonPathController,
               decoration: InputDecoration(
                 labelText: l10n.localJsonPathLabel,
-                hintText: r'D:\temp\online.json，或留空',
+                hintText: l10n.playerSubscriptionDebugJsonPathHint,
                 border: OutlineInputBorder(),
               ),
             ),
@@ -762,7 +805,11 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                   child: FilledButton.icon(
                     onPressed: _isSearching ? null : _startDebugSearch,
                     icon: const Icon(Icons.play_arrow),
-                    label: Text(_isSearching ? l10n.stepSearching : '开始调试搜索'),
+                    label: Text(
+                      _isSearching
+                          ? l10n.stepSearching
+                          : l10n.playerSubscriptionDebugStartSearchButton,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -842,6 +889,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
   }
 
   Widget _buildSearchResults(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final results = _progressBySource.values.toList()
       ..sort(
         (a, b) =>
@@ -849,7 +897,6 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       );
 
     if (results.isEmpty) {
-      final l10n = AppLocalizations.of(context);
       return Card(
         elevation: 0,
         margin: EdgeInsets.zero,
@@ -921,7 +968,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                 if (result.directVideoUrl != null &&
                     result.directVideoUrl!.isNotEmpty)
                   Text(
-                    '直链: ${result.directVideoUrl!}',
+                    l10n.playerSubscriptionDebugDirectLink(
+                      result.directVideoUrl!,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -966,10 +1015,18 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                               matchNestedUrl: result.matchNestedUrl,
                             );
                             unawaited(
-                              _probeVideoUrl(source, logPrefix: '手动 Probe'),
+                              _probeVideoUrl(
+                                source,
+                                logPrefix:
+                                    l10n.playerSubscriptionDebugManualProbe,
+                              ),
                             );
                           },
-                    child: Text(isProbing ? 'Probe 中' : 'Probe'),
+                    child: Text(
+                      isProbing
+                          ? l10n.playerSubscriptionDebugProbeActive
+                          : 'Probe',
+                    ),
                   ),
                 if (canExtract)
                   FilledButton.tonal(
@@ -987,6 +1044,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
   }
 
   Widget _buildExtractorPanel() {
+    final l10n = AppLocalizations.of(context);
     if (_extractTarget == null) {
       return const SizedBox.shrink();
     }
@@ -1005,7 +1063,11 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
-            Text('来源: ${_extractTarget!.sourceName}'),
+            Text(
+              l10n.playerSubscriptionDebugSourceName(
+                _extractTarget!.sourceName,
+              ),
+            ),
             Text(
               AppLocalizations.of(
                 context,
@@ -1067,7 +1129,11 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             if (_extractHeaders.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text('Headers: ${_extractHeaders.keys.join(', ')}'),
+                child: Text(
+                  l10n.playerSubscriptionDebugHeaders(
+                    _extractHeaders.keys.join(', '),
+                  ),
+                ),
               ),
             const SizedBox(height: 8),
             if (_extractingSourceName != null)
@@ -1106,15 +1172,21 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                       _extractError = null;
                       _appendLog(
                         _extractLogs,
-                        '提取成功: ${result.videoUrl}',
+                        l10n.playerSubscriptionDebugExtractSuccess(
+                          result.videoUrl ?? '',
+                        ),
                         maxLines: 120,
                       );
                     } else {
                       _extractedVideoUrl = null;
-                      _extractError = result.error ?? '提取失败';
+                      _extractError =
+                          result.error ??
+                          l10n.playerSubscriptionDebugExtractFailedShort;
                       _appendLog(
                         _extractLogs,
-                        '提取失败: ${result.error}',
+                        l10n.playerSubscriptionDebugExtractFailedDetail(
+                          result.error ?? '',
+                        ),
                         maxLines: 120,
                       );
                     }
@@ -1142,7 +1214,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                         probeTarget,
                         overrideUrl: result.videoUrl,
                         overrideHeaders: _buildProbeHeaders(probeTarget),
-                        logPrefix: '提取后 Probe',
+                        logPrefix: l10n.playerSubscriptionDebugPostProbe,
                       ),
                     );
                   }
@@ -1191,12 +1263,10 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       final l10n = AppLocalizations.of(context);
       return Scaffold(
         appBar: AppBar(title: Text(l10n.subscriptionDebugTitle)),
-        body: const Center(
+        body: Center(
           child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              '当前构建未启用订阅调试。\n请使用 --dart-define=ENABLE_SUBSCRIPTION_DEBUG=true 启动。',
-            ),
+            padding: const EdgeInsets.all(24),
+            child: Text(l10n.subscriptionDebugDisabled),
           ),
         ),
       );
@@ -1219,11 +1289,9 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                 ).colorScheme.primary.withValues(alpha: 0.2),
               ),
             ),
-            child: const Padding(
-              padding: EdgeInsets.all(12),
-              child: Text(
-                '此页面仅用于调试：优先读取本地 JSON，留空时读取程序缓存中的 JSON，不会修改缓存文件、不会覆盖订阅设置、不会影响正式播放流程。',
-              ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(l10n.subscriptionDebugInfo),
             ),
           ),
           const SizedBox(height: 12),

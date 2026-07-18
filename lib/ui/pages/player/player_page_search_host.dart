@@ -258,7 +258,9 @@ extension _PlayerPageSearchHost on _PlayerPageState {
     );
     final activeCaptcha = _captchaCoordinator.activeTasks.length;
     final pendingCaptcha = _captchaCoordinator.pendingTasks.length;
+    final l10n = AppLocalizations.of(context);
     _sampleStatusMessageNotifier.value = sampleSearchProgressLabel(
+      formatter: l10n.playerSearchSessionProgressLine,
       completedCount: completedCount,
       enabledCount: _sampleSourceController.enabledSourceNames.length,
       activeCaptcha: activeCaptcha,
@@ -381,7 +383,11 @@ extension _PlayerPageSearchHost on _PlayerPageState {
       return;
     }
 
+    final l10n = AppLocalizations.of(context);
     final finish = sampleSearchFinishMessage(
+      notFoundMessage: l10n.playerSearchSessionNotFound,
+      allFailedMessage: l10n.playerSearchSessionAllFailed,
+      doneFormatter: l10n.playerSearchSessionDone,
       playPageCount: _sampleSourceController.samplePlayPages.length,
       successfulSourceCount:
           _sampleSourceController.sampleSuccessfulSources.length,
@@ -402,7 +408,9 @@ extension _PlayerPageSearchHost on _PlayerPageState {
         _updateState(() {
           _sampleSourceController.markSampleIdle();
           _sampleSourceController.setSampleError(null);
-          _sampleStatusMessageNotifier.value = '已播放本地资源，点击刷新可手动搜索在线源';
+          _sampleStatusMessageNotifier.value = AppLocalizations.of(
+            context,
+          ).playerSearchLocalPlayedActionHint;
         });
       }
       return;
@@ -426,7 +434,9 @@ extension _PlayerPageSearchHost on _PlayerPageState {
         _updateState(() {
           _sampleSourceController.markSampleIdle();
           _sampleSourceController.setSampleError(null);
-          _sampleStatusMessageNotifier.value = '在线搜索已关闭，可手动搜索在线源';
+          _sampleStatusMessageNotifier.value = AppLocalizations.of(
+            context,
+          ).playerSearchAutoDisabledHint;
         });
       }
       return;
@@ -488,7 +498,9 @@ extension _PlayerPageSearchHost on _PlayerPageState {
       _webViewStatus.clear();
       _failedWebViewPageKeys.clear();
       _resolvingChannelPlayPageKeys.clear();
-      _sampleStatusMessageNotifier.value = '正在获取播放源列表...';
+      _sampleStatusMessageNotifier.value = AppLocalizations.of(
+        context,
+      ).playerSearchFetchingSourceList;
       _acceptedSourcePageKey = null;
       _webviewStats.reset();
     });
@@ -505,7 +517,9 @@ extension _PlayerPageSearchHost on _PlayerPageState {
           isDisposed: !mounted,
         )) {
           _updateState(() {
-            _sampleSourceController.setSampleErrorAndIdle('未启用任何播放源');
+            _sampleSourceController.setSampleErrorAndIdle(
+              AppLocalizations.of(context).playerSearchNoEnabledSource,
+            );
           });
         }
         return;
@@ -541,8 +555,10 @@ extension _PlayerPageSearchHost on _PlayerPageState {
         );
         _sampleSourceController.initPendingProgressForEnabled();
         _sampleStatusMessageNotifier.value = captchaSources.isEmpty
-            ? '正在搜索 ${enabledSources.length} 个源...'
-            : '非验证码源先行搜索，验证码源并发预处理中...';
+            ? AppLocalizations.of(
+                context,
+              ).playerSearchProgressSearchMany(enabledSources.length)
+            : AppLocalizations.of(context).playerSearchProgressCaptchaPreflight;
       });
 
       if (captchaSources.isNotEmpty) {

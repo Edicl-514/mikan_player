@@ -38,14 +38,16 @@ extension _PlayerPageSidePanelWidgets on _PlayerPageState {
       },
       onCopyMagnet: (res) {
         Clipboard.setData(ClipboardData(text: res.magnet));
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('磁力链接已复制')));
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.playerSidePanelCopyMagnet)),
+        );
       },
       onDownload: (res) async {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('开始下载，可在「我的」页面查看进度')));
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.playerSidePanelDownloadHint)),
+        );
         await _downloadManager.startDownload(
           magnet: res.magnet,
           name: res.title,
@@ -75,16 +77,21 @@ extension _PlayerPageSidePanelWidgets on _PlayerPageState {
             return;
           }
           if (streamUrl == null) {
-            _updateState(() {
-              _playbackController.setVideoError('无法获取播放地址');
-              _loadingMagnet = null;
-            });
-            return;
-          }
-          debugPrint('[Player] Got stream URL: $streamUrl');
           _updateState(() {
-            _playbackController.markLocalPlayback(streamUrl, label: 'BT');
+            _playbackController.setVideoError(
+              AppLocalizations.of(context).playerSidePanelLoadFailed,
+            );
+            _loadingMagnet = null;
           });
+          return;
+        }
+        debugPrint('[Player] Got stream URL: $streamUrl');
+        _updateState(() {
+          _playbackController.markLocalPlayback(
+            streamUrl,
+            label: AppLocalizations.of(context).playerSourceTabBt,
+          );
+        });
           final btHash = _extractBtHashFromStreamUrl(streamUrl);
           if (btHash != null) {
             _downloadManager.setActiveStream(btHash);

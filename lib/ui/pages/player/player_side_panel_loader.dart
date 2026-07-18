@@ -239,10 +239,16 @@ void appendRelationRecommendations({
   required List<RankingAnime> results,
   required Set<String> addedIds,
 }) {
+  // i18n-ignore: Bangumi API relation tokens used for filtering; the actual
+  // display names come from `r.name` and are already server-provided. The
+  // display label keys `playerSidePanelPrequel` / `playerSidePanelSequel` are
+  // used by the badge widget below.
   final pres = relations
+      // i18n-ignore: see Bangumi API relation filter above
       .where((r) => r.relation == '前传' || r.relation == '续集')
       .toList();
   final others = relations
+      // i18n-ignore: see Bangumi API relation filter above
       .where((r) => r.relation != '前传' && r.relation != '续集')
       .toList();
 

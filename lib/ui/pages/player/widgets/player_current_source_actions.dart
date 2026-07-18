@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
+
 /// Download / copy-link buttons for the currently playing online source.
 class PlayerCurrentSourceActions extends StatelessWidget {
   final bool canAct;
@@ -18,6 +20,7 @@ class PlayerCurrentSourceActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final iconColor = isDark ? Colors.white : theme.colorScheme.onSurface;
     final bg = isDark
@@ -70,9 +73,9 @@ class PlayerCurrentSourceActions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        btn(icon: Icons.download, label: "下载", onTap: onDownload),
+        btn(icon: Icons.download, label: l10n.playerDownloadButton, onTap: onDownload),
         const SizedBox(width: 8),
-        btn(icon: Icons.link, label: "复制下载链接", onTap: onCopyUrl),
+        btn(icon: Icons.link, label: l10n.playerCopyDownloadLinkButton, onTap: onCopyUrl),
       ],
     );
   }

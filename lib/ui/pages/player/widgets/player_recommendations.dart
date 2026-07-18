@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
@@ -27,6 +28,7 @@ class PlayerRecommendations extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     if (isLoading) {
@@ -43,7 +45,7 @@ class PlayerRecommendations extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 20),
         alignment: Alignment.center,
         child: Text(
-          "暂无相关推荐",
+          l10n.playerRecommendationsEmpty,
           style: TextStyle(
             color: isDark
                 ? Colors.white.withValues(alpha: 0.3)

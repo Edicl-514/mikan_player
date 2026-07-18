@@ -10,7 +10,9 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
     _updateState(() {
       _disableAutoSourceSearchForCurrentEpisode = hasDownloadedPlayback;
       if (hasDownloadedPlayback) {
-        _sampleStatusMessageNotifier.value = '已播放本地资源，可手动搜索在线源';
+        _sampleStatusMessageNotifier.value = AppLocalizations.of(
+          context,
+        ).playerSearchLocalPlayedHint;
       }
     });
 
@@ -90,7 +92,12 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
       // Reset comments
       _sidePanelLoader.resetComments();
     });
-    _videoTitleNotifier.value = '${widget.anime.title} - 第${ep.sort.toInt()}集';
+    _videoTitleNotifier.value = AppLocalizations.of(
+      context,
+    ).playerPageTitleWithEpisode(
+      widget.anime.title,
+      ep.sort.toInt(),
+    );
     _publishPlayerControlSourceState();
 
     // New episode: clear in-page time trackers and any pending seek from the
@@ -127,7 +134,9 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
     _updateState(() {
       _disableAutoSourceSearchForCurrentEpisode = hasDownloadedPlayback;
       if (hasDownloadedPlayback) {
-        _sampleStatusMessageNotifier.value = '已播放本地资源，可手动搜索在线源';
+        _sampleStatusMessageNotifier.value = AppLocalizations.of(
+          context,
+        ).playerSearchLocalPlayedHint;
       }
     });
 

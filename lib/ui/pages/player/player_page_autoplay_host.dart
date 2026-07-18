@@ -83,8 +83,10 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
 
     _updateState(() {
       _addPlayableSource(source);
-      _sampleStatusMessageNotifier.value =
-          '搜索完成，共找到 ${_sampleSourceController.sampleSuccessfulSources.length} 个可用源';
+      _sampleStatusMessageNotifier.value = AppLocalizations.of(context)
+          .playerAutoplaySearchDone(
+            _sampleSourceController.sampleSuccessfulSources.length,
+          );
     });
 
     if (autoPlayAfterProbe && _autoPlaySearchedSource) {
@@ -144,8 +146,7 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
       proxyUrlBuilder: (url, headers) => _headerProxy.registerUrl(url, headers),
       callbacks: PlayerPlaybackOpenCallbacks(
         stopPlayer: _player.stop,
-        openUrl: (url) =>
-            _player.open(_mediaForPlayback(url), play: true),
+        openUrl: (url) => _player.open(_mediaForPlayback(url), play: true),
         hasPlaybackStarted: () =>
             _player.state.playing || _player.state.position > Duration.zero,
         applyPlaybackSpeed: _applyPlaybackSpeed,

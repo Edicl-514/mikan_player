@@ -1,3 +1,6 @@
+// i18n-scan-ignore-file: BT resource title parser — all literals are
+// protocol/source-data matching tokens (resolution / codec / subtitle language
+// / subtitle type markers) extracted from user-submitted release titles.
 import 'package:flutter/material.dart';
 
 /// Parses release-tag hints (resolution / subtitle language / subtitle type /

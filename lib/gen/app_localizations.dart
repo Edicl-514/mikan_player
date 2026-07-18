@@ -2925,6 +2925,12 @@ abstract class AppLocalizations {
   /// **'返回'**
   String get back;
 
+  /// No description provided for @playerMoreOptions.
+  ///
+  /// In zh, this message translates to:
+  /// **'更多'**
+  String get playerMoreOptions;
+
   /// No description provided for @unlock.
   ///
   /// In zh, this message translates to:
@@ -4178,6 +4184,795 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'职场'**
   String get indexGenreWorkplace;
+
+  /// No description provided for @playerMobileEpisodeSelector.
+  ///
+  /// In zh, this message translates to:
+  /// **'选集'**
+  String get playerMobileEpisodeSelector;
+
+  /// No description provided for @playerMobilePlaySource.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放源'**
+  String get playerMobilePlaySource;
+
+  /// No description provided for @playerMobileOfficialPlaySource.
+  ///
+  /// In zh, this message translates to:
+  /// **'官方播放源'**
+  String get playerMobileOfficialPlaySource;
+
+  /// No description provided for @playerMobileRelated.
+  ///
+  /// In zh, this message translates to:
+  /// **'相关推荐'**
+  String get playerMobileRelated;
+
+  /// No description provided for @playerMobileSummaryAndRecommend.
+  ///
+  /// In zh, this message translates to:
+  /// **'简介 & 推荐'**
+  String get playerMobileSummaryAndRecommend;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论 ({count})'**
+  String playerMobileCommentsTab(int count);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 集'**
+  String playerMobilePlayableEpisodeCount(int count);
+
+  /// No description provided for @playerPcEpisodeList.
+  ///
+  /// In zh, this message translates to:
+  /// **'选集'**
+  String get playerPcEpisodeList;
+
+  /// No description provided for @playerPcPlaylist.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放列表'**
+  String get playerPcPlaylist;
+
+  /// No description provided for @playerPcCommentsSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论区'**
+  String get playerPcCommentsSection;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'已找到 {count} 个BT源，{online} 个订阅源，当前源：{current}'**
+  String playerSourceTitleFound(int count, int online, String current);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前：{label}'**
+  String playerSourceTitleCurrent(String label);
+
+  /// No description provided for @playerSourceTitleFoundMobile.
+  ///
+  /// In zh, this message translates to:
+  /// **'已找到'**
+  String get playerSourceTitleFoundMobile;
+
+  /// No description provided for @playerSourceTabBt.
+  ///
+  /// In zh, this message translates to:
+  /// **'BT'**
+  String get playerSourceTabBt;
+
+  /// No description provided for @playerSourceTabSubscription.
+  ///
+  /// In zh, this message translates to:
+  /// **'订阅源'**
+  String get playerSourceTabSubscription;
+
+  /// No description provided for @playerSourceLabelOnline.
+  ///
+  /// In zh, this message translates to:
+  /// **'在线源下载'**
+  String get playerSourceLabelOnline;
+
+  /// No description provided for @playerSourceLabelBt.
+  ///
+  /// In zh, this message translates to:
+  /// **'BT下载'**
+  String get playerSourceLabelBt;
+
+  /// No description provided for @playerSourceLabelOnlineShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'在线源'**
+  String get playerSourceLabelOnlineShort;
+
+  /// No description provided for @playerNoDownloadableSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有可下载的在线源'**
+  String get playerNoDownloadableSource;
+
+  /// No description provided for @playerAddDownloadTaskFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加下载任务失败，请稍后重试'**
+  String get playerAddDownloadTaskFailed;
+
+  /// No description provided for @playerAddDownloadTaskSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加到下载任务'**
+  String get playerAddDownloadTaskSuccess;
+
+  /// No description provided for @playerNoCopyableLink.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有可复制的下载链接'**
+  String get playerNoCopyableLink;
+
+  /// No description provided for @playerDownloadLinkCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载链接已复制'**
+  String get playerDownloadLinkCopied;
+
+  /// No description provided for @playerDownloadButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载'**
+  String get playerDownloadButton;
+
+  /// No description provided for @playerCopyDownloadLinkButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制下载链接'**
+  String get playerCopyDownloadLinkButton;
+
+  /// No description provided for @playerCopyAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制'**
+  String get playerCopyAction;
+
+  /// No description provided for @playerPlayButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放'**
+  String get playerPlayButton;
+
+  /// No description provided for @playerLoadAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载中'**
+  String get playerLoadAction;
+
+  /// No description provided for @playerSampleStatusLocalManual.
+  ///
+  /// In zh, this message translates to:
+  /// **'已播放本地资源，在线源搜索待手动触发'**
+  String get playerSampleStatusLocalManual;
+
+  /// No description provided for @playerSampleStatusAutoDisabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'在线搜索已关闭，可手动搜索在线源'**
+  String get playerSampleStatusAutoDisabled;
+
+  /// No description provided for @playerSampleStatusNotStarted.
+  ///
+  /// In zh, this message translates to:
+  /// **'尚未开始搜索在线源'**
+  String get playerSampleStatusNotStarted;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索完成 ({done}/{total} 个可用)'**
+  String playerSampleStatusCompleted(int done, int total);
+
+  /// No description provided for @playerSampleStatusFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索失败'**
+  String get playerSampleStatusFailed;
+
+  /// No description provided for @playerSampleSummaryLocalManual.
+  ///
+  /// In zh, this message translates to:
+  /// **'已使用本地资源播放'**
+  String get playerSampleSummaryLocalManual;
+
+  /// No description provided for @playerSampleSummaryAutoDisabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'在线搜索已关闭'**
+  String get playerSampleSummaryAutoDisabled;
+
+  /// No description provided for @playerSampleHintLocalManual.
+  ///
+  /// In zh, this message translates to:
+  /// **'如需在线源，请点击下方按钮手动搜索'**
+  String get playerSampleHintLocalManual;
+
+  /// No description provided for @playerSampleHintAutoDisabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击下方按钮手动搜索在线源'**
+  String get playerSampleHintAutoDisabled;
+
+  /// No description provided for @playerSampleHintNotStarted.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击下方按钮开始搜索'**
+  String get playerSampleHintNotStarted;
+
+  /// No description provided for @playerSamplePlayButtonBase.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放 - '**
+  String get playerSamplePlayButtonBase;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放 - {source}({channel})'**
+  String playerSamplePlayButtonWithChannel(String source, String channel);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放 - {source}'**
+  String playerSamplePlayButtonWithSource(String source);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'并发WebView任务 ({active}/{max})'**
+  String playerWebViewTaskCount(int active, int max);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'并发WebView任务 ({active}/{max}) · {pool}'**
+  String playerWebViewTaskCountWithPool(int active, int max, String pool);
+
+  /// No description provided for @playerWebViewShowDebug.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示 WebView (调试)'**
+  String get playerWebViewShowDebug;
+
+  /// No description provided for @playerWebViewWorkerPoolSwitch.
+  ///
+  /// In zh, this message translates to:
+  /// **'统一 Worker 调度 (Round 7)'**
+  String get playerWebViewWorkerPoolSwitch;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'可用源 ({count})'**
+  String playerWebViewAvailableSources(int count);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'per-source [p|a|c]: {status}'**
+  String playerWebViewPerSourceStatus(String status);
+
+  /// No description provided for @playerSearchProgressStepPending.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待中'**
+  String get playerSearchProgressStepPending;
+
+  /// No description provided for @playerSearchProgressStepSearching.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索中...'**
+  String get playerSearchProgressStepSearching;
+
+  /// No description provided for @playerSearchProgressStepDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'获取详情页...'**
+  String get playerSearchProgressStepDetail;
+
+  /// No description provided for @playerSearchProgressStepEpisodes.
+  ///
+  /// In zh, this message translates to:
+  /// **'获取剧集列表...'**
+  String get playerSearchProgressStepEpisodes;
+
+  /// No description provided for @playerSearchProgressStepExtracting.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取视频链接...'**
+  String get playerSearchProgressStepExtracting;
+
+  /// No description provided for @playerSearchProgressStepSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'成功'**
+  String get playerSearchProgressStepSuccess;
+
+  /// No description provided for @playerSearchProgressStepFoundPlayPage.
+  ///
+  /// In zh, this message translates to:
+  /// **'找到播放页'**
+  String get playerSearchProgressStepFoundPlayPage;
+
+  /// No description provided for @playerSearchProgressStepFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'失败'**
+  String get playerSearchProgressStepFailed;
+
+  /// Composite progress line shown while search + captcha pre-flight are running.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索进度: {completed}/{enabled}，验证码 {activeCaptcha} 运行/{pendingCaptcha} 排队'**
+  String playerSearchSessionProgressLine(
+    int completed,
+    int enabled,
+    int activeCaptcha,
+    int pendingCaptcha,
+  );
+
+  /// No description provided for @playerSearchSessionNotFound.
+  ///
+  /// In zh, this message translates to:
+  /// **'未在任何源中找到该动画'**
+  String get playerSearchSessionNotFound;
+
+  /// No description provided for @playerSearchSessionAllFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'所有源都无法提取视频链接'**
+  String get playerSearchSessionAllFailed;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索完成，共找到 {count} 个可用源'**
+  String playerSearchSessionDone(int count);
+
+  /// No description provided for @playerSearchLocalPlayedHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'已播放本地资源，可手动搜索在线源'**
+  String get playerSearchLocalPlayedHint;
+
+  /// No description provided for @playerSearchAutoDisabledHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'在线搜索已关闭，可手动搜索在线源'**
+  String get playerSearchAutoDisabledHint;
+
+  /// No description provided for @playerSearchLocalPlayedActionHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'已播放本地资源，点击刷新可手动搜索在线源'**
+  String get playerSearchLocalPlayedActionHint;
+
+  /// No description provided for @playerSearchFetchingSourceList.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在获取播放源列表...'**
+  String get playerSearchFetchingSourceList;
+
+  /// No description provided for @playerSearchNoEnabledSource.
+  ///
+  /// In zh, this message translates to:
+  /// **'未启用任何播放源'**
+  String get playerSearchNoEnabledSource;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在搜索 {count} 个源...'**
+  String playerSearchProgressSearchMany(int count);
+
+  /// No description provided for @playerSearchProgressCaptchaPreflight.
+  ///
+  /// In zh, this message translates to:
+  /// **'非验证码源先行搜索，验证码源并发预处理中...'**
+  String get playerSearchProgressCaptchaPreflight;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取中: {completed}/{total} 完成，{active} 并发运行'**
+  String playerWebviewExtractInProgress(int completed, int total, int active);
+
+  /// No description provided for @playerWebviewCaptchaBypass.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在跳过验证码'**
+  String get playerWebviewCaptchaBypass;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'{label} - 正在跳过验证码'**
+  String playerWebviewCaptchaBypassTitle(String label);
+
+  /// No description provided for @playerWebviewExtracting.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在提取...'**
+  String get playerWebviewExtracting;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索进度: {completed}/{total}'**
+  String playerWebviewSchedulerProgress(int completed, int total);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证码进行中 {count}'**
+  String playerWebviewCaptchaActive(int count);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取并发 {active}/{max}'**
+  String playerWebviewExtractionActive(int active, int max);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'{title} - 第{episode}集'**
+  String playerPageTitleWithEpisode(String title, int episode);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'第{episode}集'**
+  String playerEpisodeNumber(int episode);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'{title} - {episode} ({source})'**
+  String playerDownloadTaskName(String title, String episode, String source);
+
+  /// No description provided for @playerSidePanelPrequel.
+  ///
+  /// In zh, this message translates to:
+  /// **'前传'**
+  String get playerSidePanelPrequel;
+
+  /// No description provided for @playerSidePanelSequel.
+  ///
+  /// In zh, this message translates to:
+  /// **'续集'**
+  String get playerSidePanelSequel;
+
+  /// No description provided for @playerSidePanelLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法获取播放地址'**
+  String get playerSidePanelLoadFailed;
+
+  /// No description provided for @playerSidePanelCopyMagnet.
+  ///
+  /// In zh, this message translates to:
+  /// **'磁力链接已复制'**
+  String get playerSidePanelCopyMagnet;
+
+  /// No description provided for @playerSidePanelDownloadHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始下载，可在「我的」页面查看进度'**
+  String get playerSidePanelDownloadHint;
+
+  /// No description provided for @playerRecommendationsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无相关推荐'**
+  String get playerRecommendationsEmpty;
+
+  /// No description provided for @playerNoDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无简介'**
+  String get playerNoDescription;
+
+  /// No description provided for @playerCollapse.
+  ///
+  /// In zh, this message translates to:
+  /// **'收起'**
+  String get playerCollapse;
+
+  /// No description provided for @playerExpand.
+  ///
+  /// In zh, this message translates to:
+  /// **'展开'**
+  String get playerExpand;
+
+  /// No description provided for @playerCommentsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部评论'**
+  String get playerCommentsTitle;
+
+  /// No description provided for @playerCommentsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无评论'**
+  String get playerCommentsEmpty;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载失败: {error}'**
+  String playerCommentsLoadFailed(String error);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载失败: {error}'**
+  String playerCommentsLoadFailedPc(String error);
+
+  /// No description provided for @playerCommentsEmptyPc.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无评论'**
+  String get playerCommentsEmptyPc;
+
+  /// No description provided for @playerResourceListSearching.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在搜索BT源...'**
+  String get playerResourceListSearching;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'已找到 {count} 个BT源'**
+  String playerResourceListFound(int count);
+
+  /// No description provided for @playerResourceListFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'BT搜索失败'**
+  String get playerResourceListFailed;
+
+  /// No description provided for @playerResourceListNotStarted.
+  ///
+  /// In zh, this message translates to:
+  /// **'尚未开始搜索BT源'**
+  String get playerResourceListNotStarted;
+
+  /// No description provided for @playerResourceListStartSearch.
+  ///
+  /// In zh, this message translates to:
+  /// **'点击下方按钮开始搜索'**
+  String get playerResourceListStartSearch;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索完成，共找到 {count} 个可用源'**
+  String playerAutoplaySearchDone(int count);
+
+  /// No description provided for @playerSourceControllerAnimeNotFound.
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到番剧'**
+  String get playerSourceControllerAnimeNotFound;
+
+  /// Shown when media_kit fails to open an online source URL.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放失败: {error}'**
+  String playerPlaybackOpenFailed(String error);
+
+  /// No description provided for @playerPlaybackStartupTimeout.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前线路启动超时，请切换其他源'**
+  String get playerPlaybackStartupTimeout;
+
+  /// No description provided for @playerSortDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认排序'**
+  String get playerSortDefault;
+
+  /// No description provided for @playerSortByTime.
+  ///
+  /// In zh, this message translates to:
+  /// **'按时间排序'**
+  String get playerSortByTime;
+
+  /// No description provided for @playerSubscriptionDebugSearchDirectProbe.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索直链 Probe'**
+  String get playerSubscriptionDebugSearchDirectProbe;
+
+  /// No description provided for @playerSubscriptionDebugProbeInProgress.
+  ///
+  /// In zh, this message translates to:
+  /// **'Probe 中...'**
+  String get playerSubscriptionDebugProbeInProgress;
+
+  /// No description provided for @playerSubscriptionDebugProbeNotDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'未 Probe'**
+  String get playerSubscriptionDebugProbeNotDone;
+
+  /// No description provided for @playerSubscriptionDebugPlayable.
+  ///
+  /// In zh, this message translates to:
+  /// **'可播放'**
+  String get playerSubscriptionDebugPlayable;
+
+  /// No description provided for @playerSubscriptionDebugNotPlayable.
+  ///
+  /// In zh, this message translates to:
+  /// **'不可播放'**
+  String get playerSubscriptionDebugNotPlayable;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'缓存 JSON 不存在: {path}'**
+  String playerSubscriptionDebugCacheJsonMissing(String path);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件不存在: {path}'**
+  String playerSubscriptionDebugFileMissing(String path);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始调试搜索: anime={anime}, abs={abs}, rel={relative}, filter={filter}, json={jsonSource}'**
+  String playerSubscriptionDebugStartSearch(
+    String anime,
+    String abs,
+    String relative,
+    String filter,
+    String jsonSource,
+  );
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索异常: {error}'**
+  String playerSubscriptionDebugSearchError(String error);
+
+  /// No description provided for @playerSubscriptionDebugSearchFinished.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索结束'**
+  String get playerSubscriptionDebugSearchFinished;
+
+  /// No description provided for @playerSubscriptionDebugCaptchaPageClosed.
+  ///
+  /// In zh, this message translates to:
+  /// **'页面已关闭，无法完成验证码预处理'**
+  String get playerSubscriptionDebugCaptchaPageClosed;
+
+  /// No description provided for @playerSubscriptionDebugCaptchaPreflightFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证码预处理失败'**
+  String get playerSubscriptionDebugCaptchaPreflightFailed;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name} -> 正在进行验证码预处理 ({current}/{total})'**
+  String playerSubscriptionDebugCaptchaPreflight(
+    String name,
+    int current,
+    int total,
+  );
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'解析captcha源失败: {error}'**
+  String playerSubscriptionDebugCaptchaParseFailed(String error);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始提取: {name}'**
+  String playerSubscriptionDebugExtractStart(String name);
+
+  /// No description provided for @playerSubscriptionDebugStartSearchButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始调试搜索'**
+  String get playerSubscriptionDebugStartSearchButton;
+
+  /// No description provided for @playerSubscriptionDebugManualProbe.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动 Probe'**
+  String get playerSubscriptionDebugManualProbe;
+
+  /// No description provided for @playerSubscriptionDebugProbeActive.
+  ///
+  /// In zh, this message translates to:
+  /// **'Probe 中'**
+  String get playerSubscriptionDebugProbeActive;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'直链: {url}'**
+  String playerSubscriptionDebugDirectLink(String url);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'来源: {name}'**
+  String playerSubscriptionDebugSourceName(String name);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'Headers: {headers}'**
+  String playerSubscriptionDebugHeaders(String headers);
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取成功: {url}'**
+  String playerSubscriptionDebugExtractSuccess(String url);
+
+  /// No description provided for @playerSubscriptionDebugExtractFailedShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取失败'**
+  String get playerSubscriptionDebugExtractFailedShort;
+
+  /// Player UI message with typed placeholders.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取失败: {error}'**
+  String playerSubscriptionDebugExtractFailedDetail(String error);
+
+  /// No description provided for @playerSubscriptionDebugPostProbe.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取后 Probe'**
+  String get playerSubscriptionDebugPostProbe;
+
+  /// No description provided for @playerSubscriptionDebugJsonCache.
+  ///
+  /// In zh, this message translates to:
+  /// **'缓存'**
+  String get playerSubscriptionDebugJsonCache;
+
+  /// No description provided for @playerSubscriptionDebugJsonLocal.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地'**
+  String get playerSubscriptionDebugJsonLocal;
+
+  /// No description provided for @playerSubscriptionDebugJsonPathHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'D:\\temp\\online.json，或留空'**
+  String get playerSubscriptionDebugJsonPathHint;
 }
 
 class _AppLocalizationsDelegate

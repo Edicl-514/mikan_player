@@ -222,7 +222,10 @@ void main() {
         time.fireLast();
 
         expect(controller.isLoadingVideo, isFalse);
-        expect(controller.videoError, '当前线路启动超时，请切换其他源');
+        expect(
+          controller.videoError?.kind,
+          PlayerPlaybackErrorKind.startupTimeout,
+        );
         expect(
           controller.failedPlaybackSourceKeys,
           contains(PlayerPlaybackController.sourceKeyOf(source)),
@@ -232,7 +235,10 @@ void main() {
 
         player.completeOpen('https://a/video');
         expect((await open).status, PlayerPlaybackOpenStatus.stale);
-        expect(controller.videoError, '当前线路启动超时，请切换其他源');
+        expect(
+          controller.videoError?.kind,
+          PlayerPlaybackErrorKind.startupTimeout,
+        );
       },
     );
 
@@ -297,7 +303,10 @@ void main() {
       );
       expect(controller.isAutoPlayFallbackInProgress, isFalse);
       expect(controller.isLoadingVideo, isFalse);
-      expect(controller.videoError, '当前线路启动超时，请切换其他源');
+      expect(
+        controller.videoError?.kind,
+        PlayerPlaybackErrorKind.startupTimeout,
+      );
     });
 
     test('auto open error releases latch before requesting fallback', () async {
@@ -322,7 +331,11 @@ void main() {
       expect(fallbacks, hasLength(1));
       expect(fallbacks.single.reason, PlayerPlaybackFallbackReason.openError);
       expect(controller.isAutoPlayFallbackInProgress, isFalse);
-      expect(controller.videoError, startsWith('播放失败:'));
+      expect(controller.videoError?.kind, PlayerPlaybackErrorKind.openFailed);
+      expect(
+        controller.videoError?.detail,
+        'Bad state: failed: https://a/video',
+      );
     });
 
     test(

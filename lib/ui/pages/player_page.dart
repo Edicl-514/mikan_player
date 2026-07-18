@@ -50,6 +50,7 @@ import 'package:mikan_player/ui/pages/player/widgets/player_mobile_layout.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_pc_layout.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_state_transitions.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 
 part 'player/player_page_layouts.dart';
 part 'player/player_page_mobile_info_layout.dart';
@@ -230,6 +231,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // Playback History
   final PlaybackHistoryManager _historyManager = PlaybackHistoryManager();
   int? _pendingStartPositionMs;
+
   /// Bumped when the intended resume target is intentionally discarded so an
   /// in-flight [_applyPendingStartPosition] from an older open cannot re-seek.
   int _resumeSeekGeneration = 0;
@@ -271,9 +273,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _sourceController = PlayerSourceController();
     _sampleSourceController = PlayerSampleSourceController();
     _playbackController = PlayerPlaybackController();
-    _videoTitleNotifier = ValueNotifier(
-      '${widget.anime.title} - 第${_episodeController.currentEpisode.sort.toInt()}集',
-    );
+    _videoTitleNotifier = ValueNotifier('');
     _playingSourceLabelNotifier.value = _playbackController.playingSourceLabel;
 
     // Prefer the explicit resume position. When null, hydrate from history in
@@ -383,6 +383,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     });
 
     _scheduleDeferredEntryWork();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _videoTitleNotifier.value = AppLocalizations.of(context)
+        .playerPageTitleWithEpisode(
+          widget.anime.title,
+          _episodeController.currentEpisode.sort.toInt(),
+        );
   }
 
   void _updateState(VoidCallback mutation) => setState(mutation);

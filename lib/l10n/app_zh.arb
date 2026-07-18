@@ -576,6 +576,7 @@
   "subtitlePreview": "字幕预览效果",
   "noAvailableSource": "暂无可用播放源",
   "back": "返回",
+  "playerMoreOptions": "更多",
   "unlock": "解锁",
   "lock": "锁定",
   "danmaku": "弹幕",
@@ -1257,5 +1258,391 @@
   "indexGenreDrama": "剧情",
   "indexGenreWuxia": "武侠",
   "indexGenreFood": "美食",
-  "indexGenreWorkplace": "职场"
+  "indexGenreWorkplace": "职场",
+  "playerMobileEpisodeSelector": "选集",
+  "playerMobilePlaySource": "播放源",
+  "playerMobileOfficialPlaySource": "官方播放源",
+  "playerMobileRelated": "相关推荐",
+  "playerMobileSummaryAndRecommend": "简介 & 推荐",
+  "playerMobileCommentsTab": "评论 ({count})",
+  "@playerMobileCommentsTab": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerMobilePlayableEpisodeCount": "{count} 集",
+  "@playerMobilePlayableEpisodeCount": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerPcEpisodeList": "选集",
+  "playerPcPlaylist": "播放列表",
+  "playerPcCommentsSection": "评论区",
+  "playerSourceTitleFound": "已找到 {count} 个BT源，{online} 个订阅源，当前源：{current}",
+  "@playerSourceTitleFound": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" },
+      "online": { "type": "int" },
+      "current": { "type": "String" }
+    }
+  },
+  "playerSourceTitleCurrent": "当前：{label}",
+  "@playerSourceTitleCurrent": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "playerSourceTitleFoundMobile": "已找到",
+  "playerSourceTabBt": "BT",
+  "playerSourceTabSubscription": "订阅源",
+  "playerSourceLabelOnline": "在线源下载",
+  "playerSourceLabelBt": "BT下载",
+  "playerSourceLabelOnlineShort": "在线源",
+  "playerNoDownloadableSource": "没有可下载的在线源",
+  "playerAddDownloadTaskFailed": "添加下载任务失败，请稍后重试",
+  "playerAddDownloadTaskSuccess": "已添加到下载任务",
+  "playerNoCopyableLink": "没有可复制的下载链接",
+  "playerDownloadLinkCopied": "下载链接已复制",
+  "playerDownloadButton": "下载",
+  "playerCopyDownloadLinkButton": "复制下载链接",
+  "playerCopyAction": "复制",
+  "playerPlayButton": "播放",
+  "playerLoadAction": "加载中",
+  "playerSampleStatusLocalManual": "已播放本地资源，在线源搜索待手动触发",
+  "playerSampleStatusAutoDisabled": "在线搜索已关闭，可手动搜索在线源",
+  "playerSampleStatusNotStarted": "尚未开始搜索在线源",
+  "playerSampleStatusCompleted": "搜索完成 ({done}/{total} 个可用)",
+  "@playerSampleStatusCompleted": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "done": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "playerSampleStatusFailed": "搜索失败",
+  "playerSampleSummaryLocalManual": "已使用本地资源播放",
+  "playerSampleSummaryAutoDisabled": "在线搜索已关闭",
+  "playerSampleHintLocalManual": "如需在线源，请点击下方按钮手动搜索",
+  "playerSampleHintAutoDisabled": "点击下方按钮手动搜索在线源",
+  "playerSampleHintNotStarted": "点击下方按钮开始搜索",
+  "playerSamplePlayButtonBase": "播放 - ",
+  "playerSamplePlayButtonWithChannel": "播放 - {source}({channel})",
+  "@playerSamplePlayButtonWithChannel": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "source": { "type": "String" },
+      "channel": { "type": "String" }
+    }
+  },
+  "playerSamplePlayButtonWithSource": "播放 - {source}",
+  "@playerSamplePlayButtonWithSource": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "source": { "type": "String" }
+    }
+  },
+  "playerWebViewTaskCount": "并发WebView任务 ({active}/{max})",
+  "@playerWebViewTaskCount": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "active": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
+  "playerWebViewTaskCountWithPool": "并发WebView任务 ({active}/{max}) · {pool}",
+  "@playerWebViewTaskCountWithPool": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "active": { "type": "int" },
+      "max": { "type": "int" },
+      "pool": { "type": "String" }
+    }
+  },
+  "playerWebViewShowDebug": "显示 WebView (调试)",
+  "playerWebViewWorkerPoolSwitch": "统一 Worker 调度 (Round 7)",
+  "playerWebViewAvailableSources": "可用源 ({count})",
+  "@playerWebViewAvailableSources": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerWebViewPerSourceStatus": "per-source [p|a|c]: {status}",
+  "@playerWebViewPerSourceStatus": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "status": { "type": "String" }
+    }
+  },
+  "playerSearchProgressStepPending": "等待中",
+  "playerSearchProgressStepSearching": "搜索中...",
+  "playerSearchProgressStepDetail": "获取详情页...",
+  "playerSearchProgressStepEpisodes": "获取剧集列表...",
+  "playerSearchProgressStepExtracting": "提取视频链接...",
+  "playerSearchProgressStepSuccess": "成功",
+  "playerSearchProgressStepFoundPlayPage": "找到播放页",
+  "playerSearchProgressStepFailed": "失败",
+  "playerSearchSessionProgressLine": "搜索进度: {completed}/{enabled}，验证码 {activeCaptcha} 运行/{pendingCaptcha} 排队",
+  "@playerSearchSessionProgressLine": {
+    "description": "Composite progress line shown while search + captcha pre-flight are running.",
+    "placeholders": {
+      "completed": { "type": "int" },
+      "enabled": { "type": "int" },
+      "activeCaptcha": { "type": "int" },
+      "pendingCaptcha": { "type": "int" }
+    }
+  },
+  "playerSearchSessionNotFound": "未在任何源中找到该动画",
+  "playerSearchSessionAllFailed": "所有源都无法提取视频链接",
+  "playerSearchSessionDone": "搜索完成，共找到 {count} 个可用源",
+  "@playerSearchSessionDone": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerSearchLocalPlayedHint": "已播放本地资源，可手动搜索在线源",
+  "playerSearchAutoDisabledHint": "在线搜索已关闭，可手动搜索在线源",
+  "playerSearchLocalPlayedActionHint": "已播放本地资源，点击刷新可手动搜索在线源",
+  "playerSearchFetchingSourceList": "正在获取播放源列表...",
+  "playerSearchNoEnabledSource": "未启用任何播放源",
+  "playerSearchProgressSearchMany": "正在搜索 {count} 个源...",
+  "@playerSearchProgressSearchMany": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerSearchProgressCaptchaPreflight": "非验证码源先行搜索，验证码源并发预处理中...",
+  "playerWebviewExtractInProgress": "提取中: {completed}/{total} 完成，{active} 并发运行",
+  "@playerWebviewExtractInProgress": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "completed": { "type": "int" },
+      "total": { "type": "int" },
+      "active": { "type": "int" }
+    }
+  },
+  "playerWebviewCaptchaBypass": "正在跳过验证码",
+  "playerWebviewCaptchaBypassTitle": "{label} - 正在跳过验证码",
+  "@playerWebviewCaptchaBypassTitle": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "playerWebviewExtracting": "正在提取...",
+  "playerWebviewSchedulerProgress": "搜索进度: {completed}/{total}",
+  "@playerWebviewSchedulerProgress": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "completed": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "playerWebviewCaptchaActive": "验证码进行中 {count}",
+  "@playerWebviewCaptchaActive": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerWebviewExtractionActive": "提取并发 {active}/{max}",
+  "@playerWebviewExtractionActive": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "active": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
+  "playerPageTitleWithEpisode": "{title} - 第{episode}集",
+  "@playerPageTitleWithEpisode": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "title": { "type": "String" },
+      "episode": { "type": "int" }
+    }
+  },
+  "playerEpisodeNumber": "第{episode}集",
+  "@playerEpisodeNumber": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "episode": { "type": "int" }
+    }
+  },
+  "playerDownloadTaskName": "{title} - {episode} ({source})",
+  "@playerDownloadTaskName": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "title": { "type": "String" },
+      "episode": { "type": "String" },
+      "source": { "type": "String" }
+    }
+  },
+  "playerSidePanelPrequel": "前传",
+  "playerSidePanelSequel": "续集",
+  "playerSidePanelLoadFailed": "无法获取播放地址",
+  "playerSidePanelCopyMagnet": "磁力链接已复制",
+  "playerSidePanelDownloadHint": "开始下载，可在「我的」页面查看进度",
+  "playerRecommendationsEmpty": "暂无相关推荐",
+  "playerNoDescription": "暂无简介",
+  "playerCollapse": "收起",
+  "playerExpand": "展开",
+  "playerCommentsTitle": "全部评论",
+  "playerCommentsEmpty": "暂无评论",
+  "playerCommentsLoadFailed": "加载失败: {error}",
+  "@playerCommentsLoadFailed": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "playerCommentsLoadFailedPc": "加载失败: {error}",
+  "@playerCommentsLoadFailedPc": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "playerCommentsEmptyPc": "暂无评论",
+  "playerResourceListSearching": "正在搜索BT源...",
+  "playerResourceListFound": "已找到 {count} 个BT源",
+  "@playerResourceListFound": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerResourceListFailed": "BT搜索失败",
+  "playerResourceListNotStarted": "尚未开始搜索BT源",
+  "playerResourceListStartSearch": "点击下方按钮开始搜索",
+  "playerAutoplaySearchDone": "搜索完成，共找到 {count} 个可用源",
+  "@playerAutoplaySearchDone": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerSourceControllerAnimeNotFound": "未找到番剧",
+  "playerPlaybackOpenFailed": "播放失败: {error}",
+  "@playerPlaybackOpenFailed": {
+    "description": "Shown when media_kit fails to open an online source URL.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "playerPlaybackStartupTimeout": "当前线路启动超时，请切换其他源",
+  "playerSortDefault": "默认排序",
+  "playerSortByTime": "按时间排序",
+  "playerSubscriptionDebugSearchDirectProbe": "搜索直链 Probe",
+  "playerSubscriptionDebugProbeInProgress": "Probe 中...",
+  "playerSubscriptionDebugProbeNotDone": "未 Probe",
+  "playerSubscriptionDebugPlayable": "可播放",
+  "playerSubscriptionDebugNotPlayable": "不可播放",
+  "playerSubscriptionDebugCacheJsonMissing": "缓存 JSON 不存在: {path}",
+  "@playerSubscriptionDebugCacheJsonMissing": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugFileMissing": "文件不存在: {path}",
+  "@playerSubscriptionDebugFileMissing": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugStartSearch": "开始调试搜索: anime={anime}, abs={abs}, rel={relative}, filter={filter}, json={jsonSource}",
+  "@playerSubscriptionDebugStartSearch": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "anime": { "type": "String" },
+      "abs": { "type": "String" },
+      "relative": { "type": "String" },
+      "filter": { "type": "String" },
+      "jsonSource": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugSearchError": "搜索异常: {error}",
+  "@playerSubscriptionDebugSearchError": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugSearchFinished": "搜索结束",
+  "playerSubscriptionDebugCaptchaPageClosed": "页面已关闭，无法完成验证码预处理",
+  "playerSubscriptionDebugCaptchaPreflightFailed": "验证码预处理失败",
+  "playerSubscriptionDebugCaptchaPreflight": "{name} -> 正在进行验证码预处理 ({current}/{total})",
+  "@playerSubscriptionDebugCaptchaPreflight": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "name": { "type": "String" },
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "playerSubscriptionDebugCaptchaParseFailed": "解析captcha源失败: {error}",
+  "@playerSubscriptionDebugCaptchaParseFailed": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugExtractStart": "开始提取: {name}",
+  "@playerSubscriptionDebugExtractStart": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugStartSearchButton": "开始调试搜索",
+  "playerSubscriptionDebugManualProbe": "手动 Probe",
+  "playerSubscriptionDebugProbeActive": "Probe 中",
+  "playerSubscriptionDebugDirectLink": "直链: {url}",
+  "@playerSubscriptionDebugDirectLink": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "url": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugSourceName": "来源: {name}",
+  "@playerSubscriptionDebugSourceName": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugHeaders": "Headers: {headers}",
+  "@playerSubscriptionDebugHeaders": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "headers": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugExtractSuccess": "提取成功: {url}",
+  "@playerSubscriptionDebugExtractSuccess": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "url": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugExtractFailedShort": "提取失败",
+  "playerSubscriptionDebugExtractFailedDetail": "提取失败: {error}",
+  "@playerSubscriptionDebugExtractFailedDetail": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugPostProbe": "提取后 Probe",
+  "playerSubscriptionDebugJsonCache": "缓存",
+  "playerSubscriptionDebugJsonLocal": "本地",
+  "playerSubscriptionDebugJsonPathHint": "D:\\temp\\online.json，或留空"
 }

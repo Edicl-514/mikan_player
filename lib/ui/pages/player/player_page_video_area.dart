@@ -1,6 +1,21 @@
 part of '../player_page.dart';
 
 extension _PlayerPageVideoArea on _PlayerPageState {
+  String? _localizedVideoError(BuildContext context) {
+    final error = _playbackController.videoError;
+    if (error == null) return null;
+
+    final l10n = AppLocalizations.of(context);
+    return switch (error.kind) {
+      PlayerPlaybackErrorKind.raw => error.detail,
+      PlayerPlaybackErrorKind.openFailed => l10n.playerPlaybackOpenFailed(
+        error.detail ?? '',
+      ),
+      PlayerPlaybackErrorKind.startupTimeout =>
+        l10n.playerPlaybackStartupTimeout,
+    };
+  }
+
   Widget _buildVideoPlayerPlaceholder(
     BuildContext context, {
     required bool isMobile,
@@ -11,7 +26,7 @@ extension _PlayerPageVideoArea on _PlayerPageState {
       currentStreamUrl: _playbackController.currentStreamUrl,
       isLoadingVideo: _playbackController.isLoadingVideo,
       loadingMagnet: _loadingMagnet,
-      videoError: _playbackController.videoError,
+      videoError: _localizedVideoError(context),
       videoController: _videoController,
       danmakuService: _danmakuService,
       subtitleService: _subtitleService,

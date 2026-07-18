@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
+
 /// Collapsed / expanded play-source control bar (BT vs sample tabs).
 class PlayerSourceSelector extends StatelessWidget {
   final bool isMobile;
@@ -36,6 +38,7 @@ class PlayerSourceSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final borderColor = isDark
         ? Colors.white10
@@ -61,7 +64,7 @@ class PlayerSourceSelector extends StatelessWidget {
                     ? Row(
                         children: [
                           Text(
-                            '已找到 ',
+                            l10n.playerSourceTitleFoundMobile,
                             style: TextStyle(
                               color: isDark
                                   ? Colors.white70
@@ -107,7 +110,7 @@ class PlayerSourceSelector extends StatelessWidget {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              '当前：$currentLabel',
+                              l10n.playerSourceTitleCurrent(currentLabel),
                               style: TextStyle(
                                 color: isDark
                                     ? Colors.white70
@@ -120,7 +123,11 @@ class PlayerSourceSelector extends StatelessWidget {
                         ],
                       )
                     : Text(
-                        '已找到 $btCount 个BT源， $onlineCount 个订阅源，当前源：$currentLabel',
+                        l10n.playerSourceTitleFound(
+                          btCount,
+                          onlineCount,
+                          currentLabel,
+                        ),
                         style: TextStyle(
                           color: isDark
                               ? Colors.white70
@@ -152,7 +159,7 @@ class PlayerSourceSelector extends StatelessWidget {
         children: [
           Expanded(
             child: _SourceTab(
-              label: 'BT',
+              label: l10n.playerSourceTabBt,
               isSelected: activeSource == 'bt',
               isLoading: isBtLoading,
               hasError: hasBtError,
@@ -166,7 +173,7 @@ class PlayerSourceSelector extends StatelessWidget {
           ),
           Expanded(
             child: _SourceTab(
-              label: '订阅源',
+              label: l10n.playerSourceTabSubscription,
               isSelected: activeSource == 'sample',
               isLoading: isSampleLoading,
               hasError: hasSampleError,

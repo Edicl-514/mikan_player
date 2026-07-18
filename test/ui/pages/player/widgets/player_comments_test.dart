@@ -11,8 +11,10 @@
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_comments.dart';
 import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
@@ -36,20 +38,38 @@ BangumiEpisodeComment _comment({
   replies: replies,
 );
 
+Widget _wrap(Widget child) {
+  return MaterialApp(
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    supportedLocales: AppLocalizations.supportedLocales,
+    locale: const Locale('zh'),
+    home: Scaffold(body: child),
+  );
+}
+
 void main() {
+  late AppLocalizations l10n;
+
+  setUpAll(() async {
+    l10n = await AppLocalizations.delegate.load(const Locale('zh'));
+  });
+
   group('PlayerComments', () {
     testWidgets('loading state shows CircularProgressIndicator', (
       tester,
     ) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlayerComments(
-              comments: const [],
-              isLoading: true,
-              error: null,
-              scrollController: ScrollController(),
-            ),
+        _wrap(
+          PlayerComments(
+            comments: const [],
+            isLoading: true,
+            error: null,
+            scrollController: ScrollController(),
           ),
         ),
       );
@@ -59,36 +79,32 @@ void main() {
 
     testWidgets('error state shows error text', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlayerComments(
-              comments: const [],
-              isLoading: false,
-              error: 'network timeout',
-              scrollController: ScrollController(),
-            ),
+        _wrap(
+          PlayerComments(
+            comments: const [],
+            isLoading: false,
+            error: 'network timeout',
+            scrollController: ScrollController(),
           ),
         ),
       );
 
-      expect(find.text('加载失败: network timeout'), findsOneWidget);
+      expect(find.text(l10n.playerCommentsLoadFailed('network timeout')), findsOneWidget);
     });
 
-    testWidgets('empty state shows "暂无评论"', (tester) async {
+    testWidgets('empty state shows localized empty copy', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlayerComments(
-              comments: const [],
-              isLoading: false,
-              error: null,
-              scrollController: ScrollController(),
-            ),
+        _wrap(
+          PlayerComments(
+            comments: const [],
+            isLoading: false,
+            error: null,
+            scrollController: ScrollController(),
           ),
         ),
       );
 
-      expect(find.text('暂无评论'), findsOneWidget);
+      expect(find.text(l10n.playerCommentsEmpty), findsOneWidget);
     });
 
     testWidgets('populated renders comment items with user names', (
@@ -101,19 +117,17 @@ void main() {
       ];
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlayerComments(
-              comments: comments,
-              isLoading: false,
-              error: null,
-              scrollController: ScrollController(),
-            ),
+        _wrap(
+          PlayerComments(
+            comments: comments,
+            isLoading: false,
+            error: null,
+            scrollController: ScrollController(),
           ),
         ),
       );
 
-      expect(find.text('全部评论'), findsOneWidget);
+      expect(find.text(l10n.playerCommentsTitle), findsOneWidget);
       expect(find.text('Alice'), findsOneWidget);
       expect(find.text('Bob'), findsOneWidget);
       expect(find.text('Charlie'), findsOneWidget);
@@ -124,15 +138,13 @@ void main() {
 
     testWidgets('sortButton is rendered when provided', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlayerComments(
-              comments: [_comment(id: 1, userName: 'Test', contentHtml: '')],
-              isLoading: false,
-              error: null,
-              scrollController: ScrollController(),
-              sortButton: const Text('SORT_BTN'),
-            ),
+        _wrap(
+          PlayerComments(
+            comments: [_comment(id: 1, userName: 'Test', contentHtml: '')],
+            isLoading: false,
+            error: null,
+            scrollController: ScrollController(),
+            sortButton: const Text('SORT_BTN'),
           ),
         ),
       );
@@ -144,20 +156,18 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlayerComments(
-              comments: [
-                _comment(
-                  id: 1,
-                  userName: 'SpoilerAuthor',
-                  contentHtml: 'before<span class="text_mask">剧透剧透</span>after',
-                ),
-              ],
-              isLoading: false,
-              error: null,
-              scrollController: ScrollController(),
-            ),
+        _wrap(
+          PlayerComments(
+            comments: [
+              _comment(
+                id: 1,
+                userName: 'SpoilerAuthor',
+                contentHtml: 'before<span class="text_mask">剧透剧透</span>after',
+              ),
+            ],
+            isLoading: false,
+            error: null,
+            scrollController: ScrollController(),
           ),
         ),
       );
@@ -190,19 +200,17 @@ void main() {
       addTearDown(scrollController.dispose);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: StatefulBuilder(
-              builder: (context, setState) {
-                rebuild = setState;
-                return PlayerComments(
-                  comments: comments,
-                  isLoading: false,
-                  error: null,
-                  scrollController: scrollController,
-                );
-              },
-            ),
+        _wrap(
+          StatefulBuilder(
+            builder: (context, setState) {
+              rebuild = setState;
+              return PlayerComments(
+                comments: comments,
+                isLoading: false,
+                error: null,
+                scrollController: scrollController,
+              );
+            },
           ),
         ),
       );
@@ -227,25 +235,23 @@ void main() {
       'Bangumi smile <img> routes through CachedNetworkImage with the smile URL',
       (tester) async {
         await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: PlayerComments(
-                comments: [
-                  _comment(
-                    id: 1,
-                    userName: 'Smiler',
-                    contentHtml:
-                        '<div>'
-                        '<img src="https://bgm.tv/img/smiles/bgm/01.png" '
-                        'width="42" height="42">'
-                        'hello'
-                        '</div>',
-                  ),
-                ],
-                isLoading: false,
-                error: null,
-                scrollController: ScrollController(),
-              ),
+          _wrap(
+            PlayerComments(
+              comments: [
+                _comment(
+                  id: 1,
+                  userName: 'Smiler',
+                  contentHtml:
+                      '<div>'
+                      '<img src="https://bgm.tv/img/smiles/bgm/01.png" '
+                      'width="42" height="42">'
+                      'hello'
+                      '</div>',
+                ),
+              ],
+              isLoading: false,
+              error: null,
+              scrollController: ScrollController(),
             ),
           ),
         );
@@ -268,22 +274,20 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: PlayerComments(
-              comments: [
-                _comment(
-                  id: 1,
-                  userName: 'Quoter',
-                  contentHtml:
-                      '<div class="quote"><q><span style="font-weight:bold;">'
-                      'Alice</span> 说: hello</q></div>world',
-                ),
-              ],
-              isLoading: false,
-              error: null,
-              scrollController: ScrollController(),
-            ),
+        _wrap(
+          PlayerComments(
+            comments: [
+              _comment(
+                id: 1,
+                userName: 'Quoter',
+                contentHtml:
+                    '<div class="quote"><q><span style="font-weight:bold;">'
+                    'Alice</span> 说: hello</q></div>world',
+              ),
+            ],
+            isLoading: false,
+            error: null,
+            scrollController: ScrollController(),
           ),
         ),
       );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
@@ -28,6 +29,7 @@ class PlayerMobileEpisodeStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return Column(
@@ -48,7 +50,7 @@ class PlayerMobileEpisodeStrip extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '选集',
+                l10n.playerMobileEpisodeSelector,
                 style: TextStyle(
                   color: isDark ? Colors.white : theme.colorScheme.onSurface,
                   fontSize: 16,
@@ -123,6 +125,7 @@ class PlayerMobileEpisodeStrip extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
+                              // i18n-ignore: EP-style English episode label — product lexicon
                               'EP ${ep.sort % 1 == 0 ? ep.sort.toInt() : ep.sort}',
                               style: TextStyle(
                                 color: isSelected
@@ -219,6 +222,7 @@ class PlayerMobileInfoLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : theme.colorScheme.onSurface;
     final subTextColor = isDark
@@ -266,6 +270,7 @@ class PlayerMobileInfoLayout extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
+                  // i18n-ignore: EP-style English episode label — product lexicon
                   'EP ${currentEpisode.sort % 1 == 0 ? currentEpisode.sort.toInt() : currentEpisode.sort}',
                   style: TextStyle(
                     color: theme.colorScheme.primary,
@@ -276,7 +281,7 @@ class PlayerMobileInfoLayout extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                '$playableEpisodeCount Episodes',
+                l10n.playerMobilePlayableEpisodeCount(playableEpisodeCount),
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
               const Spacer(),
@@ -299,7 +304,7 @@ class PlayerMobileInfoLayout extends StatelessWidget {
                   Text(
                     currentEpisode.description.isNotEmpty
                         ? currentEpisode.description
-                        : '暂无简介',
+                        : l10n.playerNoDescription,
                     maxLines: isDescriptionExpanded ? null : 2,
                     overflow: isDescriptionExpanded
                         ? null
@@ -317,7 +322,9 @@ class PlayerMobileInfoLayout extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           Text(
-                            isDescriptionExpanded ? '收起' : '展开',
+                            isDescriptionExpanded
+                                ? l10n.playerCollapse
+                                : l10n.playerExpand,
                             style: TextStyle(
                               color: theme.colorScheme.primary,
                               fontSize: 12,
@@ -340,19 +347,19 @@ class PlayerMobileInfoLayout extends StatelessWidget {
           const SizedBox(height: 24),
           episodeStrip,
           const SizedBox(height: 24),
-          const PlayerSectionHeader('播放源'),
+          PlayerSectionHeader(l10n.playerMobilePlaySource),
           const SizedBox(height: 12),
           playSourceSelector,
           const SizedBox(height: 12),
           resourceList,
           const SizedBox(height: 24),
           if (onairSites.isNotEmpty) ...[
-            const PlayerSectionHeader('官方播放源'),
+            PlayerSectionHeader(l10n.playerMobileOfficialPlaySource),
             const SizedBox(height: 12),
             PlayerOnairSitesList(sites: onairSites),
             const SizedBox(height: 24),
           ],
-          const PlayerSectionHeader('相关推荐'),
+          PlayerSectionHeader(l10n.playerMobileRelated),
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -389,6 +396,7 @@ class PlayerMobileLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
     return Column(
       children: [
@@ -413,8 +421,8 @@ class PlayerMobileLayout extends StatelessWidget {
                   indicatorWeight: 3,
                   labelStyle: const TextStyle(fontWeight: FontWeight.bold),
                   tabs: [
-                    const Tab(text: '简介 & 推荐'),
-                    Tab(text: '评论 ($commentsCount)'),
+                    Tab(text: l10n.playerMobileSummaryAndRecommend),
+                    Tab(text: l10n.playerMobileCommentsTab(commentsCount)),
                   ],
                 ),
               ),

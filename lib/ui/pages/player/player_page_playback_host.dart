@@ -44,7 +44,8 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
     _updateState(() {
       _disableAutoSourceSearchForCurrentEpisode = hasDownloadedPlayback;
       if (hasDownloadedPlayback) {
-        _sampleStatusMessageNotifier.value = '已播放本地资源，可手动搜索在线源';
+        final l10n = AppLocalizations.of(context);
+        _sampleStatusMessageNotifier.value = l10n.playerSearchLocalPlayedHint;
       }
     });
 
@@ -107,7 +108,7 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
         _updateState(() {
           _playbackController.markLocalPlayback(
             filePath,
-            label: '在线源下载',
+            label: AppLocalizations.of(context).playerSourceLabelOnline,
             clearCurrentOnlineSource: false,
           );
         });
@@ -154,7 +155,10 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
       return;
     }
     _updateState(() {
-      _playbackController.markLocalPlayback(streamUrl, label: 'BT下载');
+      _playbackController.markLocalPlayback(
+        streamUrl,
+        label: AppLocalizations.of(context).playerSourceLabelBt,
+      );
     });
     _publishPlayerControlSourceState();
 
@@ -202,9 +206,10 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
     final source = _playbackController.currentOnlineSource;
     if (source == null || source.directVideoUrl == null) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('没有可下载的在线源')));
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.playerNoDownloadableSource)),
+        );
       }
       return;
     }
@@ -217,8 +222,17 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
     final episodeName = _episodeController.currentEpisode.nameCn.isNotEmpty
         ? _episodeController.currentEpisode.nameCn
         : _episodeController.currentEpisode.name;
-    final downloadName =
-        '${widget.anime.title} - ${episodeName.isNotEmpty ? episodeName : '第${_episodeController.currentEpisode.sort.toInt()}集'} (${source.sourceName})';
+    final l10n = AppLocalizations.of(context);
+    final localizedEpisodeName = episodeName.isNotEmpty
+        ? episodeName
+        : l10n.playerEpisodeNumber(
+            _episodeController.currentEpisode.sort.toInt(),
+          );
+    final downloadName = l10n.playerDownloadTaskName(
+      widget.anime.title,
+      localizedEpisodeName,
+      source.sourceName,
+    );
 
     try {
       await _downloadManager.startHttpDownload(
@@ -232,17 +246,19 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
     } catch (e) {
       debugPrint('[Download] Failed to add current online source: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('添加下载任务失败，请稍后重试')));
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.playerAddDownloadTaskFailed)),
+        );
       }
       return;
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('已添加到下载任务')));
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.playerAddDownloadTaskSuccess)),
+      );
     }
   }
 
@@ -250,17 +266,19 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
     final url = _playbackController.currentOnlineSource?.directVideoUrl;
     if (url == null || url.isEmpty) {
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('没有可复制的下载链接')));
+        ).showSnackBar(SnackBar(content: Text(l10n.playerNoCopyableLink)));
       }
       return;
     }
     Clipboard.setData(ClipboardData(text: url));
     if (mounted) {
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('下载链接已复制')));
+      ).showSnackBar(SnackBar(content: Text(l10n.playerDownloadLinkCopied)));
     }
   }
 

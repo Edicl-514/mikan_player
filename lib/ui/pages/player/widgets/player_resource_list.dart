@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/player/widgets/bt_resource.dart';
 import 'package:mikan_player/ui/pages/player/widgets/bt_resource_tags.dart';
 
@@ -42,6 +43,7 @@ class BtResourceList extends StatelessWidget {
     if (!isExpanded) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final cardColor = isDark
         ? const Color(0xFF1E1E2C)
@@ -80,10 +82,12 @@ class BtResourceList extends StatelessWidget {
             Expanded(
               child: Text(
                 isLoading
-                    ? '正在搜索BT源...'
+                    ? l10n.playerResourceListSearching
                     : (btCount > 0
-                          ? '已找到 $btCount 个BT源'
-                          : (hasError ? 'BT搜索失败' : '尚未开始搜索BT源')),
+                          ? l10n.playerResourceListFound(btCount)
+                          : (hasError
+                                ? l10n.playerResourceListFailed
+                                : l10n.playerResourceListNotStarted)),
                 style: TextStyle(
                   color: hasError && btCount == 0
                       ? Colors.redAccent
@@ -112,19 +116,22 @@ class BtResourceList extends StatelessWidget {
                 Icon(Icons.search_off, color: faintIconColor, size: 32),
                 const SizedBox(height: 8),
                 Text(
-                  '尚未开始搜索BT源',
+                  l10n.playerResourceListNotStarted,
                   style: TextStyle(color: faintTextColor, fontSize: 12),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '点击下方按钮开始搜索',
+                  l10n.playerResourceListStartSearch,
                   style: TextStyle(color: faintIconColor, fontSize: 11),
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
                   onPressed: onRetrySearch,
                   icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('搜索BT源', style: TextStyle(fontSize: 12)),
+                  label: Text(
+                    l10n.searchBtSource,
+                    style: const TextStyle(fontSize: 12),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isDark
                         ? Colors.white12
@@ -190,6 +197,7 @@ class _BtResourceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final title = resource.title;
     final magnet = resource.magnet;
     final size = resource.size;
@@ -250,109 +258,126 @@ class _BtResourceCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              InkWell(
-                onTap: onCopyMagnet,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? Colors.white10
-                        : Colors.grey.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
+              Flexible(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
-                      Icon(
-                        Icons.copy,
-                        size: 12,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '复制',
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: onDownload,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? Colors.white10
-                        : Colors.grey.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.download,
-                        size: 12,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '下载',
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              InkWell(
-                onTap: isPlayBlocked ? null : onPlay,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isPlayBlocked
-                        ? theme.colorScheme.primary.withValues(alpha: 0.5)
-                        : theme.colorScheme.primary,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    children: [
-                      if (loadingMagnet == magnet)
-                        const SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white70,
+                      InkWell(
+                        onTap: onCopyMagnet,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
                           ),
-                        )
-                      else
-                        const Icon(
-                          Icons.play_arrow,
-                          size: 12,
-                          color: Colors.white,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.white10
+                                : Colors.grey.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.copy,
+                                size: 12,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                l10n.playerCopyAction,
+                                style: TextStyle(
+                                  color: isDark ? Colors.white : Colors.black87,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      const SizedBox(width: 4),
-                      Text(
-                        loadingMagnet == magnet ? '加载中' : '播放',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
+                      ),
+                      InkWell(
+                        onTap: onDownload,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.white10
+                                : Colors.grey.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.download,
+                                size: 12,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                l10n.playerDownloadButton,
+                                style: TextStyle(
+                                  color: isDark ? Colors.white : Colors.black87,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      InkWell(
+                        onTap: isPlayBlocked ? null : onPlay,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isPlayBlocked
+                                ? theme.colorScheme.primary.withValues(
+                                    alpha: 0.5,
+                                  )
+                                : theme.colorScheme.primary,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (loadingMagnet == magnet)
+                                const SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white70,
+                                  ),
+                                )
+                              else
+                                const Icon(
+                                  Icons.play_arrow,
+                                  size: 12,
+                                  color: Colors.white,
+                                ),
+                              const SizedBox(width: 4),
+                              Text(
+                                loadingMagnet == magnet
+                                    ? l10n.playerLoadAction
+                                    : l10n.playerPlayButton,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],

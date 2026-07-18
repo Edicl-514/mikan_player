@@ -158,6 +158,50 @@ void main() {
       }
     });
 
+    test('player placeholder messages declare typed metadata', () {
+      final issues = <String>[];
+      for (final locale in <String, Map<String, Object?>>{
+        'zh': zh,
+        'en': en,
+      }.entries) {
+        for (final key in msgKeys(
+          locale.value,
+        ).where((key) => key.startsWith('player'))) {
+          final value = locale.value[key];
+          if (value is! String || placeholderNames(value).isEmpty) continue;
+
+          final metadata = locale.value['@$key'];
+          if (metadata is! Map<String, Object?>) {
+            issues.add('${locale.key}:$key is missing an @key metadata block');
+            continue;
+          }
+          if (metadata['description'] is! String ||
+              (metadata['description']! as String).trim().isEmpty) {
+            issues.add('${locale.key}:$key metadata needs a description');
+          }
+          final placeholders = metadata['placeholders'];
+          if (placeholders is! Map<String, Object?>) {
+            issues.add('${locale.key}:$key metadata needs placeholder types');
+            continue;
+          }
+          for (final name in placeholderNames(value)) {
+            final declaration = placeholders[name];
+            if (declaration is! Map<String, Object?> ||
+                declaration['type'] is! String ||
+                (declaration['type']! as String).trim().isEmpty) {
+              issues.add('${locale.key}:$key placeholder $name needs a type');
+            }
+          }
+        }
+      }
+
+      if (issues.isNotEmpty) {
+        throw TestFailure(
+          'Player placeholder metadata is incomplete:\n  ${issues.join('\n  ')}',
+        );
+      }
+    });
+
     test('@key metadata blocks agree with placeholder names in the text', () {
       final issues = <String>[];
       for (final locale in <String, Map<String, Object?>>{

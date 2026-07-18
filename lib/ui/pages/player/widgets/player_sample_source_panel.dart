@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_source_progress_item.dart';
 
@@ -79,6 +80,7 @@ class PlayerSampleSourcePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final muted = isDark ? Colors.white70 : theme.colorScheme.onSurfaceVariant;
     final outline = isDark ? Colors.white10 : theme.colorScheme.outlineVariant;
@@ -107,15 +109,20 @@ class PlayerSampleSourcePanel extends StatelessWidget {
                   builder: (context, statusMessage, _) {
                     final summaryText = enabledSourceNames.isEmpty
                         ? (disableAutoSourceSearchForCurrentEpisode
-                              ? '已播放本地资源，在线源搜索待手动触发'
+                              ? l10n.playerSampleStatusLocalManual
                               : (!autoSearchOnline
-                                    ? '在线搜索已关闭，可手动搜索在线源'
-                                    : '尚未开始搜索在线源'))
-                        : '搜索完成 (${successfulSources.length}/${enabledSourceNames.length} 个可用)';
+                                    ? l10n.playerSampleStatusAutoDisabled
+                                    : l10n.playerSampleStatusNotStarted))
+                        : l10n.playerSampleStatusCompleted(
+                            successfulSources.length,
+                            enabledSourceNames.length,
+                          );
 
                     final displayText = isLoadingSample
                         ? statusMessage
-                        : (sampleError != null ? '搜索失败' : summaryText);
+                        : (sampleError != null
+                              ? l10n.playerSampleStatusFailed
+                              : summaryText);
 
                     return Text(
                       displayText,
@@ -197,8 +204,15 @@ class PlayerSampleSourcePanel extends StatelessWidget {
               children: [
                 Text(
                   workerPoolLabel == null
-                      ? '并发WebView任务 ($activeWebViewTaskCount/$maxConcurrentWebViews)'
-                      : '并发WebView任务 ($activeWebViewTaskCount/$maxConcurrentWebViews) · $workerPoolLabel',
+                      ? l10n.playerWebViewTaskCount(
+                          activeWebViewTaskCount,
+                          maxConcurrentWebViews,
+                        )
+                      : l10n.playerWebViewTaskCountWithPool(
+                          activeWebViewTaskCount,
+                          maxConcurrentWebViews,
+                          workerPoolLabel!,
+                        ),
                   style: TextStyle(
                     color: muted,
                     fontSize: 12,
@@ -223,7 +237,7 @@ class PlayerSampleSourcePanel extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Text(
-                    'per-source [p|a|c]: $perSourceStatusLabel',
+                    l10n.playerWebViewPerSourceStatus(perSourceStatusLabel),
                     style: TextStyle(
                       color: isDark
                           ? Colors.white38
@@ -265,7 +279,10 @@ class PlayerSampleSourcePanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Text('显示 WebView (调试)', style: TextStyle(fontSize: 10)),
+                Text(
+                  l10n.playerWebViewShowDebug,
+                  style: const TextStyle(fontSize: 10),
+                ),
                 const SizedBox(width: 16),
                 SizedBox(
                   width: 24,
@@ -278,9 +295,9 @@ class PlayerSampleSourcePanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Text(
-                  '统一 Worker 调度 (Round 7)',
-                  style: TextStyle(fontSize: 10),
+                Text(
+                  l10n.playerWebViewWorkerPoolSwitch,
+                  style: const TextStyle(fontSize: 10),
                 ),
               ],
             ),
@@ -302,7 +319,7 @@ class PlayerSampleSourcePanel extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '可用源 (${successfulSources.length})',
+                      l10n.playerWebViewAvailableSources(successfulSources.length),
                       style: TextStyle(
                         color: muted,
                         fontSize: 11,
@@ -420,7 +437,7 @@ class PlayerSampleSourcePanel extends StatelessWidget {
                   onPressed: sampleVideoUrl != null ? onPlaySelected : null,
                   icon: const Icon(Icons.play_arrow, size: 18),
                   label: Text(
-                    _playButtonLabel(),
+                    _playButtonLabel(l10n),
                     style: const TextStyle(fontSize: 12),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -449,8 +466,10 @@ class PlayerSampleSourcePanel extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   disableAutoSourceSearchForCurrentEpisode
-                      ? '已使用本地资源播放'
-                      : (!autoSearchOnline ? '在线搜索已关闭' : '尚未开始搜索在线源'),
+                      ? l10n.playerSampleSummaryLocalManual
+                      : (!autoSearchOnline
+                            ? l10n.playerSampleSummaryAutoDisabled
+                            : l10n.playerSampleStatusNotStarted),
                   style: TextStyle(
                     color: isDark ? Colors.white38 : Colors.grey,
                     fontSize: 12,
@@ -459,8 +478,10 @@ class PlayerSampleSourcePanel extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   disableAutoSourceSearchForCurrentEpisode
-                      ? '如需在线源，请点击下方按钮手动搜索'
-                      : (!autoSearchOnline ? '点击下方按钮手动搜索在线源' : '点击下方按钮开始搜索'),
+                      ? l10n.playerSampleHintLocalManual
+                      : (!autoSearchOnline
+                            ? l10n.playerSampleHintAutoDisabled
+                            : l10n.playerSampleHintNotStarted),
                   style: TextStyle(
                     color: isDark
                         ? Colors.white24
@@ -472,7 +493,10 @@ class PlayerSampleSourcePanel extends StatelessWidget {
                 ElevatedButton.icon(
                   onPressed: onManualSearch,
                   icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('搜索在线源', style: TextStyle(fontSize: 12)),
+                  label: Text(
+                    l10n.searchOnlineSource,
+                    style: const TextStyle(fontSize: 12),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isDark
                         ? Colors.white12
@@ -489,14 +513,17 @@ class PlayerSampleSourcePanel extends StatelessWidget {
     );
   }
 
-  String _playButtonLabel() {
-    if (successfulSources.isEmpty) return '播放 - ';
+  String _playButtonLabel(AppLocalizations l10n) {
+    if (successfulSources.isEmpty) return l10n.playerSamplePlayButtonBase;
     final idx = selectedSourceIndex.clamp(0, successfulSources.length - 1);
     final source = successfulSources[idx];
     if (source.channelName != null) {
-      return '播放 - ${source.sourceName}(${source.channelName})';
+      return l10n.playerSamplePlayButtonWithChannel(
+        source.sourceName,
+        source.channelName!,
+      );
     }
-    return '播放 - ${source.sourceName}';
+    return l10n.playerSamplePlayButtonWithSource(source.sourceName);
   }
 }
 

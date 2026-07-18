@@ -47,13 +47,19 @@ SampleSourceCohorts partitionEnabledSources(List<SourceState> enabledSources) {
 
 /// Status line while captcha + search are in flight.
 String sampleSearchProgressLabel({
+  required String Function(
+    int completed,
+    int enabled,
+    int activeCaptcha,
+    int pendingCaptcha,
+  )
+  formatter,
   required int completedCount,
   required int enabledCount,
   required int activeCaptcha,
   required int pendingCaptcha,
 }) {
-  return '搜索进度: $completedCount/$enabledCount，'
-      '验证码 $activeCaptcha 运行/$pendingCaptcha 排队';
+  return formatter(completedCount, enabledCount, activeCaptcha, pendingCaptcha);
 }
 
 /// Terminal idle status / error after [mayMarkSampleSearchIdle] is true.
@@ -65,17 +71,20 @@ class SampleSearchFinishMessage {
 }
 
 SampleSearchFinishMessage sampleSearchFinishMessage({
+  required String notFoundMessage,
+  required String allFailedMessage,
+  required String Function(int count) doneFormatter,
   required int playPageCount,
   required int successfulSourceCount,
 }) {
   if (playPageCount == 0) {
-    return const SampleSearchFinishMessage(error: '未在任何源中找到该动画');
+    return SampleSearchFinishMessage(error: notFoundMessage);
   }
   if (successfulSourceCount == 0) {
-    return const SampleSearchFinishMessage(error: '所有源都无法提取视频链接');
+    return SampleSearchFinishMessage(error: allFailedMessage);
   }
   return SampleSearchFinishMessage(
-    status: '搜索完成，共找到 $successfulSourceCount 个可用源',
+    status: doneFormatter(successfulSourceCount),
   );
 }
 

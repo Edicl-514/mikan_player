@@ -98,6 +98,7 @@ List<dynamic> sortBtResourcesByTitle(List<dynamic> resources) {
 }
 
 List<String> normalizeRecommendationTags(Iterable<String> rawTags) {
+  // i18n-ignore: source-data noise tokens; do not localize.
   const invalidTags = {'tv', 'web', 'ova', '日本', '中国', '动画', 'anime'};
 
   final unique = <String>[];

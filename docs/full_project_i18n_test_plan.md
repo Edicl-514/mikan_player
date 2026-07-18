@@ -245,6 +245,30 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
 
 注意：只有 medium 候选已迁移或用原因明确的注释处理后，才启用严格失败模式。
 
+#### L10N-5 执行结果（2026-07-19）
+
+- `dart run tool/scan_hardcoded_ui_text.dart` 从首轮 187（high 52 / medium 135）清零到
+  **0 / 0**（已支持 `--fail-on-findings` 严格模式作为 CI gate）。
+- 玩家侧全量迁移：player_page、player_page_*_host、player_search_session_coordinator、
+  player_side_panel_loader、player_source_helpers、player_bt_source_loader、subscription_debug_page、
+  以及 `lib/ui/pages/player/widgets/` 下所有 widget。
+- 不可本地化的 `protocol` / `keep` 串统一用 `// i18n-ignore: <原因>` 注释；bt_resource_tags.dart
+  整文件以 `// i18n-scan-ignore-file:` 标识（协议匹配 token 集合）。
+- 新增 ARB 键约 85 个，全部为 `player*` 前缀；所有新增 placeholder 消息均补齐
+  `@key` description/type 元数据，并对英文计数文案使用 ICU plural。
+- `PlayerVideoArea` 两个移动端 `IconButton` 分别补上本地化的返回/更多 tooltip，
+  解决无障碍朗读（L10N-5-001 / L10N-5-005）。
+- 新增 `test/ui/pages/player/widgets/player_l10n5_bilingual_smoke_test.dart`：
+  24 个中英文 smoke 用例，覆盖 `PlayerComments` / `PlayerRecommendations` /
+  `PlayerResourceList` / `PlayerCurrentSourceActions` / `PlayerSourceSelector` /
+  `PlayerSampleSourcePanel` / `PlayerMobileLayout` / `PlayerMobileInfoLayout` / `PlayerPcLayout`；
+  测试直接设置 RenderView 为 360×800 / 360×1200 / 1280×800，并断言
+  `tester.takeException()` 为 null。
+- 扫描器补充 `${...}` 内嵌字符串解析与 CLI 回归测试，避免插值中的用户文案绕过严格门禁。
+- CI 工作流 **暂不纳入本批**：扫描门禁命令已就绪
+  （`dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings`），
+  本地/后续 `Q-0` 再挂到 `.github/workflows`。
+
 ---
 
 ## 5. Dart 测试工作流

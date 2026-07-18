@@ -249,7 +249,9 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     }
     SourceRequestGate.instance.markStarted(ready.source.name);
     _captchaCoordinator.markActive(ready);
-    _webViewStatus[ready.taskKey] = '正在跳过验证码...';
+    _webViewStatus[ready.taskKey] = AppLocalizations.of(
+      context,
+    ).playerWebviewCaptchaBypass;
     _webviewStats.onCaptchaJobStarted(ready.taskKey, ready.source.name);
     return true;
   }
@@ -373,7 +375,9 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
         generation: jobLoadToken,
       );
       gate.markStarted(command.job.sourceName);
-      _webViewStatus[command.job.pageKey] = '正在提取...';
+      _webViewStatus[command.job.pageKey] = AppLocalizations.of(
+        context,
+      ).playerWebviewExtracting;
       _webviewStats.onVideoJobStarted(
         command.job.pageKey,
         command.job.sourceName,
@@ -387,7 +391,9 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
     _activeWebViews[pageKey] = jobLoadToken;
     gate.markStarted(page.sourceName);
-    _webViewStatus[pageKey] = '正在提取...';
+    _webViewStatus[pageKey] = AppLocalizations.of(
+      context,
+    ).playerWebviewExtracting;
     _webviewStats.onVideoJobStarted(
       pageKey,
       page.sourceName,
@@ -482,18 +488,25 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
   }
 
   String _searchProgressLabel() {
-    return '搜索进度: ${_completedSearchSourceCount()}/${_sampleSourceController.enabledSourceNames.length}';
+    return AppLocalizations.of(context).playerWebviewSchedulerProgress(
+      _completedSearchSourceCount(),
+      _sampleSourceController.enabledSourceNames.length,
+    );
   }
 
   String _captchaActiveLabel() {
-    return '验证码进行中 ${_captchaCoordinator.activeTasks.length}';
+    return AppLocalizations.of(
+      context,
+    ).playerWebviewCaptchaActive(_captchaCoordinator.activeTasks.length);
   }
 
   String _extractionActiveLabel() {
     final active = _useWorkerPool
         ? _scheduler.activeVideoJobs.length
         : _activeWebViews.length;
-    return '提取并发 $active/$_maxConcurrentWebViews';
+    return AppLocalizations.of(
+      context,
+    ).playerWebviewExtractionActive(active, _maxConcurrentWebViews);
   }
 
   /// Phase 0 单行调试计数汇总（widget 创建/释放 + 视频/验证码 job 生命周期）。

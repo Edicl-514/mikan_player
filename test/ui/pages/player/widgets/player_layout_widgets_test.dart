@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_mobile_layout.dart';
@@ -14,6 +15,9 @@ import 'package:mikan_player/ui/pages/player/widgets/player_source_selector.dart
 
 Widget _wrap(Widget child, {Size size = const Size(400, 800)}) {
   return MaterialApp(
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    locale: const Locale('zh'),
     home: MediaQuery(
       data: MediaQueryData(size: size),
       child: Scaffold(body: child),
@@ -32,6 +36,12 @@ BangumiEpisode _ep({int id = 1, double sort = 1}) => BangumiEpisode(
 );
 
 void main() {
+  late AppLocalizations l10n;
+
+  setUpAll(() async {
+    l10n = await AppLocalizations.delegate.load(const Locale('zh'));
+  });
+
   testWidgets('PlayerSourceSelector collapsed shows counts and expands', (
     tester,
   ) async {
@@ -60,14 +70,14 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('已找到'), findsOneWidget);
+    expect(find.textContaining(l10n.playerSourceTitleFoundMobile), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
 
     await tester.tap(find.byType(PlayerSourceSelector));
     await tester.pump();
-    expect(find.text('BT'), findsOneWidget);
-    expect(find.text('订阅源'), findsOneWidget);
+    expect(find.text(l10n.playerSourceTabBt), findsOneWidget);
+    expect(find.text(l10n.playerSourceTabSubscription), findsOneWidget);
   });
 
   testWidgets('PlayerSampleSourcePanel empty state offers manual search', (
@@ -108,8 +118,8 @@ void main() {
       ),
     );
 
-    expect(find.text('尚未开始搜索在线源'), findsWidgets);
-    await tester.tap(find.text('搜索在线源'));
+    expect(find.text(l10n.playerSampleStatusNotStarted), findsWidgets);
+    await tester.tap(find.text(l10n.searchOnlineSource));
     await tester.pump();
     expect(searched, isTrue);
   });
@@ -137,8 +147,8 @@ void main() {
     );
 
     expect(find.text('VIDEO'), findsOneWidget);
-    expect(find.text('简介 & 推荐'), findsOneWidget);
-    expect(find.text('评论 (0)'), findsOneWidget);
+    expect(find.text(l10n.playerMobileSummaryAndRecommend), findsOneWidget);
+    expect(find.text(l10n.playerMobileCommentsTab(0)), findsOneWidget);
     expect(find.text('INFO'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -183,7 +193,7 @@ void main() {
     expect(find.text('第1集'), findsOneWidget);
     expect(find.text('SOURCE_SELECTOR'), findsOneWidget);
     expect(find.text('RESOURCE_LIST'), findsOneWidget);
-    expect(find.text('播放源'), findsOneWidget);
-    expect(find.text('相关推荐'), findsOneWidget);
+    expect(find.text(l10n.playerMobilePlaySource), findsOneWidget);
+    expect(find.text(l10n.playerMobileRelated), findsOneWidget);
   });
 }

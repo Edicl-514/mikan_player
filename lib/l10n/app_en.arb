@@ -576,6 +576,7 @@
   "subtitlePreview": "Subtitle preview",
   "noAvailableSource": "No available source",
   "back": "Back",
+  "playerMoreOptions": "More",
   "unlock": "Unlock",
   "lock": "Lock",
   "danmaku": "Danmaku",
@@ -1257,5 +1258,391 @@
   "indexGenreDrama": "Drama",
   "indexGenreWuxia": "Wuxia",
   "indexGenreFood": "Food",
-  "indexGenreWorkplace": "Workplace"
+  "indexGenreWorkplace": "Workplace",
+  "playerMobileEpisodeSelector": "Episodes",
+  "playerMobilePlaySource": "Play sources",
+  "playerMobileOfficialPlaySource": "Official sources",
+  "playerMobileRelated": "Related",
+  "playerMobileSummaryAndRecommend": "Summary & recommendations",
+  "playerMobileCommentsTab": "Comments ({count})",
+  "@playerMobileCommentsTab": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerMobilePlayableEpisodeCount": "{count, plural, =0{No episodes} =1{1 Episode} other{{count} Episodes}}",
+  "@playerMobilePlayableEpisodeCount": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerPcEpisodeList": "Episodes",
+  "playerPcPlaylist": "Playlist",
+  "playerPcCommentsSection": "Comments",
+  "playerSourceTitleFound": "{count, plural, =1{Found 1 BT source} other{Found {count} BT sources}}, {online, plural, =1{1 subscription} other{{online} subscriptions}}, current: {current}",
+  "@playerSourceTitleFound": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" },
+      "online": { "type": "int" },
+      "current": { "type": "String" }
+    }
+  },
+  "playerSourceTitleCurrent": "Current: {label}",
+  "@playerSourceTitleCurrent": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "playerSourceTitleFoundMobile": "Found",
+  "playerSourceTabBt": "BT",
+  "playerSourceTabSubscription": "Subscriptions",
+  "playerSourceLabelOnline": "Online source",
+  "playerSourceLabelBt": "BT download",
+  "playerSourceLabelOnlineShort": "Online",
+  "playerNoDownloadableSource": "No downloadable online source",
+  "playerAddDownloadTaskFailed": "Failed to add download task, please try again",
+  "playerAddDownloadTaskSuccess": "Added to download tasks",
+  "playerNoCopyableLink": "No copyable download link",
+  "playerDownloadLinkCopied": "Download link copied",
+  "playerDownloadButton": "Download",
+  "playerCopyDownloadLinkButton": "Copy link",
+  "playerCopyAction": "Copy",
+  "playerPlayButton": "Play",
+  "playerLoadAction": "Loading",
+  "playerSampleStatusLocalManual": "Playing local source; online search requires manual trigger",
+  "playerSampleStatusAutoDisabled": "Online search disabled; you can search manually",
+  "playerSampleStatusNotStarted": "Online search has not started yet",
+  "playerSampleStatusCompleted": "Search done ({done}/{total} available)",
+  "@playerSampleStatusCompleted": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "done": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "playerSampleStatusFailed": "Search failed",
+  "playerSampleSummaryLocalManual": "Playing local source",
+  "playerSampleSummaryAutoDisabled": "Online search disabled",
+  "playerSampleHintLocalManual": "For online sources, tap the button below to search manually",
+  "playerSampleHintAutoDisabled": "Tap the button below to search online manually",
+  "playerSampleHintNotStarted": "Tap the button below to start searching",
+  "playerSamplePlayButtonBase": "Play - ",
+  "playerSamplePlayButtonWithChannel": "Play - {source}({channel})",
+  "@playerSamplePlayButtonWithChannel": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "source": { "type": "String" },
+      "channel": { "type": "String" }
+    }
+  },
+  "playerSamplePlayButtonWithSource": "Play - {source}",
+  "@playerSamplePlayButtonWithSource": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "source": { "type": "String" }
+    }
+  },
+  "playerWebViewTaskCount": "Concurrent WebView tasks ({active}/{max})",
+  "@playerWebViewTaskCount": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "active": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
+  "playerWebViewTaskCountWithPool": "Concurrent WebView tasks ({active}/{max}) · {pool}",
+  "@playerWebViewTaskCountWithPool": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "active": { "type": "int" },
+      "max": { "type": "int" },
+      "pool": { "type": "String" }
+    }
+  },
+  "playerWebViewShowDebug": "Show WebView (debug)",
+  "playerWebViewWorkerPoolSwitch": "Unified worker pool (Round 7)",
+  "playerWebViewAvailableSources": "{count, plural, =0{No available sources} =1{1 available source} other{{count} available sources}}",
+  "@playerWebViewAvailableSources": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerWebViewPerSourceStatus": "per-source [p|a|c]: {status}",
+  "@playerWebViewPerSourceStatus": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "status": { "type": "String" }
+    }
+  },
+  "playerSearchProgressStepPending": "Pending",
+  "playerSearchProgressStepSearching": "Searching...",
+  "playerSearchProgressStepDetail": "Fetching detail...",
+  "playerSearchProgressStepEpisodes": "Fetching episodes...",
+  "playerSearchProgressStepExtracting": "Extracting video link...",
+  "playerSearchProgressStepSuccess": "Success",
+  "playerSearchProgressStepFoundPlayPage": "Found play page",
+  "playerSearchProgressStepFailed": "Failed",
+  "playerSearchSessionProgressLine": "Search progress: {completed}/{enabled}, captcha {activeCaptcha} running/{pendingCaptcha} queued",
+  "@playerSearchSessionProgressLine": {
+    "description": "Composite progress line shown while search + captcha pre-flight are running.",
+    "placeholders": {
+      "completed": { "type": "int" },
+      "enabled": { "type": "int" },
+      "activeCaptcha": { "type": "int" },
+      "pendingCaptcha": { "type": "int" }
+    }
+  },
+  "playerSearchSessionNotFound": "No matching anime found in any source",
+  "playerSearchSessionAllFailed": "All sources failed to extract the video link",
+  "playerSearchSessionDone": "{count, plural, =0{Search done, no usable sources found} =1{Search done, 1 usable source found} other{Search done, {count} usable sources found}}",
+  "@playerSearchSessionDone": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerSearchLocalPlayedHint": "Playing local source; you can search online manually",
+  "playerSearchAutoDisabledHint": "Online search disabled; you can search online manually",
+  "playerSearchLocalPlayedActionHint": "Playing local source; tap refresh to search online manually",
+  "playerSearchFetchingSourceList": "Loading source list...",
+  "playerSearchNoEnabledSource": "No play source enabled",
+  "playerSearchProgressSearchMany": "{count, plural, =1{Searching 1 source...} other{Searching {count} sources...}}",
+  "@playerSearchProgressSearchMany": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerSearchProgressCaptchaPreflight": "Non-captcha sources first; captcha pre-flight runs in parallel...",
+  "playerWebviewExtractInProgress": "Extracting: {completed}/{total} done, {active} running",
+  "@playerWebviewExtractInProgress": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "completed": { "type": "int" },
+      "total": { "type": "int" },
+      "active": { "type": "int" }
+    }
+  },
+  "playerWebviewCaptchaBypass": "Bypassing captcha",
+  "playerWebviewCaptchaBypassTitle": "{label} - bypassing captcha",
+  "@playerWebviewCaptchaBypassTitle": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "label": { "type": "String" }
+    }
+  },
+  "playerWebviewExtracting": "Extracting...",
+  "playerWebviewSchedulerProgress": "Search progress: {completed}/{total}",
+  "@playerWebviewSchedulerProgress": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "completed": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "playerWebviewCaptchaActive": "Captcha in progress: {count}",
+  "@playerWebviewCaptchaActive": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerWebviewExtractionActive": "Extraction concurrency {active}/{max}",
+  "@playerWebviewExtractionActive": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "active": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
+  "playerPageTitleWithEpisode": "{title} - Episode {episode}",
+  "@playerPageTitleWithEpisode": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "title": { "type": "String" },
+      "episode": { "type": "int" }
+    }
+  },
+  "playerEpisodeNumber": "Episode {episode}",
+  "@playerEpisodeNumber": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "episode": { "type": "int" }
+    }
+  },
+  "playerDownloadTaskName": "{title} - {episode} ({source})",
+  "@playerDownloadTaskName": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "title": { "type": "String" },
+      "episode": { "type": "String" },
+      "source": { "type": "String" }
+    }
+  },
+  "playerSidePanelPrequel": "Prequel",
+  "playerSidePanelSequel": "Sequel",
+  "playerSidePanelLoadFailed": "Unable to get play URL",
+  "playerSidePanelCopyMagnet": "Magnet link copied",
+  "playerSidePanelDownloadHint": "Download started, check progress on the \"My\" page",
+  "playerRecommendationsEmpty": "No related recommendations",
+  "playerNoDescription": "No description",
+  "playerCollapse": "Collapse",
+  "playerExpand": "Expand",
+  "playerCommentsTitle": "All comments",
+  "playerCommentsEmpty": "No comments",
+  "playerCommentsLoadFailed": "Load failed: {error}",
+  "@playerCommentsLoadFailed": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "playerCommentsLoadFailedPc": "Load failed: {error}",
+  "@playerCommentsLoadFailedPc": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "playerCommentsEmptyPc": "No comments",
+  "playerResourceListSearching": "Searching BT sources...",
+  "playerResourceListFound": "{count, plural, =0{No BT sources found} =1{Found 1 BT source} other{Found {count} BT sources}}",
+  "@playerResourceListFound": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerResourceListFailed": "BT search failed",
+  "playerResourceListNotStarted": "BT search has not started yet",
+  "playerResourceListStartSearch": "Tap the button below to start searching",
+  "playerAutoplaySearchDone": "{count, plural, =0{Search done, no usable sources found} =1{Search done, 1 usable source found} other{Search done, {count} usable sources found}}",
+  "@playerAutoplaySearchDone": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerSourceControllerAnimeNotFound": "Anime not found",
+  "playerPlaybackOpenFailed": "Playback failed: {error}",
+  "@playerPlaybackOpenFailed": {
+    "description": "Shown when media_kit fails to open an online source URL.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "playerPlaybackStartupTimeout": "This source timed out on startup. Try another source.",
+  "playerSortDefault": "Default sort",
+  "playerSortByTime": "Sort by time",
+  "playerSubscriptionDebugSearchDirectProbe": "Search direct-link probe",
+  "playerSubscriptionDebugProbeInProgress": "Probing...",
+  "playerSubscriptionDebugProbeNotDone": "Not probed",
+  "playerSubscriptionDebugPlayable": "Playable",
+  "playerSubscriptionDebugNotPlayable": "Not playable",
+  "playerSubscriptionDebugCacheJsonMissing": "Cache JSON not found: {path}",
+  "@playerSubscriptionDebugCacheJsonMissing": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugFileMissing": "File not found: {path}",
+  "@playerSubscriptionDebugFileMissing": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugStartSearch": "Start debug search: anime={anime}, abs={abs}, rel={relative}, filter={filter}, json={jsonSource}",
+  "@playerSubscriptionDebugStartSearch": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "anime": { "type": "String" },
+      "abs": { "type": "String" },
+      "relative": { "type": "String" },
+      "filter": { "type": "String" },
+      "jsonSource": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugSearchError": "Search error: {error}",
+  "@playerSubscriptionDebugSearchError": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugSearchFinished": "Search finished",
+  "playerSubscriptionDebugCaptchaPageClosed": "Page closed, cannot complete captcha pre-flight",
+  "playerSubscriptionDebugCaptchaPreflightFailed": "Captcha pre-flight failed",
+  "playerSubscriptionDebugCaptchaPreflight": "{name} -> running captcha pre-flight ({current}/{total})",
+  "@playerSubscriptionDebugCaptchaPreflight": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "name": { "type": "String" },
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "playerSubscriptionDebugCaptchaParseFailed": "Failed to parse captcha source: {error}",
+  "@playerSubscriptionDebugCaptchaParseFailed": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugExtractStart": "Start extract: {name}",
+  "@playerSubscriptionDebugExtractStart": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugStartSearchButton": "Start debug search",
+  "playerSubscriptionDebugManualProbe": "Manual probe",
+  "playerSubscriptionDebugProbeActive": "Probing",
+  "playerSubscriptionDebugDirectLink": "Direct link: {url}",
+  "@playerSubscriptionDebugDirectLink": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "url": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugSourceName": "Source: {name}",
+  "@playerSubscriptionDebugSourceName": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugHeaders": "Headers: {headers}",
+  "@playerSubscriptionDebugHeaders": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "headers": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugExtractSuccess": "Extract success: {url}",
+  "@playerSubscriptionDebugExtractSuccess": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "url": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugExtractFailedShort": "Extract failed",
+  "playerSubscriptionDebugExtractFailedDetail": "Extract failed: {error}",
+  "@playerSubscriptionDebugExtractFailedDetail": {
+    "description": "Player UI message with typed placeholders.",
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "playerSubscriptionDebugPostProbe": "Post-extract probe",
+  "playerSubscriptionDebugJsonCache": "cache",
+  "playerSubscriptionDebugJsonLocal": "local",
+  "playerSubscriptionDebugJsonPathHint": "D:\\temp\\online.json, or leave empty"
 }

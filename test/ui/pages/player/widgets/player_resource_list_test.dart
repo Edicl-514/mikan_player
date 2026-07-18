@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/player/widgets/bt_resource.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_resource_list.dart';
 
@@ -26,8 +27,15 @@ BtResource _res({
   episode: episode,
 );
 
-Widget _wrap(Widget child, {Brightness brightness = Brightness.light}) {
+Widget _wrap(
+  Widget child, {
+  Brightness brightness = Brightness.light,
+  Locale locale = const Locale('zh'),
+}) {
   return MaterialApp(
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    locale: locale,
     theme: ThemeData(brightness: brightness),
     home: Scaffold(body: child),
   );
@@ -58,6 +66,12 @@ BtResourceList _list({
 );
 
 void main() {
+  late AppLocalizations l10n;
+
+  setUpAll(() async {
+    l10n = await AppLocalizations.delegate.load(const Locale('zh'));
+  });
+
   group('BtResourceList', () {
     testWidgets(
       'isExpanded false renders a single SizedBox.shrink and no content',
@@ -73,9 +87,9 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(find.text('正在搜索BT源...'), findsNothing);
-        expect(find.text('尚未开始搜索BT源'), findsNothing);
-        expect(find.text('搜索BT源'), findsNothing);
+        expect(find.text(l10n.playerResourceListSearching), findsNothing);
+        expect(find.text(l10n.playerResourceListNotStarted), findsNothing);
+        expect(find.text(l10n.searchBtSource), findsNothing);
         expect(find.byType(ElevatedButton), findsNothing);
         expect(
           find.descendant(
@@ -108,8 +122,8 @@ void main() {
           ),
           findsNothing,
         );
-        expect(find.text('正在搜索BT源...'), findsNothing);
-        expect(find.text('尚未开始搜索BT源'), findsNothing);
+        expect(find.text(l10n.playerResourceListSearching), findsNothing);
+        expect(find.text(l10n.playerResourceListNotStarted), findsNothing);
       },
     );
 
@@ -129,29 +143,33 @@ void main() {
           ),
         );
 
-        // Status bar AND empty card both render "尚未开始搜索BT源".
-        expect(find.text('尚未开始搜索BT源'), findsNWidgets(2));
-        expect(find.text('点击下方按钮开始搜索'), findsOneWidget);
-        expect(find.widgetWithText(ElevatedButton, '搜索BT源'), findsOneWidget);
+        // Status bar AND empty card both render the localized not-started copy.
+        expect(find.text(l10n.playerResourceListNotStarted), findsNWidgets(2));
+        expect(find.text(l10n.playerResourceListStartSearch), findsOneWidget);
+        expect(
+          find.widgetWithText(ElevatedButton, l10n.searchBtSource),
+          findsOneWidget,
+        );
 
-        await tester.tap(find.widgetWithText(ElevatedButton, '搜索BT源'));
+        await tester.tap(find.widgetWithText(ElevatedButton, l10n.searchBtSource));
         await tester.pump();
 
         expect(fired, 1);
       },
     );
 
-    testWidgets('empty + hasError true shows "BT搜索失败" in the status bar', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _wrap(_list(resources: const [], hasError: true, isLoading: false)),
-      );
+    testWidgets(
+      'empty + hasError true shows localized failed copy in the status bar',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(_list(resources: const [], hasError: true, isLoading: false)),
+        );
 
-      expect(find.text('BT搜索失败'), findsOneWidget);
-      // The empty card still renders its fixed message.
-      expect(find.text('尚未开始搜索BT源'), findsOneWidget);
-    });
+        expect(find.text(l10n.playerResourceListFailed), findsOneWidget);
+        // The empty card still renders its fixed message.
+        expect(find.text(l10n.playerResourceListNotStarted), findsOneWidget);
+      },
+    );
 
     testWidgets('populated renders all titles, status bar, sizes and times', (
       tester,
@@ -167,7 +185,7 @@ void main() {
       expect(find.text('Title A'), findsOneWidget);
       expect(find.text('Title B'), findsOneWidget);
       expect(find.text('Title C'), findsOneWidget);
-      expect(find.text('已找到 3 个BT源'), findsOneWidget);
+      expect(find.text(l10n.playerResourceListFound(3)), findsOneWidget);
       expect(find.text('1.0GB'), findsOneWidget);
       expect(find.text('2.0GB'), findsOneWidget);
       expect(find.text('3.0GB'), findsOneWidget);
@@ -177,8 +195,8 @@ void main() {
     });
 
     testWidgets(
-      'loadingMagnet on one card shows "加载中" + spinner; other card shows '
-      '"播放"',
+      'loadingMagnet on one card shows localized loading + spinner; other card '
+      'shows play copy',
       (tester) async {
         final resources = [
           _res(title: 'Loading', magnet: 'm-loading'),
@@ -195,8 +213,8 @@ void main() {
           ),
         );
 
-        expect(find.text('加载中'), findsOneWidget);
-        expect(find.text('播放'), findsOneWidget);
+        expect(find.text(l10n.playerLoadAction), findsOneWidget);
+        expect(find.text(l10n.playerPlayButton), findsOneWidget);
         expect(
           find.descendant(
             of: find.byType(BtResourceList),
@@ -229,17 +247,17 @@ void main() {
         );
 
         expect(find.byIcon(Icons.play_arrow), findsNWidgets(2));
-        expect(find.text('播放'), findsNWidgets(2));
+        expect(find.text(l10n.playerPlayButton), findsNWidgets(2));
 
-        await tester.tap(find.text('播放').first);
+        await tester.tap(find.text(l10n.playerPlayButton).first);
         await tester.pump();
 
         expect(playCalls, 0);
       },
     );
 
-    testWidgets('callback forwarding: 复制/下载/播放 tap the second card and capture '
-        'the right BtResource', (tester) async {
+    testWidgets('callback forwarding: copy/download/play tap the second card '
+        'and capture the right BtResource', (tester) async {
       BtResource? copied;
       BtResource? downloaded;
       BtResource? played;
@@ -261,15 +279,15 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('复制').at(1));
+      await tester.tap(find.text(l10n.playerCopyAction).at(1));
       await tester.pump();
       expect(copied?.magnet, 'm-second');
 
-      await tester.tap(find.text('下载').at(1));
+      await tester.tap(find.text(l10n.playerDownloadButton).at(1));
       await tester.pump();
       expect(downloaded?.magnet, 'm-second');
 
-      await tester.tap(find.text('播放').at(1));
+      await tester.tap(find.text(l10n.playerPlayButton).at(1));
       await tester.pump();
       expect(played?.magnet, 'm-second');
     });
@@ -287,7 +305,7 @@ void main() {
       );
 
       expect(find.text('DarkMode Title'), findsOneWidget);
-      expect(find.text('已找到 1 个BT源'), findsOneWidget);
+      expect(find.text(l10n.playerResourceListFound(1)), findsOneWidget);
     });
 
     testWidgets(

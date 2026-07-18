@@ -38,6 +38,7 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
   }
 
   List<PlayerWebViewTaskRow> _buildSampleActiveTaskRows() {
+    final l10n = AppLocalizations.of(context);
     if (_useWorkerPool) {
       return _buildWebViewWorkerTaskRows();
     }
@@ -45,7 +46,10 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
     final rows = <PlayerWebViewTaskRow>[];
     for (final task in _captchaCoordinator.activeTasks.values) {
       rows.add(
-        PlayerWebViewTaskRow(title: '${task.label} - 正在跳过验证码', isBusy: true),
+        PlayerWebViewTaskRow(
+          title: l10n.playerWebviewCaptchaBypassTitle(task.label),
+          isBusy: true,
+        ),
       );
     }
     for (final pageKey in _activeWebViews.keys) {
@@ -66,7 +70,7 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
           trailing: (page?.channelName ?? '').isNotEmpty
               ? ' - ${page!.channelName}'
               : null,
-          subtitle: page?.playPageUrl ?? '等待匹配播放页...',
+          subtitle: page?.playPageUrl ?? l10n.waitingForPlayPage,
           isBusy: true,
         ),
       );
@@ -76,6 +80,7 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
 
   /// Maps scheduler slots to pure view-models for [PlayerSampleSourcePanel].
   List<PlayerWebViewTaskRow> _buildWebViewWorkerTaskRows() {
+    final l10n = AppLocalizations.of(context);
     final pendingBySource = <String, int>{};
     for (final page in _sampleSourceController.samplePlayPages) {
       if (_pageIsPendingForExtraction(page)) {
@@ -101,7 +106,7 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
 
       var sourceName = '';
       String? channelName;
-      var urlLine = '等待匹配播放页...';
+      var urlLine = l10n.waitingForPlayPage;
       if (isVideoBusy) {
         final pageKey = slot.pageKey!;
         final key = SourceChannelKey.fromPageKey(pageKey);
@@ -118,7 +123,7 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
       } else if (isCaptchaBusy) {
         final task = _captchaCoordinator.activeTasks[slot.taskKey];
         sourceName = task?.source.name ?? '';
-        urlLine = '正在跳过验证码';
+        urlLine = l10n.playerWebviewCaptchaBypass;
       }
 
       final busyLabel = isVideoBusy

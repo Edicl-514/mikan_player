@@ -12,6 +12,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_recommendations.dart';
 
@@ -33,11 +34,20 @@ RankingAnime _item({
 
 Widget _wrap(Widget child) {
   return MaterialApp(
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    locale: const Locale('zh'),
     home: Scaffold(body: Center(child: child)),
   );
 }
 
 void main() {
+  late AppLocalizations l10n;
+
+  setUpAll(() async {
+    l10n = await AppLocalizations.delegate.load(const Locale('zh'));
+  });
+
   group('PlayerRecommendations', () {
     testWidgets('loading state shows CircularProgressIndicator', (
       tester,
@@ -53,11 +63,11 @@ void main() {
       );
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.text('暂无相关推荐'), findsNothing);
+      expect(find.text(l10n.playerRecommendationsEmpty), findsNothing);
       expect(find.byType(InkWell), findsNothing);
     });
 
-    testWidgets('empty state shows "暂无相关推荐" and no spinner', (tester) async {
+    testWidgets('empty state shows localized copy and no spinner', (tester) async {
       await tester.pumpWidget(
         _wrap(
           const PlayerRecommendations(
@@ -68,7 +78,7 @@ void main() {
         ),
       );
 
-      expect(find.text('暂无相关推荐'), findsOneWidget);
+      expect(find.text(l10n.playerRecommendationsEmpty), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.byType(InkWell), findsNothing);
     });

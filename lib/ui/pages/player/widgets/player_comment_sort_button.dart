@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
+
 /// Comments sort popup used by the player comments header.
 class PlayerCommentSortButton extends StatelessWidget {
   final String sortMode; // 'default' | 'time'
@@ -14,6 +16,7 @@ class PlayerCommentSortButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
     return PopupMenuButton<String>(
       onSelected: onSelected,
@@ -33,7 +36,7 @@ class PlayerCommentSortButton extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                "默认排序",
+                l10n.playerSortDefault,
                 style: TextStyle(
                   color: isDark ? Colors.white : theme.colorScheme.onSurface,
                   fontSize: 13,
@@ -53,7 +56,7 @@ class PlayerCommentSortButton extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                "按时间排序",
+                l10n.playerSortByTime,
                 style: TextStyle(
                   color: isDark ? Colors.white : theme.colorScheme.onSurface,
                   fontSize: 13,
@@ -73,7 +76,7 @@ class PlayerCommentSortButton extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            sortMode == 'default' ? "默认排序" : "按时间排序",
+            sortMode == 'default' ? l10n.playerSortDefault : l10n.playerSortByTime,
             style: TextStyle(
               color: isDark ? Colors.white54 : Colors.grey,
               fontSize: 12,

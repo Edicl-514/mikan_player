@@ -1579,6 +1579,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get back => 'Back';
 
   @override
+  String get playerMoreOptions => 'More';
+
+  @override
   String get unlock => 'Unlock';
 
   @override
@@ -2286,4 +2289,557 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get indexGenreWorkplace => 'Workplace';
+
+  @override
+  String get playerMobileEpisodeSelector => 'Episodes';
+
+  @override
+  String get playerMobilePlaySource => 'Play sources';
+
+  @override
+  String get playerMobileOfficialPlaySource => 'Official sources';
+
+  @override
+  String get playerMobileRelated => 'Related';
+
+  @override
+  String get playerMobileSummaryAndRecommend => 'Summary & recommendations';
+
+  @override
+  String playerMobileCommentsTab(int count) {
+    return 'Comments ($count)';
+  }
+
+  @override
+  String playerMobilePlayableEpisodeCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Episodes',
+      one: '1 Episode',
+      zero: 'No episodes',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get playerPcEpisodeList => 'Episodes';
+
+  @override
+  String get playerPcPlaylist => 'Playlist';
+
+  @override
+  String get playerPcCommentsSection => 'Comments';
+
+  @override
+  String playerSourceTitleFound(int count, int online, String current) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Found $count BT sources',
+      one: 'Found 1 BT source',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      online,
+      locale: localeName,
+      other: '$online subscriptions',
+      one: '1 subscription',
+    );
+    return '$_temp0, $_temp1, current: $current';
+  }
+
+  @override
+  String playerSourceTitleCurrent(String label) {
+    return 'Current: $label';
+  }
+
+  @override
+  String get playerSourceTitleFoundMobile => 'Found';
+
+  @override
+  String get playerSourceTabBt => 'BT';
+
+  @override
+  String get playerSourceTabSubscription => 'Subscriptions';
+
+  @override
+  String get playerSourceLabelOnline => 'Online source';
+
+  @override
+  String get playerSourceLabelBt => 'BT download';
+
+  @override
+  String get playerSourceLabelOnlineShort => 'Online';
+
+  @override
+  String get playerNoDownloadableSource => 'No downloadable online source';
+
+  @override
+  String get playerAddDownloadTaskFailed =>
+      'Failed to add download task, please try again';
+
+  @override
+  String get playerAddDownloadTaskSuccess => 'Added to download tasks';
+
+  @override
+  String get playerNoCopyableLink => 'No copyable download link';
+
+  @override
+  String get playerDownloadLinkCopied => 'Download link copied';
+
+  @override
+  String get playerDownloadButton => 'Download';
+
+  @override
+  String get playerCopyDownloadLinkButton => 'Copy link';
+
+  @override
+  String get playerCopyAction => 'Copy';
+
+  @override
+  String get playerPlayButton => 'Play';
+
+  @override
+  String get playerLoadAction => 'Loading';
+
+  @override
+  String get playerSampleStatusLocalManual =>
+      'Playing local source; online search requires manual trigger';
+
+  @override
+  String get playerSampleStatusAutoDisabled =>
+      'Online search disabled; you can search manually';
+
+  @override
+  String get playerSampleStatusNotStarted =>
+      'Online search has not started yet';
+
+  @override
+  String playerSampleStatusCompleted(int done, int total) {
+    return 'Search done ($done/$total available)';
+  }
+
+  @override
+  String get playerSampleStatusFailed => 'Search failed';
+
+  @override
+  String get playerSampleSummaryLocalManual => 'Playing local source';
+
+  @override
+  String get playerSampleSummaryAutoDisabled => 'Online search disabled';
+
+  @override
+  String get playerSampleHintLocalManual =>
+      'For online sources, tap the button below to search manually';
+
+  @override
+  String get playerSampleHintAutoDisabled =>
+      'Tap the button below to search online manually';
+
+  @override
+  String get playerSampleHintNotStarted =>
+      'Tap the button below to start searching';
+
+  @override
+  String get playerSamplePlayButtonBase => 'Play - ';
+
+  @override
+  String playerSamplePlayButtonWithChannel(String source, String channel) {
+    return 'Play - $source($channel)';
+  }
+
+  @override
+  String playerSamplePlayButtonWithSource(String source) {
+    return 'Play - $source';
+  }
+
+  @override
+  String playerWebViewTaskCount(int active, int max) {
+    return 'Concurrent WebView tasks ($active/$max)';
+  }
+
+  @override
+  String playerWebViewTaskCountWithPool(int active, int max, String pool) {
+    return 'Concurrent WebView tasks ($active/$max) · $pool';
+  }
+
+  @override
+  String get playerWebViewShowDebug => 'Show WebView (debug)';
+
+  @override
+  String get playerWebViewWorkerPoolSwitch => 'Unified worker pool (Round 7)';
+
+  @override
+  String playerWebViewAvailableSources(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count available sources',
+      one: '1 available source',
+      zero: 'No available sources',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String playerWebViewPerSourceStatus(String status) {
+    return 'per-source [p|a|c]: $status';
+  }
+
+  @override
+  String get playerSearchProgressStepPending => 'Pending';
+
+  @override
+  String get playerSearchProgressStepSearching => 'Searching...';
+
+  @override
+  String get playerSearchProgressStepDetail => 'Fetching detail...';
+
+  @override
+  String get playerSearchProgressStepEpisodes => 'Fetching episodes...';
+
+  @override
+  String get playerSearchProgressStepExtracting => 'Extracting video link...';
+
+  @override
+  String get playerSearchProgressStepSuccess => 'Success';
+
+  @override
+  String get playerSearchProgressStepFoundPlayPage => 'Found play page';
+
+  @override
+  String get playerSearchProgressStepFailed => 'Failed';
+
+  @override
+  String playerSearchSessionProgressLine(
+    int completed,
+    int enabled,
+    int activeCaptcha,
+    int pendingCaptcha,
+  ) {
+    return 'Search progress: $completed/$enabled, captcha $activeCaptcha running/$pendingCaptcha queued';
+  }
+
+  @override
+  String get playerSearchSessionNotFound =>
+      'No matching anime found in any source';
+
+  @override
+  String get playerSearchSessionAllFailed =>
+      'All sources failed to extract the video link';
+
+  @override
+  String playerSearchSessionDone(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Search done, $count usable sources found',
+      one: 'Search done, 1 usable source found',
+      zero: 'Search done, no usable sources found',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get playerSearchLocalPlayedHint =>
+      'Playing local source; you can search online manually';
+
+  @override
+  String get playerSearchAutoDisabledHint =>
+      'Online search disabled; you can search online manually';
+
+  @override
+  String get playerSearchLocalPlayedActionHint =>
+      'Playing local source; tap refresh to search online manually';
+
+  @override
+  String get playerSearchFetchingSourceList => 'Loading source list...';
+
+  @override
+  String get playerSearchNoEnabledSource => 'No play source enabled';
+
+  @override
+  String playerSearchProgressSearchMany(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Searching $count sources...',
+      one: 'Searching 1 source...',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get playerSearchProgressCaptchaPreflight =>
+      'Non-captcha sources first; captcha pre-flight runs in parallel...';
+
+  @override
+  String playerWebviewExtractInProgress(int completed, int total, int active) {
+    return 'Extracting: $completed/$total done, $active running';
+  }
+
+  @override
+  String get playerWebviewCaptchaBypass => 'Bypassing captcha';
+
+  @override
+  String playerWebviewCaptchaBypassTitle(String label) {
+    return '$label - bypassing captcha';
+  }
+
+  @override
+  String get playerWebviewExtracting => 'Extracting...';
+
+  @override
+  String playerWebviewSchedulerProgress(int completed, int total) {
+    return 'Search progress: $completed/$total';
+  }
+
+  @override
+  String playerWebviewCaptchaActive(int count) {
+    return 'Captcha in progress: $count';
+  }
+
+  @override
+  String playerWebviewExtractionActive(int active, int max) {
+    return 'Extraction concurrency $active/$max';
+  }
+
+  @override
+  String playerPageTitleWithEpisode(String title, int episode) {
+    return '$title - Episode $episode';
+  }
+
+  @override
+  String playerEpisodeNumber(int episode) {
+    return 'Episode $episode';
+  }
+
+  @override
+  String playerDownloadTaskName(String title, String episode, String source) {
+    return '$title - $episode ($source)';
+  }
+
+  @override
+  String get playerSidePanelPrequel => 'Prequel';
+
+  @override
+  String get playerSidePanelSequel => 'Sequel';
+
+  @override
+  String get playerSidePanelLoadFailed => 'Unable to get play URL';
+
+  @override
+  String get playerSidePanelCopyMagnet => 'Magnet link copied';
+
+  @override
+  String get playerSidePanelDownloadHint =>
+      'Download started, check progress on the \"My\" page';
+
+  @override
+  String get playerRecommendationsEmpty => 'No related recommendations';
+
+  @override
+  String get playerNoDescription => 'No description';
+
+  @override
+  String get playerCollapse => 'Collapse';
+
+  @override
+  String get playerExpand => 'Expand';
+
+  @override
+  String get playerCommentsTitle => 'All comments';
+
+  @override
+  String get playerCommentsEmpty => 'No comments';
+
+  @override
+  String playerCommentsLoadFailed(String error) {
+    return 'Load failed: $error';
+  }
+
+  @override
+  String playerCommentsLoadFailedPc(String error) {
+    return 'Load failed: $error';
+  }
+
+  @override
+  String get playerCommentsEmptyPc => 'No comments';
+
+  @override
+  String get playerResourceListSearching => 'Searching BT sources...';
+
+  @override
+  String playerResourceListFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Found $count BT sources',
+      one: 'Found 1 BT source',
+      zero: 'No BT sources found',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get playerResourceListFailed => 'BT search failed';
+
+  @override
+  String get playerResourceListNotStarted => 'BT search has not started yet';
+
+  @override
+  String get playerResourceListStartSearch =>
+      'Tap the button below to start searching';
+
+  @override
+  String playerAutoplaySearchDone(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Search done, $count usable sources found',
+      one: 'Search done, 1 usable source found',
+      zero: 'Search done, no usable sources found',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get playerSourceControllerAnimeNotFound => 'Anime not found';
+
+  @override
+  String playerPlaybackOpenFailed(String error) {
+    return 'Playback failed: $error';
+  }
+
+  @override
+  String get playerPlaybackStartupTimeout =>
+      'This source timed out on startup. Try another source.';
+
+  @override
+  String get playerSortDefault => 'Default sort';
+
+  @override
+  String get playerSortByTime => 'Sort by time';
+
+  @override
+  String get playerSubscriptionDebugSearchDirectProbe =>
+      'Search direct-link probe';
+
+  @override
+  String get playerSubscriptionDebugProbeInProgress => 'Probing...';
+
+  @override
+  String get playerSubscriptionDebugProbeNotDone => 'Not probed';
+
+  @override
+  String get playerSubscriptionDebugPlayable => 'Playable';
+
+  @override
+  String get playerSubscriptionDebugNotPlayable => 'Not playable';
+
+  @override
+  String playerSubscriptionDebugCacheJsonMissing(String path) {
+    return 'Cache JSON not found: $path';
+  }
+
+  @override
+  String playerSubscriptionDebugFileMissing(String path) {
+    return 'File not found: $path';
+  }
+
+  @override
+  String playerSubscriptionDebugStartSearch(
+    String anime,
+    String abs,
+    String relative,
+    String filter,
+    String jsonSource,
+  ) {
+    return 'Start debug search: anime=$anime, abs=$abs, rel=$relative, filter=$filter, json=$jsonSource';
+  }
+
+  @override
+  String playerSubscriptionDebugSearchError(String error) {
+    return 'Search error: $error';
+  }
+
+  @override
+  String get playerSubscriptionDebugSearchFinished => 'Search finished';
+
+  @override
+  String get playerSubscriptionDebugCaptchaPageClosed =>
+      'Page closed, cannot complete captcha pre-flight';
+
+  @override
+  String get playerSubscriptionDebugCaptchaPreflightFailed =>
+      'Captcha pre-flight failed';
+
+  @override
+  String playerSubscriptionDebugCaptchaPreflight(
+    String name,
+    int current,
+    int total,
+  ) {
+    return '$name -> running captcha pre-flight ($current/$total)';
+  }
+
+  @override
+  String playerSubscriptionDebugCaptchaParseFailed(String error) {
+    return 'Failed to parse captcha source: $error';
+  }
+
+  @override
+  String playerSubscriptionDebugExtractStart(String name) {
+    return 'Start extract: $name';
+  }
+
+  @override
+  String get playerSubscriptionDebugStartSearchButton => 'Start debug search';
+
+  @override
+  String get playerSubscriptionDebugManualProbe => 'Manual probe';
+
+  @override
+  String get playerSubscriptionDebugProbeActive => 'Probing';
+
+  @override
+  String playerSubscriptionDebugDirectLink(String url) {
+    return 'Direct link: $url';
+  }
+
+  @override
+  String playerSubscriptionDebugSourceName(String name) {
+    return 'Source: $name';
+  }
+
+  @override
+  String playerSubscriptionDebugHeaders(String headers) {
+    return 'Headers: $headers';
+  }
+
+  @override
+  String playerSubscriptionDebugExtractSuccess(String url) {
+    return 'Extract success: $url';
+  }
+
+  @override
+  String get playerSubscriptionDebugExtractFailedShort => 'Extract failed';
+
+  @override
+  String playerSubscriptionDebugExtractFailedDetail(String error) {
+    return 'Extract failed: $error';
+  }
+
+  @override
+  String get playerSubscriptionDebugPostProbe => 'Post-extract probe';
+
+  @override
+  String get playerSubscriptionDebugJsonCache => 'cache';
+
+  @override
+  String get playerSubscriptionDebugJsonLocal => 'local';
+
+  @override
+  String get playerSubscriptionDebugJsonPathHint =>
+      'D:\\temp\\online.json, or leave empty';
 }

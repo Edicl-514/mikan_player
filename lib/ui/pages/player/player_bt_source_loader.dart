@@ -37,10 +37,11 @@ List<String> extractAliasesFromBangumiJson(String? fullJson) {
       if (item is! Map) continue;
       final key = item['key']?.toString() ?? '';
       final lowerKey = key.toLowerCase();
+      // i18n-ignore: Bangumi infobox key tokens used for matching; do not localize.
       final isAliasKey =
-          key.contains('别名') ||
-          key.contains('別名') ||
-          key.contains('别称') ||
+          key.contains('别名') || // i18n-ignore
+          key.contains('別名') || // i18n-ignore
+          key.contains('别称') || // i18n-ignore
           lowerKey.contains('alias');
       if (!isAliasKey) continue;
 

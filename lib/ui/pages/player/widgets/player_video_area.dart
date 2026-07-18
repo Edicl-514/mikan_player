@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
@@ -80,6 +81,7 @@ class PlayerVideoArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (isPlayerInitialized && currentStreamUrl != null) {
       // 字幕由 CustomVideoControls 内的 SubtitleOverlay 渲染，
       // 关闭 media_kit 自带 SubtitleView，避免全屏双层字幕且样式不刷新。
@@ -147,14 +149,14 @@ class PlayerVideoArea extends StatelessWidget {
                   color: Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  '正在初始化播放...',
-                  style: TextStyle(color: Colors.white70),
+                Text(
+                  l10n.initializingPlayback,
+                  style: const TextStyle(color: Colors.white70),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  '正在连接种子网络...',
-                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                Text(
+                  l10n.statusInitializing,
+                  style: const TextStyle(color: Colors.white38, fontSize: 12),
                 ),
               ],
             ),
@@ -171,7 +173,7 @@ class PlayerVideoArea extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  '播放失败',
+                  l10n.playbackFailed,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontWeight: FontWeight.bold,
@@ -201,7 +203,7 @@ class PlayerVideoArea extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  '选择播放源开始观看',
+                  l10n.chooseSourceToWatch,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.5),
                     fontWeight: FontWeight.w500,
@@ -209,7 +211,7 @@ class PlayerVideoArea extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '在下方「播放源」中选择资源',
+                  l10n.chooseSourceBelow,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.3),
                     fontSize: 12,
@@ -239,6 +241,7 @@ class PlayerVideoArea extends StatelessWidget {
               child: Row(
                 children: [
                   IconButton(
+                    tooltip: l10n.back,
                     icon: const Icon(
                       Icons.arrow_back_ios_new,
                       color: Colors.white,
@@ -248,6 +251,7 @@ class PlayerVideoArea extends StatelessWidget {
                   ),
                   const Spacer(),
                   IconButton(
+                    tooltip: l10n.playerMoreOptions,
                     icon: const Icon(Icons.more_vert, color: Colors.white),
                     onPressed: () {},
                   ),

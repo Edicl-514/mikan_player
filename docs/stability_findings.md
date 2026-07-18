@@ -77,3 +77,121 @@
 - 修复：改为「角色详情加载失败」「人物详情加载失败」。
 - 回归测试：`arb_consistency_test.dart`。
 - 迁移/回滚：不涉及。
+
+### L10N-5-001 — 旧版 player webview 控件无 tooltip / Semantics label
+
+- 工作包：L10N-5（2026-07-19）
+- 现象：`PlayerVideoArea` 的移动端顶栏 `IconButton`（返回 / more_vert）没有 `tooltip` 属性。屏幕阅读器朗读不到语义。
+- 根因：L10N-2 之前这些按钮只关心可见图标，a11y 漏写。
+- 影响：英文 / 中文 locale 下，TalkBack / VoiceOver 朗读按钮含义为「按钮」或「icon」，盲用户无法识别动作。
+- 修复：返回按钮使用 `l10n.back`，更多按钮使用 `l10n.playerMoreOptions`，与现有
+  `EpisodeSidePanel` / `SettingsPanel` 的 barrier 标签保持一致。
+- 回归测试：玩家控件 bdd 集成于 `PlayerVideoArea` widget 测试；`flutter analyze` 通过；中英文 widget 渲染 smoke test 通过。
+- 迁移/回滚：不涉及。
+
+### L10N-5-002 — `PlayerSearchSessionCoordinator` 文案函数签名未带 l10n
+
+- 工作包：L10N-5（2026-07-19）
+- 现象：L10N-4 之后 `sampleSearchProgressLabel` / `sampleSearchFinishMessage` 仍是裸字符串构造函数，无法注入本地化文案。
+- 根因：它们运行在 `PlayerPage` 之外的 pure helper 上下文里，无法直接 `AppLocalizations.of(context)`。
+- 影响：扫描器仍能扫到 medium 候选；L10N-4 之后的新状态文案无法本地化。
+- 修复：pure helper 只接收 UI 层 formatter / 已本地化的终态文案，不依赖
+  `AppLocalizations`；调用方在 `PlayerPage` host 中完成本地化。
+- 回归测试：`player_search_session_coordinator_test.dart` 使用 deterministic formatter
+  验证参数顺序和分支选择。
+- 迁移/回滚：不涉及（helper 调用方已知上下文）。
+
+### L10N-5-003 — `playerSearchSessionProgressLine` ARB 缺 `@key` 元数据 → placeholder 顺序错乱
+
+- 工作包：L10N-5（2026-07-19）
+- 现象：仅声明 `"搜索进度: {completed}/{enabled}，验证码 {activeCaptcha} 运行/{pendingCaptcha} 排队"`，`gen-l10n` 按出现顺序生成参数，参数顺序是 `(activeCaptcha, completed, enabled, pendingCaptcha)`；调用方按 `(completed, enabled, activeCaptcha, pendingCaptcha)` 传，输出变成 `5/1` 而非 `2/5`。
+- 根因：多 placeholder 的 ARB 没声明 `@key` 元数据时，gen-l10n 不保证生成签名顺序与调用直觉一致。
+- 影响：状态栏文本错位（英文 locale 下尤为明显），计划 §4 L10N-3 的 placeholder 命名一致性要求被破坏。
+- 修复：在 `app_zh.arb` / `app_en.arb` 显式补 `@playerSearchSessionProgressLine` 元数据，按 `(completed, enabled, activeCaptcha, pendingCaptcha)` 顺序列出。
+- 回归测试：`player_search_session_coordinator_test.dart` 的 `progress label` 断言已覆盖；`arb_consistency_test.dart` 的 `placeholder sets align per shared message key` 也覆盖。
+- 迁移/回滚：不涉及（仅是 ARB 元数据补全）。
+
+### L10N-5-004 — `PlayerComments` widget 测试未注入 `AppLocalizations`，迁移到 l10n 后批量失败
+
+- 工作包：L10N-5（2026-07-19）
+- 现象：把 `Text('加载失败: $error')` 换成 `l10n.playerCommentsLoadFailed(error)` 之后，9 个 widget 测试因为 `MaterialApp` 缺少 `localizationsDelegates` 抛 `AppLocalizations.of(context)` Null check。
+- 根因：原测试 `MaterialApp` 只设了 `home: Scaffold(...)`；gen-l10n 启用了 `nullable-getter: false`，要求 `AppLocalizations.delegate` 必须在树中。
+- 影响：批量回归失败；反映 L10N-* 的迁移如果不同步改测试，会埋下回归。
+- 修复：测试统一改为 `pumpLocalizedWidget` 风格 helper（`_wrap` / `_list`），并 `setUpAll` 加载 `AppLocalizations.delegate.load(const Locale('zh'))`，断言使用 l10n 值。
+- 回归测试：本身即回归；运行后所有 L10N-5 受影响 widget 测试全绿。
+- 迁移/回滚：未来 L10N-* 涉及文本的 widget 改动须同步更新测试 helper，否则会再次触发。
+
+### L10N-5-005 — `PlayerVideoArea` more 按钮误用 `l10n.back` tooltip
+
+- 工作包：L10N-5 复核（2026-07-19）
+- 现象：移动端顶栏 `more_vert` `IconButton` 的 `tooltip` 写成了 `l10n.back`。
+- 根因：a11y 补丁时复制了返回按钮属性。
+- 影响：TalkBack / VoiceOver 将「更多」读成「返回」。
+- 修复：新增 ARB `playerMoreOptions`（zh「更多」/ en「More」），more 按钮改用该 key。
+- 回归测试：依赖 gen-l10n + 现有 video area 构建路径；可在 bilingual smoke 中后续加 tooltip 断言。
+- 迁移/回滚：不涉及。
+
+### L10N-5-006 — `playerMobilePlayableEpisodeCount` 中文模板残留英文
+
+- 工作包：L10N-5 复核（2026-07-19）
+- 现象：`app_zh.arb` 值为 `"{count} Episodes"`。
+- 根因：英文占位文案未按模板 locale 改回中文（同类 L10N-3-002）。
+- 影响：中文 locale 下可播放集数显示 “24 Episodes”。
+- 修复：改为 `"{count} 集"`。
+- 回归测试：`arb_consistency_test` + mobile info layout smoke。
+- 迁移/回滚：不涉及。
+
+### L10N-5-007 — `PlayerPlaybackController` 用户可见错误串硬编码中文
+
+- 工作包：L10N-5 复核（2026-07-19）
+- 现象：`_videoError` 赋值为 `'播放失败: $error'` / `'当前线路启动超时，请切换其他源'`。
+- 根因：controller 无 BuildContext，先前用 i18n-ignore  defer 到后续包。
+- 影响：英文 locale 下仍显示中文错误。
+- 修复：controller 保存 `PlayerPlaybackErrorKind` + detail 的结构化错误，UI 构建时再走
+  `playerPlaybackOpenFailed` / `playerPlaybackStartupTimeout`，因此 controller 保持 pure Dart，
+  运行时切换语言也能重新解析当前错误。
+- 回归测试：`player_playback_controller_test.dart` 断言 timeout/open-error 的 kind/detail。
+- 迁移/回滚：不涉及（调用方均在 PlayerPage host）。
+
+### L10N-5-008 — `initState` 读取 `AppLocalizations` 导致播放页生命周期异常
+
+- 工作包：L10N-5 复核（2026-07-19）
+- 现象：`PlayerPage.initState` 初始化标题 notifier 时调用 `AppLocalizations.of(context)`。
+- 根因：`Localizations.of` 依赖 inherited widget，不能在 `initState` 阶段注册依赖。
+- 影响：调试/测试构建打开播放页会触发 `dependOnInheritedWidgetOfExactType` 生命周期异常。
+- 修复：`initState` 只创建空 notifier；在 `didChangeDependencies` 中解析标题，语言变化时同步刷新。
+- 回归测试：全量 analyze/test + 双语言 player 子树 smoke。
+- 迁移/回滚：不涉及。
+
+### L10N-5-009 — 扫描器漏掉 `${...}` 内的字符串字面量
+
+- 工作包：L10N-5 复核（2026-07-19）
+- 现象：下载任务名中的「第 N 集」和调试日志中的「可播放/不可播放」未被严格扫描发现。
+- 根因：轻量 lexer 把插值表达式内部的引号误判为外层字符串终止符。
+- 影响：扫描报告 0 项但英文 locale 仍可能显示中文，严格门禁产生假阴性。
+- 修复：lexer 在插值表达式中递归扫描字符串，并处理嵌套大括号、注释和 raw/triple string；
+  同时迁移下载任务名、probe 日志和 captcha fallback 文案。
+- 回归测试：`scan_hardcoded_ui_text_test.dart` 通过真实 CLI 验证嵌套插值触发失败退出。
+- 迁移/回滚：不涉及。
+
+### L10N-5-010 — 360px smoke 只伪造 MediaQuery，未约束实际布局
+
+- 工作包：L10N-5 复核（2026-07-19）
+- 现象：测试设置 `MediaQueryData(size: 360×800)`，但 RenderView 仍使用默认测试尺寸。
+- 根因：MediaQuery 只提供环境数据，不改变父级 BoxConstraints。
+- 影响：真实 360px 下英文 BT 资源卡操作按钮溢出 25px，但原 smoke 全绿。
+- 修复：测试直接设置 `tester.view.physicalSize/devicePixelRatio`；BT 操作区改为可换行 Wrap；
+  另补 1280×800 的 `PlayerPcLayout` 中英文 smoke。
+- 回归测试：24 个双语言 mobile/desktop smoke 全部通过。
+- 迁移/回滚：不涉及。
+
+### L10N-5-011 — 新增 placeholder 消息缺少类型元数据
+
+- 工作包：L10N-5 复核（2026-07-19）
+- 现象：35 个新增 player placeholder key 没有 `@key` 块，一致性测试仅在元数据存在时校验。
+- 根因：门禁没有断言元数据必须存在。
+- 影响：生成函数参数顺序/类型可能漂移；英文计数文案还会出现 `1 Episodes` / `source(s)`。
+- 修复：所有新增 player placeholder 补 description/type，英文计数使用 ICU plural；一致性测试
+  新增 `player placeholder messages declare typed metadata`。
+- 回归测试：`arb_consistency_test.dart` + `flutter gen-l10n`。
+- 迁移/回滚：不涉及。

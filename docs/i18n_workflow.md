@@ -32,7 +32,7 @@
 ## 3. placeholder / ICU 规则
 
 1. 变量必须走 ICU：`"statusPlaying": "正在播放：{streamUrl}"` ——禁止在 Dart 里拼半句翻译。
-2. 带 placeholder 的消息强烈建议补 `@key` 元数据：
+2. 带 placeholder 的消息必须补 `@key` 元数据：
    ```json
    "clearConfirmMessage": "将清除 {count} 个已完成的任务",
    "@clearConfirmMessage": {
@@ -44,8 +44,8 @@
    ```
    `arb_consistency_test.dart` 的 `@key metadata blocks agree with placeholder
    names` 测试会在声明与实际文本不一致时失败。
-3. placeholder 名称使用 lowerCamelCase，且 zh/en 必须一致。当前 ARB 没有 `@key`
-   块；新增时务必补，逐步补齐旧的由 L10N-1..5 在改动该消息时一并补上。
+3. placeholder 名称使用 lowerCamelCase，且 zh/en 必须一致。新增时务必补齐
+   description/type；旧消息在对应工作包修改时逐步补齐。
 4. 复数、性别、选择走 ICU 子消息（`{count, plural, ...}`）， 不要写多个 key。
 
 ## 4. 三类标签（L10N-0 §1）
@@ -114,3 +114,18 @@ flutter test --no-pub
 
 在此之前的 L10N-1..4 工作包**不**启用 `--fail-on-findings`，只需保证自己
 处理的文件不再新增 high 候选即可。
+
+#### 启用状态（2026-07-19）
+
+L10N-5 已完成扫描清零与严格模式开关，但 **本批不提交 GitHub Actions 工作流**
+（避免 Flutter 版本钉死与离线 cargo 等问题阻塞合并）。门禁以本地命令为准：
+
+```powershell
+dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
+flutter gen-l10n
+flutter analyze
+flutter test --no-pub
+```
+
+- 全部 high / medium 候选清零（见 `docs/full_project_i18n_test_plan.md` §4 L10N-5）。
+- 后续 `Q-0` 再把上述命令挂入 CI；在此之前请在本地 PR 检查中手动跑扫描门禁。

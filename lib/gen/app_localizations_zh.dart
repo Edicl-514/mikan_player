@@ -1511,6 +1511,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get back => '返回';
 
   @override
+  String get playerMoreOptions => '更多';
+
+  @override
   String get unlock => '解锁';
 
   @override
@@ -2209,4 +2212,484 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get indexGenreWorkplace => '职场';
+
+  @override
+  String get playerMobileEpisodeSelector => '选集';
+
+  @override
+  String get playerMobilePlaySource => '播放源';
+
+  @override
+  String get playerMobileOfficialPlaySource => '官方播放源';
+
+  @override
+  String get playerMobileRelated => '相关推荐';
+
+  @override
+  String get playerMobileSummaryAndRecommend => '简介 & 推荐';
+
+  @override
+  String playerMobileCommentsTab(int count) {
+    return '评论 ($count)';
+  }
+
+  @override
+  String playerMobilePlayableEpisodeCount(int count) {
+    return '$count 集';
+  }
+
+  @override
+  String get playerPcEpisodeList => '选集';
+
+  @override
+  String get playerPcPlaylist => '播放列表';
+
+  @override
+  String get playerPcCommentsSection => '评论区';
+
+  @override
+  String playerSourceTitleFound(int count, int online, String current) {
+    return '已找到 $count 个BT源，$online 个订阅源，当前源：$current';
+  }
+
+  @override
+  String playerSourceTitleCurrent(String label) {
+    return '当前：$label';
+  }
+
+  @override
+  String get playerSourceTitleFoundMobile => '已找到';
+
+  @override
+  String get playerSourceTabBt => 'BT';
+
+  @override
+  String get playerSourceTabSubscription => '订阅源';
+
+  @override
+  String get playerSourceLabelOnline => '在线源下载';
+
+  @override
+  String get playerSourceLabelBt => 'BT下载';
+
+  @override
+  String get playerSourceLabelOnlineShort => '在线源';
+
+  @override
+  String get playerNoDownloadableSource => '没有可下载的在线源';
+
+  @override
+  String get playerAddDownloadTaskFailed => '添加下载任务失败，请稍后重试';
+
+  @override
+  String get playerAddDownloadTaskSuccess => '已添加到下载任务';
+
+  @override
+  String get playerNoCopyableLink => '没有可复制的下载链接';
+
+  @override
+  String get playerDownloadLinkCopied => '下载链接已复制';
+
+  @override
+  String get playerDownloadButton => '下载';
+
+  @override
+  String get playerCopyDownloadLinkButton => '复制下载链接';
+
+  @override
+  String get playerCopyAction => '复制';
+
+  @override
+  String get playerPlayButton => '播放';
+
+  @override
+  String get playerLoadAction => '加载中';
+
+  @override
+  String get playerSampleStatusLocalManual => '已播放本地资源，在线源搜索待手动触发';
+
+  @override
+  String get playerSampleStatusAutoDisabled => '在线搜索已关闭，可手动搜索在线源';
+
+  @override
+  String get playerSampleStatusNotStarted => '尚未开始搜索在线源';
+
+  @override
+  String playerSampleStatusCompleted(int done, int total) {
+    return '搜索完成 ($done/$total 个可用)';
+  }
+
+  @override
+  String get playerSampleStatusFailed => '搜索失败';
+
+  @override
+  String get playerSampleSummaryLocalManual => '已使用本地资源播放';
+
+  @override
+  String get playerSampleSummaryAutoDisabled => '在线搜索已关闭';
+
+  @override
+  String get playerSampleHintLocalManual => '如需在线源，请点击下方按钮手动搜索';
+
+  @override
+  String get playerSampleHintAutoDisabled => '点击下方按钮手动搜索在线源';
+
+  @override
+  String get playerSampleHintNotStarted => '点击下方按钮开始搜索';
+
+  @override
+  String get playerSamplePlayButtonBase => '播放 - ';
+
+  @override
+  String playerSamplePlayButtonWithChannel(String source, String channel) {
+    return '播放 - $source($channel)';
+  }
+
+  @override
+  String playerSamplePlayButtonWithSource(String source) {
+    return '播放 - $source';
+  }
+
+  @override
+  String playerWebViewTaskCount(int active, int max) {
+    return '并发WebView任务 ($active/$max)';
+  }
+
+  @override
+  String playerWebViewTaskCountWithPool(int active, int max, String pool) {
+    return '并发WebView任务 ($active/$max) · $pool';
+  }
+
+  @override
+  String get playerWebViewShowDebug => '显示 WebView (调试)';
+
+  @override
+  String get playerWebViewWorkerPoolSwitch => '统一 Worker 调度 (Round 7)';
+
+  @override
+  String playerWebViewAvailableSources(int count) {
+    return '可用源 ($count)';
+  }
+
+  @override
+  String playerWebViewPerSourceStatus(String status) {
+    return 'per-source [p|a|c]: $status';
+  }
+
+  @override
+  String get playerSearchProgressStepPending => '等待中';
+
+  @override
+  String get playerSearchProgressStepSearching => '搜索中...';
+
+  @override
+  String get playerSearchProgressStepDetail => '获取详情页...';
+
+  @override
+  String get playerSearchProgressStepEpisodes => '获取剧集列表...';
+
+  @override
+  String get playerSearchProgressStepExtracting => '提取视频链接...';
+
+  @override
+  String get playerSearchProgressStepSuccess => '成功';
+
+  @override
+  String get playerSearchProgressStepFoundPlayPage => '找到播放页';
+
+  @override
+  String get playerSearchProgressStepFailed => '失败';
+
+  @override
+  String playerSearchSessionProgressLine(
+    int completed,
+    int enabled,
+    int activeCaptcha,
+    int pendingCaptcha,
+  ) {
+    return '搜索进度: $completed/$enabled，验证码 $activeCaptcha 运行/$pendingCaptcha 排队';
+  }
+
+  @override
+  String get playerSearchSessionNotFound => '未在任何源中找到该动画';
+
+  @override
+  String get playerSearchSessionAllFailed => '所有源都无法提取视频链接';
+
+  @override
+  String playerSearchSessionDone(int count) {
+    return '搜索完成，共找到 $count 个可用源';
+  }
+
+  @override
+  String get playerSearchLocalPlayedHint => '已播放本地资源，可手动搜索在线源';
+
+  @override
+  String get playerSearchAutoDisabledHint => '在线搜索已关闭，可手动搜索在线源';
+
+  @override
+  String get playerSearchLocalPlayedActionHint => '已播放本地资源，点击刷新可手动搜索在线源';
+
+  @override
+  String get playerSearchFetchingSourceList => '正在获取播放源列表...';
+
+  @override
+  String get playerSearchNoEnabledSource => '未启用任何播放源';
+
+  @override
+  String playerSearchProgressSearchMany(int count) {
+    return '正在搜索 $count 个源...';
+  }
+
+  @override
+  String get playerSearchProgressCaptchaPreflight => '非验证码源先行搜索，验证码源并发预处理中...';
+
+  @override
+  String playerWebviewExtractInProgress(int completed, int total, int active) {
+    return '提取中: $completed/$total 完成，$active 并发运行';
+  }
+
+  @override
+  String get playerWebviewCaptchaBypass => '正在跳过验证码';
+
+  @override
+  String playerWebviewCaptchaBypassTitle(String label) {
+    return '$label - 正在跳过验证码';
+  }
+
+  @override
+  String get playerWebviewExtracting => '正在提取...';
+
+  @override
+  String playerWebviewSchedulerProgress(int completed, int total) {
+    return '搜索进度: $completed/$total';
+  }
+
+  @override
+  String playerWebviewCaptchaActive(int count) {
+    return '验证码进行中 $count';
+  }
+
+  @override
+  String playerWebviewExtractionActive(int active, int max) {
+    return '提取并发 $active/$max';
+  }
+
+  @override
+  String playerPageTitleWithEpisode(String title, int episode) {
+    return '$title - 第$episode集';
+  }
+
+  @override
+  String playerEpisodeNumber(int episode) {
+    return '第$episode集';
+  }
+
+  @override
+  String playerDownloadTaskName(String title, String episode, String source) {
+    return '$title - $episode ($source)';
+  }
+
+  @override
+  String get playerSidePanelPrequel => '前传';
+
+  @override
+  String get playerSidePanelSequel => '续集';
+
+  @override
+  String get playerSidePanelLoadFailed => '无法获取播放地址';
+
+  @override
+  String get playerSidePanelCopyMagnet => '磁力链接已复制';
+
+  @override
+  String get playerSidePanelDownloadHint => '开始下载，可在「我的」页面查看进度';
+
+  @override
+  String get playerRecommendationsEmpty => '暂无相关推荐';
+
+  @override
+  String get playerNoDescription => '暂无简介';
+
+  @override
+  String get playerCollapse => '收起';
+
+  @override
+  String get playerExpand => '展开';
+
+  @override
+  String get playerCommentsTitle => '全部评论';
+
+  @override
+  String get playerCommentsEmpty => '暂无评论';
+
+  @override
+  String playerCommentsLoadFailed(String error) {
+    return '加载失败: $error';
+  }
+
+  @override
+  String playerCommentsLoadFailedPc(String error) {
+    return '加载失败: $error';
+  }
+
+  @override
+  String get playerCommentsEmptyPc => '暂无评论';
+
+  @override
+  String get playerResourceListSearching => '正在搜索BT源...';
+
+  @override
+  String playerResourceListFound(int count) {
+    return '已找到 $count 个BT源';
+  }
+
+  @override
+  String get playerResourceListFailed => 'BT搜索失败';
+
+  @override
+  String get playerResourceListNotStarted => '尚未开始搜索BT源';
+
+  @override
+  String get playerResourceListStartSearch => '点击下方按钮开始搜索';
+
+  @override
+  String playerAutoplaySearchDone(int count) {
+    return '搜索完成，共找到 $count 个可用源';
+  }
+
+  @override
+  String get playerSourceControllerAnimeNotFound => '未找到番剧';
+
+  @override
+  String playerPlaybackOpenFailed(String error) {
+    return '播放失败: $error';
+  }
+
+  @override
+  String get playerPlaybackStartupTimeout => '当前线路启动超时，请切换其他源';
+
+  @override
+  String get playerSortDefault => '默认排序';
+
+  @override
+  String get playerSortByTime => '按时间排序';
+
+  @override
+  String get playerSubscriptionDebugSearchDirectProbe => '搜索直链 Probe';
+
+  @override
+  String get playerSubscriptionDebugProbeInProgress => 'Probe 中...';
+
+  @override
+  String get playerSubscriptionDebugProbeNotDone => '未 Probe';
+
+  @override
+  String get playerSubscriptionDebugPlayable => '可播放';
+
+  @override
+  String get playerSubscriptionDebugNotPlayable => '不可播放';
+
+  @override
+  String playerSubscriptionDebugCacheJsonMissing(String path) {
+    return '缓存 JSON 不存在: $path';
+  }
+
+  @override
+  String playerSubscriptionDebugFileMissing(String path) {
+    return '文件不存在: $path';
+  }
+
+  @override
+  String playerSubscriptionDebugStartSearch(
+    String anime,
+    String abs,
+    String relative,
+    String filter,
+    String jsonSource,
+  ) {
+    return '开始调试搜索: anime=$anime, abs=$abs, rel=$relative, filter=$filter, json=$jsonSource';
+  }
+
+  @override
+  String playerSubscriptionDebugSearchError(String error) {
+    return '搜索异常: $error';
+  }
+
+  @override
+  String get playerSubscriptionDebugSearchFinished => '搜索结束';
+
+  @override
+  String get playerSubscriptionDebugCaptchaPageClosed => '页面已关闭，无法完成验证码预处理';
+
+  @override
+  String get playerSubscriptionDebugCaptchaPreflightFailed => '验证码预处理失败';
+
+  @override
+  String playerSubscriptionDebugCaptchaPreflight(
+    String name,
+    int current,
+    int total,
+  ) {
+    return '$name -> 正在进行验证码预处理 ($current/$total)';
+  }
+
+  @override
+  String playerSubscriptionDebugCaptchaParseFailed(String error) {
+    return '解析captcha源失败: $error';
+  }
+
+  @override
+  String playerSubscriptionDebugExtractStart(String name) {
+    return '开始提取: $name';
+  }
+
+  @override
+  String get playerSubscriptionDebugStartSearchButton => '开始调试搜索';
+
+  @override
+  String get playerSubscriptionDebugManualProbe => '手动 Probe';
+
+  @override
+  String get playerSubscriptionDebugProbeActive => 'Probe 中';
+
+  @override
+  String playerSubscriptionDebugDirectLink(String url) {
+    return '直链: $url';
+  }
+
+  @override
+  String playerSubscriptionDebugSourceName(String name) {
+    return '来源: $name';
+  }
+
+  @override
+  String playerSubscriptionDebugHeaders(String headers) {
+    return 'Headers: $headers';
+  }
+
+  @override
+  String playerSubscriptionDebugExtractSuccess(String url) {
+    return '提取成功: $url';
+  }
+
+  @override
+  String get playerSubscriptionDebugExtractFailedShort => '提取失败';
+
+  @override
+  String playerSubscriptionDebugExtractFailedDetail(String error) {
+    return '提取失败: $error';
+  }
+
+  @override
+  String get playerSubscriptionDebugPostProbe => '提取后 Probe';
+
+  @override
+  String get playerSubscriptionDebugJsonCache => '缓存';
+
+  @override
+  String get playerSubscriptionDebugJsonLocal => '本地';
+
+  @override
+  String get playerSubscriptionDebugJsonPathHint => 'D:\\temp\\online.json，或留空';
 }

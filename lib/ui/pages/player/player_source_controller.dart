@@ -181,6 +181,10 @@ class PlayerSourceController {
   /// `player_page.dart:1113-1118` (fallback `searchMikanAnime` returned null).
   void setMikanNotFound() {
     _isLoadingMikan = false;
+    // i18n-ignore: not-found sentinel used only for status comparison; UI layer
+    // never renders this literal — it is mapped to playerSourceControllerAnimeNotFound
+    // by the widget tree.
+    // i18n-ignore: not-found sentinel; see comment block above.
     _mikanError = "未找到番剧";
   }
 

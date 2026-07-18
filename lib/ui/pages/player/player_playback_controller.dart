@@ -4,6 +4,24 @@ import 'dart:collection';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:mikan_player/utils/source_channel_key.dart';
 
+enum PlayerPlaybackErrorKind { raw, openFailed, startupTimeout }
+
+class PlayerPlaybackError {
+  const PlayerPlaybackError._(this.kind, this.detail);
+
+  const PlayerPlaybackError.raw(String detail)
+    : this._(PlayerPlaybackErrorKind.raw, detail);
+
+  const PlayerPlaybackError.openFailed(String detail)
+    : this._(PlayerPlaybackErrorKind.openFailed, detail);
+
+  const PlayerPlaybackError.startupTimeout()
+    : this._(PlayerPlaybackErrorKind.startupTimeout, null);
+
+  final PlayerPlaybackErrorKind kind;
+  final String? detail;
+}
+
 /// Injectable wall clock used only to expose a watchdog deadline to the page
 /// and to deterministic tests. Playback correctness never relies on a clock
 /// comparison; the timer is the authority that fires the timeout.
@@ -225,7 +243,7 @@ class PlayerPlaybackController {
   String? _currentStreamUrl;
   String? _sampleVideoUrl;
   bool _isLoadingVideo = false;
-  String? _videoError;
+  PlayerPlaybackError? _videoError;
   // i18n-ignore: protocol sentinel for empty source state; UI maps via displayPlayerSourceLabel
   String _playingSourceLabel = '未播放';
   bool _hasAutoPlayed = false;
@@ -253,7 +271,7 @@ class PlayerPlaybackController {
   String? get currentStreamUrl => _currentStreamUrl;
   String? get sampleVideoUrl => _sampleVideoUrl;
   bool get isLoadingVideo => _isLoadingVideo;
-  String? get videoError => _videoError;
+  PlayerPlaybackError? get videoError => _videoError;
   String get playingSourceLabel => _playingSourceLabel;
   bool get hasAutoPlayed => _hasAutoPlayed;
   int get selectedSourceIndex => _selectedSourceIndex;
@@ -418,7 +436,7 @@ class PlayerPlaybackController {
   /// fields private prevents any second owner from mutating raw state.
   void setVideoError(String? error) {
     if (_disposed) return;
-    _videoError = error;
+    _videoError = error == null ? null : PlayerPlaybackError.raw(error);
   }
 
   void setLoadingVideo(bool value) {
@@ -674,8 +692,7 @@ class PlayerPlaybackController {
       _clearStartupWatchdogForAttempt(attemptId);
       _failedPlaybackSourceKeys.add(plan.sourceKey);
       _isLoadingVideo = false;
-      // i18n-ignore: controller has no BuildContext; surface string is localized at UI boundary in later packages
-      _videoError = '播放失败: $error';
+      _videoError = PlayerPlaybackError.openFailed('$error');
       _activeAttemptId = null;
       _activeAttemptOpenCompleted = false;
       callbacks.onStateChanged?.call();
@@ -740,8 +757,7 @@ class PlayerPlaybackController {
       _activeAttemptOpenCompleted = false;
 
       _isLoadingVideo = false;
-      // i18n-ignore: controller has no BuildContext; surface string is localized at UI boundary in later packages
-      _videoError = '当前线路启动超时，请切换其他源';
+      _videoError = const PlayerPlaybackError.startupTimeout();
       callbacks.onStateChanged?.call();
 
       if (autoFallback) {

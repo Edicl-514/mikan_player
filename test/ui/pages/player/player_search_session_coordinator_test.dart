@@ -61,36 +61,47 @@ void main() {
     test('progress label', () {
       expect(
         sampleSearchProgressLabel(
+          formatter: (completed, enabled, active, pending) =>
+              'progress=$completed/$enabled active=$active pending=$pending',
           completedCount: 2,
           enabledCount: 5,
           activeCaptcha: 1,
           pendingCaptcha: 3,
         ),
-        '搜索进度: 2/5，验证码 1 运行/3 排队',
+        'progress=2/5 active=1 pending=3',
       );
     });
 
     test('finish messages', () {
       expect(
         sampleSearchFinishMessage(
+          notFoundMessage: 'not found',
+          allFailedMessage: 'all failed',
+          doneFormatter: (count) => 'done=$count',
           playPageCount: 0,
           successfulSourceCount: 0,
         ).error,
-        '未在任何源中找到该动画',
+        'not found',
       );
       expect(
         sampleSearchFinishMessage(
+          notFoundMessage: 'not found',
+          allFailedMessage: 'all failed',
+          doneFormatter: (count) => 'done=$count',
           playPageCount: 2,
           successfulSourceCount: 0,
         ).error,
-        '所有源都无法提取视频链接',
+        'all failed',
       );
       expect(
         sampleSearchFinishMessage(
+          notFoundMessage: 'not found',
+          allFailedMessage: 'all failed',
+          doneFormatter: (count) => 'done=$count',
           playPageCount: 2,
           successfulSourceCount: 3,
         ).status,
-        '搜索完成，共找到 3 个可用源',
+        'done=3',
       );
     });
   });

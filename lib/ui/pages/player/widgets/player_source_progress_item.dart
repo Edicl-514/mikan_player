@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 
 /// Single source search progress row in the sample-source panel.
@@ -15,6 +16,7 @@ class PlayerSourceProgressItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final pendingColor = isDark
         ? Colors.white24
@@ -32,43 +34,45 @@ class PlayerSourceProgressItem extends StatelessWidget {
     if (progress == null) {
       icon = Icons.hourglass_empty;
       iconColor = pendingColor;
-      statusText = '等待中';
+      statusText = l10n.playerSearchProgressStepPending;
     } else {
       switch (progress!.step) {
         case SearchStep.pending:
           icon = Icons.hourglass_empty;
           iconColor = pendingColor;
-          statusText = '等待中';
+          statusText = l10n.playerSearchProgressStepPending;
           break;
         case SearchStep.searching:
           icon = Icons.search;
           iconColor = theme.colorScheme.primary;
-          statusText = '搜索中...';
+          statusText = l10n.playerSearchProgressStepSearching;
           break;
         case SearchStep.fetchingDetail:
           icon = Icons.article_outlined;
           iconColor = theme.colorScheme.primary;
-          statusText = '获取详情页...';
+          statusText = l10n.playerSearchProgressStepDetail;
           break;
         case SearchStep.fetchingEpisodes:
           icon = Icons.list_alt;
           iconColor = theme.colorScheme.primary;
-          statusText = '获取剧集列表...';
+          statusText = l10n.playerSearchProgressStepEpisodes;
           break;
         case SearchStep.extractingVideo:
           icon = Icons.video_library;
           iconColor = theme.colorScheme.primary;
-          statusText = '提取视频链接...';
+          statusText = l10n.playerSearchProgressStepExtracting;
           break;
         case SearchStep.success:
           icon = Icons.check_circle;
           iconColor = Colors.green;
-          statusText = progress!.directVideoUrl != null ? '成功' : '找到播放页';
+          statusText = progress!.directVideoUrl != null
+              ? l10n.playerSearchProgressStepSuccess
+              : l10n.playerSearchProgressStepFoundPlayPage;
           break;
         case SearchStep.failed:
           icon = Icons.error_outline;
           iconColor = Colors.redAccent;
-          statusText = '失败';
+          statusText = l10n.playerSearchProgressStepFailed;
           errorText = progress!.error;
           break;
       }

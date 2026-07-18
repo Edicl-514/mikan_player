@@ -77,11 +77,25 @@ extension _PlayerPageSidePanelHost on _PlayerPageState {
         if (id != null) {
           try {
             final relations = await fetchBangumiRelations(subjectId: id);
+            // i18n-ignore: Bangumi API relation tokens used for filtering;
+            // the actual display names come from `r.name` and are already
+            // server-provided. The display label keys `playerSidePanelPrequel`
+            // / `playerSidePanelSequel` are used by the badge widget below.
             final pres = relations
-                .where((r) => r.relation == '前传' || r.relation == '续集')
+                .where(
+                  // i18n-ignore: see Bangumi API relation filter above
+                  (r) =>
+                      r.relation == '前传' || // i18n-ignore
+                      r.relation == '续集', // i18n-ignore
+                )
                 .toList();
             final others = relations
-                .where((r) => r.relation != '前传' && r.relation != '续集')
+                .where(
+                  // i18n-ignore: see Bangumi API relation filter above
+                  (r) =>
+                      r.relation != '前传' && // i18n-ignore
+                      r.relation != '续集', // i18n-ignore
+                )
                 .toList();
             debugPrint(
               '[Recommendations] Relations fetched for $id: total=${relations.length}, '

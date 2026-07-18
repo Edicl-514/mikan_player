@@ -345,7 +345,10 @@ bool _looksTechnical(String content, {required bool isRaw}) {
   return false;
 }
 
-Iterable<_StringLiteral> _stringLiterals(String source) sync* {
+Iterable<_StringLiteral> _stringLiterals(
+  String source, [
+  int baseOffset = 0,
+]) sync* {
   var index = 0;
   while (index < source.length) {
     if (source.startsWith('//', index)) {
@@ -398,6 +401,22 @@ Iterable<_StringLiteral> _stringLiterals(String source) sync* {
     var terminated = false;
 
     while (cursor < source.length) {
+      if (!isRaw &&
+          source[cursor] == r'$' &&
+          cursor + 1 < source.length &&
+          source[cursor + 1] == '{') {
+        final interpolationEnd = _interpolationEnd(source, cursor + 1);
+        if (interpolationEnd != null) {
+          final expressionStart = cursor + 2;
+          yield* _stringLiterals(
+            source.substring(expressionStart, interpolationEnd),
+            baseOffset + expressionStart,
+          );
+          cursor = interpolationEnd + 1;
+          continue;
+        }
+      }
+
       if (triple) {
         if (cursor + 2 < source.length &&
             source[cursor] == quote &&
@@ -424,13 +443,99 @@ Iterable<_StringLiteral> _stringLiterals(String source) sync* {
     }
 
     yield _StringLiteral(
-      start: index,
-      contentStart: contentStart,
-      contentEnd: cursor,
+      start: baseOffset + index,
+      contentStart: baseOffset + contentStart,
+      contentEnd: baseOffset + cursor,
       isRaw: isRaw,
     );
     index = cursor + delimiterLength;
   }
+}
+
+int? _interpolationEnd(String source, int openBrace) {
+  var depth = 1;
+  var cursor = openBrace + 1;
+
+  while (cursor < source.length) {
+    if (source.startsWith('//', cursor)) {
+      final newline = source.indexOf('\n', cursor + 2);
+      cursor = newline == -1 ? source.length : newline + 1;
+      continue;
+    }
+    if (source.startsWith('/*', cursor)) {
+      var commentDepth = 1;
+      cursor += 2;
+      while (cursor < source.length && commentDepth > 0) {
+        if (source.startsWith('/*', cursor)) {
+          commentDepth++;
+          cursor += 2;
+        } else if (source.startsWith('*/', cursor)) {
+          commentDepth--;
+          cursor += 2;
+        } else {
+          cursor++;
+        }
+      }
+      continue;
+    }
+
+    final stringEnd = _stringLiteralEnd(source, cursor);
+    if (stringEnd != null) {
+      cursor = stringEnd;
+      continue;
+    }
+
+    if (source[cursor] == '{') {
+      depth++;
+    } else if (source[cursor] == '}') {
+      depth--;
+      if (depth == 0) return cursor;
+    }
+    cursor++;
+  }
+
+  return null;
+}
+
+int? _stringLiteralEnd(String source, int index) {
+  var isRaw = false;
+  var quoteIndex = index;
+  if ((source[index] == 'r' || source[index] == 'R') &&
+      index + 1 < source.length &&
+      (source[index + 1] == "'" || source[index + 1] == '"') &&
+      (index == 0 || !_isIdentifierCharacter(source[index - 1]))) {
+    isRaw = true;
+    quoteIndex = index + 1;
+  }
+
+  final quote = source[quoteIndex];
+  if (quote != "'" && quote != '"') return null;
+
+  final triple =
+      quoteIndex + 2 < source.length &&
+      source[quoteIndex + 1] == quote &&
+      source[quoteIndex + 2] == quote;
+  final delimiterLength = triple ? 3 : 1;
+  var cursor = quoteIndex + delimiterLength;
+  while (cursor < source.length) {
+    if (triple) {
+      if (cursor + 2 < source.length &&
+          source[cursor] == quote &&
+          source[cursor + 1] == quote &&
+          source[cursor + 2] == quote) {
+        return cursor + delimiterLength;
+      }
+    } else if (source[cursor] == quote) {
+      return cursor + delimiterLength;
+    }
+
+    if (!isRaw && source[cursor] == '\\' && cursor + 1 < source.length) {
+      cursor += 2;
+    } else {
+      cursor++;
+    }
+  }
+  return null;
 }
 
 bool _isIdentifierCharacter(String character) {

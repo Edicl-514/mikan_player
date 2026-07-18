@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
@@ -168,6 +169,7 @@ class PlayerComments extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final mutedTextColor = isDark
         ? Colors.white54
@@ -179,14 +181,14 @@ class PlayerComments extends StatelessWidget {
     if (error != null) {
       return Center(
         child: Text(
-          '加载失败: $error',
+          l10n.playerCommentsLoadFailed(error!),
           style: const TextStyle(color: Colors.redAccent),
         ),
       );
     }
     if (comments.isEmpty) {
       return Center(
-        child: Text('暂无评论', style: TextStyle(color: mutedTextColor)),
+        child: Text(l10n.playerCommentsEmpty, style: TextStyle(color: mutedTextColor)),
       );
     }
 
@@ -197,7 +199,7 @@ class PlayerComments extends StatelessWidget {
           child: Row(
             children: [
               Text(
-                '全部评论',
+                l10n.playerCommentsTitle,
                 style: TextStyle(
                   color: isDark
                       ? Colors.white70

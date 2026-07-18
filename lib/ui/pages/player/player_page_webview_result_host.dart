@@ -64,8 +64,9 @@ extension _PlayerPageWebViewResultHost on _PlayerPageState {
         final active = _useWorkerPool
             ? _scheduler.activeVideoJobs.length
             : _activeWebViews.length;
-        _sampleStatusMessageNotifier.value =
-            '提取中: $completed/$total 完成，$active 并发运行';
+        _sampleStatusMessageNotifier.value = AppLocalizations.of(
+          context,
+        ).playerWebviewExtractInProgress(completed, total, active);
         if (!_useWorkerPool) {
           _startNextWebViewExtraction();
         }
@@ -159,8 +160,9 @@ extension _PlayerPageWebViewResultHost on _PlayerPageState {
       final active = _useWorkerPool
           ? _scheduler.activeVideoJobs.length
           : _activeWebViews.length;
-      _sampleStatusMessageNotifier.value =
-          '提取中: $completed/$total 完成，$active 并发运行';
+      _sampleStatusMessageNotifier.value = AppLocalizations.of(
+        context,
+      ).playerWebviewExtractInProgress(completed, total, active);
 
       // 旧路径：立即 pump 下一个 task；pool 模式下 worker 接下来会触发
       // `widget.onIdle`，[`_onWorkerIdle`] 会 post-frame 释放 slot + pump。
