@@ -2,6 +2,8 @@
 // These are top-level functions so they can be unit tested without a
 // Flutter binding or a page instance.
 
+import 'package:mikan_player/src/rust/api/bangumi.dart';
+
 /// Splits a bangumi summary into the user-facing translation and the
 /// original Chinese text using the `[简介原文]` separator.
 Map<String, String?> parseBangumiSummary(String? summary) {
@@ -79,4 +81,138 @@ int siteKindPriority(String kind) {
     default:
       return 3;
   }
+}
+
+/// Formats a `YYYY-MM-DD` (or ISO 8601) date string into `YYYY年 M月` for
+/// compact display. Returns the input unchanged when it cannot be parsed.
+String formatDateToMonth(String dateStr) {
+  try {
+    final date = DateTime.parse(dateStr);
+    return "${date.year}年 ${date.month}月";
+  } catch (_) {
+    return dateStr;
+  }
+}
+
+/// Coerces [value] (int, double, or numeric string) into an `int`, or
+/// returns `null` when it cannot. Used when reading episode-count fields
+/// from the bangumi subject JSON that may arrive as any of these shapes.
+int? readIntValue(dynamic value) {
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  return int.tryParse(value?.toString() ?? '');
+}
+
+/// Composes a human-readable episode status string such as "全 12 话" or
+/// "0话" used in the mobile header. Pure function over the (possibly null)
+/// subject data and the optional episode list from the controller.
+String getEpisodeStatusText(Map<String, dynamic>? data, List<BangumiEpisode>? episodes) {
+  final total = getTotalEpisodeCount(data, episodes);
+  if (total != null && total > 0) {
+    return "全 $total 话";
+  }
+  return "0话";
+}
+
+/// Resolves the total episode count for [getEpisodeStatusText].
+///
+/// Tries, in order:
+///   1. `data['total_episodes']` (number-like),
+///   2. `data['eps']` (number-like),
+///   3. `episodes.length`,
+///   4. count of Map entries inside `data['episodes']`.
+/// Returns `null` when nothing is available.
+int? getTotalEpisodeCount(Map<String, dynamic>? data, List<BangumiEpisode>? episodes) {
+  final totalFromData = readIntValue(data?['total_episodes']);
+  if (totalFromData != null && totalFromData > 0) {
+    return totalFromData;
+  }
+
+  final epsFromData = readIntValue(data?['eps']);
+  if (epsFromData != null && epsFromData > 0) {
+    return epsFromData;
+  }
+
+  final episodeCount = episodes?.length ?? 0;
+  if (episodeCount > 0) {
+    return episodeCount;
+  }
+
+  final parsedEpisodes = data?['episodes'];
+  if (parsedEpisodes is List) {
+    final count = parsedEpisodes.whereType<Map>().length;
+    if (count > 0) {
+      return count;
+    }
+  }
+
+  return null;
+}
+
+/// De-duplicates tag names from the subject's `tags` payload while preserving
+/// the order of first occurrence. Falls back to [fallback] when the payload is
+/// absent, empty, or has no named entries.
+List<String> extractCurrentTags(dynamic rawTags, List<String> fallback) {
+  if (rawTags is! List) {
+    return fallback;
+  }
+
+  final tags = <String>[];
+  final seen = <String>{};
+  for (final item in rawTags) {
+    String value = '';
+    if (item is Map) {
+      value = item['name']?.toString().trim() ?? '';
+    } else {
+      value = item?.toString().trim() ?? '';
+    }
+    if (value.isEmpty) continue;
+    final key = value.toLowerCase();
+    if (seen.add(key)) {
+      tags.add(value);
+    }
+  }
+  return tags.isNotEmpty ? tags : fallback;
+}
+
+/// Picks the best available cover URL for display.
+///
+/// Tries `data['images']['large'|'common'|'medium']` first (matches
+/// `_getImageUrl` in the original page), then falls back to [fallback]
+/// (typically `widget.anime.coverUrl`).
+String? getImageUrl(Map<String, dynamic>? data, String? fallback) {
+  if (data != null && data['images'] != null) {
+    final images = data['images'];
+    return images['large'] ?? images['common'] ?? images['medium'] ?? fallback;
+  }
+  return fallback;
+}
+
+/// Returns the display title: prefers `data['name']`, falling back to
+/// [fallback] (typically `widget.anime.title`).
+String getDisplayTitle(Map<String, dynamic>? data, String fallback) {
+  return data?['name'] ?? fallback;
+}
+
+/// Selects the summary text currently shown on the details page.
+///
+/// When [showOriginal] is true, prefers the original half of a
+/// `[简介原文]`-split summary and falls back to the translation. When false,
+/// returns only the translation half (or the whole summary when no separator
+/// is present).
+String? getDisplaySummary(String? summary, {required bool showOriginal}) {
+  final parsed = parseBangumiSummary(summary);
+  if (showOriginal) {
+    return parsed['original'] ?? parsed['translation'];
+  }
+  return parsed['translation'];
+}
+
+/// Returns true when the summary has both a translation half and an original
+/// half, so the UI should offer a toggle.
+bool hasBothTranslationAndOriginal(String? summary) {
+  final parsed = parseBangumiSummary(summary);
+  final translation = parsed['translation'];
+  final original = parsed['original'];
+  return translation != null && original != null;
 }

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/bangumi_details_helpers.dart';
 
 void main() {
@@ -176,6 +177,219 @@ void main() {
       expect(siteKindPriority('resource'), 2);
       expect(siteKindPriority('something-else'), 3);
       expect(siteKindPriority(''), 3);
+    });
+  });
+
+  group('formatDateToMonth', () {
+    test('parses YYYY-MM-DD into YYYY年 M月', () {
+      expect(formatDateToMonth('2026-01-15'), '2026年 1月');
+      expect(formatDateToMonth('2024-12-31'), '2024年 12月');
+    });
+
+    test('returns input unchanged for unparseable strings', () {
+      expect(formatDateToMonth('not a date'), 'not a date');
+    });
+
+    test('empty string returns empty', () {
+      expect(formatDateToMonth(''), '');
+    });
+  });
+
+  group('readIntValue', () {
+    test('int passes through', () {
+      expect(readIntValue(12), 12);
+    });
+
+    test('double is truncated to int', () {
+      expect(readIntValue(12.9), 12);
+      expect(readIntValue(12.0), 12);
+    });
+
+    test('numeric string is parsed', () {
+      expect(readIntValue('42'), 42);
+    });
+
+    test('non-numeric string returns null', () {
+      expect(readIntValue('abc'), isNull);
+    });
+
+    test('null returns null', () {
+      expect(readIntValue(null), isNull);
+    });
+  });
+
+  group('getTotalEpisodeCount', () {
+    test('prefers total_episodes when positive', () {
+      expect(getTotalEpisodeCount({'total_episodes': 24}, null), 24);
+    });
+
+    test('ignores zero total_episodes, falls back to eps', () {
+      expect(getTotalEpisodeCount({'total_episodes': 0, 'eps': 12}, null), 12);
+    });
+
+    test('falls back to episodes list length when data has none', () {
+      const episodes = <BangumiEpisode>[
+        BangumiEpisode(
+          id: 1,
+          sort: 1,
+          name: '',
+          nameCn: '',
+          description: '',
+          airdate: '',
+          duration: '',
+        ),
+        BangumiEpisode(
+          id: 2,
+          sort: 2,
+          name: '',
+          nameCn: '',
+          description: '',
+          airdate: '',
+          duration: '',
+        ),
+      ];
+      expect(getTotalEpisodeCount({}, episodes), 2);
+    });
+
+    test('falls back to episodes Map list when no episodes list supplied', () {
+      final data = {
+        'episodes': [
+          {'id': 1, 'sort': 1},
+          {'id': 2, 'sort': 2},
+        ],
+      };
+      expect(getTotalEpisodeCount(data, null), 2);
+    });
+
+    test('returns null when everything is empty', () {
+      expect(getTotalEpisodeCount({}, null), isNull);
+      expect(getTotalEpisodeCount(null, null), isNull);
+    });
+  });
+
+  group('getEpisodeStatusText', () {
+    test('returns "全 N 话" when total is positive', () {
+      expect(getEpisodeStatusText({'total_episodes': 12}, null), '全 12 话');
+    });
+
+    test('returns "0话" when nothing is available', () {
+      expect(getEpisodeStatusText({}, null), '0话');
+    });
+  });
+
+  group('extractCurrentTags', () {
+    test('returns fallback when rawTags is not a list', () {
+      expect(extractCurrentTags(null, ['fallback']), ['fallback']);
+      expect(extractCurrentTags('not a list', ['fallback']), ['fallback']);
+    });
+
+    test('preserves order of first occurrence, dedupes by lowercase', () {
+      final rawTags = [
+        {'name': 'Action'},
+        {'name': 'comedy'},
+        {'name': 'action'},
+        {'name': 'Drama'},
+      ];
+      expect(extractCurrentTags(rawTags, const []), [
+        'Action',
+        'comedy',
+        'Drama',
+      ]);
+    });
+
+    test('skips entries with empty or whitespace-only names', () {
+      final rawTags = [
+        {'name': ''},
+        {'name': '  '},
+        {'name': 'Action'},
+      ];
+      expect(extractCurrentTags(rawTags, const []), ['Action']);
+    });
+
+    test('returns fallback when all entries are empty', () {
+      final rawTags = [
+        {'name': ''},
+      ];
+      expect(extractCurrentTags(rawTags, ['fallback']), ['fallback']);
+    });
+
+    test('handles raw string entries (not just Maps)', () {
+      final rawTags = <dynamic>['Action', 'comedy', 'action'];
+      // Strings are also deduped by lowercase key.
+      expect(extractCurrentTags(rawTags, const []), ['Action', 'comedy']);
+    });
+  });
+
+  group('getImageUrl', () {
+    test('prefers data["images"]["large"]', () {
+      expect(
+        getImageUrl(
+          {'images': {'large': 'L', 'common': 'C', 'medium': 'M'}},
+          'fallback',
+        ),
+        'L',
+      );
+    });
+
+    test('falls back through common -> medium -> fallback', () {
+      expect(
+        getImageUrl({'images': {'medium': 'M'}}, 'fallback'),
+        'M',
+      );
+      expect(getImageUrl({'images': {}}, 'fallback'), 'fallback');
+    });
+
+    test('null data uses fallback', () {
+      expect(getImageUrl(null, 'fallback'), 'fallback');
+    });
+  });
+
+  group('getDisplayTitle', () {
+    test('prefers data["name"]', () {
+      expect(getDisplayTitle({'name': 'realname'}, 'fallback'), 'realname');
+    });
+
+    test('falls back when data is null or name missing', () {
+      expect(getDisplayTitle(null, 'fallback'), 'fallback');
+      expect(getDisplayTitle({}, 'fallback'), 'fallback');
+    });
+  });
+
+  group('getDisplaySummary / hasBothTranslationAndOriginal', () {
+    test('prefers translation when showOriginal is false', () {
+      expect(
+        getDisplaySummary(
+          'translated[简介原文]original',
+          showOriginal: false,
+        ),
+        'translated',
+      );
+    });
+
+    test('prefers original when showOriginal is true', () {
+      expect(
+        getDisplaySummary(
+          'translated[简介原文]original',
+          showOriginal: true,
+        ),
+        'original',
+      );
+    });
+
+    test('falls back to translation when original half is missing', () {
+      expect(
+        getDisplaySummary('only translation', showOriginal: true),
+        'only translation',
+      );
+    });
+
+    test('hasBoth is true only when both halves exist', () {
+      expect(
+        hasBothTranslationAndOriginal('translated[简介原文]original'),
+        isTrue,
+      );
+      expect(hasBothTranslationAndOriginal('only translation'), isFalse);
+      expect(hasBothTranslationAndOriginal(null), isFalse);
     });
   });
 }

@@ -46,8 +46,8 @@
 | P1 | `rust/src/api/generic_scraper.rs` (~4500) | 职责清晰可切；纯逻辑多，易测 | Phase 3 |
 | P1 | `rust/src/api/bangumi.rs` (~2300) | types / fetch / markup 边界清楚 | Phase 4a |
 | P1 | `rust/src/api/crawler.rs` (~2400) | bangumi-data / schedule / sites-index | Phase 4b |
-| P2 | `lib/ui/pages/bangumi_details_page.dart` (~2500) | controller 已有雏形，主要抽 section widgets | Phase 5 |
-| P2 | `lib/services/webview_captcha_job_runner.dart` (~1800) | 与 player 解耦后单独拆 | Phase 6 |
+| P2 | `lib/ui/pages/bangumi_details_page.dart` (~2500) | controller 已有雏形，主要抽 section widgets | Phase 5 ✓ |
+| P2 | `lib/services/webview_captcha_job_runner.dart` (~1800) | 与 player 解耦后单独拆 | Phase 6 ✓ |
 | P3 | 详情页族 / 设置页 / 1k–1.5k 级文件 | 有需求再动 | Phase 7+ |
 
 **暂缓 / 不拆**
@@ -518,9 +518,55 @@ single-flight、generation 失效、sites index 与平台条件编译的原有�
 `cargo check` 与 `cargo test --lib` 通过；公共函数/类型名称集合及公开签名/字段与拆分前一致。
 
 ### Phase 5–7
-- [ ] 5 bangumi details UI
-- [ ] 6 captcha job runner
+- [x] 5 bangumi details UI
+- [x] 6 captcha job runner
 - [ ] 7 收尾与规范
+
+实现说明（Phase 5）：`bangumi_details_page.dart` 由约 2475 行降至约 392 行，State
+只保留 controller 生命周期、scroll controllers、四个页面级 UI 状态
+（`_isCopied` / `_copyTimer` / `_showOriginalSummary` / `_isInfoBoxExpanded`）、
+导航/分享/收藏的 callback 与 layout 选择（`isWide` 三元派发）。所有 section
+展示拆入 `lib/ui/pages/bangumi_details/widgets/{header_poster, header_title,
+header_rating, header_actions, header_collection_stats, summary_tags,
+characters_section, episodes_section, section_title, placeholder_section}.dart`
+与已存在的 `comments_section` / `relations_section` / `sites_section`；
+mobile/wide 布局组装拆入 `lib/ui/pages/bangumi_details/layouts/{mobile_layout,
+wide_layout}.dart`；person-aware infobox/CV 文本带匹配下沉到独立
+`person_text_spans.dart`（`PersonTextMatch` 提为 public、`findNextPersonMatch`
+/ `buildPersonInlineSpans` 为顶层纯函数、`PersonAwareText` 是可复用 widget）。
+`bangumi_details_helpers.dart` 追加 `formatDateToMonth` / `readIntValue` /
+`getTotalEpisodeCount` / `getEpisodeStatusText` / `extractCurrentTags` /
+`getImageUrl` / `getDisplayTitle` 顶层纯函数。`flutter analyze` 通过；既存
+`test/ui/pages/bangumi_details/` 46 测全绿；新增
+`test/ui/pages/bangumi/bangumi_details_helpers_test.dart`（26 测）与
+`person_text_spans_test.dart`（15 测）覆盖新纯函数与 person-text 匹配器。
+mobile/wide 布局冒烟仍需在可运行桌面/Android 环境执行。
+
+实现说明（Phase 6）：`webview_captcha_job_runner.dart` 由 1838 行降至约
+1290 行，`CaptchaJobRunner` 保留构造、`acceptJob` / `transitionToIdle` /
+`cancelCurrentJob` / `dispose` / WebView hooks / build 时 `buildNavigationHeaders`
+与生命周期编排（readiness gate + initial delay + 失败/超时/取消 result，
+`_completeSuccess` 通过 detail extension 推进 stage）。各分片低耦合逻辑下沉至
+`lib/services/captcha/`：`captcha_job_runner_sink.dart`（独立 sink 文件，
+runner 入口 `export` 重导出，调用方零改）、`captcha_job_types.dart`（`part`
+内置三个 enum 与 `_SearchCandidate` / `_ExtractedCandidate` /
+`_SearchExtractionConfig`）、`captcha_page_signal.dart`（`_detectCaptcha` /
+`_checkSuccess` / `_selectorExists` / `_evalJs` / `_buildSelectorExistsScript`
+作为顶层纯函数；`_waitForCaptchaOrSuccessSignal` / `_waitForSubmitResult` /
+`_waitForCaptchaImageAfterRefresh` 作为 `_CaptchaRunnerPageSignal` 扩展方法以
+保留对 `_isCompleted` / `_loadEventToken` 的访问）、`captcha_search_flow.dart`
+（`_preprocessSearchKeyword` / `_extractCoreName` / `_calculateMatchScore`
+等纯函数；`_selectBestSearchCandidate` / `_resolveInitialUrl` /
+`_extractSearchCandidates` 作为 `_CaptchaRunnerSearchFlow` 扩展方法以读取
+`_currentJob` / `_log`）、`captcha_detail_flow.dart`（`_maybeAdvanceToDetailStage`
+抽自 `_completeSuccess` 的 search→detail 分支）。静态成员
+`_buildNavigationHeaders` / `_matchScoreThreshold` 从扩展访问时已用
+`CaptchaJobRunner.` 限定。`flutter analyze` 通过；`test/reusable_browser_worker_test.dart`
+中 captcha 场景既有测试全绿；新增 `test/services/captcha_job_runner_test.dart`
+覆盖 sink 与 runner 生命周期空路径。CaptchaJobRunner 公共 API 与
+`CaptchaJobRunnerSink` 形状未变；调用方 `captcha_webview_bypasser.dart` /
+`reusable_browser_worker.dart` 零改。Captcha 真源联调仍需在可运行
+Android/桌面 WebView 环境执行。
 
 ---
 
