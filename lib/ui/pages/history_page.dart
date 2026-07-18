@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/models/bangumi_episode_filter.dart';
+import 'package:mikan_player/services/playback_history_episode_resolver.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/player_page.dart';
@@ -57,19 +58,7 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _openHistoryItem(PlaybackHistoryItem item) async {
-    var episodes = item.toEpisodes();
-
-    if (episodes.isEmpty && item.bangumiId != null) {
-      final subjectId = int.tryParse(item.bangumiId!);
-      if (subjectId != null) {
-        try {
-          episodes = await fetchBangumiEpisodes(subjectId: subjectId);
-        } catch (_) {
-          episodes = <BangumiEpisode>[];
-        }
-      }
-    }
-
+    final episodes = await resolvePlaybackHistoryEpisodes(item);
     final playableEpisodes = episodes.releasedEpisodes();
     if (playableEpisodes.isEmpty) {
       if (mounted) {

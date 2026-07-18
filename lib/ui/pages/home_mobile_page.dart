@@ -8,6 +8,7 @@ import 'package:mikan_player/models/bangumi_user_collection.dart';
 import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
+import 'package:mikan_player/services/playback_history_episode_resolver.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
@@ -333,19 +334,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
   }
 
   Future<void> _openHistoryItem(PlaybackHistoryItem item) async {
-    var episodes = item.toEpisodes();
-
-    if (episodes.isEmpty && item.bangumiId != null) {
-      final subjectId = int.tryParse(item.bangumiId!);
-      if (subjectId != null) {
-        try {
-          episodes = await fetchBangumiEpisodes(subjectId: subjectId);
-        } catch (_) {
-          episodes = <BangumiEpisode>[];
-        }
-      }
-    }
-
+    final episodes = await resolvePlaybackHistoryEpisodes(item);
     final playableEpisodes = episodes.releasedEpisodes();
     if (playableEpisodes.isEmpty) {
       if (mounted) {
