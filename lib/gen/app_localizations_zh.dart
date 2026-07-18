@@ -1960,4 +1960,253 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get personCareerIllustrator => '插画家';
+
+  @override
+  String get historyEmptyHint => '在播放页开始观看后会自动记录';
+
+  @override
+  String homeOriginalWork(String name) {
+    return '原作: $name';
+  }
+
+  @override
+  String homeDirector(String name) {
+    return '导演: $name';
+  }
+
+  @override
+  String homeEpisodeProgress(String sort, String name) {
+    return 'EP $sort | $name';
+  }
+
+  @override
+  String get favoritesStatusWish => '想看';
+
+  @override
+  String get favoritesStatusWatched => '看过';
+
+  @override
+  String get favoritesStatusWatching => '在看';
+
+  @override
+  String get favoritesStatusOnHold => '搁置';
+
+  @override
+  String get favoritesStatusDropped => '抛弃';
+
+  @override
+  String get favoritesStatusUnknown => '未知';
+
+  @override
+  String downloadEpisodeNumber(int number) {
+    return '第$number集';
+  }
+
+  @override
+  String get downloadDeleteRunningConfirm => '此任务正在运行中，确定要停止并删除吗？';
+
+  @override
+  String get searchSortDate => '日期';
+
+  @override
+  String get searchSortTitle => '名称';
+
+  @override
+  String timetableQuarterTitle(int year, int quarter) {
+    return '$year年$quarter月';
+  }
+
+  @override
+  String get indexFilterCategory => '分类';
+
+  @override
+  String get indexFilterSource => '来源';
+
+  @override
+  String get indexFilterType => '类型';
+
+  @override
+  String get indexFilterRegion => '地区';
+
+  @override
+  String get indexFilterSort => '排序';
+
+  @override
+  String get indexFilterTime => '时间';
+
+  @override
+  String get indexFilterMonth => '月份';
+
+  @override
+  String get indexUnlimited => '不限';
+
+  @override
+  String get indexSortRank => '排名';
+
+  @override
+  String get indexSortMatch => '相关度';
+
+  @override
+  String get indexSortHeat => '收藏数';
+
+  @override
+  String get indexSortTrends => '热度';
+
+  @override
+  String get indexSortCollect => '收藏';
+
+  @override
+  String get indexSortDate => '日期';
+
+  @override
+  String get indexSortTitle => '名称';
+
+  @override
+  String get indexCategoryMovie => '剧场版';
+
+  @override
+  String get indexCategoryOther => '其他';
+
+  @override
+  String get indexSourceOriginal => '原创';
+
+  @override
+  String get indexSourceManga => '漫画改';
+
+  @override
+  String get indexSourceGame => '游戏改';
+
+  @override
+  String get indexSourceNovel => '小说改';
+
+  @override
+  String get indexSourceLiveAction => '影视改';
+
+  @override
+  String indexMonthLabel(int month) {
+    return '$month月';
+  }
+
+  @override
+  String get indexRegionJapan => '日本';
+
+  @override
+  String get indexRegionWestern => '欧美';
+
+  @override
+  String get indexRegionChina => '中国';
+
+  @override
+  String get indexRegionUsa => '美国';
+
+  @override
+  String get indexRegionKorea => '韩国';
+
+  @override
+  String get indexRegionFrance => '法国';
+
+  @override
+  String get indexRegionHongKong => '中国香港';
+
+  @override
+  String get indexRegionUk => '英国';
+
+  @override
+  String get indexRegionRussia => '俄罗斯';
+
+  @override
+  String get indexRegionSoviet => '苏联';
+
+  @override
+  String get indexRegionCzech => '捷克';
+
+  @override
+  String get indexRegionTaiwan => '中国台湾';
+
+  @override
+  String get indexRegionMalaysia => '马来西亚';
+
+  @override
+  String get indexGenreScifi => '科幻';
+
+  @override
+  String get indexGenreComedy => '喜剧';
+
+  @override
+  String get indexGenreDoujin => '同人';
+
+  @override
+  String get indexGenreYuri => '百合';
+
+  @override
+  String get indexGenreSchool => '校园';
+
+  @override
+  String get indexGenreThriller => '惊悚';
+
+  @override
+  String get indexGenreHarem => '后宫';
+
+  @override
+  String get indexGenreMecha => '机战';
+
+  @override
+  String get indexGenreMystery => '悬疑';
+
+  @override
+  String get indexGenreRomance => '恋爱';
+
+  @override
+  String get indexGenreFantasy => '奇幻';
+
+  @override
+  String get indexGenreDetective => '推理';
+
+  @override
+  String get indexGenreSports => '运动';
+
+  @override
+  String get indexGenreBoysLove => '耽美';
+
+  @override
+  String get indexGenreMusic => '音乐';
+
+  @override
+  String get indexGenreAction => '战斗';
+
+  @override
+  String get indexGenreAdventure => '冒险';
+
+  @override
+  String get indexGenreMoe => '萌系';
+
+  @override
+  String get indexGenreIsekai => '穿越';
+
+  @override
+  String get indexGenreXuanhuan => '玄幻';
+
+  @override
+  String get indexGenreOtome => '乙女';
+
+  @override
+  String get indexGenreHorror => '恐怖';
+
+  @override
+  String get indexGenreHistory => '历史';
+
+  @override
+  String get indexGenreSliceOfLife => '日常';
+
+  @override
+  String get indexGenreDrama => '剧情';
+
+  @override
+  String get indexGenreWuxia => '武侠';
+
+  @override
+  String get indexGenreFood => '美食';
+
+  @override
+  String get indexGenreWorkplace => '职场';
 }

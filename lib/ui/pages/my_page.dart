@@ -1019,7 +1019,9 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   children: [
                     Expanded(
                       child: Text(
-                        '第${task.episodeNumber}集',
+                        AppLocalizations.of(context).downloadEpisodeNumber(
+                          task.episodeNumber!,
+                        ),
                         style: TextStyle(color: Colors.grey[500], fontSize: 11),
                       ),
                     ),
@@ -1406,10 +1408,10 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                         task.status == DownloadTaskStatus.metadata ||
                         task.status == DownloadTaskStatus.checking ||
                         task.status == DownloadTaskStatus.queued
-                    ? '此任务正在运行中，确定要停止并删除吗？'
+                    ? AppLocalizations.of(context).downloadDeleteRunningConfirm
                     : AppLocalizations.of(
                         context,
-                      ).logoutConfirm, // Using loginConfirm as a generic "are you sure"
+                      ).logoutConfirm, // Using logoutConfirm as a generic "are you sure"
               ),
               if (forceDeleteFiles) ...[
                 const SizedBox(height: 12),

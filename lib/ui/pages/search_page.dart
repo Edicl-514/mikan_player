@@ -223,8 +223,8 @@ class _SearchPageState extends State<SearchPage> {
       return [
         _SearchSortOption('rank', l10n.searchSortRank),
         _SearchSortOption('collects', l10n.searchSortHeat),
-        _SearchSortOption('date', '日期'),
-        _SearchSortOption('title', '名称'),
+        _SearchSortOption('date', l10n.searchSortDate),
+        _SearchSortOption('title', l10n.searchSortTitle),
       ];
     }
 

@@ -3,6 +3,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
+import 'package:mikan_player/ui/utils/broadcast_day_tokens.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 class TimeTablePage extends StatefulWidget {
@@ -25,16 +26,8 @@ class _TimeTablePageState extends State<TimeTablePage>
     'sunday',
     'others',
   ];
-  final List<String> _internalDays = [
-    '周一',
-    '周二',
-    '周三',
-    '周四',
-    '周五',
-    '周六',
-    '周日',
-    '其他',
-  ];
+  // Protocol tokens used for matching anime.broadcastDay from upstream data.
+  List<String> get _internalDays => broadcastDayTokensWithOther;
   List<crawler.ArchiveQuarter> _archives = [];
   crawler.ArchiveQuarter? _selectedArchive;
   List<crawler.AnimeInfo> _animes = [];
@@ -107,7 +100,10 @@ class _TimeTablePageState extends State<TimeTablePage>
           _selectedArchive = crawler.ArchiveQuarter(
             year: currentYear.toString(),
             quarter: currentQuarterStr,
-            title: '$currentYear年$currentQuarter月',
+            title: AppLocalizations.of(context).timetableQuarterTitle(
+              currentYear,
+              currentQuarter,
+            ),
           );
         });
       }
@@ -174,7 +170,7 @@ class _TimeTablePageState extends State<TimeTablePage>
     final currentDay = _internalDays[currentDayIndex];
 
     final targetAnimes = _animes.where((a) {
-      final day = a.broadcastDay ?? '其他';
+      final day = a.broadcastDay ?? broadcastDayTokenOther;
       return day == currentDay && a.bangumiId != null && a.coverUrl == null;
     }).toList();
 
@@ -203,7 +199,7 @@ class _TimeTablePageState extends State<TimeTablePage>
     final currentDay = _internalDays[currentDayIndex];
 
     final targetAnimes = _animes.where((a) {
-      final day = a.broadcastDay ?? '其他';
+      final day = a.broadcastDay ?? broadcastDayTokenOther;
       return day != currentDay && a.bangumiId != null && a.coverUrl == null;
     }).toList();
 
@@ -324,11 +320,11 @@ class _TimeTablePageState extends State<TimeTablePage>
       groups[day] = [];
     }
     for (final anime in _animes) {
-      final day = anime.broadcastDay ?? '其他';
+      final day = anime.broadcastDay ?? broadcastDayTokenOther;
       if (groups.containsKey(day)) {
         groups[day]!.add(anime);
       } else {
-        groups['其他']!.add(anime);
+        groups[broadcastDayTokenOther]!.add(anime);
       }
     }
     for (final group in groups.values) {

@@ -1031,5 +1031,231 @@
   "personCareerIllustrator": "Illustrator",
   "@personCareerIllustrator": {
     "description": "Person career badge for illustrator."
-  }
+  },
+  "historyEmptyHint": "History appears after you start watching on the player page",
+  "@historyEmptyHint": {
+    "description": "Secondary empty-state hint on the history page."
+  },
+  "homeOriginalWork": "Original: {name}",
+  "@homeOriginalWork": {
+    "description": "Home anime card original-work line.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "homeDirector": "Director: {name}",
+  "@homeDirector": {
+    "description": "Home anime card director line.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "homeEpisodeProgress": "EP {sort} | {name}",
+  "@homeEpisodeProgress": {
+    "description": "Continue-watching card episode progress line.",
+    "placeholders": {
+      "sort": { "type": "String" },
+      "name": { "type": "String" }
+    }
+  },
+  "favoritesStatusWish": "Wish",
+  "@favoritesStatusWish": {
+    "description": "Bangumi collection status: wish."
+  },
+  "favoritesStatusWatched": "Watched",
+  "@favoritesStatusWatched": {
+    "description": "Bangumi collection status: watched."
+  },
+  "favoritesStatusWatching": "Watching",
+  "@favoritesStatusWatching": {
+    "description": "Bangumi collection status: watching."
+  },
+  "favoritesStatusOnHold": "On hold",
+  "@favoritesStatusOnHold": {
+    "description": "Bangumi collection status: on hold."
+  },
+  "favoritesStatusDropped": "Dropped",
+  "@favoritesStatusDropped": {
+    "description": "Bangumi collection status: dropped."
+  },
+  "favoritesStatusUnknown": "Unknown",
+  "@favoritesStatusUnknown": {
+    "description": "Bangumi collection status: unknown."
+  },
+  "downloadEpisodeNumber": "Episode {number}",
+  "@downloadEpisodeNumber": {
+    "description": "Download task episode number label.",
+    "placeholders": {
+      "number": { "type": "int" }
+    }
+  },
+  "downloadDeleteRunningConfirm": "This task is still running. Stop and delete it?",
+  "@downloadDeleteRunningConfirm": {
+    "description": "Confirm deleting an active download task."
+  },
+  "searchSortDate": "Date",
+  "@searchSortDate": {
+    "description": "Search sort option by date."
+  },
+  "searchSortTitle": "Title",
+  "@searchSortTitle": {
+    "description": "Search sort option by title."
+  },
+  "timetableQuarterTitle": "{year} Q{quarter}",
+  "@timetableQuarterTitle": {
+    "description": "Fallback timetable archive title for current quarter.",
+    "placeholders": {
+      "year": { "type": "int" },
+      "quarter": { "type": "int" }
+    }
+  },
+  "indexFilterCategory": "Category",
+  "@indexFilterCategory": {
+    "description": "Index browser filter group: category."
+  },
+  "indexFilterSource": "Source",
+  "@indexFilterSource": {
+    "description": "Index browser filter group: source."
+  },
+  "indexFilterType": "Genre",
+  "@indexFilterType": {
+    "description": "Index browser filter group: type/genre."
+  },
+  "indexFilterRegion": "Region",
+  "@indexFilterRegion": {
+    "description": "Index browser filter group: region."
+  },
+  "indexFilterSort": "Sort",
+  "@indexFilterSort": {
+    "description": "Index browser filter group: sort."
+  },
+  "indexFilterTime": "Time",
+  "@indexFilterTime": {
+    "description": "Index browser time filter group."
+  },
+  "indexFilterMonth": "Month",
+  "@indexFilterMonth": {
+    "description": "Index browser month filter group."
+  },
+  "indexUnlimited": "Any",
+  "@indexUnlimited": {
+    "description": "Index browser unrestricted filter option."
+  },
+  "indexSortRank": "Rank",
+  "@indexSortRank": {
+    "description": "Index/search sort by rank."
+  },
+  "indexSortMatch": "Match",
+  "@indexSortMatch": {
+    "description": "Index/search sort by match score."
+  },
+  "indexSortHeat": "Collects",
+  "@indexSortHeat": {
+    "description": "Index/search sort by collect/heat count."
+  },
+  "indexSortTrends": "Trends",
+  "@indexSortTrends": {
+    "description": "Index sort by trends."
+  },
+  "indexSortCollect": "Collect",
+  "@indexSortCollect": {
+    "description": "Legacy index sort by collect."
+  },
+  "indexSortDate": "Date",
+  "@indexSortDate": {
+    "description": "Index sort by date."
+  },
+  "indexSortTitle": "Title",
+  "@indexSortTitle": {
+    "description": "Index sort by title."
+  },
+  "indexCategoryMovie": "Movie",
+  "@indexCategoryMovie": {
+    "description": "Index category option for theatrical movies."
+  },
+  "indexCategoryOther": "Other",
+  "@indexCategoryOther": {
+    "description": "Index category/other option."
+  },
+  "indexSourceOriginal": "Original",
+  "@indexSourceOriginal": {
+    "description": "Index source option: original."
+  },
+  "indexSourceManga": "Manga",
+  "@indexSourceManga": {
+    "description": "Index source option: manga adaptation."
+  },
+  "indexSourceGame": "Game",
+  "@indexSourceGame": {
+    "description": "Index source option: game adaptation."
+  },
+  "indexSourceNovel": "Novel",
+  "@indexSourceNovel": {
+    "description": "Index source option: novel adaptation."
+  },
+  "indexSourceLiveAction": "Live action",
+  "@indexSourceLiveAction": {
+    "description": "Index source option: live-action adaptation."
+  },
+  "indexMonthLabel": "{month}",
+  "@indexMonthLabel": {
+    "description": "Index month chip label.",
+    "placeholders": {
+      "month": { "type": "int" }
+    }
+  },
+  "indexRegionJapan": "Japan",
+  "@indexRegionJapan": { "description": "Index region option." },
+  "indexRegionWestern": "Western",
+  "@indexRegionWestern": { "description": "Index region option." },
+  "indexRegionChina": "China",
+  "@indexRegionChina": { "description": "Index region option." },
+  "indexRegionUsa": "United States",
+  "@indexRegionUsa": { "description": "Index region option." },
+  "indexRegionKorea": "Korea",
+  "@indexRegionKorea": { "description": "Index region option." },
+  "indexRegionFrance": "France",
+  "@indexRegionFrance": { "description": "Index region option." },
+  "indexRegionHongKong": "Hong Kong",
+  "@indexRegionHongKong": { "description": "Index region option." },
+  "indexRegionUk": "United Kingdom",
+  "@indexRegionUk": { "description": "Index region option." },
+  "indexRegionRussia": "Russia",
+  "@indexRegionRussia": { "description": "Index region option." },
+  "indexRegionSoviet": "Soviet Union",
+  "@indexRegionSoviet": { "description": "Index region option." },
+  "indexRegionCzech": "Czechia",
+  "@indexRegionCzech": { "description": "Index region option." },
+  "indexRegionTaiwan": "Taiwan",
+  "@indexRegionTaiwan": { "description": "Index region option." },
+  "indexRegionMalaysia": "Malaysia",
+  "@indexRegionMalaysia": { "description": "Index region option." },
+  "indexGenreScifi": "Sci-Fi",
+  "indexGenreComedy": "Comedy",
+  "indexGenreDoujin": "Doujin",
+  "indexGenreYuri": "Yuri",
+  "indexGenreSchool": "School",
+  "indexGenreThriller": "Thriller",
+  "indexGenreHarem": "Harem",
+  "indexGenreMecha": "Mecha",
+  "indexGenreMystery": "Mystery",
+  "indexGenreRomance": "Romance",
+  "indexGenreFantasy": "Fantasy",
+  "indexGenreDetective": "Detective",
+  "indexGenreSports": "Sports",
+  "indexGenreBoysLove": "BL",
+  "indexGenreMusic": "Music",
+  "indexGenreAction": "Action",
+  "indexGenreAdventure": "Adventure",
+  "indexGenreMoe": "Moe",
+  "indexGenreIsekai": "Isekai",
+  "indexGenreXuanhuan": "Xuanhuan",
+  "indexGenreOtome": "Otome",
+  "indexGenreHorror": "Horror",
+  "indexGenreHistory": "History",
+  "indexGenreSliceOfLife": "Slice of Life",
+  "indexGenreDrama": "Drama",
+  "indexGenreWuxia": "Wuxia",
+  "indexGenreFood": "Food",
+  "indexGenreWorkplace": "Workplace"
 }

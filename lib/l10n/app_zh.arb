@@ -1031,5 +1031,231 @@
   "personCareerIllustrator": "插画家",
   "@personCareerIllustrator": {
     "description": "Person career badge for illustrator."
-  }
+  },
+  "historyEmptyHint": "在播放页开始观看后会自动记录",
+  "@historyEmptyHint": {
+    "description": "Secondary empty-state hint on the history page."
+  },
+  "homeOriginalWork": "原作: {name}",
+  "@homeOriginalWork": {
+    "description": "Home anime card original-work line.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "homeDirector": "导演: {name}",
+  "@homeDirector": {
+    "description": "Home anime card director line.",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "homeEpisodeProgress": "EP {sort} | {name}",
+  "@homeEpisodeProgress": {
+    "description": "Continue-watching card episode progress line.",
+    "placeholders": {
+      "sort": { "type": "String" },
+      "name": { "type": "String" }
+    }
+  },
+  "favoritesStatusWish": "想看",
+  "@favoritesStatusWish": {
+    "description": "Bangumi collection status: wish."
+  },
+  "favoritesStatusWatched": "看过",
+  "@favoritesStatusWatched": {
+    "description": "Bangumi collection status: watched."
+  },
+  "favoritesStatusWatching": "在看",
+  "@favoritesStatusWatching": {
+    "description": "Bangumi collection status: watching."
+  },
+  "favoritesStatusOnHold": "搁置",
+  "@favoritesStatusOnHold": {
+    "description": "Bangumi collection status: on hold."
+  },
+  "favoritesStatusDropped": "抛弃",
+  "@favoritesStatusDropped": {
+    "description": "Bangumi collection status: dropped."
+  },
+  "favoritesStatusUnknown": "未知",
+  "@favoritesStatusUnknown": {
+    "description": "Bangumi collection status: unknown."
+  },
+  "downloadEpisodeNumber": "第{number}集",
+  "@downloadEpisodeNumber": {
+    "description": "Download task episode number label.",
+    "placeholders": {
+      "number": { "type": "int" }
+    }
+  },
+  "downloadDeleteRunningConfirm": "此任务正在运行中，确定要停止并删除吗？",
+  "@downloadDeleteRunningConfirm": {
+    "description": "Confirm deleting an active download task."
+  },
+  "searchSortDate": "日期",
+  "@searchSortDate": {
+    "description": "Search sort option by date."
+  },
+  "searchSortTitle": "名称",
+  "@searchSortTitle": {
+    "description": "Search sort option by title."
+  },
+  "timetableQuarterTitle": "{year}年{quarter}月",
+  "@timetableQuarterTitle": {
+    "description": "Fallback timetable archive title for current quarter.",
+    "placeholders": {
+      "year": { "type": "int" },
+      "quarter": { "type": "int" }
+    }
+  },
+  "indexFilterCategory": "分类",
+  "@indexFilterCategory": {
+    "description": "Index browser filter group: category."
+  },
+  "indexFilterSource": "来源",
+  "@indexFilterSource": {
+    "description": "Index browser filter group: source."
+  },
+  "indexFilterType": "类型",
+  "@indexFilterType": {
+    "description": "Index browser filter group: type/genre."
+  },
+  "indexFilterRegion": "地区",
+  "@indexFilterRegion": {
+    "description": "Index browser filter group: region."
+  },
+  "indexFilterSort": "排序",
+  "@indexFilterSort": {
+    "description": "Index browser filter group: sort."
+  },
+  "indexFilterTime": "时间",
+  "@indexFilterTime": {
+    "description": "Index browser time filter group."
+  },
+  "indexFilterMonth": "月份",
+  "@indexFilterMonth": {
+    "description": "Index browser month filter group."
+  },
+  "indexUnlimited": "不限",
+  "@indexUnlimited": {
+    "description": "Index browser unrestricted filter option."
+  },
+  "indexSortRank": "排名",
+  "@indexSortRank": {
+    "description": "Index/search sort by rank."
+  },
+  "indexSortMatch": "相关度",
+  "@indexSortMatch": {
+    "description": "Index/search sort by match score."
+  },
+  "indexSortHeat": "收藏数",
+  "@indexSortHeat": {
+    "description": "Index/search sort by collect/heat count."
+  },
+  "indexSortTrends": "热度",
+  "@indexSortTrends": {
+    "description": "Index sort by trends."
+  },
+  "indexSortCollect": "收藏",
+  "@indexSortCollect": {
+    "description": "Legacy index sort by collect."
+  },
+  "indexSortDate": "日期",
+  "@indexSortDate": {
+    "description": "Index sort by date."
+  },
+  "indexSortTitle": "名称",
+  "@indexSortTitle": {
+    "description": "Index sort by title."
+  },
+  "indexCategoryMovie": "剧场版",
+  "@indexCategoryMovie": {
+    "description": "Index category option for theatrical movies."
+  },
+  "indexCategoryOther": "其他",
+  "@indexCategoryOther": {
+    "description": "Index category/other option."
+  },
+  "indexSourceOriginal": "原创",
+  "@indexSourceOriginal": {
+    "description": "Index source option: original."
+  },
+  "indexSourceManga": "漫画改",
+  "@indexSourceManga": {
+    "description": "Index source option: manga adaptation."
+  },
+  "indexSourceGame": "游戏改",
+  "@indexSourceGame": {
+    "description": "Index source option: game adaptation."
+  },
+  "indexSourceNovel": "小说改",
+  "@indexSourceNovel": {
+    "description": "Index source option: novel adaptation."
+  },
+  "indexSourceLiveAction": "影视改",
+  "@indexSourceLiveAction": {
+    "description": "Index source option: live-action adaptation."
+  },
+  "indexMonthLabel": "{month}月",
+  "@indexMonthLabel": {
+    "description": "Index month chip label.",
+    "placeholders": {
+      "month": { "type": "int" }
+    }
+  },
+  "indexRegionJapan": "日本",
+  "@indexRegionJapan": { "description": "Index region option." },
+  "indexRegionWestern": "欧美",
+  "@indexRegionWestern": { "description": "Index region option." },
+  "indexRegionChina": "中国",
+  "@indexRegionChina": { "description": "Index region option." },
+  "indexRegionUsa": "美国",
+  "@indexRegionUsa": { "description": "Index region option." },
+  "indexRegionKorea": "韩国",
+  "@indexRegionKorea": { "description": "Index region option." },
+  "indexRegionFrance": "法国",
+  "@indexRegionFrance": { "description": "Index region option." },
+  "indexRegionHongKong": "中国香港",
+  "@indexRegionHongKong": { "description": "Index region option." },
+  "indexRegionUk": "英国",
+  "@indexRegionUk": { "description": "Index region option." },
+  "indexRegionRussia": "俄罗斯",
+  "@indexRegionRussia": { "description": "Index region option." },
+  "indexRegionSoviet": "苏联",
+  "@indexRegionSoviet": { "description": "Index region option." },
+  "indexRegionCzech": "捷克",
+  "@indexRegionCzech": { "description": "Index region option." },
+  "indexRegionTaiwan": "中国台湾",
+  "@indexRegionTaiwan": { "description": "Index region option." },
+  "indexRegionMalaysia": "马来西亚",
+  "@indexRegionMalaysia": { "description": "Index region option." },
+  "indexGenreScifi": "科幻",
+  "indexGenreComedy": "喜剧",
+  "indexGenreDoujin": "同人",
+  "indexGenreYuri": "百合",
+  "indexGenreSchool": "校园",
+  "indexGenreThriller": "惊悚",
+  "indexGenreHarem": "后宫",
+  "indexGenreMecha": "机战",
+  "indexGenreMystery": "悬疑",
+  "indexGenreRomance": "恋爱",
+  "indexGenreFantasy": "奇幻",
+  "indexGenreDetective": "推理",
+  "indexGenreSports": "运动",
+  "indexGenreBoysLove": "耽美",
+  "indexGenreMusic": "音乐",
+  "indexGenreAction": "战斗",
+  "indexGenreAdventure": "冒险",
+  "indexGenreMoe": "萌系",
+  "indexGenreIsekai": "穿越",
+  "indexGenreXuanhuan": "玄幻",
+  "indexGenreOtome": "乙女",
+  "indexGenreHorror": "恐怖",
+  "indexGenreHistory": "历史",
+  "indexGenreSliceOfLife": "日常",
+  "indexGenreDrama": "剧情",
+  "indexGenreWuxia": "武侠",
+  "indexGenreFood": "美食",
+  "indexGenreWorkplace": "职场"
 }

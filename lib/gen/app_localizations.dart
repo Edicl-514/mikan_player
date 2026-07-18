@@ -3704,6 +3704,480 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'插画家'**
   String get personCareerIllustrator;
+
+  /// Secondary empty-state hint on the history page.
+  ///
+  /// In zh, this message translates to:
+  /// **'在播放页开始观看后会自动记录'**
+  String get historyEmptyHint;
+
+  /// Home anime card original-work line.
+  ///
+  /// In zh, this message translates to:
+  /// **'原作: {name}'**
+  String homeOriginalWork(String name);
+
+  /// Home anime card director line.
+  ///
+  /// In zh, this message translates to:
+  /// **'导演: {name}'**
+  String homeDirector(String name);
+
+  /// Continue-watching card episode progress line.
+  ///
+  /// In zh, this message translates to:
+  /// **'EP {sort} | {name}'**
+  String homeEpisodeProgress(String sort, String name);
+
+  /// Bangumi collection status: wish.
+  ///
+  /// In zh, this message translates to:
+  /// **'想看'**
+  String get favoritesStatusWish;
+
+  /// Bangumi collection status: watched.
+  ///
+  /// In zh, this message translates to:
+  /// **'看过'**
+  String get favoritesStatusWatched;
+
+  /// Bangumi collection status: watching.
+  ///
+  /// In zh, this message translates to:
+  /// **'在看'**
+  String get favoritesStatusWatching;
+
+  /// Bangumi collection status: on hold.
+  ///
+  /// In zh, this message translates to:
+  /// **'搁置'**
+  String get favoritesStatusOnHold;
+
+  /// Bangumi collection status: dropped.
+  ///
+  /// In zh, this message translates to:
+  /// **'抛弃'**
+  String get favoritesStatusDropped;
+
+  /// Bangumi collection status: unknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'未知'**
+  String get favoritesStatusUnknown;
+
+  /// Download task episode number label.
+  ///
+  /// In zh, this message translates to:
+  /// **'第{number}集'**
+  String downloadEpisodeNumber(int number);
+
+  /// Confirm deleting an active download task.
+  ///
+  /// In zh, this message translates to:
+  /// **'此任务正在运行中，确定要停止并删除吗？'**
+  String get downloadDeleteRunningConfirm;
+
+  /// Search sort option by date.
+  ///
+  /// In zh, this message translates to:
+  /// **'日期'**
+  String get searchSortDate;
+
+  /// Search sort option by title.
+  ///
+  /// In zh, this message translates to:
+  /// **'名称'**
+  String get searchSortTitle;
+
+  /// Fallback timetable archive title for current quarter.
+  ///
+  /// In zh, this message translates to:
+  /// **'{year}年{quarter}月'**
+  String timetableQuarterTitle(int year, int quarter);
+
+  /// Index browser filter group: category.
+  ///
+  /// In zh, this message translates to:
+  /// **'分类'**
+  String get indexFilterCategory;
+
+  /// Index browser filter group: source.
+  ///
+  /// In zh, this message translates to:
+  /// **'来源'**
+  String get indexFilterSource;
+
+  /// Index browser filter group: type/genre.
+  ///
+  /// In zh, this message translates to:
+  /// **'类型'**
+  String get indexFilterType;
+
+  /// Index browser filter group: region.
+  ///
+  /// In zh, this message translates to:
+  /// **'地区'**
+  String get indexFilterRegion;
+
+  /// Index browser filter group: sort.
+  ///
+  /// In zh, this message translates to:
+  /// **'排序'**
+  String get indexFilterSort;
+
+  /// Index browser time filter group.
+  ///
+  /// In zh, this message translates to:
+  /// **'时间'**
+  String get indexFilterTime;
+
+  /// Index browser month filter group.
+  ///
+  /// In zh, this message translates to:
+  /// **'月份'**
+  String get indexFilterMonth;
+
+  /// Index browser unrestricted filter option.
+  ///
+  /// In zh, this message translates to:
+  /// **'不限'**
+  String get indexUnlimited;
+
+  /// Index/search sort by rank.
+  ///
+  /// In zh, this message translates to:
+  /// **'排名'**
+  String get indexSortRank;
+
+  /// Index/search sort by match score.
+  ///
+  /// In zh, this message translates to:
+  /// **'相关度'**
+  String get indexSortMatch;
+
+  /// Index/search sort by collect/heat count.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏数'**
+  String get indexSortHeat;
+
+  /// Index sort by trends.
+  ///
+  /// In zh, this message translates to:
+  /// **'热度'**
+  String get indexSortTrends;
+
+  /// Legacy index sort by collect.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏'**
+  String get indexSortCollect;
+
+  /// Index sort by date.
+  ///
+  /// In zh, this message translates to:
+  /// **'日期'**
+  String get indexSortDate;
+
+  /// Index sort by title.
+  ///
+  /// In zh, this message translates to:
+  /// **'名称'**
+  String get indexSortTitle;
+
+  /// Index category option for theatrical movies.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧场版'**
+  String get indexCategoryMovie;
+
+  /// Index category/other option.
+  ///
+  /// In zh, this message translates to:
+  /// **'其他'**
+  String get indexCategoryOther;
+
+  /// Index source option: original.
+  ///
+  /// In zh, this message translates to:
+  /// **'原创'**
+  String get indexSourceOriginal;
+
+  /// Index source option: manga adaptation.
+  ///
+  /// In zh, this message translates to:
+  /// **'漫画改'**
+  String get indexSourceManga;
+
+  /// Index source option: game adaptation.
+  ///
+  /// In zh, this message translates to:
+  /// **'游戏改'**
+  String get indexSourceGame;
+
+  /// Index source option: novel adaptation.
+  ///
+  /// In zh, this message translates to:
+  /// **'小说改'**
+  String get indexSourceNovel;
+
+  /// Index source option: live-action adaptation.
+  ///
+  /// In zh, this message translates to:
+  /// **'影视改'**
+  String get indexSourceLiveAction;
+
+  /// Index month chip label.
+  ///
+  /// In zh, this message translates to:
+  /// **'{month}月'**
+  String indexMonthLabel(int month);
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'日本'**
+  String get indexRegionJapan;
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'欧美'**
+  String get indexRegionWestern;
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'中国'**
+  String get indexRegionChina;
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'美国'**
+  String get indexRegionUsa;
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'韩国'**
+  String get indexRegionKorea;
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'法国'**
+  String get indexRegionFrance;
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'中国香港'**
+  String get indexRegionHongKong;
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'英国'**
+  String get indexRegionUk;
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'俄罗斯'**
+  String get indexRegionRussia;
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'苏联'**
+  String get indexRegionSoviet;
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'捷克'**
+  String get indexRegionCzech;
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'中国台湾'**
+  String get indexRegionTaiwan;
+
+  /// Index region option.
+  ///
+  /// In zh, this message translates to:
+  /// **'马来西亚'**
+  String get indexRegionMalaysia;
+
+  /// No description provided for @indexGenreScifi.
+  ///
+  /// In zh, this message translates to:
+  /// **'科幻'**
+  String get indexGenreScifi;
+
+  /// No description provided for @indexGenreComedy.
+  ///
+  /// In zh, this message translates to:
+  /// **'喜剧'**
+  String get indexGenreComedy;
+
+  /// No description provided for @indexGenreDoujin.
+  ///
+  /// In zh, this message translates to:
+  /// **'同人'**
+  String get indexGenreDoujin;
+
+  /// No description provided for @indexGenreYuri.
+  ///
+  /// In zh, this message translates to:
+  /// **'百合'**
+  String get indexGenreYuri;
+
+  /// No description provided for @indexGenreSchool.
+  ///
+  /// In zh, this message translates to:
+  /// **'校园'**
+  String get indexGenreSchool;
+
+  /// No description provided for @indexGenreThriller.
+  ///
+  /// In zh, this message translates to:
+  /// **'惊悚'**
+  String get indexGenreThriller;
+
+  /// No description provided for @indexGenreHarem.
+  ///
+  /// In zh, this message translates to:
+  /// **'后宫'**
+  String get indexGenreHarem;
+
+  /// No description provided for @indexGenreMecha.
+  ///
+  /// In zh, this message translates to:
+  /// **'机战'**
+  String get indexGenreMecha;
+
+  /// No description provided for @indexGenreMystery.
+  ///
+  /// In zh, this message translates to:
+  /// **'悬疑'**
+  String get indexGenreMystery;
+
+  /// No description provided for @indexGenreRomance.
+  ///
+  /// In zh, this message translates to:
+  /// **'恋爱'**
+  String get indexGenreRomance;
+
+  /// No description provided for @indexGenreFantasy.
+  ///
+  /// In zh, this message translates to:
+  /// **'奇幻'**
+  String get indexGenreFantasy;
+
+  /// No description provided for @indexGenreDetective.
+  ///
+  /// In zh, this message translates to:
+  /// **'推理'**
+  String get indexGenreDetective;
+
+  /// No description provided for @indexGenreSports.
+  ///
+  /// In zh, this message translates to:
+  /// **'运动'**
+  String get indexGenreSports;
+
+  /// No description provided for @indexGenreBoysLove.
+  ///
+  /// In zh, this message translates to:
+  /// **'耽美'**
+  String get indexGenreBoysLove;
+
+  /// No description provided for @indexGenreMusic.
+  ///
+  /// In zh, this message translates to:
+  /// **'音乐'**
+  String get indexGenreMusic;
+
+  /// No description provided for @indexGenreAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'战斗'**
+  String get indexGenreAction;
+
+  /// No description provided for @indexGenreAdventure.
+  ///
+  /// In zh, this message translates to:
+  /// **'冒险'**
+  String get indexGenreAdventure;
+
+  /// No description provided for @indexGenreMoe.
+  ///
+  /// In zh, this message translates to:
+  /// **'萌系'**
+  String get indexGenreMoe;
+
+  /// No description provided for @indexGenreIsekai.
+  ///
+  /// In zh, this message translates to:
+  /// **'穿越'**
+  String get indexGenreIsekai;
+
+  /// No description provided for @indexGenreXuanhuan.
+  ///
+  /// In zh, this message translates to:
+  /// **'玄幻'**
+  String get indexGenreXuanhuan;
+
+  /// No description provided for @indexGenreOtome.
+  ///
+  /// In zh, this message translates to:
+  /// **'乙女'**
+  String get indexGenreOtome;
+
+  /// No description provided for @indexGenreHorror.
+  ///
+  /// In zh, this message translates to:
+  /// **'恐怖'**
+  String get indexGenreHorror;
+
+  /// No description provided for @indexGenreHistory.
+  ///
+  /// In zh, this message translates to:
+  /// **'历史'**
+  String get indexGenreHistory;
+
+  /// No description provided for @indexGenreSliceOfLife.
+  ///
+  /// In zh, this message translates to:
+  /// **'日常'**
+  String get indexGenreSliceOfLife;
+
+  /// No description provided for @indexGenreDrama.
+  ///
+  /// In zh, this message translates to:
+  /// **'剧情'**
+  String get indexGenreDrama;
+
+  /// No description provided for @indexGenreWuxia.
+  ///
+  /// In zh, this message translates to:
+  /// **'武侠'**
+  String get indexGenreWuxia;
+
+  /// No description provided for @indexGenreFood.
+  ///
+  /// In zh, this message translates to:
+  /// **'美食'**
+  String get indexGenreFood;
+
+  /// No description provided for @indexGenreWorkplace.
+  ///
+  /// In zh, this message translates to:
+  /// **'职场'**
+  String get indexGenreWorkplace;
 }
 
 class _AppLocalizationsDelegate

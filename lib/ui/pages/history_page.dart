@@ -98,7 +98,7 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _buildEmpty() {
+  Widget _buildEmpty(AppLocalizations l10n) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -106,12 +106,12 @@ class _HistoryPageState extends State<HistoryPage> {
           Icon(Icons.history, size: 64, color: Colors.grey[600]),
           const SizedBox(height: 16),
           Text(
-            '暂无播放记录',
+            l10n.noHistory,
             style: TextStyle(color: Colors.grey[600], fontSize: 16),
           ),
           const SizedBox(height: 8),
           Text(
-            '在播放页开始观看后会自动记录',
+            l10n.historyEmptyHint,
             style: TextStyle(color: Colors.grey[700], fontSize: 12),
           ),
         ],
@@ -132,7 +132,7 @@ class _HistoryPageState extends State<HistoryPage> {
           }
 
           final items = snapshot.data ?? <PlaybackHistoryItem>[];
-          if (items.isEmpty) return _buildEmpty();
+          if (items.isEmpty) return _buildEmpty(l10n);
 
           return RefreshIndicator(
             onRefresh: _reload,
@@ -144,6 +144,7 @@ class _HistoryPageState extends State<HistoryPage> {
               itemBuilder: (context, index) {
                 final item = items[index];
                 final coverUrl = item.coverUrl ?? '';
+                // i18n-ignore: product lexicon episode index prefix
                 final episodeLabel =
                     'EP ${_formatEpisodeSort(item.episodeSort)}';
 
@@ -183,7 +184,9 @@ class _HistoryPageState extends State<HistoryPage> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
+                    // Episode name comes from upstream; EP prefix is product lexicon.
                     subtitle: Text(
+                      // i18n-ignore: composed history subtitle with upstream episode title
                       '$episodeLabel  ${item.episodeNameCn.isNotEmpty ? item.episodeNameCn : item.episodeName}${item.lastPositionMs > 0 ? ' · ${_formatMs(item.lastPositionMs)}' : ''}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

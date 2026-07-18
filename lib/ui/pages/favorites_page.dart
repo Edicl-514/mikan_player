@@ -193,7 +193,7 @@ class _FavoritesPageState extends State<FavoritesPage>
             title: item.title,
             coverUrl: item.coverUrl,
             score: item.score,
-            subtitle: _getTypeLabel(item.type),
+            subtitle: _getTypeLabel(context, item.type),
             onTap: () {
               _navigateToDetails(
                 item.bangumiId.toString(),
@@ -279,7 +279,7 @@ class _FavoritesPageState extends State<FavoritesPage>
                 : item.subject.name,
             coverUrl: item.subject.images.large,
             score: item.subject.score,
-            subtitle: _getTypeLabel(item.type),
+            subtitle: _getTypeLabel(context, item.type),
             onTap: () {
               _navigateToDetails(
                 item.subject.id.toString(),
@@ -315,20 +315,21 @@ class _FavoritesPageState extends State<FavoritesPage>
     );
   }
 
-  String _getTypeLabel(int type) {
+  String _getTypeLabel(BuildContext context, int type) {
+    final l10n = AppLocalizations.of(context);
     switch (type) {
       case 1:
-        return '想看';
+        return l10n.favoritesStatusWish;
       case 2:
-        return '看过';
+        return l10n.favoritesStatusWatched;
       case 3:
-        return '在看';
+        return l10n.favoritesStatusWatching;
       case 4:
-        return '搁置';
+        return l10n.favoritesStatusOnHold;
       case 5:
-        return '抛弃';
+        return l10n.favoritesStatusDropped;
       default:
-        return '未知';
+        return l10n.favoritesStatusUnknown;
     }
   }
 

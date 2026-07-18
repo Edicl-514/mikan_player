@@ -21,6 +21,7 @@ import 'package:mikan_player/ui/pages/history_page.dart';
 import 'package:mikan_player/ui/pages/player_page.dart';
 import 'package:mikan_player/ui/pages/ranking_page.dart';
 import 'package:mikan_player/ui/pages/timetable_page.dart';
+import 'package:mikan_player/ui/utils/broadcast_day_tokens.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
 import 'package:mikan_player/ui/widgets/blurred_cover_background.dart';
@@ -129,8 +130,7 @@ class _HomePcPageState extends State<HomePcPage> {
         'count=${animes.length}',
       );
 
-      final weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-      final todayStr = weekDays[now.weekday - 1];
+      final todayStr = broadcastDayTokenForWeekday(now.weekday);
 
       var todayList = animes.where((a) => a.broadcastDay == todayStr).toList();
       debugPrint(
@@ -422,7 +422,7 @@ class _HomePcPageState extends State<HomePcPage> {
     );
   }
 
-  String _getExtraInfo(crawler.AnimeInfo anime) {
+  String _getExtraInfo(crawler.AnimeInfo anime, AppLocalizations l10n) {
     if (anime.fullJson == null || anime.fullJson!.isEmpty) return '';
     try {
       final data = jsonDecode(anime.fullJson!);
@@ -432,11 +432,13 @@ class _HomePcPageState extends State<HomePcPage> {
       if (data['infobox'] != null) {
         final infobox = data['infobox'] as List;
         for (final item in infobox) {
+          // i18n-ignore: upstream Bangumi infobox key token used for matching
           if (item['key'] == '导演') {
             final val = item['value'];
             director = (val is List)
                 ? val.map((v) => v['v'] ?? '').join(' / ')
                 : val.toString();
+            // i18n-ignore: upstream Bangumi infobox key token used for matching
           } else if (item['key'] == '原作') {
             final val = item['value'];
             original = (val is List)
@@ -447,8 +449,12 @@ class _HomePcPageState extends State<HomePcPage> {
       }
 
       List<String> infos = [];
-      if (original != null && original.isNotEmpty) infos.add('原作: $original');
-      if (director != null && director.isNotEmpty) infos.add('导演: $director');
+      if (original != null && original.isNotEmpty) {
+        infos.add(l10n.homeOriginalWork(original));
+      }
+      if (director != null && director.isNotEmpty) {
+        infos.add(l10n.homeDirector(director));
+      }
 
       String infoStr = infos.join('  |  ');
       if (summary.isNotEmpty) {
@@ -683,7 +689,7 @@ class _HomePcPageState extends State<HomePcPage> {
                                       Expanded(
                                         child: Builder(
                                           builder: (context) {
-                                            final extra = _getExtraInfo(anime);
+                                            final extra = _getExtraInfo(anime, AppLocalizations.of(context));
                                             if (extra.isEmpty) {
                                               return const SizedBox();
                                             }
@@ -868,7 +874,10 @@ class _HomePcPageState extends State<HomePcPage> {
                               ),
                             ),
                             Text(
-                              "EP ${item.episodeSort % 1 == 0 ? item.episodeSort.toInt() : item.episodeSort} | ${item.episodeName}",
+                              AppLocalizations.of(context).homeEpisodeProgress(
+                                '${item.episodeSort % 1 == 0 ? item.episodeSort.toInt() : item.episodeSort}',
+                                item.episodeName,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(

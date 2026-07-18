@@ -2035,4 +2035,255 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get personCareerIllustrator => 'Illustrator';
+
+  @override
+  String get historyEmptyHint =>
+      'History appears after you start watching on the player page';
+
+  @override
+  String homeOriginalWork(String name) {
+    return 'Original: $name';
+  }
+
+  @override
+  String homeDirector(String name) {
+    return 'Director: $name';
+  }
+
+  @override
+  String homeEpisodeProgress(String sort, String name) {
+    return 'EP $sort | $name';
+  }
+
+  @override
+  String get favoritesStatusWish => 'Wish';
+
+  @override
+  String get favoritesStatusWatched => 'Watched';
+
+  @override
+  String get favoritesStatusWatching => 'Watching';
+
+  @override
+  String get favoritesStatusOnHold => 'On hold';
+
+  @override
+  String get favoritesStatusDropped => 'Dropped';
+
+  @override
+  String get favoritesStatusUnknown => 'Unknown';
+
+  @override
+  String downloadEpisodeNumber(int number) {
+    return 'Episode $number';
+  }
+
+  @override
+  String get downloadDeleteRunningConfirm =>
+      'This task is still running. Stop and delete it?';
+
+  @override
+  String get searchSortDate => 'Date';
+
+  @override
+  String get searchSortTitle => 'Title';
+
+  @override
+  String timetableQuarterTitle(int year, int quarter) {
+    return '$year Q$quarter';
+  }
+
+  @override
+  String get indexFilterCategory => 'Category';
+
+  @override
+  String get indexFilterSource => 'Source';
+
+  @override
+  String get indexFilterType => 'Genre';
+
+  @override
+  String get indexFilterRegion => 'Region';
+
+  @override
+  String get indexFilterSort => 'Sort';
+
+  @override
+  String get indexFilterTime => 'Time';
+
+  @override
+  String get indexFilterMonth => 'Month';
+
+  @override
+  String get indexUnlimited => 'Any';
+
+  @override
+  String get indexSortRank => 'Rank';
+
+  @override
+  String get indexSortMatch => 'Match';
+
+  @override
+  String get indexSortHeat => 'Collects';
+
+  @override
+  String get indexSortTrends => 'Trends';
+
+  @override
+  String get indexSortCollect => 'Collect';
+
+  @override
+  String get indexSortDate => 'Date';
+
+  @override
+  String get indexSortTitle => 'Title';
+
+  @override
+  String get indexCategoryMovie => 'Movie';
+
+  @override
+  String get indexCategoryOther => 'Other';
+
+  @override
+  String get indexSourceOriginal => 'Original';
+
+  @override
+  String get indexSourceManga => 'Manga';
+
+  @override
+  String get indexSourceGame => 'Game';
+
+  @override
+  String get indexSourceNovel => 'Novel';
+
+  @override
+  String get indexSourceLiveAction => 'Live action';
+
+  @override
+  String indexMonthLabel(int month) {
+    return '$month';
+  }
+
+  @override
+  String get indexRegionJapan => 'Japan';
+
+  @override
+  String get indexRegionWestern => 'Western';
+
+  @override
+  String get indexRegionChina => 'China';
+
+  @override
+  String get indexRegionUsa => 'United States';
+
+  @override
+  String get indexRegionKorea => 'Korea';
+
+  @override
+  String get indexRegionFrance => 'France';
+
+  @override
+  String get indexRegionHongKong => 'Hong Kong';
+
+  @override
+  String get indexRegionUk => 'United Kingdom';
+
+  @override
+  String get indexRegionRussia => 'Russia';
+
+  @override
+  String get indexRegionSoviet => 'Soviet Union';
+
+  @override
+  String get indexRegionCzech => 'Czechia';
+
+  @override
+  String get indexRegionTaiwan => 'Taiwan';
+
+  @override
+  String get indexRegionMalaysia => 'Malaysia';
+
+  @override
+  String get indexGenreScifi => 'Sci-Fi';
+
+  @override
+  String get indexGenreComedy => 'Comedy';
+
+  @override
+  String get indexGenreDoujin => 'Doujin';
+
+  @override
+  String get indexGenreYuri => 'Yuri';
+
+  @override
+  String get indexGenreSchool => 'School';
+
+  @override
+  String get indexGenreThriller => 'Thriller';
+
+  @override
+  String get indexGenreHarem => 'Harem';
+
+  @override
+  String get indexGenreMecha => 'Mecha';
+
+  @override
+  String get indexGenreMystery => 'Mystery';
+
+  @override
+  String get indexGenreRomance => 'Romance';
+
+  @override
+  String get indexGenreFantasy => 'Fantasy';
+
+  @override
+  String get indexGenreDetective => 'Detective';
+
+  @override
+  String get indexGenreSports => 'Sports';
+
+  @override
+  String get indexGenreBoysLove => 'BL';
+
+  @override
+  String get indexGenreMusic => 'Music';
+
+  @override
+  String get indexGenreAction => 'Action';
+
+  @override
+  String get indexGenreAdventure => 'Adventure';
+
+  @override
+  String get indexGenreMoe => 'Moe';
+
+  @override
+  String get indexGenreIsekai => 'Isekai';
+
+  @override
+  String get indexGenreXuanhuan => 'Xuanhuan';
+
+  @override
+  String get indexGenreOtome => 'Otome';
+
+  @override
+  String get indexGenreHorror => 'Horror';
+
+  @override
+  String get indexGenreHistory => 'History';
+
+  @override
+  String get indexGenreSliceOfLife => 'Slice of Life';
+
+  @override
+  String get indexGenreDrama => 'Drama';
+
+  @override
+  String get indexGenreWuxia => 'Wuxia';
+
+  @override
+  String get indexGenreFood => 'Food';
+
+  @override
+  String get indexGenreWorkplace => 'Workplace';
 }
