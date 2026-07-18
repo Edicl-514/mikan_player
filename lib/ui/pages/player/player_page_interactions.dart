@@ -82,7 +82,7 @@ extension _PlayerPageInteractions on _PlayerPageState {
     );
   }
 
-  void _navigateToAnime(RankingAnime item) {
+  Future<void> _navigateToAnime(RankingAnime item) async {
     // Create AnimeInfo from RankingAnime
     final animeInfo = AnimeInfo(
       title: item.title,
@@ -94,13 +94,17 @@ extension _PlayerPageInteractions on _PlayerPageState {
       fullJson: null,
     );
 
-    // Navigate to details page or player page?
-    // Usually clicking a recommendation goes to details page.
-    // But user might want to play directly?
-    // Standard flow: Detail Page.
-    // But we are in PlayerPage.
-    // If we go to details page:
-    Navigator.of(context).push(
+    // Pause while covering with details so audio does not keep playing under
+    // the stack. Keep the PlayerPage (and media_kit Player) mounted via push
+    // so returning can resume from the same session. Only auto-resume if we
+    // paused for this navigation (do not start play if the user was already
+    // paused).
+    final shouldResume = _player.state.playing;
+    if (shouldResume) {
+      unawaited(_player.pause());
+    }
+
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => BangumiDetailsPage(
           anime: animeInfo,
@@ -108,5 +112,8 @@ extension _PlayerPageInteractions on _PlayerPageState {
         ),
       ),
     );
+
+    if (!mounted || !shouldResume) return;
+    unawaited(_player.play());
   }
 }
