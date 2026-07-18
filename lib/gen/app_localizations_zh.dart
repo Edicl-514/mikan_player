@@ -1684,4 +1684,77 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get bangumiBaseUrlHidden => '已启用 ECH 或反代，Bangumi Base URL 不生效';
+
+  @override
+  String get closeSettingsBarrier => '关闭设置';
+
+  @override
+  String get closeEpisodesBarrier => '关闭选集';
+
+  @override
+  String get statusEnabled => '已开启';
+
+  @override
+  String get statusDisabled => '已关闭';
+
+  @override
+  String get noSubtitlesAvailable => '暂无字幕';
+
+  @override
+  String get danmakuSettingsTitle => '弹幕设置';
+
+  @override
+  String get subtitleSettingsTitle => '字幕设置';
+
+  @override
+  String get commonPlaybackSpeeds => '常用倍速';
+
+  @override
+  String playbackSpeedWithNormal(String speed) {
+    return '$speed (正常)';
+  }
+
+  @override
+  String currentSourceOnly(String label) {
+    return '当前：$label';
+  }
+
+  @override
+  String currentSourceWithOnlineCount(String label, int count) {
+    return '当前：$label ($count个在线源可切换)';
+  }
+
+  @override
+  String sourceLabelWithAvailableCount(String label, int count) {
+    return '$label ($count个可用)';
+  }
+
+  @override
+  String get noAvailableSourcesShort => '暂无可用源';
+
+  @override
+  String get notPlaying => '未播放';
+
+  @override
+  String rewindSeconds(int seconds) {
+    return '快退 ${seconds}s';
+  }
+
+  @override
+  String forwardSeconds(int seconds) {
+    return '快进 ${seconds}s';
+  }
+
+  @override
+  String brightnessPercent(int percent) {
+    return '亮度 $percent%';
+  }
+
+  @override
+  String volumePercent(int percent) {
+    return '音量 $percent%';
+  }
+
+  @override
+  String get longPressFastForward => '长按快进 2x';
 }

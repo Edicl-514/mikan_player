@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
@@ -12,6 +13,7 @@ import 'package:mikan_player/ui/widgets/subtitle_overlay.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/episode_side_panel.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/mobile_gesture_and_lock_layer.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/settings_panel.dart';
+import 'package:mikan_player/ui/widgets/video_player_controls/source_list_panel.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/system_time_display.dart';
 
 /// 自定义视频播放器控件 - 整合弹幕与播放控制
@@ -79,7 +81,8 @@ class CustomVideoControls extends StatefulWidget {
     this.availableSourcesListenable,
     this.sourceIndexNotifier,
     required this.onSourceSelected,
-    this.currentSourceLabel = '未知',
+    // i18n-ignore: protocol sentinel shared with player_playback_controller
+    this.currentSourceLabel = kPlayerSourceLabelUnknown,
     this.currentSourceLabelListenable,
     this.isLoading = false,
     required this.onUserInteraction,
@@ -160,13 +163,15 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
     final onToggleDanmakuSettings = widget.onToggleDanmakuSettings;
     final state = widget.state;
 
+    final l10n = AppLocalizations.of(context);
+
     // 计算当前集数索引，用于控制按钮显示
     // 移动端 - 非全屏顶部按钮栏
     final mobileNormalTopButtonBar = [
       IconButton(
         onPressed: () => Navigator.of(context).pop(),
         icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-        tooltip: '返回',
+        tooltip: l10n.back,
       ),
       const Spacer(),
       ListenableBuilder(
@@ -177,7 +182,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
           return _buildIntegratedButton(
             context: context,
             icon: settings.enabled ? Icons.subtitles : Icons.subtitles_off,
-            label: "弹幕",
+            label: l10n.danmaku,
             isActive: settings.enabled,
             onPressed: hasData ? danmakuService.toggleEnabled : null,
           );
@@ -198,7 +203,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
       IconButton(
         onPressed: () => Navigator.of(context).pop(),
         icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-        tooltip: '返回',
+        tooltip: l10n.back,
       ),
       if (videoTitle != null) ...[
         const SizedBox(width: 8),
@@ -257,7 +262,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
         builder: (ctx) => _buildIntegratedButton(
           context: context,
           icon: Icons.playlist_play,
-          label: "选集",
+          label: l10n.selectEpisode,
           onPressed: () => _showEpisodeSidePanel(ctx),
         ),
       ),
@@ -272,14 +277,14 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
       _buildIntegratedButton(
         context: context,
         icon: Icons.fast_rewind,
-        label: "空降-85s",
+        label: l10n.skipBack85,
         onPressed: () => _onSkipTime(-85),
       ),
       const SizedBox(width: 8),
       _buildIntegratedButton(
         context: context,
         icon: Icons.fast_forward,
-        label: "空降+85s",
+        label: l10n.skipForward85,
         onPressed: () => _onSkipTime(85),
       ),
       const SizedBox(width: 16),
@@ -295,14 +300,14 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
       _buildIntegratedButton(
         context: context,
         icon: Icons.fast_rewind,
-        label: "空降-85s",
+        label: l10n.skipBack85,
         onPressed: () => _onSkipTime(-85),
       ),
       const SizedBox(width: 8),
       _buildIntegratedButton(
         context: context,
         icon: Icons.fast_forward,
-        label: "空降+85s",
+        label: l10n.skipForward85,
         onPressed: () => _onSkipTime(85),
       ),
       const SizedBox(width: 16),
@@ -577,7 +582,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
                       ),
                       _buildFullscreenLockPositionedButton(
                         icon: Icons.lock,
-                        tooltip: '解锁',
+                        tooltip: AppLocalizations.of(context).unlock,
                         onPressed: () => mobilePlayerLockNotifier.value = false,
                       ),
                     ],
@@ -863,7 +868,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
       showGeneralDialog(
         context: context,
         barrierDismissible: true,
-        barrierLabel: '关闭设置',
+        barrierLabel: AppLocalizations.of(context).closeSettingsBarrier,
         barrierColor: Colors.black54,
         transitionDuration: const Duration(milliseconds: 250),
         pageBuilder: (context, animation, secondaryAnimation) {
@@ -945,7 +950,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: '关闭设置',
+      barrierLabel: AppLocalizations.of(context).closeSettingsBarrier,
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 250),
       pageBuilder: (context, animation, secondaryAnimation) {
@@ -992,7 +997,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: '关闭选集',
+      barrierLabel: AppLocalizations.of(context).closeEpisodesBarrier,
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 250),
       pageBuilder: (context, animation, secondaryAnimation) {

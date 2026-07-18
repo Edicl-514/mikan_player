@@ -3248,6 +3248,120 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已启用 ECH 或反代，Bangumi Base URL 不生效'**
   String get bangumiBaseUrlHidden;
+
+  /// Modal barrier label for dismissing the player settings panel.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭设置'**
+  String get closeSettingsBarrier;
+
+  /// Modal barrier label for dismissing the episode side panel.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭选集'**
+  String get closeEpisodesBarrier;
+
+  /// Generic enabled/on status subtitle in player settings.
+  ///
+  /// In zh, this message translates to:
+  /// **'已开启'**
+  String get statusEnabled;
+
+  /// Generic disabled/off status subtitle in player settings.
+  ///
+  /// In zh, this message translates to:
+  /// **'已关闭'**
+  String get statusDisabled;
+
+  /// Subtitle menu status when the current video has no tracks.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无字幕'**
+  String get noSubtitlesAvailable;
+
+  /// Player settings submenu title for danmaku.
+  ///
+  /// In zh, this message translates to:
+  /// **'弹幕设置'**
+  String get danmakuSettingsTitle;
+
+  /// Player settings submenu title for subtitles.
+  ///
+  /// In zh, this message translates to:
+  /// **'字幕设置'**
+  String get subtitleSettingsTitle;
+
+  /// Section header for playback speed presets.
+  ///
+  /// In zh, this message translates to:
+  /// **'常用倍速'**
+  String get commonPlaybackSpeeds;
+
+  /// Playback speed label with normal-speed tag.
+  ///
+  /// In zh, this message translates to:
+  /// **'{speed} (正常)'**
+  String playbackSpeedWithNormal(String speed);
+
+  /// Source menu subtitle when a non-online label is playing.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前：{label}'**
+  String currentSourceOnly(String label);
+
+  /// Source menu subtitle with online source count.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前：{label} ({count}个在线源可切换)'**
+  String currentSourceWithOnlineCount(String label, int count);
+
+  /// Source menu subtitle for the active online source.
+  ///
+  /// In zh, this message translates to:
+  /// **'{label} ({count}个可用)'**
+  String sourceLabelWithAvailableCount(String label, int count);
+
+  /// Short empty-source status in the player settings source menu.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可用源'**
+  String get noAvailableSourcesShort;
+
+  /// Display label when no source is currently playing. Internal sentinel remains Chinese.
+  ///
+  /// In zh, this message translates to:
+  /// **'未播放'**
+  String get notPlaying;
+
+  /// Mobile gesture overlay for rewinding.
+  ///
+  /// In zh, this message translates to:
+  /// **'快退 {seconds}s'**
+  String rewindSeconds(int seconds);
+
+  /// Mobile gesture overlay for seeking forward.
+  ///
+  /// In zh, this message translates to:
+  /// **'快进 {seconds}s'**
+  String forwardSeconds(int seconds);
+
+  /// Mobile brightness gesture overlay.
+  ///
+  /// In zh, this message translates to:
+  /// **'亮度 {percent}%'**
+  String brightnessPercent(int percent);
+
+  /// Mobile volume gesture overlay.
+  ///
+  /// In zh, this message translates to:
+  /// **'音量 {percent}%'**
+  String volumePercent(int percent);
+
+  /// Mobile long-press 2x speed overlay label.
+  ///
+  /// In zh, this message translates to:
+  /// **'长按快进 2x'**
+  String get longPressFastForward;
 }
 
 class _AppLocalizationsDelegate

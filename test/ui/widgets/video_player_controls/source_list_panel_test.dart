@@ -1,10 +1,8 @@
 // Phase 1 / Package A focused widget tests for the extracted
 // `SourceListPanel` widget.
 //
-// The panel is a pure Flutter widget tree (no network, no WebView, no media
-// player, no platform channels), so these tests exercise the real widget under
-// a `MaterialApp` and assert on the rendered source cards, empty state,
-// selection styling, callback forwarding, and `ValueListenable` reactivity.
+// L10N-2: empty-state copy uses AppLocalizations, so the tree is pumped through
+// pumpLocalizedWidget. Pure helpers remain locale-free.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/source_list_panel.dart';
+
+import '../../../support/localized_widget_tester.dart';
 
 SearchPlayResult _source({
   String sourceName = 'srcA',
@@ -30,8 +30,8 @@ SearchPlayResult _source({
   );
 }
 
-Widget _wrap(
-  Widget child, {
+Future<void> _pumpPanel(
+  WidgetTester tester, {
   required List<SearchPlayResult> availableSources,
   String currentSourceLabel = '',
   ValueListenable<List<SearchPlayResult>>? availableSourcesListenable,
@@ -39,9 +39,11 @@ Widget _wrap(
   ValueListenable<String>? currentSourceLabelListenable,
   void Function(int)? onSourceSelected,
   ScrollController? scrollController,
-}) {
-  return MaterialApp(
-    home: Scaffold(
+  Locale locale = const Locale('zh'),
+}) async {
+  await pumpLocalizedWidget(
+    tester,
+    Scaffold(
       body: Center(
         child: SourceListPanel(
           availableSources: availableSources,
@@ -54,21 +56,39 @@ Widget _wrap(
         ),
       ),
     ),
+    locale: locale,
   );
 }
 
 void main() {
   group('SourceListPanel', () {
-    testWidgets('empty availableSources renders the empty-state message', (
+    testWidgets('empty availableSources renders localized empty-state (zh)', (
       tester,
     ) async {
-      await tester.pumpWidget(
-        _wrap(Container(), availableSources: const <SearchPlayResult>[]),
+      await _pumpPanel(
+        tester,
+        availableSources: const <SearchPlayResult>[],
+        locale: const Locale('zh'),
       );
 
-      expect(find.text('暂无可用播放源'), findsOneWidget);
+      final l10n = localizedOf(tester);
+      expect(find.text(l10n.noAvailablePlaybackSource), findsOneWidget);
       expect(find.byIcon(Icons.videocam_off_outlined), findsOneWidget);
       expect(find.byType(ListView), findsNothing);
+    });
+
+    testWidgets('empty availableSources renders localized empty-state (en)', (
+      tester,
+    ) async {
+      await _pumpPanel(
+        tester,
+        availableSources: const <SearchPlayResult>[],
+        locale: const Locale('en'),
+      );
+
+      final l10n = localizedOf(tester);
+      expect(find.text(l10n.noAvailablePlaybackSource), findsOneWidget);
+      expect(find.text('暂无可用播放源'), findsNothing);
     });
 
     testWidgets('renders one card per source with sourceName label', (
@@ -78,7 +98,7 @@ void main() {
         _source(sourceName: 'sourceOne'),
         _source(sourceName: 'sourceTwo'),
       ];
-      await tester.pumpWidget(_wrap(Container(), availableSources: sources));
+      await _pumpPanel(tester, availableSources: sources);
 
       expect(find.text('sourceOne'), findsOneWidget);
       expect(find.text('sourceTwo'), findsOneWidget);
@@ -92,18 +112,13 @@ void main() {
         _source(sourceName: 'alpha', channelName: 'ch1'),
         _source(sourceName: 'beta'),
       ];
-      // currentSourceLabel matches sourceDisplayLabel(sources[0]) == 'alpha(ch1)'.
-      await tester.pumpWidget(
-        _wrap(
-          Container(),
-          availableSources: sources,
-          currentSourceLabel: 'alpha(ch1)',
-        ),
+      await _pumpPanel(
+        tester,
+        availableSources: sources,
+        currentSourceLabel: 'alpha(ch1)',
       );
 
-      // Only the selected card renders the trailing check_circle icon.
       expect(find.byIcon(Icons.check_circle), findsOneWidget);
-      // The selected sourceName should be styled bold.
       final textWidgets = tester.widgetList<Text>(find.byType(Text));
       final selectedText = textWidgets.firstWhere((t) => t.data == 'alpha');
       expect(selectedText.style?.fontWeight, FontWeight.bold);
@@ -117,12 +132,10 @@ void main() {
         _source(sourceName: 'beta'),
       ];
       int? captured;
-      await tester.pumpWidget(
-        _wrap(
-          Container(),
-          availableSources: sources,
-          onSourceSelected: (index) => captured = index,
-        ),
+      await _pumpPanel(
+        tester,
+        availableSources: sources,
+        onSourceSelected: (index) => captured = index,
       );
 
       await tester.tap(find.text('beta'));
@@ -142,15 +155,13 @@ void main() {
         final labelNotifier = ValueNotifier<String>('fresh');
         final indexNotifier = ValueNotifier<int>(0);
 
-        await tester.pumpWidget(
-          _wrap(
-            Container(),
-            availableSources: staleSources,
-            availableSourcesListenable: sourcesNotifier,
-            currentSourceLabel: 'stale',
-            currentSourceLabelListenable: labelNotifier,
-            sourceIndexNotifier: indexNotifier,
-          ),
+        await _pumpPanel(
+          tester,
+          availableSources: staleSources,
+          availableSourcesListenable: sourcesNotifier,
+          currentSourceLabel: 'stale',
+          currentSourceLabelListenable: labelNotifier,
+          sourceIndexNotifier: indexNotifier,
         );
 
         expect(find.text('fresh'), findsOneWidget);
@@ -163,20 +174,19 @@ void main() {
       tester,
     ) async {
       final notifier = ValueNotifier<List<SearchPlayResult>>(const []);
-      await tester.pumpWidget(
-        _wrap(
-          Container(),
-          availableSources: const <SearchPlayResult>[],
-          availableSourcesListenable: notifier,
-        ),
+      await _pumpPanel(
+        tester,
+        availableSources: const <SearchPlayResult>[],
+        availableSourcesListenable: notifier,
       );
 
-      expect(find.text('暂无可用播放源'), findsOneWidget);
+      final l10n = localizedOf(tester);
+      expect(find.text(l10n.noAvailablePlaybackSource), findsOneWidget);
 
       notifier.value = [_source(sourceName: 'lateOne')];
       await tester.pumpAndSettle();
 
-      expect(find.text('暂无可用播放源'), findsNothing);
+      expect(find.text(l10n.noAvailablePlaybackSource), findsNothing);
       expect(find.text('lateOne'), findsOneWidget);
     });
 
@@ -188,19 +198,15 @@ void main() {
           _source(sourceName: 'beta'),
         ];
         final labelNotifier = ValueNotifier<String>('');
-        await tester.pumpWidget(
-          _wrap(
-            Container(),
-            availableSources: sources,
-            currentSourceLabelListenable: labelNotifier,
-            currentSourceLabel: '',
-          ),
+        await _pumpPanel(
+          tester,
+          availableSources: sources,
+          currentSourceLabelListenable: labelNotifier,
+          currentSourceLabel: '',
         );
 
-        // No label -> nothing selected.
         expect(find.byIcon(Icons.check_circle), findsNothing);
 
-        // Move selection to source 1 (display label == 'alpha').
         labelNotifier.value = 'alpha';
         await tester.pumpAndSettle();
 
@@ -210,7 +216,6 @@ void main() {
             .firstWhere((t) => t.data == 'alpha');
         expect(alpha.style?.fontWeight, FontWeight.bold);
 
-        // Move selection to source 2 (display label == 'beta').
         labelNotifier.value = 'beta';
         await tester.pumpAndSettle();
 
@@ -259,6 +264,11 @@ void main() {
         resolveActiveOnlineSourceIndex(const <SearchPlayResult>[], 'x'),
         isNull,
       );
+    });
+
+    test('protocol source-label sentinels stay fixed Chinese tokens', () {
+      expect(kPlayerSourceLabelUnknown, '未知');
+      expect(kPlayerSourceLabelNotPlaying, '未播放');
     });
   });
 }

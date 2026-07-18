@@ -47,3 +47,13 @@
 - 修复：改为比较 `millisecondsSinceEpoch`。
 - 回归测试：`equalsClockTime ignores microseconds within a millisecond`。
 - 迁移/回滚：不涉及。
+
+### L10N-2-001 — `EpisodeSidePanel` 标题行在英文 locale 下横向 overflow
+
+- 工作包：L10N-2（2026-07-18）
+- 现象：英文文案 `Episodes` + `{count} episodes` 与关闭按钮在 280px 侧栏内挤爆 `Row`，widget 测试报 `A RenderFlex overflowed by … pixels on the right`。
+- 根因：标题与计数 `Text` 未包 `Flexible`/`Expanded`，固定宽度侧栏无法收缩长英文串。
+- 影响：英文 locale 下选集侧栏标题可能被裁切并触发 layout exception（测试与调试构建可见黄黑条）。
+- 修复：标题与计数各包 `Flexible`，并加 `TextOverflow.ellipsis`。
+- 回归测试：`EpisodeSidePanel renders localized header in en`。
+- 迁移/回滚：不涉及。

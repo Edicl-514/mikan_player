@@ -1759,4 +1759,77 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get bangumiBaseUrlHidden =>
       'ECH or reverse proxy is enabled — Bangumi Base URL is hidden';
+
+  @override
+  String get closeSettingsBarrier => 'Close settings';
+
+  @override
+  String get closeEpisodesBarrier => 'Close episodes';
+
+  @override
+  String get statusEnabled => 'On';
+
+  @override
+  String get statusDisabled => 'Off';
+
+  @override
+  String get noSubtitlesAvailable => 'No subtitles';
+
+  @override
+  String get danmakuSettingsTitle => 'Danmaku settings';
+
+  @override
+  String get subtitleSettingsTitle => 'Subtitle settings';
+
+  @override
+  String get commonPlaybackSpeeds => 'Common speeds';
+
+  @override
+  String playbackSpeedWithNormal(String speed) {
+    return '$speed (Normal)';
+  }
+
+  @override
+  String currentSourceOnly(String label) {
+    return 'Current: $label';
+  }
+
+  @override
+  String currentSourceWithOnlineCount(String label, int count) {
+    return 'Current: $label ($count online sources)';
+  }
+
+  @override
+  String sourceLabelWithAvailableCount(String label, int count) {
+    return '$label ($count available)';
+  }
+
+  @override
+  String get noAvailableSourcesShort => 'No sources available';
+
+  @override
+  String get notPlaying => 'Not playing';
+
+  @override
+  String rewindSeconds(int seconds) {
+    return 'Rewind ${seconds}s';
+  }
+
+  @override
+  String forwardSeconds(int seconds) {
+    return 'Forward ${seconds}s';
+  }
+
+  @override
+  String brightnessPercent(int percent) {
+    return 'Brightness $percent%';
+  }
+
+  @override
+  String volumePercent(int percent) {
+    return 'Volume $percent%';
+  }
+
+  @override
+  String get longPressFastForward => 'Hold for 2x';
 }

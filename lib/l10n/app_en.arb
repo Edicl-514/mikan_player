@@ -70,35 +70,45 @@
   "@networkBangumiDataCachedSize": {
     "description": "Status line for cached broadcast data, where {size} is a localized size like '1.2 MB' or '512 KB'.",
     "placeholders": {
-      "size": { "type": "String" }
+      "size": {
+        "type": "String"
+      }
     }
   },
   "networkBangumiDataSyncTime": "Synced at {time}",
   "@networkBangumiDataSyncTime": {
     "description": "Status line shown after the cached size, where {time} is a localized date-time string.",
     "placeholders": {
-      "time": { "type": "String" }
+      "time": {
+        "type": "String"
+      }
     }
   },
   "networkBangumiDataVersion": "v{version}",
   "@networkBangumiDataVersion": {
     "description": "Version suffix shown after the cached size and sync time.",
     "placeholders": {
-      "version": { "type": "String" }
+      "version": {
+        "type": "String"
+      }
     }
   },
   "networkBangumiDataFailedMins": "Last sync failed {minutes} min ago",
   "@networkBangumiDataFailedMins": {
     "description": "Status suffix shown when the last sync failed less than an hour ago.",
     "placeholders": {
-      "minutes": { "type": "int" }
+      "minutes": {
+        "type": "int"
+      }
     }
   },
   "networkBangumiDataFailedHours": "Last sync failed {hours} h ago",
   "@networkBangumiDataFailedHours": {
     "description": "Status suffix shown when the last sync failed an hour or more ago.",
     "placeholders": {
-      "hours": { "type": "int" }
+      "hours": {
+        "type": "int"
+      }
     }
   },
   "networkBangumiDataRefreshSuccess": "Offline broadcast data updated",
@@ -135,12 +145,24 @@
   "@cacheStatsSummary": {
     "description": "Summary of the cached Bangumi data and image cache size shown in Settings.",
     "placeholders": {
-      "subjects": { "type": "int" },
-      "characters": { "type": "int" },
-      "relations": { "type": "int" },
-      "timetables": { "type": "int" },
-      "rankings": { "type": "int" },
-      "imageSize": { "type": "String" }
+      "subjects": {
+        "type": "int"
+      },
+      "characters": {
+        "type": "int"
+      },
+      "relations": {
+        "type": "int"
+      },
+      "timetables": {
+        "type": "int"
+      },
+      "rankings": {
+        "type": "int"
+      },
+      "imageSize": {
+        "type": "String"
+      }
     }
   },
   "refresh": "Refresh",
@@ -291,7 +313,9 @@
   "@dataSourceConfigEditing": {
     "description": "AppBar title when editing an existing data source.",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "dataSourceConfigEnableCaptcha": "Enable captcha handling",
@@ -320,8 +344,12 @@
   "@dataSourceConfigIntegerRange": {
     "description": "Validation error when a numeric source configuration field is outside the range Rust accepts.",
     "placeholders": {
-      "min": { "type": "int" },
-      "max": { "type": "int" }
+      "min": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
     }
   },
   "dataSourceConfigJsonPreviewSub": "Used to review the saved content",
@@ -352,7 +380,9 @@
   "@dataSourceConfigSaveFailed": {
     "description": "SnackBar message shown when saving the data source fails.",
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
   },
   "dataSourceConfigSearchUrl": "Search URL",
@@ -360,14 +390,18 @@
   "@dataSourceConfigSearchUrlHelper": {
     "description": "Helper text under the search URL field explaining the {keyword} placeholder.",
     "placeholders": {
-      "keyword": { "type": "String" }
+      "keyword": {
+        "type": "String"
+      }
     }
   },
   "dataSourceConfigSearchUrlHint": "https://example.com/search?wd={keyword}",
   "@dataSourceConfigSearchUrlHint": {
     "description": "Example URL shown as the hint of the search URL field.",
     "placeholders": {
-      "keyword": { "type": "String" }
+      "keyword": {
+        "type": "String"
+      }
     }
   },
   "dataSourceConfigSortRegex": "Episode number regex",
@@ -595,5 +629,127 @@
   "builtinUrlCannotRemove": "Built-in URLs cannot be removed",
   "urlAlreadyExists": "This URL already exists",
   "invalidUrl": "Enter a valid URL (starting with http:// or https://)",
-  "bangumiBaseUrlHidden": "ECH or reverse proxy is enabled — Bangumi Base URL is hidden"
+  "bangumiBaseUrlHidden": "ECH or reverse proxy is enabled — Bangumi Base URL is hidden",
+  "closeSettingsBarrier": "Close settings",
+  "@closeSettingsBarrier": {
+    "description": "Modal barrier label for dismissing the player settings panel."
+  },
+  "closeEpisodesBarrier": "Close episodes",
+  "@closeEpisodesBarrier": {
+    "description": "Modal barrier label for dismissing the episode side panel."
+  },
+  "statusEnabled": "On",
+  "@statusEnabled": {
+    "description": "Generic enabled/on status subtitle in player settings."
+  },
+  "statusDisabled": "Off",
+  "@statusDisabled": {
+    "description": "Generic disabled/off status subtitle in player settings."
+  },
+  "noSubtitlesAvailable": "No subtitles",
+  "@noSubtitlesAvailable": {
+    "description": "Subtitle menu status when the current video has no tracks."
+  },
+  "danmakuSettingsTitle": "Danmaku settings",
+  "@danmakuSettingsTitle": {
+    "description": "Player settings submenu title for danmaku."
+  },
+  "subtitleSettingsTitle": "Subtitle settings",
+  "@subtitleSettingsTitle": {
+    "description": "Player settings submenu title for subtitles."
+  },
+  "commonPlaybackSpeeds": "Common speeds",
+  "@commonPlaybackSpeeds": {
+    "description": "Section header for playback speed presets."
+  },
+  "playbackSpeedWithNormal": "{speed} (Normal)",
+  "@playbackSpeedWithNormal": {
+    "description": "Playback speed label with normal-speed tag.",
+    "placeholders": {
+      "speed": {
+        "type": "String"
+      }
+    }
+  },
+  "currentSourceOnly": "Current: {label}",
+  "@currentSourceOnly": {
+    "description": "Source menu subtitle when a non-online label is playing.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "currentSourceWithOnlineCount": "Current: {label} ({count} online sources)",
+  "@currentSourceWithOnlineCount": {
+    "description": "Source menu subtitle with online source count.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sourceLabelWithAvailableCount": "{label} ({count} available)",
+  "@sourceLabelWithAvailableCount": {
+    "description": "Source menu subtitle for the active online source.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noAvailableSourcesShort": "No sources available",
+  "@noAvailableSourcesShort": {
+    "description": "Short empty-source status in the player settings source menu."
+  },
+  "notPlaying": "Not playing",
+  "@notPlaying": {
+    "description": "Display label when no source is currently playing. Internal sentinel remains Chinese."
+  },
+  "rewindSeconds": "Rewind {seconds}s",
+  "@rewindSeconds": {
+    "description": "Mobile gesture overlay for rewinding.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "forwardSeconds": "Forward {seconds}s",
+  "@forwardSeconds": {
+    "description": "Mobile gesture overlay for seeking forward.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "brightnessPercent": "Brightness {percent}%",
+  "@brightnessPercent": {
+    "description": "Mobile brightness gesture overlay.",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "volumePercent": "Volume {percent}%",
+  "@volumePercent": {
+    "description": "Mobile volume gesture overlay.",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "longPressFastForward": "Hold for 2x",
+  "@longPressFastForward": {
+    "description": "Mobile long-press 2x speed overlay label."
+  }
 }

@@ -1,7 +1,33 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
+
+// Protocol sentinels compared in settings_panel source subtitle and used as
+// the CustomVideoControls default when no label is supplied.
+// i18n-ignore: protocol sentinel for unknown source label
+const String kPlayerSourceLabelUnknown = '未知';
+
+// Protocol sentinel written by PlayerPlaybackController when nothing is
+// playing. Display layer maps it via [displayPlayerSourceLabel].
+// i18n-ignore: protocol sentinel for not-playing source label
+const String kPlayerSourceLabelNotPlaying = '未播放';
+
+/// Maps internal source-label sentinels to locale-aware display text.
+///
+/// Real source/channel names pass through unchanged. Sentinels stay as fixed
+/// protocol tokens in non-UI layers so comparisons remain stable across locales.
+String displayPlayerSourceLabel(AppLocalizations l10n, String label) {
+  final trimmed = label.trim();
+  if (trimmed == kPlayerSourceLabelUnknown) {
+    return l10n.selectedSourceUnknown;
+  }
+  if (trimmed == kPlayerSourceLabelNotPlaying) {
+    return l10n.notPlaying;
+  }
+  return label;
+}
 
 String sourceDisplayLabel(SearchPlayResult source) {
   final channelName = source.channelName;
@@ -257,7 +283,7 @@ class _SourceListPanelState extends State<SourceListPanel> {
             Icon(Icons.videocam_off_outlined, size: 64, color: emptyIconColor),
             const SizedBox(height: 16),
             Text(
-              '暂无可用播放源',
+              AppLocalizations.of(context).noAvailablePlaybackSource,
               style: TextStyle(color: subTextColor, fontSize: 14),
             ),
           ],

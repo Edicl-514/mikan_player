@@ -70,35 +70,45 @@
   "@networkBangumiDataCachedSize": {
     "description": "Status line for cached broadcast data, where {size} is a localized size like '1.2 MB' or '512 KB'.",
     "placeholders": {
-      "size": { "type": "String" }
+      "size": {
+        "type": "String"
+      }
     }
   },
   "networkBangumiDataSyncTime": "同步于 {time}",
   "@networkBangumiDataSyncTime": {
     "description": "Status line shown after the cached size, where {time} is a localized date-time string.",
     "placeholders": {
-      "time": { "type": "String" }
+      "time": {
+        "type": "String"
+      }
     }
   },
   "networkBangumiDataVersion": "v{version}",
   "@networkBangumiDataVersion": {
     "description": "Version suffix shown after the cached size and sync time.",
     "placeholders": {
-      "version": { "type": "String" }
+      "version": {
+        "type": "String"
+      }
     }
   },
   "networkBangumiDataFailedMins": "{minutes}分钟前同步失败",
   "@networkBangumiDataFailedMins": {
     "description": "Status suffix shown when the last sync failed less than an hour ago.",
     "placeholders": {
-      "minutes": { "type": "int" }
+      "minutes": {
+        "type": "int"
+      }
     }
   },
   "networkBangumiDataFailedHours": "{hours}小时前同步失败",
   "@networkBangumiDataFailedHours": {
     "description": "Status suffix shown when the last sync failed an hour or more ago.",
     "placeholders": {
-      "hours": { "type": "int" }
+      "hours": {
+        "type": "int"
+      }
     }
   },
   "networkBangumiDataRefreshSuccess": "已更新离线放送数据",
@@ -135,12 +145,24 @@
   "@cacheStatsSummary": {
     "description": "Summary of the cached Bangumi data and image cache size shown in Settings.",
     "placeholders": {
-      "subjects": { "type": "int" },
-      "characters": { "type": "int" },
-      "relations": { "type": "int" },
-      "timetables": { "type": "int" },
-      "rankings": { "type": "int" },
-      "imageSize": { "type": "String" }
+      "subjects": {
+        "type": "int"
+      },
+      "characters": {
+        "type": "int"
+      },
+      "relations": {
+        "type": "int"
+      },
+      "timetables": {
+        "type": "int"
+      },
+      "rankings": {
+        "type": "int"
+      },
+      "imageSize": {
+        "type": "String"
+      }
     }
   },
   "refresh": "刷新",
@@ -291,7 +313,9 @@
   "@dataSourceConfigEditing": {
     "description": "AppBar title when editing an existing data source.",
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "dataSourceConfigEnableCaptcha": "启用验证码处理",
@@ -320,8 +344,12 @@
   "@dataSourceConfigIntegerRange": {
     "description": "Validation error when a numeric source configuration field is outside the range Rust accepts.",
     "placeholders": {
-      "min": { "type": "int" },
-      "max": { "type": "int" }
+      "min": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
     }
   },
   "dataSourceConfigJsonPreviewSub": "用于核对保存内容",
@@ -352,7 +380,9 @@
   "@dataSourceConfigSaveFailed": {
     "description": "SnackBar message shown when saving the data source fails.",
     "placeholders": {
-      "error": { "type": "String" }
+      "error": {
+        "type": "String"
+      }
     }
   },
   "dataSourceConfigSearchUrl": "搜索链接",
@@ -360,14 +390,18 @@
   "@dataSourceConfigSearchUrlHelper": {
     "description": "Helper text under the search URL field explaining the {keyword} placeholder.",
     "placeholders": {
-      "keyword": { "type": "String" }
+      "keyword": {
+        "type": "String"
+      }
     }
   },
   "dataSourceConfigSearchUrlHint": "https://example.com/search?wd={keyword}",
   "@dataSourceConfigSearchUrlHint": {
     "description": "Example URL shown as the hint of the search URL field.",
     "placeholders": {
-      "keyword": { "type": "String" }
+      "keyword": {
+        "type": "String"
+      }
     }
   },
   "dataSourceConfigSortRegex": "剧集序号正则",
@@ -595,5 +629,127 @@
   "builtinUrlCannotRemove": "内置 URL 不可删除",
   "urlAlreadyExists": "该 URL 已存在",
   "invalidUrl": "请输入有效的 URL（以 http:// 或 https:// 开头）",
-  "bangumiBaseUrlHidden": "已启用 ECH 或反代，Bangumi Base URL 不生效"
+  "bangumiBaseUrlHidden": "已启用 ECH 或反代，Bangumi Base URL 不生效",
+  "closeSettingsBarrier": "关闭设置",
+  "@closeSettingsBarrier": {
+    "description": "Modal barrier label for dismissing the player settings panel."
+  },
+  "closeEpisodesBarrier": "关闭选集",
+  "@closeEpisodesBarrier": {
+    "description": "Modal barrier label for dismissing the episode side panel."
+  },
+  "statusEnabled": "已开启",
+  "@statusEnabled": {
+    "description": "Generic enabled/on status subtitle in player settings."
+  },
+  "statusDisabled": "已关闭",
+  "@statusDisabled": {
+    "description": "Generic disabled/off status subtitle in player settings."
+  },
+  "noSubtitlesAvailable": "暂无字幕",
+  "@noSubtitlesAvailable": {
+    "description": "Subtitle menu status when the current video has no tracks."
+  },
+  "danmakuSettingsTitle": "弹幕设置",
+  "@danmakuSettingsTitle": {
+    "description": "Player settings submenu title for danmaku."
+  },
+  "subtitleSettingsTitle": "字幕设置",
+  "@subtitleSettingsTitle": {
+    "description": "Player settings submenu title for subtitles."
+  },
+  "commonPlaybackSpeeds": "常用倍速",
+  "@commonPlaybackSpeeds": {
+    "description": "Section header for playback speed presets."
+  },
+  "playbackSpeedWithNormal": "{speed} (正常)",
+  "@playbackSpeedWithNormal": {
+    "description": "Playback speed label with normal-speed tag.",
+    "placeholders": {
+      "speed": {
+        "type": "String"
+      }
+    }
+  },
+  "currentSourceOnly": "当前：{label}",
+  "@currentSourceOnly": {
+    "description": "Source menu subtitle when a non-online label is playing.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "currentSourceWithOnlineCount": "当前：{label} ({count}个在线源可切换)",
+  "@currentSourceWithOnlineCount": {
+    "description": "Source menu subtitle with online source count.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sourceLabelWithAvailableCount": "{label} ({count}个可用)",
+  "@sourceLabelWithAvailableCount": {
+    "description": "Source menu subtitle for the active online source.",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noAvailableSourcesShort": "暂无可用源",
+  "@noAvailableSourcesShort": {
+    "description": "Short empty-source status in the player settings source menu."
+  },
+  "notPlaying": "未播放",
+  "@notPlaying": {
+    "description": "Display label when no source is currently playing. Internal sentinel remains Chinese."
+  },
+  "rewindSeconds": "快退 {seconds}s",
+  "@rewindSeconds": {
+    "description": "Mobile gesture overlay for rewinding.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "forwardSeconds": "快进 {seconds}s",
+  "@forwardSeconds": {
+    "description": "Mobile gesture overlay for seeking forward.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "brightnessPercent": "亮度 {percent}%",
+  "@brightnessPercent": {
+    "description": "Mobile brightness gesture overlay.",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "volumePercent": "音量 {percent}%",
+  "@volumePercent": {
+    "description": "Mobile volume gesture overlay.",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "longPressFastForward": "长按快进 2x",
+  "@longPressFastForward": {
+    "description": "Mobile long-press 2x speed overlay label."
+  }
 }

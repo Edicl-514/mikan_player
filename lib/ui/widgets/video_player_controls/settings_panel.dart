@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/danmaku_service.dart';
 import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
@@ -202,22 +203,30 @@ class _SettingsPanelState extends State<SettingsPanel> {
     });
   }
 
-  String _buildSourceMenuSubtitle() {
+  String _buildSourceMenuSubtitle(AppLocalizations l10n) {
     final activeOnlineSourceIndex = resolveActiveOnlineSourceIndex(
       _availableSources,
       _currentSourceLabel,
     );
     if (activeOnlineSourceIndex != null) {
-      return '${sourceDisplayLabel(_availableSources[activeOnlineSourceIndex])} (${_availableSources.length}个可用)';
+      return l10n.sourceLabelWithAvailableCount(
+        sourceDisplayLabel(_availableSources[activeOnlineSourceIndex]),
+        _availableSources.length,
+      );
     }
 
     final currentLabel = _currentSourceLabel.trim();
+    // Compare against protocol sentinels (not localized display strings).
     if (currentLabel.isNotEmpty &&
-        currentLabel != '未知' &&
-        currentLabel != '未播放') {
+        currentLabel != kPlayerSourceLabelUnknown &&
+        currentLabel != kPlayerSourceLabelNotPlaying) {
+      final displayLabel = displayPlayerSourceLabel(l10n, currentLabel);
       return _availableSources.isEmpty
-          ? '当前：$currentLabel'
-          : '当前：$currentLabel (${_availableSources.length}个在线源可切换)';
+          ? l10n.currentSourceOnly(displayLabel)
+          : l10n.currentSourceWithOnlineCount(
+              displayLabel,
+              _availableSources.length,
+            );
     }
 
     if (_availableSources.isNotEmpty) {
@@ -225,10 +234,13 @@ class _SettingsPanelState extends State<SettingsPanel> {
         _currentSourceIndex,
         _availableSources,
       );
-      return '${sourceDisplayLabel(_availableSources[fallbackIndex])} (${_availableSources.length}个可用)';
+      return l10n.sourceLabelWithAvailableCount(
+        sourceDisplayLabel(_availableSources[fallbackIndex]),
+        _availableSources.length,
+      );
     }
 
-    return '暂无可用源';
+    return l10n.noAvailableSourcesShort;
   }
 
   @override
@@ -280,6 +292,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
   }
 
   Widget _buildHeader() {
+    final l10n = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark
         ? Colors.white
@@ -291,19 +304,19 @@ class _SettingsPanelState extends State<SettingsPanel> {
     String title;
     switch (_currentPage) {
       case 1:
-        title = '弹幕设置';
+        title = l10n.danmakuSettingsTitle;
         break;
       case 2:
-        title = '字幕设置';
+        title = l10n.subtitleSettingsTitle;
         break;
       case 3:
-        title = '播放源';
+        title = l10n.playSourceTitle;
         break;
       case 4:
-        title = '播放速度';
+        title = l10n.playbackSpeed;
         break;
       default:
-        title = '设置';
+        title = l10n.settingsTitle;
     }
 
     return Padding(
@@ -365,6 +378,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
   }
 
   Widget _buildMainMenu() {
+    final l10n = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // 获取字幕状态描述
@@ -374,12 +388,12 @@ class _SettingsPanelState extends State<SettingsPanel> {
         final selected = widget.subtitleService.resolvedSelectedTrack;
         subtitleStatus = selected != null
             ? widget.subtitleService.getTrackDisplayName(selected)
-            : '已开启';
+            : l10n.statusEnabled;
       } else {
-        subtitleStatus = '已关闭';
+        subtitleStatus = l10n.statusDisabled;
       }
     } else {
-      subtitleStatus = '暂无字幕';
+      subtitleStatus = l10n.noSubtitlesAvailable;
     }
 
     return ListView(
@@ -388,20 +402,23 @@ class _SettingsPanelState extends State<SettingsPanel> {
       children: [
         _buildMenuItem(
           icon: Icons.comment_outlined,
-          title: '弹幕设置',
-          subtitle: widget.danmakuService.settings.enabled ? '已开启' : '已关闭',
+          title: l10n.danmakuSettingsTitle,
+          subtitle: widget.danmakuService.settings.enabled
+              ? l10n.statusEnabled
+              : l10n.statusDisabled,
           onTap: () => setState(() => _currentPage = 1),
         ),
         _buildMenuItem(
           icon: Icons.subtitles_outlined,
-          title: '字幕设置',
+          title: l10n.subtitleSettingsTitle,
           subtitle: subtitleStatus,
           onTap: () => setState(() => _currentPage = 2),
         ),
         _buildMenuItem(
           icon: Icons.speed,
-          title: '播放速度',
+          title: l10n.playbackSpeed,
           subtitle: _formatPlaybackSpeed(
+            l10n,
             _currentPlaybackSpeed,
             includeNormalTag: true,
           ),
@@ -409,8 +426,8 @@ class _SettingsPanelState extends State<SettingsPanel> {
         ),
         _buildMenuItem(
           icon: Icons.video_library_outlined,
-          title: '播放源',
-          subtitle: _buildSourceMenuSubtitle(),
+          title: l10n.playSourceTitle,
+          subtitle: _buildSourceMenuSubtitle(l10n),
           onTap: () => setState(() => _currentPage = 3),
         ),
         const SizedBox(height: 16),
@@ -424,7 +441,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: _buildSwitchRow(
-            title: '自动连播',
+            title: l10n.autoPlayNext,
             value: widget.isAutoPlayNextEnabled,
             onChanged: (v) => widget.onToggleAutoPlayNext(),
           ),
@@ -434,6 +451,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
   }
 
   Widget _buildPlaybackSpeedSettings() {
+    final l10n = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark
         ? Colors.white70
@@ -448,17 +466,21 @@ class _SettingsPanelState extends State<SettingsPanel> {
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       children: [
         _buildSliderRow(
-          title: '播放速度',
+          title: l10n.playbackSpeed,
           value: speed,
           min: 0.25,
           max: 3.0,
           divisions: 55,
-          displayValue: _formatPlaybackSpeed(speed, includeNormalTag: true),
+          displayValue: _formatPlaybackSpeed(
+            l10n,
+            speed,
+            includeNormalTag: true,
+          ),
           onChanged: _updatePlaybackSpeed,
         ),
         const SizedBox(height: 16),
         Text(
-          '常用倍速',
+          l10n.commonPlaybackSpeeds,
           style: TextStyle(
             color: textColor,
             fontSize: 13,
@@ -470,8 +492,8 @@ class _SettingsPanelState extends State<SettingsPanel> {
           children: _playbackSpeedPresets.map((preset) {
             final isSelected = (speed - preset).abs() < 0.001;
             return _buildTrackItem(
-              title: _formatPlaybackSpeed(preset),
-              subtitle: (preset - 1.0).abs() < 0.001 ? '正常速度' : '',
+              title: _formatPlaybackSpeed(l10n, preset),
+              subtitle: (preset - 1.0).abs() < 0.001 ? l10n.normalSpeed : '',
               isSelected: isSelected,
               onTap: () => _updatePlaybackSpeed(preset),
             );
@@ -479,7 +501,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
         ),
         const SizedBox(height: 12),
         Text(
-          '提示：播放速度会同时影响视频与弹幕的时间同步。',
+          l10n.playbackSpeedTip,
           style: TextStyle(color: hintColor, fontSize: 12),
         ),
       ],
@@ -495,7 +517,11 @@ class _SettingsPanelState extends State<SettingsPanel> {
     widget.onPlaybackSpeedChanged(stepped);
   }
 
-  String _formatPlaybackSpeed(double value, {bool includeNormalTag = false}) {
+  String _formatPlaybackSpeed(
+    AppLocalizations l10n,
+    double value, {
+    bool includeNormalTag = false,
+  }) {
     final speed = value.clamp(0.25, 3.0).toDouble();
     final scaled = (speed * 100).round();
     final text = scaled % 10 == 0
@@ -503,7 +529,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
         : speed.toStringAsFixed(2);
     final label = '${text}x';
     if (includeNormalTag && (speed - 1.0).abs() < 0.001) {
-      return '$label (正常)';
+      return l10n.playbackSpeedWithNormal(label);
     }
     return label;
   }
@@ -578,6 +604,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
     return ListenableBuilder(
       listenable: widget.subtitleService,
       builder: (context, _) {
+        final l10n = AppLocalizations.of(context);
         final isDark = Theme.of(context).brightness == Brightness.dark;
         final dividerColor = isDark
             ? Colors.white12
@@ -604,7 +631,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
           children: [
             // 字幕开关
             _buildSwitchRow(
-              title: '显示字幕',
+              title: l10n.showSubtitles,
               value: settings.enabled,
               onChanged: hasSubtitles ? (v) => service.setEnabled(v) : null,
             ),
@@ -615,7 +642,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
 
             // 字幕轨道选择
             Text(
-              '字幕轨道',
+              l10n.subtitleTracks,
               style: TextStyle(
                 color: sectionLabelColor,
                 fontSize: 13,
@@ -636,7 +663,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      '当前视频没有内嵌字幕',
+                      l10n.noEmbeddedSubtitles,
                       style: TextStyle(color: hintColor, fontSize: 13),
                     ),
                   ],
@@ -656,7 +683,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
             // 关闭字幕选项
             if (hasSubtitles)
               _buildTrackItem(
-                title: '关闭字幕',
+                title: l10n.disableSubtitles,
                 subtitle: '',
                 isSelected: !service.isSubtitleVisible,
                 onTap: () => service.disableSubtitle(),
@@ -668,7 +695,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
 
             // 字幕样式设置
             Text(
-              '字幕样式',
+              l10n.subtitleStyle,
               style: TextStyle(
                 color: sectionLabelColor,
                 fontSize: 13,
@@ -679,7 +706,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
 
             // 字体大小滑块
             _buildSliderRow(
-              title: '字体大小',
+              title: l10n.fontSize,
               value: settings.fontSize,
               min: 12,
               max: 48,
@@ -692,7 +719,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
 
             // 背景透明度滑块
             _buildSliderRow(
-              title: '背景透明度',
+              title: l10n.backgroundOpacity,
               value: settings.backgroundOpacity,
               min: 0,
               max: 1,
@@ -705,7 +732,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
 
             // 底部边距滑块
             _buildSliderRow(
-              title: '底部边距',
+              title: l10n.bottomPadding,
               value: settings.bottomPadding,
               min: 0,
               max: 150,
@@ -718,7 +745,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
 
             // 描边宽度滑块
             _buildSliderRow(
-              title: '描边宽度',
+              title: l10n.outlineWidth,
               value: settings.outlineWidth,
               min: 0,
               max: 4,
@@ -737,7 +764,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
                     ? Colors.white70
                     : Theme.of(context).colorScheme.onSurfaceVariant;
                 return Text(
-                  '字体颜色',
+                  l10n.fontColor,
                   style: TextStyle(
                     color: sectionLabelColor,
                     fontSize: 13,
@@ -771,7 +798,10 @@ class _SettingsPanelState extends State<SettingsPanel> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
-                child: Text('字幕预览效果', style: settings.toTextStyle()),
+                child: Text(
+                  l10n.subtitlePreview,
+                  style: settings.toTextStyle(),
+                ),
               ),
             ),
 

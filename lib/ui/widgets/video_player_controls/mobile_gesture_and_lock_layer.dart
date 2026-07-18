@@ -6,6 +6,7 @@ import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:screen_brightness/screen_brightness.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/mobile_floating_lock_button.dart';
 
 class MobileGestureAndLockLayer extends StatefulWidget {
@@ -111,7 +112,7 @@ class _MobileGestureAndLockLayerState extends State<MobileGestureAndLockLayer> {
               child: Center(
                 child: MobileFloatingLockButton(
                   icon: Icons.lock_outline,
-                  tooltip: '锁定',
+                  tooltip: AppLocalizations.of(context).lock,
                   onPressed: _handleLock,
                 ),
               ),
@@ -312,13 +313,14 @@ class _MobileMultiTapDetectorState extends State<_MobileMultiTapDetector> {
   }
 
   void _fireAction(_MobileTapZone zone, {required bool isTriple}) {
+    final l10n = AppLocalizations.of(context);
     switch (zone) {
       case _MobileTapZone.left:
         if (isTriple) {
-          _showOverlay(Icons.fast_rewind, '快退 85s');
+          _showOverlay(Icons.fast_rewind, l10n.rewindSeconds(85));
           widget.onLeftTriple();
         } else {
-          _showOverlay(Icons.replay_10, '快退 10s');
+          _showOverlay(Icons.replay_10, l10n.rewindSeconds(10));
           widget.onLeftDouble();
         }
         break;
@@ -327,17 +329,17 @@ class _MobileMultiTapDetectorState extends State<_MobileMultiTapDetector> {
           final isPlaying = widget.player.state.playing;
           _showOverlay(
             isPlaying ? Icons.pause : Icons.play_arrow,
-            isPlaying ? '暂停' : '播放',
+            isPlaying ? l10n.pause : l10n.playText,
           );
           widget.onCenterDouble();
         }
         break;
       case _MobileTapZone.right:
         if (isTriple) {
-          _showOverlay(Icons.fast_forward, '快进 85s');
+          _showOverlay(Icons.fast_forward, l10n.forwardSeconds(85));
           widget.onRightTriple();
         } else {
-          _showOverlay(Icons.forward_10, '快进 10s');
+          _showOverlay(Icons.forward_10, l10n.forwardSeconds(10));
           widget.onRightDouble();
         }
         break;
@@ -368,7 +370,8 @@ class _MobileMultiTapDetectorState extends State<_MobileMultiTapDetector> {
 
   void _showBrightnessOverlay(double value) {
     final percent = (value * 100).round();
-    _showOverlay(Icons.brightness_6, '亮度 $percent%');
+    final l10n = AppLocalizations.of(context);
+    _showOverlay(Icons.brightness_6, l10n.brightnessPercent(percent));
   }
 
   void _showVolumeOverlay(double value) {
@@ -378,7 +381,8 @@ class _MobileMultiTapDetectorState extends State<_MobileMultiTapDetector> {
         : percent < 50
         ? Icons.volume_down
         : Icons.volume_up;
-    _showOverlay(icon, '音量 $percent%');
+    final l10n = AppLocalizations.of(context);
+    _showOverlay(icon, l10n.volumePercent(percent));
   }
 
   Future<void> _prepareBrightnessOverlay() async {
@@ -441,9 +445,10 @@ class _MobileMultiTapDetectorState extends State<_MobileMultiTapDetector> {
 
     _overlayTimer?.cancel();
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
     setState(() {
       _overlayIcon = Icons.fast_forward;
-      _overlayLabel = '长按快进 2x';
+      _overlayLabel = l10n.longPressFastForward;
       _overlayVisible = true;
     });
   }

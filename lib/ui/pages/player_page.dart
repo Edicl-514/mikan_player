@@ -20,6 +20,7 @@ import 'package:mikan_player/services/reusable_browser_worker.dart';
 import 'package:mikan_player/services/source_request_gate.dart';
 import 'package:mikan_player/services/webview_scheduler_stats.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
+import 'package:mikan_player/ui/widgets/video_player_controls/source_list_panel.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_data_service.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
@@ -206,7 +207,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   final ValueNotifier<List<SearchPlayResult>> _availableSourcesNotifier =
       ValueNotifier(const <SearchPlayResult>[]);
   final ValueNotifier<String> _playingSourceLabelNotifier = ValueNotifier(
-    '未播放',
+    // Protocol sentinel — display mapped via displayPlayerSourceLabel.
+    kPlayerSourceLabelNotPlaying,
   );
   // Notifier for source index to bypass Video widget rebuild issues.
   late final ValueNotifier<int> _selectedSourceIndexNotifier = ValueNotifier(0);

@@ -226,6 +226,7 @@ class PlayerPlaybackController {
   String? _sampleVideoUrl;
   bool _isLoadingVideo = false;
   String? _videoError;
+  // i18n-ignore: protocol sentinel for empty source state; UI maps via displayPlayerSourceLabel
   String _playingSourceLabel = '未播放';
   bool _hasAutoPlayed = false;
   int _selectedSourceIndex = 0;
@@ -673,6 +674,7 @@ class PlayerPlaybackController {
       _clearStartupWatchdogForAttempt(attemptId);
       _failedPlaybackSourceKeys.add(plan.sourceKey);
       _isLoadingVideo = false;
+      // i18n-ignore: controller has no BuildContext; surface string is localized at UI boundary in later packages
       _videoError = '播放失败: $error';
       _activeAttemptId = null;
       _activeAttemptOpenCompleted = false;
@@ -738,6 +740,7 @@ class PlayerPlaybackController {
       _activeAttemptOpenCompleted = false;
 
       _isLoadingVideo = false;
+      // i18n-ignore: controller has no BuildContext; surface string is localized at UI boundary in later packages
       _videoError = '当前线路启动超时，请切换其他源';
       callbacks.onStateChanged?.call();
 

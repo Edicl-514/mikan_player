@@ -1,10 +1,8 @@
 // Phase 1 / Package A focused widget tests for the extracted
 // `EpisodeSidePanel` widget.
 //
-// The panel is a pure Flutter widget tree (no network, no WebView, no media
-// player), so these tests exercise the real widget under a `MaterialApp` and
-// assert on the rendered cells, selection styling, and selection callback
-// + navigator-pop behavior.
+// L10N-2: panel title / episode-count use AppLocalizations, so the tree is
+// pumped through pumpLocalizedWidget (zh + en smoke).
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/episode_side_panel.dart';
+
+import '../../../support/localized_widget_tester.dart';
 
 BangumiEpisode _episode({int id = 0, double sort = 1}) => BangumiEpisode(
   id: id,
@@ -23,46 +23,71 @@ BangumiEpisode _episode({int id = 0, double sort = 1}) => BangumiEpisode(
   sort: sort,
 );
 
-Widget _wrap(
-  Widget child, {
+Future<void> _pumpPanel(
+  WidgetTester tester, {
   ValueListenable<BangumiEpisode>? currentEpisodeListenable,
   required List<BangumiEpisode> allEpisodes,
   required BangumiEpisode currentEpisode,
   void Function(BangumiEpisode)? onSelected,
-}) {
-  return MaterialApp(
-    home: Builder(
-      builder: (context) => Scaffold(
-        body: Center(
-          child: EpisodeSidePanel(
-            allEpisodes: allEpisodes,
-            currentEpisode: currentEpisode,
-            currentEpisodeListenable: currentEpisodeListenable,
-            onEpisodeSelected: onSelected ?? (_) {},
-          ),
+  Locale locale = const Locale('zh'),
+}) async {
+  await pumpLocalizedWidget(
+    tester,
+    Scaffold(
+      body: Center(
+        child: EpisodeSidePanel(
+          allEpisodes: allEpisodes,
+          currentEpisode: currentEpisode,
+          currentEpisodeListenable: currentEpisodeListenable,
+          onEpisodeSelected: onSelected ?? (_) {},
         ),
       ),
     ),
+    locale: locale,
   );
 }
 
 void main() {
   group('EpisodeSidePanel', () {
-    testWidgets('renders one cell per episode with sort label', (tester) async {
+    testWidgets('renders one cell per episode with sort label (zh)', (
+      tester,
+    ) async {
       final eps = [
         _episode(id: 1, sort: 1),
         _episode(id: 2, sort: 2),
         _episode(id: 3, sort: 3),
       ];
-      await tester.pumpWidget(
-        _wrap(Container(), allEpisodes: eps, currentEpisode: eps[1]),
+      await _pumpPanel(
+        tester,
+        allEpisodes: eps,
+        currentEpisode: eps[1],
+        locale: const Locale('zh'),
       );
 
+      final l10n = localizedOf(tester);
       expect(find.text('1'), findsOneWidget);
       expect(find.text('2'), findsOneWidget);
       expect(find.text('3'), findsOneWidget);
-      expect(find.text('共3集'), findsOneWidget);
-      expect(find.text('选集'), findsOneWidget);
+      expect(find.text(l10n.subtitleTrackCount(3)), findsOneWidget);
+      expect(find.text(l10n.selectEpisode), findsOneWidget);
+    });
+
+    testWidgets('renders localized header in en', (tester) async {
+      final eps = [
+        _episode(id: 1, sort: 1),
+        _episode(id: 2, sort: 2),
+      ];
+      await _pumpPanel(
+        tester,
+        allEpisodes: eps,
+        currentEpisode: eps[0],
+        locale: const Locale('en'),
+      );
+
+      final l10n = localizedOf(tester);
+      expect(find.text(l10n.selectEpisode), findsOneWidget);
+      expect(find.text(l10n.subtitleTrackCount(2)), findsOneWidget);
+      expect(find.text('共2集'), findsNothing);
     });
 
     testWidgets('current episode cell is bold-styled (selected)', (
@@ -73,8 +98,10 @@ void main() {
         _episode(id: 2, sort: 2),
         _episode(id: 3, sort: 3),
       ];
-      await tester.pumpWidget(
-        _wrap(Container(), allEpisodes: eps, currentEpisode: eps[1]),
+      await _pumpPanel(
+        tester,
+        allEpisodes: eps,
+        currentEpisode: eps[1],
       );
 
       final textWidgets = find.byType(Text);
@@ -99,25 +126,24 @@ void main() {
         ];
         BangumiEpisode? captured;
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Builder(
-              builder: (context) => Scaffold(
-                body: Center(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => EpisodeSidePanel(
-                            allEpisodes: eps,
-                            currentEpisode: eps[1],
-                            onEpisodeSelected: (ep) => captured = ep,
-                          ),
+        await pumpLocalizedWidget(
+          tester,
+          Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => EpisodeSidePanel(
+                          allEpisodes: eps,
+                          currentEpisode: eps[1],
+                          onEpisodeSelected: (ep) => captured = ep,
                         ),
-                      );
-                    },
-                    child: const Text('open'),
-                  ),
+                      ),
+                    );
+                  },
+                  child: const Text('open'),
                 ),
               ),
             ),
@@ -127,14 +153,13 @@ void main() {
         await tester.tap(find.text('open'));
         await tester.pumpAndSettle();
 
-        expect(find.text('选集'), findsOneWidget);
+        final l10n = localizedOf(tester);
+        expect(find.text(l10n.selectEpisode), findsOneWidget);
 
-        // Tap the cell labelled "1" (non-current)
         await tester.tap(find.text('1'));
         await tester.pumpAndSettle();
 
-        // Navigator route should be popped
-        expect(find.text('选集'), findsNothing);
+        expect(find.text(l10n.selectEpisode), findsNothing);
         expect(captured, isNotNull);
         expect(captured!.id, eps[0].id);
         expect(captured!.sort, eps[0].sort);
@@ -142,19 +167,17 @@ void main() {
     );
 
     testWidgets(
-      'empty episode list renders header with "共0集" without exception',
+      'empty episode list renders localized header without exception',
       (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            Container(),
-            allEpisodes: const <BangumiEpisode>[],
-            currentEpisode: _episode(id: 0, sort: 0),
-          ),
+        await _pumpPanel(
+          tester,
+          allEpisodes: const <BangumiEpisode>[],
+          currentEpisode: _episode(id: 0, sort: 0),
         );
 
-        expect(find.text('共0集'), findsOneWidget);
-        expect(find.text('选集'), findsOneWidget);
-        // No episode cells
+        final l10n = localizedOf(tester);
+        expect(find.text(l10n.subtitleTrackCount(0)), findsOneWidget);
+        expect(find.text(l10n.selectEpisode), findsOneWidget);
         expect(find.text('1'), findsNothing);
       },
     );
@@ -169,16 +192,13 @@ void main() {
       ];
       final notifier = ValueNotifier<BangumiEpisode>(eps[0]);
 
-      await tester.pumpWidget(
-        _wrap(
-          Container(),
-          allEpisodes: eps,
-          currentEpisode: eps[0],
-          currentEpisodeListenable: notifier,
-        ),
+      await _pumpPanel(
+        tester,
+        allEpisodes: eps,
+        currentEpisode: eps[0],
+        currentEpisodeListenable: notifier,
       );
 
-      // Initially episode 1 is selected -> "1" should be bold
       var labels = tester
           .widgetList<Text>(find.byType(Text))
           .where((t) => t.data == '1' || t.data == '2' || t.data == '3');
@@ -187,7 +207,6 @@ void main() {
       expect(oneText.style?.fontWeight, FontWeight.bold);
       expect(twoText.style?.fontWeight, isNot(FontWeight.bold));
 
-      // Update notifier -> episode 2 becomes selected
       notifier.value = eps[1];
       await tester.pumpAndSettle();
 
