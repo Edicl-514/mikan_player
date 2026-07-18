@@ -33,12 +33,14 @@ class PlayerPcEpisodeList extends StatelessWidget {
     final faintTextColor = isDark
         ? Colors.white24
         : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7);
+    // Must receive a bounded height from the parent. shrinkWrap + nested
+    // CustomScrollView breaks mouse-wheel scrolling on desktop (PC sidebar).
     return Scrollbar(
       controller: scrollController,
       thumbVisibility: true,
       child: ListView.separated(
-        shrinkWrap: true,
         controller: scrollController,
+        primary: false,
         padding: const EdgeInsets.only(right: 12),
         itemCount: episodes.length,
         separatorBuilder: (_, _) => const SizedBox(height: 8),

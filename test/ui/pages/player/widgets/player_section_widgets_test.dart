@@ -139,4 +139,47 @@ void main() {
     await tester.pump();
     expect(picked?.id, 2);
   });
+
+  testWidgets('PlayerPcEpisodeList scrolls when content overflows', (
+    tester,
+  ) async {
+    final eps = List.generate(
+      20,
+      (i) => BangumiEpisode(
+        id: i + 1,
+        name: 'EP${i + 1}',
+        nameCn: '第${i + 1}集',
+        description: '',
+        airdate: '',
+        duration: '',
+        sort: (i + 1).toDouble(),
+      ),
+    );
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      _wrap(
+        SizedBox(
+          height: 200,
+          child: PlayerPcEpisodeList(
+            episodes: eps,
+            currentEpisode: eps.first,
+            scrollController: controller,
+            onEpisodeSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(controller.hasClients, isTrue);
+    expect(controller.position.maxScrollExtent, greaterThan(0));
+    expect(find.text('第1集'), findsOneWidget);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+
+    expect(controller.offset, greaterThan(0));
+    expect(find.text('第1集'), findsNothing);
+  });
 }

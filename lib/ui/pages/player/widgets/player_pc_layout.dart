@@ -366,8 +366,11 @@ class PlayerPcLayout extends StatelessWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 500),
+                  // Tight height so the inner ListView gets a real viewport.
+                  // ConstrainedBox(maxHeight) + shrinkWrap nested under
+                  // CustomScrollView does not reliably receive wheel events on PC.
+                  child: SizedBox(
+                    height: 500,
                     child: PlayerPcEpisodeList(
                       episodes: playableEpisodes,
                       currentEpisode: currentEpisode,
