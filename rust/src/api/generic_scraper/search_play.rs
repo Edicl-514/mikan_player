@@ -136,7 +136,7 @@ async fn search_single_source(
         .clone();
 
     let search_candidates = build_search_candidates(anime_name);
-    let mut detail_url = String::new();
+    let mut ranked_subjects: Vec<SubjectCandidate> = Vec::new();
 
     for (idx, query_name) in search_candidates.iter().enumerate() {
         if idx > 0 {
@@ -169,7 +169,7 @@ async fn search_single_source(
 
         let resp_text = client.get(&search_url).send().await?.text().await?;
 
-        let current_detail_url = {
+        {
             let document = Html::parse_document(&resp_text);
             let format_id = source
                 .arguments
@@ -182,42 +182,102 @@ async fn search_single_source(
                 select_best_subject_candidate(&document, source, query_name, &core_name);
             log_subject_selection(&source_name, format_id, query_name, &core_name, &sel_result);
 
-            sel_result
-                .best
-                .map(|c| absolutize_url(&search_url, &c.url))
-                .unwrap_or_default()
-        };
-
-        if !current_detail_url.is_empty() {
-            detail_url = current_detail_url;
-            break;
+            if !sel_result.ranked.is_empty() {
+                ranked_subjects = sel_result
+                    .ranked
+                    .into_iter()
+                    .map(|c| SubjectCandidate {
+                        title: c.title,
+                        url: absolutize_url(&search_url, &c.url),
+                        score: c.score,
+                    })
+                    .collect();
+                break;
+            }
         }
     }
 
-    if detail_url.is_empty() {
+    if ranked_subjects.is_empty() {
         return Err(anyhow::anyhow!("No matching anime found"));
     }
 
-    log::info!("[{}] Found detail URL: {}", source_name, detail_url);
+    let retry_limit = subject_retry_limit(ranked_subjects.len());
+    let mut episode_url = String::new();
 
-    // Step 2: 获取剧集列表
-    let detail_resp_text = client.get(&detail_url).send().await?.text().await?;
+    for (try_idx, candidate) in ranked_subjects.iter().take(retry_limit).enumerate() {
+        let detail_url = candidate.url.clone();
+        if try_idx > 0 {
+            log::info!(
+                "[{}] Falling back to next subject candidate #{}: '{}' (score={}) url={}",
+                source_name,
+                try_idx + 1,
+                candidate.title,
+                candidate.score,
+                detail_url
+            );
+        } else {
+            log::info!("[{}] Found detail URL: {}", source_name, detail_url);
+        }
 
-    let episode_url = {
-        let detail_doc = Html::parse_document(&detail_resp_text);
-        let mut found_url = String::new();
+        // Step 2: 获取剧集列表
+        let detail_resp_text = match client.get(&detail_url).send().await {
+            Ok(resp) => match resp.text().await {
+                Ok(text) => text,
+                Err(e) => {
+                    log::warn!("[{}] Detail page text failed: {}", source_name, e);
+                    continue;
+                }
+            },
+            Err(e) => {
+                log::warn!("[{}] Detail page fetch failed: {}", source_name, e);
+                continue;
+            }
+        };
 
-        if let Some(ref format) = source
-            .arguments
-            .search_config
-            .selector_channel_format_flattened
-        {
-            if let (Ok(list_sel), Ok(item_sel)) = (
-                Selector::parse(&format.select_episode_lists),
-                Selector::parse(&format.select_episodes_from_list),
-            ) {
-                if let Some(list_container) = detail_doc.select(&list_sel).next() {
-                    let episodes: Vec<_> = list_container.select(&item_sel).collect();
+        episode_url = {
+            let detail_doc = Html::parse_document(&detail_resp_text);
+            let mut found_url = String::new();
+
+            if let Some(ref format) = source
+                .arguments
+                .search_config
+                .selector_channel_format_flattened
+            {
+                if let (Ok(list_sel), Ok(item_sel)) = (
+                    Selector::parse(&format.select_episode_lists),
+                    Selector::parse(&format.select_episodes_from_list),
+                ) {
+                    if let Some(list_container) = detail_doc.select(&list_sel).next() {
+                        let episodes: Vec<_> = list_container.select(&item_sel).collect();
+                        let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                        if let Some(href) = select_episode_by_number(
+                            &episodes,
+                            absolute_episode,
+                            relative_episode,
+                            ep_pattern,
+                        ) {
+                            if !href.is_empty() {
+                                if href.starts_with("http") {
+                                    found_url = href;
+                                } else {
+                                    let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+                                    } else {
+                                        "".to_string()
+                                    };
+                                    found_url = format!("{}{}", base_url, href);
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if let Some(ref format) = source
+                .arguments
+                .search_config
+                .selector_channel_format_no_channel
+            {
+                if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
+                    let episodes: Vec<_> = detail_doc.select(&ep_sel).collect();
                     let ep_pattern = format.match_episode_sort_from_name.as_deref();
                     if let Some(href) = select_episode_by_number(
                         &episodes,
@@ -240,37 +300,19 @@ async fn search_single_source(
                     }
                 }
             }
-        } else if let Some(ref format) = source
-            .arguments
-            .search_config
-            .selector_channel_format_no_channel
-        {
-            if let Ok(ep_sel) = Selector::parse(&format.select_episodes) {
-                let episodes: Vec<_> = detail_doc.select(&ep_sel).collect();
-                let ep_pattern = format.match_episode_sort_from_name.as_deref();
-                if let Some(href) = select_episode_by_number(
-                    &episodes,
-                    absolute_episode,
-                    relative_episode,
-                    ep_pattern,
-                ) {
-                    if !href.is_empty() {
-                        if href.starts_with("http") {
-                            found_url = href;
-                        } else {
-                            let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
-                                format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                            } else {
-                                "".to_string()
-                            };
-                            found_url = format!("{}{}", base_url, href);
-                        }
-                    }
-                }
-            }
+            found_url
+        };
+
+        if !episode_url.is_empty() {
+            break;
         }
-        found_url
-    };
+
+        log::warn!(
+            "[{}] Subject candidate has no playable episodes (title='{}'); trying next if any",
+            source_name,
+            candidate.title
+        );
+    }
 
     if episode_url.is_empty() {
         return Err(anyhow::anyhow!("No episodes found"));

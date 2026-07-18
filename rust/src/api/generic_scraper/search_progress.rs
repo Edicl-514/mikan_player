@@ -101,7 +101,6 @@ pub(crate) async fn generic_search_with_progress_runtime(
                     all_channels: None,
                     captcha_config_json: None,
                     enable_nested_url: false,
-
                     match_nested_url: None,
                 })
                 .ok();
@@ -124,7 +123,6 @@ pub(crate) async fn generic_search_with_progress_runtime(
                         all_channels: None,
                         captcha_config_json: None,
                         enable_nested_url: false,
-
                         match_nested_url: None,
                     })
                     .ok();
@@ -267,7 +265,6 @@ pub(crate) async fn debug_search_with_local_json_runtime(
                     all_channels: None,
                     captcha_config_json: None,
                     enable_nested_url: false,
-
                     match_nested_url: None,
                 })
                 .ok();
@@ -290,7 +287,6 @@ pub(crate) async fn debug_search_with_local_json_runtime(
                         all_channels: None,
                         captcha_config_json: None,
                         enable_nested_url: false,
-
                         match_nested_url: None,
                     })
                     .ok();
@@ -469,7 +465,16 @@ async fn search_single_source_with_progress(
     }
 
     let search_candidates = build_search_candidates(anime_name);
-    let mut detail_url = String::new();
+
+    // Collect ranked subject candidates from search pages (alias queries as fallback).
+    // Prefer the first alias query that yields any above-threshold hits; then try detail
+    // pages in score order so empty-channel duplicates don't block playable siblings.
+    let mut ranked_subjects: Vec<SubjectCandidate> = Vec::new();
+    let mut search_page_url_for_referer = String::new();
+    // Only surface a network/fetch error when every search request failed.
+    // A later successful response must not keep a stale earlier failure.
+    let mut last_search_fetch_error: Option<String> = None;
+    let mut any_search_fetch_ok = false;
 
     for (idx, query_name) in search_candidates.iter().enumerate() {
         if idx > 0 {
@@ -480,24 +485,22 @@ async fn search_single_source_with_progress(
             );
         }
 
-        // 预处理搜索词
         let search_term = preprocess_search_term(query_name);
         let core_name = extract_core_name(query_name);
 
-        // Step 1: 搜索
         let search_url = source
             .arguments
             .search_config
             .search_url
             .replace("{keyword}", &search_term);
-        let (resp_text, response_search_url) = if idx == 0 {
+        let search_fetch = if idx == 0 {
             if let Some(html) = initial_search_page_html.clone() {
-                (
+                Ok((
                     html,
                     initial_search_page_url
                         .clone()
                         .unwrap_or_else(|| search_url.clone()),
-                )
+                ))
             } else {
                 match apply_browser_page_headers(
                     apply_cookie_header(client.get(&search_url), effective_cookies.as_deref()),
@@ -508,50 +511,10 @@ async fn search_single_source_with_progress(
                 .await
                 {
                     Ok(resp) => match resp.text().await {
-                        Ok(text) => (text, search_url.clone()),
-                        Err(e) => {
-                            sink.add(SourceSearchProgress {
-                                source_name: source_name.clone(),
-                                step: SearchStep::Failed,
-                                error: Some(format!("搜索请求失败: {}", e)),
-                                play_page_url: None,
-                                video_regex: None,
-                                direct_video_url: None,
-                                cookies: None,
-                                headers: None,
-                                channel_name: None,
-                                channel_index: None,
-                                all_channels: None,
-                                captcha_config_json: None,
-                                enable_nested_url: false,
-
-                                match_nested_url: None,
-                            })
-                            .ok();
-                            return Err(anyhow::anyhow!("Search request failed"));
-                        }
+                        Ok(text) => Ok((text, search_url.clone())),
+                        Err(e) => Err(format!("搜索请求失败: {}", e)),
                     },
-                    Err(e) => {
-                        sink.add(SourceSearchProgress {
-                            source_name: source_name.clone(),
-                            step: SearchStep::Failed,
-                            error: Some(format!("网络错误: {}", e)),
-                            play_page_url: None,
-                            video_regex: None,
-                            direct_video_url: None,
-                            cookies: None,
-                            headers: None,
-                            channel_name: None,
-                            channel_index: None,
-                            all_channels: None,
-                            captcha_config_json: None,
-                            enable_nested_url: false,
-
-                            match_nested_url: None,
-                        })
-                        .ok();
-                        return Err(anyhow::anyhow!("Network error"));
-                    }
+                    Err(e) => Err(format!("网络错误: {}", e)),
                 }
             }
         } else {
@@ -564,86 +527,78 @@ async fn search_single_source_with_progress(
             .await
             {
                 Ok(resp) => match resp.text().await {
-                    Ok(text) => (text, search_url.clone()),
-                    Err(e) => {
-                        sink.add(SourceSearchProgress {
-                            source_name: source_name.clone(),
-                            step: SearchStep::Failed,
-                            error: Some(format!("搜索请求失败: {}", e)),
-                            play_page_url: None,
-                            video_regex: None,
-                            direct_video_url: None,
-                            cookies: None,
-                            headers: None,
-                            channel_name: None,
-                            channel_index: None,
-                            all_channels: None,
-                            captcha_config_json: None,
-                            enable_nested_url: false,
-
-                            match_nested_url: None,
-                        })
-                        .ok();
-                        return Err(anyhow::anyhow!("Search request failed"));
-                    }
+                    Ok(text) => Ok((text, search_url.clone())),
+                    Err(e) => Err(format!("搜索请求失败: {}", e)),
                 },
-                Err(e) => {
-                    sink.add(SourceSearchProgress {
-                        source_name: source_name.clone(),
-                        step: SearchStep::Failed,
-                        error: Some(format!("网络错误: {}", e)),
-                        play_page_url: None,
-                        video_regex: None,
-                        direct_video_url: None,
-                        cookies: None,
-                        headers: None,
-                        channel_name: None,
-                        channel_index: None,
-                        all_channels: None,
-                        captcha_config_json: None,
-                        enable_nested_url: false,
-
-                        match_nested_url: None,
-                    })
-                    .ok();
-                    return Err(anyhow::anyhow!("Network error"));
-                }
+                Err(e) => Err(format!("网络错误: {}", e)),
             }
         };
 
-        let current_detail_url = {
-            let document = Html::parse_document(&resp_text);
-            let format_id = source
-                .arguments
-                .search_config
-                .subject_format_id
-                .as_deref()
-                .unwrap_or("indexed");
-
-            let sel_result =
-                select_best_subject_candidate(&document, source, query_name, &core_name);
-            log_subject_selection(&source_name, format_id, query_name, &core_name, &sel_result);
-
-            sel_result
-                .best
-                .map(|c| absolutize_url(&response_search_url, &c.url))
-                .unwrap_or_default()
+        let (resp_text, response_search_url) = match search_fetch {
+            Ok(v) => {
+                any_search_fetch_ok = true;
+                last_search_fetch_error = None;
+                v
+            }
+            Err(e) => {
+                last_search_fetch_error = Some(e);
+                continue;
+            }
         };
 
-        if !current_detail_url.is_empty() {
-            detail_url = initial_detail_page_url
-                .clone()
-                .filter(|item| !item.is_empty())
-                .unwrap_or(current_detail_url);
+        search_page_url_for_referer = response_search_url.clone();
+
+        let format_id = source
+            .arguments
+            .search_config
+            .subject_format_id
+            .as_deref()
+            .unwrap_or("indexed");
+
+        let document = Html::parse_document(&resp_text);
+        let sel_result = select_best_subject_candidate(&document, source, query_name, &core_name);
+        log_subject_selection(&source_name, format_id, query_name, &core_name, &sel_result);
+
+        if !sel_result.ranked.is_empty() {
+            ranked_subjects = sel_result
+                .ranked
+                .into_iter()
+                .map(|c| SubjectCandidate {
+                    title: c.title,
+                    url: absolutize_url(&response_search_url, &c.url),
+                    score: c.score,
+                })
+                .collect();
             break;
         }
     }
 
-    if detail_url.is_empty() {
+    // When WebView already supplied a concrete detail URL, pin it as the first try.
+    if let Some(forced) = initial_detail_page_url
+        .clone()
+        .filter(|item| !item.is_empty())
+    {
+        ranked_subjects.retain(|c| c.url != forced);
+        ranked_subjects.insert(
+            0,
+            SubjectCandidate {
+                title: String::new(),
+                url: forced,
+                score: i32::MAX,
+            },
+        );
+    }
+
+    if ranked_subjects.is_empty() {
+        let error = if !any_search_fetch_ok {
+            last_search_fetch_error.unwrap_or_else(|| "网络错误".to_string())
+        } else {
+            "未找到匹配的动画".to_string()
+        };
         sink.add(SourceSearchProgress {
             source_name: source_name.clone(),
             step: SearchStep::Failed,
-            error: Some("未找到匹配的动画".to_string()),
+            error: Some(error),
             play_page_url: None,
             video_regex: None,
             direct_video_url: None,
@@ -654,231 +609,262 @@ async fn search_single_source_with_progress(
             all_channels: None,
             captcha_config_json: None,
             enable_nested_url: false,
-
             match_nested_url: None,
         })
         .ok();
         return Err(anyhow::anyhow!("No matching anime found"));
     }
 
-    // Step 2: 获取详情页
-    sink.add(SourceSearchProgress {
-        source_name: source_name.clone(),
-        step: SearchStep::FetchingDetail,
-        error: None,
-        play_page_url: None,
-        video_regex: None,
-        direct_video_url: None,
-        cookies: None,
-        headers: None,
-        channel_name: None,
-        channel_index: None,
-        all_channels: None,
-        captcha_config_json: None,
-        enable_nested_url: false,
+    let retry_limit = subject_retry_limit(ranked_subjects.len());
+    log::info!(
+        "[{}] Trying up to {} subject detail candidate(s)",
+        source_name,
+        retry_limit
+    );
 
-        match_nested_url: None,
-    })
-    .ok();
+    let mut channels: Vec<ChannelInfo> = Vec::new();
+    let mut episode_url = String::new();
+    let mut selected_channel_name: Option<String> = None;
+    let mut selected_channel_index: Option<usize> = None;
+    let mut last_detail_error: Option<String> = None;
 
-    let detail_resp_text = if let Some(html) = initial_detail_page_html.clone() {
-        log::info!(
-            "[{}] Using detail page HTML captured from WebView",
-            source_name
-        );
-        html
-    } else {
-        match apply_browser_page_headers(
-            apply_cookie_header(client.get(&detail_url), effective_cookies.as_deref()),
-            &detail_url,
-            runtime_override
-                .as_ref()
-                .and_then(|item| item.search_page_url.as_deref()),
-        )
-        .send()
-        .await
-        {
-            Ok(resp) => match resp.text().await {
-                Ok(text) => text,
-                Err(e) => {
-                    sink.add(SourceSearchProgress {
-                        source_name: source_name.clone(),
-                        step: SearchStep::Failed,
-                        error: Some(format!("获取详情页失败: {}", e)),
-                        play_page_url: None,
-                        video_regex: None,
-                        direct_video_url: None,
-                        cookies: None,
-                        headers: None,
-                        channel_name: None,
-                        channel_index: None,
-                        all_channels: None,
-                        captcha_config_json: None,
-                        enable_nested_url: false,
+    for (try_idx, candidate) in ranked_subjects.iter().take(retry_limit).enumerate() {
+        let detail_url = candidate.url.clone();
 
-                        match_nested_url: None,
-                    })
-                    .ok();
-                    return Err(anyhow::anyhow!("Detail fetch failed"));
-                }
-            },
-            Err(e) => {
-                sink.add(SourceSearchProgress {
-                    source_name: source_name.clone(),
-                    step: SearchStep::Failed,
-                    error: Some(format!("详情页网络错误: {}", e)),
-                    play_page_url: None,
-                    video_regex: None,
-                    direct_video_url: None,
-                    cookies: None,
-                    headers: None,
-                    channel_name: None,
-                    channel_index: None,
-                    all_channels: None,
-                    captcha_config_json: None,
-                    enable_nested_url: false,
-
-                    match_nested_url: None,
-                })
-                .ok();
-                return Err(anyhow::anyhow!("Detail network error"));
-            }
+        if try_idx > 0 {
+            log::info!(
+                "[{}] Falling back to next subject candidate #{}: '{}' (score={}) url={}",
+                source_name,
+                try_idx + 1,
+                candidate.title,
+                candidate.score,
+                detail_url
+            );
+        } else {
+            log::info!(
+                "[{}] Trying top subject candidate: '{}' (score={}) url={}",
+                source_name,
+                candidate.title,
+                candidate.score,
+                detail_url
+            );
         }
-    };
 
-    // Step 3: 获取剧集列表
-    sink.add(SourceSearchProgress {
-        source_name: source_name.clone(),
-        step: SearchStep::FetchingEpisodes,
-        error: None,
-        play_page_url: None,
-        video_regex: None,
-        direct_video_url: None,
-        cookies: None,
-        headers: None,
-        channel_name: None,
-        channel_index: None,
-        all_channels: None,
-        captcha_config_json: None,
-        enable_nested_url: false,
+        // Step 2: 获取详情页
+        sink.add(SourceSearchProgress {
+            source_name: source_name.clone(),
+            step: SearchStep::FetchingDetail,
+            error: None,
+            play_page_url: None,
+            video_regex: None,
+            direct_video_url: None,
+            cookies: None,
+            headers: None,
+            channel_name: None,
+            channel_index: None,
+            all_channels: None,
+            captcha_config_json: None,
+            enable_nested_url: false,
+            match_nested_url: None,
+        })
+        .ok();
 
-        match_nested_url: None,
-    })
-    .ok();
-
-    // 解析所有channels (使用代码块确保Html在await前被drop)
-    let (channels, episode_url, selected_channel_name, selected_channel_index) = {
-        let detail_doc = Html::parse_document(&detail_resp_text);
-        let mut channels: Vec<ChannelInfo> = Vec::new();
-        let mut episode_url = String::new();
-        let mut selected_channel_name: Option<String> = None;
-        let mut selected_channel_index: Option<usize> = None;
-
-        let channel_format_id = source
-            .arguments
-            .search_config
-            .channel_format_id
-            .as_deref()
-            .unwrap_or("no-channel");
-
-        if channel_format_id == "index-grouped" {
-            if let Some(ref format) = source
-                .arguments
-                .search_config
-                .selector_channel_format_flattened
-            {
-                // 1. 获取所有channel名称
-                if let Some(ref channel_selector) = format.select_channel_names {
-                    if !channel_selector.is_empty() {
-                        if let Ok(ch_sel) = Selector::parse(channel_selector) {
-                            let channel_pattern = format.match_channel_name.as_deref();
-                            for (idx, ch_el) in detail_doc.select(&ch_sel).enumerate() {
-                                let raw_text = ch_el.text().collect::<String>();
-                                let channel_name = extract_channel_name(&raw_text, channel_pattern);
-                                if !channel_name.is_empty() {
-                                    log::info!(
-                                        "[{}] Found channel {}: '{}'",
-                                        source_name,
-                                        idx,
-                                        channel_name
-                                    );
-                                    channels.push(ChannelInfo {
-                                        name: channel_name,
-                                        index: idx,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-
-                log::info!("[{}] Total channels found: {}", source_name, channels.len());
-                if channels.is_empty() {
-                    if let Ok(title_sel) = Selector::parse("title") {
-                        let page_title = detail_doc
-                            .select(&title_sel)
-                            .next()
-                            .map(|el| el.text().collect::<String>().trim().to_string())
-                            .unwrap_or_default();
-                        let snippet: String = detail_resp_text
-                            .chars()
-                            .take(4000)
-                            .collect::<String>()
-                            .replace('\n', " ")
-                            .replace('\r', " ");
-                        log::warn!(
-                            "[{}] Detail page produced 0 channels. title='{}', len={}, snippet={}",
-                            source_name,
-                            page_title,
-                            detail_resp_text.len(),
-                            snippet
-                        );
-                    }
-                }
-
-                // 2. 获取第一个channel的剧集
-                if let (Ok(list_sel), Ok(item_sel)) = (
-                    Selector::parse(&format.select_episode_lists),
-                    Selector::parse(&format.select_episodes_from_list),
-                ) {
-                    if let Some(list_container) = detail_doc.select(&list_sel).next() {
-                        let episodes: Vec<_> = list_container.select(&item_sel).collect();
-                        let ep_pattern = format.match_episode_sort_from_name.as_deref();
-                        if let Some(href) = select_episode_by_number(
-                            &episodes,
-                            absolute_episode,
-                            relative_episode,
-                            ep_pattern,
-                        ) {
-                            if !href.is_empty() {
-                                episode_url = if href.starts_with("http") {
-                                    href
-                                } else {
-                                    let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
-                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                    } else {
-                                        "".to_string()
-                                    };
-                                    format!("{}{}", base_url, href)
-                                };
-                                // 记录选中的channel（默认第一个）
-                                if !channels.is_empty() {
-                                    selected_channel_name = Some(channels[0].name.clone());
-                                    selected_channel_index = Some(channels[0].index);
-                                }
-                            }
-                        }
-                    }
+        // Only the first attempt may use the injected WebView HTML — subsequent
+        // candidates need a live fetch for their own detail URLs.
+        let detail_resp_text = if try_idx == 0 {
+            if let Some(html) = initial_detail_page_html.clone() {
+                log::info!(
+                    "[{}] Using detail page HTML captured from WebView",
+                    source_name
+                );
+                Ok(html)
+            } else {
+                match apply_browser_page_headers(
+                    apply_cookie_header(client.get(&detail_url), effective_cookies.as_deref()),
+                    &detail_url,
+                    runtime_override
+                        .as_ref()
+                        .and_then(|item| item.search_page_url.as_deref())
+                        .or(if search_page_url_for_referer.is_empty() {
+                            None
+                        } else {
+                            Some(search_page_url_for_referer.as_str())
+                        }),
+                )
+                .send()
+                .await
+                {
+                    Ok(resp) => match resp.text().await {
+                        Ok(text) => Ok(text),
+                        Err(e) => Err(format!("获取详情页失败: {}", e)),
+                    },
+                    Err(e) => Err(format!("详情页网络错误: {}", e)),
                 }
             }
         } else {
-            // no-channel 模式
-            if let Some(ref format) = source
+            match apply_browser_page_headers(
+                apply_cookie_header(client.get(&detail_url), effective_cookies.as_deref()),
+                &detail_url,
+                if search_page_url_for_referer.is_empty() {
+                    None
+                } else {
+                    Some(search_page_url_for_referer.as_str())
+                },
+            )
+            .send()
+            .await
+            {
+                Ok(resp) => match resp.text().await {
+                    Ok(text) => Ok(text),
+                    Err(e) => Err(format!("获取详情页失败: {}", e)),
+                },
+                Err(e) => Err(format!("详情页网络错误: {}", e)),
+            }
+        };
+
+        let detail_resp_text = match detail_resp_text {
+            Ok(text) => text,
+            Err(e) => {
+                last_detail_error = Some(e);
+                continue;
+            }
+        };
+
+        // Step 3: 获取剧集列表
+        sink.add(SourceSearchProgress {
+            source_name: source_name.clone(),
+            step: SearchStep::FetchingEpisodes,
+            error: None,
+            play_page_url: None,
+            video_regex: None,
+            direct_video_url: None,
+            cookies: None,
+            headers: None,
+            channel_name: None,
+            channel_index: None,
+            all_channels: None,
+            captcha_config_json: None,
+            enable_nested_url: false,
+            match_nested_url: None,
+        })
+        .ok();
+
+        // 解析所有channels (使用代码块确保Html在await前被drop)
+        let parse_result = {
+            let detail_doc = Html::parse_document(&detail_resp_text);
+            let mut channels: Vec<ChannelInfo> = Vec::new();
+            let mut episode_url = String::new();
+            let mut selected_channel_name: Option<String> = None;
+            let mut selected_channel_index: Option<usize> = None;
+
+            let channel_format_id = source
+                .arguments
+                .search_config
+                .channel_format_id
+                .as_deref()
+                .unwrap_or("no-channel");
+
+            if channel_format_id == "index-grouped" {
+                if let Some(ref format) = source
+                    .arguments
+                    .search_config
+                    .selector_channel_format_flattened
+                {
+                    // 1. 获取所有channel名称
+                    if let Some(ref channel_selector) = format.select_channel_names {
+                        if !channel_selector.is_empty() {
+                            if let Ok(ch_sel) = Selector::parse(channel_selector) {
+                                let channel_pattern = format.match_channel_name.as_deref();
+                                for (idx, ch_el) in detail_doc.select(&ch_sel).enumerate() {
+                                    let raw_text = ch_el.text().collect::<String>();
+                                    let channel_name =
+                                        extract_channel_name(&raw_text, channel_pattern);
+                                    if !channel_name.is_empty() {
+                                        log::info!(
+                                            "[{}] Found channel {}: '{}'",
+                                            source_name,
+                                            idx,
+                                            channel_name
+                                        );
+                                        channels.push(ChannelInfo {
+                                            name: channel_name,
+                                            index: idx,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    log::info!("[{}] Total channels found: {}", source_name, channels.len());
+                    if channels.is_empty() {
+                        if let Ok(title_sel) = Selector::parse("title") {
+                            let page_title = detail_doc
+                                .select(&title_sel)
+                                .next()
+                                .map(|el| el.text().collect::<String>().trim().to_string())
+                                .unwrap_or_default();
+                            let snippet: String = detail_resp_text
+                                .chars()
+                                .take(4000)
+                                .collect::<String>()
+                                .replace('\n', " ")
+                                .replace('\r', " ");
+                            log::warn!(
+                                "[{}] Detail page produced 0 channels. title='{}', len={}, snippet={}",
+                                source_name,
+                                page_title,
+                                detail_resp_text.len(),
+                                snippet
+                            );
+                        }
+                    }
+
+                    // 2. 获取第一个channel的剧集
+                    if let (Ok(list_sel), Ok(item_sel)) = (
+                        Selector::parse(&format.select_episode_lists),
+                        Selector::parse(&format.select_episodes_from_list),
+                    ) {
+                        if let Some(list_container) = detail_doc.select(&list_sel).next() {
+                            let episodes: Vec<_> = list_container.select(&item_sel).collect();
+                            let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                            if let Some(href) = select_episode_by_number(
+                                &episodes,
+                                absolute_episode,
+                                relative_episode,
+                                ep_pattern,
+                            ) {
+                                if !href.is_empty() {
+                                    episode_url = if href.starts_with("http") {
+                                        href
+                                    } else {
+                                        let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                                            format!(
+                                                "{}://{}",
+                                                u.scheme(),
+                                                u.host_str().unwrap_or("")
+                                            )
+                                        } else {
+                                            "".to_string()
+                                        };
+                                        format!("{}{}", base_url, href)
+                                    };
+                                    // 记录选中的channel（默认第一个）
+                                    if !channels.is_empty() {
+                                        selected_channel_name = Some(channels[0].name.clone());
+                                        selected_channel_index = Some(channels[0].index);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if let Some(ref format) = source
                 .arguments
                 .search_config
                 .selector_channel_format_no_channel
             {
-                // 创建默认channel
+                // no-channel 模式
                 channels.push(ChannelInfo {
                     name: "默认线路".to_string(),
                     index: 0,
@@ -910,75 +896,105 @@ async fn search_single_source_with_progress(
                     }
                 }
             }
-        }
 
-        // 如果channels为空但使用了旧的配置格式，尝试用旧逻辑
-        if channels.is_empty() && episode_url.is_empty() {
-            if let Some(ref format) = source
-                .arguments
-                .search_config
-                .selector_channel_format_flattened
-            {
-                if let (Ok(list_sel), Ok(item_sel)) = (
-                    Selector::parse(&format.select_episode_lists),
-                    Selector::parse(&format.select_episodes_from_list),
-                ) {
-                    if let Some(list_container) = detail_doc.select(&list_sel).next() {
-                        let episodes: Vec<_> = list_container.select(&item_sel).collect();
-                        let ep_pattern = format.match_episode_sort_from_name.as_deref();
-                        if let Some(href) = select_episode_by_number(
-                            &episodes,
-                            absolute_episode,
-                            relative_episode,
-                            ep_pattern,
-                        ) {
-                            if !href.is_empty() {
-                                episode_url = if href.starts_with("http") {
-                                    href
-                                } else {
-                                    let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
-                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
+            // 如果channels为空但使用了旧的配置格式，尝试用旧逻辑
+            if channels.is_empty() && episode_url.is_empty() {
+                if let Some(ref format) = source
+                    .arguments
+                    .search_config
+                    .selector_channel_format_flattened
+                {
+                    if let (Ok(list_sel), Ok(item_sel)) = (
+                        Selector::parse(&format.select_episode_lists),
+                        Selector::parse(&format.select_episodes_from_list),
+                    ) {
+                        if let Some(list_container) = detail_doc.select(&list_sel).next() {
+                            let episodes: Vec<_> = list_container.select(&item_sel).collect();
+                            let ep_pattern = format.match_episode_sort_from_name.as_deref();
+                            if let Some(href) = select_episode_by_number(
+                                &episodes,
+                                absolute_episode,
+                                relative_episode,
+                                ep_pattern,
+                            ) {
+                                if !href.is_empty() {
+                                    episode_url = if href.starts_with("http") {
+                                        href
                                     } else {
-                                        "".to_string()
+                                        let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
+                                            format!(
+                                                "{}://{}",
+                                                u.scheme(),
+                                                u.host_str().unwrap_or("")
+                                            )
+                                        } else {
+                                            "".to_string()
+                                        };
+                                        format!("{}{}", base_url, href)
                                     };
-                                    format!("{}{}", base_url, href)
-                                };
+                                }
                             }
                         }
                     }
                 }
             }
+
+            (
+                channels,
+                episode_url,
+                selected_channel_name,
+                selected_channel_index,
+            )
+        }; // detail_doc 在这里被 drop
+
+        channels = parse_result.0;
+        episode_url = parse_result.1;
+        selected_channel_name = parse_result.2;
+        selected_channel_index = parse_result.3;
+
+        // Successful parse — only cache and accept pages that actually yield a play URL.
+        if !episode_url.is_empty() {
+            let (cache_channels, cache_episodes) =
+                parse_episode_table_from_detail(source, &detail_url, &detail_resp_text);
+            if !cache_episodes.is_empty() {
+                let cache = build_episode_table_cache(
+                    source,
+                    anime_name,
+                    detail_url.clone(),
+                    candidate.title.clone(),
+                    cache_channels,
+                    cache_episodes,
+                    effective_cookies.clone(),
+                    headers.clone(),
+                );
+                save_episode_table_cache(&cache);
+            }
+            break;
         }
 
-        (
-            channels,
-            episode_url,
-            selected_channel_name,
-            selected_channel_index,
-        )
-    }; // detail_doc 在这里被 drop
-
-    let (cache_channels, cache_episodes) =
-        parse_episode_table_from_detail(source, &detail_url, &detail_resp_text);
-    if !cache_episodes.is_empty() {
-        let cache = build_episode_table_cache(
-            source,
-            anime_name,
-            detail_url.clone(),
-            String::new(),
-            cache_channels,
-            cache_episodes,
-            effective_cookies.clone(),
-            headers.clone(),
+        // Empty detail: try next same-score / lower-score subject entry for this source.
+        last_detail_error = Some(format!(
+            "条目 '{}' 无可播放线路/剧集",
+            if candidate.title.is_empty() {
+                detail_url.as_str()
+            } else {
+                candidate.title.as_str()
+            }
+        ));
+        log::warn!(
+            "[{}] Subject candidate has no playable episodes (channels={}, title='{}'); trying next if any",
+            source_name,
+            channels.len(),
+            candidate.title
         );
-        save_episode_table_cache(&cache);
     }
 
     if episode_url.is_empty() {
+        let error = last_detail_error.unwrap_or_else(|| "未找到剧集列表".to_string());
         sink.add(SourceSearchProgress {
             source_name: source_name.clone(),
             step: SearchStep::Failed,
-            error: Some("未找到剧集列表".to_string()),
+            error: Some(error),
             play_page_url: None,
             video_regex: None,
             direct_video_url: None,
@@ -993,7 +1009,6 @@ async fn search_single_source_with_progress(
             },
             captcha_config_json: captcha_config_json.clone(),
             enable_nested_url: false,
-
             match_nested_url: None,
         })
         .ok();

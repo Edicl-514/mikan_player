@@ -5,6 +5,27 @@ use scraper::{Html, Selector};
 lazy_static::lazy_static! {
     /// 匹配季数相关的关键词
     static ref SEASON_RE: Regex = Regex::new(r"(?i)第[一二三四五六七八九十\d]+季|Part\s*\d+|\d+(st|nd|rd|th)\s*Season|Season\s*\d+").unwrap();
+    static ref SUBJECT_SEASON_PATTERNS: Vec<Regex> = vec![
+        Regex::new(r"第\s*(?<value>[零〇一二两三四五六七八九十百\d]+)\s*[季期]").unwrap(),
+        Regex::new(r"(?i)\bseason\s*(?<value>\d+)\b").unwrap(),
+        Regex::new(r"(?i)\bs\s*(?<value>\d+)\b").unwrap(),
+        Regex::new(r"(?i)\b(?<value>\d+)(?:st|nd|rd|th)\s+season\b").unwrap(),
+    ];
+    static ref SUBJECT_PART_PATTERNS: Vec<Regex> = vec![
+        Regex::new(r"(?i)\bpart\s*(?<value>\d+)\b").unwrap(),
+    ];
+    static ref LIVE_ACTION_RE: Regex = Regex::new(
+        r"(?i)真人(?:版|剧)?|live[\s_-]*action"
+    ).unwrap();
+    static ref MOVIE_RE: Regex = Regex::new(
+        r"(?i)剧场版|劇場版|电影版?|電影版?|(?<![a-z0-9])(?:movie|film)(?![a-z0-9])"
+    ).unwrap();
+    static ref OVA_RE: Regex = Regex::new(
+        r"(?i)(?<![a-z0-9])(?:ova|oad)(?![a-z0-9])"
+    ).unwrap();
+    static ref SPECIAL_RE: Regex = Regex::new(
+        r"(?i)特别篇|特別篇|总集篇|總集篇|番外篇|完结篇|完結篇|终幕|終幕|(?<![a-z0-9])(?:special|sp)(?![a-z0-9])"
+    ).unwrap();
 }
 
 /// 预处理搜索词，提取核心动画名称
@@ -236,6 +257,119 @@ pub(super) fn calculate_match_score(title: &str, full_name: &str, core_name: &st
 
 pub(super) const MATCH_THRESHOLD: i32 = 36;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SubjectVariant {
+    Normal,
+    LiveAction,
+    Movie,
+    Ova,
+    Special,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SubjectIdentity {
+    core_title: String,
+    season: Option<u32>,
+    part: Option<u32>,
+    variant: SubjectVariant,
+}
+
+fn extract_subject_number(title: &str, patterns: &[Regex]) -> Option<u32> {
+    for pattern in patterns {
+        if let Ok(Some(captures)) = pattern.captures(title) {
+            if let Some(value) = captures.name("value") {
+                if let Some(number) = parse_chinese_number(value.as_str()) {
+                    return Some(number);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn subject_variant(title: &str) -> SubjectVariant {
+    if LIVE_ACTION_RE.is_match(title).unwrap_or(false) {
+        SubjectVariant::LiveAction
+    } else if MOVIE_RE.is_match(title).unwrap_or(false) {
+        SubjectVariant::Movie
+    } else if OVA_RE.is_match(title).unwrap_or(false) {
+        SubjectVariant::Ova
+    } else if SPECIAL_RE.is_match(title).unwrap_or(false) {
+        SubjectVariant::Special
+    } else {
+        SubjectVariant::Normal
+    }
+}
+
+fn parse_subject_identity(title: &str) -> SubjectIdentity {
+    let season = extract_subject_number(title, &SUBJECT_SEASON_PATTERNS);
+    let part = extract_subject_number(title, &SUBJECT_PART_PATTERNS);
+    let variant = subject_variant(title);
+
+    let mut core_title = title.to_lowercase();
+    for pattern in SUBJECT_SEASON_PATTERNS
+        .iter()
+        .chain(SUBJECT_PART_PATTERNS.iter())
+    {
+        core_title = pattern.replace_all(&core_title, " ").to_string();
+    }
+    for pattern in [&*LIVE_ACTION_RE, &*MOVIE_RE, &*OVA_RE, &*SPECIAL_RE] {
+        core_title = pattern.replace_all(&core_title, " ").to_string();
+    }
+    core_title.retain(|c| c.is_alphanumeric());
+
+    SubjectIdentity {
+        core_title,
+        season,
+        part,
+        variant,
+    }
+}
+
+fn is_semantically_compatible_subject(
+    query: &SubjectIdentity,
+    best: &SubjectIdentity,
+    candidate: &SubjectIdentity,
+) -> bool {
+    if best.core_title.is_empty() || candidate.core_title != best.core_title {
+        return false;
+    }
+
+    let expected_season = query.season.or(best.season);
+    if candidate.season != expected_season {
+        return false;
+    }
+
+    let expected_part = query.part.or(best.part);
+    if candidate.part != expected_part {
+        return false;
+    }
+
+    let expected_variant = if query.variant == SubjectVariant::Normal {
+        best.variant
+    } else {
+        query.variant
+    };
+    candidate.variant == expected_variant
+}
+
+fn retain_semantic_subject_retries(query_name: &str, ranked: &mut Vec<SubjectCandidate>) {
+    let Some(best) = ranked.first().cloned() else {
+        return;
+    };
+
+    let query_identity = parse_subject_identity(query_name);
+    let best_identity = parse_subject_identity(&best.title);
+    ranked.retain(|candidate| {
+        candidate.url == best.url
+            || is_semantically_compatible_subject(
+                &query_identity,
+                &best_identity,
+                &parse_subject_identity(&candidate.title),
+            )
+    });
+}
+
 #[derive(Clone)]
 pub(super) struct SubjectCandidate {
     pub(super) title: String,
@@ -244,7 +378,12 @@ pub(super) struct SubjectCandidate {
 }
 
 pub(super) struct SubjectSelectionResult {
+    /// Highest-scoring candidate (first among ties in document order).
     pub(super) best: Option<SubjectCandidate>,
+    /// Semantically compatible candidates above threshold, sorted by score desc
+    /// (stable for ties) and de-duplicated by URL. Used to fall back when a detail
+    /// page has no channels without crossing seasons or media variants.
+    pub(super) ranked: Vec<SubjectCandidate>,
     pub(super) all_scored: Vec<(String, i32, String)>,
 }
 
@@ -262,8 +401,6 @@ pub(super) fn select_best_subject_candidate(
         .unwrap_or("indexed");
 
     let mut all_scored: Vec<(String, i32, String)> = Vec::new();
-    let mut best: Option<SubjectCandidate> = None;
-    let mut best_score = 0;
 
     if format_id == "a" {
         if let Some(ref format) = source.arguments.search_config.selector_subject_format_a {
@@ -272,49 +409,54 @@ pub(super) fn select_best_subject_candidate(
                     let title = link_el.text().collect::<String>().trim().to_string();
                     let href = link_el.value().attr("href").unwrap_or("").to_string();
                     let score = calculate_match_score(&title, query_name, core_name);
-                    all_scored.push((title.clone(), score, href.clone()));
-                    if score > best_score && score >= MATCH_THRESHOLD {
-                        best_score = score;
-                        best = Some(SubjectCandidate {
-                            title,
-                            url: href,
-                            score,
-                        });
-                    }
+                    all_scored.push((title, score, href));
                 }
             }
         }
-    } else {
-        if let Some(ref format) = source
-            .arguments
-            .search_config
-            .selector_subject_format_indexed
-        {
-            if let (Ok(name_sel), Ok(link_sel)) = (
-                Selector::parse(&format.select_names),
-                Selector::parse(&format.select_links),
-            ) {
-                let names: Vec<_> = document.select(&name_sel).collect();
-                let links: Vec<_> = document.select(&link_sel).collect();
-                for (name_el, link_el) in names.iter().zip(links.iter()) {
-                    let title = name_el.text().collect::<String>().trim().to_string();
-                    let href = link_el.value().attr("href").unwrap_or("").to_string();
-                    let score = calculate_match_score(&title, query_name, core_name);
-                    all_scored.push((title.clone(), score, href.clone()));
-                    if score > best_score && score >= MATCH_THRESHOLD {
-                        best_score = score;
-                        best = Some(SubjectCandidate {
-                            title,
-                            url: href,
-                            score,
-                        });
-                    }
-                }
+    } else if let Some(ref format) = source
+        .arguments
+        .search_config
+        .selector_subject_format_indexed
+    {
+        if let (Ok(name_sel), Ok(link_sel)) = (
+            Selector::parse(&format.select_names),
+            Selector::parse(&format.select_links),
+        ) {
+            let names: Vec<_> = document.select(&name_sel).collect();
+            let links: Vec<_> = document.select(&link_sel).collect();
+            for (name_el, link_el) in names.iter().zip(links.iter()) {
+                let title = name_el.text().collect::<String>().trim().to_string();
+                let href = link_el.value().attr("href").unwrap_or("").to_string();
+                let score = calculate_match_score(&title, query_name, core_name);
+                all_scored.push((title, score, href));
             }
         }
     }
 
-    SubjectSelectionResult { best, all_scored }
+    // Keep document order among equal scores (stable sort).
+    let mut ranked: Vec<SubjectCandidate> = all_scored
+        .iter()
+        .filter(|(_, score, url)| *score >= MATCH_THRESHOLD && !url.is_empty())
+        .map(|(title, score, url)| SubjectCandidate {
+            title: title.clone(),
+            url: url.clone(),
+            score: *score,
+        })
+        .collect();
+    ranked.sort_by(|a, b| b.score.cmp(&a.score));
+
+    let mut seen_urls = std::collections::HashSet::new();
+    ranked.retain(|c| seen_urls.insert(c.url.clone()));
+
+    retain_semantic_subject_retries(query_name, &mut ranked);
+
+    let best = ranked.first().cloned();
+
+    SubjectSelectionResult {
+        best,
+        ranked,
+        all_scored,
+    }
 }
 
 pub(super) fn log_subject_selection(
@@ -377,14 +519,35 @@ pub(super) fn log_subject_selection(
                 log::warn!("[{}] 最高分: {}", source_name, max_score);
             }
         }
-        if result.best.is_some() {
+        if let Some(best) = result.best.as_ref() {
             log::info!(
-                "[{}] ★ 最终选择: 第一个分数最高的结果 (分数: {})",
+                "[{}] ★ 最终选择: '{}' (分数: {}, 候选共 {} 个)",
                 source_name,
-                result.best.as_ref().unwrap().score
+                best.title,
+                best.score,
+                result.ranked.len()
             );
+            if result.ranked.len() > 1 {
+                for (i, c) in result.ranked.iter().skip(1).take(5).enumerate() {
+                    log::info!(
+                        "[{}]   备选 #{}: '{}' (分数: {})",
+                        source_name,
+                        i + 1,
+                        c.title,
+                        c.score
+                    );
+                }
+            }
         }
     }
+}
+
+/// Cap on how many detail-page candidates to try when the top match has no playable channel.
+pub(super) const MAX_SUBJECT_DETAIL_RETRIES: usize = 5;
+
+/// How many candidates to try when falling back after an empty detail page.
+pub(super) fn subject_retry_limit(ranked_len: usize) -> usize {
+    ranked_len.min(MAX_SUBJECT_DETAIL_RETRIES)
 }
 
 /// 从集数列表中选择指定集号的链接
@@ -816,5 +979,83 @@ mod tests {
         let unrelated = calculate_match_score("迷宫饭", "葬送的芙莉莲", "葬送的芙莉莲");
         assert!(exact > unrelated);
         assert!(exact >= MATCH_THRESHOLD);
+    }
+
+    #[test]
+    fn parses_subject_identity_across_season_formats() {
+        let chinese = parse_subject_identity("【我推的孩子】 第三季");
+        let numeric = parse_subject_identity("我推的孩子 第3期");
+        let english = parse_subject_identity("Oshi no Ko Season 3 Part 2");
+
+        assert_eq!(chinese.core_title, "我推的孩子");
+        assert_eq!(chinese, numeric);
+        assert_eq!(english.core_title, "oshinoko");
+        assert_eq!(english.season, Some(3));
+        assert_eq!(english.part, Some(2));
+    }
+
+    #[test]
+    fn semantic_retries_exclude_other_seasons_and_variants() {
+        let mut ranked = vec![
+            SubjectCandidate {
+                title: "【我推的孩子】第三季".to_string(),
+                url: "/third-a".to_string(),
+                score: 85,
+            },
+            SubjectCandidate {
+                title: "我推的孩子 第3期".to_string(),
+                url: "/third-b".to_string(),
+                score: 74,
+            },
+            SubjectCandidate {
+                title: "我推的孩子 第二季".to_string(),
+                url: "/second".to_string(),
+                score: 72,
+            },
+            SubjectCandidate {
+                title: "我推的孩子".to_string(),
+                url: "/unspecified".to_string(),
+                score: 70,
+            },
+            SubjectCandidate {
+                title: "【我推的孩子】真人版 第三季".to_string(),
+                url: "/live-action".to_string(),
+                score: 65,
+            },
+            SubjectCandidate {
+                title: "我推的孩子 第三季 剧场版".to_string(),
+                url: "/movie".to_string(),
+                score: 60,
+            },
+        ];
+
+        retain_semantic_subject_retries("【我推的孩子】 第三季", &mut ranked);
+
+        let urls: Vec<_> = ranked
+            .iter()
+            .map(|candidate| candidate.url.as_str())
+            .collect();
+        assert_eq!(urls, vec!["/third-a", "/third-b"]);
+    }
+
+    #[test]
+    fn semantic_retries_keep_the_original_best_when_query_metadata_disagrees() {
+        let mut ranked = vec![
+            SubjectCandidate {
+                title: "我推的孩子".to_string(),
+                url: "/best".to_string(),
+                score: 64,
+            },
+            SubjectCandidate {
+                title: "我推的孩子 第二季".to_string(),
+                url: "/second".to_string(),
+                score: 63,
+            },
+        ];
+
+        retain_semantic_subject_retries("我推的孩子 第三季", &mut ranked);
+
+        assert_eq!(ranked.len(), 1);
+        assert_eq!(ranked[0].url, "/best");
     }
 }
