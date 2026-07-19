@@ -379,3 +379,58 @@
   `complete followed by cancel settles the job only once`，并由
   `cancel wins a timeout race without a late result or second idle` 覆盖相邻 timeout 竞态。
 - 迁移/回滚：仅运行时调度幂等性修复，不涉及持久化数据或配置迁移。
+
+### DT-5-001 — 非 Player 页面旧请求可覆盖新状态或显示过期错误
+
+- 工作包：DT-5（2026-07-19）
+- 现象：Search 连续提交两个关键词时，先发出的慢请求可在后发请求之后完成并覆盖结果；
+  Character/Person details 的 retry 或 widget id 替换存在相同风险；Index 虽有 fetch id，但旧请求
+  失败后仍会弹出与当前筛选无关的 SnackBar。主页与收藏页的并行刷新也缺少统一 latest-wins 门禁。
+- 根因：多数页面只检查 `mounted`；`mounted` 只能说明 State 尚存活，不能说明异步结果仍属于当前
+  query、entity 或 refresh generation。
+- 影响：快速搜索、切换筛选、重试或刷新时可能看到上一关键词/人物/分区的数据，或收到已经过期的
+  错误提示，页面可见状态与当前输入不一致。
+- 修复：新增 `PagedRequestController`、`EntityDetailsController` 与 `RequestGenerationGuard`；
+  Search/Ranking/Character/Person/History 接入 controller，Home/Favorites 使用独立 generation；
+  Index 的错误提示也要求 fetch id 仍为当前值。
+- 回归测试：`late old query cannot overwrite the latest query`、
+  `refresh invalidates in-flight load more`、`late previous entity cannot overwrite replacement`、
+  `search: late old query cannot replace latest results`、dispose late completion 测试。
+- 迁移/回滚：仅运行时状态所有权调整，无持久化迁移。
+
+### DT-5-002 — Home 下拉刷新 Future 在数据完成前返回
+
+- 工作包：DT-5（2026-07-19）
+- 现象：Home PC/mobile 的 `RefreshIndicator.onRefresh` 调用 `_loadAllData`，但该方法只启动四个
+  async loader 而不 await；刷新指示器会立即消失，实际 timetable/ranking/history/favorites 仍在后台加载。
+- 根因：`async` 方法内部调用 Future 时既未 `await`，也未通过 `Future.wait` 聚合。
+- 影响：用户收到错误的“刷新完成”反馈，并可在前一轮尚未结束时再次触发刷新，扩大旧结果覆盖窗口。
+- 修复：两种布局统一 `await Future.wait([...])`，四个分区各自使用 generation guard，UI 只接受
+  当前轮次的完成结果。
+- 回归测试：`RequestGenerationGuard` latest/invalidate/dispose 测试；全量 Home 编译与页面回归。
+- 迁移/回滚：不涉及。
+
+### DT-5-003 — History 读取异常被渲染成“无历史”
+
+- 工作包：DT-5（2026-07-19）
+- 现象：`FutureBuilder` 只读取 `snapshot.data ?? []`，未处理 `snapshot.error`；存储读取失败时页面
+  显示正常空态，用户无法区分“确实为空”和“加载失败”，也没有 retry 入口。
+- 根因：页面状态仅由 FutureBuilder 的 data/connectionState 推导，遗漏 error 分支。
+- 影响：瞬时 I/O 或未来 backend 异常会被静默吞掉，删除/刷新失败后的诊断与恢复能力不足。
+- 修复：History 接入分页状态 controller（只使用 refresh 能力），显式渲染 loading/error/retry/
+  empty/success；删除操作等待持久化完成后再刷新列表。
+- 回归测试：`history: load failure is retryable instead of looking empty`、
+  `history: delete waits for persistence then refreshes`。
+- 迁移/回滚：不涉及。
+
+### DT-5-004 — 播放源刷新完成时可能在已销毁 State 上 setState
+
+- 工作包：DT-5（2026-07-19）
+- 现象：离开 DataSourceSettingsPage 时若播放源刷新仍在进行，成功路径更新 `_sources` 以及
+  `finally` 清除 `_isRefreshing` 都会无条件调用 `setState`。
+- 根因：异步方法的部分分支有 `mounted` 检查，但成功提交和 `finally` 遗漏生命周期门禁。
+- 影响：刷新过程中快速返回上一页会触发 `setState() called after dispose()`，在测试/调试环境报错，
+  并可能中断后续帧处理。
+- 修复：两处状态提交均要求 `mounted`；持久化与 Rust runtime 同步仍允许在页面离开后正常完成。
+- 回归测试：controller dispose late-completion 回归 + DataSourceSettings 静态分析/全量 Widget 回归。
+- 迁移/回滚：不涉及。

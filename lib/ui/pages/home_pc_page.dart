@@ -27,6 +27,7 @@ import 'package:mikan_player/ui/widgets/anime_card.dart';
 import 'package:mikan_player/ui/widgets/blurred_cover_background.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
+import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 
 class HomePcPage extends StatefulWidget {
   const HomePcPage({super.key});
@@ -50,6 +51,11 @@ class _HomePcPageState extends State<HomePcPage> {
   bool _isLoadingHistory = true;
   bool _isLoadingFavorites = true;
 
+  final RequestGenerationGuard _todayGuard = RequestGenerationGuard();
+  final RequestGenerationGuard _rankingGuard = RequestGenerationGuard();
+  final RequestGenerationGuard _historyGuard = RequestGenerationGuard();
+  final RequestGenerationGuard _favoritesGuard = RequestGenerationGuard();
+
   late PageController _todayPageController;
   Timer? _todayTimer;
   final ScrollController _scrollController = createPlatformScrollController();
@@ -64,6 +70,10 @@ class _HomePcPageState extends State<HomePcPage> {
 
   @override
   void dispose() {
+    _todayGuard.dispose();
+    _rankingGuard.dispose();
+    _historyGuard.dispose();
+    _favoritesGuard.dispose();
     _todayTimer?.cancel();
     _todayPageController.dispose();
     _scrollController.dispose();
@@ -101,13 +111,16 @@ class _HomePcPageState extends State<HomePcPage> {
 
   Future<void> _loadAllData() async {
     debugPrint('[HomePc] loadAllData start');
-    _loadTodayAnimes();
-    _loadRanking();
-    _loadHistory();
-    _loadFavorites();
+    await Future.wait([
+      _loadTodayAnimes(),
+      _loadRanking(),
+      _loadHistory(),
+      _loadFavorites(),
+    ]);
   }
 
   Future<void> _loadTodayAnimes() async {
+    final generation = _todayGuard.begin();
     try {
       debugPrint('[HomePc] loadTodayAnimes start');
       final now = DateTime.now();
@@ -137,7 +150,7 @@ class _HomePcPageState extends State<HomePcPage> {
         '[HomePc] today filter day=$todayStr count=${todayList.length}',
       );
 
-      if (mounted) {
+      if (mounted && _todayGuard.isCurrent(generation)) {
         setState(() {
           _todayAnimes = todayList;
           _isLoadingToday = false;
@@ -183,7 +196,7 @@ class _HomePcPageState extends State<HomePcPage> {
           // Update timetable cache so next load has coverUrl
           await CacheManager.instance.updateTimetable(currentQuarter, animes);
           debugPrint('[HomePc] enriched timetable saved');
-          if (mounted) {
+          if (mounted && _todayGuard.isCurrent(generation)) {
             setState(() {
               _todayAnimes = List.from(todayList);
             });
@@ -195,11 +208,14 @@ class _HomePcPageState extends State<HomePcPage> {
       debugPrint('[HomePc] loadTodayAnimes done');
     } catch (e) {
       debugPrint('Error loading today animes: $e');
-      if (mounted) setState(() => _isLoadingToday = false);
+      if (mounted && _todayGuard.isCurrent(generation)) {
+        setState(() => _isLoadingToday = false);
+      }
     }
   }
 
   Future<void> _loadRanking() async {
+    final generation = _rankingGuard.begin();
     try {
       debugPrint('[HomePc] loadRanking start');
       final results = await CacheManager.instance.getRanking(
@@ -208,7 +224,7 @@ class _HomePcPageState extends State<HomePcPage> {
         fetchFromNetwork: () =>
             fetchBangumiRanking(sortType: 'trends', page: 1),
       );
-      if (mounted) {
+      if (mounted && _rankingGuard.isCurrent(generation)) {
         setState(() {
           _rankingAnimes = results;
           _isLoadingRanking = false;
@@ -217,15 +233,18 @@ class _HomePcPageState extends State<HomePcPage> {
       debugPrint('[HomePc] loadRanking done count=${results.length}');
     } catch (e) {
       debugPrint('Error loading ranking: $e');
-      if (mounted) setState(() => _isLoadingRanking = false);
+      if (mounted && _rankingGuard.isCurrent(generation)) {
+        setState(() => _isLoadingRanking = false);
+      }
     }
   }
 
   Future<void> _loadHistory() async {
+    final generation = _historyGuard.begin();
     try {
       debugPrint('[HomePc] loadHistory start');
       final history = await _historyManager.getHistory();
-      if (mounted) {
+      if (mounted && _historyGuard.isCurrent(generation)) {
         setState(() {
           _historyItems = history;
           _isLoadingHistory = false;
@@ -234,11 +253,14 @@ class _HomePcPageState extends State<HomePcPage> {
       debugPrint('[HomePc] loadHistory done count=${history.length}');
     } catch (e) {
       debugPrint('Error loading history: $e');
-      if (mounted) setState(() => _isLoadingHistory = false);
+      if (mounted && _historyGuard.isCurrent(generation)) {
+        setState(() => _isLoadingHistory = false);
+      }
     }
   }
 
   Future<void> _loadFavorites() async {
+    final generation = _favoritesGuard.begin();
     try {
       debugPrint('[HomePc] loadFavorites start');
       await _favoritesManager.init();
@@ -307,7 +329,7 @@ class _HomePcPageState extends State<HomePcPage> {
         }
       }
 
-      if (mounted) {
+      if (mounted && _favoritesGuard.isCurrent(generation)) {
         setState(() {
           _favoriteItems = merged;
           _isLoadingFavorites = false;
@@ -316,7 +338,9 @@ class _HomePcPageState extends State<HomePcPage> {
       debugPrint('[HomePc] loadFavorites done count=${merged.length}');
     } catch (e) {
       debugPrint('Error loading favorites: $e');
-      if (mounted) setState(() => _isLoadingFavorites = false);
+      if (mounted && _favoritesGuard.isCurrent(generation)) {
+        setState(() => _isLoadingFavorites = false);
+      }
     }
   }
 
@@ -689,7 +713,10 @@ class _HomePcPageState extends State<HomePcPage> {
                                       Expanded(
                                         child: Builder(
                                           builder: (context) {
-                                            final extra = _getExtraInfo(anime, AppLocalizations.of(context));
+                                            final extra = _getExtraInfo(
+                                              anime,
+                                              AppLocalizations.of(context),
+                                            );
                                             if (extra.isEmpty) {
                                               return const SizedBox();
                                             }

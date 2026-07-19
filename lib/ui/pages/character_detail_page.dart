@@ -6,8 +6,13 @@ import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
+import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'bangumi_details_page.dart';
 import 'person_detail_page.dart';
+
+typedef CharacterDetailsLoader = Future<CharacterDetails> Function(int id);
+typedef CharacterSubjectsLoader =
+    Future<List<CharacterSubject>> Function(int id);
 
 class CharacterDetailPage extends StatefulWidget {
   final int characterId;
@@ -15,6 +20,8 @@ class CharacterDetailPage extends StatefulWidget {
   final String? heroImageUrl;
   final bool enableHeroAnimation;
   final String? heroTag;
+  final CharacterDetailsLoader? loadDetails;
+  final CharacterSubjectsLoader? loadSubjects;
 
   const CharacterDetailPage({
     super.key,
@@ -23,6 +30,8 @@ class CharacterDetailPage extends StatefulWidget {
     this.heroImageUrl,
     this.enableHeroAnimation = true,
     this.heroTag,
+    this.loadDetails,
+    this.loadSubjects,
   });
 
   @override
@@ -30,11 +39,18 @@ class CharacterDetailPage extends StatefulWidget {
 }
 
 class _CharacterDetailPageState extends State<CharacterDetailPage> {
-  CharacterDetails? _characterDetails;
-  List<CharacterSubject> _subjects = [];
-  bool _isLoadingDetails = true;
-  bool _isLoadingSubjects = true;
-  String? _error;
+  late final EntityDetailsController<
+    int,
+    CharacterDetails,
+    CharacterSubject,
+    Object
+  >
+  _controller;
+
+  CharacterDetails? get _characterDetails => _controller.details;
+  List<CharacterSubject> get _subjects => _controller.subjects;
+  bool get _isLoadingDetails => _controller.isLoadingDetails;
+  bool get _isLoadingSubjects => _controller.isLoadingSubjects;
 
   final ScrollController _mobileScrollController =
       createPlatformScrollController();
@@ -46,11 +62,39 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
   @override
   void initState() {
     super.initState();
+    _controller =
+        EntityDetailsController<
+            int,
+            CharacterDetails,
+            CharacterSubject,
+            Object
+          >(
+            fetchDetails:
+                widget.loadDetails ??
+                (id) => fetchCharacterDetails(characterId: id),
+            fetchSubjects:
+                widget.loadSubjects ??
+                (id) => fetchCharacterSubjects(characterId: id),
+          )
+          ..addListener(_onControllerChanged);
     _fetchData();
   }
 
   @override
+  void didUpdateWidget(covariant CharacterDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.characterId != widget.characterId) {
+      _fetchData();
+    }
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _controller.dispose();
     _mobileScrollController.dispose();
     _desktopLeftScrollController.dispose();
     _desktopRightScrollController.dispose();
@@ -58,50 +102,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
   }
 
   Future<void> _fetchData() async {
-    await Future.wait([_fetchCharacterDetails(), _fetchCharacterSubjects()]);
-  }
-
-  Future<void> _fetchCharacterDetails() async {
-    try {
-      final details = await fetchCharacterDetails(
-        characterId: widget.characterId,
-      );
-      if (mounted) {
-        setState(() {
-          _characterDetails = details;
-          _isLoadingDetails = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching character details: $e');
-      if (mounted) {
-        setState(() {
-          _error = AppLocalizations.of(context).characterDetailsLoadFailed;
-          _isLoadingDetails = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _fetchCharacterSubjects() async {
-    try {
-      final subjects = await fetchCharacterSubjects(
-        characterId: widget.characterId,
-      );
-      if (mounted) {
-        setState(() {
-          _subjects = subjects;
-          _isLoadingSubjects = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching character subjects: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingSubjects = false;
-        });
-      }
-    }
+    await _controller.load(widget.characterId);
   }
 
   void _openBangumiPage(int subjectId) {
@@ -154,7 +155,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     final isMobile = MediaQuery.of(context).size.width < 800;
     final l10n = AppLocalizations.of(context);
 
-    if (_error != null && _characterDetails == null) {
+    if (_controller.detailsError != null && _characterDetails == null) {
       return Scaffold(
         backgroundColor: const Color(0xFF16161E),
         appBar: AppBar(
@@ -168,7 +169,10 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
             children: [
               const Icon(Icons.error_outline, color: Colors.red, size: 48),
               const SizedBox(height: 16),
-              Text(_error!, style: const TextStyle(color: Colors.white70)),
+              Text(
+                l10n.characterDetailsLoadFailed,
+                style: const TextStyle(color: Colors.white70),
+              ),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _fetchData,
@@ -501,7 +505,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                   radius: 4,
                   isDark: isDark,
                 )
-              else if (_getDisplayBirthday(AppLocalizations.of(context)) != null)
+              else if (_getDisplayBirthday(AppLocalizations.of(context)) !=
+                  null)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -1134,8 +1139,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                                               person.images!.small.isNotEmpty)
                                             const SizedBox(width: 4),
                                           Text(
-                                            AppLocalizations.of(context)
-                                                .detailsCvName(person.name),
+                                            AppLocalizations.of(
+                                              context,
+                                            ).detailsCvName(person.name),
                                             style: TextStyle(
                                               fontSize: 11,
                                               color: textColor.withValues(

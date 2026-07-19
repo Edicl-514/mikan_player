@@ -391,6 +391,33 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
   pool pump。修复为已完成任务的 cancel 仅退休本地状态，不再二次通知；详见
   `docs/stability_findings.md`。
 
+### DT-5 执行结果（2026-07-19）
+
+- 新增 `async_page_controllers.dart`，提供三类非 Player 页面状态基础设施：
+  - `PagedRequestController<Q, T>`：搜索/筛选/排行/历史的 initial、loading、success、empty、
+    error、retry、分页、load-more 去重、latest-query-wins 与 dispose 失效；
+  - `EntityDetailsController<I, D, S, R>`：角色/人物详情的 details、subjects、related 三路并行
+    加载，允许部分成功，并阻止旧实体/旧 retry 晚返回覆盖当前页面；
+  - `RequestGenerationGuard`：主页四分区与收藏页保留页面侧业务组合，同时统一旧请求失效语义。
+- 新增 **18** 个测试：14 个 controller 单元测试 + 4 个页面状态 Widget 测试，覆盖搜索旧查询
+  晚返回、排行失败重试到空态、历史读取失败重试、删除落盘后刷新，以及 controller 的分页、
+  错误恢复、dispose、部分成功和 generation 竞态。
+- 页面接线与复核：
+  - home PC/mobile：四个共享加载分区均使用独立 generation；下拉刷新等待全部分区结算；
+  - index/search/ranking：Index 保留已有 fetch id 并补 stale error 门禁；Search/Ranking 迁移到
+    分页 controller，Search/RankingList 增加实例级离线 fetch seam；
+  - Bangumi/character/person details：复用既有 `BangumiDetailsController` 及其完整测试；
+    Character/Person 迁移到三路详情 controller，并在 widget id 改变时主动重载；
+  - settings/data source config：复用已有保存成功/失败/validator Widget 回归；补齐播放源刷新
+    dispose 门禁；
+  - favorites/history/my：收藏本地/远端刷新增加独立 generation，History 改为显式
+    loading/error/retry/empty/success 状态并为 load/remove 注入 seam；MyPage 本身仅投影已由 DT-2
+    覆盖的 UserManager/DownloadManager notifier，无重复异步请求状态机。
+- **发现并修复 4 组 bug**（DT-5-001 ~ DT-5-004）：非 Player 页旧请求覆盖新状态/弹出过期
+  错误、主页刷新 Future 提前完成、历史读取失败伪装为空态、播放源刷新销毁后 `setState`；详见
+  `docs/stability_findings.md`。
+- 验证：`flutter analyze` 0 issue；`flutter test --no-pub` 全量 **1279** 个测试通过。
+
 ---
 
 ## 5. Dart 测试工作流

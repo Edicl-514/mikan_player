@@ -6,6 +6,10 @@ import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
+
+typedef RankingPageFetcher =
+    Future<List<ranking.RankingAnime>> Function(String sortType, int page);
 
 class RankingPage extends StatelessWidget {
   const RankingPage({super.key});
@@ -38,8 +42,9 @@ class RankingPage extends StatelessWidget {
 
 class RankingList extends StatefulWidget {
   final String sortType; // 'trends' or 'rank'
+  final RankingPageFetcher? fetchPage;
 
-  const RankingList({super.key, required this.sortType});
+  const RankingList({super.key, required this.sortType, this.fetchPage});
 
   @override
   State<RankingList> createState() => _RankingListState();
@@ -47,13 +52,13 @@ class RankingList extends StatefulWidget {
 
 class _RankingListState extends State<RankingList>
     with AutomaticKeepAliveClientMixin {
-  final List<ranking.RankingAnime> _items = [];
-  bool _isLoading = true;
-  String? _errorMessage;
-  int _page = 1;
-  bool _hasMore = true;
-  bool _isLoadingMore = false;
+  late final PagedRequestController<String, ranking.RankingAnime> _controller;
   final ScrollController _scrollController = createPlatformScrollController();
+
+  List<ranking.RankingAnime> get _items => _controller.items;
+  bool get _isLoading => _controller.isLoading;
+  bool get _isLoadingMore => _controller.isLoadingMore;
+  String? get _errorMessage => _controller.error?.toString();
 
   @override
   bool get wantKeepAlive => true;
@@ -61,14 +66,37 @@ class _RankingListState extends State<RankingList>
   @override
   void initState() {
     super.initState();
+    _controller = PagedRequestController<String, ranking.RankingAnime>(
+      fetchPage: (sortType, page) {
+        final fetchPage = widget.fetchPage;
+        if (fetchPage != null) return fetchPage(sortType, page);
+        return CacheManager.instance.getRanking(
+          sortType: sortType,
+          page: page,
+          fetchFromNetwork: () =>
+              ranking.fetchBangumiRanking(sortType: sortType, page: page),
+        );
+      },
+    )..addListener(_onControllerChanged);
     _loadData();
     _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _controller.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant RankingList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sortType != widget.sortType) _loadData();
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onScroll() {
@@ -79,75 +107,11 @@ class _RankingListState extends State<RankingList>
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      // 使用缓存管理器获取数据
-      final items = await CacheManager.instance.getRanking(
-        sortType: widget.sortType,
-        page: 1,
-        fetchFromNetwork: () =>
-            ranking.fetchBangumiRanking(sortType: widget.sortType, page: 1),
-      );
-      if (mounted) {
-        setState(() {
-          _items.clear();
-          _items.addAll(items);
-          _page = 1;
-          _isLoading = false;
-          // Bangumi usually has many pages, but if we get empty list, no more.
-          _hasMore = items.isNotEmpty;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = e.toString();
-        });
-      }
-    }
+    await _controller.refresh(widget.sortType);
   }
 
   Future<void> _loadMore() async {
-    if (_isLoadingMore || !_hasMore) return;
-
-    setState(() {
-      _isLoadingMore = true;
-    });
-
-    try {
-      // 使用缓存管理器获取数据
-      final items = await CacheManager.instance.getRanking(
-        sortType: widget.sortType,
-        page: _page + 1,
-        fetchFromNetwork: () => ranking.fetchBangumiRanking(
-          sortType: widget.sortType,
-          page: _page + 1,
-        ),
-      );
-      if (mounted) {
-        setState(() {
-          if (items.isEmpty) {
-            _hasMore = false;
-          } else {
-            _items.addAll(items);
-            _page++;
-          }
-          _isLoadingMore = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingMore = false;
-        });
-        // Optionally show snackbar error
-      }
-    }
+    await _controller.loadMore();
   }
 
   @override

@@ -29,6 +29,7 @@ import 'package:mikan_player/ui/widgets/blurred_cover_background.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/network_avatar.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
+import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 
 class HomeMobilePage extends StatefulWidget {
   const HomeMobilePage({super.key});
@@ -54,6 +55,11 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
   bool _isLoadingHistory = true;
   bool _isLoadingFavorites = true;
 
+  final RequestGenerationGuard _todayGuard = RequestGenerationGuard();
+  final RequestGenerationGuard _rankingGuard = RequestGenerationGuard();
+  final RequestGenerationGuard _historyGuard = RequestGenerationGuard();
+  final RequestGenerationGuard _favoritesGuard = RequestGenerationGuard();
+
   late PageController _todayPageController;
   Timer? _todayTimer;
   final ScrollController _scrollController = createPlatformScrollController();
@@ -68,6 +74,10 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
 
   @override
   void dispose() {
+    _todayGuard.dispose();
+    _rankingGuard.dispose();
+    _historyGuard.dispose();
+    _favoritesGuard.dispose();
     _todayTimer?.cancel();
     _todayPageController.dispose();
     _scrollController.dispose();
@@ -105,13 +115,16 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
 
   Future<void> _loadAllData() async {
     debugPrint('[HomeMobile] loadAllData start');
-    _loadTodayAnimes();
-    _loadRanking();
-    _loadHistory();
-    _loadFavorites();
+    await Future.wait([
+      _loadTodayAnimes(),
+      _loadRanking(),
+      _loadHistory(),
+      _loadFavorites(),
+    ]);
   }
 
   Future<void> _loadTodayAnimes() async {
+    final generation = _todayGuard.begin();
     try {
       debugPrint('[HomeMobile] loadTodayAnimes start');
       // 1. 直接计算当前季度，无需等待网络请求
@@ -144,7 +157,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
         '[HomeMobile] today filter day=$todayStr count=${todayList.length}',
       );
 
-      if (mounted) {
+      if (mounted && _todayGuard.isCurrent(generation)) {
         setState(() {
           _todayAnimes = todayList;
           _isLoadingToday = false;
@@ -195,7 +208,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
           // Update timetable cache so next load has coverUrl
           await CacheManager.instance.updateTimetable(currentQuarter, animes);
           debugPrint('[HomeMobile] enriched timetable saved');
-          if (mounted) {
+          if (mounted && _todayGuard.isCurrent(generation)) {
             setState(() {
               _todayAnimes = List.from(todayList);
             });
@@ -207,11 +220,14 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       debugPrint('[HomeMobile] loadTodayAnimes done');
     } catch (e) {
       debugPrint('Error loading today animes: $e');
-      if (mounted) setState(() => _isLoadingToday = false);
+      if (mounted && _todayGuard.isCurrent(generation)) {
+        setState(() => _isLoadingToday = false);
+      }
     }
   }
 
   Future<void> _loadRanking() async {
+    final generation = _rankingGuard.begin();
     try {
       debugPrint('[HomeMobile] loadRanking start');
       final results = await CacheManager.instance.getRanking(
@@ -220,7 +236,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
         fetchFromNetwork: () =>
             fetchBangumiRanking(sortType: 'trends', page: 1),
       );
-      if (mounted) {
+      if (mounted && _rankingGuard.isCurrent(generation)) {
         setState(() {
           _rankingAnimes = results.take(10).toList();
           _isLoadingRanking = false;
@@ -229,15 +245,18 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       debugPrint('[HomeMobile] loadRanking done count=${results.length}');
     } catch (e) {
       debugPrint('Error loading ranking: $e');
-      if (mounted) setState(() => _isLoadingRanking = false);
+      if (mounted && _rankingGuard.isCurrent(generation)) {
+        setState(() => _isLoadingRanking = false);
+      }
     }
   }
 
   Future<void> _loadHistory() async {
+    final generation = _historyGuard.begin();
     try {
       debugPrint('[HomeMobile] loadHistory start');
       final history = await _historyManager.getHistory();
-      if (mounted) {
+      if (mounted && _historyGuard.isCurrent(generation)) {
         setState(() {
           _historyItems = history.take(10).toList();
           _isLoadingHistory = false;
@@ -246,11 +265,14 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       debugPrint('[HomeMobile] loadHistory done count=${history.length}');
     } catch (e) {
       debugPrint('Error loading history: $e');
-      if (mounted) setState(() => _isLoadingHistory = false);
+      if (mounted && _historyGuard.isCurrent(generation)) {
+        setState(() => _isLoadingHistory = false);
+      }
     }
   }
 
   Future<void> _loadFavorites() async {
+    final generation = _favoritesGuard.begin();
     try {
       debugPrint('[HomeMobile] loadFavorites start');
       await _favoritesManager.init();
@@ -320,7 +342,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
         }
       }
 
-      if (mounted) {
+      if (mounted && _favoritesGuard.isCurrent(generation)) {
         setState(() {
           _favoriteItems = merged.take(12).toList();
           _isLoadingFavorites = false;
@@ -329,7 +351,9 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       debugPrint('[HomeMobile] loadFavorites done count=${merged.length}');
     } catch (e) {
       debugPrint('Error loading favorites: $e');
-      if (mounted) setState(() => _isLoadingFavorites = false);
+      if (mounted && _favoritesGuard.isCurrent(generation)) {
+        setState(() => _isLoadingFavorites = false);
+      }
     }
   }
 
@@ -727,7 +751,10 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                                     Expanded(
                                       child: Builder(
                                         builder: (context) {
-                                          final extra = _getExtraInfo(anime, AppLocalizations.of(context));
+                                          final extra = _getExtraInfo(
+                                            anime,
+                                            AppLocalizations.of(context),
+                                          );
                                           if (extra.isEmpty) {
                                             return const SizedBox();
                                           }

@@ -202,10 +202,12 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList('disabled_sources', disabledSources);
 
-      setState(() {
-        _sources = sources;
-        _disabledSources = disabledSources.toSet();
-      });
+      if (mounted) {
+        setState(() {
+          _sources = sources;
+          _disabledSources = disabledSources.toSet();
+        });
+      }
 
       if (mounted) {
         final l10n = AppLocalizations.of(context);
@@ -229,9 +231,11 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
       }
       debugPrint('Failed to refresh playback sources: $e');
     } finally {
-      setState(() {
-        _isRefreshing = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
     }
   }
 

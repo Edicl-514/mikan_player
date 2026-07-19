@@ -6,17 +6,23 @@ import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
 import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
+import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
+
+typedef SearchPageFetcher =
+    Future<List<RankingAnime>> Function(SearchRequest request, int page);
 
 class SearchPage extends StatefulWidget {
   final String? initialKeyword;
   final String? initialTag;
   final bool autofocus;
+  final SearchPageFetcher? fetchPage;
 
   const SearchPage({
     super.key,
     this.initialKeyword,
     this.initialTag,
     bool? autofocus,
+    this.fetchPage,
   }) : autofocus = autofocus ?? (initialKeyword == null && initialTag == null);
 
   @override
@@ -25,10 +31,8 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
-  List<RankingAnime> _results = [];
-  bool _isLoading = false;
-  int _page = 1;
-  bool _hasMore = true;
+  late final PagedRequestController<SearchRequest, RankingAnime>
+  _resultsController;
   String _currentKeyword = '';
   String _sortType = 'rank';
   SearchMode _searchMode = SearchMode.keyword;
@@ -36,9 +40,24 @@ class _SearchPageState extends State<SearchPage> {
   BangumiRequestMode _requestMode = BangumiRequestMode.hybrid;
   final ScrollController _scrollController = createPlatformScrollController();
 
+  List<RankingAnime> get _results => _resultsController.items;
+  bool get _isLoading =>
+      _resultsController.isLoading || _resultsController.isLoadingMore;
+
   @override
   void initState() {
     super.initState();
+    _resultsController = PagedRequestController<SearchRequest, RankingAnime>(
+      fetchPage: (request, page) {
+        final fetchPage = widget.fetchPage;
+        if (fetchPage != null) return fetchPage(request, page);
+        return request.mode.fetch(
+          keyword: request.keyword,
+          sortType: request.sortType,
+          page: page,
+        );
+      },
+    )..addListener(_onResultsChanged);
     if (widget.initialTag != null) {
       _searchMode = SearchMode.tag;
       _searchController.text = widget.initialTag!;
@@ -73,7 +92,12 @@ class _SearchPageState extends State<SearchPage> {
     );
     _searchController.dispose();
     _scrollController.dispose();
+    _resultsController.dispose();
     super.dispose();
+  }
+
+  void _onResultsChanged() {
+    if (mounted) setState(() {});
   }
 
   void _handleRequestModeChanged() {
@@ -107,72 +131,26 @@ class _SearchPageState extends State<SearchPage> {
   Future<void> _performSearch() async {
     if (_currentKeyword.isEmpty) return;
 
-    setState(() {
-      _isLoading = true;
-      _results = [];
-      _page = 1;
-      _hasMore = true;
-    });
-
-    try {
-      final results = await _searchMode.fetch(
+    final result = await _resultsController.refresh(
+      SearchRequest(
         keyword: _currentKeyword,
         sortType: _sortType,
-        page: 1,
-      );
-      if (mounted) {
-        setState(() {
-          _results = results;
-          _hasMore = results.isNotEmpty;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).searchFailed(e.toString()),
-            ),
+        mode: _searchMode,
+      ),
+    );
+    if (mounted && result.committed && result.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).searchFailed(result.error.toString()),
           ),
-        );
-        setState(() {
-          _isLoading = false;
-        });
-      }
+        ),
+      );
     }
   }
 
   Future<void> _loadMore() async {
-    if (_isLoading || !_hasMore) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final nextPage = _page + 1;
-      final results = await _searchMode.fetch(
-        keyword: _currentKeyword,
-        sortType: _sortType,
-        page: nextPage,
-      );
-      if (mounted) {
-        setState(() {
-          _results.addAll(results);
-          _page = nextPage;
-          _hasMore = results.isNotEmpty;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        // Don't show snackbar for load more error to avoid spamming, just stop loading
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+    await _resultsController.loadMore();
   }
 
   void _handleSearchSubmit(String value) {
@@ -186,9 +164,6 @@ class _SearchPageState extends State<SearchPage> {
     setState(() {
       _searchMode = mode;
       _sortType = _defaultSortType();
-      _results = [];
-      _page = 1;
-      _hasMore = true;
     });
     await _performSearch();
   }
@@ -197,9 +172,6 @@ class _SearchPageState extends State<SearchPage> {
     if (_sortType == sortType) return;
     setState(() {
       _sortType = sortType;
-      _results = [];
-      _page = 1;
-      _hasMore = true;
     });
     await _performSearch();
   }
@@ -455,6 +427,18 @@ class _SearchPageState extends State<SearchPage> {
 }
 
 enum SearchMode { keyword, tag }
+
+class SearchRequest {
+  const SearchRequest({
+    required this.keyword,
+    required this.sortType,
+    required this.mode,
+  });
+
+  final String keyword;
+  final String sortType;
+  final SearchMode mode;
+}
 
 extension on SearchMode {
   Future<List<RankingAnime>> fetch({

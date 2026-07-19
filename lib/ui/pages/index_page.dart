@@ -307,7 +307,10 @@ class _IndexPageState extends State<IndexPage> {
 
       final List<String> tags = <String>[];
       _selections.forEach((key, value) {
-        if (key != indexFilterKeyType && key != indexFilterKeySort && value != indexFilterAll && value != indexFilterUnlimited) {
+        if (key != indexFilterKeyType &&
+            key != indexFilterKeySort &&
+            value != indexFilterAll &&
+            value != indexFilterUnlimited) {
           if (key == indexFilterKeyCategory) {
             if (value == 'TV') {
               _addUniqueTag(tags, 'tv');
@@ -315,7 +318,7 @@ class _IndexPageState extends State<IndexPage> {
               _addUniqueTag(tags, 'web');
             } else if (value == 'OVA') {
               _addUniqueTag(tags, 'ova');
-            // i18n-ignore: protocol filter/API token used for matching/state
+              // i18n-ignore: protocol filter/API token used for matching/state
             } else if (value == '剧场版') {
               _addUniqueTag(tags, 'movie');
             } else {
@@ -360,7 +363,7 @@ class _IndexPageState extends State<IndexPage> {
       }
     } catch (e) {
       debugPrint('Error fetching animes: $e');
-      if (mounted) {
+      if (mounted && fetchId == _currentFetchId) {
         final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(
           context,
@@ -376,7 +379,9 @@ class _IndexPageState extends State<IndexPage> {
   }
 
   String? _normalizeMonthValue(String monthLabel) {
-    if (monthLabel == indexFilterAll || monthLabel == indexFilterUnlimited) return null;
+    if (monthLabel == indexFilterAll || monthLabel == indexFilterUnlimited) {
+      return null;
+    }
 
     // i18n-ignore: protocol filter/API token used for matching/state
     final monthMatch = RegExp(r'^(\d{1,2})月$').firstMatch(monthLabel);
@@ -452,7 +457,9 @@ class _IndexPageState extends State<IndexPage> {
     if (previous != BangumiRequestMode.legacy &&
         next == BangumiRequestMode.legacy) {
       final orderedTags = _orderedSelectedTypeTags();
-      _selections[indexFilterKeyType] = orderedTags.isEmpty ? indexFilterAll : orderedTags.first;
+      _selections[indexFilterKeyType] = orderedTags.isEmpty
+          ? indexFilterAll
+          : orderedTags.first;
 
       _timePanelOpen = false;
       _timePanelMode = _TimePanelMode.point;
@@ -502,7 +509,10 @@ class _IndexPageState extends State<IndexPage> {
   List<String> _orderedSelectedTypeTags() {
     final options = _filterData[indexFilterKeyType] ?? const <String>[];
     return options
-        .where((option) => option != indexFilterAll && _selectedTypeTags.contains(option))
+        .where(
+          (option) =>
+              option != indexFilterAll && _selectedTypeTags.contains(option),
+        )
         .toList();
   }
 
@@ -820,13 +830,16 @@ class _IndexPageState extends State<IndexPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (final entry in _filterData.entries) ...[
-                  if (_supportsAdvancedBrowserFilters && entry.key == indexFilterKeyType)
+                  if (_supportsAdvancedBrowserFilters &&
+                      entry.key == indexFilterKeyType)
                     _buildMultiSelectTypeRow(context)
                   else
                     _buildFilterRow(
                       context,
                       entry.key,
-                      entry.key == indexFilterKeySort ? _sortOptions() : entry.value,
+                      entry.key == indexFilterKeySort
+                          ? _sortOptions()
+                          : entry.value,
                     ),
                 ],
                 _buildTimeButtonRow(context),

@@ -8,14 +8,22 @@ import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
+import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'bangumi_details_page.dart';
 import 'character_detail_page.dart';
+
+typedef PersonDetailsLoader = Future<PersonDetails> Function(int id);
+typedef PersonSubjectsLoader = Future<List<PersonSubject>> Function(int id);
+typedef PersonCharactersLoader = Future<List<PersonCharacter>> Function(int id);
 
 class PersonDetailPage extends StatefulWidget {
   final int personId;
   final String? personName;
   final String? heroImageUrl;
   final bool enableHeroAnimation;
+  final PersonDetailsLoader? loadDetails;
+  final PersonSubjectsLoader? loadSubjects;
+  final PersonCharactersLoader? loadCharacters;
 
   const PersonDetailPage({
     super.key,
@@ -23,6 +31,9 @@ class PersonDetailPage extends StatefulWidget {
     this.personName,
     this.heroImageUrl,
     this.enableHeroAnimation = true,
+    this.loadDetails,
+    this.loadSubjects,
+    this.loadCharacters,
   });
 
   @override
@@ -45,13 +56,21 @@ class _GroupedCharacter {
 }
 
 class _PersonDetailPageState extends State<PersonDetailPage> {
-  PersonDetails? _details;
-  List<PersonSubject> _subjects = [];
-  List<_GroupedCharacter> _groupedCharacters = [];
-  bool _isLoadingDetails = true;
-  bool _isLoadingSubjects = true;
-  bool _isLoadingCharacters = true;
-  String? _error;
+  late final EntityDetailsController<
+    int,
+    PersonDetails,
+    PersonSubject,
+    PersonCharacter
+  >
+  _controller;
+
+  PersonDetails? get _details => _controller.details;
+  List<PersonSubject> get _subjects => _controller.subjects;
+  List<_GroupedCharacter> get _groupedCharacters =>
+      _groupCharacters(_controller.related);
+  bool get _isLoadingDetails => _controller.isLoadingDetails;
+  bool get _isLoadingSubjects => _controller.isLoadingSubjects;
+  bool get _isLoadingCharacters => _controller.isLoadingRelated;
 
   /// Cached api host used to assemble the `/v0/subjects/{id}/image?type=common`
   /// fallback URL when the per-subject image isn't already known. Refreshed on
@@ -72,6 +91,23 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   @override
   void initState() {
     super.initState();
+    _controller =
+        EntityDetailsController<
+            int,
+            PersonDetails,
+            PersonSubject,
+            PersonCharacter
+          >(
+            fetchDetails:
+                widget.loadDetails ?? (id) => fetchPersonDetails(personId: id),
+            fetchSubjects:
+                widget.loadSubjects ??
+                (id) => fetchPersonSubjects(personId: id),
+            fetchRelated:
+                widget.loadCharacters ??
+                (id) => fetchPersonCharacters(personId: id),
+          )
+          ..addListener(_onControllerChanged);
     // The cached value is read synchronously to avoid an `await` inside the
     // synchronous GridView builder. When the user toggles reverse-proxy mode
     // the page rebuilds and we pick up the new value.
@@ -82,6 +118,19 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     // this page is on the navigation stack).
     BangumiReverseProxyService.notifier.addListener(_onReverseProxyChanged);
     _fetchData();
+  }
+
+  @override
+  void didUpdateWidget(covariant PersonDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.personId != widget.personId) {
+      _expandedCharIds.clear();
+      _fetchData();
+    }
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onReverseProxyChanged() {
@@ -97,6 +146,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
 
   @override
   void dispose() {
+    _controller.dispose();
     BangumiReverseProxyService.notifier.removeListener(_onReverseProxyChanged);
     _mobileScrollController.dispose();
     _desktopLeftScrollController.dispose();
@@ -105,57 +155,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   }
 
   Future<void> _fetchData() async {
-    await Future.wait([_fetchDetails(), _fetchSubjects(), _fetchCharacters()]);
-  }
-
-  Future<void> _fetchDetails() async {
-    try {
-      final details = await fetchPersonDetails(personId: widget.personId);
-      if (mounted) {
-        setState(() {
-          _details = details;
-          _isLoadingDetails = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching person details: $e');
-      if (mounted) {
-        setState(() {
-          _error = AppLocalizations.of(context).personDetailsLoadFailed;
-          _isLoadingDetails = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _fetchSubjects() async {
-    try {
-      final subjects = await fetchPersonSubjects(personId: widget.personId);
-      if (mounted) {
-        setState(() {
-          _subjects = subjects;
-          _isLoadingSubjects = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching person subjects: $e');
-      if (mounted) setState(() => _isLoadingSubjects = false);
-    }
-  }
-
-  Future<void> _fetchCharacters() async {
-    try {
-      final chars = await fetchPersonCharacters(personId: widget.personId);
-      if (mounted) {
-        setState(() {
-          _groupedCharacters = _groupCharacters(chars);
-          _isLoadingCharacters = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching person characters: $e');
-      if (mounted) setState(() => _isLoadingCharacters = false);
-    }
+    await _controller.load(widget.personId);
   }
 
   List<_GroupedCharacter> _groupCharacters(List<PersonCharacter> chars) {
@@ -258,7 +258,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     final isMobile = MediaQuery.of(context).size.width < 800;
     final l10n = AppLocalizations.of(context);
 
-    if (_error != null && _details == null) {
+    if (_controller.detailsError != null && _details == null) {
       return Scaffold(
         backgroundColor: const Color(0xFF16161E),
         appBar: AppBar(
@@ -272,7 +272,10 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
             children: [
               const Icon(Icons.error_outline, color: Colors.red, size: 48),
               const SizedBox(height: 16),
-              Text(_error!, style: const TextStyle(color: Colors.white70)),
+              Text(
+                l10n.personDetailsLoadFailed,
+                style: const TextStyle(color: Colors.white70),
+              ),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _fetchData,
@@ -546,17 +549,17 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                   children: [
                     _buildStatChip(
                       Icons.comment_outlined,
-                      AppLocalizations.of(context).detailsCommentsCount(
-                        _details?.stat.comments ?? 0,
-                      ),
+                      AppLocalizations.of(
+                        context,
+                      ).detailsCommentsCount(_details?.stat.comments ?? 0),
                       isDarkBg: isDark,
                     ),
                     const SizedBox(width: 12),
                     _buildStatChip(
                       Icons.favorite_outline,
-                      AppLocalizations.of(context).detailsCollectsCount(
-                        _details?.stat.collects ?? 0,
-                      ),
+                      AppLocalizations.of(
+                        context,
+                      ).detailsCollectsCount(_details?.stat.collects ?? 0),
                       isDarkBg: isDark,
                     ),
                   ],
@@ -1097,9 +1100,9 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                         const SizedBox(height: 6),
                         // Appearance count
                         Text(
-                          AppLocalizations.of(context).detailsWorksCount(
-                            uniqueAppearances.length,
-                          ),
+                          AppLocalizations.of(
+                            context,
+                          ).detailsWorksCount(uniqueAppearances.length),
                           style: TextStyle(
                             fontSize: 12,
                             color: isDarkBg

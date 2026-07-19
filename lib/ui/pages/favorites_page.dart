@@ -8,6 +8,7 @@ import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
+import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart' as rust_bangumi;
 import 'package:mikan_player/src/rust/api/crawler.dart' as rust_crawler;
@@ -34,6 +35,8 @@ class _FavoritesPageState extends State<FavoritesPage>
   // Local Data
   List<LocalFavorite> _localFavorites = [];
   bool _isLoadingLocal = false;
+  final RequestGenerationGuard _localGuard = RequestGenerationGuard();
+  final RequestGenerationGuard _bangumiGuard = RequestGenerationGuard();
 
   @override
   void initState() {
@@ -47,29 +50,43 @@ class _FavoritesPageState extends State<FavoritesPage>
 
   @override
   void dispose() {
+    _localGuard.dispose();
+    _bangumiGuard.dispose();
     _tabController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   Future<void> _fetchLocalFavorites() async {
-    setState(() => _isLoadingLocal = true);
-    final favs = await _favoritesManager.getAllFavorites();
-    if (mounted) {
-      setState(() {
-        _localFavorites = favs;
-        _isLoadingLocal = false;
-      });
+    final generation = _localGuard.begin();
+    if (mounted) setState(() => _isLoadingLocal = true);
+    try {
+      final favs = await _favoritesManager.getAllFavorites();
+      if (mounted && _localGuard.isCurrent(generation)) {
+        setState(() {
+          _localFavorites = favs;
+          _isLoadingLocal = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching local favorites: $e');
+      if (mounted && _localGuard.isCurrent(generation)) {
+        setState(() => _isLoadingLocal = false);
+      }
     }
   }
 
   Future<void> _fetchBangumiCollections() async {
     if (!_userManager.isLoggedIn) return;
 
-    setState(() {
-      _isLoadingBangumi = true;
-      _bangumiError = null;
-    });
+    final generation = _bangumiGuard.begin();
+
+    if (mounted) {
+      setState(() {
+        _isLoadingBangumi = true;
+        _bangumiError = null;
+      });
+    }
 
     try {
       final username = _userManager.user!.username;
@@ -118,7 +135,7 @@ class _FavoritesPageState extends State<FavoritesPage>
           )
           .toList();
 
-      if (mounted) {
+      if (mounted && _bangumiGuard.isCurrent(generation)) {
         setState(() {
           _bangumiCollections = collections;
           _isLoadingBangumi = false;
@@ -126,7 +143,7 @@ class _FavoritesPageState extends State<FavoritesPage>
       }
     } catch (e) {
       debugPrint('Error fetching collections: $e');
-      if (mounted) {
+      if (mounted && _bangumiGuard.isCurrent(generation)) {
         final l10n = AppLocalizations.of(context);
         setState(() {
           _bangumiError = l10n.fetchCollectionsFailed(e.toString());
