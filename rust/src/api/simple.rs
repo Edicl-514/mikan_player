@@ -9,6 +9,15 @@ use std::sync::Arc;
 use std::sync::Once;
 use tokio::sync::Mutex;
 
+const DEFAULT_TRACKERS: [&str; 6] = [
+    "&tr=udp://tracker.opentrackr.org:1337/announce",
+    "&tr=udp://open.demonii.com:1337/announce",
+    "&tr=udp://exodus.desync.com:6969/announce",
+    "&tr=udp://tracker.openbittorrent.com:6969/announce",
+    "&tr=udp://opentracker.i2p.rocks:6969/announce",
+    "&tr=udp://tracker.doko.moe:6969/announce",
+];
+
 pub fn init_engine(cache_dir: String, download_dir: String) {
     // Initialize config with paths
     crate::api::config::init_config(cache_dir, download_dir);
@@ -218,6 +227,27 @@ async fn get_session() -> anyhow::Result<Arc<Session>> {
     Ok(state_guard.session.clone())
 }
 
+fn text_preview(value: &str, max_chars: usize) -> String {
+    let mut chars = value.chars();
+    let preview = chars.by_ref().take(max_chars).collect::<String>();
+    if chars.next().is_some() {
+        format!("{preview}...")
+    } else {
+        preview
+    }
+}
+
+fn inject_default_trackers(mut magnet: String) -> (String, usize) {
+    let mut added_tracker_count = 0;
+    for tracker in DEFAULT_TRACKERS {
+        if !magnet.contains(tracker) {
+            magnet.push_str(tracker);
+            added_tracker_count += 1;
+        }
+    }
+    (magnet, added_tracker_count)
+}
+
 pub async fn start_torrent(magnet: String) -> String {
     if magnet.trim().is_empty() {
         return "Error: empty magnet link".to_string();
@@ -229,14 +259,8 @@ pub async fn start_torrent(magnet: String) -> String {
     };
 
     // Add Torrent
-    let mut magnet = magnet;
-
     // Log original magnet link (truncated for safety)
-    let magnet_preview = if magnet.len() > 200 {
-        format!("{}...", &magnet[..200])
-    } else {
-        magnet.clone()
-    };
+    let magnet_preview = text_preview(&magnet, 200);
     log::info!("Original magnet link: {}", magnet_preview);
 
     // Count original trackers in the magnet link
@@ -250,27 +274,7 @@ pub async fn start_torrent(magnet: String) -> String {
     // short: every extra tracker has to be announced to on startup, which
     // significantly delays the first peer connection when many are slow or dead.
     // Users get the rest through DHT + PEX + the magnet's own trackers.
-    let trackers = [
-        // Popular stable public trackers
-        "&tr=udp://tracker.opentrackr.org:1337/announce",
-        "&tr=udp://open.demonii.com:1337/announce",
-        "&tr=udp://exodus.desync.com:6969/announce",
-        "&tr=udp://tracker.openbittorrent.com:6969/announce",
-        "&tr=udp://opentracker.i2p.rocks:6969/announce",
-        // Anime-friendly (kept minimal; many bangumi-specific trackers are unreliable)
-        "&tr=udp://tracker.doko.moe:6969/announce",
-    ];
-
-    let mut added_tracker_count = 0;
-    // Use a HashSet to track existing trackers for faster valid checking (optional but good practice)
-    // Here we just simple check constraint
-    for tr in trackers {
-        // Simple deduplication check
-        if !magnet.contains(tr) {
-            magnet.push_str(tr);
-            added_tracker_count += 1;
-        }
-    }
+    let (magnet, added_tracker_count) = inject_default_trackers(magnet);
 
     let final_tracker_count = magnet.matches("&tr=").count();
     log::info!(
@@ -416,6 +420,47 @@ pub struct TrackerInfo {
     pub last_announce: String,
 }
 
+fn calculate_progress(downloaded: u64, total_size: u64) -> f64 {
+    if total_size == 0 {
+        return 0.0;
+    }
+    ((downloaded as f64 / total_size as f64) * 100.0).clamp(0.0, 100.0)
+}
+
+fn normalize_torrent_state(raw_state: &str, is_paused: bool) -> String {
+    if is_paused {
+        "paused".to_string()
+    } else if raw_state.starts_with("Live") {
+        "live".to_string()
+    } else if raw_state.starts_with("Initializing") {
+        "initializing".to_string()
+    } else if raw_state.starts_with("Error") {
+        "error".to_string()
+    } else if raw_state.starts_with("Paused") {
+        "paused".to_string()
+    } else {
+        raw_state.to_lowercase()
+    }
+}
+
+fn format_torrent_stats(stats: &[TorrentStats]) -> String {
+    if stats.is_empty() {
+        return "No active torrents".to_string();
+    }
+
+    let mut result = String::from("Active Torrents:\n");
+    for stat in stats {
+        result.push_str(&format!(
+            "- {} ({:.1}%): {:.2} MB/s down, {} peers\n",
+            stat.name,
+            stat.progress,
+            stat.download_speed / 1024.0 / 1024.0,
+            stat.peers
+        ));
+    }
+    result
+}
+
 /// Get tracker information for a specific torrent
 pub async fn get_tracker_info(info_hash: String) -> Vec<TrackerInfo> {
     let session = match get_session().await {
@@ -490,32 +535,14 @@ pub async fn get_torrent_stats() -> Vec<TorrentStats> {
                     (0.0, 0.0, stats.progress_bytes, 0, 0)
                 };
 
-            let progress = if total_size > 0 {
-                (downloaded as f64 / total_size as f64) * 100.0
-            } else {
-                0.0
-            };
+            let progress = calculate_progress(downloaded, total_size);
 
             // Normalize the state into a small, stable set of lowercase tokens so
             // the Dart side doesn't have to depend on `Debug` formatting of
             // librqbit's internal enum (variant names and payloads can change).
             let raw_state = format!("{:?}", stats.state);
             let is_paused = handle.is_paused();
-            let normalized_state: String = if is_paused {
-                "paused".to_string()
-            } else if raw_state.starts_with("Live") {
-                "live".to_string()
-            } else if raw_state.starts_with("Initializing") {
-                "initializing".to_string()
-            } else if raw_state.starts_with("Error") {
-                "error".to_string()
-            } else if raw_state.starts_with("Paused") {
-                "paused".to_string()
-            } else {
-                // Unknown/future states — pass through lowercased so it's at
-                // least debuggable from the UI.
-                raw_state.to_lowercase()
-            };
+            let normalized_state = normalize_torrent_state(&raw_state, is_paused);
 
             collected.push(TorrentStats {
                 info_hash,
@@ -540,23 +567,7 @@ pub async fn get_torrent_stats() -> Vec<TorrentStats> {
 /// Returns stats for currently active torrents
 pub async fn get_all_torrents_info() -> String {
     let stats = get_torrent_stats().await;
-
-    if stats.is_empty() {
-        return "No active torrents".to_string();
-    }
-
-    let mut result = String::from("Active Torrents:\n");
-    for s in stats {
-        result.push_str(&format!(
-            "- {} ({:.1}%): {:.2} MB/s down, {} peers\n",
-            s.name,
-            s.progress,
-            s.download_speed / 1024.0 / 1024.0,
-            s.peers
-        ));
-    }
-
-    result
+    format_torrent_stats(&stats)
 }
 
 /// Stop and remove a torrent by info hash
@@ -746,4 +757,88 @@ pub fn move_bangumi_doh_endpoint(from: usize, to: usize) -> Vec<String> {
 pub fn reset_bangumi_doh_endpoints() -> Vec<String> {
     crate::api::config::reset_bangumi_doh_endpoints();
     crate::api::config::get_bangumi_doh_endpoints()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn greet_preserves_unicode_input() {
+        assert_eq!(greet("测试用户 ✨".to_string()), "Hello, 测试用户 ✨!");
+    }
+
+    #[test]
+    fn text_preview_truncates_by_character_boundary() {
+        let input = "磁".repeat(201);
+        let preview = text_preview(&input, 200);
+
+        assert_eq!(preview.chars().count(), 203);
+        assert!(preview.ends_with("..."));
+        assert_eq!(text_preview("短文本", 200), "短文本");
+        assert_eq!(text_preview("", 0), "");
+    }
+
+    #[test]
+    fn tracker_injection_adds_only_missing_defaults() {
+        let existing = DEFAULT_TRACKERS[0];
+        let magnet = format!("magnet:?xt=urn:btih:fixture{existing}");
+
+        let (updated, added) = inject_default_trackers(magnet);
+
+        assert_eq!(added, DEFAULT_TRACKERS.len() - 1);
+        assert_eq!(updated.matches(existing).count(), 1);
+        for tracker in DEFAULT_TRACKERS {
+            assert!(updated.contains(tracker));
+        }
+    }
+
+    #[tokio::test]
+    async fn empty_magnet_returns_stable_error_without_initializing_engine() {
+        assert_eq!(
+            start_torrent(" \t\n".to_string()).await,
+            "Error: empty magnet link"
+        );
+    }
+
+    #[test]
+    fn progress_handles_zero_and_transient_overrun() {
+        assert_eq!(calculate_progress(50, 100), 50.0);
+        assert_eq!(calculate_progress(1, 0), 0.0);
+        assert_eq!(calculate_progress(101, 100), 100.0);
+    }
+
+    #[test]
+    fn state_normalization_is_stable_across_payloads_and_pause_override() {
+        assert_eq!(normalize_torrent_state("Live", false), "live");
+        assert_eq!(
+            normalize_torrent_state("Initializing(SomeMetadata)", false),
+            "initializing"
+        );
+        assert_eq!(normalize_torrent_state("Error(boom)", false), "error");
+        assert_eq!(normalize_torrent_state("FutureState", false), "futurestate");
+        assert_eq!(normalize_torrent_state("Live", true), "paused");
+    }
+
+    #[test]
+    fn torrent_stats_formatter_handles_empty_and_unicode_rows() {
+        assert_eq!(format_torrent_stats(&[]), "No active torrents");
+        let stats = vec![TorrentStats {
+            info_hash: "fixture".to_string(),
+            name: "Unicode 动画 ✨".to_string(),
+            state: "live".to_string(),
+            progress: 12.34,
+            download_speed: 2.5 * 1024.0 * 1024.0,
+            upload_speed: 0.0,
+            downloaded: 123,
+            total_size: 1000,
+            peers: 7,
+            seeders: 3,
+        }];
+
+        assert_eq!(
+            format_torrent_stats(&stats),
+            "Active Torrents:\n- Unicode 动画 ✨ (12.3%): 2.50 MB/s down, 7 peers\n"
+        );
+    }
 }

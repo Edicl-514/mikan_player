@@ -1,6 +1,7 @@
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RankingAnime {
@@ -279,7 +280,7 @@ fn parse_year_month(input: &str) -> Option<YearMonth> {
     let (year_part, month_part) = normalized.split_once('-')?;
     let year = year_part.parse::<i32>().ok()?;
     let month = month_part.parse::<u32>().ok()?;
-    if !(1..=12).contains(&month) {
+    if !(1..=9999).contains(&year) || !(1..=12).contains(&month) {
         return None;
     }
     Some(YearMonth { year, month })
@@ -350,34 +351,47 @@ fn build_air_date_filter(year: &str) -> Option<Vec<String>> {
         ]);
     }
 
+    let year = trimmed.parse::<i32>().ok()?;
+    if !(1..=9999).contains(&year) {
+        return None;
+    }
     Some(vec![
-        format!(">={}-01-01", trimmed),
-        format!("<{}-01-01", trimmed.parse::<i32>().ok()?.checked_add(1)?),
+        format!(">={year}-01-01"),
+        format!("<{}-01-01", year.checked_add(1)?),
     ])
 }
 
 fn parse_bangumi_search_results(json: &Value) -> Vec<RankingAnime> {
-    json["data"]
-        .as_array()
-        .map(|items| items.iter().filter_map(parse_bangumi_search_item).collect())
-        .unwrap_or_default()
+    deduplicate_ranking_results(
+        json["data"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(parse_bangumi_search_item),
+    )
 }
 
 fn parse_bangumi_next_trending_results(json: &Value) -> Vec<RankingAnime> {
-    json["data"]
-        .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| {
-                    item.get("subject")
-                        .filter(|subject| subject.is_object())
-                        .or(Some(item))
-                        .and_then(parse_bangumi_search_item)
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    deduplicate_ranking_results(
+        json["data"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|item| {
+                item.get("subject")
+                    .filter(|subject| subject.is_object())
+                    .or(Some(item))
+                    .and_then(parse_bangumi_search_item)
+            }),
+    )
+}
+
+fn deduplicate_ranking_results(items: impl IntoIterator<Item = RankingAnime>) -> Vec<RankingAnime> {
+    let mut seen_ids = HashSet::new();
+    items
+        .into_iter()
+        .filter(|item| seen_ids.insert(item.bangumi_id.clone()))
+        .collect()
 }
 
 fn parse_bangumi_search_item(item: &Value) -> Option<RankingAnime> {
@@ -416,11 +430,12 @@ fn parse_bangumi_search_item(item: &Value) -> Option<RankingAnime> {
 
     let score = item["score"]
         .as_f64()
-        .or_else(|| item["rating"]["score"].as_f64());
+        .or_else(|| item["rating"]["score"].as_f64())
+        .filter(|value| value.is_finite());
     let rank = item["rank"]
         .as_i64()
         .or_else(|| item["rating"]["rank"].as_i64())
-        .map(|value| value as i32);
+        .and_then(|value| i32::try_from(value).ok());
 
     let info = build_subject_info(item);
     let normalized_original_title =
@@ -577,15 +592,16 @@ fn format_bangumi_date(value: &str) -> String {
         return String::new();
     }
 
-    let mut parts = trimmed.split('-');
-    let year = parts.next().and_then(|part| part.parse::<i32>().ok());
-    let month = parts.next().and_then(|part| part.parse::<u32>().ok());
-    let day = parts.next().and_then(|part| part.parse::<u32>().ok());
+    chrono::NaiveDate::parse_from_str(trimmed, "%Y-%m-%d")
+        .map(|date| date.format("%Y年%-m月%-d日").to_string())
+        .unwrap_or_else(|_| trimmed.to_string())
+}
 
-    match (year, month, day) {
-        (Some(year), Some(month), Some(day)) => format!("{year}年{month}月{day}日"),
-        _ => trimmed.to_string(),
-    }
+fn bangumi_id_from_href(href: &str) -> Option<String> {
+    let path = href.split(['?', '#']).next()?.trim_end_matches('/');
+    let id = path.rsplit('/').next()?;
+    let parsed = id.parse::<i64>().ok()?;
+    (parsed > 0).then(|| parsed.to_string())
 }
 
 fn parse_bangumi_list(document: &Html) -> Vec<RankingAnime> {
@@ -598,24 +614,30 @@ fn parse_bangumi_list(document: &Html) -> Vec<RankingAnime> {
     let rank_selector = Selector::parse("span.rank").unwrap();
 
     let mut results = Vec::new();
+    let mut seen_ids = HashSet::new();
 
     for item in document.select(&item_selector) {
         let title_el = item.select(&title_selector).next();
         let title = title_el
-            .map(|e| e.text().collect::<String>())
+            .map(|e| e.text().collect::<String>().trim().to_string())
             .unwrap_or_default();
+        if title.is_empty() {
+            continue;
+        }
 
         let href = title_el.and_then(|e| e.value().attr("href")).unwrap_or("");
-        let bangumi_id = href.split('/').last().unwrap_or("").to_string();
-
-        if bangumi_id.is_empty() {
+        let Some(bangumi_id) = bangumi_id_from_href(href) else {
+            continue;
+        };
+        if !seen_ids.insert(bangumi_id.clone()) {
             continue;
         }
 
         let original_title = item
             .select(&original_title_selector)
             .next()
-            .map(|e| e.text().collect::<String>().trim().to_string());
+            .map(|e| e.text().collect::<String>().trim().to_string())
+            .filter(|original| !original.is_empty() && original != &title);
 
         let cover_el = item.select(&cover_selector).next();
         let mut cover_url = cover_el
@@ -638,7 +660,11 @@ fn parse_bangumi_list(document: &Html) -> Vec<RankingAnime> {
             .next()
             .map(|e| e.text().collect::<String>())
             .unwrap_or_default();
-        let score = score_text.parse::<f64>().ok();
+        let score = score_text
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|value| value.is_finite());
 
         let rank_text = item
             .select(&rank_selector)
@@ -664,6 +690,7 @@ fn parse_bangumi_list(document: &Html) -> Vec<RankingAnime> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::fixture::{fixture_json, fixture_text};
 
     #[test]
     fn build_air_date_filter_supports_year_and_month() {
@@ -833,6 +860,73 @@ mod tests {
         assert_eq!(
             filter.get("air_date"),
             Some(&json!([">=2025-04-01", "<2025-05-01"]))
+        );
+    }
+
+    #[test]
+    fn invalid_year_month_and_calendar_dates_are_not_normalized_as_valid() {
+        assert_eq!(build_air_date_filter("0"), None);
+        assert_eq!(build_air_date_filter("10000"), None);
+        assert_eq!(build_air_date_filter("2025-00"), None);
+        assert_eq!(build_air_date_filter("2025-13"), None);
+        assert_eq!(build_air_date_filter("not-a-year"), None);
+        assert_eq!(format_bangumi_date("2024-02-29"), "2024年2月29日");
+        assert_eq!(format_bangumi_date("2025-02-29"), "2025-02-29");
+        assert_eq!(format_bangumi_date("2026-02-30"), "2026-02-30");
+    }
+
+    #[test]
+    fn json_edge_fixture_skips_bad_items_deduplicates_and_rejects_rank_overflow() {
+        let input: Value = fixture_json("ranking/search_edge_cases.json");
+
+        let results = parse_bangumi_search_results(&input);
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].bangumi_id, "9001");
+        assert_eq!(results[0].title, "Unicode 中文标题 ✨");
+        assert_eq!(
+            results[0].original_title.as_deref(),
+            Some("Unicode Original ✨")
+        );
+        assert_eq!(results[0].rank, None);
+        assert_eq!(results[0].info, "2026-02-30");
+    }
+
+    #[test]
+    fn html_edge_fixture_trims_fields_skips_bad_links_and_deduplicates() {
+        let html = fixture_text("ranking/list_edge_cases.html");
+        let document = Html::parse_document(&html);
+
+        let results = parse_bangumi_list(&document);
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].bangumi_id, "123");
+        assert_eq!(results[0].title, "Unicode 排行动画 ✨");
+        assert_eq!(results[0].original_title.as_deref(), Some("Original Title"));
+        assert_eq!(results[0].score, Some(8.75));
+        assert_eq!(results[0].rank, Some(7));
+        assert_eq!(results[0].info, "12话 / invalid date");
+        assert_eq!(results[1].bangumi_id, "126");
+        assert_eq!(results[1].score, None);
+        assert_eq!(results[1].rank, None);
+    }
+
+    #[test]
+    fn bangumi_id_parser_handles_queries_and_rejects_malformed_paths() {
+        assert_eq!(
+            bangumi_id_from_href("/subject/123?from=test"),
+            Some("123".to_string())
+        );
+        assert_eq!(
+            bangumi_id_from_href("/subject/00123#top"),
+            Some("123".to_string())
+        );
+        assert_eq!(bangumi_id_from_href("/subject/0"), None);
+        assert_eq!(bangumi_id_from_href("/subject/not-a-number"), None);
+        assert_eq!(bangumi_id_from_href("/subject/123/extra"), None);
+        assert_eq!(
+            bangumi_id_from_href("/subject/123/"),
+            Some("123".to_string())
         );
     }
 }

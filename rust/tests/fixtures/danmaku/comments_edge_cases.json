@@ -1,0 +1,11 @@
+{
+  "comments": [
+    {"p": "0,1,16777215,user-a", "m": "Unicode 弹幕 ✨"},
+    {"p": "-1,1,1,user-b", "m": "negative time"},
+    {"p": "NaN,1,1,user-c", "m": "not finite"},
+    {"p": "Infinity,1,1,user-d", "m": "infinite"},
+    {"p": "2,99,16777216,user-e", "m": "fallback type and color"},
+    {"p": "3,5,255,user-f", "m": ""},
+    {"m": "missing parameter"}
+  ]
+}

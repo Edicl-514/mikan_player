@@ -490,6 +490,34 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
   与 `danmaku.rs` 无 Clippy 诊断。全仓 `cargo clippy --all-targets -- -D warnings` 仍有 115 个
   既有告警，未在 RT-0 跨域清理。
 
+### RT-1 执行结果（2026-07-19）
+
+- 新增 **29 个**默认离线 Rust 测试：
+  - `mikan.rs` 9 个：搜索词清洗、Unicode Levenshtein、最小/异常搜索 HTML、单/双引号与
+    `&quot;`/绝对封面 URL、非法/重复节点、查询编码、集数提取、资源缺字段/非法磁链/重复磁链、
+    expand 参数编码及完整主表 → 展开表 loopback 流程；
+  - `dmhy.rs` 7 个：最小/异常/损坏 RSS、Unicode 标题、缺 channel/title/enclosure/length、
+    重复项、非法磁链、非法/极大 size、集数版本号、subject 查询编码与 `Accept` header；
+  - `simple.rs` 7 个：Unicode greet、字符边界安全预览、默认 tracker 去重、空磁链错误、
+    progress 边界、torrent state 归一化、Unicode stats 文本格式化；
+  - `ranking.rs` 4 个：非法年月/日期、JSON/HTML 缺字段、重复 ID、非法链接、score/rank
+    异常数字与 Unicode；
+  - `danmaku.rs` 2 个：缺 comments 数组，以及负数/NaN/Infinity 时间、越界 type/color、
+    空文本等异常弹幕行。
+- 新增 8 个最小 fixture（Mikan 3、DMHY 2、ranking 2、danmaku 1），并直接复用 RT-0 的
+  `search_minimal.html`、`feed_minimal.xml` 和 Axum loopback server；Mikan/DMHY 通过内部 client
+  注入 `no_proxy` loopback，公开 FRB 函数签名和正式域名/配置入口保持不变。
+- 解析器统一补强：Mikan/DMHY 支持 `E01v2` 等常见集数 token，过滤缺失/非法磁链并按 magnet
+  去重；Mikan 搜索/expand、DMHY subject 使用 URL API 编码；ranking 搜索结果按 Bangumi ID
+  去重并验证数字/日期；弹幕过滤不可渲染的时间和空内容。
+- **发现并修复 7 个 bug**（RT-1-001 ~ RT-1-007）：Mikan 引号封面分支不可达/绝对 URL
+  拼坏；DMHY 单条缺 title 使整份 RSS 失败、极大 length 乘法溢出；长 Unicode 磁链日志截断
+  panic；ranking rank 窄化回绕与非法日期格式化；弹幕接受 NaN/负时间及越界元数据；torrent
+  progress 可超过 100%。详见 `docs/stability_findings.md`。
+- 验证：`cargo fmt --check` 通过；`cargo test --manifest-path rust/Cargo.toml` 全量
+  **105 passed / 0 failed / 2 ignored**（两个 ignored 仍为显式真实网络 smoke）。
+  `cargo clippy --all-targets` 的诊断总数仍为 RT-0 基线的 **115**，本批未增加 Clippy 告警。
+
 ---
 
 ## 5. Dart 测试工作流

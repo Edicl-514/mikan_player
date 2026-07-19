@@ -102,13 +102,16 @@ pub struct DanmakuMatch {
 
 #[derive(Debug, Deserialize)]
 struct DanmakuComment {
+    #[serde(default)]
     p: String,
+    #[serde(default)]
     m: String,
 }
 
 #[derive(Debug, Deserialize)]
 struct DanmakuResponse {
     // count: i32,
+    #[serde(default)]
     comments: Vec<DanmakuComment>,
 }
 
@@ -613,11 +616,25 @@ fn relative_episode_index(relative_episode: Option<i32>) -> Option<usize> {
 /// 解析弹幕参数
 /// 格式: "时间,类型,颜色,用户ID"
 fn parse_danmaku_comment(comment: &DanmakuComment) -> Option<Danmaku> {
+    if comment.m.trim().is_empty() {
+        return None;
+    }
     let parts: Vec<&str> = comment.p.split(',').collect();
     if parts.len() >= 3 {
         let time = parts[0].parse::<f64>().ok()?;
-        let danmaku_type = parts[1].parse::<i32>().unwrap_or(1);
-        let color = parts[2].parse::<u32>().unwrap_or(0xFFFFFF);
+        if !time.is_finite() || time < 0.0 {
+            return None;
+        }
+        let danmaku_type = parts[1]
+            .parse::<i32>()
+            .ok()
+            .filter(|value| (1..=5).contains(value))
+            .unwrap_or(1);
+        let color = parts[2]
+            .parse::<u32>()
+            .ok()
+            .filter(|value| *value <= 0xFFFFFF)
+            .unwrap_or(0xFFFFFF);
 
         Some(Danmaku {
             time,
@@ -953,6 +970,32 @@ mod tests {
         assert!(comments.is_empty());
         assert_eq!(server.requests().len(), 1);
         server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn comment_edge_fixture_discards_non_finite_negative_and_empty_rows() {
+        let server = TestServer::spawn([TestRoute::get(
+            "/api/v2/comment/42003",
+            TestResponse::fixture("danmaku/comments_edge_cases.json"),
+        )])
+        .await;
+        let api = DanmakuApiClient::for_test(server.base_url());
+
+        let comments = api.get_comments(42003).await.unwrap();
+
+        assert_eq!(comments.len(), 2);
+        assert_eq!(comments[0].time, 0.0);
+        assert_eq!(comments[0].text, "Unicode 弹幕 ✨");
+        assert_eq!(comments[1].time, 2.0);
+        assert_eq!(comments[1].danmaku_type, 1);
+        assert_eq!(comments[1].color, 0xFFFFFF);
+        server.shutdown().await;
+    }
+
+    #[test]
+    fn missing_comments_array_parses_as_an_empty_response() {
+        let response: DanmakuResponse = serde_json::from_str("{}").unwrap();
+        assert!(response.comments.is_empty());
     }
 
     /// Explicit live-network smoke test. It requires compile-time Dandanplay

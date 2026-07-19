@@ -559,3 +559,92 @@
 - 回归测试：`invalid_relative_episode_never_underflows_or_fetches_comments`，输入 `i32::MIN`
   时返回空列表且本地 server 只收到剧集请求。
 - 迁移/回滚：不涉及；合法的 1-based 相对集号语义保持不变。
+
+### RT-1-001 — Mikan 引号封面分支不可达且绝对 URL 会被重复拼接
+
+- 工作包：RT-1（2026-07-19）
+- 现象：搜索结果封面样式若为 `url(&quot;/cover.jpg&quot;)` / `url("/cover.jpg")`，原解析器
+  只有先命中 `url('` 但找不到结束单引号时才会检查 `&quot;`，正常双引号分支实际不可达；若
+  上游直接给出 `https://cdn...`，又会无条件拼上 Mikan base URL。
+- 根因：CSS URL 提取由嵌套的字符串 `find` 分支实现，并把所有提取结果都当作站内相对路径。
+- 影响：对应搜索结果显示空封面，或得到 `https://mikan...https://cdn...` 形式的非法图片地址。
+- 修复：独立解析 `url(...)`，统一剥离单引号、双引号和 `&quot;`；使用 `url::Url` 区分并解析
+  绝对、协议相对和站内相对 URL。
+- 回归测试：`minimal_search_fixture_resolves_relative_cover_url`、
+  `search_parser_handles_quoted_and_absolute_covers_and_skips_bad_or_duplicate_nodes`。
+- 迁移/回滚：仅影响读时 URL 规范化，不修改缓存或配置。
+
+### RT-1-002 — DMHY 单条缺少 title 会让整份 RSS 解析失败
+
+- 工作包：RT-1（2026-07-19）
+- 现象：RSS 中任意 `<item>` 缺少 `<title>` 时，`quick_xml` 因 `Item.title: String` 缺字段而
+  返回错误，即使其余资源完全合法也不会返回任何结果。
+- 根因：站点 feed 的逐项可选字段被建模为整份文档的强制字段，解析和条目校验没有分层。
+- 影响：一次上游脏数据即可让某集的全部 DMHY 资源加载失败，用户只能看到空结果/请求错误。
+- 修复：将 channel、title、enclosure URL/length 建模为可选值；XML 结构损坏仍返回错误，单条
+  缺字段或非法磁链则跳过，并继续保留其他合法资源。
+- 回归测试：`edge_fixture_skips_bad_nodes_and_duplicates_but_preserves_unicode_and_raw_date`、
+  `missing_channel_is_an_empty_feed_and_malformed_xml_is_an_error`。
+- 迁移/回滚：不涉及；公开资源结构不变。
+
+### RT-1-003 — DMHY 极大 enclosure.length 会触发整数乘法溢出
+
+- 工作包：RT-1（2026-07-19）
+- 现象：原代码先执行 `length.parse::<u64>().unwrap_or(0) * 1024`；当 length 接近 `u64::MAX`
+  时 debug 构建直接 panic，release 构建则依赖溢出设置产生回绕值。
+- 根因：Anime Garden feed 的 length 按 KiB 使用，但格式化前先在整数域转换为 bytes，且没有
+  checked/saturating arithmetic。
+- 影响：异常上游数字可以让 Rust/FFI 调用崩溃，或向 UI 返回完全错误的大小。
+- 修复：从 KiB 单位直接在 `f64` 格式化，补 B～ZB 单位；缺失/非法值稳定返回 `0.0 B`，不再
+  进行可能溢出的 `u64 * 1024`。
+- 回归测试：`size_formatter_uses_feed_kib_units_without_integer_overflow`，覆盖 `u64::MAX`。
+- 迁移/回滚：正常 feed 的既有 KiB 语义与显示值保持不变。
+
+### RT-1-004 — 长 Unicode 磁链日志预览可能按非法 UTF-8 边界切片
+
+- 工作包：RT-1（2026-07-19）
+- 现象：`start_torrent` 对长度超过 200 bytes 的输入执行 `&magnet[..200]`；若第 200 byte 位于
+  中文/emoji 等多字节字符中间，Rust 会因非字符边界切片而 panic。
+- 根因：日志预览把 UTF-8 字符串长度和 byte offset 当作可互换值。
+- 影响：跨语言入口收到带长 Unicode `dn` 参数或异常输入时，可能在真正交给 BT 引擎前崩溃。
+- 修复：提取 `text_preview`，按 `chars()` 截取最多 200 个 Unicode scalar，再追加省略号。
+- 回归测试：`text_preview_truncates_by_character_boundary` 使用 201 个中文字符复现边界。
+- 迁移/回滚：仅日志预览变化，传给 librqbit 的完整磁链不变。
+
+### RT-1-005 — ranking rank 窄化会回绕，非法日期会被格式化成“合法样式”
+
+- 工作包：RT-1（2026-07-19）
+- 现象：Bangumi API 的 `i64` rank 直接 `as i32`，超出范围时会回绕成负数；`2026-02-30`
+  等非法日期只要形似三段数字，就会显示为 `2026年2月30日`。
+- 根因：数字窄化未使用 checked conversion，日期 formatter 只拆字符串而未验证日历合法性。
+- 影响：异常/变更后的上游数据可能在排行 UI 显示负排名或看似已正规化的不存在日期。
+- 修复：rank 使用 `i32::try_from`，越界时按缺失处理；日期用 `chrono::NaiveDate` 严格解析，
+  非法值保留原文以便诊断；HTML score 同时拒绝 NaN/Infinity。
+- 回归测试：`json_edge_fixture_skips_bad_items_deduplicates_and_rejects_rank_overflow`、
+  `invalid_year_month_and_calendar_dates_are_not_normalized_as_valid`。
+- 迁移/回滚：不涉及；合法 rank/日期输出不变。
+
+### RT-1-006 — 弹幕解析接受 NaN/负时间和越界 type/color
+
+- 工作包：RT-1（2026-07-19）
+- 现象：`f64::parse` 会接受 `NaN`/`Infinity`，原解析器也接受负时间、任意 i32 type 和任意
+  u32 color；这些记录随后进入按 `partial_cmp` 排序的列表。
+- 根因：解析成功被等同于业务合法，缺少有限值、时间范围、类型枚举和 RGB 上限校验。
+- 影响：非有限时间会破坏稳定排序并把不可调度值传给播放器；负时间、未知类型和超 24-bit 颜色
+  可能造成弹幕提前触发、渲染异常或平台间行为漂移。
+- 修复：丢弃非有限/负时间和空文本；type 仅接受 1～5，color 仅接受 `0x000000..0xFFFFFF`，
+  非法元数据回退到滚动白色；缺 comments 数组按空列表处理。
+- 回归测试：`comment_edge_fixture_discards_non_finite_negative_and_empty_rows`、
+  `missing_comments_array_parses_as_an_empty_response`。
+- 迁移/回滚：仅过滤无效上游行，合法弹幕结构和排序不变。
+
+### RT-1-007 — torrent progress 在瞬时统计不一致时可超过 100%
+
+- 工作包：RT-1（2026-07-19）
+- 现象：`downloaded / total_size * 100` 未限制范围；当 librqbit 元数据/进度快照处于瞬时不一致，
+  或 downloaded 略大于 total 时，会通过 FRB 返回大于 100 的百分比。
+- 根因：对外 stats 转换直接暴露内部计数比值，没有落实百分比字段的 0～100 契约。
+- 影响：UI 可能显示超过 100% 的进度，并让依赖阈值的下载状态判断提前或反复切换。
+- 修复：提取 `calculate_progress`，total 为 0 时返回 0，其余结果 clamp 到 0～100。
+- 回归测试：`progress_handles_zero_and_transient_overrun`。
+- 迁移/回滚：不涉及；正常范围内数值不变。

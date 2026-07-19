@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Edge fixture feed</title>
+    <item>
+      <title>[字幕组] Unicode 测试动画 ✨ - E01v2 [1080p]</title>
+      <enclosure url="magnet:?xt=urn:btih:unicode" length="1024" />
+      <pubDate>invalid but preserved</pubDate>
+    </item>
+    <item>
+      <title>重复资源 - 01</title>
+      <enclosure url="magnet:?xt=urn:btih:unicode" length="2048" />
+    </item>
+    <item>
+      <title>缺少大小 - 01</title>
+      <enclosure url="magnet:?xt=urn:btih:no-size" />
+    </item>
+    <item>
+      <title>非法大小 - 01</title>
+      <enclosure url="magnet:?xt=urn:btih:bad-size" length="not-a-number" />
+    </item>
+    <item>
+      <title>极大大小 - 01</title>
+      <enclosure url="magnet:?xt=urn:btih:huge" length="18446744073709551615" />
+    </item>
+    <item>
+      <title>错误集数 - 02</title>
+      <enclosure url="magnet:?xt=urn:btih:episode-two" length="1024" />
+    </item>
+    <item>
+      <title>非法链接 - 01</title>
+      <enclosure url="https://example.com/file.torrent" length="1024" />
+    </item>
+    <item>
+      <title>缺少 enclosure - 01</title>
+    </item>
+    <item>
+      <enclosure url="magnet:?xt=urn:btih:no-title" length="1024" />
+    </item>
+  </channel>
+</rss>

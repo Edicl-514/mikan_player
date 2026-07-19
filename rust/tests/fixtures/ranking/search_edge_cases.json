@@ -1,0 +1,25 @@
+{
+  "data": [
+    {
+      "id": "9001",
+      "name": "Unicode Original ✨",
+      "name_cn": "Unicode 中文标题 ✨",
+      "date": "2026-02-30",
+      "rank": 9223372036854775807,
+      "images": {"large": "//lain.bgm.tv/pic/edge.jpg"},
+      "meta_tags": ["测试", "Unicode"]
+    },
+    {
+      "id": "9001",
+      "name": "duplicate should be ignored"
+    },
+    {
+      "name": "missing id"
+    },
+    {
+      "id": 9002,
+      "name": "   ",
+      "name_cn": ""
+    }
+  ]
+}
