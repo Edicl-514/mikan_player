@@ -111,6 +111,7 @@ class SubtitleService extends ChangeNotifier {
   StreamSubscription? _trackSubscription;
   StreamSubscription? _subtitleSubscription;
   bool _disposed = false;
+  late final Future<void> _settingsLoaded;
 
   /// 当前设置
   SubtitleSettings _settings = const SubtitleSettings();
@@ -173,8 +174,11 @@ class SubtitleService extends ChangeNotifier {
   }
 
   SubtitleService() {
-    _loadSettings();
+    _settingsLoaded = _loadSettings();
   }
+
+  @visibleForTesting
+  Future<void> get debugSettingsLoaded => _settingsLoaded;
 
   /// 绑定播放器
   void bindPlayer(Player player) {
@@ -400,7 +404,9 @@ class SubtitleService extends ChangeNotifier {
         outlineWidth: prefs.getDouble('subtitle_outline_width') ?? 1.5,
         bottomPadding: prefs.getDouble('subtitle_bottom_padding') ?? 48.0,
       );
-      notifyListeners();
+      if (!_disposed) {
+        notifyListeners();
+      }
     } catch (e) {
       debugPrint('[Subtitle] 加载设置失败: $e');
     }

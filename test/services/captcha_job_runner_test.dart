@@ -5,6 +5,8 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/services/webview_captcha_job_runner.dart';
+import 'package:mikan_player/services/captcha_webview_bypasser.dart';
+import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 
 void main() {
   group('CaptchaJobRunnerSink', () {
@@ -76,5 +78,112 @@ void main() {
       expect(runner.jobTimeout, const Duration(seconds: 45));
       runner.dispose();
     });
+
+    test('explicit initial URL wins and its whitespace is trimmed', () {
+      final runner = makeRunner();
+      runner.acceptJob(
+        job(
+          initialUrl: '  https://detail.example/item/1  ',
+          searchKeyword: 'ignored',
+        ),
+      );
+
+      expect(runner.initialUrl, 'https://detail.example/item/1');
+      runner.dispose();
+    });
+
+    test('search URL strips season suffix before replacing keyword', () {
+      final runner = makeRunner();
+      runner.acceptJob(
+        job(
+          searchKeyword: '  Example Anime Season 2  ',
+          searchUrl: 'https://search.example/?q={keyword}',
+        ),
+      );
+
+      expect(runner.initialUrl, 'https://search.example/?q=Example Anime');
+      runner.dispose();
+    });
+
+    test('search URL without placeholder works with an empty keyword', () {
+      final runner = makeRunner();
+      runner.acceptJob(job(searchUrl: 'https://search.example/latest'));
+
+      expect(runner.initialUrl, 'https://search.example/latest');
+      runner.dispose();
+    });
+
+    test('missing keyword for a placeholder completes once with failure', () {
+      final results = <CaptchaBypassResult>[];
+      var idleCalls = 0;
+      final runner = makeRunner(
+        sink: CaptchaJobRunnerSink(
+          onResult: (_, result) => results.add(result),
+          onIdle: (_, _) => idleCalls++,
+        ),
+      );
+
+      runner.acceptJob(job(searchUrl: 'https://search.example/?q={keyword}'));
+
+      expect(runner.initialUrl, isNull);
+      expect(results, hasLength(1));
+      expect(results.single.success, isFalse);
+      expect(results.single.error, contains('requires initialUrl'));
+      expect(idleCalls, 1);
+      runner.dispose();
+    });
+
+    test(
+      'navigation headers preserve a non-default port and explicit referer',
+      () {
+        final runner = makeRunner();
+        runner.acceptJob(
+          job(initialUrl: 'http://127.0.0.1:18080/page', referer: null),
+        );
+
+        expect(
+          runner.buildNavigationHeaders()['Referer'],
+          'http://127.0.0.1:18080/',
+        );
+
+        runner.acceptJob(
+          job(
+            initialUrl: 'https://detail.example/page',
+            referer: ' https://ref.example/from ',
+          ),
+        );
+        expect(
+          runner.buildNavigationHeaders()['Referer'],
+          'https://ref.example/from',
+        );
+        runner.dispose();
+      },
+    );
   });
+}
+
+CaptchaPreflightJob job({
+  String searchUrl = '',
+  String? searchKeyword,
+  String? initialUrl,
+  String? referer,
+}) {
+  return CaptchaPreflightJob(
+    jobKey: 'job',
+    source: SourceState(
+      name: 'source',
+      description: '',
+      iconUrl: '',
+      tier: 1,
+      defaultSubtitleLanguage: '',
+      defaultResolution: '',
+      searchUrl: searchUrl,
+      searchConfigJson: '{}',
+      enabled: true,
+    ),
+    searchKeyword: searchKeyword,
+    initialUrl: initialUrl,
+    referer: referer,
+    captchaConfig: const CaptchaConfig(enable: true),
+  );
 }

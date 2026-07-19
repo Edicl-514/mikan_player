@@ -239,3 +239,125 @@
   `legacy entry without lastPositionMs defaults to 0`。
 - 迁移/回滚：读路径更宽容，无需写迁移；下次 `addOrUpdate`/`updatePosition` 会
   以修复后的合法子集重新持久化。
+
+### DT-3-001 — Header injection proxy 对原 URL 二次 percent-decode
+
+- 工作包：DT-3（2026-07-19）
+- 现象：注册含字面 `%2F` 查询值的上游 URL（线上表现为 `token=%252F`）后，代理从
+  `request.uri.queryParameters` 取出已经解码一次的 `url`，又调用 `Uri.decodeComponent`，
+  导致上游实际收到 `/` 而不是字面 `%2F`。
+- 根因：混淆了 raw query 与 `queryParameters` 的解码契约。
+- 影响：带 percent-encoded token、签名或嵌套 URL 的媒体地址可能被代理改写，产生 403、
+  签名校验失败或请求到错误资源。
+- 修复：直接使用 `queryParameters['url']`；同时调整 header 合并顺序，让注册的注入值覆盖
+  播放器发给本地代理的同名 header。
+- 回归测试：`HeaderInjectionProxy preserves percent-encoded data in the original URL exactly once`、
+  `injected headers override conflicting client headers`。
+- 迁移/回滚：不涉及。
+
+### DT-3-002 — Windows 图片缓存清理后同步索引仍返回已删除路径
+
+- 工作包：DT-3（2026-07-19）
+- 现象：`cleanupOldCache` 已删除过期/超限文件，但 `getCachedPathSync` 仍返回旧路径；Windows
+  下尤其稳定复现，因为缓存写入路径使用 `/`，`File.path` 枚举结果使用 `\`，字符串相等失败。
+- 根因：路径通过字符串拼接生成，内存索引淘汰又使用未规范化的精确字符串比较；TTL/size
+  cleanup 原本也没有主动清除内存条目。
+- 影响：UI 可能继续尝试读取不存在的封面，直到异步磁盘检查或进程重启修正，表现为空图/
+  闪烁；同步缓存命中契约失真。
+- 修复：统一使用 `path.join`，以 `path.equals` 淘汰相同文件，并在单图删除、按年龄清理、
+  按容量清理时同步清除内存路径。
+- 回归测试：`age cleanup evicts stale synchronous memory paths`、
+  `size cleanup removes oldest files until under the limit`、`delete and clear evict both disk and synchronous memory entries`。
+- 迁移/回滚：不涉及；旧文件布局不变。
+
+### DT-3-003 — 非默认端口从图片/Captcha Referer 中丢失
+
+- 工作包：DT-3（2026-07-19）
+- 现象：请求 `http://host:PORT/...` 时，图片下载和 Captcha 导航构造的默认 Referer 都是
+  `http://host/`，端口被丢弃。
+- 根因：手工拼接 `${uri.scheme}://${uri.host}`，没有使用 authority/origin。
+- 影响：使用非 80/443 端口的数据源、本地调试源或带端口鉴权的源站可能拒绝请求；图片加载、
+  Captcha/detail 导航出现 403。
+- 修复：两处统一使用 `Uri.origin`。
+- 回归测试：`downloads bytes with image headers and reuses the disk cache`、
+  `navigation headers preserve a non-default port and explicit referer`。
+- 迁移/回滚：不涉及。
+
+### DT-3-004 — 弹幕返回不可变列表时排序失败，且旧请求可覆盖新状态
+
+- 工作包：DT-3（2026-07-19）
+- 现象一：API 返回 `const`/不可变列表时，服务对结果原地 `sort`，成功请求转为
+  `Unsupported operation: Cannot modify an unmodifiable list`。
+- 现象二：连续搜索/选集时，先发出的慢请求晚返回后会覆盖后发请求的结果；`clearDanmaku`
+  也无法阻止已在途请求重新填充列表。
+- 根因：服务持有并修改调用方列表；异步操作没有 generation/token 判定。
+- 影响：后端实现变化或测试/缓存返回只读集合时弹幕无法加载；快速切换作品/剧集可能显示上一项
+  的搜索结果或弹幕。
+- 修复：复制为可变 `List<Danmaku>.of` 后排序；所有请求使用递增 generation，落地状态前确认
+  仍为当前请求，clear 同时使在途 generation 失效。
+- 回归测试：`title lookup sorts comments and clears loading state`、
+  `late search response cannot overwrite the latest query`、`clear invalidates an in-flight request`。
+- 迁移/回滚：不涉及。
+
+### DT-3-005 — ECH 临时 endpoint 探测异常时污染用户配置
+
+- 工作包：DT-3（2026-07-19）
+- 现象：`testDohEndpoint` 临时把候选 endpoint 写入 prefs/Rust 后，若 refresh 抛异常，函数直接
+  进入 `catch` 返回 0，没有恢复先前列表，与代码注释“regardless of refresh outcome”矛盾。
+- 根因：恢复逻辑位于 `try` 正常路径，而非 `finally`。
+- 影响：一次失败的“测试 DoH”会悄悄把用户正式 DoH 列表替换为失败候选，后续 Bangumi ECH
+  请求持续失败，直到用户手动修改或重启同步。
+- 修复：预先保存旧列表，并在 `finally` 中同时恢复 SharedPreferences 与 Rust runtime；
+  `syncToRust` 也移除一次重复的 ECH toggle 调用。
+- 回归测试：`test endpoint restores persisted and runtime lists when refresh throws`（并覆盖成功路径）。
+- 迁移/回滚：不涉及；修复后首次调用/启动同步会恢复 prefs 中的正式列表。
+
+### DT-3-006 — OCR 初始化失败 Future 被永久缓存
+
+- 工作包：DT-3（2026-07-19）
+- 现象：首次模型复制/初始化失败后，`_initializing ??=` 永久保存失败 Future；后续每次识别都立即
+  重放同一异常，即使磁盘/资源条件已经恢复。
+- 根因：初始化去重没有区分“成功完成”与“失败完成”。
+- 影响：一次瞬时 I/O、asset 或 Rust 初始化错误会让 OCR 验证码功能在整个进程生命周期内不可用。
+- 修复：成功 Future 继续复用；失败完成时仅在仍为当前初始化任务的情况下清空 `_initializing`，
+  允许下一次调用重试，同时保留并发初始化去重。
+- 回归测试：`failed initialization is cleared so a later attempt can retry`、
+  `concurrent initialization shares one backend check and future`。
+- 迁移/回滚：不涉及。
+
+### DT-3-007 — BangumiImageBridge clear 与 in-flight 完成竞态
+
+- 工作包：DT-3（2026-07-19）
+- 现象：`clear()` 清空 map 后，旧下载仍可完成并重新写入 cache；若同 key 已启动新下载，旧 Future
+  完成时无条件 `_inFlight.remove(key)` 还会删除新任务的去重槽，触发重复下载。
+- 根因：缓存没有 generation，in-flight 清理也没有确认 map 中仍是同一个 Future。
+- 影响：用户清缓存后旧图片可能立刻回填；同 URL 短时间重复请求绕过去重，增加 Rust/网络负载。
+- 修复：clear 递增 generation，旧 generation 不再写缓存；完成清理仅在 map 当前值与自身 Future
+  identical 时执行。
+- 回归测试：`clear prevents an old request from repopulating or removing a newer flight`。
+- 迁移/回滚：不涉及。
+
+### DT-3-008 — 视频探测先等待错误 body，HTTP 状态被 timeout 掩盖
+
+- 工作包：DT-3（2026-07-19）
+- 现象：服务端已返回 500 header 但保持/缓慢发送 body 时，probe 仍先读取最多 2KB body；最终返回
+  `Probe timed out`，而不是立即返回 `HTTP 500`。
+- 根因：状态码判断放在 `_readProbeBytes` 之后。
+- 影响：探测延迟被放大到完整 timeout，错误诊断不准确；批量线路探测占用连接和 gate 更久。
+- 修复：收到 response header 后先处理 `>=400`，无需读取错误 body，finally 强制关闭 client。
+- 回归测试：`reports HTTP errors without waiting for an unbounded error body`。
+- 迁移/回滚：不涉及。
+
+### DT-3-009 — 详情缓存内嵌集数去重依赖返回顺序
+
+- 工作包：DT-3（2026-07-19）
+- 现象：同一 `sort` 的无标题幽灵集数若出现在真实命名集数之前，详情服务的单遍去重会先保留
+  幽灵项，随后再保留真实项；重复 id 也没有过滤。
+- 根因：`_parseEpisodesFromSubjectData` 维护“已经见过的命名 sort”，只能删除位于真实项之后的
+  幽灵项，且复制了另一套不完整的去重实现。
+- 影响：缓存/详情 JSON 调整 episode 顺序时，选集面板可能出现两个相同集号或重复 episode。
+- 修复：解析完成后统一调用 DT-1 已覆盖的 `withoutPhantomEpisodes()` 两遍算法；同时避免
+  `loadInitialData` 对同一 JSON 重复解析两次。
+- 回归测试：`cached initial data parses embedded episodes and builds person map`（fixture 让幽灵项
+  位于真实项之前，并加入重复 id）。
+- 迁移/回滚：只影响读时规范化，不修改缓存数据。

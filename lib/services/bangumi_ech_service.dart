@@ -3,6 +3,40 @@ import 'package:flutter/foundation.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:shared_preferences/shared_preferences.dart';
 
+abstract interface class BangumiEchBackend {
+  Future<void> setEnabled(bool enabled);
+  Future<int> refresh();
+  Future<void> warmup();
+  Future<List<String>> setDohEndpoints(List<String> endpoints);
+  Future<List<String>> moveDohEndpoint(int from, int to);
+  Future<List<String>> resetDohEndpoints();
+}
+
+class RustBangumiEchBackend implements BangumiEchBackend {
+  const RustBangumiEchBackend();
+
+  @override
+  Future<void> setEnabled(bool enabled) =>
+      rust.setBangumiUseEch(enabled: enabled);
+
+  @override
+  Future<int> refresh() async => (await rust.refreshBangumiEchConfig()).toInt();
+
+  @override
+  Future<void> warmup() => rust.warmupBangumiEchConfig();
+
+  @override
+  Future<List<String>> setDohEndpoints(List<String> endpoints) =>
+      rust.setBangumiDohEndpoints(endpoints: endpoints);
+
+  @override
+  Future<List<String>> moveDohEndpoint(int from, int to) =>
+      rust.moveBangumiDohEndpoint(from: BigInt.from(from), to: BigInt.from(to));
+
+  @override
+  Future<List<String>> resetDohEndpoints() => rust.resetBangumiDohEndpoints();
+}
+
 /// Persists the user's ECH (Encrypted Client Hello) preference for bangumi
 /// requests and mirrors it to the Rust runtime.
 ///
@@ -36,6 +70,7 @@ class BangumiEchService {
   static final ValueNotifier<bool> notifier = ValueNotifier<bool>(true);
   static final ValueNotifier<List<String>> dohNotifier =
       ValueNotifier<List<String>>(const []);
+  static BangumiEchBackend _backend = const RustBangumiEchBackend();
 
   static Future<bool> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -46,7 +81,7 @@ class BangumiEchService {
     if (notifier.value != value) {
       notifier.value = value;
     }
-    await rust.setBangumiUseEch(enabled: value);
+    await _backend.setEnabled(value);
     await _syncDohList(prefs);
     return value;
   }
@@ -54,7 +89,7 @@ class BangumiEchService {
   static Future<void> save(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(preferenceKey, enabled);
-    await rust.setBangumiUseEch(enabled: enabled);
+    await _backend.setEnabled(enabled);
     if (notifier.value != enabled) {
       notifier.value = enabled;
     }
@@ -63,26 +98,24 @@ class BangumiEchService {
   /// Force-refresh the cached ECHConfig (e.g. from the settings UI).
   /// Returns the byte length of the new ECHConfigList, or 0 on failure.
   static Future<int> refresh() async {
-    final size = await rust.refreshBangumiEchConfig();
-    return size.toInt();
+    return _backend.refresh();
   }
 
   /// Warm the ECHConfig cache if ECH is enabled and the cache is empty.
   /// Safe to call from app startup.
   static Future<void> warmup() async {
-    await rust.warmupBangumiEchConfig();
+    await _backend.warmup();
   }
 
   static Future<void> syncToRust() async {
-    final value = await load();
-    await rust.setBangumiUseEch(enabled: value);
+    await load();
   }
 
   /// Read the persisted DoH list and push it to the Rust runtime.
   static Future<List<String>> _syncDohList(SharedPreferences prefs) async {
     final stored = prefs.getStringList(dohListKey);
     final list = stored ?? const <String>[];
-    final result = await rust.setBangumiDohEndpoints(endpoints: list);
+    final result = await _backend.setDohEndpoints(list);
     if (listEquals(result, dohNotifier.value) == false) {
       dohNotifier.value = List<String>.unmodifiable(result);
     }
@@ -141,10 +174,7 @@ class BangumiEchService {
     final item = current.removeAt(from);
     current.insert(clampedTo, item);
     await prefs.setStringList(dohListKey, current);
-    final result = await rust.moveBangumiDohEndpoint(
-      from: BigInt.from(from),
-      to: BigInt.from(clampedTo),
-    );
+    final result = await _backend.moveDohEndpoint(from, clampedTo);
     if (listEquals(result, dohNotifier.value) == false) {
       dohNotifier.value = List<String>.unmodifiable(result);
     }
@@ -156,7 +186,7 @@ class BangumiEchService {
   static Future<List<String>> resetDohEndpoints() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(dohListKey);
-    final result = await rust.resetBangumiDohEndpoints();
+    final result = await _backend.resetDohEndpoints();
     if (listEquals(result, dohNotifier.value) == false) {
       dohNotifier.value = List<String>.unmodifiable(result);
     }
@@ -178,20 +208,21 @@ class BangumiEchService {
   /// Returns the byte length of the ECHConfig returned on success, or 0 on
   /// failure. Failure does NOT mutate the user DoH list.
   static Future<int> testDohEndpoint(String endpoint) async {
+    final prefs = await SharedPreferences.getInstance();
+    final previous = prefs.getStringList(dohListKey) ?? <String>[];
     try {
       // Temporarily push just this single endpoint to Rust, refresh, capture
       // the byte length, then restore the previous list.
-      final prefs = await SharedPreferences.getInstance();
-      final previous = prefs.getStringList(dohListKey) ?? <String>[];
       await prefs.setStringList(dohListKey, [endpoint.trim()]);
       await _syncDohList(prefs);
-      final size = await rust.refreshBangumiEchConfig();
-      // Restore previous list regardless of refresh outcome.
-      await prefs.setStringList(dohListKey, previous);
-      await _syncDohList(prefs);
-      return size.toInt();
+      return await _backend.refresh();
     } catch (_) {
       return 0;
+    } finally {
+      // This is a temporary probe: never leak the tested endpoint into the
+      // user's persisted list or the Rust runtime, even when refresh throws.
+      await prefs.setStringList(dohListKey, previous);
+      await _syncDohList(prefs);
     }
   }
 
@@ -221,5 +252,17 @@ class BangumiEchService {
       value = value.substring(0, value.length - 1);
     }
     return value;
+  }
+
+  @visibleForTesting
+  static void debugBindBackendForTest(BangumiEchBackend backend) {
+    _backend = backend;
+  }
+
+  @visibleForTesting
+  static void debugResetForTest() {
+    _backend = const RustBangumiEchBackend();
+    notifier.value = true;
+    dohNotifier.value = const [];
   }
 }

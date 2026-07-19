@@ -50,10 +50,9 @@ class VideoUrlProbeService {
       final contentType =
           response.headers.contentType?.mimeType ??
           response.headers.value(HttpHeaders.contentTypeHeader);
-      final bytes = await _readProbeBytes(response, timeout);
-      stopwatch.stop();
 
       if (statusCode >= 400) {
+        stopwatch.stop();
         return VideoUrlProbeResult(
           playable: false,
           statusCode: statusCode,
@@ -62,6 +61,9 @@ class VideoUrlProbeService {
           latency: stopwatch.elapsed,
         );
       }
+
+      final bytes = await _readProbeBytes(response, timeout);
+      stopwatch.stop();
 
       final body = utf8.decode(bytes, allowMalformed: true);
       final lowerContentType = (contentType ?? '').toLowerCase();

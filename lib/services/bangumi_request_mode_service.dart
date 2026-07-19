@@ -2,6 +2,18 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/config.dart' as rust_config;
 
+abstract interface class BangumiRequestModeBackend {
+  Future<void> setMode(String mode);
+}
+
+class RustBangumiRequestModeBackend implements BangumiRequestModeBackend {
+  const RustBangumiRequestModeBackend();
+
+  @override
+  Future<void> setMode(String mode) =>
+      rust_config.setBangumiRequestMode(mode: mode);
+}
+
 enum BangumiRequestMode {
   legacy('legacy'),
   hybrid('hybrid'),
@@ -26,6 +38,8 @@ class BangumiRequestModeService {
   static final ValueNotifier<BangumiRequestMode> notifier = ValueNotifier(
     BangumiRequestMode.hybrid,
   );
+  static BangumiRequestModeBackend _backend =
+      const RustBangumiRequestModeBackend();
 
   static Future<BangumiRequestMode> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -39,7 +53,7 @@ class BangumiRequestModeService {
   static Future<void> save(BangumiRequestMode mode) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(preferenceKey, mode.value);
-    await rust_config.setBangumiRequestMode(mode: mode.value);
+    await _backend.setMode(mode.value);
     if (notifier.value != mode) {
       notifier.value = mode;
     }
@@ -47,9 +61,20 @@ class BangumiRequestModeService {
 
   static Future<void> syncToRust() async {
     final mode = await load();
-    await rust_config.setBangumiRequestMode(mode: mode.value);
+    await _backend.setMode(mode.value);
     if (notifier.value != mode) {
       notifier.value = mode;
     }
+  }
+
+  @visibleForTesting
+  static void debugBindBackendForTest(BangumiRequestModeBackend backend) {
+    _backend = backend;
+  }
+
+  @visibleForTesting
+  static void debugResetForTest() {
+    _backend = const RustBangumiRequestModeBackend();
+    notifier.value = BangumiRequestMode.hybrid;
   }
 }

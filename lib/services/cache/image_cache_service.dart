@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:mikan_player/services/bangumi_image_bridge.dart';
 import 'package:mikan_player/utils/app_directories.dart';
@@ -19,12 +20,15 @@ class ImageCacheService {
     return _instance!;
   }
 
-  ImageCacheService._();
+  ImageCacheService._({HttpClient? httpClient, Directory? cacheDirectory})
+    : _cacheDir = cacheDirectory,
+      _httpClient =
+          httpClient ??
+          (HttpClient()..connectionTimeout = const Duration(seconds: 10));
 
   Directory? _cacheDir;
   bool _isInitialized = false;
-  final HttpClient _httpClient = HttpClient()
-    ..connectionTimeout = const Duration(seconds: 10);
+  final HttpClient _httpClient;
   final Map<String, Future<String?>> _inFlightDownloads = {};
   final LinkedHashMap<String, String> _memoryPathCache =
       LinkedHashMap<String, String>();
@@ -33,6 +37,17 @@ class ImageCacheService {
   int _activeDownloads = 0;
   static const int _maxConcurrentDownloads = 4;
 
+  @visibleForTesting
+  factory ImageCacheService.forTesting({
+    required Directory cacheDirectory,
+    HttpClient? httpClient,
+  }) {
+    return ImageCacheService._(
+      httpClient: httpClient,
+      cacheDirectory: cacheDirectory,
+    );
+  }
+
   /// 检查是否已初始化
   bool get isInitialized => _isInitialized;
 
@@ -40,7 +55,7 @@ class ImageCacheService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    _cacheDir = await _getImageCacheDirectory();
+    _cacheDir ??= await _getImageCacheDirectory();
 
     // 确保目录存在
     if (!await _cacheDir!.exists()) {
@@ -68,7 +83,7 @@ class ImageCacheService {
       baseDir = await AppDirectories.getUnifiedAppDataDirectory();
     }
 
-    return Directory('${baseDir.path}/image_cache');
+    return Directory(p.join(baseDir.path, 'image_cache'));
   }
 
   static String _normalizeCacheKey(String url) {
@@ -101,7 +116,7 @@ class ImageCacheService {
       throw StateError('ImageCacheService not initialized');
     }
     final fileName = _generateFileName(url);
-    return '${_cacheDir!.path}/$fileName';
+    return p.join(_cacheDir!.path, fileName);
   }
 
   /// 检查图片是否已缓存
@@ -117,6 +132,10 @@ class ImageCacheService {
     if (_memoryPathCache.length > _maxMemoryCacheSize) {
       _memoryPathCache.remove(_memoryPathCache.keys.first);
     }
+  }
+
+  void _evictMemoryPath(String path) {
+    _memoryPathCache.removeWhere((_, cachedPath) => p.equals(cachedPath, path));
   }
 
   String? getCachedPathSync(String url) {
@@ -234,7 +253,7 @@ class ImageCacheService {
         'User-Agent',
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       );
-      request.headers.set('Referer', '${uri.scheme}://${uri.host}/');
+      request.headers.set('Referer', '${uri.origin}/');
 
       final response = await request.close().timeout(
         const Duration(seconds: 15),
@@ -279,7 +298,7 @@ class ImageCacheService {
       final file = File(localPath);
       if (await file.exists()) {
         await file.delete();
-        _memoryPathCache.remove(_normalizeCacheKey(url));
+        _evictMemoryPath(localPath);
         return true;
       }
     } catch (e) {
@@ -366,7 +385,9 @@ class ImageCacheService {
       // 删除过期文件
       for (final file in filesToDelete) {
         try {
+          final path = file.path;
           await file.delete();
+          _evictMemoryPath(path);
         } catch (_) {}
       }
 
@@ -394,8 +415,10 @@ class ImageCacheService {
             if (currentSize <= maxSizeBytes) break;
 
             try {
+              final path = file.path;
               final fileSize = await file.length();
               await file.delete();
+              _evictMemoryPath(path);
               currentSize -= fileSize;
             } catch (_) {}
           }
@@ -404,5 +427,10 @@ class ImageCacheService {
     } catch (e) {
       debugPrint('Error cleaning up cache: $e');
     }
+  }
+
+  @visibleForTesting
+  void debugCloseForTest() {
+    _httpClient.close(force: true);
   }
 }

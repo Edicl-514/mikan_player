@@ -342,6 +342,34 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
 - **发现并修复 1 个 bug**（DT-2-001）：播放历史整表 `map` 解析，单条损坏清空全部
   历史；改为逐条 try/parse。详见 `docs/stability_findings.md` DT-2-001。
 
+### DT-3 执行结果（2026-07-19）
+
+- 为网络/FFI 边界补充实例级 backend seam 或测试构造器：Bangumi data/details/ECH/
+  request mode/reverse proxy/image bridge、Danmaku、ImageCache、Captcha OCR；默认实现仍直接
+  委托现有 Rust API / `HttpClient` / `CacheManager`，未修改任何生成文件。
+- 新增 10 个测试文件，并扩充 2 个现有测试文件，共新增 **94** 个测试：
+  - Bangumi data/details（19）：索引构建去重与失败重试、legacy warmup、refresh/status、
+    非法 ID、缓存 JSON/内嵌 episode 解析、缓存优先、分组件降级、人物映射、评论分页。
+  - ECH/request mode/reverse proxy（17）：默认与旧值回退、SharedPreferences/ValueNotifier/
+    Rust 同步、DoH 增删去重/移动/reset/import/export、临时 endpoint 测试成功与异常恢复。
+  - danmaku/subtitle（18）：设置加载持久化、Bangumi ID -> title fallback、排序、筛选、
+    文件匹配、旧请求晚返回、clear 取消语义、字幕轨解析/显示名/样式/clamp/解绑。
+  - image bridge/cache（14）：Bangumi host 精确识别、subject URL 路由、缓存/空响应/异常、
+    in-flight 去重与 clear 竞态、真实 loopback 下载、404/空 body、批量、删除、TTL/size cleanup。
+  - header proxy/video probe（13）：header/cookie/range/referer 合并、百分号 URL、状态/响应头/
+    body 转发、200 HTML、JSON/image、HLS、redirect、4xx/5xx、timeout、悬挂错误 body。
+  - OCR/captcha 非 WebView（13）：初始化去重/重试、asset copy、已有模型保留、文件/bytes/
+    固定位数识别、搜索 URL/季度名预处理、缺 keyword 失败结算、导航 Referer。
+- 全程离线：使用 `SharedPreferences.setMockInitialValues`、fake backend、临时目录和
+  `test/support/local_http_server.dart`；不访问真实 Bangumi/DoH/弹幕服务，不启动真实 WebView。
+- 本批相关测试 **106** 个全部通过；`flutter analyze` 0 issue；严格硬编码扫描 0 candidate；
+  `flutter test --no-pub` 全量 **1250** 个测试通过。
+- **发现并修复 9 类稳定性 bug**（DT-3-001 ~ DT-3-009）：代理 URL 二次解码、Windows
+  图片缓存幽灵路径、非默认端口 Referer 丢失、不可变弹幕列表排序/旧请求覆盖、ECH 临时
+  endpoint 异常不恢复、OCR 初始化失败后无法重试、图片 bridge clear/in-flight 竞态、
+  视频错误响应悬挂 body 掩盖 HTTP 状态、详情缓存内嵌 episode 去重依赖顺序。详见
+  `docs/stability_findings.md`。
+
 ---
 
 ## 5. Dart 测试工作流

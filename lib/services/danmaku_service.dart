@@ -1,6 +1,76 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:mikan_player/src/rust/api/danmaku.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+abstract interface class DanmakuApi {
+  Future<List<Danmaku>> getByTitle({
+    required String animeTitle,
+    required String episodeNumber,
+    int? relativeEpisode,
+  });
+
+  Future<List<Danmaku>> getByBangumiId({
+    required int subjectId,
+    required String episodeNumber,
+    int? relativeEpisode,
+  });
+
+  Future<List<DanmakuAnime>> searchAnime({required String keyword});
+
+  Future<List<DanmakuEpisode>> getEpisodes({required PlatformInt64 animeId});
+
+  Future<List<Danmaku>> getComments({required PlatformInt64 episodeId});
+
+  Future<List<DanmakuMatch>> matchAnime({
+    required String fileName,
+    String? fileHash,
+  });
+}
+
+class RustDanmakuApi implements DanmakuApi {
+  const RustDanmakuApi();
+
+  @override
+  Future<List<Danmaku>> getByTitle({
+    required String animeTitle,
+    required String episodeNumber,
+    int? relativeEpisode,
+  }) => danmakuGetByTitle(
+    animeTitle: animeTitle,
+    episodeNumber: episodeNumber,
+    relativeEpisode: relativeEpisode,
+  );
+
+  @override
+  Future<List<Danmaku>> getByBangumiId({
+    required int subjectId,
+    required String episodeNumber,
+    int? relativeEpisode,
+  }) => danmakuGetByBangumiId(
+    subjectId: subjectId,
+    episodeNumber: episodeNumber,
+    relativeEpisode: relativeEpisode,
+  );
+
+  @override
+  Future<List<DanmakuAnime>> searchAnime({required String keyword}) =>
+      danmakuSearchAnime(keyword: keyword);
+
+  @override
+  Future<List<DanmakuEpisode>> getEpisodes({required PlatformInt64 animeId}) =>
+      danmakuGetEpisodes(animeId: animeId);
+
+  @override
+  Future<List<Danmaku>> getComments({required PlatformInt64 episodeId}) =>
+      danmakuGetComments(episodeId: episodeId);
+
+  @override
+  Future<List<DanmakuMatch>> matchAnime({
+    required String fileName,
+    String? fileHash,
+  }) => danmakuMatchAnime(fileName: fileName, fileHash: fileHash);
+}
 
 /// 弹幕设置数据类
 class DanmakuSettings {
@@ -57,6 +127,9 @@ class DanmakuSettings {
 
 /// 弹幕服务 - 管理弹幕获取和设置
 class DanmakuService extends ChangeNotifier {
+  final DanmakuApi _api;
+  late final Future<void> _settingsLoaded;
+  int _requestGeneration = 0;
   List<Danmaku> _danmakuList = [];
   DanmakuSettings _settings = const DanmakuSettings();
   bool _isLoading = false;
@@ -80,9 +153,16 @@ class DanmakuService extends ChangeNotifier {
   DanmakuEpisode? get selectedEpisode => _selectedEpisode;
   int get danmakuCount => _danmakuList.length;
 
-  DanmakuService() {
-    _loadSettings();
+  DanmakuService({DanmakuApi api = const RustDanmakuApi()}) : _api = api {
+    _settingsLoaded = _loadSettings();
   }
+
+  @visibleForTesting
+  Future<void> get debugSettingsLoaded => _settingsLoaded;
+
+  int _beginRequest() => ++_requestGeneration;
+
+  bool _isCurrentRequest(int generation) => generation == _requestGeneration;
 
   /// 从本地存储加载设置
   Future<void> _loadSettings() async {
@@ -145,6 +225,7 @@ class DanmakuService extends ChangeNotifier {
     String episodeNumber, {
     int? relativeEpisode,
   }) async {
+    final generation = _beginRequest();
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -153,18 +234,21 @@ class DanmakuService extends ChangeNotifier {
       debugPrint(
         '[Danmaku] Loading by title: $animeTitle, episode: $episodeNumber (rel: $relativeEpisode)',
       );
-      final danmakuList = await danmakuGetByTitle(
+      final danmakuList = await _api.getByTitle(
         animeTitle: animeTitle,
         episodeNumber: episodeNumber,
         relativeEpisode: relativeEpisode,
       );
 
-      _danmakuList = danmakuList;
+      if (!_isCurrentRequest(generation)) return;
+
+      _danmakuList = List<Danmaku>.of(danmakuList);
       _danmakuList.sort((a, b) => a.time.compareTo(b.time));
       _isLoading = false;
       debugPrint('[Danmaku] Loaded ${_danmakuList.length} danmaku');
       notifyListeners();
     } catch (e) {
+      if (!_isCurrentRequest(generation)) return;
       _isLoading = false;
       _error = e.toString();
       debugPrint('[Danmaku] Error: $e');
@@ -180,6 +264,7 @@ class DanmakuService extends ChangeNotifier {
     int? relativeEpisode,
     String? animeTitle, // 用于失败重试
   }) async {
+    final generation = _beginRequest();
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -188,11 +273,13 @@ class DanmakuService extends ChangeNotifier {
       debugPrint(
         '[Danmaku] Loading by Bangumi ID: $subjectId, episode: $episodeNumber (rel: $relativeEpisode)',
       );
-      final danmakuList = await danmakuGetByBangumiId(
+      final danmakuList = await _api.getByBangumiId(
         subjectId: subjectId,
         episodeNumber: episodeNumber,
         relativeEpisode: relativeEpisode,
       );
+
+      if (!_isCurrentRequest(generation)) return;
 
       _danmakuList = danmakuList;
       _danmakuList.sort((a, b) => a.time.compareTo(b.time));
@@ -200,19 +287,22 @@ class DanmakuService extends ChangeNotifier {
       debugPrint('[Danmaku] Loaded ${_danmakuList.length} danmaku');
       notifyListeners();
     } catch (e) {
+      if (!_isCurrentRequest(generation)) return;
       debugPrint('[Danmaku] Bangumi ID fetch failed: $e');
 
       // 如果提供了动漫名称，尝试使用标题+集号重试
       if (animeTitle != null && animeTitle.isNotEmpty) {
         debugPrint('[Danmaku] Retrying with title-based search: $animeTitle');
         try {
-          final danmakuList = await danmakuGetByTitle(
+          final danmakuList = await _api.getByTitle(
             animeTitle: animeTitle,
             episodeNumber: episodeNumber,
             relativeEpisode: relativeEpisode,
           );
 
-          _danmakuList = danmakuList;
+          if (!_isCurrentRequest(generation)) return;
+
+          _danmakuList = List<Danmaku>.of(danmakuList);
           _danmakuList.sort((a, b) => a.time.compareTo(b.time));
           _isLoading = false;
           debugPrint(
@@ -221,6 +311,7 @@ class DanmakuService extends ChangeNotifier {
           notifyListeners();
           return;
         } catch (retryError) {
+          if (!_isCurrentRequest(generation)) return;
           debugPrint('[Danmaku] Title-based retry also failed: $retryError');
           _error = '使用 Bangumi ID 和标题重试均失败: $retryError';
         }
@@ -235,6 +326,7 @@ class DanmakuService extends ChangeNotifier {
 
   /// 搜索动画
   Future<void> searchAnime(String keyword) async {
+    final generation = _beginRequest();
     _isLoading = true;
     _error = null;
     _searchResults = [];
@@ -245,11 +337,14 @@ class DanmakuService extends ChangeNotifier {
 
     try {
       debugPrint('[Danmaku] Searching anime: $keyword');
-      _searchResults = await danmakuSearchAnime(keyword: keyword);
+      final results = await _api.searchAnime(keyword: keyword);
+      if (!_isCurrentRequest(generation)) return;
+      _searchResults = results;
       _isLoading = false;
       debugPrint('[Danmaku] Found ${_searchResults.length} results');
       notifyListeners();
     } catch (e) {
+      if (!_isCurrentRequest(generation)) return;
       _isLoading = false;
       _error = e.toString();
       debugPrint('[Danmaku] Search error: $e');
@@ -259,6 +354,7 @@ class DanmakuService extends ChangeNotifier {
 
   /// 选择动画并获取剧集列表
   Future<void> selectAnime(DanmakuAnime anime) async {
+    final generation = _beginRequest();
     _selectedAnime = anime;
     _selectedEpisode = null;
     _episodes = [];
@@ -269,11 +365,14 @@ class DanmakuService extends ChangeNotifier {
 
     try {
       debugPrint('[Danmaku] Getting episodes for anime: ${anime.animeTitle}');
-      _episodes = await danmakuGetEpisodes(animeId: anime.animeId);
+      final episodes = await _api.getEpisodes(animeId: anime.animeId);
+      if (!_isCurrentRequest(generation)) return;
+      _episodes = episodes;
       _isLoading = false;
       debugPrint('[Danmaku] Found ${_episodes.length} episodes');
       notifyListeners();
     } catch (e) {
+      if (!_isCurrentRequest(generation)) return;
       _isLoading = false;
       _error = e.toString();
       debugPrint('[Danmaku] Get episodes error: $e');
@@ -283,6 +382,7 @@ class DanmakuService extends ChangeNotifier {
 
   /// 选择剧集并获取弹幕
   Future<void> selectEpisode(DanmakuEpisode episode) async {
+    final generation = _beginRequest();
     _selectedEpisode = episode;
     _isLoading = true;
     _error = null;
@@ -293,12 +393,15 @@ class DanmakuService extends ChangeNotifier {
         '[Danmaku] Loading danmaku for episode: ${episode.episodeTitle}',
       );
       _currentEpisodeId = episode.episodeId.toInt();
-      _danmakuList = await danmakuGetComments(episodeId: episode.episodeId);
+      final danmakuList = await _api.getComments(episodeId: episode.episodeId);
+      if (!_isCurrentRequest(generation)) return;
+      _danmakuList = List<Danmaku>.of(danmakuList);
       _danmakuList.sort((a, b) => a.time.compareTo(b.time));
       _isLoading = false;
       debugPrint('[Danmaku] Loaded ${_danmakuList.length} danmaku');
       notifyListeners();
     } catch (e) {
+      if (!_isCurrentRequest(generation)) return;
       _isLoading = false;
       _error = e.toString();
       debugPrint('[Danmaku] Load danmaku error: $e');
@@ -308,16 +411,19 @@ class DanmakuService extends ChangeNotifier {
 
   /// 通过文件名匹配获取弹幕
   Future<void> matchAndLoadDanmaku(String fileName, {String? fileHash}) async {
+    final generation = _beginRequest();
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
       debugPrint('[Danmaku] Matching file: $fileName');
-      final matches = await danmakuMatchAnime(
+      final matches = await _api.matchAnime(
         fileName: fileName,
         fileHash: fileHash,
       );
+
+      if (!_isCurrentRequest(generation)) return;
 
       if (matches.isNotEmpty) {
         // 使用第一个匹配结果
@@ -327,7 +433,9 @@ class DanmakuService extends ChangeNotifier {
         );
 
         _currentEpisodeId = match.episodeId.toInt();
-        _danmakuList = await danmakuGetComments(episodeId: match.episodeId);
+        final danmakuList = await _api.getComments(episodeId: match.episodeId);
+        if (!_isCurrentRequest(generation)) return;
+        _danmakuList = List<Danmaku>.of(danmakuList);
         _danmakuList.sort((a, b) => a.time.compareTo(b.time));
         debugPrint('[Danmaku] Loaded ${_danmakuList.length} danmaku');
       } else {
@@ -338,6 +446,7 @@ class DanmakuService extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     } catch (e) {
+      if (!_isCurrentRequest(generation)) return;
       _isLoading = false;
       _error = e.toString();
       debugPrint('[Danmaku] Match error: $e');
@@ -347,6 +456,8 @@ class DanmakuService extends ChangeNotifier {
 
   /// 清空弹幕
   void clearDanmaku() {
+    _requestGeneration++;
+    _isLoading = false;
     _danmakuList = [];
     _currentEpisodeId = null;
     _selectedAnime = null;

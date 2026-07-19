@@ -968,7 +968,7 @@ class CaptchaJobRunner {
   }) {
     try {
       final uri = Uri.parse(url);
-      final origin = '${uri.scheme}://${uri.host}';
+      final origin = uri.origin;
       return {
         'Accept':
             'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',

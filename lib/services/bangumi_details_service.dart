@@ -2,10 +2,103 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/services/bangumi_data_service.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
+
+abstract interface class BangumiDetailsBackend {
+  Future<AnimeInfo?> getCachedSubject(int subjectId);
+  Future<AnimeInfo?> getSubject(int subjectId);
+  Future<List<BangumiEpisode>> getCachedEpisodes(int subjectId);
+  Future<List<BangumiCharacter>> getCachedCharacters(int subjectId);
+  Future<List<BangumiRelatedSubject>> getCachedRelations(int subjectId);
+  Future<List<BangumiPerson>> getCachedPersons(int subjectId);
+  Future<List<BangumiEpisode>> getEpisodes(int subjectId);
+  Future<List<BangumiCharacter>> getCharacters(int subjectId);
+  Future<List<BangumiRelatedSubject>> getRelations(int subjectId);
+  Future<List<BangumiPerson>> getPersons(int subjectId);
+  Future<List<AnimeInfo>> fillDetails(List<AnimeInfo> animes);
+  Future<void> cacheAnimeInfo(AnimeInfo anime);
+  Future<List<BangumiDataSiteEntry>> getSites(String? bangumiId);
+  Future<List<BangumiComment>> fetchComments({
+    required int subjectId,
+    required int page,
+  });
+}
+
+class DefaultBangumiDetailsBackend implements BangumiDetailsBackend {
+  const DefaultBangumiDetailsBackend();
+
+  CacheManager get _cache => CacheManager.instance;
+
+  @override
+  Future<AnimeInfo?> getCachedSubject(int subjectId) =>
+      _cache.getCachedSubject(subjectId);
+
+  @override
+  Future<AnimeInfo?> getSubject(int subjectId) => _cache.getSubject(subjectId);
+
+  @override
+  Future<List<BangumiEpisode>> getCachedEpisodes(int subjectId) =>
+      _cache.getCachedEpisodes(subjectId);
+
+  @override
+  Future<List<BangumiCharacter>> getCachedCharacters(int subjectId) =>
+      _cache.getCachedCharacters(subjectId);
+
+  @override
+  Future<List<BangumiRelatedSubject>> getCachedRelations(int subjectId) =>
+      _cache.getCachedRelations(subjectId);
+
+  @override
+  Future<List<BangumiPerson>> getCachedPersons(int subjectId) =>
+      _cache.getCachedPersons(subjectId);
+
+  @override
+  Future<List<BangumiEpisode>> getEpisodes(int subjectId) => _cache.getEpisodes(
+    subjectId: subjectId,
+    fetchFromNetwork: () => fetchBangumiEpisodes(subjectId: subjectId),
+  );
+
+  @override
+  Future<List<BangumiCharacter>> getCharacters(int subjectId) =>
+      _cache.getCharacters(
+        subjectId: subjectId,
+        fetchFromNetwork: () => fetchBangumiCharacters(subjectId: subjectId),
+      );
+
+  @override
+  Future<List<BangumiRelatedSubject>> getRelations(int subjectId) =>
+      _cache.getRelations(
+        subjectId: subjectId,
+        fetchFromNetwork: () => fetchBangumiRelations(subjectId: subjectId),
+      );
+
+  @override
+  Future<List<BangumiPerson>> getPersons(int subjectId) => _cache.getPersons(
+    subjectId: subjectId,
+    fetchFromNetwork: () => fetchBangumiPersons(subjectId: subjectId),
+  );
+
+  @override
+  Future<List<AnimeInfo>> fillDetails(List<AnimeInfo> animes) =>
+      fillAnimeDetails(animes: animes);
+
+  @override
+  Future<void> cacheAnimeInfo(AnimeInfo anime) => _cache.cacheAnimeInfo(anime);
+
+  @override
+  Future<List<BangumiDataSiteEntry>> getSites(String? bangumiId) =>
+      BangumiDataService.getSites(bangumiId);
+
+  @override
+  Future<List<BangumiComment>> fetchComments({
+    required int subjectId,
+    required int page,
+  }) => fetchBangumiComments(subjectId: subjectId, page: page);
+}
 
 class BangumiDetailsLoadResult {
   final Map<String, dynamic>? subjectData;
@@ -26,18 +119,22 @@ class BangumiDetailsLoadResult {
 }
 
 class BangumiDetailsService {
-  BangumiDetailsService._();
+  BangumiDetailsService._({BangumiDetailsBackend? backend})
+    : _backend = backend ?? const DefaultBangumiDetailsBackend();
 
   static final BangumiDetailsService instance = BangumiDetailsService._();
+  final BangumiDetailsBackend _backend;
 
-  CacheManager get _cache => CacheManager.instance;
+  @visibleForTesting
+  factory BangumiDetailsService.forTesting(BangumiDetailsBackend backend) =>
+      BangumiDetailsService._(backend: backend);
 
   Future<Map<String, dynamic>?> loadCachedSubjectData(AnimeInfo anime) async {
     final subjectId = _parseSubjectId(anime.bangumiId);
     if (subjectId == null) return null;
 
     try {
-      final cachedAnime = await _cache.getCachedSubject(subjectId);
+      final cachedAnime = await _backend.getCachedSubject(subjectId);
       if (cachedAnime?.fullJson == null) return null;
 
       debugPrint('Subject primed from cache: $subjectId');
@@ -59,11 +156,11 @@ class BangumiDetailsService {
       final subjectFuture = includeSubjectDetails
           ? loadCachedSubjectData(anime)
           : Future<Map<String, dynamic>?>.value(null);
-      final episodesFuture = _cache.getCachedEpisodes(subjectId);
-      final charactersFuture = _cache.getCachedCharacters(subjectId);
-      final relationsFuture = _cache.getCachedRelations(subjectId);
-      final personsFuture = _cache.getCachedPersons(subjectId);
-      final sitesFuture = BangumiDataService.getSites(anime.bangumiId);
+      final episodesFuture = _backend.getCachedEpisodes(subjectId);
+      final charactersFuture = _backend.getCachedCharacters(subjectId);
+      final relationsFuture = _backend.getCachedRelations(subjectId);
+      final personsFuture = _backend.getCachedPersons(subjectId);
+      final sitesFuture = _backend.getSites(anime.bangumiId);
 
       final results = await Future.wait<Object?>([
         subjectFuture,
@@ -132,7 +229,7 @@ class BangumiDetailsService {
     final charactersFuture = _loadCharacters(subjectId);
     final relationsFuture = _loadRelations(subjectId);
     final personsFuture = _loadPersons(subjectId);
-    final sitesFuture = BangumiDataService.getSites(anime.bangumiId);
+    final sitesFuture = _backend.getSites(anime.bangumiId);
 
     final results = await Future.wait<Object?>([
       subjectFuture,
@@ -148,10 +245,11 @@ class BangumiDetailsService {
     final persons = results[3] as List<BangumiPerson>;
     final sites = results[4] as List<BangumiDataSiteEntry>;
 
-    final episodes = includeSubjectDetails
-        ? (_parseEpisodesFromSubjectData(subjectData).isNotEmpty
-              ? _parseEpisodesFromSubjectData(subjectData)
-              : await _loadEpisodes(subjectId))
+    final embeddedEpisodes = includeSubjectDetails
+        ? _parseEpisodesFromSubjectData(subjectData)
+        : const <BangumiEpisode>[];
+    final episodes = embeddedEpisodes.isNotEmpty
+        ? embeddedEpisodes
         : await _loadEpisodes(subjectId);
 
     return BangumiDetailsLoadResult(
@@ -168,7 +266,7 @@ class BangumiDetailsService {
     required int subjectId,
     required int page,
   }) async {
-    return fetchBangumiComments(subjectId: subjectId, page: page);
+    return _backend.fetchComments(subjectId: subjectId, page: page);
   }
 
   int? _parseSubjectId(String? bangumiId) {
@@ -181,20 +279,20 @@ class BangumiDetailsService {
     int subjectId,
   ) async {
     try {
-      final cachedAnime = await _cache.getSubject(subjectId);
+      final cachedAnime = await _backend.getSubject(subjectId);
       if (cachedAnime != null && cachedAnime.fullJson != null) {
         debugPrint('Subject loaded from cache: $subjectId');
         return jsonDecode(cachedAnime.fullJson!) as Map<String, dynamic>;
       }
 
-      final details = await fillAnimeDetails(animes: [anime]);
+      final details = await _backend.fillDetails([anime]);
       if (details.isEmpty) return null;
 
       final detail = details.first;
       if (detail.fullJson == null) return null;
 
       final data = jsonDecode(detail.fullJson!) as Map<String, dynamic>;
-      unawaited(_cache.cacheAnimeInfo(detail));
+      unawaited(_backend.cacheAnimeInfo(detail));
       return data;
     } catch (e) {
       debugPrint('Error loading anime details: $e');
@@ -204,10 +302,7 @@ class BangumiDetailsService {
 
   Future<List<BangumiEpisode>> _loadEpisodes(int subjectId) async {
     try {
-      final allEpisodes = await _cache.getEpisodes(
-        subjectId: subjectId,
-        fetchFromNetwork: () => fetchBangumiEpisodes(subjectId: subjectId),
-      );
+      final allEpisodes = await _backend.getEpisodes(subjectId);
       return allEpisodes;
     } catch (e) {
       debugPrint('Error fetching episodes: $e');
@@ -222,7 +317,6 @@ class BangumiDetailsService {
     if (episodes is! List) return const [];
 
     final parsed = <BangumiEpisode>[];
-    final seenSortWithNames = <double>{};
     for (final item in episodes) {
       if (item is! Map) continue;
 
@@ -242,11 +336,6 @@ class BangumiDetailsService {
       final duration = item['duration']?.toString() ?? '';
       final sort = _readDouble(item['sort']) ?? 0.0;
 
-      final hasName = name.isNotEmpty || nameCn.isNotEmpty;
-      if (!hasName && seenSortWithNames.contains(sort)) continue;
-
-      if (hasName) seenSortWithNames.add(sort);
-
       parsed.add(
         BangumiEpisode(
           id: id,
@@ -260,7 +349,7 @@ class BangumiDetailsService {
       );
     }
 
-    return parsed;
+    return parsed.withoutPhantomEpisodes();
   }
 
   int? _readInt(dynamic value) {
@@ -276,10 +365,7 @@ class BangumiDetailsService {
 
   Future<List<BangumiCharacter>> _loadCharacters(int subjectId) async {
     try {
-      return await _cache.getCharacters(
-        subjectId: subjectId,
-        fetchFromNetwork: () => fetchBangumiCharacters(subjectId: subjectId),
-      );
+      return await _backend.getCharacters(subjectId);
     } catch (e) {
       debugPrint('Error fetching characters: $e');
       return [];
@@ -288,10 +374,7 @@ class BangumiDetailsService {
 
   Future<List<BangumiRelatedSubject>> _loadRelations(int subjectId) async {
     try {
-      return await _cache.getRelations(
-        subjectId: subjectId,
-        fetchFromNetwork: () => fetchBangumiRelations(subjectId: subjectId),
-      );
+      return await _backend.getRelations(subjectId);
     } catch (e) {
       debugPrint('Error fetching relations: $e');
       return [];
@@ -300,10 +383,7 @@ class BangumiDetailsService {
 
   Future<List<BangumiPerson>> _loadPersons(int subjectId) async {
     try {
-      return await _cache.getPersons(
-        subjectId: subjectId,
-        fetchFromNetwork: () => fetchBangumiPersons(subjectId: subjectId),
-      );
+      return await _backend.getPersons(subjectId);
     } catch (e) {
       debugPrint('Error fetching persons: $e');
       return [];

@@ -3,6 +3,30 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart' as rust;
 
+abstract interface class BangumiImageBackend {
+  Future<Uint8List> fetchSubjectImage({
+    required int subjectId,
+    required String imageType,
+  });
+
+  Future<Uint8List> fetchImageUrl(String url);
+}
+
+class RustBangumiImageBackend implements BangumiImageBackend {
+  const RustBangumiImageBackend();
+
+  @override
+  Future<Uint8List> fetchSubjectImage({
+    required int subjectId,
+    required String imageType,
+  }) =>
+      rust.fetchBangumiSubjectImage(subjectId: subjectId, imageType: imageType);
+
+  @override
+  Future<Uint8List> fetchImageUrl(String url) =>
+      rust.fetchBangumiImageUrl(url: url);
+}
+
 /// In-memory cache + ECH-aware image loader for bangumi-domain URLs.
 ///
 /// `dart:io HttpClient` (used by `Image.network` / `CachedNetworkImage`) does
@@ -16,6 +40,8 @@ class BangumiImageBridge {
   static final Map<String, Future<Uint8List?>> _inFlight = {};
   static final Map<String, Uint8List> _cache = {};
   static const int _maxEntries = 256;
+  static BangumiImageBackend _backend = const RustBangumiImageBackend();
+  static int _generation = 0;
 
   static String _cacheKeyFromParts(int subjectId, String imageType) =>
       'subject:$subjectId:$imageType';
@@ -30,13 +56,15 @@ class BangumiImageBridge {
     final inflight = _inFlight[key];
     if (inflight != null) return inflight;
 
-    final future = () async {
+    final generation = _generation;
+    late final Future<Uint8List?> future;
+    future = () async {
       try {
-        final bytes = await rust.fetchBangumiSubjectImage(
+        final bytes = await _backend.fetchSubjectImage(
           subjectId: subjectId,
           imageType: imageType,
         );
-        if (bytes.isNotEmpty) {
+        if (bytes.isNotEmpty && generation == _generation) {
           if (_cache.length >= _maxEntries) {
             _cache.remove(_cache.keys.first);
           }
@@ -49,9 +77,14 @@ class BangumiImageBridge {
       }
     }();
     _inFlight[key] = future;
-    final result = await future;
-    _inFlight.remove(key);
-    return result;
+    unawaited(
+      future.then((_) {
+        if (identical(_inFlight[key], future)) {
+          _inFlight.remove(key);
+        }
+      }),
+    );
+    return future;
   }
 
   static Future<Uint8List?> fetchUrl(String url) async {
@@ -64,10 +97,12 @@ class BangumiImageBridge {
     final inflight = _inFlight[key];
     if (inflight != null) return inflight;
 
-    final future = () async {
+    final generation = _generation;
+    late final Future<Uint8List?> future;
+    future = () async {
       try {
-        final bytes = await rust.fetchBangumiImageUrl(url: normalized);
-        if (bytes.isNotEmpty) {
+        final bytes = await _backend.fetchImageUrl(normalized);
+        if (bytes.isNotEmpty && generation == _generation) {
           if (_cache.length >= _maxEntries) {
             _cache.remove(_cache.keys.first);
           }
@@ -80,9 +115,14 @@ class BangumiImageBridge {
       }
     }();
     _inFlight[key] = future;
-    final result = await future;
-    _inFlight.remove(key);
-    return result;
+    unawaited(
+      future.then((_) {
+        if (identical(_inFlight[key], future)) {
+          _inFlight.remove(key);
+        }
+      }),
+    );
+    return future;
   }
 
   /// Identifies URLs that should be routed through the Rust ECH channel
@@ -123,7 +163,19 @@ class BangumiImageBridge {
   }
 
   static void clear() {
+    _generation++;
     _cache.clear();
     _inFlight.clear();
+  }
+
+  @visibleForTesting
+  static void debugBindBackendForTest(BangumiImageBackend backend) {
+    _backend = backend;
+  }
+
+  @visibleForTesting
+  static void debugResetForTest() {
+    clear();
+    _backend = const RustBangumiImageBackend();
   }
 }

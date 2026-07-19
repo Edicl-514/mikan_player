@@ -1,12 +1,55 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
+
+abstract interface class BangumiDataBackend {
+  Future<int> buildSitesIndex();
+  Future<bool> ensureCache({required BigInt maxAgeSecs});
+  Future<bool> refreshCache();
+  Future<crawler.BangumiDataCacheStatus> getStatus();
+  Future<List<crawler.BangumiDataSiteEntry>> fetchSites(int bangumiId);
+  Future<List<crawler.BangumiDataSiteEntry>> fetchSitesByMikan(int mikanId);
+  Future<PlatformInt64?> lookupMikanId(int bangumiId);
+}
+
+class RustBangumiDataBackend implements BangumiDataBackend {
+  const RustBangumiDataBackend();
+
+  @override
+  Future<int> buildSitesIndex() async =>
+      (await crawler.buildSitesIndex()).toInt();
+
+  @override
+  Future<bool> ensureCache({required BigInt maxAgeSecs}) =>
+      crawler.ensureBangumiDataCache(maxAgeSecs: maxAgeSecs);
+
+  @override
+  Future<bool> refreshCache() => crawler.refreshBangumiDataCache();
+
+  @override
+  Future<crawler.BangumiDataCacheStatus> getStatus() =>
+      crawler.getBangumiDataCacheStatus();
+
+  @override
+  Future<List<crawler.BangumiDataSiteEntry>> fetchSites(int bangumiId) =>
+      crawler.fetchBangumiDataSites(bangumiId: bangumiId);
+
+  @override
+  Future<List<crawler.BangumiDataSiteEntry>> fetchSitesByMikan(int mikanId) =>
+      crawler.fetchBangumiDataSitesByMikan(mikanId: mikanId);
+
+  @override
+  Future<PlatformInt64?> lookupMikanId(int bangumiId) =>
+      crawler.lookupMikanId(bangumiId: bangumiId);
+}
 
 class BangumiDataService {
   BangumiDataService._();
 
   static const int warmupMaxAgeSecs = 7 * 24 * 60 * 60;
   static Future<bool>? _sitesIndexReady;
+  static BangumiDataBackend _backend = const RustBangumiDataBackend();
 
   static Future<bool> _ensureSitesIndexReady() {
     final existing = _sitesIndexReady;
@@ -15,7 +58,7 @@ class BangumiDataService {
     late final Future<bool> future;
     future = (() async {
       try {
-        final count = await crawler.buildSitesIndex();
+        final count = await _backend.buildSitesIndex();
         debugPrint('bangumi-data sites index ready: $count entries');
         return true;
       } catch (e) {
@@ -36,7 +79,7 @@ class BangumiDataService {
       if (mode == BangumiRequestMode.legacy) {
         return;
       }
-      final downloaded = await crawler.ensureBangumiDataCache(
+      final downloaded = await _backend.ensureCache(
         maxAgeSecs: BigInt.from(warmupMaxAgeSecs),
       );
       if (downloaded) {
@@ -49,7 +92,7 @@ class BangumiDataService {
 
   static Future<bool> refresh() async {
     try {
-      final refreshed = await crawler.refreshBangumiDataCache();
+      final refreshed = await _backend.refreshCache();
       if (refreshed) {
         _sitesIndexReady = null;
         _ensureSitesIndexReady(); // fire-and-forget rebuild
@@ -62,7 +105,7 @@ class BangumiDataService {
   }
 
   static Future<crawler.BangumiDataCacheStatus> getStatus() async {
-    return crawler.getBangumiDataCacheStatus();
+    return _backend.getStatus();
   }
 
   /// Look up all sites listed under `bangumiId` in the cached bangumi-data.
@@ -78,7 +121,7 @@ class BangumiDataService {
     try {
       final ready = await _ensureSitesIndexReady();
       if (!ready) return const [];
-      return await crawler.fetchBangumiDataSites(bangumiId: id);
+      return await _backend.fetchSites(id);
     } catch (e) {
       debugPrint('bangumi-data sites lookup failed (non-fatal): $e');
       return const [];
@@ -95,7 +138,7 @@ class BangumiDataService {
     try {
       final ready = await _ensureSitesIndexReady();
       if (!ready) return const [];
-      return await crawler.fetchBangumiDataSitesByMikan(mikanId: id);
+      return await _backend.fetchSitesByMikan(id);
     } catch (e) {
       debugPrint('bangumi-data sites lookup by mikan failed: $e');
       return const [];
@@ -112,11 +155,23 @@ class BangumiDataService {
     try {
       final ready = await _ensureSitesIndexReady();
       if (!ready) return null;
-      final result = await crawler.lookupMikanId(bangumiId: id);
+      final result = await _backend.lookupMikanId(id);
       return result?.toString();
     } catch (e) {
       debugPrint('bangumi-data mikan id lookup failed (non-fatal): $e');
       return null;
     }
+  }
+
+  @visibleForTesting
+  static void debugBindBackendForTest(BangumiDataBackend backend) {
+    _backend = backend;
+    _sitesIndexReady = null;
+  }
+
+  @visibleForTesting
+  static void debugResetForTest() {
+    _backend = const RustBangumiDataBackend();
+    _sitesIndexReady = null;
   }
 }

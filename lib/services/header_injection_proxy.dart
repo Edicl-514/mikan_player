@@ -80,7 +80,10 @@ class HeaderInjectionProxy {
         return;
       }
 
-      final originalUrl = Uri.decodeComponent(urlParam);
+      // `queryParameters` has already percent-decoded the parameter once.
+      // Decoding again corrupts legitimate `%xx` sequences inside the
+      // original URL (for example an upstream query containing `%2F`).
+      final originalUrl = urlParam;
       final customHeaders = _urlHeaders[originalUrl] ?? {};
 
       debugPrint('[HeaderProxy] Proxying: $originalUrl');
@@ -97,11 +100,6 @@ class HeaderInjectionProxy {
             .getUrl(uri)
             .timeout(const Duration(seconds: 12));
 
-        // Add custom headers
-        customHeaders.forEach((key, value) {
-          clientRequest.headers.set(key, value);
-        });
-
         // Forward original request headers (except Host)
         request.headers.forEach((name, values) {
           if (name.toLowerCase() != 'host') {
@@ -109,6 +107,11 @@ class HeaderInjectionProxy {
               clientRequest.headers.add(name, value);
             }
           }
+        });
+
+        // Injected values must win over headers sent to the local proxy.
+        customHeaders.forEach((key, value) {
+          clientRequest.headers.set(key, value);
         });
 
         // Send request and get response
