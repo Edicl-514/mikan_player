@@ -468,3 +468,176 @@ pub(crate) async fn get_episode_play_url(
             .clone(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::config::init_config;
+    use crate::test_support::fixture::fixture_text;
+    use crate::test_support::http_server::{TestResponse, TestRoute, TestServer};
+    use crate::test_support::state::isolate_runtime_config;
+    use axum::http::Method;
+    use reqwest::Client;
+
+    fn no_proxy_client() -> Client {
+        Client::builder()
+            .no_proxy()
+            .build()
+            .expect("failed to build loopback test client")
+    }
+
+    /// Build a full `MediaSource` whose `searchUrl` targets the loopback server.
+    /// `{keyword}` is carried in the query string so the server route matches on
+    /// path alone regardless of how reqwest percent-encodes the CJK query value.
+    fn source_json(base_url: &str, search_config_body: &str) -> MediaSource {
+        let raw = format!(
+            r#"{{
+                "factoryId": "web-selector",
+                "arguments": {{
+                    "name": "LoopbackSource",
+                    "searchConfig": {{
+                        "searchUrl": "{base_url}/search?q={{keyword}}",
+                        {search_config_body}
+                    }}
+                }}
+            }}"#
+        );
+        serde_json::from_str(&raw).expect("fixture MediaSource JSON must parse")
+    }
+
+    /// Full search → detail → episode-table happy path over loopback, exercising
+    /// the port-preserving relative-URL join (RT-2-001): the search fixture links
+    /// to `/detail/1`, which must resolve back to the server's host:port.
+    #[tokio::test]
+    async fn search_with_channels_resolves_detail_and_episodes_over_loopback() {
+        let _guard = isolate_runtime_config();
+        let cache_dir = tempfile::tempdir().unwrap();
+        init_config(
+            cache_dir.path().to_string_lossy().to_string(),
+            cache_dir.path().to_string_lossy().to_string(),
+        );
+        let server = TestServer::spawn([
+            TestRoute::get(
+                "/search",
+                TestResponse::fixture("generic_scraper/search_indexed.html"),
+            ),
+            TestRoute::get(
+                "/detail/1",
+                TestResponse::fixture("generic_scraper/detail_no_channel.html"),
+            ),
+        ])
+        .await;
+
+        let source = source_json(
+            &server.base_url(),
+            r#""subjectFormatId": "indexed",
+               "selectorSubjectFormatIndexed": {
+                   "selectNames": "li.result span.name",
+                   "selectLinks": "li.result a.link"
+               },
+               "channelFormatId": "no-channel",
+               "selectorChannelFormatNoChannel": { "selectEpisodes": "div.play-list a.ep" },
+               "matchVideo": { "matchVideoUrl": "url=(?<v>.+\\.m3u8)" }"#,
+        );
+
+        let client = no_proxy_client();
+        let result = search_single_source_with_channels(&client, &source, "测试动画", None)
+            .await
+            .expect("search should succeed");
+
+        assert_eq!(result.source_name, "LoopbackSource");
+        // Relative /detail/1 resolved against the loopback origin, port intact.
+        assert_eq!(result.detail_url, server.url("/detail/1"));
+        assert_eq!(result.channels.len(), 1);
+        assert_eq!(result.episodes.len(), 3);
+        assert!(result.episodes[0].url.starts_with(&server.base_url()));
+        assert_eq!(result.video_regex, "url=(?<v>.+\\.m3u8)");
+
+        // Exactly one search request and one detail request were issued.
+        assert_eq!(server.request_count(Method::GET, "/search"), 1);
+        assert_eq!(server.request_count(Method::GET, "/detail/1"), 1);
+        server.shutdown().await;
+    }
+
+    /// A runtime override supplying the search + detail HTML must short-circuit
+    /// all network I/O: the loopback server receives zero requests.
+    #[tokio::test]
+    async fn runtime_override_html_bypasses_all_network_requests() {
+        let _guard = isolate_runtime_config();
+        let cache_dir = tempfile::tempdir().unwrap();
+        init_config(
+            cache_dir.path().to_string_lossy().to_string(),
+            cache_dir.path().to_string_lossy().to_string(),
+        );
+        let server = TestServer::spawn([TestRoute::get(
+            "/search",
+            TestResponse::new(axum::http::StatusCode::INTERNAL_SERVER_ERROR, "boom"),
+        )])
+        .await;
+
+        let source = source_json(
+            &server.base_url(),
+            r#""subjectFormatId": "indexed",
+               "selectorSubjectFormatIndexed": {
+                   "selectNames": "li.result span.name",
+                   "selectLinks": "li.result a.link"
+               },
+               "channelFormatId": "no-channel",
+               "selectorChannelFormatNoChannel": { "selectEpisodes": "div.play-list a.ep" },
+               "matchVideo": { "matchVideoUrl": "x" }"#,
+        );
+
+        let override_item = SourceRuntimeOverride {
+            source_name: "LoopbackSource".to_string(),
+            cookies: Some("session=abc".to_string()),
+            search_page_html: Some(fixture_text("generic_scraper/search_indexed.html")),
+            search_page_url: Some(server.url("/search?q=x")),
+            detail_page_html: Some(fixture_text("generic_scraper/detail_no_channel.html")),
+            detail_page_url: Some(server.url("/detail/1")),
+            skip_search_error: None,
+        };
+
+        let client = no_proxy_client();
+        let result =
+            search_single_source_with_channels(&client, &source, "测试动画", Some(&override_item))
+                .await
+                .expect("override-driven search should succeed");
+
+        assert_eq!(result.episodes.len(), 3);
+        // Cookie from the override is merged into the returned play cookies.
+        assert_eq!(result.cookies.as_deref(), Some("session=abc"));
+        // The server (which only serves 500s) was never contacted.
+        assert!(server.requests().is_empty());
+        server.shutdown().await;
+    }
+
+    /// When no subject scores above threshold the source yields an error rather
+    /// than fetching a detail page.
+    #[tokio::test]
+    async fn search_with_no_matching_subject_errors_without_detail_fetch() {
+        let server = TestServer::spawn([TestRoute::get(
+            "/search",
+            TestResponse::fixture("generic_scraper/search_indexed.html"),
+        )])
+        .await;
+
+        let source = source_json(
+            &server.base_url(),
+            r#""subjectFormatId": "indexed",
+               "selectorSubjectFormatIndexed": {
+                   "selectNames": "li.result span.name",
+                   "selectLinks": "li.result a.link"
+               },
+               "channelFormatId": "no-channel",
+               "selectorChannelFormatNoChannel": { "selectEpisodes": "div.play-list a.ep" },
+               "matchVideo": { "matchVideoUrl": "x" }"#,
+        );
+
+        let client = no_proxy_client();
+        let err = search_single_source_with_channels(&client, &source, "毫无关联的查询词", None)
+            .await
+            .expect_err("no subject should match");
+        assert!(err.to_string().contains("No matching anime found"));
+        server.shutdown().await;
+    }
+}

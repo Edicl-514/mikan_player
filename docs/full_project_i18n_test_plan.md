@@ -518,6 +518,34 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
   **105 passed / 0 failed / 2 ignored**（两个 ignored 仍为显式真实网络 smoke）。
   `cargo clippy --all-targets` 的诊断总数仍为 RT-0 基线的 **115**，本批未增加 Clippy 告警。
 
+### RT-2 执行结果（2026-07-19）
+
+- 新增 **40 个**默认离线 Rust 测试，覆盖 generic scraper 搜索、线路、进度与最终播放链路：
+  - `source_config.rs` 16 个：反序列化默认值/必填字段/未知字段前向兼容、配置 hash 与缓存
+    round-trip；新增/更新的空名、重复名、缺字段、非法 JSON、非法 CSS selector、非法普通/fancy
+    regex 均在落盘前失败，失败更新保持原缓存不变。
+  - `episode_table.rs` 新增 8 个（模块合计 10 个）：root/path/parent/protocol-relative URL 及非默认
+    端口；no-channel/index-grouped 解析、线路去重、空线路自动命名、剧集映射、缺 href、空表和选择回退。
+  - `search_channels.rs` 3 个：loopback 串起 **search → detail → episode**，覆盖端口保留、无匹配
+    短路和 runtime HTML 完全绕过网络；所有写缓存用 `isolate_runtime_config()` + `tempfile` 隔离。
+  - `search_play.rs` 6 个：播放页定位、无匹配、首集回退、同分候选详情回退、Unicode 日志预览；
+    完整 loopback **search → detail → episode → nested page → video URL**，并断言播放页/嵌套页都携带
+    配置的 header/cookie，验证码标记随 `SearchPlayResult` 返回。
+  - `search_progress.rs` 3 个：用内部 `ProgressEmitter` 记录真实生产事件，断言步骤单调、每源只有一个
+    Success/Failed 终态、错误逐源保留；模拟 FRB sink 关闭后停止详情请求，覆盖取消语义。
+  - `matching.rs` 4 个：空搜索候选、大小写去重、indexed 排序/阈值、中文数字异常输入和长 Unicode
+    候选 URL 日志不 panic。
+- 复用 RT-0 的 `test_support::{fixture, http_server, state}`；新增 1 个 indexed 搜索页以及
+  no-channel、index-grouped、empty-detail 共 3 个详情 fixture。所有 HTTP 测试仅访问随机 loopback 端口。
+- **发现并修复 5 个生产 bug**（RT-2-001 ~ RT-2-005）：URL origin 拼接丢端口且不支持标准相对引用；
+  候选 URL 与播放页 HTML 日志的 UTF-8 非法切片；非法 selector/regex 配置可被持久化；FRB 进度流关闭后
+  Rust 任务仍继续发请求。另修复测试将 episode cache 写进仓库的问题，并加入 `.gitignore` 防护。
+  详见 `docs/stability_findings.md`。
+- 验证：`cargo fmt --check`、`git diff --check` 通过；
+  `cargo test --manifest-path rust/Cargo.toml` 全量 **145 passed / 0 failed / 2 ignored**，标准测试前后
+  仓库 episode cache 文件数保持不变；`cargo clippy --all-targets` 诊断总数为 **112**，较 RT-1 基线
+  **115** 减少 3 条，本批未新增 Clippy 告警。
+
 ---
 
 ## 5. Dart 测试工作流

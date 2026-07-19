@@ -257,16 +257,7 @@ async fn search_single_source(
                             ep_pattern,
                         ) {
                             if !href.is_empty() {
-                                if href.starts_with("http") {
-                                    found_url = href;
-                                } else {
-                                    let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
-                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                    } else {
-                                        "".to_string()
-                                    };
-                                    found_url = format!("{}{}", base_url, href);
-                                }
+                                found_url = absolutize_url(&detail_url, &href);
                             }
                         }
                     }
@@ -286,16 +277,7 @@ async fn search_single_source(
                         ep_pattern,
                     ) {
                         if !href.is_empty() {
-                            if href.starts_with("http") {
-                                found_url = href;
-                            } else {
-                                let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
-                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                } else {
-                                    "".to_string()
-                                };
-                                found_url = format!("{}{}", base_url, href);
-                            }
+                            found_url = absolutize_url(&detail_url, &href);
                         }
                     }
                 }
@@ -336,7 +318,11 @@ async fn search_single_source(
         headers,
         channel_name: None,
         channel_index: None,
-        captcha_config_json: None,
+        captcha_config_json: source
+            .arguments
+            .captcha_config
+            .as_ref()
+            .map(|config| serde_json::to_string(config).unwrap_or_default()),
         enable_nested_url: source
             .arguments
             .search_config
@@ -384,9 +370,26 @@ async fn generic_search_and_play_internal(
     let root: SampleRoot = serde_json::from_str(&content)?;
     let root = detect_and_filter_root(root).await;
 
+    search_and_play_sources(
+        &client,
+        root.exported_media_source_data_list.media_sources,
+        &anime_name,
+        absolute_episode,
+        relative_episode,
+    )
+    .await
+}
+
+async fn search_and_play_sources(
+    client: &reqwest::Client,
+    sources: Vec<MediaSource>,
+    anime_name: &str,
+    absolute_episode: Option<u32>,
+    relative_episode: Option<u32>,
+) -> anyhow::Result<String> {
     // 2. Iterate sources and try to find the anime
-    let search_candidates = build_search_candidates(&anime_name);
-    for source in root.exported_media_source_data_list.media_sources {
+    let search_candidates = build_search_candidates(anime_name);
+    for source in sources {
         if !crate::api::config::is_source_enabled(&source.arguments.name) {
             continue;
         }
@@ -446,17 +449,7 @@ async fn generic_search_and_play_internal(
                             // Simple fuzzy match: if result contains the query
                             if title.contains(query_name) {
                                 // Handle relative URLs
-                                if href.starts_with("http") {
-                                    detail_url = href;
-                                } else {
-                                    // Extract base URL from search_url or just concat
-                                    let base_url = if let Ok(u) = url::Url::parse(&search_url) {
-                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                    } else {
-                                        "".to_string()
-                                    };
-                                    detail_url = format!("{}{}", base_url, href);
-                                }
+                                detail_url = absolutize_url(&search_url, &href);
                                 break;
                             }
                         }
@@ -509,16 +502,7 @@ async fn generic_search_and_play_internal(
                         ) {
                             if !href.is_empty() {
                                 // Relative URL handling
-                                if href.starts_with("http") {
-                                    episode_url = href;
-                                } else {
-                                    let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
-                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                    } else {
-                                        "".to_string()
-                                    };
-                                    episode_url = format!("{}{}", base_url, href);
-                                }
+                                episode_url = absolutize_url(&detail_url, &href);
                             }
                         }
                     }
@@ -539,16 +523,7 @@ async fn generic_search_and_play_internal(
                     ) {
                         if !href.is_empty() {
                             // Relative URL handling
-                            if href.starts_with("http") {
-                                episode_url = href;
-                            } else {
-                                let base_url = if let Ok(u) = url::Url::parse(&detail_url) {
-                                    format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                } else {
-                                    "".to_string()
-                                };
-                                episode_url = format!("{}{}", base_url, href);
-                            }
+                            episode_url = absolutize_url(&detail_url, &href);
                         }
                     }
                 }
@@ -600,18 +575,11 @@ async fn generic_search_and_play_internal(
         } else {
             log::info!("DEBUG: Found {} occurrences of 'm3u8'.", matches.len());
             for (i, (idx, _)) in matches.iter().enumerate() {
-                let start = if *idx > 100 { *idx - 100 } else { 0 };
-                let end = if *idx + 200 < video_page_text.len() {
-                    *idx + 200
-                } else {
-                    video_page_text.len()
-                };
+                let preview = text_window_around_match(&video_page_text, *idx, 100, 200);
                 log::info!(
                     "DEBUG: Match #{}: ...{}...",
                     i + 1,
-                    &video_page_text[start..end]
-                        .replace("\n", " ")
-                        .replace("\r", " ")
+                    preview.replace("\n", " ").replace("\r", " ")
                 );
             }
         }
@@ -668,12 +636,7 @@ async fn generic_search_and_play_internal(
                             if !nested_url.is_empty() {
                                 // Handle relative URL
                                 if !nested_url.starts_with("http") {
-                                    let base_url = if let Ok(u) = url::Url::parse(&episode_url) {
-                                        format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-                                    } else {
-                                        "".to_string()
-                                    };
-                                    nested_url = format!("{}{}", base_url, nested_url);
+                                    nested_url = absolutize_url(&episode_url, &nested_url);
                                 }
 
                                 log::info!("FOUND NESTED URL: {}", nested_url);
@@ -760,4 +723,270 @@ async fn generic_search_and_play_internal(
     Err(anyhow::anyhow!(
         "No video found - regex did not match the page content"
     ))
+}
+
+fn text_window_around_match(
+    text: &str,
+    match_start: usize,
+    before_chars: usize,
+    after_chars: usize,
+) -> String {
+    let mut prefix: Vec<char> = text[..match_start]
+        .chars()
+        .rev()
+        .take(before_chars)
+        .collect();
+    prefix.reverse();
+    let suffix: String = text[match_start..].chars().take(after_chars).collect();
+    prefix.into_iter().chain(suffix.chars()).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::http_server::{TestResponse, TestRoute, TestServer};
+    use crate::test_support::state::isolate_runtime_config;
+    use axum::http::Method;
+    use reqwest::Client;
+
+    fn no_proxy_client() -> Client {
+        Client::builder()
+            .no_proxy()
+            .build()
+            .expect("failed to build loopback test client")
+    }
+
+    /// Build a `MediaSource` whose search URL points at the loopback server.
+    fn indexed_source(search_url: &str, video_regex: &str) -> MediaSource {
+        let raw = format!(
+            r#"{{
+                "factoryId": "web-selector",
+                "arguments": {{
+                    "name": "PlaySource",
+                    "searchConfig": {{
+                        "searchUrl": "{search_url}",
+                        "subjectFormatId": "indexed",
+                        "selectorSubjectFormatIndexed": {{
+                            "selectNames": "li.result span.name",
+                            "selectLinks": "li.result a.link"
+                        }},
+                        "channelFormatId": "no-channel",
+                        "selectorChannelFormatNoChannel": {{
+                            "selectEpisodes": "div.play-list a.ep"
+                        }},
+                        "matchVideo": {{ "matchVideoUrl": "{video_regex}" }}
+                    }}
+                }}
+            }}"#
+        );
+        serde_json::from_str(&raw).expect("fixture MediaSource JSON must parse")
+    }
+
+    #[tokio::test]
+    async fn search_single_source_resolves_episode_url_and_preserves_port() {
+        let server = TestServer::spawn([
+            TestRoute::get(
+                "/search",
+                TestResponse::fixture("generic_scraper/search_indexed.html"),
+            ),
+            TestRoute::get(
+                "/detail/1",
+                TestResponse::fixture("generic_scraper/detail_no_channel.html"),
+            ),
+        ])
+        .await;
+
+        let search_url = format!("{}/search?q={{keyword}}", server.base_url());
+        // `\\.` in the raw literal becomes a valid `\.` JSON escape, decoding
+        // back to the regex `url=(?<v>.+\.m3u8)`.
+        let mut source = indexed_source(&search_url, r"url=(?<v>.+\\.m3u8)");
+        source.arguments.captcha_config = Some(
+            serde_json::from_value(serde_json::json!({
+                "enable": true,
+                "type": "image",
+                "detectSelector": "form.captcha"
+            }))
+            .unwrap(),
+        );
+        let client = no_proxy_client();
+
+        // Ask for absolute episode 2 explicitly.
+        let result = search_single_source(&client, &source, "测试动画", Some(2), None)
+            .await
+            .expect("search should resolve a play page URL");
+
+        assert_eq!(result.source_name, "PlaySource");
+        // The relative /detail/1 link and /play/2 href were absolutized against
+        // the loopback origin — the non-default port must survive (RT-2-001).
+        assert_eq!(result.play_page_url, server.url("/play/2"));
+        assert_eq!(result.video_regex, r"url=(?<v>.+\.m3u8)");
+        assert!(!result.enable_nested_url);
+        let captcha: serde_json::Value =
+            serde_json::from_str(result.captcha_config_json.as_deref().unwrap()).unwrap();
+        assert_eq!(captcha["enable"], true);
+        assert_eq!(captcha["type"], "image");
+
+        // Search page fetched once; detail page fetched once.
+        assert_eq!(server.request_count(Method::GET, "/search"), 1);
+        assert_eq!(server.request_count(Method::GET, "/detail/1"), 1);
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn search_single_source_errors_when_search_has_no_match() {
+        let server = TestServer::spawn([TestRoute::get(
+            "/search",
+            TestResponse::ok("<html><body><ul class=\"search-results\"></ul></body></html>"),
+        )])
+        .await;
+
+        let search_url = format!("{}/search?q={{keyword}}", server.base_url());
+        let source = indexed_source(&search_url, "x");
+        let client = no_proxy_client();
+
+        let result = search_single_source(&client, &source, "测试动画", None, None).await;
+        let err = result.err().expect("no candidates should surface an error");
+        assert!(err.to_string().contains("No matching anime found"));
+
+        // Detail must never be requested when the search yields nothing.
+        assert_eq!(server.request_count(Method::GET, "/detail/1"), 0);
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn search_single_source_falls_back_to_first_episode_when_number_absent() {
+        let server = TestServer::spawn([
+            TestRoute::get(
+                "/search",
+                TestResponse::fixture("generic_scraper/search_indexed.html"),
+            ),
+            TestRoute::get(
+                "/detail/1",
+                TestResponse::fixture("generic_scraper/detail_no_channel.html"),
+            ),
+        ])
+        .await;
+
+        let search_url = format!("{}/search?q={{keyword}}", server.base_url());
+        let source = indexed_source(&search_url, "x");
+        let client = no_proxy_client();
+
+        // No episode number → select_episode_by_number returns the first anchor.
+        let result = search_single_source(&client, &source, "测试动画", None, None)
+            .await
+            .expect("search should resolve first episode");
+        assert_eq!(result.play_page_url, server.url("/play/1"));
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn search_single_source_falls_back_to_next_ranked_detail() {
+        let search_html = r#"
+            <ul class="search-results">
+              <li class="result"><span class="name">测试动画</span><a class="link" href="/detail/empty">first</a></li>
+              <li class="result"><span class="name">测试动画</span><a class="link" href="/detail/1">second</a></li>
+            </ul>"#;
+        let server = TestServer::spawn([
+            TestRoute::get("/search", TestResponse::ok(search_html)),
+            TestRoute::get(
+                "/detail/empty",
+                TestResponse::fixture("generic_scraper/detail_empty.html"),
+            ),
+            TestRoute::get(
+                "/detail/1",
+                TestResponse::fixture("generic_scraper/detail_no_channel.html"),
+            ),
+        ])
+        .await;
+
+        let source = indexed_source(&format!("{}/search?q={{keyword}}", server.base_url()), "x");
+        let result = search_single_source(&no_proxy_client(), &source, "测试动画", Some(2), None)
+            .await
+            .expect("the second equally ranked detail page should be tried");
+
+        assert_eq!(result.play_page_url, server.url("/play/2"));
+        assert_eq!(server.request_count(Method::GET, "/detail/empty"), 1);
+        assert_eq!(server.request_count(Method::GET, "/detail/1"), 1);
+        server.shutdown().await;
+    }
+
+    #[test]
+    fn text_window_around_match_respects_unicode_boundaries() {
+        let text = format!("{}m3u8{}", "中".repeat(40), "尾".repeat(50));
+        let match_start = text.find("m3u8").unwrap();
+        let preview = text_window_around_match(&text, match_start, 10, 12);
+
+        assert!(preview.starts_with(&"中".repeat(10)));
+        assert!(preview.contains("m3u8"));
+        assert!(preview.ends_with(&"尾".repeat(8)));
+    }
+
+    #[tokio::test]
+    async fn full_playback_flow_applies_headers_cookies_nested_url_and_unicode_logging() {
+        let _guard = isolate_runtime_config();
+        let play_html = format!(
+            "{}m3u8<iframe src=\"../nested/player\"></iframe>",
+            "播放页中文".repeat(30)
+        );
+        let server = TestServer::spawn([
+            TestRoute::get(
+                "/search",
+                TestResponse::fixture("generic_scraper/search_indexed.html"),
+            ),
+            TestRoute::get(
+                "/detail/1",
+                TestResponse::fixture("generic_scraper/detail_no_channel.html"),
+            ),
+            TestRoute::get("/play/1", TestResponse::ok(play_html)),
+            TestRoute::get(
+                "/nested/player",
+                TestResponse::ok("url=https%3A%2F%2Fmedia.example%2Fvideo.m3u8"),
+            ),
+        ])
+        .await;
+
+        let source: MediaSource = serde_json::from_value(serde_json::json!({
+            "factoryId": "web-selector",
+            "arguments": {
+                "name": "FullFlowSource",
+                "searchConfig": {
+                    "searchUrl": format!("{}/search?q={{keyword}}", server.base_url()),
+                    "subjectFormatId": "indexed",
+                    "selectorSubjectFormatIndexed": {
+                        "selectNames": "li.result span.name",
+                        "selectLinks": "li.result a.link"
+                    },
+                    "channelFormatId": "no-channel",
+                    "selectorChannelFormatNoChannel": {
+                        "selectEpisodes": "div.play-list a.ep"
+                    },
+                    "matchVideo": {
+                        "matchVideoUrl": "url=(?<v>.+m3u8)",
+                        "enableNestedUrl": true,
+                        "matchNestedUrl": "src=\"([^\"]+)\"",
+                        "cookies": "session=rt2",
+                        "addHeadersToVideo": { "x-rt2-test": "present" }
+                    }
+                }
+            }
+        }))
+        .unwrap();
+
+        let video_url =
+            search_and_play_sources(&no_proxy_client(), vec![source], "测试动画", Some(1), None)
+                .await
+                .expect("the complete playback chain should resolve a video URL");
+
+        assert_eq!(video_url, "https://media.example/video.m3u8");
+        for path in ["/play/1", "/nested/player"] {
+            let request = server
+                .requests()
+                .into_iter()
+                .find(|request| request.uri.path() == path)
+                .unwrap_or_else(|| panic!("missing request for {path}"));
+            assert_eq!(request.headers["cookie"], "session=rt2");
+            assert_eq!(request.headers["x-rt2-test"], "present");
+        }
+        server.shutdown().await;
+    }
 }

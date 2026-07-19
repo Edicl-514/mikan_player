@@ -103,16 +103,13 @@ pub(super) fn save_episode_table_cache(cache: &CachedEpisodeTable) {
 }
 
 pub(super) fn absolutize_url(base_url: &str, href: &str) -> String {
-    if href.starts_with("http") {
-        href.to_string()
-    } else {
-        let base = if let Ok(u) = url::Url::parse(base_url) {
-            format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))
-        } else {
-            "".to_string()
-        };
-        format!("{}{}", base, href)
-    }
+    let Ok(base) = url::Url::parse(base_url) else {
+        return href.to_string();
+    };
+
+    base.join(href)
+        .map(|url| url.into())
+        .unwrap_or_else(|_| href.to_string())
 }
 
 pub(super) fn parse_episode_table_from_detail(
@@ -137,18 +134,32 @@ pub(super) fn parse_episode_table_from_detail(
             .search_config
             .selector_channel_format_flattened
         {
+            let mut channel_index_by_position: Vec<usize> = Vec::new();
             if let Some(ref channel_selector) = format.select_channel_names {
                 if !channel_selector.is_empty() {
                     if let Ok(ch_sel) = Selector::parse(channel_selector) {
                         let channel_pattern = format.match_channel_name.as_deref();
                         for (idx, ch_el) in detail_doc.select(&ch_sel).enumerate() {
                             let raw_text = ch_el.text().collect::<String>();
-                            let channel_name = extract_channel_name(&raw_text, channel_pattern);
-                            if !channel_name.is_empty() {
+                            let extracted = extract_channel_name(&raw_text, channel_pattern);
+                            let channel_name = if extracted.trim().is_empty() {
+                                format!("线路 {}", idx + 1)
+                            } else {
+                                extracted.trim().to_string()
+                            };
+                            let normalized = channel_name.to_lowercase();
+                            if let Some(existing) = channels
+                                .iter()
+                                .find(|channel| channel.name.to_lowercase() == normalized)
+                            {
+                                channel_index_by_position.push(existing.index);
+                            } else {
+                                let logical_index = channels.len();
                                 channels.push(ChannelInfo {
                                     name: channel_name,
-                                    index: idx,
+                                    index: logical_index,
                                 });
+                                channel_index_by_position.push(logical_index);
                             }
                         }
                     }
@@ -161,16 +172,21 @@ pub(super) fn parse_episode_table_from_detail(
             ) {
                 let ep_pattern = format.match_episode_sort_from_name.as_deref();
                 for (channel_idx, list_container) in detail_doc.select(&list_sel).enumerate() {
-                    if channels.is_empty() {
+                    if channel_index_by_position.is_empty() && channels.len() <= channel_idx {
                         channels.push(ChannelInfo {
-                            name: "默认线路".to_string(),
-                            index: 0,
+                            name: if channel_idx == 0 {
+                                "默认线路".to_string()
+                            } else {
+                                format!("线路 {}", channel_idx + 1)
+                            },
+                            index: channel_idx,
                         });
                     }
 
-                    let mapped_channel_index = channels
+                    let mapped_channel_index = channel_index_by_position
                         .get(channel_idx)
-                        .map(|ch| ch.index)
+                        .copied()
+                        .or_else(|| channels.get(channel_idx).map(|ch| ch.index))
                         .unwrap_or(channel_idx);
 
                     for ep_el in list_container.select(&item_sel) {
@@ -378,5 +394,225 @@ mod tests {
 
         let selected = select_episode_from_table(&episodes, Some(1), None, Some(2)).unwrap();
         assert_eq!(selected.name, "C");
+    }
+
+    #[test]
+    fn select_from_table_returns_none_for_empty_and_first_as_last_resort() {
+        // Empty table never selects anything, regardless of the requested numbers.
+        assert!(select_episode_from_table(&[], Some(0), Some(1), Some(1)).is_none());
+
+        // With neither absolute nor relative match available, the function falls
+        // back to the first candidate in the preferred channel rather than failing.
+        let episodes = vec![episode("first", None, 0), episode("second", None, 0)];
+        let selected = select_episode_from_table(&episodes, Some(0), None, None).unwrap();
+        assert_eq!(selected.name, "first");
+
+        // A preferred channel with no members degrades to the whole list.
+        let selected = select_episode_from_table(&episodes, Some(9), Some(42), None).unwrap();
+        assert_eq!(selected.name, "first");
+    }
+
+    #[test]
+    fn absolutize_url_preserves_scheme_host_and_nondefault_port() {
+        // Regression for RT-2-001: dropping the port sends the follow-up
+        // request to the wrong origin.
+        assert_eq!(
+            absolutize_url("http://127.0.0.1:8080/search?q=x", "/detail/42"),
+            "http://127.0.0.1:8080/detail/42"
+        );
+        assert_eq!(
+            absolutize_url("https://host.example/anime", "/ep/1"),
+            "https://host.example/ep/1"
+        );
+        // Absolute hrefs pass through untouched.
+        assert_eq!(
+            absolutize_url("http://127.0.0.1:8080/", "https://cdn.example/v.m3u8"),
+            "https://cdn.example/v.m3u8"
+        );
+        // Unparsable base yields the bare relative href (documented behavior).
+        assert_eq!(absolutize_url("not a url", "/x"), "/x");
+    }
+
+    #[test]
+    fn absolutize_url_handles_path_relative_parent_and_protocol_relative_urls() {
+        assert_eq!(
+            absolutize_url("https://host.example/anime/detail/index.html", "play/1"),
+            "https://host.example/anime/detail/play/1"
+        );
+        assert_eq!(
+            absolutize_url("https://host.example/anime/detail/index.html", "../play/2"),
+            "https://host.example/anime/play/2"
+        );
+        assert_eq!(
+            absolutize_url(
+                "https://host.example/anime/detail/index.html",
+                "//cdn.example/v.m3u8"
+            ),
+            "https://cdn.example/v.m3u8"
+        );
+    }
+
+    /// Build a `MediaSource` from JSON so tests exercise the same serde path
+    /// production uses, rather than hand-assembling nested structs.
+    fn source_from_search_config(search_config_json: &str) -> MediaSource {
+        let raw = format!(
+            r#"{{
+                "factoryId": "web-selector",
+                "arguments": {{
+                    "name": "TestSource",
+                    "searchConfig": {search_config_json}
+                }}
+            }}"#
+        );
+        serde_json::from_str(&raw).expect("fixture MediaSource JSON must parse")
+    }
+
+    #[test]
+    fn parse_no_channel_detail_extracts_episodes_and_resolves_relative_urls() {
+        let source = source_from_search_config(
+            r#"{
+                "searchUrl": "https://s.example/?q={keyword}",
+                "channelFormatId": "no-channel",
+                "selectorChannelFormatNoChannel": {
+                    "selectEpisodes": "div.play-list a.ep"
+                },
+                "matchVideo": { "matchVideoUrl": "url=(?<v>.+\\.m3u8)" }
+            }"#,
+        );
+        let html =
+            crate::test_support::fixture::fixture_text("generic_scraper/detail_no_channel.html");
+
+        let (channels, episodes) =
+            parse_episode_table_from_detail(&source, "http://127.0.0.1:8080/anime/1", &html);
+
+        assert_eq!(channels.len(), 1);
+        assert_eq!(channels[0].name, "默认线路");
+        assert_eq!(episodes.len(), 3);
+        // Relative hrefs are absolutized against the detail URL, keeping the port.
+        assert_eq!(episodes[0].url, "http://127.0.0.1:8080/play/1");
+        assert_eq!(episodes[0].episode_number, Some(1));
+        assert_eq!(episodes[2].episode_number, Some(3));
+        assert!(episodes.iter().all(|ep| ep.channel_index == 0));
+    }
+
+    #[test]
+    fn parse_no_channel_detail_skips_entries_without_href() {
+        let source = source_from_search_config(
+            r#"{
+                "searchUrl": "https://s.example/?q={keyword}",
+                "channelFormatId": "no-channel",
+                "selectorChannelFormatNoChannel": {
+                    "selectEpisodes": "ul.mixed li a"
+                },
+                "matchVideo": { "matchVideoUrl": "x" }
+            }"#,
+        );
+        // One anchor has no href and must be dropped rather than yielding an
+        // episode with an empty URL.
+        let html =
+            r#"<ul class="mixed"><li><a>第1集</a></li><li><a href="/play/2">第2集</a></li></ul>"#;
+
+        let (_channels, episodes) =
+            parse_episode_table_from_detail(&source, "https://host.example/a", html);
+
+        assert_eq!(episodes.len(), 1);
+        assert_eq!(episodes[0].url, "https://host.example/play/2");
+    }
+
+    #[test]
+    fn parse_index_grouped_detail_maps_channels_to_episode_lists() {
+        let source = source_from_search_config(
+            r#"{
+                "searchUrl": "https://s.example/?q={keyword}",
+                "channelFormatId": "index-grouped",
+                "selectorChannelFormatFlattened": {
+                    "selectChannelNames": "div.channels span.channel-name",
+                    "matchChannelName": "播放线路：(?<ch>.+)",
+                    "selectEpisodeLists": "ul.ep-list",
+                    "selectEpisodesFromList": "li a"
+                },
+                "matchVideo": { "matchVideoUrl": "x" }
+            }"#,
+        );
+        let html =
+            crate::test_support::fixture::fixture_text("generic_scraper/detail_index_grouped.html");
+
+        let (channels, episodes) =
+            parse_episode_table_from_detail(&source, "https://host.example:9443/a", &html);
+
+        assert_eq!(channels.len(), 2);
+        assert_eq!(channels[0].name, "简中");
+        assert_eq!(channels[1].name, "繁中");
+        // Two lists x two episodes each.
+        assert_eq!(episodes.len(), 4);
+        assert_eq!(episodes.iter().filter(|e| e.channel_index == 0).count(), 2);
+        assert_eq!(episodes.iter().filter(|e| e.channel_index == 1).count(), 2);
+        // Relative hrefs are absolutized against the detail origin, port
+        // preserved (RT-2-001 regression).
+        assert_eq!(episodes[0].url, "https://host.example:9443/cn/play/1");
+        // Second channel's episodes map to channel_index 1 and its own hrefs.
+        let tw_first = episodes.iter().find(|e| e.channel_index == 1).unwrap();
+        assert_eq!(tw_first.url, "https://host.example:9443/tw/play/1");
+    }
+
+    #[test]
+    fn parse_index_grouped_detail_deduplicates_channels_and_names_empty_entries() {
+        let source = source_from_search_config(
+            r#"{
+                "searchUrl": "https://s.example/?q={keyword}",
+                "channelFormatId": "index-grouped",
+                "selectorChannelFormatFlattened": {
+                    "selectChannelNames": "span.channel-name",
+                    "selectEpisodeLists": "ul.ep-list",
+                    "selectEpisodesFromList": "li a"
+                },
+                "matchVideo": { "matchVideoUrl": "x" }
+            }"#,
+        );
+        let html = r#"
+            <span class="channel-name">线路B</span>
+            <span class="channel-name">   </span>
+            <span class="channel-name">线路B</span>
+            <ul class="ep-list"><li><a href="/b/1">第1集</a></li></ul>
+            <ul class="ep-list"><li><a href="/unnamed/1">第1集</a></li></ul>
+            <ul class="ep-list"><li><a href="/b/2">第2集</a></li></ul>"#;
+
+        let (channels, episodes) =
+            parse_episode_table_from_detail(&source, "https://host.example/detail", html);
+
+        assert_eq!(channels.len(), 2);
+        assert_eq!(channels[0].name, "线路B");
+        assert_eq!(channels[0].index, 0);
+        assert_eq!(channels[1].name, "线路 2");
+        assert_eq!(channels[1].index, 1);
+        assert_eq!(
+            episodes
+                .iter()
+                .map(|episode| episode.channel_index)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 0]
+        );
+    }
+
+    #[test]
+    fn parse_detail_returns_empty_when_selectors_match_nothing() {
+        let source = source_from_search_config(
+            r#"{
+                "searchUrl": "https://s.example/?q={keyword}",
+                "channelFormatId": "no-channel",
+                "selectorChannelFormatNoChannel": { "selectEpisodes": "div.absent a" },
+                "matchVideo": { "matchVideoUrl": "x" }
+            }"#,
+        );
+
+        let (channels, episodes) = parse_episode_table_from_detail(
+            &source,
+            "https://host.example/a",
+            "<html><body>no matching nodes</body></html>",
+        );
+
+        // no-channel always seeds a single default channel, but no episodes.
+        assert_eq!(channels.len(), 1);
+        assert!(episodes.is_empty());
     }
 }

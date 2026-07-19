@@ -283,7 +283,7 @@ pub struct SearchPlayResult {
     pub match_nested_url: Option<String>,
 }
 /// 搜索进度状态
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SearchStep {
     /// 等待中
     Pending,

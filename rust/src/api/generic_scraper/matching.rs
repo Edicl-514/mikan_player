@@ -487,8 +487,8 @@ pub(super) fn log_subject_selection(
             i + 1,
             title,
             score,
-            if href.len() > 100 {
-                format!("{}...", &href[..100])
+            if href.chars().count() > 100 {
+                format!("{}...", href.chars().take(100).collect::<String>())
             } else {
                 href.clone()
             }
@@ -951,6 +951,85 @@ mod tests {
         assert_eq!(parse_chinese_number("二十三"), Some(23));
         assert_eq!(parse_chinese_number("一百零二"), Some(102));
         assert_eq!(parse_chinese_number("12"), Some(12));
+    }
+
+    #[test]
+    fn parses_chinese_number_rejects_empty_and_non_numeric() {
+        assert_eq!(parse_chinese_number(""), None);
+        assert_eq!(parse_chinese_number("   "), None);
+        assert_eq!(parse_chinese_number("abc"), None);
+    }
+
+    #[test]
+    fn build_search_candidates_handles_blank_and_whitespace_only() {
+        assert!(build_search_candidates("").is_empty());
+        assert!(build_search_candidates("   ").is_empty());
+        // De-dup is case-insensitive but preserves the first spelling.
+        assert_eq!(
+            build_search_candidates("Frieren || frieren || FRIEREN"),
+            vec!["Frieren"]
+        );
+    }
+
+    /// Regression for RT-2-002: `log_subject_selection` sliced the URL with a
+    /// byte index (`&href[..100]`), which panics when byte 100 lands inside a
+    /// multi-byte UTF-8 sequence. A long Unicode URL must not crash logging.
+    #[test]
+    fn log_subject_selection_does_not_panic_on_long_unicode_url() {
+        let long_unicode_url = format!("https://例え.test/{}", "動".repeat(200));
+        let result = SubjectSelectionResult {
+            best: Some(SubjectCandidate {
+                title: "標題".to_string(),
+                url: long_unicode_url.clone(),
+                score: 90,
+            }),
+            ranked: vec![SubjectCandidate {
+                title: "標題".to_string(),
+                url: long_unicode_url.clone(),
+                score: 90,
+            }],
+            all_scored: vec![("標題".to_string(), 90, long_unicode_url)],
+        };
+        // The assertion is simply that this call returns without panicking.
+        log_subject_selection("UnicodeSource", "indexed", "標題", "標題", &result);
+    }
+
+    #[test]
+    fn select_best_subject_candidate_ranks_indexed_results_above_threshold() {
+        let source: MediaSource = serde_json::from_str(
+            r#"{
+                "factoryId": "web-selector",
+                "arguments": {
+                    "name": "S",
+                    "searchConfig": {
+                        "searchUrl": "https://s.example/?q={keyword}",
+                        "subjectFormatId": "indexed",
+                        "selectorSubjectFormatIndexed": {
+                            "selectNames": "li.result span.name",
+                            "selectLinks": "li.result a.link"
+                        },
+                        "matchVideo": { "matchVideoUrl": "x" }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let html = r#"
+            <ul>
+              <li class="result"><span class="name">葬送的芙莉莲</span><a class="link" href="/d/1">go</a></li>
+              <li class="result"><span class="name">完全不相关的名字</span><a class="link" href="/d/2">go</a></li>
+            </ul>"#;
+        let document = scraper::Html::parse_document(html);
+
+        let result =
+            select_best_subject_candidate(&document, &source, "葬送的芙莉莲", "葬送的芙莉莲");
+
+        assert_eq!(result.all_scored.len(), 2);
+        // Only the matching title survives the threshold filter.
+        assert_eq!(result.ranked.len(), 1);
+        assert_eq!(result.ranked[0].url, "/d/1");
+        assert_eq!(result.best.as_ref().unwrap().url, "/d/1");
     }
 
     #[test]

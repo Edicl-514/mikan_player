@@ -648,3 +648,70 @@
 - 修复：提取 `calculate_progress`，total 为 0 时返回 0，其余结果 clamp 到 0～100。
 - 回归测试：`progress_handles_zero_and_transient_overrun`。
 - 迁移/回滚：不涉及；正常范围内数值不变。
+
+### RT-2-001 — 相对 URL 手工拼接丢端口且不支持标准引用形式
+
+- 工作包：RT-2（2026-07-19）
+- 现象：`generic_scraper` 把源站返回的相对链接拼成绝对 URL 时，只保留 `scheme://host`，丢弃非默认
+  端口；同时仅能处理 `/detail/1` 这类 root-relative 链接，`detail/1`、`../play/1`、`//cdn/x` 会被
+  拼成无效 URL 或错误 origin。
+- 根因：`episode_table::absolutize_url` 以及 `search_play.rs` / `search_progress.rs` 中至少 8 处内联的
+  URL 拼接副本都写成 `format!("{}://{}", u.scheme(), u.host_str().unwrap_or(""))`，未读取 `u.port()`。
+- 影响范围 / 用户可见后果：非 80/443 端口的自定义源，以及返回 path-relative、parent-relative 或
+  protocol-relative 链接的站点，都可能无法解析出可播放链接；用户只会看到“未找到剧集列表/无可播放线路”。
+- 修复：`absolutize_url` 统一使用 `url::Url::join`，并把 `search_play.rs`、`search_progress.rs` 中所有
+  内联副本收敛到该 helper；端口、当前目录、父目录和 protocol-relative 语义均由标准 URL 解析器处理。
+- 回归测试：`episode_table` 的 `absolutize_url_preserves_scheme_host_and_nondefault_port`；
+  `absolutize_url_handles_path_relative_parent_and_protocol_relative_urls`；
+  `search_channels` 的 `search_with_channels_resolves_detail_and_episodes_over_loopback` 与
+  `search_play` 的 `search_single_source_resolves_episode_url_and_preserves_port` 通过随机端口的
+  loopback server 串起完整链路，断言解析出的 URL 携带该端口。
+- 迁移/回滚：不涉及；此前能工作的默认端口源行为不变。
+
+### RT-2-002 — 搜索结果日志按非法 UTF-8 边界切片 URL
+
+- 工作包：RT-2（2026-07-19）
+- 现象：`matching::log_subject_selection` 对长度超过 100 bytes 的候选 URL 执行 `&href[..100]`；当第
+  100 个 byte 落在多字节字符（中文/emoji，或百分号编码里的中文）中间时，Rust 因非字符边界切片 panic。
+- 根因：与 RT-1-004 同类——把 byte offset 当作字符数使用（`href.len() > 100` 判断 + `&href[..100]` 切片）。
+- 影响范围 / 用户可见后果：源站返回带长 Unicode 路径/查询串的详情链接时，仅仅是记录一条搜索日志就会
+  panic，进而中断该源的搜索任务；对含中文 slug 的站点尤为容易触发。
+- 修复：改用 `href.chars().count() > 100` 判断，并以 `href.chars().take(100).collect::<String>()` 截取，
+  始终落在字符边界。
+- 回归测试：`matching` 的 `log_subject_selection_does_not_panic_on_long_unicode_url`（用 120 个中文字符
+  构造 URL，断言不 panic）。
+- 迁移/回滚：仅日志预览变化，实际使用的 URL 不变。
+
+### RT-2-003 — 播放页 m3u8 调试预览按任意 byte 边界切片 HTML
+
+- 工作包：RT-2（2026-07-19）
+- 现象：播放页包含 `m3u8` 时，调试日志用匹配 byte offset 前减 100、后加 200 后直接切片；中文 HTML
+  很容易让边界落在多字节字符中间并 panic，完整 search → play API 因日志代码中断。
+- 根因：`match_indices` 返回合法 byte 边界，但对该位置做任意 byte 加减后不再保证是 UTF-8 字符边界。
+- 修复：提取 `text_window_around_match`，以匹配位置为锚点按 `chars()` 构造前后预览。
+- 回归测试：`text_window_around_match_respects_unicode_boundaries`；完整 loopback 播放测试使用长中文播放页。
+- 迁移/回滚：仅日志预览截取单位从 byte 改为字符，视频匹配输入保持完整不变。
+
+### RT-2-004 — 非法 selector/regex 配置可成功持久化
+
+- 工作包：RT-2（2026-07-19）
+- 现象：新增/更新源配置只做 Serde 字段反序列化，`li[`、`(` 等语法非法的 CSS selector/regex 仍会
+  保存；实际搜索时解析失败并表现为无结果，用户无法从保存操作得到明确反馈。
+- 根因：配置写入路径没有调用 `scraper::Selector`、`regex::Regex`、`fancy_regex::Regex` 做语法校验。
+- 修复：集中新增 `validate_search_config` / `validate_captcha_config`，覆盖 subject/channel/captcha selector、
+  剧集/线路普通 regex 和播放/嵌套 fancy regex；校验在修改内存配置和写文件之前完成。
+- 回归测试：`add_source_config_rejects_invalid_regex_and_selector_without_persisting`、
+  `update_single_source_config_rejects_invalid_selector_without_persisting`。
+- 迁移/回滚：合法配置不变；此前可保存但运行时必然失效的配置现在会在保存时返回具体字段错误。
+
+### RT-2-005 — FRB 进度流关闭后 Rust 搜索仍继续请求
+
+- 工作包：RT-2（2026-07-19）
+- 现象：Dart 取消进度 Stream 后，`StreamSink::add` 返回发送失败，但所有调用都用 `.ok()` 忽略；Rust
+  仍会继续抓取详情页、解析剧集和写缓存，取消只能停止 UI 接收，不能停止后台工作。
+- 根因：搜索函数直接依赖 FRB sink，未把发送结果作为取消信号，也无法在纯 Rust 测试中替换 sink。
+- 修复：抽出 `ProgressEmitter` 和逐源 `run_source_with_progress`；任一中间事件发送失败即返回，不再发起
+  下一阶段请求，同时保持对外 FRB 函数签名不变。
+- 回归测试：`closed_progress_sink_stops_before_detail_fetch` 模拟首个事件后关闭 sink，断言 search 请求为 1、
+  detail 请求为 0；另覆盖步骤单调和每源单一终态。
+- 迁移/回滚：仅改变已关闭流后的后台行为；正常打开的进度流事件顺序与字段兼容。

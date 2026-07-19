@@ -72,6 +72,7 @@ app.*.map.json
 
 # Rust build artifacts
 rust/target/
+rust/online_episode_cache/
 windows/runner/rust.dll
 windows/runner/rust.dll.lib
 windows/runner/rust.lib
