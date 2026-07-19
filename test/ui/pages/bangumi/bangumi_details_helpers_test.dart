@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
@@ -88,6 +90,28 @@ void main() {
     test('non-list map renders as its toString', () {
       expect(summarizeInfoboxValue({'k': 'v'}), "{k: v}");
     });
+
+    test(
+      'regression: JSON-decoded List<dynamic> with mixed-empty v values does not throw',
+      () {
+        // Reproduces the field shape that arrived from the bangumi JSON
+        // payload: the infobox `value` slot is a `List<dynamic>` whose
+        // elements are `Map<String, dynamic>`, with at least one entry
+        // whose `v` field is an empty string. Before the fix this raised
+        // `type '(dynamic) => dynamic' is not a subtype of type
+        // '(dynamic) => bool' of 'test'` from the `.where` step.
+        final decoded = jsonDecode(
+          '''
+          [
+            {"v": "Alice"},
+            {"v": ""},
+            {"v": "Bob"}
+          ]
+          ''',        ) as List<dynamic>;
+
+        expect(summarizeInfoboxValue(decoded), 'Alice, Bob');
+      },
+    );
   });
 
   group('shouldEnableInfoBoxCollapse', () {

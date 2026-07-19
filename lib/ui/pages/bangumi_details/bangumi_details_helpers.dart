@@ -38,8 +38,8 @@ Map<String, String?> parseBangumiSummary(String? summary) {
 String summarizeInfoboxValue(dynamic value) {
   if (value is List) {
     return value
-        .map((v) => (v['v'] ?? '').toString())
-        .where((s) => s.isNotEmpty)
+        .map<String>((v) => (v['v'] ?? '').toString())
+        .where((String s) => s.isNotEmpty)
         .join(', ');
   }
   return value?.toString() ?? '';

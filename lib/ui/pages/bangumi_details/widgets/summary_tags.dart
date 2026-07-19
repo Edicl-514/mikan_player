@@ -405,8 +405,8 @@ class BangumiExpandedInfoBoxValue extends StatelessWidget {
   Widget build(BuildContext context) {
     if (value is List) {
       final names = value
-          .map((v) => (v['v'] ?? '').toString())
-          .where((s) => s.isNotEmpty)
+          .map<String>((v) => (v['v'] ?? '').toString())
+          .where((String s) => s.isNotEmpty)
           .toList();
 
       if (names.isEmpty) {
