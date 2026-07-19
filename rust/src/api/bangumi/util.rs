@@ -66,45 +66,95 @@ pub(super) fn parse_bangumi_images(images_data: &serde_json::Value) -> Option<Ba
     })
 }
 
+pub(super) fn json_i32(value: &serde_json::Value) -> Option<i32> {
+    value.as_i64().and_then(|value| i32::try_from(value).ok())
+}
+
+pub(super) fn parse_infobox(value: &serde_json::Value) -> Vec<InfoboxItem> {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|item| {
+            let key = item["key"].as_str()?.trim();
+            if key.is_empty() {
+                return None;
+            }
+
+            let value = match &item["value"] {
+                serde_json::Value::String(value) => value.trim().to_string(),
+                serde_json::Value::Array(values) => values
+                    .iter()
+                    .filter_map(|value| match value {
+                        serde_json::Value::String(value) => {
+                            let value = value.trim();
+                            (!value.is_empty()).then(|| value.to_string())
+                        }
+                        serde_json::Value::Object(value) => {
+                            let key = value
+                                .get("k")
+                                .and_then(|value| value.as_str())
+                                .unwrap_or("")
+                                .trim();
+                            let value = value
+                                .get("v")
+                                .and_then(|value| value.as_str())
+                                .unwrap_or("")
+                                .trim();
+                            match (key.is_empty(), value.is_empty()) {
+                                (_, true) => None,
+                                (true, false) => Some(value.to_string()),
+                                (false, false) => Some(format!("{key}: {value}")),
+                            }
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                _ => String::new(),
+            };
+
+            (!value.is_empty()).then(|| InfoboxItem {
+                key: key.to_string(),
+                value,
+            })
+        })
+        .collect()
+}
+
 pub(super) fn normalize_image_url(value: Option<&str>) -> String {
     let raw = value.unwrap_or("").trim();
     if raw.is_empty() {
         return String::new();
     }
-    crate::api::config::rewrite_bangumi_url_if_proxied(raw)
+    normalize_bangumi_url(raw)
 }
 
 pub(super) fn normalize_avatar_url(value: Option<&str>) -> String {
     let Some(raw) = value else {
         return String::new();
     };
+    let raw = raw.trim();
     if raw.is_empty() {
         return String::new();
     }
-    // Avatars served from `lain.bgm.tv` etc. need to be remapped to the
-    // reverse-proxy host when proxy mode is enabled.
-    crate::api::config::rewrite_bangumi_url_if_proxied(raw)
+    normalize_bangumi_url(raw)
 }
 
 pub(super) fn normalize_bangumi_url(value: &str) -> String {
+    let value = value.trim();
     if value.is_empty() {
-        return value.to_string();
+        return String::new();
     }
 
-    let rewritten = crate::api::config::rewrite_bangumi_url_if_proxied(value);
-    if rewritten == value {
-        // Not a bangumi host (or protocol-relative); fall back to the protocol-relative
-        // and relative-path handling below.
-        if value.starts_with("//") {
-            format!("https:{value}")
-        } else if value.starts_with('/') {
-            format!("{}{}", crate::api::config::get_bangumi_url(), value)
-        } else {
-            value.to_string()
-        }
+    let absolute = if value.starts_with("//") {
+        format!("https:{value}")
+    } else if value.starts_with('/') {
+        format!("{}{}", crate::api::config::get_bangumi_url(), value)
     } else {
-        rewritten
-    }
+        value.to_string()
+    };
+    crate::api::config::rewrite_bangumi_url_if_proxied(&absolute)
 }
 
 /// Pull a `background-image: url('...')` style value out of a `style` attribute
@@ -113,20 +163,27 @@ pub(super) fn extract_avatar_url(style: Option<&str>) -> String {
     let Some(style) = style else {
         return String::new();
     };
-    let Some(start) = style.find("url('") else {
+    let Some(start) = style.find("url(") else {
         return String::new();
     };
-    let after = &style[start + 5..];
-    let Some(end) = after.find("')") else {
+    let Some(end) = style[start + 4..].find(')') else {
         return String::new();
     };
-    let raw = &after[..end];
-    let absolute = if raw.starts_with("//") {
-        format!("https:{raw}")
-    } else {
-        raw.to_string()
-    };
-    crate::api::config::rewrite_bangumi_url_if_proxied(&absolute)
+    let raw = style[start + 4..start + 4 + end].trim();
+    let raw = raw
+        .strip_prefix("&quot;")
+        .and_then(|value| value.strip_suffix("&quot;"))
+        .or_else(|| {
+            raw.strip_prefix('\'')
+                .and_then(|value| value.strip_suffix('\''))
+        })
+        .or_else(|| {
+            raw.strip_prefix('"')
+                .and_then(|value| value.strip_suffix('"'))
+        })
+        .unwrap_or(raw)
+        .trim();
+    normalize_bangumi_url(raw)
 }
 
 pub(super) fn sanitize_style_value(value: &str) -> String {
@@ -149,5 +206,69 @@ pub(super) fn truncate(s: &str, max: usize) -> &str {
             idx -= 1;
         }
         &s[..idx]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn json_i32_rejects_type_changes_and_overflow() {
+        assert_eq!(json_i32(&json!(42)), Some(42));
+        assert_eq!(json_i32(&json!(i64::from(i32::MAX) + 1)), None);
+        assert_eq!(json_i32(&json!("42")), None);
+        assert_eq!(json_i32(&serde_json::Value::Null), None);
+    }
+
+    #[test]
+    fn infobox_normalization_handles_strings_objects_and_invalid_values() {
+        let items = parse_infobox(&json!([
+            {"key": " 别名 ", "value": [" A ", {"k": "日文", "v": " B "}, {"v": "C"}, null, 7]},
+            {"key": "空", "value": []},
+            {"key": "", "value": "ignored"},
+            {"key": "生日", "value": " 7月19日 "}
+        ]));
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].key, "别名");
+        assert_eq!(items[0].value, "A, 日文: B, C");
+        assert_eq!(items[1].value, "7月19日");
+        assert!(parse_infobox(&json!({"key": "not-an-array"})).is_empty());
+    }
+
+    #[test]
+    fn avatar_style_parser_accepts_quote_variants_and_relative_urls() {
+        let _config = crate::test_support::state::isolate_runtime_config();
+        crate::api::config::set_bangumi_reverse_proxy(false);
+        assert_eq!(
+            extract_avatar_url(Some("background-image: url(\"//lain.bgm.tv/a.png\")")),
+            "https://lain.bgm.tv/a.png"
+        );
+        assert_eq!(
+            extract_avatar_url(Some("background:url(&quot;/img/avatar.png&quot;)")),
+            format!("{}/img/avatar.png", crate::api::config::get_bangumi_url())
+        );
+        assert_eq!(
+            extract_avatar_url(Some("background:url(https://lain.bgm.tv/a.png)")),
+            "https://lain.bgm.tv/a.png"
+        );
+    }
+
+    #[test]
+    fn image_normalization_absolutizes_protocol_relative_urls_before_proxy_rewrite() {
+        let _config = crate::test_support::state::isolate_runtime_config();
+        crate::api::config::set_bangumi_reverse_proxy(false);
+        assert_eq!(
+            normalize_image_url(Some(" //lain.bgm.tv/a.jpg ")),
+            "https://lain.bgm.tv/a.jpg"
+        );
+
+        crate::api::config::set_bangumi_reverse_proxy(true);
+        assert_eq!(
+            normalize_image_url(Some("//lain.bgm.tv/a.jpg")),
+            "https://lain.bangumi.lol/a.jpg"
+        );
     }
 }

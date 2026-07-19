@@ -546,6 +546,39 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
   仓库 episode cache 文件数保持不变；`cargo clippy --all-targets` 诊断总数为 **112**，较 RT-1 基线
   **115** 减少 3 条，本批未新增 Clippy 告警。
 
+### RT-3 执行结果（2026-07-19）
+
+- 新增 **36 个**默认离线 Rust 测试，覆盖 Bangumi person/character/episode/comment/relation/user/
+  GraphQL normalize 与 fetch 边界：
+  - person/character/relation（13 个）：详情与列表的 `null`、缺字段、字段类型漂移、混合 infobox、
+    非 anime、缺失/非法 ID、图片 fallback、角色类型映射、人物关联、稳定排序；loopback 覆盖
+    detail 自定义错误、REST 空结果策略、Next 错误策略，以及 subjects 成功但 persons 被限流时保留
+    已取得的部分结果。
+  - episode（4 个）：REST/Next 字段差异、异常条目过滤、101 条两页分页与 offset、Next 限流错误、
+    REST 第二页限流时保留首个完整页，不丢弃已经取得的 100 条。
+  - comment/markup（5 个）：现代评论评分范围、空评论、nickname/username fallback、递归回复、
+    `[b]`/`[url]`/smile 与 XSS-like 文本转义；页码 `i32::MIN` 钳制；404 空结果；hybrid 模式
+    Next 429 后回退 legacy HTML；legacy 双引号/`&quot;` avatar style 与原始 HTML 输出语义。
+  - user/image（6 个）：用户字段缺失与类型漂移、收藏未知状态值 `99` 前向兼容、整数溢出、
+    缺 subject ID、分页 query/header、用户名 URL 编码、API 错误正文、图片 bytes/状态码与任意 host 拒绝。
+  - util/GraphQL（8 个）：checked `i32`、infobox 归一化、协议/站内相对图片 URL 与代理重写顺序；
+    GraphQL 缺字段/类型漂移/非有限 score、HTTP 错误 JSON、20 条 batch 边界、errors + data 部分成功、
+    null subject 错误。
+- 所有 HTTP 用例复用 RT-0 `TestServer` 与 `isolate_runtime_config()`，关闭 ECH、只访问随机 loopback
+  端口；未新增公网依赖、fixture 凭据或生成文件修改。
+- **发现并修复 5 类生产 bug**（RT-3-001 ~ RT-3-005）：Bangumi fetch 的 status 分支被
+  `error_for_status` 提前截断；`i64 as i32` 溢出回绕；协议相对图片与双引号 CSS avatar 未正确规范化；
+  多个列表接受 `id=0` 的无效实体；现代评论接受 10 分制之外的评分。详见
+  `docs/stability_findings.md`。
+- 缓存回退归属说明：本批 Bangumi fetch/normalize 模块本身不持有缓存；Dart Bangumi service 的缓存优先/
+  分组件降级已由 DT-3 覆盖，Rust `bangumi_data_store` 的损坏文件、并发刷新和 stale/invalidate 回退仍按
+  RT-4 边界执行。本批通过 GraphQL chunk 部分成功与 character 双 endpoint 部分成功验证 fetch 层不会
+  主动抹掉已取得数据。
+- 验证：`cargo fmt --check`、`git diff --check` 通过；
+  `cargo test --manifest-path rust/Cargo.toml` 全量 **181 passed / 0 failed / 2 ignored**；
+  `cargo clippy --all-targets` 的 lib 汇总为 **101 warnings**，低于 RT-2 的 112，新增 normalize/test
+  代码未引入新的 Clippy 告警类别。
+
 ---
 
 ## 5. Dart 测试工作流

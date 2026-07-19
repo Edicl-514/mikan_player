@@ -715,3 +715,81 @@
 - 回归测试：`closed_progress_sink_stops_before_detail_fetch` 模拟首个事件后关闭 sink，断言 search 请求为 1、
   detail 请求为 0；另覆盖步骤单调和每源单一终态。
 - 迁移/回滚：仅改变已关闭流后的后台行为；正常打开的进度流事件顺序与字段兼容。
+
+### RT-3-001 — Bangumi fetch 的状态码处理分支被网络助手提前截断
+
+- 工作包：RT-3（2026-07-19）
+- 现象：character/person/relation/episode/comment/user/image/GraphQL 多个函数调用
+  `retry_request_bangumi` 后再检查 `resp.status()`，但该助手默认先执行 `error_for_status()`；因此源码中
+  “404 返回空列表”“第二页失败保留前页”“返回自定义错误”“读取 API 错误正文”等分支实际不可达。
+- 根因：fetch 层同时混用了网络层自动状态错误和端点自己的状态策略，没有显式请求
+  `allow_error_status=true`。
+- 影响：本应视为无数据的 404 会冒泡成请求错误；REST episode 后续页限流会丢弃已经取得的完整页；
+  用户 API 丢失服务端错误正文；GraphQL 无法保留非 2xx 返回的结构化 `errors` 数据。
+- 修复：所有需要自行解释状态码的 Bangumi 请求改用 `retry_request_bangumi_with_status(..., true)`，
+  仍由网络层对 5xx 做既有重试，最终状态交给端点按原设计映射。
+- 回归测试：`rest_episode_fetch_returns_completed_pages_when_later_page_is_rate_limited`、
+  `character_fetch_applies_rest_empty_and_next_error_status_policies`、
+  `person_fetch_uses_custom_detail_error_and_empty_list_fallbacks`、
+  `user_fetch_encodes_username_and_reports_api_error_body`、
+  `execute_graphql_preserves_json_error_body_on_http_error`。
+- 迁移/回滚：不涉及持久化；成功响应不变，仅恢复原源码已经表达但此前不可达的错误/降级语义。
+
+### RT-3-002 — Bangumi JSON 的 i64 直接窄化为 i32 会回绕
+
+- 工作包：RT-3（2026-07-19）
+- 现象：人物类型、角色统计、生日字段、收藏 type/rate、剧集数和收藏人数等值使用 `as i32`；超过
+  `i32` 范围的上游数字会回绕成负数或其他无关值。
+- 根因：把 JSON 数字解析成功等同于目标 DTO 可表示，未做 checked conversion。
+- 影响：异常或 schema 变化后的 API 数据可能让 UI 显示负收藏数、负剧集数、错误类型/评分；未知收藏
+  状态也可能因溢出与合法枚举碰撞。
+- 修复：集中增加 `json_i32`，使用 `i32::try_from`；合法未知收藏状态（例如 `99`）原样保留给 UI 的
+  unknown fallback，真正越界或字段类型变化则稳定回退 `0`/`None`。
+- 回归测试：`json_i32_rejects_type_changes_and_overflow`、
+  `character_details_normalize_missing_types_and_infobox_values`、
+  `person_details_normalize_type_changes_and_mixed_infobox`、
+  `collections_preserve_unknown_enum_and_reject_overflow_and_missing_identity`。
+- 迁移/回滚：不涉及；i32 范围内的正常值和 1～5 收藏状态保持原样。
+
+### RT-3-003 — 协议相对图片与双引号 avatar style 未被可靠规范化
+
+- 工作包：RT-3（2026-07-19）
+- 现象：`normalize_image_url`/`normalize_avatar_url` 仅调用 host rewrite，`//lain.bgm.tv/x.jpg` 在直连
+  模式保持无 scheme，在代理模式也可能只改 host 仍保持 `//`；legacy subject comment 的 avatar 只识别
+  `url('...')`，无法读取 `url("...")`、`url(&quot;...&quot;)` 或无引号形式。
+- 根因：URL 绝对化发生在 rewrite 未命中之后，而 rewrite 命中协议相对 host 时会跳过补 scheme；CSS URL
+  提取又绑定单一引号形式。
+- 影响：图片组件收到不可直接请求的 URL，开启代理后仍可能加载失败；部分 legacy 评论头像稳定为空。
+- 修复：先把协议相对/站内相对 URL 绝对化，再统一应用代理 rewrite；CSS `url(...)` 提取支持单引号、
+  双引号、`&quot;` 和无引号，并复用同一 normalize 路径。
+- 回归测试：`image_normalization_absolutizes_protocol_relative_urls_before_proxy_rewrite`、
+  `avatar_style_parser_accepts_quote_variants_and_relative_urls`、
+  `hybrid_subject_comments_fall_back_to_legacy_html`。
+- 迁移/回滚：仅规范化读时 URL，不修改缓存或用户配置；已有绝对 URL 保持不变。
+
+### RT-3-004 — 多个 Bangumi 列表会向 UI 暴露 id=0 的无效实体
+
+- 工作包：RT-3（2026-07-19）
+- 现象：subject characters/persons、episodes、relations 和用户收藏等解析器对缺失/类型变化的 ID 使用
+  `unwrap_or(0)` 后仍加入结果；actor/person 关联也可能产生 ID 0。
+- 根因：可选字段默认值与列表条目的最小身份校验混在一起，缺少“有效 ID 才能成为可导航实体”的约束。
+- 影响：用户可看到无效卡片/剧集/收藏项，点击后请求 `/subjects/0`、`/characters/0` 等不存在资源；
+  同一批脏数据还可能产生重复的 ID 0 项。
+- 修复：所有可导航列表统一要求 ID `> 0`；关联人物也过滤无效 ID，非身份字段仍按既有默认值容错。
+- 回归测试：`rest_character_normalization_filters_invalid_ids_and_actor_shapes`、
+  `episode_page_normalization_handles_schema_drift_and_invalid_rows`、
+  `persons_normalize_optional_fields_and_reject_invalid_identity`、
+  `relations_keep_supported_anime_rows_and_filter_invalid_identity`、
+  `collections_preserve_unknown_enum_and_reject_overflow_and_missing_identity`。
+- 迁移/回滚：不涉及；只丢弃无法正确导航的异常上游条目。
+
+### RT-3-005 — 现代 Bangumi 评论接受超出 10 分制的评分
+
+- 工作包：RT-3（2026-07-19）
+- 现象：Next comments 解析只判断 `rate > 0`，因此 11、极大整数等值可能作为有效评分进入 DTO。
+- 根因：只验证正数，没有落实 Bangumi 评分的 1～10 枚举范围，也没有统一使用 checked i32 转换。
+- 影响：评分星级/文本可能显示异常，极大值在窄化路径中还可能回绕。
+- 修复：评分先经 `json_i32`，仅保留 `1..=10`，零、负数、越界和字段类型变化统一为 `None`。
+- 回归测试：`next_subject_comments_escape_markup_and_validate_rating_range` 同时覆盖 10、11、i32 溢出、
+  空评论和 XSS-like markup 转义。
+- 迁移/回滚：合法 1～10 评分不变；仅将不可能的上游评分视为未评分。
