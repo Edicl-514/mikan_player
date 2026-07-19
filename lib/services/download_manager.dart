@@ -556,6 +556,21 @@ class DownloadManager extends ChangeNotifier {
   @visibleForTesting
   Future<void> updateStatsForTesting() => _updateStats();
 
+  /// Runs the real app-restart recovery pass (`_loadTasks`) over whatever the
+  /// injected task store returns. Production reads the persisted JSON through
+  /// `SharedPreferences`; tests seed `SharedPreferences.setMockInitialValues`
+  /// under [btTasksStorageKey] so the domain transitions (HTTP active→paused,
+  /// completed-file-missing→error, rqbit pending→metadata, BT auto-resume)
+  /// can be asserted without touching `initialize`'s prefs/dir/FFI wiring.
+  @visibleForTesting
+  Future<void> loadTasksForTesting() => _loadTasks();
+
+  /// True when [id] is currently tracked as paused. Exposes `_pausedTaskIds`
+  /// membership so tests can assert the paused set stays consistent with a
+  /// task's visible status across resume/rollback races.
+  @visibleForTesting
+  bool isPausedForTesting(String id) => _pausedTaskIds.contains(id);
+
   /// Direct pause dispatch for a seeded BT task (skips HTTP branch).
   @visibleForTesting
   Future<bool> pauseBtTaskForTesting(String id) => pauseTask(id);

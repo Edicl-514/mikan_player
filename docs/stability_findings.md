@@ -480,3 +480,50 @@
 - 回归测试：Search/History 断言 Semantics tooltip；Danmaku、Download/Search settings、
   SettingsPanel、EpisodeSidePanel 断言 locale 对应 tooltip；全量 ARB 一致性测试通过。
 - 迁移/回滚：不涉及。
+
+### DT-7-001 — BT `resumeTask` 后端异常时任务卡在假活跃状态且无法重试
+
+- 工作包：DT-7（2026-07-19）
+- 现象：暂停中的 BT 任务点「继续」时，`_resumeTaskImpl` 先把 `task.status` 从
+  `paused` 翻成 `metadata`/`pending`/`queued`（并保存/通知 UI），随后调用
+  `_resumeTorrentWithBackend`。若后端 `resumeTorrent` 抛异常，`catch` 只做
+  `_releaseSlotForTask(id)` 并返回 `false`，任务停留在 `metadata` 等活跃状态，
+  但 id 仍留在 `_pausedTaskIds` 里。
+- 根因：进入 resume 流程后立即乐观地写入过渡态，异常路径没有回滚 `task.status`
+  与 `_pausedTaskIds`，导致「可见状态」与「暂停集合」不一致。
+- 影响：UI 显示一个永远转圈的假下载（实际未启动）；因为状态不是 `paused`/`error`，
+  用户界面通常不再提供「继续」入口，任务无法自然恢复，直到重启 App 走
+  `_loadTasks` 重新归位。属于用户可见的下载卡死。
+- 修复：`_resumeTaskImpl` 进入 try 前快照 `resumeEntryStatus` /
+  `resumeEntryWasPaused`；`catch` 分支在任务仍被本对象持有且未被移除时，把
+  速度清零，按进入前是否为暂停回滚到 `paused`（并重新加入 `_pausedTaskIds`）或
+  记为可重试的 `error`，再 `_saveTasks` + `_notifyChanged`。这样一次瞬时后端失败
+  后，第二次 resume 仍能成功。
+- 回归测试：`test/services/download/download_manager_resume_rollback_test.dart`
+  的 `resumeTask returns false and does not throw when the backend resume throws`
+  / `after a failed backend resume the task is left retryable (paused status
+  agrees with the paused set)` / `a second resume attempt after a transient
+  backend failure can succeed`。
+- 迁移/回滚：不涉及（仅内存态回滚逻辑；持久化 JSON 形状不变）。
+
+### DT-7 覆盖补洞（无 bug，仅回归加固）
+
+- 工作包：DT-7（2026-07-19）
+- 背景：DT-7 要求「先跑覆盖率再补真正空洞，不重复 happy-path」。核查后发现
+  `DownloadManager._loadTasks` 的应用重启恢复分支与 `_updateStats` 的
+  暂停/移除竞态分支此前只被间接触及，缺少直接回归。
+- 新增回归（均使用注入的 `FakeBtBackend` / 预置 SharedPreferences，不触碰真实 FFI）：
+  - `download_manager_restart_recovery_test.dart`：HTTP 活跃任务重启后降级为
+    `paused`（不自动续传）并进入暂停集；已完成但本地文件丢失 → `error`（文案
+    `本地文件已删除`）；本地文件仍在 → 保持 `completed`；持久化的暂停 HTTP 任务
+    进入暂停集；空磁链 BT 任务在加载时被丢弃；rqbit `pending` 在加载时提升为
+    `metadata` 并触发一次自动续传；持久化的暂停 BT 任务不自动续传；空存储不产生任务。
+  - `download_manager_stats_poller_test.dart`：暂停任务的轮询只更新字节/peer 而
+    不翻回 `downloading`（用第二个活跃任务保活轮询，复现真实竞态）；移除后的陈旧
+    stat 不会复活任务；`progress>=100`→`seeding`、`error`→`error`、`checking`→
+    `checking` 的终态映射；epsilon 内的无变化轮询不改状态。
+- 为支持上述测试新增的测试专用接缝：`loadTasksForTesting()`、
+  `isPausedForTesting(id)`（均 `@visibleForTesting`），并让 `FakeBtBackend` 的
+  异常注入字段按其文档承诺改为可变，新增 `clear*Exception()` 便于在同一场景内
+  切换瞬时故障。
+- 迁移/回滚：不涉及。

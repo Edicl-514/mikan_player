@@ -482,16 +482,21 @@ class FakeBtBackend implements BtBackend {
   // startException pattern). Non-null → the method throws this instead of
   // doing its normal work. Settable via the constructor and mutable so a
   // test can flip an exception on/off mid-scenario.
-  final Exception? initException;
-  final Exception? addException;
-  final Exception? pauseException;
-  final Exception? resumeException;
-  final Exception? removeException;
-  final Exception? statsException;
-  final Exception? isManagedException;
-  final Exception? setFilePrioritiesException;
-  final Exception? saveResumeDataException;
-  final Exception? applySpeedLimitsException;
+  Exception? initException;
+  Exception? addException;
+  Exception? pauseException;
+  Exception? resumeException;
+  Exception? removeException;
+  Exception? statsException;
+  Exception? isManagedException;
+  Exception? setFilePrioritiesException;
+  Exception? saveResumeDataException;
+  Exception? applySpeedLimitsException;
+
+  /// Clears the injected [resumeException] so a later resume attempt runs its
+  /// normal success path. Mirrors the "flip an exception on/off mid-scenario"
+  /// contract documented above; used by resume-rollback retry tests.
+  void clearResumeException() => resumeException = null;
 
   int _nextTorrentId = 1;
   int _nextStreamId = 1;

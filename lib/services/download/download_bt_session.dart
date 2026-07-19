@@ -879,6 +879,14 @@ extension _DownloadBtSession on DownloadManager {
       return true;
     }
 
+    // Snapshot the pre-resume state so a mid-resume backend failure can roll
+    // back to a retryable state instead of stranding the task at a transient
+    // active status (metadata/pending/queued) while it never actually
+    // started. Without this the UI shows a stuck spinner and the paused-set
+    // membership disagrees with the visible status.
+    final resumeEntryStatus = task.status;
+    final resumeEntryWasPaused = _pausedTaskIds.contains(id);
+
     try {
       final backendInitialStatus = task.backend == BtBackendKind.rqbit
           ? DownloadTaskStatus.metadata
@@ -974,6 +982,27 @@ extension _DownloadBtSession on DownloadManager {
     } catch (e) {
       debugPrint('[DownloadManager] Error resuming task: $e');
       _releaseSlotForTask(id);
+      // Roll the task back to its pre-resume state so it stays retryable. If
+      // it was paused going in (the common case), restore the paused status +
+      // paused-set membership; otherwise (error/queued retry) leave it as an
+      // error the user can retry. The id may have changed if a restart got as
+      // far as swapping the fallback id for the real info-hash, but a throw
+      // here happens before that swap, so `id` is still current.
+      final current = _tasks[id];
+      if (identical(current, task) && !_removedTaskIds.contains(id)) {
+        task.downloadSpeed = 0;
+        task.uploadSpeed = 0;
+        if (resumeEntryStatus == DownloadTaskStatus.paused ||
+            resumeEntryWasPaused) {
+          task.status = DownloadTaskStatus.paused;
+          _pausedTaskIds.add(id);
+        } else {
+          task.status = DownloadTaskStatus.error;
+          task.errorMessage ??= e.toString();
+        }
+        await _saveTasks();
+        _notifyChanged();
+      }
       return false;
     }
   }

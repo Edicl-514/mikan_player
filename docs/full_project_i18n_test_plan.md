@@ -438,6 +438,32 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
 - 验证：DT-6 定向相关 **24** 个测试通过；硬编码严格扫描 0 candidate；`flutter analyze`
   0 issue；`flutter test --no-pub` 全量 **1289** 个测试通过。
 
+### DT-7 执行结果（2026-07-19）
+
+- 先按计划「先跑覆盖率并定位真正空洞」原则复核既有 Download/Player 测试：HTTP/HLS 下载体
+  （单/多 chunk、404/500、header fallback、auto-retry、pause/resume/remove、resume Range/200
+  重启、throttle）、`DownloadTaskStore` JSON 往返、`DownloadQueue` 槽位、BT backend dispatch
+  与 stats 合并 happy-path 均已充分覆盖，不重复；Player 侧的 episode/source/playback/search
+  controller 也已有深度单测。定位到三处真正空洞并补测：
+  - **应用重启恢复**（`DownloadManager._loadTasks`）：此前仅通过 `initialize` 间接触达。新增
+    `download_manager_restart_recovery_test.dart`（8 例），经新增 `loadTasksForTesting` seam +
+    预置 `SharedPreferences` 持久化 blob，断言 HTTP active→paused、completed 且本地文件缺失
+    →error、completed 文件仍在→保持、rqbit pending→metadata、空磁链 BT 丢弃、已暂停 BT 不自动
+    恢复等分支（不触发平台通道/FFI）。
+  - **pause/resume/remove 与 stats polling 竞态**（`_updateStats`）：新增
+    `download_manager_stats_poller_test.dart`（6 例），覆盖暂停任务被轮询更新字节但状态不回弹、
+    已移除任务不被陈旧 stat 复活、progress≥100→seeding、error/checking 映射、epsilon no-op。
+  - **native backend 异常回滚**（`resumeTask`）：新增 `download_manager_resume_rollback_test.dart`
+    （3 例），验证后端 resume 抛异常时返回 false、状态回滚到 paused 并与 paused 集合一致、
+    清除异常后二次 resume 可成功。
+- **发现并修复 1 个 bug**（DT-7-001）：BT 暂停任务 resume 时若后端 `resumeTorrent` 抛异常，
+  任务被搁浅在瞬态 `metadata`/`pending` 状态且仍在 paused 集合，UI 显示假死转圈；修复为
+  快照进入前状态并在 catch 中回滚为可重试状态。详见 `docs/stability_findings.md`。
+- `FakeBtBackend` 的异常注入字段按其既有文档契约改为可变，并新增 `clearResumeException`
+  以支持「瞬态失败后重试」场景。
+- 验证：Download 定向 **309** 个测试通过（新增 17 例）；`flutter analyze` 0 issue；
+  `flutter test --no-pub` 全量 **1307** 个测试通过。
+
 ---
 
 ## 5. Dart 测试工作流
