@@ -213,6 +213,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
                 trailing: IconButton(
                   icon: const Icon(Icons.delete_outline),
+                  tooltip: l10n.historyDeleteTooltip,
                   onPressed: () async {
                     final remove = widget.removeHistory;
                     if (remove != null) {

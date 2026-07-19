@@ -61,10 +61,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get historyTitle => '播放历史';
 
   @override
+  String get historyDeleteTooltip => '删除历史记录';
+
+  @override
   String get historySubtitle => '继续上次看的内容';
 
   @override
   String get favoritesTitle => '我的收藏';
+
+  @override
+  String get favoritesRemoveTooltip => '取消收藏';
 
   @override
   String get favoritesSubtitle => '已收藏的番剧';

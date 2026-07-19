@@ -326,6 +326,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
           if (_currentPage != 0)
             IconButton(
               onPressed: () => setState(() => _currentPage = 0),
+              tooltip: l10n.back,
               icon: Icon(Icons.arrow_back, color: iconColor, size: 20),
             )
           else
@@ -343,6 +344,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
           ),
           IconButton(
             onPressed: () => Navigator.pop(context),
+            tooltip: l10n.closeSettingsBarrier,
             icon: Icon(Icons.close, color: iconColor, size: 20),
           ),
         ],

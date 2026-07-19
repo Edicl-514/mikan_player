@@ -73,10 +73,7 @@ void main() {
     });
 
     testWidgets('renders localized header in en', (tester) async {
-      final eps = [
-        _episode(id: 1, sort: 1),
-        _episode(id: 2, sort: 2),
-      ];
+      final eps = [_episode(id: 1, sort: 1), _episode(id: 2, sort: 2)];
       await _pumpPanel(
         tester,
         allEpisodes: eps,
@@ -87,6 +84,7 @@ void main() {
       final l10n = localizedOf(tester);
       expect(find.text(l10n.selectEpisode), findsOneWidget);
       expect(find.text(l10n.subtitleTrackCount(2)), findsOneWidget);
+      expect(find.byTooltip(l10n.closeEpisodesBarrier), findsOneWidget);
       expect(find.text('共2集'), findsNothing);
     });
 
@@ -98,11 +96,7 @@ void main() {
         _episode(id: 2, sort: 2),
         _episode(id: 3, sort: 3),
       ];
-      await _pumpPanel(
-        tester,
-        allEpisodes: eps,
-        currentEpisode: eps[1],
-      );
+      await _pumpPanel(tester, allEpisodes: eps, currentEpisode: eps[1]);
 
       final textWidgets = find.byType(Text);
       final selectedText = tester

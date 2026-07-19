@@ -69,7 +69,12 @@ class BangumiDetailsWideLayout extends StatelessWidget {
   final VoidCallback onToggleInfoBoxExpanded;
   final void Function(String tagName) onTagTap;
   final void Function(int personId) onPersonTap;
-  final void Function(int characterId, {String? characterName, String? heroImageUrl}) onCharacterTap;
+  final void Function(
+    int characterId, {
+    String? characterName,
+    String? heroImageUrl,
+  })
+  onCharacterTap;
   final void Function(BangumiEpisode episode) onEpisodeTap;
   final void Function(BangumiRelatedSubject relation) onRelationTap;
   final void Function(BangumiDataSiteEntry site) onSiteTap;
@@ -120,7 +125,9 @@ class BangumiDetailsWideLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        Positioned.fill(child: BlurredBackground(imageUrl: getImageUrl(data, anime.coverUrl))),
+        Positioned.fill(
+          child: BlurredBackground(imageUrl: getImageUrl(data, anime.coverUrl)),
+        ),
         Scaffold(
           backgroundColor: Colors.transparent,
           extendBodyBehindAppBar: true,
@@ -155,10 +162,7 @@ class BangumiDetailsWideLayout extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 1200),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildLeftPanel(context),
-                  _buildRightPanel(context),
-                ],
+                children: [_buildLeftPanel(context), _buildRightPanel(context)],
               ),
             ),
           ),
@@ -168,7 +172,8 @@ class BangumiDetailsWideLayout extends StatelessWidget {
   }
 
   Widget _buildLeftPanel(BuildContext context) {
-    final infobox = (data?['infobox'] as List?)
+    final infobox =
+        (data?['infobox'] as List?)
             ?.where((item) => !isInfoboxItemEmpty(item))
             .toList() ??
         const [];
@@ -244,7 +249,7 @@ class BangumiDetailsWideLayout extends StatelessWidget {
                     data?['summary']?.toString(),
                     showOriginal: showOriginalSummary,
                   ) ??
-                  "No summary available.",
+                  AppLocalizations.of(context).bangumiDetailsNoSummary,
               showOriginal: showOriginalSummary,
               hasBothTranslationAndOriginal: hasBothTranslationAndOriginal(
                 data?['summary']?.toString(),
@@ -361,5 +366,4 @@ class BangumiDetailsWideLayout extends StatelessWidget {
       ),
     );
   }
-
-  }
+}

@@ -194,6 +194,12 @@ abstract class AppLocalizations {
   /// **'播放历史'**
   String get historyTitle;
 
+  /// No description provided for @historyDeleteTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除历史记录'**
+  String get historyDeleteTooltip;
+
   /// No description provided for @historySubtitle.
   ///
   /// In zh, this message translates to:
@@ -205,6 +211,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'我的收藏'**
   String get favoritesTitle;
+
+  /// No description provided for @favoritesRemoveTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消收藏'**
+  String get favoritesRemoveTooltip;
 
   /// No description provided for @favoritesSubtitle.
   ///

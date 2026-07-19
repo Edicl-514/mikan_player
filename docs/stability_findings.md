@@ -434,3 +434,49 @@
 - 修复：两处状态提交均要求 `mounted`；持久化与 Rust runtime 同步仍允许在页面离开后正常完成。
 - 回归测试：controller dispose late-completion 回归 + DataSourceSettings 静态分析/全量 Widget 回归。
 - 迁移/回滚：不涉及。
+
+### DT-6-001 — Bangumi mobile 评分行在 360px 下溢出
+
+- 工作包：DT-6（2026-07-19）
+- 现象：Bangumi 详情 mobile header 在真实 360×800 约束下，评分/投票/排名行中文溢出 33px，
+  英文溢出 67px；此前仅对单个详情 widget 做过局部宽度 smoke，未覆盖完整 header 组合。
+- 根因：`BangumiRatingRow` 的评分数字与右侧 `Column` 都按自然宽度参与横向 `Row` 布局；
+  海报和间距占用后右栏最多约 194px，但投票/排名文本没有 `Flexible`、换行或省略约束。
+- 影响：窄屏设备详情页出现黄黑 overflow 条，英文信息被截出屏幕；较大的投票数/排名会进一步
+  放大问题。
+- 修复：右侧星级与投票信息使用 `Flexible` 接受剩余宽度，投票/排名文案最多两行并在极端长度下
+  省略；评分数字和星级仍保持原视觉层级。
+- 回归测试：`Bangumi mobile layout fits 360px (zh/en)` 直接设置 RenderView 为 360×800，
+  组合完整 `BangumiDetailsMobileLayout` 并断言无异常。
+- 迁移/回滚：仅布局约束调整，不涉及数据或配置迁移。
+
+### DT-6-002 — Bangumi wide 空简介在中文界面仍显示英文
+
+- 工作包：DT-6（2026-07-19）
+- 现象：wide 详情布局的 subject 没有 summary 时，中文 locale 显示固定英文
+  `No summary available.`；mobile 布局使用的却是已存在的 `bangumiDetailsNoSummary`。
+- 根因：wide/mobile 拆分时 wide fallback 保留了英文字符串，没有复用同一 l10n key；现有硬编码
+  扫描器主要针对 CJK 和直接 UI 参数，未把这个间接传入子 widget 的英文 fallback 标为候选。
+- 影响：桌面中文界面出现语言漂移，且同一数据在 mobile/wide 两种布局的文案不一致。
+- 修复：wide 布局统一使用 `AppLocalizations.of(context).bangumiDetailsNoSummary`。
+- 回归测试：`Bangumi wide layout fits 1280px (zh/en)` 组合真实 1280×800 布局，并断言各 locale
+  的空简介文案存在且无 overflow。
+- 迁移/回滚：不涉及。
+
+### DT-6-003 — 纯图标操作缺少本地化 tooltip/无障碍名称
+
+- 工作包：DT-6（2026-07-19）
+- 现象：全仓 UI 复核发现 12 个 `IconButton` 没有 tooltip，包括下载/搜索设置保存、Search 搜索、
+  History 删除、Favorites 取消收藏、Home 完整时间表、Timetable 季度选择、两套弹幕源搜索、
+  SettingsPanel 返回/关闭及 EpisodeSidePanel 关闭。
+- 根因：此前 i18n 工作集中在可见 `Text` 和已有 tooltip 的翻译，缺少对“只有图标且 tooltip
+  参数完全不存在”的构造器级门禁。
+- 影响：桌面悬停无法得知按钮用途；读屏 Semantics tooltip 为空，保存、删除、关闭等关键操作
+  难以识别，且不同页面的无障碍质量不一致。
+- 修复：所有 UI `IconButton` 补本地化 tooltip；复用 `save`、`searchHint`、`selectQuarter`、
+  `viewFullTimetable`、`back`、`closeSettingsBarrier`、`closeEpisodesBarrier` 等既有 key，并新增
+  语义准确的 `historyDeleteTooltip` / `favoritesRemoveTooltip`。复核脚本确认 `lib/ui/**` 不再有
+  缺少 tooltip 的 `IconButton`。
+- 回归测试：Search/History 断言 Semantics tooltip；Danmaku、Download/Search settings、
+  SettingsPanel、EpisodeSidePanel 断言 locale 对应 tooltip；全量 ARB 一致性测试通过。
+- 迁移/回滚：不涉及。

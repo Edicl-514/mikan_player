@@ -221,6 +221,7 @@ class _FavoritesPageState extends State<FavoritesPage>
             },
             trailing: IconButton(
               icon: const Icon(Icons.delete_outline),
+              tooltip: l10n.favoritesRemoveTooltip,
               onPressed: () async {
                 await _favoritesManager.removeFavorite(item.bangumiId);
                 _fetchLocalFavorites();

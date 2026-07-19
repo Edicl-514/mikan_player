@@ -61,10 +61,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get historyTitle => 'History';
 
   @override
+  String get historyDeleteTooltip => 'Delete history entry';
+
+  @override
   String get historySubtitle => 'Continue watching';
 
   @override
   String get favoritesTitle => 'Favorites';
+
+  @override
+  String get favoritesRemoveTooltip => 'Remove from favorites';
 
   @override
   String get favoritesSubtitle => 'Collected anime';

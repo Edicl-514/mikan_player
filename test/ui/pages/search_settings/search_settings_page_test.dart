@@ -21,8 +21,9 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  testWidgets('zh: renders localized section headers and field labels',
-      (tester) async {
+  testWidgets('zh: renders localized section headers and field labels', (
+    tester,
+  ) async {
     await pumpLocalizedWidget(
       tester,
       const SearchSettingsPage(),
@@ -33,16 +34,19 @@ void main() {
 
     expect(find.text('搜索设置'), findsOneWidget);
     expect(find.text('最大并行搜索源数量'), findsOneWidget);
-    expect(find.text('WebView Scraper设置 (仅针对Dynamic Webview源)'),
-        findsOneWidget);
+    expect(
+      find.text('WebView Scraper设置 (仅针对Dynamic Webview源)'),
+      findsOneWidget,
+    );
     expect(find.text('最大WebView并发数量'), findsOneWidget);
     expect(find.text('WebView启动间隔 (毫秒)'), findsOneWidget);
     expect(find.text('自动搜索在线源'), findsOneWidget);
     expect(find.text('播放后取消低优先级源提取'), findsOneWidget);
   });
 
-  testWidgets('en: renders localized section headers and field labels',
-      (tester) async {
+  testWidgets('en: renders localized section headers and field labels', (
+    tester,
+  ) async {
     await pumpLocalizedWidget(
       tester,
       const SearchSettingsPage(),
@@ -51,6 +55,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Search settings'), findsOneWidget);
+    expect(find.byTooltip('Save'), findsOneWidget);
     expect(find.text('Max parallel search sources'), findsOneWidget);
     expect(
       find.text('WebView Scraper settings (Dynamic WebView sources only)'),
@@ -59,7 +64,9 @@ void main() {
     expect(find.text('Max concurrent WebViews'), findsOneWidget);
     expect(find.text('WebView launch interval (ms)'), findsOneWidget);
     expect(find.text('Auto search online sources'), findsOneWidget);
-    expect(find.text('Cancel low-priority source extraction after playback'),
-        findsOneWidget);
+    expect(
+      find.text('Cancel low-priority source extraction after playback'),
+      findsOneWidget,
+    );
   });
 }

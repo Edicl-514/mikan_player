@@ -100,10 +100,9 @@ class _TimeTablePageState extends State<TimeTablePage>
           _selectedArchive = crawler.ArchiveQuarter(
             year: currentYear.toString(),
             quarter: currentQuarterStr,
-            title: AppLocalizations.of(context).timetableQuarterTitle(
-              currentYear,
-              currentQuarter,
-            ),
+            title: AppLocalizations.of(
+              context,
+            ).timetableQuarterTitle(currentYear, currentQuarter),
           );
         });
       }
@@ -500,6 +499,7 @@ class _TimeTablePageState extends State<TimeTablePage>
           IconButton(
             onPressed: _archives.isEmpty ? null : _showQuarterPicker,
             icon: const Icon(Icons.calendar_month),
+            tooltip: AppLocalizations.of(context).selectQuarter,
           ),
         ],
         bottom: TabBar(

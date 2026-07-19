@@ -60,6 +60,7 @@ void main() {
       // Danmaku defaults to enabled; subtitles have no tracks until media loads.
       expect(find.text(l10n.statusEnabled), findsOneWidget);
       expect(find.text(l10n.noSubtitlesAvailable), findsOneWidget);
+      expect(find.byTooltip(l10n.closeSettingsBarrier), findsOneWidget);
     });
 
     testWidgets('en main menu shows localized section titles', (tester) async {
@@ -86,7 +87,8 @@ void main() {
       await tester.tap(find.text(l10n.subtitleSettingsTitle));
       await tester.pumpAndSettle();
 
-            expect(find.text(l10n.showSubtitles), findsOneWidget);
+      expect(find.byTooltip(l10n.back), findsOneWidget);
+      expect(find.text(l10n.showSubtitles), findsOneWidget);
       expect(find.text(l10n.subtitleTracks), findsOneWidget);
       expect(find.text(l10n.noEmbeddedSubtitles), findsOneWidget);
       expect(find.text(l10n.subtitleStyle), findsOneWidget);

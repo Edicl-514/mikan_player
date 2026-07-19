@@ -89,7 +89,11 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
       appBar: AppBar(
         title: Text(l10n.searchSettingsTitle),
         actions: [
-          IconButton(icon: const Icon(Icons.save), onPressed: _saveSettings),
+          IconButton(
+            icon: const Icon(Icons.save),
+            tooltip: l10n.save,
+            onPressed: _saveSettings,
+          ),
         ],
       ),
       body: _isLoading

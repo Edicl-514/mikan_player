@@ -33,26 +33,32 @@ class BangumiRatingRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: List.generate(5, (index) {
-                return Icon(
-                  index < (score / 2).round() ? Icons.star : Icons.star_border,
-                  size: 14,
-                  color: Colors.amber,
-                );
-              }),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              rank > 0
-                  ? l10n.bangumiDetailsRatingVotesWithRank(total, rank)
-                  : l10n.bangumiDetailsRatingVotes(total),
-              style: const TextStyle(fontSize: 11, color: Colors.white70),
-            ),
-          ],
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: List.generate(5, (index) {
+                  return Icon(
+                    index < (score / 2).round()
+                        ? Icons.star
+                        : Icons.star_border,
+                    size: 14,
+                    color: Colors.amber,
+                  );
+                }),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                rank > 0
+                    ? l10n.bangumiDetailsRatingVotesWithRank(total, rank)
+                    : l10n.bangumiDetailsRatingVotes(total),
+                style: const TextStyle(fontSize: 11, color: Colors.white70),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ],
     );

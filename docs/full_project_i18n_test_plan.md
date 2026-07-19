@@ -418,6 +418,26 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
   `docs/stability_findings.md`。
 - 验证：`flutter analyze` 0 issue；`flutter test --no-pub` 全量 **1279** 个测试通过。
 
+### DT-6 执行结果（2026-07-19）
+
+- 新增 `test/ui/pages/dt6_widget_localization_regression_test.dart`，共 **10** 个 Widget 回归测试：
+  - AboutPage：zh/en 下真实 360×800 约束、长文案滚动与无 overflow；
+  - Bangumi details：zh/en 下 mobile 360×800 与 wide 1280×800 真实布局组合；
+  - ThemeSettings：主题模式、Material 颜色开关的持久化交互，以及自定义颜色 modal 的英文
+    cancel/confirm 文案与关闭恢复；
+  - Search、History、Danmaku：纯图标操作的本地化 tooltip 与 Semantics tooltip。
+- 扩充 4 个现有测试文件：Download/Search settings 保存 tooltip、SettingsPanel 返回/关闭
+  tooltip、EpisodeSidePanel 关闭 tooltip；复用 L10N-5 已有的 24 个 Player zh/en
+  360×800/360×1200/1280×800 smoke，不重复创建同义布局测试。
+- 全仓复核 `lib/ui/**` 的 `IconButton` 构造器并补齐本地化 tooltip：搜索、保存、删除历史、
+  取消收藏、季度选择、完整时间表、弹幕源搜索、设置/选集面板返回与关闭；新增
+  `historyDeleteTooltip` / `favoritesRemoveTooltip` 两个 ARB key，中英文生成结果一致。
+- **发现并修复 3 组 bug**（DT-6-001 ~ DT-6-003）：Bangumi mobile 评分行在 360px
+  中英文溢出、wide 空简介硬编码英文、12 个纯图标操作缺少本地化无障碍名称；详见
+  `docs/stability_findings.md`。
+- 验证：DT-6 定向相关 **24** 个测试通过；硬编码严格扫描 0 candidate；`flutter analyze`
+  0 issue；`flutter test --no-pub` 全量 **1289** 个测试通过。
+
 ---
 
 ## 5. Dart 测试工作流

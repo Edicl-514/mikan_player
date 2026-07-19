@@ -105,6 +105,7 @@ class EpisodeSidePanel extends StatelessWidget {
                       const Spacer(),
                       IconButton(
                         onPressed: () => Navigator.pop(context),
+                        tooltip: l10n.closeEpisodesBarrier,
                         icon: Icon(Icons.close, color: closeIconColor),
                       ),
                     ],

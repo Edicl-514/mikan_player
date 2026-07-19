@@ -266,6 +266,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
                     borderSide: BorderSide.none,
                   ),
                   suffixIcon: IconButton(
+                    tooltip: l10n.searchHint,
                     icon: Icon(
                       Icons.search,
                       color: Theme.of(context).colorScheme.primary,
@@ -962,6 +963,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
                     borderSide: BorderSide.none,
                   ),
                   suffixIcon: IconButton(
+                    tooltip: l10n.searchHint,
                     icon: Icon(
                       Icons.search,
                       color: Theme.of(context).colorScheme.primary,

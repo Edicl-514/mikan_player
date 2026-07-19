@@ -325,6 +325,7 @@ class _SearchPageState extends State<SearchPage> {
             ),
           IconButton(
             icon: const Icon(Icons.search),
+            tooltip: AppLocalizations.of(context).searchHint,
             onPressed: () => _handleSearchSubmit(_searchController.text),
           ),
         ],

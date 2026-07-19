@@ -117,7 +117,11 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
       appBar: AppBar(
         title: Text(l10n.downloadSettingsTitle),
         actions: [
-          IconButton(icon: const Icon(Icons.save), onPressed: _saveSettings),
+          IconButton(
+            icon: const Icon(Icons.save),
+            tooltip: l10n.save,
+            onPressed: _saveSettings,
+          ),
         ],
       ),
       body: ListView(
@@ -142,9 +146,7 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
                 l10n.downloadEngineTitle,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              subtitle: Text(
-                l10n.downloadEngineSubtitle,
-              ),
+              subtitle: Text(l10n.downloadEngineSubtitle),
               trailing: DropdownButton<BtBackendKind>(
                 value: _backendKind,
                 underline: const SizedBox(),

@@ -623,6 +623,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                 ),
               ),
               IconButton(
+                tooltip: AppLocalizations.of(context).viewFullTimetable,
                 onPressed: () {
                   Navigator.push(
                     context,
