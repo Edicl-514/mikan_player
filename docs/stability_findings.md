@@ -793,3 +793,112 @@
 - 回归测试：`next_subject_comments_escape_markup_and_validate_rating_range` 同时覆盖 10、11、i32 溢出、
   空评论和 XSS-like markup 转义。
 - 迁移/回滚：合法 1～10 评分不变；仅将不可能的上游评分视为未评分。
+
+### RT-4-001 — Legacy schedule 拆分时间节点时丢失播出时间
+
+- 工作包：RT-4（2026-07-19）
+- 现象：新版 legacy archive HTML 把“每周日”和“01:30”放在两个 datetime `<span>` 中时，解析器只取
+  第一个包含周/时间标记的节点，结果只有 `broadcast_day`，`broadcast_time` 为空。
+- 根因：现代时间 selector 使用 `.find(...)`，没有合并同一条目中的多个时间片段。
+- 影响：时间表可显示正确星期但缺少具体开播时间，排序/分组依赖时间时也会退化。
+- 修复：收集同一条目内所有包含星期或时间的片段后统一交给 `parse_broadcast_parts`。
+- 回归测试：`legacy_schedule_resolves_relative_official_urls_and_keeps_stable_order`。
+- 迁移/回滚：不涉及；单节点时间文本行为不变。
+
+### RT-4-002 — Archive/schedule 的缺字段、非法季度和重复项可破坏整批结果
+
+- 工作包：RT-4（2026-07-19）
+- 现象：season 响应缺 `version` 会反序列化失败，`2025q9` 会进入 archive；schedule 中单条缺 title/begin
+  可使整批 JSON 失败，重复 Bangumi ID/无 ID 同名条目会重复展示，相对 `officialSite` 原样传给 UI。
+- 根因：未使用字段仍是 required；季度正则接受任意单数字；强类型列表没有坏行默认值、实体去重和 URL join。
+- 影响：上游轻微 schema 漂移可能让整个季度不可用，或导致重复卡片、打不开的官网链接。
+- 修复：可选/未使用字段补 `serde(default)`；季度严格限制 q1～q4；按 Bangumi/Mikan ID 或标题稳定去重；
+  API/HTML 相对官网链接通过 `url::Url::join` 绝对化，非法 scheme 丢弃。
+- 回归测试：`archive_html_deduplicates_valid_quarters_without_requiring_year_heading`、
+  `api_archive_and_schedule_skip_duplicates_missing_fields_and_bad_quarters`。
+- 迁移/回滚：不涉及；合法且唯一的既有响应顺序保持不变。
+
+### RT-4-003 — Sites index 的重复 subject 覆盖站点且相对 URL 未解析
+
+- 工作包：RT-4（2026-07-19）
+- 现象：同一 Bangumi subject 在 `bangumi-data` 出现多行时，后写入的 `HashMap::insert` 覆盖前一行全部
+  sites；显式 `/rss/1`、`extra.xml` URL 直接暴露，缺少 site meta 字段会让整份 JSON 解析失败，ID 0 也可建索引。
+- 根因：索引按行 replace 而不是 merge，没有 site+URL 去重、相对引用解析和最小身份校验。
+- 影响：详情页会随机缺少部分资源站点，点击相对链接失败；一条不完整 metadata 可让整个离线 sites 能力失效。
+- 修复：按 subject 合并并稳定去重；site meta 可选字段默认化；相对 URL 以填充后的 `urlTemplate` 为基准
+  使用标准 URL join；只索引正 Bangumi/Mikan ID 和 HTTP(S) URL。
+- 回归测试：`site_map_merges_duplicate_subjects_and_resolves_relative_urls`。
+- 迁移/回滚：索引仅驻留内存，无持久化迁移；下一次构建自动获得新语义。
+
+### RT-4-004 — 并发原子写共享同一临时文件名
+
+- 工作包：RT-4（2026-07-19）
+- 现象：同进程两个 `atomic_write_bytes` 都使用 `<name>.tmp.<pid>`，会同时 truncate/写入同一 staging
+  文件；rename 竞争可能报错，甚至把由另一调用改写的内容提交到目标文件。
+- 根因：临时文件名只有 PID，没有线程/调用级唯一值；Windows rename 失败后还会退化为可被读到半文件的 copy。
+- 影响：并发刷新或未来新增的并行写路径可能产生失败、错配 payload 或部分文件，破坏离线 schedule/sites。
+- 修复：临时文件名增加进程内原子 sequence；所有平台只接受原子 rename，失败时保留旧目标并清理 staging，
+  不再 copy fallback。
+- 回归测试：`atomic_writes_replace_existing_files_and_leave_no_partial_temp_files`（12 路并发）。
+- 迁移/回滚：无格式变化；遗留 `.tmp.*` 不会被读取，新写入成功后测试确认无残留。
+
+### RT-4-005 — 刷新竞态可重新安装或继续复用旧 parsed data/sites index
+
+- 工作包：RT-4（2026-07-19）
+- 现象：线程 A 解析旧 JSON 时线程 B invalidate/替换文件，A 随后仍可把旧 `Arc` 写回全局 slot；sites index
+  只判断 `Option::is_some`，即使 data generation 已变化也会直接复用旧映射。
+- 根因：parsed cache 安装前未比较 generation，sites index 本身也不记录构建 generation；检查与写入之间缺少
+  对刷新版本的契约。
+- 影响：手动刷新或跨路径并发 warmup 后，当前进程可能继续显示旧季度/旧资源站点，直到再次显式 invalidate。
+- 修复：data invalidate 先递增 generation；冷读安装前在写锁内复核，不一致则重读；sites index 保存 generation，
+  build/lookup/background warmup 都拒绝复用过期 index。
+- 回归测试：`concurrent_readers_share_cached_arc_and_invalidation_loads_replacement`、
+  `concurrent_builds_share_one_index_and_invalidation_reloads_new_file`。
+- 迁移/回滚：仅内存缓存协议变化；磁盘 JSON 格式不变。
+
+### RT-4-006 — 详情补全会覆盖已有有效字段并对重复 ID 重复请求
+
+- 工作包：RT-4（2026-07-19）
+- 现象：`apply_subject_details` 无条件替换 score/rank/tags/full JSON；同一 subject 在 schedule 中重复出现且
+  GraphQL 未命中时，每个条目各发一次 REST/P1 请求；modern 非法 ID 还会退化为请求 `/0`。
+- 根因：fill 操作没有区分“已有有效值”和“待补字段”，fallback task 以条目 index 而非 subject ID 建立。
+- 影响：较完整的上游/缓存数据可能被较弱 fallback 清空或降级，重复条目放大网络请求，非法 ID 产生无意义请求。
+- 修复：仅填空白/无效字段；按正 subject ID 聚合 index，同一 ID 请求一次并将结果应用到原位置；非法 ID 跳过。
+- 回归测试：`apply_details_fills_only_missing_or_invalid_fields`、
+  `partial_fallback_failure_preserves_order_and_deduplicates_requests`。
+- 迁移/回滚：不涉及；成功补全仍保留输入顺序，已有有效字段现在优先。
+
+### RT-4-007 — Unicode 非法季度参数可在字节切片时 panic
+
+- 工作包：RT-4（2026-07-19）
+- 现象：`fetch_extra_bangumi_subjects` 先检查 byte length，再执行 `&year_quarter[..4]`；中文等多字节输入
+  的第 4 byte 可能不是 UTF-8 字符边界，直接 panic。
+- 根因：把季度格式校验实现为固定 byte offset 切片，并在校验合法性前切片。
+- 影响：FRB 或内部调用收到异常 Unicode 参数时可让 Rust 调用崩溃，而不是稳定返回空结果/参数错误。
+- 修复：先用完整字符串正则匹配 `^(\d{4})q([1-4])$`，再从 capture 读取 year/quarter，不做任意 byte 切片。
+- 回归测试：`invalid_unicode_quarter_returns_empty_without_panicking_or_network`。
+- 迁移/回滚：合法季度行为不变。
+
+### RT-4-008 — Crawler 详情的 score/rank 缺少范围与 checked conversion
+
+- 工作包：RT-4（2026-07-19）
+- 现象：crawler 的 `apply_subject_details`、light subject 和 extra subjects 仍把 `i64 rank` 用 `as i32`
+  窄化，并接受 11 分 score；字符串 `NaN` 也会进入数值转换分支后退化为非预期 JSON 值。这是 RT-3
+  在其他 Bangumi normalize 模块修复后遗漏的副本。
+- 根因：详情补全路径各自解析数字，没有复用范围/checked 规则。
+- 影响：异常上游值会回绕成负排名，或让时间表/补充条目显示不可能的评分。
+- 修复：集中 `valid_score`（有限且 0～10）与 `valid_rank`（正数且 `i32::try_from` 成功），所有 crawler
+  详情入口统一使用。
+- 回归测试：`detail_normalization_rejects_non_finite_scores_and_rank_overflow`。
+- 迁移/回滚：合法数值不变；只把不可表示/越界值视为缺失。
+
+### RT-4-009 — 未来时间的 failure marker 会长期抑制缓存重试
+
+- 工作包：RT-4（2026-07-19）
+- 现象：系统时钟回拨或 marker 来自未来时间时，`saturating_sub` 返回 0，warmup 会把它视为刚失败并持续
+  跳过重试，最长直到本机时钟追上 marker。
+- 根因：未来 epoch 与真实的“刚刚失败”共用同一数值 0，没有把 clock-skew/损坏状态视为未知。
+- 影响：已有 stale cache 的用户可能在较长时间内无法自动刷新。
+- 修复：marker epoch 大于当前时间时返回 `None`，允许正常 freshness/retry 策略继续执行。
+- 回归测试：`version_and_failure_markers_tolerate_empty_corrupt_and_future_values`。
+- 迁移/回滚：marker 格式不变；未来值现在按无有效失败记录处理。

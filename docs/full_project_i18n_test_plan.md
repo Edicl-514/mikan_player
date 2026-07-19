@@ -579,6 +579,35 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
   `cargo clippy --all-targets` 的 lib 汇总为 **101 warnings**，低于 RT-2 的 112，新增 normalize/test
   代码未引入新的 Clippy 告警类别。
 
+### RT-4 执行结果（2026-07-19）
+
+- 新增 **22 个**默认离线 Rust 测试，覆盖 crawler 与本地 `bangumi-data` 的四个子域：
+  - `parse_time.rs` 7 个：RFC3339 显式时区、naive/legacy UTC、固定 CST 无夏令时漂移、非法/闰日、
+    季度与跨年边界、recurrence/legacy broadcast、空翻译/空 ID 与无效 broadcast fallback；
+  - `schedule_api.rs` 3 个：archive 缺 `version`、非法季度、重复季度、缺标题/缺字段；schedule API
+    重复实体与相对官网 URL；legacy HTML 拆分日期/时间节点、协议相对 Bangumi URL、相对官网 URL、
+    空副标题与稳定顺序；
+  - `bangumi_data_store.rs` 6 个：payload 结构校验、version/failure marker 损坏与未来时间、并发原子替换、
+    临时文件清理、并发冷读共享 `Arc`、invalidate 后重载、损坏 mmap 文件恢复与 cache status；
+  - `sites_index.rs` 2 个：缺 `siteMeta` 字段、重复 subject/site、root/path-relative URL、无效 ID、
+    Bangumi/Mikan 双向映射，以及并发 single-flight build 和 generation 驱动的自动重建；
+  - `fill_details.rs` 4 个：只填缺失/无效字段、score/rank 边界、部分 fallback 失败、重复 ID 请求去重、
+    输入顺序保持、非法 ID 不请求、Unicode 非法季度不 panic。
+- 反序列化边界改为“坏条目降级、好条目保留”：未使用/可选字段补 `serde(default)`，季度只接受
+  `YYYYq1..q4`；schedule/sites 统一过滤非正 ID、去重并用 `url::Url` 解析相对引用。
+- 本地缓存写入使用 `pid + sequence` 唯一临时文件，禁止非原子的 copy fallback；parsed JSON 与 sites
+  index 都携带/核对 generation，刷新竞态不再把旧 payload/index 重新暴露给后续调用。
+- 详情补全按正 ID 聚合 fallback 请求，同一 subject 只请求一次；成功响应只填补缺失或无效的封面、
+  score、rank、tags、full JSON，单项失败不会改变输入顺序或清空已有字段。
+- **发现并修复 9 类生产 bug**（RT-4-001 ~ RT-4-009）：拆分时间节点丢播出时间；archive/schedule
+  对缺字段、非法季度、重复项和相对 URL 处理不稳；sites 重复行覆盖及相对 URL 泄露；并发原子写共用
+  临时文件；刷新 generation 竞态复用旧数据；详情补全覆盖已有字段并重复请求；Unicode 季度切片 panic；
+  crawler score/rank 未校验；未来 failure marker 过度抑制重试。详见 `docs/stability_findings.md`。
+- 验证：`cargo fmt --check`、`git diff --check` 通过；
+  `cargo test --manifest-path rust/Cargo.toml` 全量 **203 passed / 0 failed / 2 ignored**（ignored 仍为显式
+  真实网络 smoke）。`cargo clippy --manifest-path rust/Cargo.toml --tests` 成功，仓库仍有 **88** 条既有
+  跨模块 warning，本批 `rust/src/api/crawler/**` 为 **0** 条诊断。
+
 ---
 
 ## 5. Dart 测试工作流

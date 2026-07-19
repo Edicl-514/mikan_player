@@ -1,5 +1,5 @@
 use super::types::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
 
@@ -7,6 +7,103 @@ use super::bangumi_data_store::{
     bangumi_data_generation, bangumi_data_trace, get_or_load_bangumi_data_blocking,
     sites_index_build_single_flight,
 };
+
+type SitesIndexMaps = (
+    HashMap<i64, Vec<BangumiDataSiteEntry>>,
+    HashMap<i64, i64>,
+    HashMap<i64, i64>,
+);
+
+fn positive_site_id(item: &BgmlistItem, site_name: &str) -> Option<i64> {
+    item.sites
+        .iter()
+        .filter(|site| site.site.trim() == site_name)
+        .filter_map(|site| site.id.trim().parse::<i64>().ok())
+        .find(|id| *id > 0)
+}
+
+fn resolve_site_url(meta: &BangumiDataSiteMeta, site: &BgmlistSite) -> Option<String> {
+    let id = site.id.trim();
+    let template = meta.url_template.trim().replace("{{id}}", id);
+    let explicit = site
+        .url
+        .as_deref()
+        .map(str::trim)
+        .filter(|url| !url.is_empty());
+
+    let url = match explicit {
+        Some(raw) => url::Url::parse(raw)
+            .or_else(|_| url::Url::parse(&template)?.join(raw))
+            .ok()?,
+        None => url::Url::parse(&template).ok()?,
+    };
+    matches!(url.scheme(), "http" | "https").then(|| url.to_string())
+}
+
+fn build_sites_index_maps(data: &BangumiDataJson) -> SitesIndexMaps {
+    let mut by_bangumi: HashMap<i64, Vec<BangumiDataSiteEntry>> =
+        HashMap::with_capacity(data.items.len());
+    let mut by_mikan: HashMap<i64, i64> = HashMap::new();
+    let mut by_bangumi_to_mikan: HashMap<i64, i64> = HashMap::new();
+
+    for item in &data.items {
+        let Some(bgm_id) = positive_site_id(item, "bangumi") else {
+            continue;
+        };
+        let mut item_seen = HashSet::new();
+        let entries: Vec<BangumiDataSiteEntry> = item
+            .sites
+            .iter()
+            .filter_map(|site| {
+                let site_name = site.site.trim();
+                if site_name.is_empty() {
+                    return None;
+                }
+                let meta = data.site_meta.get(site_name)?;
+                let url = resolve_site_url(meta, site)?;
+                if !item_seen.insert((site_name.to_string(), url.clone())) {
+                    return None;
+                }
+                Some(BangumiDataSiteEntry {
+                    site: site_name.to_string(),
+                    title: match meta.title.trim() {
+                        "" => site_name.to_string(),
+                        title => title.to_string(),
+                    },
+                    url,
+                    kind: meta.kind.trim().to_string(),
+                    comment: site
+                        .comment
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|comment| !comment.is_empty())
+                        .map(str::to_string),
+                })
+            })
+            .collect();
+        if entries.is_empty() {
+            continue;
+        }
+
+        let target = by_bangumi.entry(bgm_id).or_default();
+        let mut existing: HashSet<(String, String)> = target
+            .iter()
+            .map(|entry| (entry.site.clone(), entry.url.clone()))
+            .collect();
+        target.extend(
+            entries
+                .into_iter()
+                .filter(|entry| existing.insert((entry.site.clone(), entry.url.clone()))),
+        );
+
+        if let Some(mikan_id) = positive_site_id(item, "mikan") {
+            by_mikan.entry(mikan_id).or_insert(bgm_id);
+            by_bangumi_to_mikan.entry(bgm_id).or_insert(mikan_id);
+        }
+    }
+
+    (by_bangumi, by_mikan, by_bangumi_to_mikan)
+}
 
 /// Fire-and-forget: rebuild the sites index in the background so the
 /// timetable hot path does not block on it. Uses single-flight so
@@ -33,7 +130,10 @@ pub(super) fn spawn_build_sites_index_background() {
         // try_acquire check and now.
         {
             let guard = sites_index_slot().read().await;
-            if guard.is_some() {
+            if guard
+                .as_ref()
+                .is_some_and(|index| index.generation == bangumi_data_generation())
+            {
                 bangumi_data_trace("sites index already built; background task exits");
                 return;
             }
@@ -63,12 +163,6 @@ pub(crate) fn spawn_sites_index_background() {
 /// hold the `sites_index_build_single_flight()` permit (or otherwise be the
 /// sole builder) to avoid duplicate concurrent builds.
 pub(super) async fn build_sites_index_core() -> anyhow::Result<usize> {
-    type SitesIndexMaps = (
-        HashMap<i64, Vec<BangumiDataSiteEntry>>,
-        HashMap<i64, i64>,
-        HashMap<i64, i64>,
-    );
-
     let started_generation = bangumi_data_generation();
     bangumi_data_trace(&format!(
         "build_sites_index_core start generation={started_generation}"
@@ -82,54 +176,7 @@ pub(super) async fn build_sites_index_core() -> anyhow::Result<usize> {
                 "build_sites_index_core data loaded items={}",
                 data.items.len()
             ));
-            let mut by_bangumi: HashMap<i64, Vec<BangumiDataSiteEntry>> =
-                HashMap::with_capacity(data.items.len());
-            let mut by_mikan: HashMap<i64, i64> = HashMap::new();
-            let mut by_bangumi_to_mikan: HashMap<i64, i64> = HashMap::new();
-
-            for item in &data.items {
-                let entries: Vec<BangumiDataSiteEntry> = item
-                    .sites
-                    .iter()
-                    .filter_map(|s| {
-                        let meta = data.site_meta.get(&s.site)?;
-                        let url = s
-                            .url
-                            .clone()
-                            .filter(|u| !u.is_empty())
-                            .unwrap_or_else(|| meta.url_template.replace("{{id}}", &s.id));
-                        Some(BangumiDataSiteEntry {
-                            site: s.site.clone(),
-                            title: meta.title.clone(),
-                            url,
-                            kind: meta.kind.clone(),
-                            comment: s.comment.clone().filter(|c| !c.is_empty()),
-                        })
-                    })
-                    .collect();
-                if entries.is_empty() {
-                    continue;
-                }
-
-                let bgm_id = item
-                    .sites
-                    .iter()
-                    .find(|s| s.site == "bangumi")
-                    .and_then(|s| s.id.parse::<i64>().ok());
-                let mikan_id = item
-                    .sites
-                    .iter()
-                    .find(|s| s.site == "mikan")
-                    .and_then(|s| s.id.parse::<i64>().ok());
-
-                if let Some(bid) = bgm_id {
-                    by_bangumi.insert(bid, entries);
-                    if let Some(mid) = mikan_id {
-                        by_mikan.insert(mid, bid);
-                        by_bangumi_to_mikan.insert(bid, mid);
-                    }
-                }
-            }
+            let (by_bangumi, by_mikan, by_bangumi_to_mikan) = build_sites_index_maps(&data);
 
             bangumi_data_trace(&format!(
                 "build_sites_index_core maps built bangumi={} mikan={}",
@@ -140,12 +187,14 @@ pub(super) async fn build_sites_index_core() -> anyhow::Result<usize> {
         })
         .await??;
 
+    let mut slot = sites_index_slot().write().await;
     if bangumi_data_generation() != started_generation {
         anyhow::bail!("bangumi-data changed while building sites index; discarding stale index");
     }
 
     let count = by_bangumi.len();
-    *sites_index_slot().write().await = Some(Arc::new(SitesIndex {
+    *slot = Some(Arc::new(SitesIndex {
+        generation: started_generation,
         by_bangumi_id: by_bangumi,
         by_mikan_id: by_mikan,
         by_bangumi_to_mikan,
@@ -166,7 +215,9 @@ pub(super) async fn build_sites_index_singleflight() -> anyhow::Result<usize> {
     // a redundant rebuild when several callers queued up behind the first.
     {
         let guard = sites_index_slot().read().await;
-        if let Some(idx) = guard.as_ref() {
+        if let Some(idx) = guard.as_ref()
+            && idx.generation == bangumi_data_generation()
+        {
             return Ok(idx.by_bangumi_id.len());
         }
     }
@@ -185,6 +236,8 @@ pub(super) async fn build_sites_index_singleflight() -> anyhow::Result<usize> {
 // =====================================================================
 
 struct SitesIndex {
+    /// Parsed payload generation used to build this index.
+    generation: u64,
     /// Keyed by `bangumi.tv` subject id.
     by_bangumi_id: HashMap<i64, Vec<BangumiDataSiteEntry>>,
     /// Keyed by `mikan` id; lets mikan-origin entries resolve sites too.
@@ -222,7 +275,9 @@ pub(crate) async fn invalidate_sites_index() {
 pub(crate) async fn fetch_bangumi_data_sites(bangumi_id: i64) -> Vec<BangumiDataSiteEntry> {
     {
         let guard = sites_index_slot().read().await;
-        if let Some(idx) = guard.as_ref() {
+        if let Some(idx) = guard.as_ref()
+            && idx.generation == bangumi_data_generation()
+        {
             return idx
                 .by_bangumi_id
                 .get(&bangumi_id)
@@ -241,7 +296,9 @@ pub(crate) async fn fetch_bangumi_data_sites(bangumi_id: i64) -> Vec<BangumiData
 pub(crate) async fn fetch_bangumi_data_sites_by_mikan(mikan_id: i64) -> Vec<BangumiDataSiteEntry> {
     {
         let guard = sites_index_slot().read().await;
-        if let Some(idx) = guard.as_ref() {
+        if let Some(idx) = guard.as_ref()
+            && idx.generation == bangumi_data_generation()
+        {
             if let Some(bid) = idx.by_mikan_id.get(&mikan_id).copied() {
                 return idx.by_bangumi_id.get(&bid).cloned().unwrap_or_default();
             }
@@ -257,7 +314,9 @@ pub(crate) async fn fetch_bangumi_data_sites_by_mikan(mikan_id: i64) -> Vec<Bang
 pub(crate) async fn lookup_mikan_id(bangumi_id: i64) -> Option<i64> {
     {
         let guard = sites_index_slot().read().await;
-        if let Some(idx) = guard.as_ref() {
+        if let Some(idx) = guard.as_ref()
+            && idx.generation == bangumi_data_generation()
+        {
             return idx.by_bangumi_to_mikan.get(&bangumi_id).copied();
         }
     }
@@ -274,7 +333,9 @@ pub(crate) async fn lookup_mikan_id(bangumi_id: i64) -> Option<i64> {
 pub(super) async fn ensure_sites_index_built() {
     let already = {
         let guard = sites_index_slot().read().await;
-        guard.is_some()
+        guard
+            .as_ref()
+            .is_some_and(|index| index.generation == bangumi_data_generation())
     };
     if already {
         return;
@@ -287,5 +348,134 @@ pub(super) async fn ensure_sites_index_built() {
     match build_sites_index_singleflight().await {
         Ok(n) => log::info!("bangumi-data sites index built: {n} entries"),
         Err(e) => log::warn!("bangumi-data sites index build failed: {e:#}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::state::isolate_runtime_config;
+    use serde_json::json;
+
+    fn data_with_subject(id: i64, mikan_id: i64) -> Vec<u8> {
+        serde_json::to_vec(&json!({
+            "siteMeta": {
+                "bangumi": {
+                    "title": "Bangumi",
+                    "urlTemplate": "https://bangumi.tv/subject/{{id}}",
+                    "type": "info"
+                },
+                "mikan": {
+                    "title": "Mikan",
+                    "urlTemplate": "https://mikanani.me/Home/Bangumi/{{id}}",
+                    "type": "resource"
+                }
+            },
+            "items": [{
+                "title": format!("Subject {id}"),
+                "begin": "2025-04-01T00:00:00Z",
+                "sites": [
+                    {"site": "bangumi", "id": id.to_string()},
+                    {"site": "mikan", "id": mikan_id.to_string()}
+                ]
+            }]
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn site_map_merges_duplicate_subjects_and_resolves_relative_urls() {
+        let data: BangumiDataJson = serde_json::from_value(json!({
+            "siteMeta": {
+                "bangumi": {
+                    "title": "Bangumi",
+                    "urlTemplate": "https://bangumi.tv/subject/{{id}}",
+                    "type": "info"
+                },
+                "mikan": {
+                    "urlTemplate": "https://mikanani.me/Home/Bangumi/{{id}}"
+                },
+                "rss": {
+                    "title": "RSS",
+                    "urlTemplate": "https://feeds.example.test/show/{{id}}",
+                    "type": "onair"
+                },
+                "broken": {}
+            },
+            "items": [
+                {
+                    "title": "First",
+                    "begin": "2025-04-01T00:00:00Z",
+                    "sites": [
+                        {"site": "bangumi", "id": "1"},
+                        {"site": "mikan", "id": "10"},
+                        {"site": "rss", "id": "feed", "url": "/rss/1", "comment": " note "},
+                        {"site": "rss", "id": "feed", "url": "/rss/1"},
+                        {"site": "broken", "id": "x"},
+                        {"id": "missing-site"}
+                    ]
+                },
+                {
+                    "title": "Duplicate row",
+                    "begin": "2025-04-02T00:00:00Z",
+                    "sites": [
+                        {"site": "bangumi", "id": "1"},
+                        {"site": "rss", "id": "other", "url": "extra.xml"}
+                    ]
+                },
+                {
+                    "title": "Invalid identity",
+                    "begin": "2025-04-03T00:00:00Z",
+                    "sites": [{"site": "bangumi", "id": "0"}]
+                }
+            ]
+        }))
+        .unwrap();
+
+        let (by_bangumi, by_mikan, reverse) = build_sites_index_maps(&data);
+        assert_eq!(by_bangumi.len(), 1);
+        let entries = &by_bangumi[&1];
+        assert_eq!(entries.len(), 4);
+        assert!(entries.iter().any(|entry| {
+            entry.site == "rss"
+                && entry.url == "https://feeds.example.test/rss/1"
+                && entry.comment.as_deref() == Some("note")
+        }));
+        assert!(entries.iter().any(|entry| {
+            entry.site == "rss" && entry.url == "https://feeds.example.test/show/extra.xml"
+        }));
+        let mikan = entries.iter().find(|entry| entry.site == "mikan").unwrap();
+        assert_eq!(mikan.title, "mikan");
+        assert_eq!(mikan.kind, "");
+        assert_eq!(by_mikan.get(&10), Some(&1));
+        assert_eq!(reverse.get(&1), Some(&10));
+    }
+
+    #[tokio::test]
+    async fn concurrent_builds_share_one_index_and_invalidation_reloads_new_file() {
+        let _config = isolate_runtime_config();
+        let temp = tempfile::tempdir().unwrap();
+        crate::api::config::init_config(
+            temp.path().to_string_lossy().to_string(),
+            temp.path().to_string_lossy().to_string(),
+        );
+        let path = temp.path().join("bangumi-data.json");
+        super::super::bangumi_data_store::atomic_write_bytes(&path, &data_with_subject(1, 10))
+            .unwrap();
+        super::super::bangumi_data_store::invalidate_bangumi_data_cache();
+        invalidate_sites_index().await;
+
+        let (first, second) = tokio::join!(build_sites_index(), build_sites_index());
+        assert_eq!(first.unwrap(), 1);
+        assert_eq!(second.unwrap(), 1);
+        assert_eq!(lookup_mikan_id(1).await, Some(10));
+        assert_eq!(fetch_bangumi_data_sites_by_mikan(10).await.len(), 2);
+
+        super::super::bangumi_data_store::atomic_write_bytes(&path, &data_with_subject(2, 20))
+            .unwrap();
+        super::super::bangumi_data_store::invalidate_bangumi_data_cache();
+        assert_eq!(build_sites_index().await.unwrap(), 1);
+        assert!(fetch_bangumi_data_sites(1).await.is_empty());
+        assert_eq!(lookup_mikan_id(2).await, Some(20));
     }
 }

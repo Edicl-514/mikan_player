@@ -28,20 +28,24 @@ pub struct ArchiveQuarter {
 #[flutter_rust_bridge::frb(ignore)]
 pub(super) struct SeasonListResponse {
     #[allow(dead_code)]
+    #[serde(default)]
     pub(super) version: u64,
+    #[serde(default)]
     pub(super) items: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[flutter_rust_bridge::frb(ignore)]
 pub(super) struct ArchiveResponse {
+    #[serde(default)]
     pub(super) items: Vec<BgmlistItem>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 #[allow(dead_code)]
 #[flutter_rust_bridge::frb(ignore)]
 pub(super) struct BgmlistItem {
+    #[serde(default)]
     pub(super) title: String,
     #[serde(rename = "titleTranslate", default)]
     pub(super) title_translate: BgmlistTitleTranslate,
@@ -49,6 +53,7 @@ pub(super) struct BgmlistItem {
     pub(super) item_type: String,
     #[serde(rename = "officialSite", default)]
     pub(super) official_site: String,
+    #[serde(default)]
     pub(super) begin: String,
     #[serde(default)]
     pub(super) broadcast: String,
@@ -71,6 +76,7 @@ pub(super) struct BgmlistTitleTranslate {
 #[allow(dead_code)]
 #[flutter_rust_bridge::frb(ignore)]
 pub(super) struct BgmlistSite {
+    #[serde(default)]
     pub(super) site: String,
     #[serde(default)]
     pub(super) id: String,
@@ -90,9 +96,12 @@ pub(super) struct BgmlistSite {
 #[flutter_rust_bridge::frb(ignore)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct BangumiDataSiteMeta {
+    #[serde(default)]
     pub(super) title: String,
+    #[serde(default)]
     pub(super) url_template: String,
     #[serde(rename = "type")]
+    #[serde(default)]
     pub(super) kind: String,
     #[serde(default)]
     #[allow(dead_code)]
@@ -120,21 +129,6 @@ pub struct BangumiDataSiteEntry {
     pub kind: String,
     #[serde(default)]
     pub comment: Option<String>,
-}
-
-impl Default for BgmlistItem {
-    fn default() -> Self {
-        Self {
-            title: String::new(),
-            title_translate: BgmlistTitleTranslate::default(),
-            item_type: String::new(),
-            official_site: String::new(),
-            begin: String::new(),
-            broadcast: String::new(),
-            sites: Vec::new(),
-            id: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

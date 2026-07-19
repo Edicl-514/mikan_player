@@ -76,12 +76,11 @@ pub(super) fn last_failure_age_secs(cache_dir: &str) -> Option<u64> {
     let path = bangumi_data_failure_marker_path(cache_dir);
     let raw = std::fs::read_to_string(&path).ok()?;
     let epoch: u64 = raw.trim().parse().ok()?;
-    let elapsed = std::time::SystemTime::now()
+    let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .ok()?
-        .as_secs()
-        .saturating_sub(epoch);
-    Some(elapsed)
+        .as_secs();
+    (epoch <= now).then(|| now - epoch)
 }
 
 /// How long after a failed warmup we will keep refusing to retry. Short
@@ -99,7 +98,7 @@ pub(super) const BANGUMI_DATA_RETRY_AFTER_SECS: u64 = 60 * 60;
 pub(super) fn verify_bangumi_data_payload(bytes: &[u8]) -> anyhow::Result<()> {
     let value: serde_json::Value = serde_json::from_slice(bytes)
         .map_err(|e| anyhow::anyhow!("bangumi-data payload is not valid JSON: {}", e))?;
-    if !value.get("items").map_or(false, |v| v.is_array()) {
+    if !value.get("items").is_some_and(|v| v.is_array()) {
         anyhow::bail!("bangumi-data payload JSON is missing a top-level \"items\" array");
     }
     Ok(())
@@ -199,10 +198,13 @@ pub(super) fn atomic_write_bytes(path: &Path, bytes: &[u8]) -> anyhow::Result<()
     let file_name = path
         .file_name()
         .ok_or_else(|| anyhow::anyhow!("cache path has no file name"))?;
+    static ATOMIC_WRITE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    let sequence = ATOMIC_WRITE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let tmp_path = path.with_file_name(format!(
-        "{}.tmp.{}",
+        "{}.tmp.{}.{}",
         file_name.to_string_lossy(),
-        std::process::id()
+        std::process::id(),
+        sequence
     ));
 
     {
@@ -214,39 +216,18 @@ pub(super) fn atomic_write_bytes(path: &Path, bytes: &[u8]) -> anyhow::Result<()
         f.write_all(bytes)?;
         f.sync_all()?;
     }
-    // On Windows, std::fs::rename fails if the destination exists, so
-    // explicitly replace. POSIX rename(2) is atomic and overwrites.
-    replace_atomic(&tmp_path, path)?;
+    // Replace through the platform helper. It must either complete atomically
+    // or leave the previous destination untouched.
+    let replace_result = replace_atomic(&tmp_path, path);
     let _ = std::fs::remove_file(&tmp_path);
-    Ok(())
+    replace_result
 }
 
-#[cfg(unix)]
 pub(super) fn replace_atomic(src: &Path, dst: &Path) -> anyhow::Result<()> {
+    // Do not fall back to copy+delete: readers could observe a partially copied
+    // cache. Returning the rename error preserves the previous destination.
     std::fs::rename(src, dst)?;
     Ok(())
-}
-
-#[cfg(windows)]
-pub(super) fn replace_atomic(src: &Path, dst: &Path) -> anyhow::Result<()> {
-    // Rust's std::fs::rename on Windows is implemented via MoveFileExW with
-    // MOVEFILE_REPLACE_EXISTING, so it is atomic and overwrites the
-    // destination. If that ever changes or fails, fall back to a manual
-    // copy-then-delete (still better than a half-written cache file).
-    match std::fs::rename(src, dst) {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            log::warn!(
-                "MoveFileEx failed for {} -> {} ({}); falling back to copy+delete",
-                src.display(),
-                dst.display(),
-                e
-            );
-            std::fs::copy(src, dst)?;
-            let _ = std::fs::remove_file(src);
-            Ok(())
-        }
-    }
 }
 
 pub(super) fn load_data_json_and_filter(
@@ -254,10 +235,8 @@ pub(super) fn load_data_json_and_filter(
     year_quarter: &str,
 ) -> Vec<AnimeInfo> {
     let items = filter_items_by_quarter(&data.items, year_quarter);
-    items
-        .iter()
-        .filter_map(|item| bgmlist_item_to_anime_info(item))
-        .collect()
+    let filtered: Vec<BgmlistItem> = items.into_iter().cloned().collect();
+    super::schedule_api::normalize_schedule_items(&filtered, None)
 }
 
 /// Read and parse the cached `bangumi-data.json` via `memmap2`. The 7 MB file
@@ -303,10 +282,11 @@ pub(super) fn bangumi_data_generation() -> u64 {
 /// Drop the cached parsed payload. Called whenever `bangumi-data.json`
 /// is replaced on disk so the next call reparses the new file.
 pub(crate) fn invalidate_bangumi_data_cache() {
-    if let Ok(mut guard) = bangumi_data_slot().write() {
-        *guard = None;
-    }
     BANGUMI_DATA_GENERATION.fetch_add(1, Ordering::SeqCst);
+    let mut guard = bangumi_data_slot()
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    *guard = None;
 }
 
 /// Return a clone of the cached parsed payload, parsing + caching the
@@ -320,27 +300,37 @@ pub(crate) fn invalidate_bangumi_data_cache() {
 /// async contexts should wrap this in `tokio::task::spawn_blocking`
 /// when they expect the cold path to be taken.
 pub(super) fn get_or_load_bangumi_data_blocking() -> anyhow::Result<Arc<BangumiDataJson>> {
-    {
-        let guard = bangumi_data_slot().read().unwrap();
-        if let Some(arc) = guard.as_ref() {
-            return Ok(Arc::clone(arc));
+    loop {
+        {
+            let guard = bangumi_data_slot()
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if let Some(arc) = guard.as_ref() {
+                return Ok(Arc::clone(arc));
+            }
         }
+        let started_generation = bangumi_data_generation();
+        let cache_dir = crate::api::config::get_cache_dir();
+        let path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
+        if !path.exists() {
+            anyhow::bail!("bangumi-data.json not cached at {}", path.display());
+        }
+        let arc = Arc::new(read_bangumi_data_json_mmap(&path)?);
+        let mut guard = bangumi_data_slot()
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if bangumi_data_generation() != started_generation {
+            drop(guard);
+            continue;
+        }
+        // Another caller may have raced us to install the same generation;
+        // prefer the existing value so parallel cold reads converge on one Arc.
+        if let Some(existing) = guard.as_ref() {
+            return Ok(Arc::clone(existing));
+        }
+        *guard = Some(Arc::clone(&arc));
+        return Ok(arc);
     }
-    let cache_dir = crate::api::config::get_cache_dir();
-    let path = std::path::Path::new(&cache_dir).join("bangumi-data.json");
-    if !path.exists() {
-        anyhow::bail!("bangumi-data.json not cached at {}", path.display());
-    }
-    let data = read_bangumi_data_json_mmap(&path)?;
-    let arc = Arc::new(data);
-    let mut guard = bangumi_data_slot().write().unwrap();
-    // Another caller may have raced us to install the value; prefer the
-    // existing one so two parallel parses can't fight.
-    if let Some(existing) = guard.as_ref() {
-        return Ok(Arc::clone(existing));
-    }
-    *guard = Some(Arc::clone(&arc));
-    Ok(arc)
 }
 
 // =====================================================================
@@ -505,4 +495,170 @@ pub(crate) async fn ensure_bangumi_data_cache(max_age_secs: u64) -> anyhow::Resu
     // Keep startup warmup focused on refreshing the JSON file. Avoid building
     // the sites index here; it can be rebuilt lazily by details-page lookups.
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::state::isolate_runtime_config;
+    use serde_json::json;
+    use std::sync::{Arc, Barrier};
+
+    fn payload(title: &str) -> Vec<u8> {
+        serde_json::to_vec(&json!({
+            "siteMeta": {},
+            "items": [{
+                "title": title,
+                "begin": "2025-04-01T00:00:00Z"
+            }]
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn payload_validation_rejects_truncated_and_wrong_shape_json() {
+        verify_bangumi_data_payload(&payload("valid")).unwrap();
+        assert!(verify_bangumi_data_payload(b"{").is_err());
+        assert!(verify_bangumi_data_payload(br#"{"items":{}}"#).is_err());
+        assert!(verify_bangumi_data_payload(br#"[]"#).is_err());
+    }
+
+    #[test]
+    fn version_and_failure_markers_tolerate_empty_corrupt_and_future_values() {
+        let temp = tempfile::tempdir().unwrap();
+        let cache_dir = temp.path().to_string_lossy();
+
+        write_version_marker(&cache_dir, " 0.3.12 \n");
+        assert_eq!(read_version_marker(&cache_dir).as_deref(), Some("0.3.12"));
+        std::fs::write(bangumi_data_version_marker_path(&cache_dir), "  ").unwrap();
+        assert!(read_version_marker(&cache_dir).is_none());
+
+        std::fs::write(bangumi_data_failure_marker_path(&cache_dir), "not-a-time").unwrap();
+        assert!(last_failure_age_secs(&cache_dir).is_none());
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        std::fs::write(
+            bangumi_data_failure_marker_path(&cache_dir),
+            (now + 3600).to_string(),
+        )
+        .unwrap();
+        assert!(last_failure_age_secs(&cache_dir).is_none());
+        write_failure_marker(&cache_dir);
+        assert!(last_failure_age_secs(&cache_dir).is_some_and(|age| age <= 1));
+        clear_failure_marker(&cache_dir);
+        assert!(!bangumi_data_failure_marker_path(&cache_dir).exists());
+    }
+
+    #[test]
+    fn atomic_writes_replace_existing_files_and_leave_no_partial_temp_files() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("nested").join("cache.bin");
+        atomic_write_bytes(&path, b"old").unwrap();
+
+        let payloads: Vec<Vec<u8>> = (0..12)
+            .map(|index| format!("complete-payload-{index}").into_bytes())
+            .collect();
+        let barrier = Arc::new(Barrier::new(payloads.len()));
+        let handles: Vec<_> = payloads
+            .clone()
+            .into_iter()
+            .map(|bytes| {
+                let path = path.clone();
+                let barrier = Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    atomic_write_bytes(&path, &bytes)
+                })
+            })
+            .collect();
+        for handle in handles {
+            handle.join().unwrap().unwrap();
+        }
+
+        let final_bytes = std::fs::read(&path).unwrap();
+        assert!(payloads.contains(&final_bytes));
+        let leftovers: Vec<_> = std::fs::read_dir(path.parent().unwrap())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_name().to_string_lossy().contains(".tmp."))
+            .collect();
+        assert!(leftovers.is_empty(), "temporary files were not cleaned up");
+    }
+
+    #[test]
+    fn concurrent_readers_share_cached_arc_and_invalidation_loads_replacement() {
+        let _config = isolate_runtime_config();
+        let temp = tempfile::tempdir().unwrap();
+        crate::api::config::init_config(
+            temp.path().to_string_lossy().to_string(),
+            temp.path().to_string_lossy().to_string(),
+        );
+        let path = temp.path().join("bangumi-data.json");
+        atomic_write_bytes(&path, &payload("first")).unwrap();
+        invalidate_bangumi_data_cache();
+
+        let first_handles: Vec<_> = (0..8)
+            .map(|_| std::thread::spawn(get_or_load_bangumi_data_blocking))
+            .collect();
+        let first: Vec<_> = first_handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap().unwrap())
+            .collect();
+        assert!(first.iter().all(|data| Arc::ptr_eq(data, &first[0])));
+        assert_eq!(first[0].items[0].title, "first");
+
+        atomic_write_bytes(&path, &payload("second")).unwrap();
+        invalidate_bangumi_data_cache();
+        let second_handles: Vec<_> = (0..8)
+            .map(|_| std::thread::spawn(get_or_load_bangumi_data_blocking))
+            .collect();
+        let second: Vec<_> = second_handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap().unwrap())
+            .collect();
+        assert!(second.iter().all(|data| Arc::ptr_eq(data, &second[0])));
+        assert!(!Arc::ptr_eq(&first[0], &second[0]));
+        assert_eq!(second[0].items[0].title, "second");
+    }
+
+    #[test]
+    fn corrupt_cached_file_errors_without_poisoning_later_reload_or_status() {
+        let _config = isolate_runtime_config();
+        let temp = tempfile::tempdir().unwrap();
+        crate::api::config::init_config(
+            temp.path().to_string_lossy().to_string(),
+            temp.path().to_string_lossy().to_string(),
+        );
+        let path = temp.path().join("bangumi-data.json");
+        std::fs::write(&path, b"broken").unwrap();
+        write_version_marker(temp.path().to_string_lossy().as_ref(), "0.3.99");
+        invalidate_bangumi_data_cache();
+
+        assert!(get_or_load_bangumi_data_blocking().is_err());
+        let status = get_bangumi_data_cache_status();
+        assert!(status.cached);
+        assert_eq!(status.file_size, 6);
+        assert_eq!(status.version, "0.3.99");
+
+        atomic_write_bytes(&path, &payload("recovered")).unwrap();
+        invalidate_bangumi_data_cache();
+        assert_eq!(
+            get_or_load_bangumi_data_blocking().unwrap().items[0].title,
+            "recovered"
+        );
+    }
+
+    #[test]
+    fn version_is_extracted_only_from_resolved_package_urls() {
+        assert_eq!(
+            extract_bangumi_data_version_from_url(
+                "https://cdn.example/npm/bangumi-data@0.3.27/dist/data.json"
+            )
+            .as_deref(),
+            Some("0.3.27")
+        );
+        assert!(extract_bangumi_data_version_from_url("https://example.test/data.json").is_none());
+    }
 }

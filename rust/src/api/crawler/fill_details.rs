@@ -1,5 +1,47 @@
 use super::types::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+
+fn positive_subject_id(raw: &str) -> Option<i64> {
+    raw.trim().parse::<i64>().ok().filter(|id| *id > 0)
+}
+
+fn valid_score(value: f64) -> bool {
+    value.is_finite() && (0.0..=10.0).contains(&value)
+}
+
+fn valid_rank(value: i64) -> Option<i32> {
+    i32::try_from(value).ok().filter(|rank| *rank > 0)
+}
+
+fn normalized_tags(json: &serde_json::Value) -> Vec<String> {
+    let mut tags: Vec<String> = json["meta_tags"]
+        .as_array()
+        .map(|meta_tags| {
+            meta_tags
+                .iter()
+                .filter_map(|tag| tag.as_str())
+                .map(str::trim)
+                .filter(|tag| !tag.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_else(|| {
+            json["tags"]
+                .as_array()
+                .map(|tags| {
+                    tags.iter()
+                        .filter_map(|tag| tag["name"].as_str())
+                        .map(str::trim)
+                        .filter(|tag| !tag.is_empty())
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default()
+        });
+    tags.sort();
+    tags.dedup();
+    tags
+}
 
 pub(crate) async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result<Vec<AnimeInfo>> {
     let mode = crate::api::config::get_bangumi_request_mode();
@@ -7,12 +49,12 @@ pub(crate) async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result
 
     let graphql_details = match mode.as_str() {
         "legacy" => std::collections::HashMap::new(),
-        "hybrid" | "modern" | _ => {
+        _ => {
             let mut seen_ids = HashSet::new();
             let ids: Vec<i64> = results
                 .iter()
                 .filter_map(|anime| anime.bangumi_id.as_deref())
-                .filter_map(|id| id.parse::<i64>().ok())
+                .filter_map(positive_subject_id)
                 .filter(|id| seen_ids.insert(*id))
                 .collect();
 
@@ -26,45 +68,47 @@ pub(crate) async fn fill_anime_details(animes: Vec<AnimeInfo>) -> anyhow::Result
     };
 
     let is_modern = mode == "modern";
-    let mut fallback_tasks: Vec<
-        tokio::task::JoinHandle<anyhow::Result<(usize, serde_json::Value)>>,
-    > = Vec::new();
+    let mut fallback_indices: HashMap<i64, Vec<usize>> = HashMap::new();
 
     for (index, anime) in results.iter_mut().enumerate() {
-        let Some(id) = anime.bangumi_id.clone() else {
+        let Some(id) = anime.bangumi_id.as_deref().and_then(positive_subject_id) else {
             continue;
         };
 
-        let used_graphql = id
-            .parse::<i64>()
-            .ok()
-            .and_then(|parsed_id| graphql_details.get(&parsed_id))
+        let used_graphql = graphql_details
+            .get(&id)
             .map(|json| {
                 apply_subject_details(anime, json);
             })
             .is_some();
 
         if !used_graphql {
-            if is_modern {
-                fallback_tasks.push(tokio::spawn(async move {
-                    let p1_json =
-                        fetch_subject_details_next_p1_json(id.parse::<i64>().unwrap_or(0)).await?;
-                    Ok((index, normalize_next_subject_json(&p1_json)))
-                }));
-            } else {
-                fallback_tasks.push(tokio::spawn(async move {
-                    let json = fetch_subject_details_rest_json(&id).await?;
-                    Ok((index, json))
-                }));
-            }
+            fallback_indices.entry(id).or_default().push(index);
         }
     }
 
+    let fallback_tasks: Vec<_> = fallback_indices
+        .into_iter()
+        .map(|(id, indices)| {
+            tokio::spawn(async move {
+                let json = if is_modern {
+                    let p1_json = fetch_subject_details_next_p1_json(id).await?;
+                    normalize_next_subject_json(&p1_json)
+                } else {
+                    fetch_subject_details_rest_json(&id.to_string()).await?
+                };
+                Ok::<_, anyhow::Error>((indices, json))
+            })
+        })
+        .collect();
+
     for task in fallback_tasks {
         match task.await {
-            Ok(Ok((index, json))) => {
-                if let Some(anime) = results.get_mut(index) {
-                    apply_subject_details(anime, &json);
+            Ok(Ok((indices, json))) => {
+                for index in indices {
+                    if let Some(anime) = results.get_mut(index) {
+                        apply_subject_details(anime, &json);
+                    }
                 }
             }
             Ok(Err(err)) => {
@@ -136,10 +180,10 @@ pub(super) fn normalize_next_subject_json(subject: &serde_json::Value) -> serde_
             .map(|item| {
                 let mut normalized_item = item.as_object().cloned().unwrap_or_default();
 
-                if normalized_item.get("value").is_none() {
-                    if let Some(values) = normalized_item.get("values").cloned() {
-                        normalized_item.insert("value".to_string(), values);
-                    }
+                if normalized_item.get("value").is_none()
+                    && let Some(values) = normalized_item.get("values").cloned()
+                {
+                    normalized_item.insert("value".to_string(), values);
                 }
 
                 serde_json::Value::Object(normalized_item)
@@ -203,12 +247,12 @@ pub(super) fn normalize_next_subject_json(subject: &serde_json::Value) -> serde_
         }
     }
 
-    if let Some(rating) = normalized.get_mut("rating").and_then(|v| v.as_object_mut()) {
-        if let Some(score_str) = rating.get("score").and_then(|v| v.as_str()) {
-            if let Ok(score) = score_str.parse::<f64>() {
-                rating.insert("score".to_string(), serde_json::json!(score));
-            }
-        }
+    if let Some(rating) = normalized.get_mut("rating").and_then(|v| v.as_object_mut())
+        && let Some(score_str) = rating.get("score").and_then(|v| v.as_str())
+        && let Ok(score) = score_str.parse::<f64>()
+        && valid_score(score)
+    {
+        rating.insert("score".to_string(), serde_json::json!(score));
     }
 
     let total_episodes = normalized
@@ -223,47 +267,49 @@ pub(super) fn normalize_next_subject_json(subject: &serde_json::Value) -> serde_
 pub(super) fn apply_subject_details(anime: &mut AnimeInfo, json: &serde_json::Value) {
     let image_url = json["images"]["large"]
         .as_str()
+        .map(str::trim)
         .filter(|url| !url.is_empty())
         .or_else(|| {
             json["images"]["common"]
                 .as_str()
+                .map(str::trim)
                 .filter(|url| !url.is_empty())
         });
-    if let Some(image_url) = image_url {
+    let cover_is_missing = anime
+        .cover_url
+        .as_deref()
+        .map(str::trim)
+        .is_none_or(str::is_empty);
+    if cover_is_missing && let Some(image_url) = image_url {
         anime.cover_url = Some(crate::api::config::rewrite_bangumi_url_if_proxied(
             image_url,
         ));
     }
 
-    if let Some(score) = json["rating"]["score"].as_f64() {
+    if !anime.score.is_some_and(valid_score)
+        && let Some(score) = json["rating"]["score"]
+            .as_f64()
+            .filter(|score| valid_score(*score))
+    {
         anime.score = Some(score);
     }
-    if let Some(rank) = json["rating"]["rank"].as_i64() {
-        anime.rank = Some(rank as i32);
+    if anime.rank.is_none_or(|rank| rank <= 0)
+        && let Some(rank) = json["rating"]["rank"].as_i64().and_then(valid_rank)
+    {
+        anime.rank = Some(rank);
     }
 
-    let mut tags: Vec<String> = json["meta_tags"]
-        .as_array()
-        .map(|meta_tags| {
-            meta_tags
-                .iter()
-                .filter_map(|tag| tag.as_str().map(|value| value.to_string()))
-                .collect()
-        })
-        .unwrap_or_else(|| {
-            json["tags"]
-                .as_array()
-                .map(|tags| {
-                    tags.iter()
-                        .filter_map(|tag| tag["name"].as_str().map(|value| value.to_string()))
-                        .collect()
-                })
-                .unwrap_or_default()
-        });
-    tags.sort();
-    tags.dedup();
-    anime.tags = tags;
-    anime.full_json = Some(json.to_string());
+    if !anime.tags.iter().any(|tag| !tag.trim().is_empty()) {
+        anime.tags = normalized_tags(json);
+    }
+    if anime
+        .full_json
+        .as_deref()
+        .map(str::trim)
+        .is_none_or(str::is_empty)
+    {
+        anime.full_json = Some(json.to_string());
+    }
 }
 
 pub(crate) async fn fetch_light_subject_details(subject_id: i64) -> anyhow::Result<AnimeInfo> {
@@ -371,29 +417,12 @@ pub(super) fn build_light_subject_from_json(
                 .as_str()
                 .filter(|url| !url.is_empty())
         })
-        .map(|url| crate::api::config::rewrite_bangumi_url_if_proxied(url));
-    let score = json["rating"]["score"].as_f64();
-    let rank = json["rating"]["rank"].as_i64().map(|value| value as i32);
-
-    let mut tags: Vec<String> = json["meta_tags"]
-        .as_array()
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        })
-        .unwrap_or_else(|| {
-            json["tags"]
-                .as_array()
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|tag| tag["name"].as_str().map(String::from))
-                        .collect()
-                })
-                .unwrap_or_default()
-        });
-    tags.sort();
-    tags.dedup();
+        .map(crate::api::config::rewrite_bangumi_url_if_proxied);
+    let score = json["rating"]["score"]
+        .as_f64()
+        .filter(|score| valid_score(*score));
+    let rank = json["rating"]["rank"].as_i64().and_then(valid_rank);
+    let tags = normalized_tags(json);
 
     AnimeInfo {
         title,
@@ -428,20 +457,26 @@ pub(super) async fn fetch_extra_bangumi_subjects(
     year_quarter: &str,
     existing_ids: &HashSet<String>,
 ) -> anyhow::Result<Vec<AnimeInfo>> {
-    // Parse year and quarter
-    if year_quarter.len() < 6 {
+    let Some(captures) = regex::Regex::new(r"^(\d{4})q([1-4])$")
+        .ok()
+        .and_then(|re| re.captures(year_quarter))
+    else {
         return Ok(vec![]);
-    }
-    let year_str = &year_quarter[..4];
-    let q_str = &year_quarter[4..];
-    let year: i32 = year_str.parse().unwrap_or(2025);
+    };
+    let Some(year) = captures
+        .get(1)
+        .and_then(|value| value.as_str().parse::<i32>().ok())
+    else {
+        return Ok(vec![]);
+    };
+    let q_str = captures.get(2).map(|value| value.as_str()).unwrap_or("");
 
     // Determine date range (Next quarter start is exclusive bound)
     let (start_date, end_date) = match q_str {
-        "q1" => (format!("{}-01-01", year), format!("{}-04-01", year)),
-        "q2" => (format!("{}-04-01", year), format!("{}-07-01", year)),
-        "q3" => (format!("{}-07-01", year), format!("{}-10-01", year)),
-        "q4" => (format!("{}-10-01", year), format!("{}-01-01", year + 1)),
+        "1" => (format!("{}-01-01", year), format!("{}-04-01", year)),
+        "2" => (format!("{}-04-01", year), format!("{}-07-01", year)),
+        "3" => (format!("{}-07-01", year), format!("{}-10-01", year)),
+        "4" => (format!("{}-10-01", year), format!("{}-01-01", year + 1)),
         _ => return Ok(vec![]),
     };
 
@@ -524,83 +559,85 @@ pub(super) async fn fetch_extra_bangumi_subjects(
     }
 
     let mut new_animes = Vec::new();
+    let mut seen_ids: HashSet<i64> = existing_ids
+        .iter()
+        .filter_map(|id| positive_subject_id(id))
+        .collect();
 
     for task in tasks {
-        if let Ok(Some(json)) = task.await {
-            if let Some(data) = json["data"].as_array() {
-                for item in data {
-                    // Normalize ID for deduplication
-                    let id_str = if let Some(n) = item["id"].as_u64() {
-                        n.to_string()
-                    } else if let Some(s) = item["id"].as_str() {
-                        s.to_string()
-                    } else {
+        if let Ok(Some(json)) = task.await
+            && let Some(data) = json["data"].as_array()
+        {
+            for item in data {
+                // Normalize ID for deduplication
+                let id = if let Some(n) = item["id"].as_i64().filter(|id| *id > 0) {
+                    n
+                } else if let Some(s) = item["id"].as_str() {
+                    let Some(id) = positive_subject_id(s) else {
                         continue;
                     };
-
-                    if existing_ids.contains(&id_str) {
-                        continue;
-                    }
-
-                    // Map to AnimeInfo
-                    let name = item["name"].as_str().unwrap_or("");
-                    let name_cn = item["name_cn"].as_str().unwrap_or("");
-                    let title = if !name_cn.is_empty() {
-                        name_cn.to_string()
-                    } else {
-                        name.to_string()
-                    };
-
-                    if title.is_empty() {
-                        continue;
-                    }
-
-                    let date = item["date"].as_str().unwrap_or("").to_string();
-                    let cover = item["images"]["large"]
-                        .as_str()
-                        .map(|s| crate::api::config::rewrite_bangumi_url_if_proxied(s));
-
-                    let score = item["score"]
-                        .as_f64()
-                        .or_else(|| item["rating"]["score"].as_f64());
-
-                    let rank = item["rank"]
-                        .as_i64()
-                        .or_else(|| item["rating"]["rank"].as_i64())
-                        .map(|r| r as i32);
-
-                    let anime = AnimeInfo {
-                        title: title.clone(),
-                        sub_title: if name_cn.is_empty() {
-                            None
-                        } else {
-                            Some(name.to_string())
-                        },
-                        bangumi_id: Some(id_str.clone()),
-                        mikan_id: None,
-                        cover_url: cover,
-                        site_url: None,
-                        broadcast_day: None, // Will show in "Other"
-                        broadcast_time: if date.is_empty() { None } else { Some(date) },
-                        score,
-                        rank,
-                        tags: item["meta_tags"]
-                            .as_array()
-                            .map(|arr| {
-                                arr.iter()
-                                    .filter_map(|v| v.as_str().map(String::from))
-                                    .collect()
-                            })
-                            .unwrap_or_default(),
-                        full_json: Some(item.to_string()),
-                    };
-
-                    // Final check to avoid dupes within the search results themselves (unlikely with pagination but distinct IDs possible?)
-                    // The set check above handles cross-list dupes.
-                    // To handle within-list helper dupes (if any), we could maintain a local set, but pagination shouldn't overlap.
-
-                    new_animes.push(anime);
+                    id
+                } else {
+                    continue;
+                };
+                if seen_ids.contains(&id) {
+                    continue;
                 }
+                let id_str = id.to_string();
+
+                // Map to AnimeInfo
+                let name = item["name"].as_str().unwrap_or("").trim();
+                let name_cn = item["name_cn"].as_str().unwrap_or("").trim();
+                let title = if !name_cn.is_empty() {
+                    name_cn.to_string()
+                } else {
+                    name.to_string()
+                };
+
+                if title.is_empty() {
+                    continue;
+                }
+                seen_ids.insert(id);
+
+                let date = item["date"].as_str().unwrap_or("").trim().to_string();
+                let cover = item["images"]["large"]
+                    .as_str()
+                    .map(crate::api::config::rewrite_bangumi_url_if_proxied);
+
+                let score = item["score"]
+                    .as_f64()
+                    .or_else(|| item["rating"]["score"].as_f64())
+                    .filter(|score| valid_score(*score));
+
+                let rank = item["rank"]
+                    .as_i64()
+                    .or_else(|| item["rating"]["rank"].as_i64())
+                    .and_then(valid_rank);
+
+                let anime = AnimeInfo {
+                    title: title.clone(),
+                    sub_title: if name_cn.is_empty() {
+                        None
+                    } else {
+                        (!name.is_empty()).then(|| name.to_string())
+                    },
+                    bangumi_id: Some(id_str.clone()),
+                    mikan_id: None,
+                    cover_url: cover,
+                    site_url: None,
+                    broadcast_day: None, // Will show in "Other"
+                    broadcast_time: if date.is_empty() { None } else { Some(date) },
+                    score,
+                    rank,
+                    tags: normalized_tags(item),
+                    full_json: Some(item.to_string()),
+                };
+
+                // Final check to avoid dupes within the search results themselves (unlikely with pagination but distinct IDs possible?)
+                // The set check above handles cross-list dupes.
+                // To handle within-list helper dupes (if any), we could maintain a local set, but pagination shouldn't overlap.
+
+                new_animes.push(anime);
             }
         }
     }
@@ -610,4 +647,172 @@ pub(super) async fn fetch_extra_bangumi_subjects(
     // Since we set `broadcast_time` to `date`, they will be sorted by date in the UI.
 
     Ok(new_animes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_support::http_server::{TestResponse, TestRoute, TestServer};
+    use crate::test_support::state::isolate_runtime_config;
+    use axum::http::{Method, StatusCode};
+    use serde_json::json;
+
+    fn anime(title: &str, bangumi_id: Option<&str>) -> AnimeInfo {
+        AnimeInfo {
+            title: title.to_string(),
+            sub_title: None,
+            bangumi_id: bangumi_id.map(str::to_string),
+            mikan_id: None,
+            cover_url: None,
+            site_url: None,
+            broadcast_day: None,
+            broadcast_time: None,
+            score: None,
+            rank: None,
+            tags: Vec::new(),
+            full_json: None,
+        }
+    }
+
+    fn point_bangumi_at(base_url: &str, mode: &str) {
+        let mut config = crate::api::config::CONFIG.write().unwrap();
+        config.bangumi_url = base_url.to_string();
+        config.bangumi_api_url = base_url.to_string();
+        config.bangumi_next_url = base_url.to_string();
+        config.bangumi_request_mode = mode.to_string();
+        config.bangumi_use_ech = false;
+        config.bangumi_use_reverse_proxy = false;
+    }
+
+    #[test]
+    fn apply_details_fills_only_missing_or_invalid_fields() {
+        let details = json!({
+            "images": {"large": "https://images.test/new.jpg"},
+            "rating": {"score": 8.5, "rank": 12},
+            "meta_tags": ["B", "A", "A", " "],
+            "name": "new payload"
+        });
+        let mut existing = anime("Existing", Some("1"));
+        existing.cover_url = Some("https://images.test/existing.jpg".to_string());
+        existing.score = Some(9.0);
+        existing.rank = Some(3);
+        existing.tags = vec!["Existing tag".to_string()];
+        existing.full_json = Some("existing-json".to_string());
+        apply_subject_details(&mut existing, &details);
+
+        assert_eq!(
+            existing.cover_url.as_deref(),
+            Some("https://images.test/existing.jpg")
+        );
+        assert_eq!(existing.score, Some(9.0));
+        assert_eq!(existing.rank, Some(3));
+        assert_eq!(existing.tags, ["Existing tag"]);
+        assert_eq!(existing.full_json.as_deref(), Some("existing-json"));
+
+        let mut missing = anime("Missing", Some("2"));
+        missing.cover_url = Some(" ".to_string());
+        missing.score = Some(f64::NAN);
+        missing.rank = Some(-1);
+        missing.full_json = Some(" ".to_string());
+        apply_subject_details(&mut missing, &details);
+        assert_eq!(
+            missing.cover_url.as_deref(),
+            Some("https://images.test/new.jpg")
+        );
+        assert_eq!(missing.score, Some(8.5));
+        assert_eq!(missing.rank, Some(12));
+        assert_eq!(missing.tags, ["A", "B"]);
+        let expected_json = details.to_string();
+        assert_eq!(missing.full_json.as_deref(), Some(expected_json.as_str()));
+    }
+
+    #[test]
+    fn detail_normalization_rejects_non_finite_scores_and_rank_overflow() {
+        let next = normalize_next_subject_json(&json!({
+            "rating": {"score": "NaN", "rank": i64::MAX},
+            "images": {}
+        }));
+        assert_eq!(next["rating"]["score"], "NaN");
+
+        let built = build_light_subject_from_json(7, &next);
+        assert!(built.score.is_none());
+        assert!(built.rank.is_none());
+
+        let mut target = anime("Target", Some("7"));
+        apply_subject_details(
+            &mut target,
+            &json!({"rating": {"score": 11.0, "rank": i64::MAX}}),
+        );
+        assert!(target.score.is_none());
+        assert!(target.rank.is_none());
+    }
+
+    #[tokio::test]
+    async fn partial_fallback_failure_preserves_order_and_deduplicates_requests() {
+        let _config = isolate_runtime_config();
+        let server = TestServer::spawn([
+            TestRoute::get(
+                "/v0/subjects/1",
+                TestResponse::ok(
+                    r#"{"images":{"large":"https://images.test/1.jpg"},"rating":{"score":8.5,"rank":12},"meta_tags":["B","A"]}"#,
+                ),
+            ),
+            TestRoute::get(
+                "/v0/subjects/2",
+                TestResponse::new(StatusCode::NOT_FOUND, "missing"),
+            ),
+        ])
+        .await;
+        point_bangumi_at(&server.base_url(), "legacy");
+
+        let first = anime("First", Some("1"));
+        let mut failed = anime("Failed", Some("2"));
+        failed.cover_url = Some("https://images.test/keep.jpg".to_string());
+        let mut duplicate = anime("Duplicate", Some("1"));
+        duplicate.score = Some(9.5);
+        duplicate.tags = vec!["keep".to_string()];
+        let invalid = anime("Invalid", Some("not-an-id"));
+
+        let result = fill_anime_details(vec![first, failed, duplicate, invalid])
+            .await
+            .unwrap();
+        assert_eq!(
+            result
+                .iter()
+                .map(|anime| anime.title.as_str())
+                .collect::<Vec<_>>(),
+            ["First", "Failed", "Duplicate", "Invalid"]
+        );
+        assert_eq!(
+            result[0].cover_url.as_deref(),
+            Some("https://images.test/1.jpg")
+        );
+        assert_eq!(result[0].tags, ["A", "B"]);
+        assert_eq!(
+            result[1].cover_url.as_deref(),
+            Some("https://images.test/keep.jpg")
+        );
+        assert_eq!(result[2].score, Some(9.5));
+        assert_eq!(result[2].tags, ["keep"]);
+        assert_eq!(result[2].rank, Some(12));
+        assert!(result[3].full_json.is_none());
+        assert_eq!(server.request_count(Method::GET, "/v0/subjects/1"), 1);
+        assert_eq!(server.request_count(Method::GET, "/v0/subjects/2"), 1);
+        assert_eq!(server.request_count(Method::GET, "/v0/subjects/0"), 0);
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn invalid_unicode_quarter_returns_empty_without_panicking_or_network() {
+        let result = fetch_extra_bangumi_subjects("测试季度", &HashSet::new())
+            .await
+            .unwrap();
+        assert!(result.is_empty());
+        assert!(
+            fetch_extra_bangumi_subjects("2025q9", &HashSet::new())
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
 }
