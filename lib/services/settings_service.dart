@@ -27,6 +27,19 @@ class SettingsService extends ChangeNotifier {
   static const String _useMaterial3ColorKey = 'use_material3_color';
   static const String _pureBackgroundKey = 'pure_background';
 
+  /// Restores in-memory defaults without touching SharedPreferences.
+  ///
+  /// Tests must still call [resetSharedPreferences] (or equivalent) so the
+  /// next [init] does not re-read leftover keys from a previous case.
+  @visibleForTesting
+  void debugResetForTest() {
+    _locale = null;
+    _themeMode = ThemeMode.system;
+    _seedColor = Colors.teal;
+    _useMaterial3Color = true;
+    _pureBackground = false;
+  }
+
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
 

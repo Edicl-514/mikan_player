@@ -220,3 +220,22 @@
   保持不变的反例测试。
 - 迁移/回滚：仅 `BangumiUrlRewriter.canonicalize` 的实现细节；调用方（image cache）
   行为更正确，无需数据迁移。已存在的旧缓存文件可由 LRU 自然淘汰。
+
+### DT-2-001 — 播放历史单条损坏导致整表清空
+
+- 工作包：DT-2（2026-07-19）
+- 现象：`playback_history_v1` 中只要有一条字段不全/类型不对的 JSON 对象，
+  `_loadFromDisk` 就会在 `map(...fromJson)` 时抛异常，外层 `catch` 返回空列表，
+  用户全部历史在下次读取时消失。
+- 根因：对整段数组做一次性 `map`/`cast`，任一元素失败即整表失败。
+- 影响：升级、并发写入中断、手动编辑 prefs 等场景下一条坏记录即可抹掉最多 200 条
+  播放进度，恢复播放位置丢失。
+- 修复：按元素 try/parse；非 `List` / 整段 JSON 非法仍返回空；单条坏数据跳过并保留
+  其余合法项。同时补 `debugResetCacheForTest` 便于测试直接 seed prefs。
+- 回归测试：`test/services/playback_history_manager_dt2_test.dart` 的
+  `single corrupt entry does not wipe the rest of the list` /
+  `non-JSON payload yields empty history instead of throwing` /
+  `JSON object (not list) yields empty history` /
+  `legacy entry without lastPositionMs defaults to 0`。
+- 迁移/回滚：读路径更宽容，无需写迁移；下次 `addOrUpdate`/`updatePosition` 会
+  以修复后的合法子集重新持久化。

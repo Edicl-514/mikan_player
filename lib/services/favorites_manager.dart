@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/cache/database/app_database.dart';
 
@@ -15,6 +16,22 @@ class FavoritesManager {
 
     _db = AppDatabase.instance;
     _isInitialized = true;
+  }
+
+  /// Binds an in-memory [AppDatabase.forTesting] instance for unit tests.
+  ///
+  /// Does not close any previously bound database — callers own that lifecycle.
+  @visibleForTesting
+  void debugBindForTest(AppDatabase db) {
+    _db = db;
+    _isInitialized = true;
+  }
+
+  /// Clears the singleton so the next [init] re-attaches to production state.
+  @visibleForTesting
+  void debugResetForTest() {
+    _db = null;
+    _isInitialized = false;
   }
 
   AppDatabase get db {

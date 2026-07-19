@@ -16,6 +16,19 @@ class UserManager extends ChangeNotifier {
 
   static const String _userKey = 'bangumi_user';
 
+  /// When true, [init] restores the cached user but skips the background
+  /// network refresh via [login]. Tests that only exercise persistence must
+  /// set this so they stay offline.
+  @visibleForTesting
+  bool debugSkipAutoRefresh = false;
+
+  /// Clears in-memory user state. Does not touch SharedPreferences.
+  @visibleForTesting
+  void debugResetForTest() {
+    _user = null;
+    debugSkipAutoRefresh = false;
+  }
+
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final userJson = prefs.getString(_userKey);
@@ -24,9 +37,11 @@ class UserManager extends ChangeNotifier {
         _user = User.fromJson(jsonDecode(userJson));
         notifyListeners();
         // Auto update in background (goes through the ECH-capable Rust client)
-        login(_user!.username).catchError((e) {
-          debugPrint('Failed to auto-update user: $e');
-        });
+        if (!debugSkipAutoRefresh) {
+          login(_user!.username).catchError((e) {
+            debugPrint('Failed to auto-update user: $e');
+          });
+        }
       } catch (e) {
         debugPrint('Failed to load user: $e');
         await logout();

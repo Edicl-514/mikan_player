@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart';
@@ -159,6 +160,16 @@ class PlaybackHistoryManager {
   /// each other (last-write-wins with stale getHistory() reads).
   Future<void> _writeChain = Future<void>.value();
 
+  /// Drops the in-memory snapshot so the next read reloads from disk.
+  ///
+  /// Used by tests that seed SharedPreferences directly and need the singleton
+  /// to observe those values.
+  @visibleForTesting
+  void debugResetCacheForTest() {
+    _cache = null;
+    _writeChain = Future<void>.value();
+  }
+
   String buildKey(AnimeInfo anime) {
     if (anime.bangumiId != null && anime.bangumiId!.isNotEmpty) {
       return 'bgm:${anime.bangumiId}';
@@ -191,10 +202,29 @@ class PlaybackHistoryManager {
     final raw = prefs.getString(_storageKey);
     if (raw == null || raw.isEmpty) return <PlaybackHistoryItem>[];
     try {
-      final list = jsonDecode(raw) as List<dynamic>;
-      return list
-          .map((e) => PlaybackHistoryItem.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return <PlaybackHistoryItem>[];
+
+      // Keep well-formed entries even when a single corrupt row exists. A
+      // whole-list wipe on the first cast/parse failure used to discard the
+      // user's entire history after one bad write or partial upgrade.
+      final items = <PlaybackHistoryItem>[];
+      for (final entry in decoded) {
+        try {
+          if (entry is Map<String, dynamic>) {
+            items.add(PlaybackHistoryItem.fromJson(entry));
+          } else if (entry is Map) {
+            items.add(
+              PlaybackHistoryItem.fromJson(
+                Map<String, dynamic>.from(entry),
+              ),
+            );
+          }
+        } catch (_) {
+          // Skip the bad row and continue.
+        }
+      }
+      return items;
     } catch (_) {
       return <PlaybackHistoryItem>[];
     }

@@ -307,6 +307,41 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
   精确映射，同时避免改写相似域名和 query 中嵌套的 URL；详见
   `docs/stability_findings.md` DT-1-001。
 
+### DT-2 执行结果（2026-07-19）
+
+- 为可测性补充最小 seam（均 `@visibleForTesting`；Dart 仍将这些成员视为
+  public symbol，仅限本应用内部测试使用）：
+  - `AppDatabase.forTesting(QueryExecutor)`：内存 Drift，避免触碰用户 AppData；
+  - `FavoritesManager.debugBindForTest` / `debugResetForTest`；
+  - `BangumiCacheService.debugBindForTest` / `debugResetForTest`；
+  - `SettingsService.debugResetForTest`；
+  - `UserManager.debugSkipAutoRefresh` + `debugResetForTest`（避免 `init` 后台
+    调 Rust `login` 进网）；
+  - `PlaybackHistoryManager.debugResetCacheForTest`。
+- 新增 7 个测试文件、共 81 个测试，全部通过：
+  - `test/services/settings_service_test.dart`（14）：默认值、zh/en 与未知 locale、
+    未知 theme 回退 system、缺键默认、各 setter 持久化与单次 notify、同值 no-op、
+    并发 last-write-wins、外部 seed 后 re-init。
+  - `test/services/base_url_list_service_test.dart`（10）：normalize、merge 去重、
+    isBuiltin、selected 默认/落盘、add 拒绝 empty/non-http/builtin、幂等追加、
+    remove 后 selection 回退 builtin、kind 隔离。
+  - `test/services/favorites_manager_test.dart`（9）：未 init 抛错、init 幂等不换库、
+    CRUD、同 bangumiId replace、排序 desc、Unicode、并行插入 10 条。
+  - `test/services/user_manager_test.dart`（8）：默认未登录、合法缓存恢复与 notify、
+    缺键、损坏 JSON / 缺字段 logout 并清 key、logout 内存+prefs、User 往返。
+  - `test/services/playback_history_manager_dt2_test.dart`（14）：buildKey 优先级、
+    损坏 payload 不抛、单条坏行保留其余（DT-2-001）、legacy 无 position、上限 200、
+    updatePosition no-op/负值钳制、remove/clear/find、toEpisodes 容错、并发 position。
+  - `test/services/cache/bangumi_cache_service_test.dart`（24）：生命周期、subject、character、
+    relation、episode、person、timetable、ranking 全缓存族往返/替换/空值/坏 JSON/
+    过期；download record CRUD/完成态查询；clearAll 保留下载记录、clearExpired、stats。
+  - `test/services/cache/app_database_migration_test.dart`（2）：v1 -> v3 与 v2 -> v3
+    逐级迁移、新表可写、旧 favorite/episode 数据保留。
+- 全程离线：SharedPreferences mock + `NativeDatabase.memory()`，无真实网络 / WebView / BT。
+- `flutter analyze` 对改动文件 0 issue；`flutter test --no-pub` 全量 **1156** 通过。
+- **发现并修复 1 个 bug**（DT-2-001）：播放历史整表 `map` 解析，单条损坏清空全部
+  历史；改为逐条 try/parse。详见 `docs/stability_findings.md` DT-2-001。
+
 ---
 
 ## 5. Dart 测试工作流

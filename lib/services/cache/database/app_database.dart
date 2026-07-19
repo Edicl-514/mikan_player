@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/foundation.dart';
 import 'package:mikan_player/utils/app_directories.dart';
 import 'package:path/path.dart' as p;
 
@@ -145,6 +146,14 @@ class AppDatabase extends _$AppDatabase {
   }
 
   AppDatabase._internal() : super(_openConnection());
+
+  /// Opens a non-singleton database backed by an arbitrary [QueryExecutor].
+  ///
+  /// Used by unit tests with [NativeDatabase.memory] so they never touch the
+  /// on-disk singleton under the user's AppData directory. Production code
+  /// must keep using [instance].
+  @visibleForTesting
+  AppDatabase.forTesting(super.executor);
 
   @override
   int get schemaVersion => 3;

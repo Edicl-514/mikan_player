@@ -52,6 +52,23 @@ class BangumiCacheService {
     debugPrint('BangumiCacheService initialized with Drift');
   }
 
+  /// Binds an in-memory [AppDatabase.forTesting] for unit tests.
+  ///
+  /// Does not close any previously bound database — callers own that lifecycle
+  /// and should [debugResetForTest] in `tearDown`.
+  @visibleForTesting
+  void debugBindForTest(AppDatabase db) {
+    _db = db;
+    _isInitialized = true;
+  }
+
+  /// Detaches the bound database without closing it (tests close it themselves).
+  @visibleForTesting
+  void debugResetForTest() {
+    _db = null;
+    _isInitialized = false;
+  }
+
   /// 关闭数据库
   Future<void> close() async {
     await _db?.close();
