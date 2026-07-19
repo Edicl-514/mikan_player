@@ -1,6 +1,7 @@
 use lazy_static::lazy_static;
 use std::sync::RwLock;
 
+#[derive(Clone)]
 pub struct RuntimeConfig {
     pub bgmlist_url: String,
     pub bangumi_url: String,
@@ -586,6 +587,7 @@ fn rewrite_host_in_authority(authority_and_path: &str, to_mirror: bool) -> Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::state::isolate_runtime_config;
 
     #[test]
     fn rewrite_bangumi_url_swaps_real_to_mirror() {
@@ -651,6 +653,7 @@ mod tests {
 
     #[test]
     fn if_proxied_respects_the_runtime_flag() {
+        let _guard = isolate_runtime_config();
         // Disabled (the default): API-response URLs must be left untouched so the
         // canonical hosts are preserved.
         set_bangumi_reverse_proxy(false);
@@ -665,8 +668,5 @@ mod tests {
             rewrite_bangumi_url_if_proxied("https://lain.bgm.tv/img/icon.png"),
             "https://lain.bangumi.lol/img/icon.png"
         );
-
-        // Reset so this test does not leak state into others sharing CONFIG.
-        set_bangumi_reverse_proxy(false);
     }
 }

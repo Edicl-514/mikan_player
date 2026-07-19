@@ -527,3 +527,35 @@
   异常注入字段按其文档承诺改为可变，新增 `clear*Exception()` 便于在同一场景内
   切换瞬时故障。
 - 迁移/回滚：不涉及。
+
+### RT-0-001 — Dandanplay 非 2xx 响应正文被网络层提前丢弃
+
+- 工作包：RT-0（2026-07-19）
+- 现象：`danmaku_search_anime` 等函数在收到非 2xx 后本应返回
+  `API error <status>: <body>`，但实际会先从 `retry_request` 的 `error_for_status()`
+  返回 `Request failed`，后面的状态码/正文分支永远无法执行。
+- 根因：弹幕 API 同时在共享网络层和业务层处理 HTTP status；共享网络层默认把错误响应转换成
+  `reqwest::Error`，导致业务层无法再读取 Dandanplay 返回的限流、鉴权或参数错误正文。
+- 影响：用户与日志只能看到通用 HTTP 错误，丢失上游提供的具体原因，验证码/凭据/限流类问题
+  难以诊断；原代码中用于保留正文的错误分支属于死代码。
+- 修复：内部 `DanmakuApiClient` 使用 `retry_request_with_status(..., true)` 保留最终响应，
+  仍对 5xx 执行既有重试，再由弹幕业务层统一读取 status/body 并构造错误。
+- 回归测试：`api_errors_preserve_status_and_response_body`，本地 server 返回 429 + JSON error，
+  断言错误同时包含 `429 Too Many Requests` 和 `rate limited`。
+- 迁移/回滚：不涉及；公开 FRB 返回类型不变，仅错误信息更完整。
+
+### RT-0-002 — 极小相对集号会触发整数下溢
+
+- 工作包：RT-0（2026-07-19）
+- 现象：`danmaku_get_by_title` / `danmaku_get_by_bangumi_id` 在编号匹配失败后直接计算
+  `(rel_ep - 1) as usize`；传入 `i32::MIN` 时 debug 构建会因减法溢出 panic，其他非正数也会
+  被转换成无意义的巨大索引。
+- 根因：相对集号来自跨语言 API，却在转成零基索引前未验证必须为正数，也未使用 checked
+  arithmetic。
+- 影响：异常 Dart/FFI 输入可让调试版请求崩溃；release 下虽通常只会找不到剧集，但行为依赖
+  overflow 设置且日志无法区分非法输入与正常未命中。
+- 修复：集中为 `relative_episode_index`，先 `checked_sub(1)`，再通过 `usize::try_from`
+  验证非负；非法相对集号按“无可用 fallback”处理，不再请求弹幕。
+- 回归测试：`invalid_relative_episode_never_underflows_or_fetches_comments`，输入 `i32::MIN`
+  时返回空列表且本地 server 只收到剧集请求。
+- 迁移/回滚：不涉及；合法的 1-based 相对集号语义保持不变。

@@ -9,6 +9,9 @@ pub mod api;
 pub(crate) mod frb_api;
 mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be accurate, and you can change it according to your needs. */
 
+#[cfg(test)]
+pub(crate) mod test_support;
+
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_edicl_mikan_1player_RustlsVerifier_init(

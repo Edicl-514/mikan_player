@@ -464,6 +464,32 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
 - 验证：Download 定向 **309** 个测试通过（新增 17 例）；`flutter analyze` 0 issue；
   `flutter test --no-pub` 全量 **1307** 个测试通过。
 
+### RT-0 执行结果（2026-07-19）
+
+- 新增 `rust/tests/fixtures/**` 约定与脱敏 fixture：Dandanplay 搜索/剧集/Bangumi TV/
+  弹幕/匹配 JSON，以及供后续 RT-1 直接复用的最小 Mikan HTML、DMHY RSS XML；README
+  明确 fixture 必须最小、UTF-8、无凭据/用户数据，默认网络测试只能走 loopback。
+- 新增 `rust/src/test_support/fixture.rs`：按 `CARGO_MANIFEST_DIR` 定位 fixture，支持 bytes/
+  text/typed JSON 读取，并拒绝绝对路径和 `..` traversal，避免测试依赖当前工作目录。
+- 新增 `rust/src/test_support/http_server.rs`：可复用 Axum loopback server，支持自定义状态码、
+  header、响应延迟、重定向、分段 body、同一路由响应序列，并记录 method/URI/header/body；
+  server 使用随机 loopback 端口、显式 graceful shutdown，测试 client 禁用系统代理。
+- 新增 `rust/src/test_support/state.rs` 的进程级 `CONFIG` 快照 guard，并把 config/crawler 中会
+  改全局目录或代理开关的测试接入同一把锁；guard 在正常结束或 unwind 时恢复完整配置。RT-0
+  不写运行时环境变量，Dandanplay 测试凭据仅存在于局部 test client。
+- 将 `danmaku.rs` 的 4 个默认公网测试迁移为 fixture/local-server 核心回归，并扩展覆盖签名
+  header、URL 编码、非法弹幕过滤/默认值/排序、搜索 → 剧集 → 弹幕、Bangumi ID → 弹幕、
+  match POST body 与 API 错误正文；只保留 1 个显式 `#[ignore]` 的真实 Dandanplay smoke test。
+- 为保持生产入口不变，引入内部 `DanmakuApiClient`，公开 FRB API 仍使用编译期凭据和正式域名；
+  测试实例只注入 loopback base URL、固定假凭据与 `no_proxy` client。
+- **发现并修复 2 个 bug**（RT-0-001 ~ RT-0-002）：Dandanplay 非 2xx 响应正文被网络层提前
+  丢弃；`relative_episode = i32::MIN` 会在 debug 构建发生减法下溢。详见
+  `docs/stability_findings.md`。
+- 验证：`cargo fmt --check` 通过；`cargo test --manifest-path rust/Cargo.toml` 全量
+  **76 passed / 0 failed / 2 ignored**（两个 ignored 均为显式真实网络 smoke）；RT-0 新增模块
+  与 `danmaku.rs` 无 Clippy 诊断。全仓 `cargo clippy --all-targets -- -D warnings` 仍有 115 个
+  既有告警，未在 RT-0 跨域清理。
+
 ---
 
 ## 5. Dart 测试工作流

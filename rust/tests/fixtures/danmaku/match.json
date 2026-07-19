@@ -1,0 +1,11 @@
+{
+  "isMatched": true,
+  "matches": [
+    {
+      "episodeId": 42001,
+      "animeId": 42,
+      "animeTitle": "Fixture Anime / 测试动画",
+      "episodeTitle": "Episode One / 第一话"
+    }
+  ]
+}

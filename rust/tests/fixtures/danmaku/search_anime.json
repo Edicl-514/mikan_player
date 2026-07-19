@@ -1,0 +1,11 @@
+{
+  "animes": [
+    {
+      "animeId": 42,
+      "animeTitle": "Fixture Anime / 测试动画",
+      "type": "tvseries",
+      "typeDescription": "TV",
+      "imageUrl": "https://images.invalid/fixture.jpg"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "count": 5,
+  "comments": [
+    {"p": "12.5,1,16711680,user-a", "m": "later / 后出现"},
+    {"p": "1.25,5,65280,user-b", "m": "first / 先出现"},
+    {"p": "7.0,invalid,invalid,user-c", "m": "defaults / 默认值"},
+    {"p": "not-a-time,1,1,user-d", "m": "discard invalid time"},
+    {"p": "too-short", "m": "discard short parameter"}
+  ]
+}

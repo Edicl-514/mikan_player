@@ -5,6 +5,8 @@ mod schedule_api;
 mod sites_index;
 pub(crate) mod types;
 
+#[cfg(test)]
+pub(crate) use bangumi_data_store::invalidate_bangumi_data_cache;
 pub(crate) use bangumi_data_store::{
     ensure_bangumi_data_cache, get_bangumi_data_cache_status, refresh_bangumi_data_cache,
 };
@@ -26,13 +28,7 @@ mod tests {
     use super::bangumi_data_store::*;
     use super::parse_time::*;
     use super::types::*;
-
-    /// Serializes tests that mutate the process-global
-    /// `crate::api::config::CONFIG` cache_dir (via `init_config`) so
-    /// they don't clobber each other when cargo runs tests in
-    /// parallel. Acquire at the start of any test that calls
-    /// `init_config`.
-    static TEST_CONFIG_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    use crate::test_support::state::isolate_runtime_config;
 
     #[test]
     fn parse_broadcast_parts_supports_legacy_and_current_bgmlist_text() {
@@ -282,7 +278,7 @@ mod tests {
         use crate::api::config::init_config;
         use std::sync::Arc as StdArc;
 
-        let _guard = TEST_CONFIG_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _config_guard = isolate_runtime_config();
 
         let dir = tempfile::tempdir().unwrap();
         init_config(
@@ -312,6 +308,7 @@ mod tests {
         let third: StdArc<BangumiDataJson> = get_or_load_bangumi_data_blocking().unwrap();
         assert!(!StdArc::ptr_eq(&first, &third));
         assert_eq!(third.items.len(), 1);
+        invalidate_bangumi_data_cache();
     }
 
     /// `get_or_load_bangumi_data_blocking` returns `Err` when the cache
@@ -321,7 +318,7 @@ mod tests {
     fn get_or_load_bangumi_data_errors_when_file_missing() {
         use crate::api::config::init_config;
 
-        let _guard = TEST_CONFIG_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _config_guard = isolate_runtime_config();
 
         let dir = tempfile::tempdir().unwrap();
         init_config(

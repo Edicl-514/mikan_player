@@ -302,7 +302,7 @@ pub(super) fn bangumi_data_generation() -> u64 {
 
 /// Drop the cached parsed payload. Called whenever `bangumi-data.json`
 /// is replaced on disk so the next call reparses the new file.
-pub(super) fn invalidate_bangumi_data_cache() {
+pub(crate) fn invalidate_bangumi_data_cache() {
     if let Ok(mut guard) = bangumi_data_slot().write() {
         *guard = None;
     }

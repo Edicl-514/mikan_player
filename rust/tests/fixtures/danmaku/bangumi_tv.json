@@ -1,0 +1,18 @@
+{
+  "bangumi": {
+    "episodes": [
+      {
+        "episodeId": 42001,
+        "episodeTitle": "Episode One / 第一话",
+        "episodeNumber": "1",
+        "airDate": "2026-07-19"
+      },
+      {
+        "episodeId": 42002,
+        "episodeTitle": "Special / 特别篇",
+        "episodeNumber": "SP1",
+        "airDate": null
+      }
+    ]
+  }
+}
