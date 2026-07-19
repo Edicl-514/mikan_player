@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'generic_scraper/types.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `ensure_initialized`, `get_session`
+// These functions are ignored because they are not marked as `pub`: `calculate_progress`, `ensure_initialized`, `format_torrent_stats`, `get_session`, `inject_default_trackers`, `normalize_torrent_state`, `text_preview`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AppState`, `STATE`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `deref`, `fmt`, `fmt`, `initialize`
 

@@ -6,6 +6,38 @@ use super::source_config::*;
 use super::types::*;
 use scraper::Html;
 
+trait SearchChannelsResultEmitter {
+    fn emit(&self, result: SearchResultWithChannels) -> bool;
+}
+
+impl SearchChannelsResultEmitter for crate::frb_generated::StreamSink<SearchResultWithChannels> {
+    fn emit(&self, result: SearchResultWithChannels) -> bool {
+        self.add(result).is_ok()
+    }
+}
+
+async fn forward_search_channel_results<S, E>(stream: S, emitter: &E)
+where
+    S: futures::Stream<Item = anyhow::Result<SearchResultWithChannels>>,
+    E: SearchChannelsResultEmitter + ?Sized,
+{
+    use futures::stream::StreamExt;
+
+    let mut stream = Box::pin(stream);
+    while let Some(result) = stream.next().await {
+        if let Ok(search_result) = result {
+            log::info!(
+                "Source '{}' completed with {} channels",
+                search_result.source_name,
+                search_result.channels.len()
+            );
+            if !emitter.emit(search_result) {
+                break;
+            }
+        }
+    }
+}
+
 /// 搜索单个源，返回包含所有channel和剧集信息的完整结果
 /// 此函数用于获取多线路（如"简中"/"繁中"、"线路A"/"线路B"）的详细信息
 async fn search_single_source_with_channels(
@@ -324,17 +356,7 @@ pub(crate) async fn generic_search_with_channels_stream(
             })
             .buffer_unordered(limit);
 
-    let mut stream = Box::pin(stream);
-    while let Some(result) = stream.next().await {
-        if let Ok(search_result) = result {
-            log::info!(
-                "Source '{}' completed with {} channels",
-                search_result.source_name,
-                search_result.channels.len()
-            );
-            sink.add(search_result).ok();
-        }
-    }
+    forward_search_channel_results(stream, &sink).await;
 
     Ok(())
 }
@@ -478,6 +500,55 @@ mod tests {
     use crate::test_support::state::isolate_runtime_config;
     use axum::http::Method;
     use reqwest::Client;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct ClosedEmitter {
+        attempts: AtomicUsize,
+    }
+
+    impl SearchChannelsResultEmitter for ClosedEmitter {
+        fn emit(&self, _result: SearchResultWithChannels) -> bool {
+            self.attempts.fetch_add(1, Ordering::SeqCst);
+            false
+        }
+    }
+
+    fn stream_result(source_name: &str) -> SearchResultWithChannels {
+        SearchResultWithChannels {
+            source_name: source_name.to_string(),
+            detail_url: format!("https://example.test/{source_name}"),
+            matched_title: "Anime".to_string(),
+            channels: Vec::new(),
+            episodes: Vec::new(),
+            video_regex: "video".to_string(),
+            cookies: None,
+            headers: None,
+            default_subtitle_language: None,
+            default_resolution: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn closed_channel_sink_stops_polling_remaining_source_searches() {
+        let polls = Arc::new(AtomicUsize::new(0));
+        let stream_polls = polls.clone();
+        let stream = futures::stream::unfold(0, move |index| {
+            let stream_polls = stream_polls.clone();
+            async move {
+                stream_polls.fetch_add(1, Ordering::SeqCst);
+                (index < 2).then(|| (Ok(stream_result(&format!("Source{index}"))), index + 1))
+            }
+        });
+        let emitter = ClosedEmitter {
+            attempts: AtomicUsize::new(0),
+        };
+
+        forward_search_channel_results(stream, &emitter).await;
+
+        assert_eq!(emitter.attempts.load(Ordering::SeqCst), 1);
+        assert_eq!(polls.load(Ordering::SeqCst), 1);
+    }
 
     fn no_proxy_client() -> Client {
         Client::builder()

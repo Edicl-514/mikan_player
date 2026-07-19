@@ -17,6 +17,14 @@ impl ProgressEmitter for crate::frb_generated::StreamSink<SourceSearchProgress> 
     }
 }
 
+fn target_source_set(
+    target_source_names: Option<Vec<String>>,
+) -> Option<std::collections::HashSet<String>> {
+    target_source_names
+        .filter(|names| !names.is_empty())
+        .map(|names| names.into_iter().collect())
+}
+
 async fn run_source_with_progress<E: ProgressEmitter + ?Sized>(
     client: &reqwest::Client,
     source: &MediaSource,
@@ -124,8 +132,7 @@ pub(crate) async fn generic_search_with_progress_runtime(
         .map(|item| (item.source_name.clone(), item))
         .collect();
 
-    let target_set: Option<std::collections::HashSet<_>> =
-        target_source_names.map(|names| names.into_iter().collect());
+    let target_set = target_source_set(target_source_names);
 
     // 1. Load enabled sources (with in-memory cache)
     let mut sources = load_enabled_sources().await?;
@@ -1125,6 +1132,16 @@ mod tests {
             SearchStep::ExtractingVideo => 4,
             SearchStep::Success | SearchStep::Failed => 5,
         }
+    }
+
+    #[test]
+    fn empty_target_source_list_keeps_all_sources() {
+        assert!(target_source_set(None).is_none());
+        assert!(target_source_set(Some(Vec::new())).is_none());
+        assert_eq!(
+            target_source_set(Some(vec!["SourceA".to_string(), "SourceA".to_string()])),
+            Some(std::collections::HashSet::from(["SourceA".to_string()]))
+        );
     }
 
     #[tokio::test]

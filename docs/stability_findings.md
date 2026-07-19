@@ -973,3 +973,48 @@
 - 回归测试：`client_follows_redirects_and_decodes_gzip_and_brotli` 同时覆盖 307 redirect 后 gzip 和直接
   brotli 响应的 Unicode 正文。
 - 迁移/回滚：不涉及持久化；未压缩响应不变，压缩响应现在按 `Content-Encoding` 返回解码后的 body。
+
+### RT-6-001 — Dart 取消结果流后 Rust 仍继续搜索剩余源
+
+- 工作包：RT-6（2026-07-20）
+- 现象：`generic_search_play_pages_stream` 与 `generic_search_with_channels_stream` 对
+  `StreamSink.add` 直接调用 `.ok()`；Dart 取消订阅、sink 已关闭时，Rust 仍继续轮询全部
+  `buffer_unordered` 搜索 future。
+- 根因：把 sink 发送失败当成可忽略的单条结果错误，没有把它解释为跨语言流的取消信号。
+- 影响：用户离开播放器、开始新搜索或主动取消后，旧搜索仍可能继续访问多个源、解析页面并占用并发槽；
+  结果无法送达 UI，却继续消耗网络、CPU 和源站请求配额。
+- 修复：为两类结果流增加可测试 emitter；发送失败立即 `break`，drop stream 及剩余 buffered futures，
+  保留已有进度流的同类取消语义。
+- 回归测试：`closed_result_sink_stops_polling_remaining_source_searches`、
+  `closed_channel_sink_stops_polling_remaining_source_searches`，均断言关闭后只轮询/发送第一项。
+- 迁移/回滚：不涉及持久化或 API 签名；仅取消订阅后的后台行为改变。
+
+### RT-6-002 — FRB facade 非法参数可进入网络、磁盘或后台任务
+
+- 工作包：RT-6（2026-07-20）
+- 现象：手写 `frb_api/**` 原为无校验透传；0/负 ID 可组成无效 Bangumi URL 或启动 sites index
+  后台构建，非法季度可进入 API/本地缓存路径，空查询仍先加载配置，播放 URL 调用还可把其他源的
+  runtime override cookie/页面上下文应用到当前源。不同实现返回的错误也缺少稳定的 facade API 标识。
+- 根因：内部实现按可信 Rust 调用方设计，跨语言输入校验没有落在 FRB 边界；wrapper 也直接传播
+  `anyhow` 错误，无法稳定识别失败来自哪个 Dart API。
+- 影响：异常 UI 状态、旧版调用方或手工调试输入会制造无意义 I/O，产生难定位的错误；mismatched
+  runtime override 还可能把错误源的会话上下文带到另一个播放源请求。
+- 修复：增加共享 contract helper；校验正 ID、页码、subject type、分页、图片类型、季度、名称/路径、
+  ID 列表和 runtime override 一致性；无 `Result` lookup 对非法 ID 直接返回空；所有可失败 facade
+  统一映射为单行 `api_name: error-chain`。公共函数签名保持不变。
+- 回归测试：`invalid_facade_arguments_fail_before_backend_work`、
+  `invalid_quarters_and_ids_are_rejected_without_io_side_effects`、
+  `invalid_non_stream_arguments_fail_before_config_or_network_access`、
+  `validation_errors_are_stable_and_public_errors_are_single_line`。
+- 迁移/回滚：不涉及用户数据；以前可能被下游容忍的非法输入现在会更早返回明确错误或空值，合法调用不变。
+
+### RT-6-003 — 空目标源列表与进度搜索文档语义相反
+
+- 工作包：RT-6（2026-07-20）
+- 现象：`generic_search_with_progress_runtime` 文档声明 `target_source_names` 为 `None` 或空列表时搜索
+  所有已启用源；实现却把 `Some([])` 转成空 `HashSet`，随后过滤掉全部源并直接结束空流。
+- 根因：只区分 `Option` 是否为 `Some`，没有在构造集合前把空列表归一化为“未指定过滤条件”。
+- 影响：调用方在目标集合暂时为空或沿用默认参数时，看不到进度、错误或搜索结果，容易让 UI 误判为搜索已完成。
+- 修复：facade 和内部实现均把空列表规范化为 `None`；非空列表仍去重后精确过滤。
+- 回归测试：`empty_target_source_list_keeps_all_sources`。
+- 迁移/回滚：不涉及持久化和签名；只恢复已有文档承诺的空列表行为。

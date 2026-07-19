@@ -233,7 +233,7 @@ pub struct EpisodeInfo {
 }
 
 /// 包含多channel信息的搜索结果
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResultWithChannels {
     /// 源名称
     pub source_name: String,
@@ -258,6 +258,7 @@ pub struct SearchResultWithChannels {
 }
 
 /// 搜索结果：包含播放页面URL和视频URL匹配正则
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchPlayResult {
     /// 源名称
     pub source_name: String,
@@ -278,12 +279,13 @@ pub struct SearchPlayResult {
     /// 验证码配置JSON（如果该源启用了captcha绕过）
     pub captcha_config_json: Option<String>,
     /// 是否启用嵌套URL匹配
+    #[serde(default)]
     pub enable_nested_url: bool,
     /// 嵌套URL匹配正则
     pub match_nested_url: Option<String>,
 }
 /// 搜索进度状态
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SearchStep {
     /// 等待中
     Pending,
@@ -302,7 +304,7 @@ pub enum SearchStep {
 }
 
 /// 带状态的搜索进度
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceSearchProgress {
     /// 源名称
     pub source_name: String,
@@ -329,11 +331,12 @@ pub struct SourceSearchProgress {
     /// 验证码配置JSON（如果该源启用了captcha绕过）
     pub captcha_config_json: Option<String>,
     /// 是否启用嵌套URL匹配
+    #[serde(default)]
     pub enable_nested_url: bool,
     /// 嵌套URL匹配正则
     pub match_nested_url: Option<String>,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceConfigUpdate {
     pub name: String,
     pub new_name: Option<String>,

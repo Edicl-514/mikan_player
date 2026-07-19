@@ -6,9 +6,9 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `extract_episode`, `format_size`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Channel`, `Enclosure`, `Item`, `Rss`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `extract_episode`, `fetch_resources`, `format_kib_size`, `is_valid_magnet`, `parse_dmhy_resources_from_xml`, `production`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Channel`, `DmhyApiClient`, `EPISODE_TOKEN_RE`, `Enclosure`, `Item`, `Rss`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `deref`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `initialize`
 
 Future<List<DmhyResource>> fetchDmhyResources({
   required String subjectId,

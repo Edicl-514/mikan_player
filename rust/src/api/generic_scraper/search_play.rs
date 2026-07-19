@@ -6,6 +6,39 @@ use super::types::*;
 use fancy_regex::Regex;
 use scraper::{Html, Selector};
 
+trait SearchPlayResultEmitter {
+    fn emit(&self, result: SearchPlayResult) -> bool;
+}
+
+impl SearchPlayResultEmitter for crate::frb_generated::StreamSink<SearchPlayResult> {
+    fn emit(&self, result: SearchPlayResult) -> bool {
+        self.add(result).is_ok()
+    }
+}
+
+async fn forward_search_play_results<S, E>(stream: S, emitter: &E)
+where
+    S: futures::Stream<Item = (String, anyhow::Result<SearchPlayResult>)>,
+    E: SearchPlayResultEmitter + ?Sized,
+{
+    use futures::stream::StreamExt;
+
+    let mut stream = Box::pin(stream);
+    while let Some((source_name, result)) = stream.next().await {
+        if let Ok(search_result) = result {
+            log::info!(
+                "Source '{}' completed, sending result to stream",
+                source_name
+            );
+            if !emitter.emit(search_result) {
+                break;
+            }
+        } else if let Err(error) = result {
+            log::warn!("Source search failed for {}: {}", source_name, error);
+        }
+    }
+}
+
 /// 搜索所有源，返回所有找到的播放页面URL列表
 /// Flutter 端可以使用 WebView 加载这些 URL 来拦截视频请求
 ///
@@ -95,20 +128,7 @@ pub(crate) async fn generic_search_play_pages_stream(
         })
         .buffer_unordered(limit);
 
-    // 3. Consume stream and send results
-    let mut stream = Box::pin(stream);
-
-    while let Some((source_name, result)) = stream.next().await {
-        if let Ok(search_result) = result {
-            log::info!(
-                "Source '{}' completed, sending result to stream",
-                source_name
-            );
-            sink.add(search_result).ok();
-        } else if let Err(e) = result {
-            log::warn!("Source search failed for {}: {}", source_name, e);
-        }
-    }
+    forward_search_play_results(stream, &sink).await;
 
     Ok(())
 }
@@ -748,6 +768,59 @@ mod tests {
     use crate::test_support::state::isolate_runtime_config;
     use axum::http::Method;
     use reqwest::Client;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct ClosedEmitter {
+        attempts: AtomicUsize,
+    }
+
+    impl SearchPlayResultEmitter for ClosedEmitter {
+        fn emit(&self, _result: SearchPlayResult) -> bool {
+            self.attempts.fetch_add(1, Ordering::SeqCst);
+            false
+        }
+    }
+
+    fn stream_result(source_name: &str) -> SearchPlayResult {
+        SearchPlayResult {
+            source_name: source_name.to_string(),
+            play_page_url: format!("https://example.test/{source_name}"),
+            video_regex: "video".to_string(),
+            direct_video_url: None,
+            cookies: None,
+            headers: None,
+            channel_name: None,
+            channel_index: None,
+            captcha_config_json: None,
+            enable_nested_url: false,
+            match_nested_url: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn closed_result_sink_stops_polling_remaining_source_searches() {
+        let polls = Arc::new(AtomicUsize::new(0));
+        let stream_polls = polls.clone();
+        let stream = futures::stream::unfold(0, move |index| {
+            let stream_polls = stream_polls.clone();
+            async move {
+                stream_polls.fetch_add(1, Ordering::SeqCst);
+                (index < 2).then(|| {
+                    let name = format!("Source{index}");
+                    ((name.clone(), Ok(stream_result(&name))), index + 1)
+                })
+            }
+        });
+        let emitter = ClosedEmitter {
+            attempts: AtomicUsize::new(0),
+        };
+
+        forward_search_play_results(stream, &emitter).await;
+
+        assert_eq!(emitter.attempts.load(Ordering::SeqCst), 1);
+        assert_eq!(polls.load(Ordering::SeqCst), 1);
+    }
 
     fn no_proxy_client() -> Client {
         Client::builder()

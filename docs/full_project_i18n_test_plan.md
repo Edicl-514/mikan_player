@@ -819,6 +819,31 @@ cargo test --manifest-path rust/Cargo.toml ech_pinned -- --ignored --nocapture
 - 执行现有 `tool/check_frb_codegen.ps1`，保证手写 API 与生成结果同步；
 - 公共函数签名变化必须单独 review，不能夹在补测试任务中。
 
+#### RT-6 执行结果（2026-07-20）
+
+- 新增 `rust/src/frb_api/contract.rs`，为 Bangumi/crawler/generic scraper 中所有返回 `Result`
+  的 facade 调用统一提供前置参数校验和单行 `api_name: error` 映射；无错误返回的 wrapper
+  保持原有返回语义。对外仍是原有 **51** 个 wrapper，没有修改函数名、参数或返回类型。
+- 参数契约覆盖正 ID、评论页码、用户名、Bangumi subject type、分页范围、图片类型、季度、
+  existing ID、动画/源名称、本地 JSON 路径、目标源和 runtime override；无 `Result` 的 sites lookup
+  对非法 ID 返回空值，避免触发无意义的后台 index build。
+- 新增 10 个 Rust 测试：5 个 facade/错误映射测试、2 个 serde + FRB SSE DTO 往返/default
+  测试、2 个结果流取消测试、1 个空目标源列表语义测试。关键 DTO 覆盖嵌套 Bangumi 评论、
+  `AnimeInfo`、sites entry、`SearchPlayResult`、`SearchResultWithChannels`、
+  `SourceSearchProgress`、runtime override 和 config update。
+- `generic_search_play_pages_stream` 与 `generic_search_with_channels_stream` 现在检查
+  `StreamSink.add` 结果；Dart 取消订阅后立即停止轮询并 drop 剩余 buffered futures。
+- `generic_search_with_progress_runtime(Some([]), ...)` 现在按原文档约定等同 `None`，搜索所有
+  已启用源，而不是错误地过滤成零个源。
+- **发现并修复 3 个 bug**：RT-6-001（取消后继续搜索）、RT-6-002（FRB 非法参数可触发
+  网络/磁盘/后台副作用且错误缺少稳定上下文）、RT-6-003（空目标源列表语义相反）；详见
+  `docs/stability_findings.md`。
+- `cargo test --manifest-path rust/Cargo.toml`：**223 passed / 2 ignored**；默认 ignored 的仍是
+  danmaku 与 ECH 真实网络 smoke test。
+- `tool/check_frb_codegen.ps1` 通过：两遍 codegen 幂等，`cargo check`、`cargo fmt --check`、
+  `flutter analyze` 均通过。生成差异仅更新 codegen 的 ignored-item 注释及 facade 新私有 helper
+  注释，没有 Dart API 或 Rust public signature 漂移。
+
 ### 可选 RT-7：属性/模糊测试
 
 在常规单测稳定后，再对 URL、episode number、日期、HTML/JSON parser 增加：
