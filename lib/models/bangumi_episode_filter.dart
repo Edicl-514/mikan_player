@@ -1,11 +1,11 @@
 import '../src/rust/api/bangumi.dart';
 
 extension BangumiEpisodeFilter on BangumiEpisode {
-  bool isReleased() {
+  bool isReleased({DateTime? now}) {
     if (airdate.isEmpty) return true;
     try {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
+      final current = now ?? DateTime.now();
+      final today = DateTime(current.year, current.month, current.day);
       final date = DateTime.parse(airdate);
       final episodeDate = DateTime(date.year, date.month, date.day);
       return !episodeDate.isAfter(today);
@@ -16,9 +16,9 @@ extension BangumiEpisodeFilter on BangumiEpisode {
 }
 
 extension BangumiEpisodeFilterList on Iterable<BangumiEpisode> {
-  List<BangumiEpisode> releasedEpisodes() {
+  List<BangumiEpisode> releasedEpisodes({DateTime? now}) {
     return withoutPhantomEpisodes()
-        .where((episode) => episode.isReleased())
+        .where((episode) => episode.isReleased(now: now))
         .toList();
   }
 
@@ -54,10 +54,10 @@ extension BangumiEpisodeFilterList on Iterable<BangumiEpisode> {
     return result;
   }
 
-  BangumiEpisode? latestReleasedEpisode() {
+  BangumiEpisode? latestReleasedEpisode({DateTime? now}) {
     BangumiEpisode? latest;
     for (final episode in this) {
-      if (!episode.isReleased()) continue;
+      if (!episode.isReleased(now: now)) continue;
       if (latest == null || episode.sort > latest.sort) {
         latest = episode;
       }

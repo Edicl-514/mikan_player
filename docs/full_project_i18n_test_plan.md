@@ -269,6 +269,44 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
   （`dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings`），
   本地/后续 `Q-0` 再挂到 `.github/workflows`。
 
+### DT-1 执行结果（2026-07-19）
+
+- 新增 7 个测试文件、共 73 个测试，全部通过：
+  - `test/models/bangumi_episode_filter_test.dart`（20）：覆盖 `isReleased`
+    空 airdate / 昨天 / 明天 / 同日 / 远期 / 非法日期 / Unicode 描述；
+    `withoutPhantomEpisodes` 名实两套判定、id 去重、CN-only 标题、顺序保持、空列表；
+    `releasedEpisodes` 组合 + `latestReleasedEpisode` 高 sort 选优 / 跳过未发布 /
+    全空 / 全未发布 / 空 airdate 视为已发布。
+  - `test/models/bangumi_user_collection_test.dart`（7）：全字段、缺失字段默认、
+    null score 强转 double、tag 任意类型原样透传、unicode/emoji 文本。
+  - `test/models/local_favorite_test.dart`（5）：默认 type 1、type 2~5 覆盖、
+    Unicode/emoji、createdAt 不为负/不为未来、两条连续创建非严格降序。
+  - `test/models/user_test.dart`（10）：`User.fromJson` / `toJson` 往返、缺失键
+    vs null 字段差异、avatar URL rewrite pass-through、unicode/emoji；`UserAvatar`
+    独立往返。
+  - `test/utils/bangumi_url_rewriter_test.dart`（23）：`rewrite` 在禁用 / 启用
+    缓存下的多种映射、协议相对 URL 升级、幂等、未知 host 保留、查询串内 host
+    不被改写及相似 host 前缀隔离；`canonicalize` 与缓存标志无关、aliases 折叠、
+    协议相对 URL 升级、empty pass-through、非 bangumi/嵌套 URL 保留、幂等；
+    `setEnabled` 往返。
+  - `test/utils/url_latency_test.dart`（7）：`selectFastestUrl` 空列表 / 单元素
+    / 多元素本地服务 / 全失败 fallback；`tcpPing` 无路由 / 非法 URL 返回哨兵
+    `999999`、本地 URL 返回非负整数。
+  - `test/utils/feature_flags_test.dart`（1）：默认关闭订阅调试入口，并使用单独的
+    `--dart-define=ENABLE_SUBSCRIPTION_DEBUG=true` 命令验证启用分支。
+- 复用了 `test/support/local_http_server.dart` 提供的 loopback HTTP server，
+  未引入任何真实网络或真实 BT 引擎调用。
+- `flutter analyze` 0 issue；`flutter test --no-pub` 全量 1075 个测试通过。
+- **发现并修复 1 个 bug**（DT-1-001）：`BangumiUrlRewriter.canonicalize` 在
+  处理 `api.bangumi.lol` / `next.bangumi.lol` / `lain.bangumi.lol` 时，因
+  `_mirrorToReal` map 的 bare-host 键（`bangumi.lol` → `bangumi.tv`）会先于
+  更具体的子域键命中，导致子域被错误改写成不存在的 `api.bangumi.tv`。
+  该函数被 `ImageCacheService._normalizeCacheKey` 用作磁盘缓存键，因此
+  用户在「启用/禁用反向代理」之间切换时，同一张 API 图片会落到两个不同的
+  本地缓存文件，造成重复下载和磁盘浪费。修复方法是解析 `Uri.host` 后做完整主机
+  精确映射，同时避免改写相似域名和 query 中嵌套的 URL；详见
+  `docs/stability_findings.md` DT-1-001。
+
 ---
 
 ## 5. Dart 测试工作流

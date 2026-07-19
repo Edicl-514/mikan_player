@@ -195,3 +195,28 @@
   新增 `player placeholder messages declare typed metadata`。
 - 回归测试：`arb_consistency_test.dart` + `flutter gen-l10n`。
 - 迁移/回滚：不涉及。
+
+### DT-1-001 — `BangumiUrlRewriter.canonicalize` 主机子串重叠 → 缓存键漂移
+
+- 工作包：DT-1（2026-07-19）
+- 现象：`canonicalize('https://api.bangumi.lol/v0/subjects/1')` 实际产出
+  `https://api.bangumi.tv/v0/subjects/1`（一个不存在的镜像 host），而不是预期的
+  `https://api.bgm.tv/v0/subjects/1`。
+- 根因：`_mirrorToReal` 是按插入顺序迭代的 `Map`，且使用 `result.contains(mirror)`
+  + `result.replaceAll(mirror, real)` 的整体字符串替换；bare-host 键 `'bangumi.lol': 'bangumi.tv'`
+  会先匹配并替换 `api.bangumi.lol` 后缀里的 `bangumi.lol` → `bangumi.tv`，
+  随后 `api.bangumi.lol` → `api.bgm.tv` 这条更具体的规则因字符串已被改而无法命中。
+- 影响：`ImageCacheService._normalizeCacheKey` 用 `canonicalize` 生成缓存文件名；
+  同一张 API 图片在「用户切换反向代理」前后会落到不同的本地缓存文件（哈希不同），
+  重复下载并占用磁盘，且在重新启用代理后无法命中之前 mirror 模式下已经写好的缓存。
+  `canonicalize` 当前仅用于图片缓存键，不影响分享链接。
+- 修复：统一通过 `Uri.tryParse` 解析完整 authority，只对 `Uri.host` 做精确映射。
+  这既消除了短键与子域的重叠，也避免把 `bangumi.tv.example.com` 等相似域名或 query
+  参数中嵌套的 URL 当成当前 URL 的主机改写。
+- 回归测试：`test/utils/bangumi_url_rewriter_test.dart` 的
+  `api.bangumi.lol maps to api.bgm.tv (not api.bangumi.tv)` /
+  `mirror and real forms of the same API host share a cache key` /
+  `mirror and real forms of the lain host share a cache key`，以及相似域名、query 嵌套 URL
+  保持不变的反例测试。
+- 迁移/回滚：仅 `BangumiUrlRewriter.canonicalize` 的实现细节；调用方（image cache）
+  行为更正确，无需数据迁移。已存在的旧缓存文件可由 LRU 自然淘汰。

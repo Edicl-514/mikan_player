@@ -32,6 +32,12 @@ class BangumiUrlRewriter {
     'doujin.bangumi.lol': 'doujin.bgm.tv',
   };
 
+  static const Map<String, String> _canonicalHosts = {
+    ..._mirrorToReal,
+    'bgm.tv': 'bangumi.tv',
+    'chii.in': 'bangumi.tv',
+  };
+
   /// Returns the bangumi host currently selected for the given role (the
   /// canonical real form when proxying is disabled, the mirror host when
   /// enabled).
@@ -76,25 +82,7 @@ class BangumiUrlRewriter {
       return input;
     }
 
-    String result = input;
-
-    // Protocol-relative URLs (`//lain.bgm.tv/...`).
-    if (result.startsWith('//')) {
-      result = 'https:$result';
-    }
-
-    for (final entry in _realToMirror.entries) {
-      final real = entry.key;
-      final mirror = entry.value;
-      if (result.startsWith('https://$real') ||
-          result.startsWith('http://$real') ||
-          result.contains('://$real') ||
-          result.contains('//$real/')) {
-        result = result.replaceAll(real, mirror);
-      }
-    }
-
-    return result;
+    return _replaceKnownHost(input, _realToMirror);
   }
 
   /// Normalize a URL to always use the canonical (real) bangumi hosts,
@@ -103,26 +91,26 @@ class BangumiUrlRewriter {
   static String canonicalize(String input) {
     if (input.isEmpty) return input;
 
-    String result = input;
+    return _replaceKnownHost(input, _canonicalHosts);
+  }
 
-    if (result.startsWith('//')) {
-      result = 'https:$result';
+  /// Replaces only the parsed URL host, leaving path/query/fragment text
+  /// untouched. Parsing the authority also prevents a known host used as a
+  /// prefix of an unrelated host (for example `bangumi.tv.example.com`) from
+  /// being rewritten.
+  static String _replaceKnownHost(
+    String input,
+    Map<String, String> replacements,
+  ) {
+    final normalized = input.startsWith('//') ? 'https:$input' : input;
+    final uri = Uri.tryParse(normalized);
+    if (uri == null || !uri.hasAuthority || uri.host.isEmpty) {
+      return normalized;
     }
 
-    for (final entry in _mirrorToReal.entries) {
-      final mirror = entry.key;
-      final real = entry.value;
-      if (result.contains(mirror)) {
-        result = result.replaceAll(mirror, real);
-      }
-    }
-
-    // Also normalize bgm.tv / chii.in aliases to bangumi.tv so that
-    // different alias forms of the same resource share one cache entry.
-    result = result.replaceAll('://bgm.tv', '://bangumi.tv');
-    result = result.replaceAll('://chii.in', '://bangumi.tv');
-
-    return result;
+    final replacement = replacements[uri.host.toLowerCase()];
+    if (replacement == null) return normalized;
+    return uri.replace(host: replacement).toString();
   }
 
   // The reverse-proxy toggle rarely changes during a session, so caching the
