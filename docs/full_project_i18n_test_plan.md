@@ -370,6 +370,27 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
   视频错误响应悬挂 body 掩盖 HTTP 状态、详情缓存内嵌 episode 去重依赖顺序。详见
   `docs/stability_findings.md`。
 
+### DT-4 执行结果（2026-07-19）
+
+- 新增 **11** 个高风险回归测试：
+  - Captcha runner（5）：完成后 cancel 只结算一次、cancel/timeout 竞态、dispose 后 timeout
+    不再发 result/idle、同 key 新 generation 不受旧 timeout 影响、timeout 后 scheduler slot
+    可立即复用。
+  - Cookie janitor（3）：host/cookie 请求去重、单次删除失败不阻塞下一批、drain 期间新增
+    请求按批次串行执行。为此增加 `@visibleForTesting` 的实例级 cookie backend seam；生产
+    默认仍委托 `flutter_inappwebview` 的 `CookieManager`。
+  - Captcha queue/scheduler（3）：冷却中的队首不阻塞后续 ready task、多轮 ready poll 保持
+    FIFO 无饥饿、旧 generation 不能释放同 key 的新 captcha slot。
+- 复核并继续使用现有 generation/dispose 门禁：`player_search_session_policy_test.dart` 已覆盖
+  dispose 后拒绝 captcha apply/probe/new job，`source_request_gate_test.dart` 已覆盖同源
+  latest-wins、不同源独立与 pending waiter 取消，因此未重复造同义测试。
+- DT-4 局部相关测试 **70** 个全部通过；严格硬编码扫描 0 candidate，`flutter analyze`
+  0 issue，`flutter test --no-pub` 全量 **1261** 个测试通过。
+- **发现并修复 1 个 bug**（DT-4-001）：Captcha job 已完成但 host 尚未 rebuild 的窗口内，
+  再收到 cancel 会重复发送 `onIdle`，导致同一 dispatch 被结算两次并重复触发 slot release/
+  pool pump。修复为已完成任务的 cancel 仅退休本地状态，不再二次通知；详见
+  `docs/stability_findings.md`。
+
 ---
 
 ## 5. Dart 测试工作流

@@ -460,6 +460,15 @@ class CaptchaJobRunner {
   void _cancelCurrentJob({bool preserveSession = false}) {
     final job = _currentJob;
     if (job == null) return;
+    // A result/timeout may complete synchronously before the host rebuilds
+    // with a null job. A concurrent explicit cancel must only retire that
+    // already-settled job; emitting onIdle again would settle one dispatch
+    // twice and can trigger duplicate slot release / pool pumps.
+    if (_isCompleted) {
+      _currentJob = null;
+      _resetJobState(advanceToken: true);
+      return;
+    }
     final controller = _webViewController;
     _isCompleted = true;
     _timeoutTimer?.cancel();

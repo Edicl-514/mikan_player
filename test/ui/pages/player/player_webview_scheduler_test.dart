@@ -158,6 +158,28 @@ void main() {
       s.releaseVideoSlotOnIdle(slot.workerId);
       expect(slot.generation, isNull);
     });
+
+    test('stale captcha generation cannot release same-key replacement', () {
+      final s = newScheduler();
+      final slot = s
+          .acquireIdleCaptchaWorkerSlot(
+            useWorkerPool: true,
+            maxConcurrent: _maxConcurrent,
+          )
+          .slot!;
+      s.startCaptchaJob(slot, 'taskA', 'srcA', generation: 42);
+
+      s.releaseCaptchaSlot('taskA', generation: 41);
+      expect(s.activeCaptchaJobs, {'taskA': slot.workerId});
+      expect(slot.generation, 42);
+      expect(slot.kind, WebViewWorkerKind.captcha);
+
+      s.releaseCaptchaSlot('taskA', generation: 42);
+      expect(s.activeCaptchaJobs, isEmpty);
+      expect(slot.generation, isNull);
+      expect(slot.kind, isNull);
+      expectConsistent(s, 'after current captcha generation release');
+    });
   });
 
   group('atomic start failures leave state untouched', () {

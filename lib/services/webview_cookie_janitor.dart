@@ -3,6 +3,46 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
+/// Minimal cookie-store boundary used by [WebViewCookieJanitor].
+///
+/// The default implementation delegates to flutter_inappwebview. Tests can
+/// inject a deterministic backend without starting a real WebView engine.
+abstract interface class WebViewCookieBackend {
+  Future<List<String>> cookieNamesForHost(String host);
+
+  Future<void> deleteCookie({
+    required String host,
+    required String name,
+    String path = '/',
+  });
+}
+
+class _InAppWebViewCookieBackend implements WebViewCookieBackend {
+  const _InAppWebViewCookieBackend();
+
+  @override
+  Future<List<String>> cookieNamesForHost(String host) async {
+    final cookies = await CookieManager().getCookies(
+      url: WebUri('https://$host'),
+    );
+    return cookies.map((cookie) => cookie.name).toList(growable: false);
+  }
+
+  @override
+  Future<void> deleteCookie({
+    required String host,
+    required String name,
+    String path = '/',
+  }) {
+    return CookieManager().deleteCookie(
+      url: WebUri('https://$host'),
+      name: name,
+      domain: host,
+      path: path,
+    );
+  }
+}
+
 /// Centralized WebView cookie cleanup service.
 ///
 /// Accepts cookie- and host-level cleanup requests, deduplicates them, and
@@ -17,7 +57,35 @@ class WebViewCookieJanitor {
   static final WebViewCookieJanitor _instance =
       WebViewCookieJanitor._internal();
   factory WebViewCookieJanitor() => _instance;
-  WebViewCookieJanitor._internal();
+  WebViewCookieJanitor._internal()
+    : this._(
+        backend: const _InAppWebViewCookieBackend(),
+        idleDelay: const Duration(seconds: 2),
+        maxDeferDelay: const Duration(seconds: 30),
+      );
+
+  @visibleForTesting
+  WebViewCookieJanitor.forTesting({
+    required WebViewCookieBackend backend,
+    Duration idleDelay = Duration.zero,
+    Duration maxDeferDelay = const Duration(seconds: 30),
+  }) : this._(
+         backend: backend,
+         idleDelay: idleDelay,
+         maxDeferDelay: maxDeferDelay,
+       );
+
+  WebViewCookieJanitor._({
+    required WebViewCookieBackend backend,
+    required Duration idleDelay,
+    required Duration maxDeferDelay,
+  }) : _backend = backend,
+       _idleDelay = idleDelay,
+       _maxDeferDelay = maxDeferDelay;
+
+  final WebViewCookieBackend _backend;
+  final Duration _idleDelay;
+  final Duration _maxDeferDelay;
 
   final Set<({String host, String name, String path})> _pendingCookies = {};
   final Set<String> _pendingHosts = {};
@@ -26,9 +94,6 @@ class WebViewCookieJanitor {
   Timer? _idleTimer;
   Timer? _maxDeferTimer;
   bool _maxDeferScheduled = false;
-
-  static const Duration _idleDelay = Duration(seconds: 2);
-  static const Duration _maxDeferDelay = Duration(seconds: 30);
 
   /// Enqueue deletion of a single cookie for [host].
   /// Deduplicated by (host, cookieName, path).
@@ -80,18 +145,11 @@ class WebViewCookieJanitor {
     final sw = Stopwatch()..start();
     var cookieCount = 0;
     try {
-      final cookieManager = CookieManager();
       for (final host in hosts) {
         try {
-          final got = await cookieManager.getCookies(
-            url: WebUri('https://$host'),
-          );
-          for (final cookie in got) {
-            await cookieManager.deleteCookie(
-              url: WebUri('https://$host'),
-              name: cookie.name,
-              domain: host,
-            );
+          final names = await _backend.cookieNamesForHost(host);
+          for (final name in names) {
+            await _backend.deleteCookie(host: host, name: name);
             cookieCount++;
           }
         } catch (e) {
@@ -102,10 +160,9 @@ class WebViewCookieJanitor {
       }
       for (final entry in cookies) {
         try {
-          await cookieManager.deleteCookie(
-            url: WebUri('https://${entry.host}'),
+          await _backend.deleteCookie(
+            host: entry.host,
             name: entry.name,
-            domain: entry.host,
             path: entry.path,
           );
           cookieCount++;

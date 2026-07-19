@@ -361,3 +361,21 @@
 - 回归测试：`cached initial data parses embedded episodes and builds person map`（fixture 让幽灵项
   位于真实项之前，并加入重复 id）。
 - 迁移/回滚：只影响读时规范化，不修改缓存数据。
+
+### DT-4-001 — Captcha 完成与取消竞态会重复发送 idle
+
+- 工作包：DT-4（2026-07-19）
+- 现象：Captcha job 已通过结果、失败或 timeout 完成后，如果 host 尚未来得及 rebuild 为
+  idle/null job 就收到 `cancelCurrentJob`，runner 会再次调用 `sink.onIdle`；最小复现是缺少
+  initial URL 的任务在 `acceptJob` 内同步失败，随后立即 cancel，观察到两次 idle。
+- 根因：`_complete` 以 `_isCompleted` 保证 result 只发一次，但 `_cancelCurrentJob` 只检查
+  `_currentJob != null`，没有识别“currentJob 尚未清空但已经完成”的短暂状态。
+- 影响：同一 WebView dispatch 会被调度器结算两次，重复执行 slot release、post-frame idle
+  和 pool pump；大多数释放操作虽为幂等，竞态下仍会产生额外调度和状态日志，并扩大旧 idle
+  回调碰到新任务的窗口。
+- 修复：`_cancelCurrentJob` 遇到 `_isCompleted` 时只清空任务并推进 token，禁止再次发送
+  result/idle；未完成任务的正常 cancel 语义保持不变。
+- 回归测试：`test/services/captcha_job_runner_test.dart` 的
+  `complete followed by cancel settles the job only once`，并由
+  `cancel wins a timeout race without a late result or second idle` 覆盖相邻 timeout 竞态。
+- 迁移/回滚：仅运行时调度幂等性修复，不涉及持久化数据或配置迁移。

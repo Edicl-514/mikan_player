@@ -159,6 +159,61 @@ void main() {
       expect(c.activeCount, 0);
     });
 
+    test('a cooling head cannot starve later ready tasks across polls', () {
+      final c = PlayerCaptchaPreflightCoordinator();
+      void onResult(CaptchaPreflightTask t, CaptchaBypassResult r) {}
+
+      for (final name in ['cool', 'ready-b', 'ready-c']) {
+        c.queueTask(
+          taskKey: name,
+          label: name,
+          source: _source(name: name),
+          loadToken: 1,
+          onResult: onResult,
+        );
+      }
+
+      final started = <String>[];
+      for (var i = 0; i < 2; i++) {
+        final poll = c.pollNextReady(
+          canStartNow: (name, _) => name != 'cool',
+          intervalFor: (_) => const Duration(milliseconds: 800),
+        );
+        started.add(poll.ready!.taskKey);
+        c.restorePending(poll.stillPending);
+      }
+
+      expect(started, ['ready-b', 'ready-c']);
+      expect(c.pendingTasks.map((task) => task.taskKey), ['cool']);
+    });
+
+    test('repeated ready polls preserve FIFO order without starvation', () {
+      final c = PlayerCaptchaPreflightCoordinator();
+      void onResult(CaptchaPreflightTask t, CaptchaBypassResult r) {}
+
+      for (final name in ['a', 'b', 'c', 'd']) {
+        c.queueTask(
+          taskKey: name,
+          label: name,
+          source: _source(name: name),
+          loadToken: 1,
+          onResult: onResult,
+        );
+      }
+
+      final started = <String>[];
+      while (c.hasPending) {
+        final poll = c.pollNextReady(
+          canStartNow: (_, _) => true,
+          intervalFor: (_) => Duration.zero,
+        );
+        started.add(poll.ready!.taskKey);
+        c.restorePending(poll.stillPending);
+      }
+
+      expect(started, ['a', 'b', 'c', 'd']);
+    });
+
     test('runtime overrides + resetForNewSearch', () {
       final c = PlayerCaptchaPreflightCoordinator();
       c.setRuntimeOverride(
