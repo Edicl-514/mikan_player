@@ -32,7 +32,7 @@ log = "0.4"
 
 env_logger = "0.11"
 lazy_static = "1.5.0"
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "query"] }
+reqwest = { version = "0.13", default-features = false, features = ["brotli", "gzip", "json", "rustls", "query"] }
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }
 webpki-roots = "1.0"
 scraper = "0.26"
@@ -53,7 +53,11 @@ tract-onnx = "0.22"
 memmap2 = "0.9"
 
 [dev-dependencies]
+brotli = "8"
+flate2 = "1"
+rcgen = "0.14"
 tempfile = "3"
+tokio-rustls = "0.26"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

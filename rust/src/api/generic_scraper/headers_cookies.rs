@@ -61,8 +61,8 @@ pub(super) fn apply_browser_page_headers(
     referer: Option<&str>,
 ) -> reqwest::RequestBuilder {
     let fallback_referer = url::Url::parse(target_url).ok().and_then(|u| {
-        u.host_str()
-            .map(|host| format!("{}://{}/", u.scheme(), host))
+        let origin = u.origin().ascii_serialization();
+        (origin != "null").then(|| format!("{origin}/"))
     });
 
     let mut request = request
@@ -104,6 +104,8 @@ pub(super) fn apply_browser_page_headers(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::http_server::{TestResponse, TestRoute, TestServer};
+    use axum::http::Method;
 
     #[test]
     fn runtime_cookies_override_configured_values_without_reordering() {
@@ -119,5 +121,71 @@ mod tests {
     #[test]
     fn empty_cookie_inputs_produce_no_header_value() {
         assert_eq!(merge_cookie_strings(Some(" ; "), None), None);
+    }
+
+    #[tokio::test]
+    async fn browser_headers_preserve_custom_headers_cookies_and_referer_port() {
+        let server = TestServer::spawn([TestRoute::get("/page", TestResponse::ok("ok"))]).await;
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+        let target_url = server.url("/page");
+        let cookies = merge_cookie_strings(
+            Some("session=configured; theme=dark"),
+            Some("session=runtime; token=secret"),
+        );
+
+        let response = apply_browser_page_headers(
+            apply_cookie_header(
+                client.get(&target_url).header("x-custom-source", "kept"),
+                cookies.as_deref(),
+            ),
+            &target_url,
+            None,
+        )
+        .send()
+        .await
+        .unwrap();
+        assert!(response.status().is_success());
+
+        let requests = server.requests();
+        let request = &requests[0];
+        assert_eq!(request.headers["x-custom-source"], "kept");
+        assert_eq!(
+            request.headers["cookie"],
+            "session=runtime; theme=dark; token=secret"
+        );
+        assert_eq!(
+            request.headers["referer"],
+            format!("{}/", server.base_url())
+        );
+        assert!(
+            request.headers["user-agent"]
+                .to_str()
+                .unwrap()
+                .contains("Edg/147")
+        );
+        assert_eq!(server.request_count(Method::GET, "/page"), 1);
+
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn explicit_referer_overrides_fallback_origin() {
+        let server = TestServer::spawn([TestRoute::get("/page", TestResponse::ok("ok"))]).await;
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
+
+        apply_browser_page_headers(
+            client.get(server.url("/page")),
+            &server.url("/page"),
+            Some("https://origin.example/detail/7"),
+        )
+        .send()
+        .await
+        .unwrap();
+
+        assert_eq!(
+            server.requests()[0].headers["referer"],
+            "https://origin.example/detail/7"
+        );
+        server.shutdown().await;
     }
 }

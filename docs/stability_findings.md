@@ -902,3 +902,74 @@
 - 修复：marker epoch 大于当前时间时返回 `None`，允许正常 freshness/retry 策略继续执行。
 - 回归测试：`version_and_failure_markers_tolerate_empty_corrupt_and_future_values`。
 - 迁移/回滚：marker 格式不变；未来值现在按无有效失败记录处理。
+
+### RT-5-001 — 网络重试漏掉限流/请求超时并重试永久 5xx
+
+- 工作包：RT-5（2026-07-20）
+- 现象：网络助手仅用 `status.is_server_error()` 判断重试；408/425/429 会立即返回，而 501/505 等
+  明确的永久协议/实现错误反而等待 500ms、1000ms 后共请求 3 次。
+- 根因：把整个 5xx 类别等同于 transient，同时没有显式纳入常见的请求超时、Too Early 和限流状态。
+- 影响：Bangumi 等 API 短期限流时无法通过重试自行恢复；不支持的接口/HTTP 版本则制造无意义流量和
+  用户等待。`allow_error_status` 端点的降级策略也会在不同状态上得到不一致的尝试次数。
+- 修复：集中 `is_transient_status`，只重试 408/425/429/500/502/503/504；永久 4xx/5xx 立即返回；
+  `RetryPolicy` 明确最多 2 次重试和 500ms → 1000ms 退避，测试使用零延迟策略。
+- 回归测试：`retry_policy_classifies_statuses_and_uses_exponential_backoff`、
+  `transient_statuses_retry_until_success_without_real_backoff`、
+  `permanent_statuses_return_immediately_and_allow_error_status_preserves_response`；RT-3 的评论、剧集、
+  用户 429 测试同步断言 3 次尝试后保持原降级/错误语义。
+- 迁移/回滚：不涉及持久化；成功响应不变，只有失败状态的重试次数按明确策略调整。
+
+### RT-5-002 — TLS 证书校验失败被当作瞬态连接错误重试
+
+- 工作包：RT-5（2026-07-20）
+- 现象：访问无效/自签名证书时，reqwest 同时将错误标为 `is_connect()`；旧逻辑因此执行 3 次 TLS
+  握手和两段退避，最终仍返回同一证书错误。
+- 根因：`is_transient_error` 只判断 `is_timeout() || is_connect()`，没有从完整错误链识别
+  `rustls::Error::InvalidCertificate` 及被中间层类型擦除后的证书校验语义。
+- 影响：证书过期、未知签发者或主机名错误时增加无效请求与用户等待，也会重复产生相同安全告警日志。
+- 修复：在 transient 判断前遍历错误链识别证书错误；证书校验失败立即返回，日志映射为稳定的
+  `TLS certificate validation failed` 类别。
+- 回归测试：`invalid_certificate_is_permanent_and_not_retried` 使用本地 rcgen + tokio-rustls 自签名
+  TLS server，断言 request builder 和 server accept 均只发生 1 次。
+- 迁移/回滚：不涉及；可恢复的 connect/timeout 仍保持 3 次尝试。
+
+### RT-5-003 — 网络错误日志和传播错误暴露 URL query 敏感值
+
+- 工作包：RT-5（2026-07-20）
+- 现象：重试日志直接格式化 `reqwest::Error`；该错误文本包含完整请求 URL，因此订阅 token、签名参数
+  或其他 query secret 会写入日志。最终错误原样向上传播后，上层再次记录时也会泄露同一 URL。
+- 根因：网络层把第三方错误的 Display 文本当作可安全记录的诊断信息，没有在日志/模块边界做 URL 清洗。
+- 影响：用户上传诊断日志时可能暴露订阅凭据、临时签名或私有资源地址；Cookie/Referer 当前不在 reqwest
+  Display 中，但也不能依赖第三方实现永远如此。
+- 修复：retry 日志只输出 timeout/connect/certificate/general 四类稳定摘要；所有最终 send/status error
+  在传播前调用 `without_url()`，仍保留 status、timeout、connect 和证书错误类型供程序判断。
+- 回归测试：`timeout_and_connection_failures_retry_exactly_three_attempts` 分别在 URL query、Cookie、
+  Referer 放置 secret，断言日志摘要和最终 anyhow/reqwest 错误文本均不包含这些值。
+- 迁移/回滚：不涉及；错误详情减少完整 URL，调用标签和状态/错误类别仍保留。
+
+### RT-5-004 — Browser fallback Referer 丢失自定义源端口
+
+- 工作包：RT-5（2026-07-20）
+- 现象：未显式提供 Referer 时，`apply_browser_page_headers` 把 `http://host:port/page` 生成为
+  `http://host/`；使用非 80/443 端口的自定义源收到错误来源头。
+- 根因：fallback 使用 `scheme + host_str` 手工拼接 origin，没有读取 `Url::port()`；这是 RT-2 URL
+  origin 拼接问题在 header helper 中遗漏的副本。
+- 影响：启用防盗链/来源校验的自定义源会拒绝搜索页或详情页请求，用户表现为该源无结果或无法播放。
+- 修复：使用 `url::Url::origin().ascii_serialization()` 生成 fallback Referer，标准保留 IPv6/非默认端口；
+  显式 Referer 仍优先。
+- 回归测试：`browser_headers_preserve_custom_headers_cookies_and_referer_port`、
+  `explicit_referer_overrides_fallback_origin`。
+- 迁移/回滚：不涉及；默认端口 URL 的 Referer 文本保持不变。
+
+### RT-5-005 — reqwest client 未解码 gzip/brotli 响应
+
+- 工作包：RT-5（2026-07-20）
+- 现象：客户端关闭 reqwest 默认特性时只启用了 json/rustls/query，收到带 `Content-Encoding: gzip` 或
+  `br` 的响应后，`.text()`/`.json()` 得到压缩字节而不是原始内容。
+- 根因：Cargo features 未启用 reqwest 的 gzip/brotli 解码支持，网络层也没有自行解压。
+- 影响：返回压缩内容的 CDN、代理或自定义源会出现 HTML/JSON 解析失败；用户只看到搜索、详情或播放源为空。
+- 修复：为生产 reqwest 启用 `gzip`、`brotli` features，由客户端协商并自动解码；测试使用本地生成的
+  gzip/brotli payload，不访问公网。
+- 回归测试：`client_follows_redirects_and_decodes_gzip_and_brotli` 同时覆盖 307 redirect 后 gzip 和直接
+  brotli 响应的 Unicode 正文。
+- 迁移/回滚：不涉及持久化；未压缩响应不变，压缩响应现在按 `Content-Encoding` 返回解码后的 body。

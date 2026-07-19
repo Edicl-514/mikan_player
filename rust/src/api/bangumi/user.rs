@@ -265,7 +265,7 @@ mod tests {
             .unwrap_err();
         assert!(error.to_string().contains("429"));
         assert!(error.to_string().contains("slow down"));
-        assert_eq!(server.requests().len(), 1);
+        assert_eq!(server.requests().len(), 3);
         server.shutdown().await;
     }
 

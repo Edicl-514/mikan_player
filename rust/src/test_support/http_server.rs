@@ -4,7 +4,6 @@ use axum::extract::State;
 use axum::http::{HeaderMap, HeaderName, HeaderValue, Method, Request, Response, StatusCode, Uri};
 use futures::stream;
 use std::collections::VecDeque;
-use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -23,6 +22,8 @@ pub(crate) struct TestResponse {
     chunks: Vec<Bytes>,
     response_delay: Duration,
     chunk_delay: Duration,
+    body_error: Option<String>,
+    body_error_delay: Duration,
 }
 
 impl TestResponse {
@@ -33,6 +34,8 @@ impl TestResponse {
             chunks: vec![body.into()],
             response_delay: Duration::ZERO,
             chunk_delay: Duration::ZERO,
+            body_error: None,
+            body_error_delay: Duration::ZERO,
         }
     }
 
@@ -73,22 +76,53 @@ impl TestResponse {
         self
     }
 
+    pub(crate) fn with_body_error_after_chunks(mut self, message: &str, delay: Duration) -> Self {
+        self.body_error = Some(message.to_string());
+        self.body_error_delay = delay;
+        self
+    }
+
     async fn into_response(self) -> Response<Body> {
         if !self.response_delay.is_zero() {
             tokio::time::sleep(self.response_delay).await;
         }
 
-        let body = if self.chunks.len() <= 1 {
+        let body = if self.body_error.is_none() && self.chunks.len() <= 1 {
             Body::from(self.chunks.into_iter().next().unwrap_or_default())
         } else {
             let body_stream = stream::unfold(
-                (self.chunks.into_iter(), true, self.chunk_delay),
-                |(mut chunks, first, delay)| async move {
-                    let chunk = chunks.next()?;
-                    if !first && !delay.is_zero() {
-                        tokio::time::sleep(delay).await;
+                (
+                    self.chunks.into_iter(),
+                    true,
+                    self.chunk_delay,
+                    self.body_error,
+                    self.body_error_delay,
+                ),
+                |(mut chunks, first, delay, mut body_error, body_error_delay)| async move {
+                    if let Some(chunk) = chunks.next() {
+                        if !first && !delay.is_zero() {
+                            tokio::time::sleep(delay).await;
+                        }
+                        return Some((
+                            Ok::<Bytes, std::io::Error>(chunk),
+                            (chunks, false, delay, body_error, body_error_delay),
+                        ));
                     }
-                    Some((Ok::<Bytes, Infallible>(chunk), (chunks, false, delay)))
+
+                    if let Some(message) = body_error.take() {
+                        if !body_error_delay.is_zero() {
+                            tokio::time::sleep(body_error_delay).await;
+                        }
+                        return Some((
+                            Err(std::io::Error::new(
+                                std::io::ErrorKind::ConnectionReset,
+                                message,
+                            )),
+                            (chunks, false, delay, body_error, body_error_delay),
+                        ));
+                    }
+
+                    None
                 },
             );
             Body::from_stream(body_stream)

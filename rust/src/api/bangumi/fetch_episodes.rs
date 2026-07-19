@@ -302,7 +302,18 @@ mod tests {
 
         let episodes = fetch_bangumi_episodes_rest(55).await.unwrap();
         assert_eq!(episodes.len(), 100);
-        assert_eq!(server.requests().len(), 2);
+        let requests = server.requests();
+        assert_eq!(requests.len(), 4);
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|request| request
+                    .uri
+                    .query()
+                    .is_some_and(|query| query.contains("offset=100")))
+                .count(),
+            3
+        );
         server.shutdown().await;
     }
 }

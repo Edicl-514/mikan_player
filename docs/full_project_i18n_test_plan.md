@@ -608,6 +608,31 @@ dart run tool/scan_hardcoded_ui_text.dart --fail-on-findings
   真实网络 smoke）。`cargo clippy --manifest-path rust/Cargo.toml --tests` 成功，仓库仍有 **88** 条既有
   跨模块 warning，本批 `rust/src/api/crawler/**` 为 **0** 条诊断。
 
+### RT-5 执行结果（2026-07-20）
+
+- 新增 **10 个**默认离线 Rust 测试，其中 `network.rs` 8 个、`headers_cookies.rs` 2 个：
+  - 重试策略覆盖 408/425/429/500/502/503/504 transient 状态、400/404/501/505 永久状态、
+    最多 3 次尝试和 500ms → 1000ms 指数退避；测试注入零延迟策略，不真实等待退避时间；
+  - `allow_error_status=false` 返回去 URL 的 status error；`true` 保留最终非 2xx response，transient
+    状态仍先按统一策略重试；RT-3 的 429 降级测试同步断言 3 次尝试后才执行端点 fallback；
+  - loopback 覆盖 307 redirect、gzip/brotli 自动解码、空 body、2MiB body、headers 已发出后的
+    截断 body、25ms timeout 和拒绝连接；截断发生在 body 消费阶段时不重复整个请求；
+  - 本地自签名 TLS server 验证证书错误只尝试一次，不被 `reqwest::Error::is_connect()` 误判为
+    transient；ECH 公网测试继续保持 ignored smoke；
+  - header/cookie 组合覆盖 runtime cookie 覆盖 configured cookie且顺序稳定、自定义 header 保留、
+    浏览器 User-Agent、显式/fallback Referer，以及随机非默认 loopback 端口；
+  - retry 日志只输出稳定错误类别，最终 `reqwest::Error` 使用 `without_url()` 去除完整 URL；测试在
+    URL query、Cookie、Referer 中放置不同 secret，并断言日志摘要和传播错误均不包含敏感值。
+- 扩展 RT-0 `TestResponse`，可在分段 body 发出后按指定延迟注入连接重置；新增 gzip/brotli、rcgen、
+  tokio-rustls 测试依赖，并为生产 reqwest client 启用 gzip/brotli 解码。
+- **发现并修复 5 类生产 bug**（RT-5-001 ~ RT-5-005）：transient/permanent 状态分类错误；无效证书
+  被重复请求；请求 URL query 进入日志/传播错误；fallback Referer 丢非默认端口；gzip/brotli 响应未解码。
+  详见 `docs/stability_findings.md`。
+- 验证：`cargo fmt --check` 通过；`cargo test --manifest-path rust/Cargo.toml` 全量
+  **213 passed / 0 failed / 2 ignored**（ignored 仍为显式真实网络 smoke）。严格
+  `cargo clippy --all-targets -- -D warnings` 仍被 RT-4 已记录的 **88** 条跨模块既有 warning 阻塞，
+  本批未扩大范围清理该存量门禁债务。
+
 ---
 
 ## 5. Dart 测试工作流

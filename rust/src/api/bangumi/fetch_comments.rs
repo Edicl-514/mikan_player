@@ -506,7 +506,7 @@ mod tests {
     use super::*;
     use crate::test_support::http_server::{TestResponse, TestRoute, TestServer};
     use crate::test_support::state::isolate_runtime_config;
-    use axum::http::StatusCode;
+    use axum::http::{Method, StatusCode};
     use serde_json::json;
 
     fn point_bangumi_at(base_url: &str, mode: &str) {
@@ -622,8 +622,12 @@ mod tests {
                 .contains("<script>not executed</script>")
         );
         let requests = server.requests();
-        assert_eq!(requests.len(), 2);
-        assert_eq!(requests[1].uri.query(), Some("page=2"));
+        assert_eq!(requests.len(), 4);
+        assert_eq!(
+            server.request_count(Method::GET, "/p1/subjects/7/comments"),
+            3
+        );
+        assert_eq!(requests[3].uri.query(), Some("page=2"));
         server.shutdown().await;
     }
 
