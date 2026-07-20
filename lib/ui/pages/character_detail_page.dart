@@ -124,12 +124,23 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     );
   }
 
-  void _openPersonPage(int personId) {
+  void _openPersonPage(
+    int personId,
+    int subjectId,
+    String personName,
+    String? imageUrl,
+  ) {
+    final heroTag =
+        'character_${widget.characterId}_subject_${subjectId}_person_$personId';
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            PersonDetailPage(personId: personId, enableHeroAnimation: false),
+        builder: (context) => PersonDetailPage(
+          personId: personId,
+          personName: personName,
+          heroImageUrl: imageUrl,
+          heroTag: heroTag,
+        ),
       ),
     );
   }
@@ -1098,9 +1109,19 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                                 spacing: 8,
                                 runSpacing: 4,
                                 children: subject.persons.map((person) {
+                                  final personImageUrl =
+                                      person.images?.small ?? '';
+                                  final personHeroTag =
+                                      'character_${widget.characterId}_subject_${subject.id.toInt()}_person_${person.id.toInt()}';
                                   return GestureDetector(
-                                    onTap: () =>
-                                        _openPersonPage(person.id.toInt()),
+                                    onTap: () => _openPersonPage(
+                                      person.id.toInt(),
+                                      subject.id.toInt(),
+                                      person.name,
+                                      personImageUrl.isEmpty
+                                          ? null
+                                          : personImageUrl,
+                                    ),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 8,
@@ -1120,23 +1141,23 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          if (person.images?.small != null &&
-                                              person.images!.small.isNotEmpty)
-                                            ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              child: SizedBox(
-                                                width: 16,
-                                                height: 16,
-                                                child: CachedNetworkImage(
-                                                  imageUrl:
-                                                      person.images!.small,
-                                                  fit: BoxFit.cover,
+                                          if (personImageUrl.isNotEmpty)
+                                            Hero(
+                                              tag: personHeroTag,
+                                              child: ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                child: SizedBox(
+                                                  width: 16,
+                                                  height: 16,
+                                                  child: CachedNetworkImage(
+                                                    imageUrl: personImageUrl,
+                                                    fit: BoxFit.cover,
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          if (person.images?.small != null &&
-                                              person.images!.small.isNotEmpty)
+                                          if (personImageUrl.isNotEmpty)
                                             const SizedBox(width: 4),
                                           Text(
                                             AppLocalizations.of(

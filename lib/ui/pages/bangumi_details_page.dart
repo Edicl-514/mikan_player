@@ -201,9 +201,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   }
 
   void _openTagBrowsePage(String tagName) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => TagBrowsePage(tagName: tagName)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => TagBrowsePage(tagName: tagName)));
   }
 
   Future<void> _openEpisodePlayer(BangumiEpisode ep) async {
@@ -241,6 +241,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
             coverUrl: rel.image,
             tags: const [],
           ),
+          heroTag: 'bangumi_relation_${rel.id.toInt()}',
+          enableCharacterHero: false,
         ),
       ),
     );

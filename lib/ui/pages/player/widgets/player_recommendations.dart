@@ -106,15 +106,7 @@ class PlayerRecommendations extends StatelessWidget {
                   ),
                 ],
               ),
-              child: item.coverUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
-                        imageUrl: item.coverUrl,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  : null,
+              child: _buildCover(item, borderRadius: 12),
             ),
             const SizedBox(height: 8),
             Text(
@@ -163,15 +155,7 @@ class PlayerRecommendations extends StatelessWidget {
                     ? const Color(0xFF252535)
                     : theme.colorScheme.surfaceContainerHigh,
               ),
-              child: item.coverUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: CachedNetworkImage(
-                        imageUrl: item.coverUrl,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  : null,
+              child: _buildCover(item, borderRadius: 8),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -230,6 +214,18 @@ class PlayerRecommendations extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget? _buildCover(RankingAnime item, {required double borderRadius}) {
+    if (item.coverUrl.isEmpty) return null;
+
+    return Hero(
+      tag: 'player_rec_${item.bangumiId}',
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: CachedNetworkImage(imageUrl: item.coverUrl, fit: BoxFit.cover),
       ),
     );
   }

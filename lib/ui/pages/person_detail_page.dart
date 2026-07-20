@@ -21,6 +21,7 @@ class PersonDetailPage extends StatefulWidget {
   final String? personName;
   final String? heroImageUrl;
   final bool enableHeroAnimation;
+  final String? heroTag;
   final PersonDetailsLoader? loadDetails;
   final PersonSubjectsLoader? loadSubjects;
   final PersonCharactersLoader? loadCharacters;
@@ -31,6 +32,7 @@ class PersonDetailPage extends StatefulWidget {
     this.personName,
     this.heroImageUrl,
     this.enableHeroAnimation = true,
+    this.heroTag,
     this.loadDetails,
     this.loadSubjects,
     this.loadCharacters,
@@ -578,7 +580,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     final imgUrl = _details?.img ?? widget.heroImageUrl;
     return widget.enableHeroAnimation
         ? Hero(
-            tag: 'person_${widget.personId}',
+            tag: widget.heroTag ?? 'person_${widget.personId}',
             child: _posterContainer(imgUrl, radius),
           )
         : _posterContainer(imgUrl, radius);
@@ -627,7 +629,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   }) {
     return widget.enableHeroAnimation
         ? Hero(
-            tag: 'person_${widget.personId}',
+            tag: widget.heroTag ?? 'person_${widget.personId}',
             child: _avatarContainer(imgUrl, width, height, radius),
           )
         : _avatarContainer(imgUrl, width, height, radius);

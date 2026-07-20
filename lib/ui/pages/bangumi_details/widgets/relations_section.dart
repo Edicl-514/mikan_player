@@ -122,13 +122,16 @@ class _RelationCard extends StatelessWidget {
                 border: Border.all(color: borderColor),
               ),
               child: relation.image.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
-                        imageUrl: relation.image,
-                        fit: BoxFit.cover,
-                        alignment: Alignment.center,
-                        deferOffscreenLoad: false,
+                  ? Hero(
+                      tag: 'bangumi_relation_${relation.id.toInt()}',
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CachedNetworkImage(
+                          imageUrl: relation.image,
+                          fit: BoxFit.cover,
+                          alignment: Alignment.center,
+                          deferOffscreenLoad: false,
+                        ),
                       ),
                     )
                   : Center(

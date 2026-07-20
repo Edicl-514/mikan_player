@@ -2,12 +2,11 @@
 // `PlayerRecommendations` widget.
 //
 // The widget is a pure Flutter widget tree (no network, no WebView, no media
-// player). To avoid instantiating `CachedNetworkImage` (which talks to a
-// singleton image cache service and may kick off platform/network work), the
-// test items use an empty `coverUrl`, which makes the cards render the plain
-// colored placeholder Container instead of an image. Tests cover loading, empty,
-// populated vertical, populated horizontal, item-tap forwarding, and the
-// info/score branch of the vertical card.
+// player). Most test items use an empty `coverUrl`, which keeps their cards on
+// the plain colored placeholder path. One focused case supplies a URL to assert
+// the cover Hero tag. Tests cover loading, empty, populated vertical, populated
+// horizontal, item-tap forwarding, Hero wiring, and the info/score branch of
+// the vertical card.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,7 +66,9 @@ void main() {
       expect(find.byType(InkWell), findsNothing);
     });
 
-    testWidgets('empty state shows localized copy and no spinner', (tester) async {
+    testWidgets('empty state shows localized copy and no spinner', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           const PlayerRecommendations(
@@ -155,6 +156,30 @@ void main() {
         }
       },
     );
+
+    testWidgets('cover uses the tag expected by the details page', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          PlayerRecommendations(
+            recommendations: [
+              _item(
+                title: 'Hero cover',
+                bangumiId: 'bgm-hero',
+                coverUrl: 'https://example.com/cover.jpg',
+              ),
+            ],
+            isLoading: false,
+            isVertical: false,
+            onItemTap: (_) {},
+          ),
+        ),
+      );
+
+      final hero = tester.widget<Hero>(find.byType(Hero));
+      expect(hero.tag, 'player_rec_bgm-hero');
+    });
 
     testWidgets('vertical card renders info chip and score when present', (
       tester,

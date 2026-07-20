@@ -2,8 +2,8 @@
 // `RelationsSection` widget.
 //
 // No network, no WebView, no media player — all data passed via constructor.
-// Test instances use empty `image` to avoid real `CachedNetworkImage` network
-// decode; the fallback `Icons.movie_outlined` path is exercised instead.
+// Most test instances use an empty `image` to exercise the fallback path. One
+// focused case supplies a URL to verify the cover Hero tag.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -148,6 +148,33 @@ void main() {
       expect(captured, isNotNull);
       expect(captured!.id, 1);
       expect(captured!.nameCn, 'Tap Me');
+    });
+
+    testWidgets('cover uses a relation-specific Hero tag', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RelationsSection(
+              relations: [
+                _relation(
+                  id: 42,
+                  nameCn: 'Hero Relation',
+                  image: 'https://example.com/relation.jpg',
+                ),
+              ],
+              isLoading: false,
+              isDarkBg: false,
+              sectionTitle: _buildSectionTitleStub('关联', false),
+              loadingPlaceholder: _loadingStub,
+              scrollController: ScrollController(),
+              onItemTap: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      final hero = tester.widget<Hero>(find.byType(Hero));
+      expect(hero.tag, 'bangumi_relation_42');
     });
 
     testWidgets('isDarkBg true renders without exception', (tester) async {
