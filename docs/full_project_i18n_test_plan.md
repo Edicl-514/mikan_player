@@ -1,6 +1,6 @@
 # 全项目 i18n 与稳定性测试执行计划
 
-> 状态：可执行规划稿  
+> 状态：Q-0 本地收尾完成，CI 门禁按 2026-07-20 决策延后
 > 基线日期：2026-07-18  
 > 范围：Flutter/Dart UI 国际化、Dart 关键模块测试、Rust 关键模块测试、缺陷发现与回归保护  
 > 执行原则：小批次、可独立验收、默认离线、先写特征/回归测试再修复缺陷
@@ -843,6 +843,24 @@ cargo test --manifest-path rust/Cargo.toml ech_pinned -- --ignored --nocapture
 - `tool/check_frb_codegen.ps1` 通过：两遍 codegen 幂等，`cargo check`、`cargo fmt --check`、
   `flutter analyze` 均通过。生成差异仅更新 codegen 的 ignored-item 注释及 facade 新私有 helper
   注释，没有 Dart API 或 Rust public signature 漂移。
+
+### Q-0 执行结果（2026-07-20）
+
+- 新增 `tool/run_q0_quality_gate.ps1`，固化本地 l10n 生成、硬编码严格扫描、Flutter analyze、
+  Flutter/Rust 全量测试与 Rust fmt 门禁；`-Coverage` 可生成两端覆盖率，`-CheckFrbCodegen`
+  可复核 FRB codegen 幂等。按本轮决策未新增或修改 CI workflow。
+- 最终回归通过：硬编码扫描 **0 high / 0 medium**（118 个 Dart UI 文件），`flutter analyze`
+  0 issue，Flutter **1307 passed**，Rust **223 passed / 2 ignored**；ignored 仍是 danmaku 与 ECH
+  真实网络 smoke test。
+- Dart 覆盖率排除生成代码后：生产文件触达 **192/196（97.96%）**，已插桩行
+  **10,504/25,431（41.30%）**；models 100%，download 70.66%，低值主要集中在大型 UI/host。
+- Rust `cargo-llvm-cov` 排除生成代码后：行覆盖 **10,897/15,409（70.72%）**，函数覆盖
+  **1,200/1,741（68.93%）**；Bangumi API 行覆盖 82.39%。region detector、native librqbit
+  与部分大型状态机列为剩余风险，不设置全仓统一覆盖率阈值。
+- `docs/stability_findings.md` 共审计 **73** 条记录（F-0 3 / L10N 14 / Dart 20 / Rust 36）；
+  补齐 RT-2-003～RT-2-005 的影响字段后，每条均含现象、根因、影响、修复、回归测试和迁移/回滚说明。
+- `cargo clippy --all-targets -- -D warnings` 当前历史基线为 **89** 个 lint；按原计划记录但不纳入
+  Q-0 硬门禁，后续作为独立清理任务。完整审计见 `docs/q0_quality_audit.md`。
 
 ### 可选 RT-7：属性/模糊测试
 

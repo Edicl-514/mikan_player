@@ -688,6 +688,8 @@
 - 现象：播放页包含 `m3u8` 时，调试日志用匹配 byte offset 前减 100、后加 200 后直接切片；中文 HTML
   很容易让边界落在多字节字符中间并 panic，完整 search → play API 因日志代码中断。
 - 根因：`match_indices` 返回合法 byte 边界，但对该位置做任意 byte 加减后不再保证是 UTF-8 字符边界。
+- 影响：包含中文或其他多字节字符的播放页可能让搜索播放链路在仅生成调试预览时崩溃，用户表现为
+  已找到候选但无法继续解析视频地址。
 - 修复：提取 `text_window_around_match`，以匹配位置为锚点按 `chars()` 构造前后预览。
 - 回归测试：`text_window_around_match_respects_unicode_boundaries`；完整 loopback 播放测试使用长中文播放页。
 - 迁移/回滚：仅日志预览截取单位从 byte 改为字符，视频匹配输入保持完整不变。
@@ -698,6 +700,8 @@
 - 现象：新增/更新源配置只做 Serde 字段反序列化，`li[`、`(` 等语法非法的 CSS selector/regex 仍会
   保存；实际搜索时解析失败并表现为无结果，用户无法从保存操作得到明确反馈。
 - 根因：配置写入路径没有调用 `scraper::Selector`、`regex::Regex`、`fancy_regex::Regex` 做语法校验。
+- 影响：用户可以保存必然无法工作的源配置，问题直到实际搜索时才表现为空结果，且错误配置已写入
+  本地文件并会在重启后继续生效。
 - 修复：集中新增 `validate_search_config` / `validate_captcha_config`，覆盖 subject/channel/captcha selector、
   剧集/线路普通 regex 和播放/嵌套 fancy regex；校验在修改内存配置和写文件之前完成。
 - 回归测试：`add_source_config_rejects_invalid_regex_and_selector_without_persisting`、
@@ -710,6 +714,8 @@
 - 现象：Dart 取消进度 Stream 后，`StreamSink::add` 返回发送失败，但所有调用都用 `.ok()` 忽略；Rust
   仍会继续抓取详情页、解析剧集和写缓存，取消只能停止 UI 接收，不能停止后台工作。
 - 根因：搜索函数直接依赖 FRB sink，未把发送结果作为取消信号，也无法在纯 Rust 测试中替换 sink。
+- 影响：用户离开页面或开始新搜索后，旧任务仍占用网络、CPU 和源站并发配额，并可能继续写入已经
+  不再需要的缓存结果。
 - 修复：抽出 `ProgressEmitter` 和逐源 `run_source_with_progress`；任一中间事件发送失败即返回，不再发起
   下一阶段请求，同时保持对外 FRB 函数签名不变。
 - 回归测试：`closed_progress_sink_stops_before_detail_fetch` 模拟首个事件后关闭 sink，断言 search 请求为 1、
