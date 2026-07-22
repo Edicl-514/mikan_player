@@ -67,6 +67,34 @@ class EpisodeInfo {
           channelIndex == other.channelIndex;
 }
 
+/// Result of a subscription refresh, including whether default-enabled flags
+/// should be applied by the UI for this refresh mode.
+class RefreshPlaybackSourcesResult {
+  /// Full merged cache JSON after refresh.
+  final String content;
+
+  /// True when the UI should apply remote `defaultEnabled` overrides.
+  /// Manual refreshes always apply them; automatic refreshes only do so on
+  /// the first successful subscription pull.
+  final bool applyDefaultEnabled;
+
+  const RefreshPlaybackSourcesResult({
+    required this.content,
+    required this.applyDefaultEnabled,
+  });
+
+  @override
+  int get hashCode => content.hashCode ^ applyDefaultEnabled.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RefreshPlaybackSourcesResult &&
+          runtimeType == other.runtimeType &&
+          content == other.content &&
+          applyDefaultEnabled == other.applyDefaultEnabled;
+}
+
 /// 搜索结果：包含播放页面URL和视频URL匹配正则
 class SearchPlayResult {
   /// 源名称
@@ -456,6 +484,9 @@ class SourceState {
   final String? captchaConfigJson;
   final bool enabled;
 
+  /// Whether this source was created by the user (not from subscription).
+  final bool isManual;
+
   const SourceState({
     required this.name,
     required this.description,
@@ -467,6 +498,7 @@ class SourceState {
     required this.searchConfigJson,
     this.captchaConfigJson,
     required this.enabled,
+    required this.isManual,
   });
 
   @override
@@ -480,7 +512,8 @@ class SourceState {
       searchUrl.hashCode ^
       searchConfigJson.hashCode ^
       captchaConfigJson.hashCode ^
-      enabled.hashCode;
+      enabled.hashCode ^
+      isManual.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -496,5 +529,6 @@ class SourceState {
           searchUrl == other.searchUrl &&
           searchConfigJson == other.searchConfigJson &&
           captchaConfigJson == other.captchaConfigJson &&
-          enabled == other.enabled;
+          enabled == other.enabled &&
+          isManual == other.isManual;
 }

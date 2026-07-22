@@ -694,6 +694,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get customSourceDescription => 'Custom web search source';
 
   @override
+  String get subscriptionSourceTag => 'Subscription';
+
+  @override
+  String get manualSourceTag => 'Manual';
+
+  @override
+  String get subscriptionSourceReadOnly =>
+      'Subscription sources are read-only; toggle them or refresh the subscription to update';
+
+  @override
   String get settingsSaved => 'Settings saved';
 
   @override

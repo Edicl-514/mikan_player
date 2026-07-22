@@ -23,7 +23,8 @@ pub fn invalidate_source_config_cache() {
     gs_impl::invalidate_source_config_cache();
 }
 
-pub async fn refresh_playback_source_config() -> anyhow::Result<String> {
+pub async fn refresh_playback_source_config()
+-> anyhow::Result<gs_impl::RefreshPlaybackSourcesResult> {
     contract::public_result(
         "refresh_playback_source_config",
         gs_impl::refresh_playback_source_config().await,

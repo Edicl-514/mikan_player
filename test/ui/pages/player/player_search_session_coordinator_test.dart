@@ -23,6 +23,7 @@ SourceState _src({
   searchConfigJson: '{}',
   captchaConfigJson: captchaConfigJson,
   enabled: true,
+  isManual: true,
 );
 
 String _pageKey(String source, [int? channel]) => SourceChannelKey(

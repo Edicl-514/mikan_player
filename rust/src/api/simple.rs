@@ -103,13 +103,16 @@ pub async fn preload_playback_source_config() -> String {
 }
 
 /// 刷新播放源配置（从订阅地址重新拉取并保存到本地缓存）
-/// 只在用户点击刷新按钮时调用
+/// 只在用户点击刷新按钮时调用。返回合并后的完整 JSON（含手动源）。
 pub async fn refresh_playback_source_config() -> String {
     log::info!("Starting to refresh playback source config from subscription URL...");
     match crate::api::generic_scraper::refresh_playback_source_config().await {
-        Ok(_) => {
-            log::info!("Playback source config refreshed successfully");
-            "success".to_string()
+        Ok(result) => {
+            log::info!(
+                "Playback source config refreshed successfully (apply_default_enabled={})",
+                result.apply_default_enabled
+            );
+            result.content
         }
         Err(e) => {
             log::error!("Failed to refresh playback source config: {}", e);

@@ -608,6 +608,17 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Subscription sources are managed exclusively by refresh/auto-update.
+    if (widget.source != null && !widget.source!.isManual) {
+      if (mounted) {
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.subscriptionSourceReadOnly)),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _isSaving = true;
     });
@@ -1303,6 +1314,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
     final l10n = AppLocalizations.of(context);
     final isPc = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
     final isWide = MediaQuery.sizeOf(context).width >= 760;
+    final isReadOnly = widget.source != null && !widget.source!.isManual;
 
     return Scaffold(
       appBar: AppBar(
@@ -1312,17 +1324,18 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
               : l10n.dataSourceConfigEditing(widget.source!.name),
         ),
         actions: [
-          IconButton(
-            tooltip: l10n.dataSourceConfigSave,
-            icon: _isSaving
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save),
-            onPressed: _isSaving ? null : _save,
-          ),
+          if (!isReadOnly)
+            IconButton(
+              tooltip: l10n.dataSourceConfigSave,
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save),
+              onPressed: _isSaving ? null : _save,
+            ),
         ],
       ),
       body: Form(
@@ -1330,12 +1343,28 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (isReadOnly) ...[
+              Card(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: ListTile(
+                  leading: const Icon(Icons.lock_outline),
+                  title: Text(l10n.subscriptionSourceReadOnly),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxWidth: isPc ? 960 : double.infinity,
                 ),
-                child: _buildFormContent(l10n, isWide),
+                child: IgnorePointer(
+                  ignoring: isReadOnly,
+                  child: Opacity(
+                    opacity: isReadOnly ? 0.7 : 1,
+                    child: _buildFormContent(l10n, isWide),
+                  ),
+                ),
               ),
             ),
           ],

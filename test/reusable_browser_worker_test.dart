@@ -47,6 +47,7 @@ void main() {
         searchConfigJson: '{}',
         captchaConfigJson: null,
         enabled: true,
+        isManual: true,
       );
       runner.acceptJob(
         CaptchaPreflightJob(

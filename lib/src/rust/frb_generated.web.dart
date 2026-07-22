@@ -422,6 +422,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   (String, String) dco_decode_record_string_string(dynamic raw);
 
   @protected
+  RefreshPlaybackSourcesResult dco_decode_refresh_playback_sources_result(
+    dynamic raw,
+  );
+
+  @protected
   SearchPlayResult dco_decode_search_play_result(dynamic raw);
 
   @protected
@@ -915,6 +920,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   (String, String) sse_decode_record_string_string(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RefreshPlaybackSourcesResult sse_decode_refresh_playback_sources_result(
     SseDeserializer deserializer,
   );
 
@@ -1538,6 +1548,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_record_string_string(
     (String, String) self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_refresh_playback_sources_result(
+    RefreshPlaybackSourcesResult self,
     SseSerializer serializer,
   );
 

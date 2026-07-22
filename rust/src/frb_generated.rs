@@ -6693,6 +6693,18 @@ impl SseDecode for (String, String) {
     }
 }
 
+impl SseDecode for crate::api::generic_scraper::types::RefreshPlaybackSourcesResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_content = <String>::sse_decode(deserializer);
+        let mut var_applyDefaultEnabled = <bool>::sse_decode(deserializer);
+        return crate::api::generic_scraper::types::RefreshPlaybackSourcesResult {
+            content: var_content,
+            apply_default_enabled: var_applyDefaultEnabled,
+        };
+    }
+}
+
 impl SseDecode for crate::api::generic_scraper::types::SearchPlayResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -6876,6 +6888,7 @@ impl SseDecode for crate::api::generic_scraper::types::SourceState {
         let mut var_searchConfigJson = <String>::sse_decode(deserializer);
         let mut var_captchaConfigJson = <Option<String>>::sse_decode(deserializer);
         let mut var_enabled = <bool>::sse_decode(deserializer);
+        let mut var_isManual = <bool>::sse_decode(deserializer);
         return crate::api::generic_scraper::types::SourceState {
             name: var_name,
             description: var_description,
@@ -6887,6 +6900,7 @@ impl SseDecode for crate::api::generic_scraper::types::SourceState {
             search_config_json: var_searchConfigJson,
             captcha_config_json: var_captchaConfigJson,
             enabled: var_enabled,
+            is_manual: var_isManual,
         };
     }
 }
@@ -8462,6 +8476,31 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::ranking::RankingAnime>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart
+    for crate::api::generic_scraper::types::RefreshPlaybackSourcesResult
+{
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.content.into_into_dart().into_dart(),
+            self.apply_default_enabled.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::generic_scraper::types::RefreshPlaybackSourcesResult
+{
+}
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        crate::api::generic_scraper::types::RefreshPlaybackSourcesResult,
+    > for crate::api::generic_scraper::types::RefreshPlaybackSourcesResult
+{
+    fn into_into_dart(self) -> crate::api::generic_scraper::types::RefreshPlaybackSourcesResult {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::types::SearchPlayResult {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -8650,6 +8689,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::generic_scraper::types::Sourc
             self.search_config_json.into_into_dart().into_dart(),
             self.captcha_config_json.into_into_dart().into_dart(),
             self.enabled.into_into_dart().into_dart(),
+            self.is_manual.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -9750,6 +9790,14 @@ impl SseEncode for (String, String) {
     }
 }
 
+impl SseEncode for crate::api::generic_scraper::types::RefreshPlaybackSourcesResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.content, serializer);
+        <bool>::sse_encode(self.apply_default_enabled, serializer);
+    }
+}
+
 impl SseEncode for crate::api::generic_scraper::types::SearchPlayResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -9875,6 +9923,7 @@ impl SseEncode for crate::api::generic_scraper::types::SourceState {
         <String>::sse_encode(self.search_config_json, serializer);
         <Option<String>>::sse_encode(self.captcha_config_json, serializer);
         <bool>::sse_encode(self.enabled, serializer);
+        <bool>::sse_encode(self.is_manual, serializer);
     }
 }
 

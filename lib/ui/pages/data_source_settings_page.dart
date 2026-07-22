@@ -171,26 +171,33 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     });
 
     try {
-      // 从订阅地址重新拉取JSON并保存到本地
-      final content = await generic_scraper.refreshPlaybackSourceConfig();
-      final defaultEnabledOverrides = _parseDefaultEnabledOverrides(content);
+      // A user-requested refresh reapplies remote defaultEnabled values. The
+      // automatic startup refresh uses a separate mode and preserves switches.
+      final result = await generic_scraper.refreshPlaybackSourceConfig();
+      final content = result.content;
+      final applyDefaultEnabled = result.applyDefaultEnabled;
 
-      if (defaultEnabledOverrides.isNotEmpty) {
-        final prefs = await SharedPreferences.getInstance();
-        final syncedDisabled =
-            (prefs.getStringList('disabled_sources') ?? <String>[]).toSet();
+      var syncCount = 0;
+      if (applyDefaultEnabled) {
+        final defaultEnabledOverrides = _parseDefaultEnabledOverrides(content);
+        if (defaultEnabledOverrides.isNotEmpty) {
+          final prefs = await SharedPreferences.getInstance();
+          final syncedDisabled =
+              (prefs.getStringList('disabled_sources') ?? <String>[]).toSet();
 
-        for (final entry in defaultEnabledOverrides.entries) {
-          if (entry.value) {
-            syncedDisabled.remove(entry.key);
-          } else {
-            syncedDisabled.add(entry.key);
+          for (final entry in defaultEnabledOverrides.entries) {
+            if (entry.value) {
+              syncedDisabled.remove(entry.key);
+            } else {
+              syncedDisabled.add(entry.key);
+            }
           }
-        }
 
-        final syncedDisabledList = syncedDisabled.toList();
-        await prefs.setStringList('disabled_sources', syncedDisabledList);
-        await rust.setDisabledSources(sources: syncedDisabledList);
+          final syncedDisabledList = syncedDisabled.toList();
+          await prefs.setStringList('disabled_sources', syncedDisabledList);
+          await rust.setDisabledSources(sources: syncedDisabledList);
+          syncCount = defaultEnabledOverrides.length;
+        }
       }
 
       // 刷新源列表（从本地缓存读取）
@@ -211,7 +218,6 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
 
       if (mounted) {
         final l10n = AppLocalizations.of(context);
-        final syncCount = defaultEnabledOverrides.length;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -337,18 +343,29 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                           ),
                         ),
                         child: ListTile(
-                          onTap: () async {
-                            final changed = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    DataSourceConfigPage(source: source),
-                              ),
-                            );
-                            if (changed == true) {
-                              _loadSettings();
-                            }
-                          },
+                          onTap: source.isManual
+                              ? () async {
+                                  final changed = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          DataSourceConfigPage(source: source),
+                                    ),
+                                  );
+                                  if (changed == true) {
+                                    _loadSettings();
+                                  }
+                                }
+                              : () {
+                                  final l10n = AppLocalizations.of(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        l10n.subscriptionSourceReadOnly,
+                                      ),
+                                    ),
+                                  );
+                                },
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 4,
@@ -406,6 +423,19 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                                   spacing: 6,
                                   runSpacing: 4,
                                   children: [
+                                    _buildInfoTag(
+                                      context,
+                                      source.isManual
+                                          ? l10n.manualSourceTag
+                                          : l10n.subscriptionSourceTag,
+                                      source.isManual
+                                          ? Theme.of(
+                                              context,
+                                            ).colorScheme.secondary
+                                          : Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
+                                    ),
                                     _buildInfoTag(
                                       context,
                                       'Tier ${source.tier}',

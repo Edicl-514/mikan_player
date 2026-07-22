@@ -48,6 +48,7 @@ SourceState _existingSource() {
     }''',
     captchaConfigJson: null,
     enabled: true,
+    isManual: true,
   );
 }
 

@@ -601,6 +601,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
             searchConfigJson: jsonEncode(searchConfig),
             captchaConfigJson: jsonEncode(captchaConfigRaw),
             enabled: true,
+            isManual: true,
           ),
         );
       }

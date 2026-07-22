@@ -1,5 +1,25 @@
 use serde::{Deserialize, Serialize};
 
+/// Origin of a playback source configuration entry.
+///
+/// - `Subscription`: came from the remote subscription JSON; may be auto/manually
+///   refreshed and is not user-editable.
+/// - `Manual`: created by the user locally; preserved across subscription updates
+///   and freely editable.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SourceOrigin {
+    #[default]
+    Subscription,
+    Manual,
+}
+
+impl SourceOrigin {
+    pub fn is_manual(self) -> bool {
+        matches!(self, SourceOrigin::Manual)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SourceState {
     pub name: String,
@@ -12,6 +32,8 @@ pub struct SourceState {
     pub search_config_json: String,
     pub captcha_config_json: Option<String>,
     pub enabled: bool,
+    /// Whether this source was created by the user (not from subscription).
+    pub is_manual: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -98,6 +120,10 @@ pub struct SourceArguments {
     pub search_config: SearchConfig,
     #[serde(rename = "captchaConfig")]
     pub captcha_config: Option<CaptchaConfig>,
+    /// Distinguishes subscription-pulled sources from user-added ones.
+    /// Absent in older cache files → treated as `subscription`.
+    #[serde(rename = "sourceOrigin", default)]
+    pub source_origin: SourceOrigin,
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
@@ -348,4 +374,16 @@ pub struct SourceConfigUpdate {
     pub description: Option<String>,
     pub search_config_json: Option<String>,
     pub captcha_config_json: Option<String>,
+}
+
+/// Result of a subscription refresh, including whether default-enabled flags
+/// should be applied by the UI for this refresh mode.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefreshPlaybackSourcesResult {
+    /// Full merged cache JSON after refresh.
+    pub content: String,
+    /// True when the UI should apply remote `defaultEnabled` overrides.
+    /// Manual refreshes always apply them; automatic refreshes only do so on
+    /// the first successful subscription pull.
+    pub apply_default_enabled: bool,
 }

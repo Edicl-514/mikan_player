@@ -336,6 +336,7 @@ CaptchaPreflightJob job({
       searchUrl: searchUrl,
       searchConfigJson: '{}',
       enabled: true,
+      isManual: true,
     ),
     searchKeyword: searchKeyword,
     initialUrl: initialUrl,

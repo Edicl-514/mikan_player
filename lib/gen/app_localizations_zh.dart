@@ -672,6 +672,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get customSourceDescription => '自定义网络搜视源';
 
   @override
+  String get subscriptionSourceTag => '订阅';
+
+  @override
+  String get manualSourceTag => '手动';
+
+  @override
+  String get subscriptionSourceReadOnly => '订阅源不可编辑，仅可开关或通过订阅更新';
+
+  @override
   String get settingsSaved => '设置已保存';
 
   @override

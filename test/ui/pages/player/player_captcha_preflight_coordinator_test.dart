@@ -20,6 +20,7 @@ SourceState _source({
     searchConfigJson: '{}',
     captchaConfigJson: captchaConfigJson,
     enabled: true,
+    isManual: true,
   );
 }
 

@@ -1347,6 +1347,24 @@ abstract class AppLocalizations {
   /// **'自定义网络搜视源'**
   String get customSourceDescription;
 
+  /// No description provided for @subscriptionSourceTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'订阅'**
+  String get subscriptionSourceTag;
+
+  /// No description provided for @manualSourceTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动'**
+  String get manualSourceTag;
+
+  /// No description provided for @subscriptionSourceReadOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'订阅源不可编辑，仅可开关或通过订阅更新'**
+  String get subscriptionSourceReadOnly;
+
   /// No description provided for @settingsSaved.
   ///
   /// In zh, this message translates to:

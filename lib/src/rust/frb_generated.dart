@@ -494,7 +494,8 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiSimpleRefreshPlaybackSourceConfig();
 
-  Future<String> crateFrbApiGenericScraperRefreshPlaybackSourceConfig();
+  Future<RefreshPlaybackSourcesResult>
+  crateFrbApiGenericScraperRefreshPlaybackSourceConfig();
 
   Future<String?> crateApiConfigRemapBangumiHost({
     required String host,
@@ -4133,7 +4134,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> crateFrbApiGenericScraperRefreshPlaybackSourceConfig() {
+  Future<RefreshPlaybackSourcesResult>
+  crateFrbApiGenericScraperRefreshPlaybackSourceConfig() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -4146,7 +4148,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
+          decodeSuccessData: sse_decode_refresh_playback_sources_result,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
@@ -6262,6 +6264,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RefreshPlaybackSourcesResult dco_decode_refresh_playback_sources_result(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return RefreshPlaybackSourcesResult(
+      content: dco_decode_String(arr[0]),
+      applyDefaultEnabled: dco_decode_bool(arr[1]),
+    );
+  }
+
+  @protected
   SearchPlayResult dco_decode_search_play_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -6373,8 +6389,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   SourceState dco_decode_source_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
     return SourceState(
       name: dco_decode_String(arr[0]),
       description: dco_decode_String(arr[1]),
@@ -6386,6 +6402,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       searchConfigJson: dco_decode_String(arr[7]),
       captchaConfigJson: dco_decode_opt_String(arr[8]),
       enabled: dco_decode_bool(arr[9]),
+      isManual: dco_decode_bool(arr[10]),
     );
   }
 
@@ -7950,6 +7967,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RefreshPlaybackSourcesResult sse_decode_refresh_playback_sources_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_content = sse_decode_String(deserializer);
+    var var_applyDefaultEnabled = sse_decode_bool(deserializer);
+    return RefreshPlaybackSourcesResult(
+      content: var_content,
+      applyDefaultEnabled: var_applyDefaultEnabled,
+    );
+  }
+
+  @protected
   SearchPlayResult sse_decode_search_play_result(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_sourceName = sse_decode_String(deserializer);
@@ -8116,6 +8146,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_searchConfigJson = sse_decode_String(deserializer);
     var var_captchaConfigJson = sse_decode_opt_String(deserializer);
     var var_enabled = sse_decode_bool(deserializer);
+    var var_isManual = sse_decode_bool(deserializer);
     return SourceState(
       name: var_name,
       description: var_description,
@@ -8127,6 +8158,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       searchConfigJson: var_searchConfigJson,
       captchaConfigJson: var_captchaConfigJson,
       enabled: var_enabled,
+      isManual: var_isManual,
     );
   }
 
@@ -9484,6 +9516,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_refresh_playback_sources_result(
+    RefreshPlaybackSourcesResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.content, serializer);
+    sse_encode_bool(self.applyDefaultEnabled, serializer);
+  }
+
+  @protected
   void sse_encode_search_play_result(
     SearchPlayResult self,
     SseSerializer serializer,
@@ -9594,6 +9636,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.searchConfigJson, serializer);
     sse_encode_opt_String(self.captchaConfigJson, serializer);
     sse_encode_bool(self.enabled, serializer);
+    sse_encode_bool(self.isManual, serializer);
   }
 
   @protected

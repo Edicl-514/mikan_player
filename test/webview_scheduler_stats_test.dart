@@ -17,6 +17,7 @@ SourceState _sourceState({String name = 'src', int tier = 0}) {
     searchConfigJson: '{}',
     captchaConfigJson: null,
     enabled: true,
+    isManual: true,
   );
 }
 
