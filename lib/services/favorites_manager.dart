@@ -86,6 +86,15 @@ class FavoritesManager {
     return count > 0;
   }
 
+  Future<int?> getFavoriteType(int bangumiId) async {
+    if (!_isInitialized) await init();
+
+    final favorite = await (db.select(
+      db.dbLocalFavorites,
+    )..where((tbl) => tbl.bangumiId.equals(bangumiId))).getSingleOrNull();
+    return favorite?.type;
+  }
+
   Future<List<LocalFavorite>> getAllFavorites() async {
     if (!_isInitialized) await init();
 

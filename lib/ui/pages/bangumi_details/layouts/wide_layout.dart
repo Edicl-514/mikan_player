@@ -49,6 +49,9 @@ class BangumiDetailsWideLayout extends StatelessWidget {
 
   // Page-level UI state.
   final bool isLocalFavorite;
+  final int? favoriteType;
+  final bool isSelectingFavoriteStatus;
+  final bool isUpdatingFavorite;
   final bool isCopied;
   final bool showOriginalSummary;
   final bool isInfoBoxExpanded;
@@ -64,6 +67,8 @@ class BangumiDetailsWideLayout extends StatelessWidget {
 
   // Callbacks.
   final VoidCallback onToggleFavorite;
+  final ValueChanged<int> onFavoriteTypeSelected;
+  final VoidCallback onFavoriteAction;
   final VoidCallback? onShareTapped;
   final VoidCallback onToggleShowOriginal;
   final VoidCallback onToggleInfoBoxExpanded;
@@ -98,6 +103,9 @@ class BangumiDetailsWideLayout extends StatelessWidget {
     required this.isLoadingMoreComments,
     required this.hasRequestedComments,
     required this.isLocalFavorite,
+    required this.favoriteType,
+    required this.isSelectingFavoriteStatus,
+    required this.isUpdatingFavorite,
     required this.isCopied,
     required this.showOriginalSummary,
     required this.isInfoBoxExpanded,
@@ -109,6 +117,8 @@ class BangumiDetailsWideLayout extends StatelessWidget {
     required this.relationsScrollController,
     required this.sitesScrollController,
     required this.onToggleFavorite,
+    required this.onFavoriteTypeSelected,
+    required this.onFavoriteAction,
     required this.onShareTapped,
     required this.onToggleShowOriginal,
     required this.onToggleInfoBoxExpanded,
@@ -200,8 +210,13 @@ class BangumiDetailsWideLayout extends StatelessWidget {
             const SizedBox(height: 24),
             BangumiActionButtons(
               isLocalFavorite: isLocalFavorite,
+              favoriteType: favoriteType,
               isCopied: isCopied,
+              isSelectingFavoriteStatus: isSelectingFavoriteStatus,
+              isUpdatingFavorite: isUpdatingFavorite,
               onToggleFavorite: onToggleFavorite,
+              onFavoriteTypeSelected: onFavoriteTypeSelected,
+              onFavoriteAction: onFavoriteAction,
               onShareTapped: onShareTapped,
             ),
             const SizedBox(height: 24),

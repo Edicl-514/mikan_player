@@ -503,6 +503,8 @@
   "notFoundAnimeTag": "No anime related to \"{tag}\" was found",
   "addToLocalFavorites": "Added to local favorites",
   "removeFromFavorites": "Removed from favorites",
+  "favoriteStatusUpdated": "Favorite status updated",
+  "favoriteUpdateFailed": "Failed to update favorite: {error}",
   "playSourceTitle": "Play sources",
   "episodeListTitle": "Episodes",
   "relatedRecommendationsTitle": "Related recommendations",

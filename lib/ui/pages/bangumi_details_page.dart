@@ -53,6 +53,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   bool _isCopied = false;
   Timer? _copyTimer;
+  bool _isSelectingFavoriteStatus = false;
+  bool _isUpdatingFavorite = false;
   bool _showOriginalSummary = false;
   bool _isInfoBoxExpanded = false;
 
@@ -77,6 +79,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   bool get _isLoadingComments => _detailsController.isLoadingComments;
   bool get _hasRequestedComments => _detailsController.hasRequestedComments;
   bool get _isLocalFavorite => _detailsController.isLocalFavorite;
+  int? get _localFavoriteType => _detailsController.localFavoriteType;
   bool get _isLoadingMoreComments => _detailsController.isLoadingMoreComments;
 
   @override
@@ -105,6 +108,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     super.didUpdateWidget(oldWidget);
     if (!_sameAnimeIdentity(oldWidget.anime, widget.anime)) {
       _detailsController.resetForAnime(widget.anime);
+      _isSelectingFavoriteStatus = false;
+      _isUpdatingFavorite = false;
       _showOriginalSummary = false;
       _isInfoBoxExpanded = false;
       _startDetailsLoad();
@@ -248,22 +253,87 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   // --- UI state mutations ---
 
-  Future<void> _toggleFavorite() async {
-    final wasFavorite = await _detailsController.toggleLocalFavorite(
-      title: widget.anime.title,
-      coverUrl: widget.anime.coverUrl ?? '',
-      score: widget.anime.score ?? 0.0,
-    );
-    if (!mounted || wasFavorite == null) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          wasFavorite
-              ? AppLocalizations.of(context).removeFromFavorites
-              : AppLocalizations.of(context).addToLocalFavorites,
-        ),
-      ),
-    );
+  void _showFavoriteStatusSelector() {
+    if (_isUpdatingFavorite) return;
+    setState(() => _isSelectingFavoriteStatus = true);
+  }
+
+  void _handleFavoriteAction() {
+    if (_isUpdatingFavorite) return;
+    if (_isLocalFavorite) {
+      unawaited(_removeFavorite());
+    } else {
+      setState(() => _isSelectingFavoriteStatus = false);
+    }
+  }
+
+  Future<void> _selectFavoriteType(int type) async {
+    if (_isUpdatingFavorite) return;
+    final wasFavorite = _isLocalFavorite;
+    setState(() => _isUpdatingFavorite = true);
+
+    Object? error;
+    var saved = false;
+    try {
+      saved = await _detailsController.setLocalFavoriteType(
+        title: widget.anime.title,
+        coverUrl: widget.anime.coverUrl ?? '',
+        score: widget.anime.score ?? 0.0,
+        type: type,
+      );
+    } catch (e) {
+      error = e;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingFavorite = false;
+          _isSelectingFavoriteStatus = false;
+        });
+      }
+    }
+
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    if (error != null) {
+      _showFavoriteSnackBar(l10n.favoriteUpdateFailed(error.toString()));
+    } else if (saved) {
+      _showFavoriteSnackBar(
+        wasFavorite ? l10n.favoriteStatusUpdated : l10n.addToLocalFavorites,
+      );
+    }
+  }
+
+  Future<void> _removeFavorite() async {
+    setState(() => _isUpdatingFavorite = true);
+
+    Object? error;
+    var removed = false;
+    try {
+      removed = await _detailsController.removeLocalFavorite();
+    } catch (e) {
+      error = e;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingFavorite = false;
+          _isSelectingFavoriteStatus = false;
+        });
+      }
+    }
+
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    if (error != null) {
+      _showFavoriteSnackBar(l10n.favoriteUpdateFailed(error.toString()));
+    } else if (removed) {
+      _showFavoriteSnackBar(l10n.removeFromFavorites);
+    }
+  }
+
+  void _showFavoriteSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _toggleShowOriginal() {
@@ -339,6 +409,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               isLoadingMoreComments: _isLoadingMoreComments,
               hasRequestedComments: _hasRequestedComments,
               isLocalFavorite: _isLocalFavorite,
+              favoriteType: _localFavoriteType,
+              isSelectingFavoriteStatus: _isSelectingFavoriteStatus,
+              isUpdatingFavorite: _isUpdatingFavorite,
               isCopied: _isCopied,
               showOriginalSummary: _showOriginalSummary,
               isInfoBoxExpanded: _isInfoBoxExpanded,
@@ -349,7 +422,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               charactersScrollController: _charactersScrollController,
               relationsScrollController: _relationsScrollController,
               sitesScrollController: _sitesScrollController,
-              onToggleFavorite: _toggleFavorite,
+              onToggleFavorite: _showFavoriteStatusSelector,
+              onFavoriteTypeSelected: (type) =>
+                  unawaited(_selectFavoriteType(type)),
+              onFavoriteAction: _handleFavoriteAction,
               onShareTapped: _onShareTapped,
               onToggleShowOriginal: _toggleShowOriginal,
               onToggleInfoBoxExpanded: _toggleInfoBoxExpanded,
@@ -378,6 +454,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               isLoadingMoreComments: _isLoadingMoreComments,
               hasRequestedComments: _hasRequestedComments,
               isLocalFavorite: _isLocalFavorite,
+              favoriteType: _localFavoriteType,
+              isSelectingFavoriteStatus: _isSelectingFavoriteStatus,
+              isUpdatingFavorite: _isUpdatingFavorite,
               showOriginalSummary: _showOriginalSummary,
               isInfoBoxExpanded: _isInfoBoxExpanded,
               enableCharacterHero: widget.enableCharacterHero,
@@ -385,7 +464,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               charactersScrollController: _charactersScrollController,
               relationsScrollController: _relationsScrollController,
               sitesScrollController: _sitesScrollController,
-              onToggleFavorite: _toggleFavorite,
+              onToggleFavorite: _showFavoriteStatusSelector,
+              onFavoriteTypeSelected: (type) =>
+                  unawaited(_selectFavoriteType(type)),
+              onFavoriteAction: _handleFavoriteAction,
               onToggleShowOriginal: _toggleShowOriginal,
               onToggleInfoBoxExpanded: _toggleInfoBoxExpanded,
               onTagTap: _openTagBrowsePage,

@@ -2487,6 +2487,18 @@ abstract class AppLocalizations {
   /// **'已取消收藏'**
   String get removeFromFavorites;
 
+  /// No description provided for @favoriteStatusUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏状态已更新'**
+  String get favoriteStatusUpdated;
+
+  /// No description provided for @favoriteUpdateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新收藏失败: {error}'**
+  String favoriteUpdateFailed(Object error);
+
   /// No description provided for @playSourceTitle.
   ///
   /// In zh, this message translates to:

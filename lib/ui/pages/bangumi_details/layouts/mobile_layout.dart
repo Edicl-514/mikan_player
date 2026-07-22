@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui' show ImageFilter;
 
@@ -47,6 +46,9 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
 
   // Page-level UI state.
   final bool isLocalFavorite;
+  final int? favoriteType;
+  final bool isSelectingFavoriteStatus;
+  final bool isUpdatingFavorite;
   final bool showOriginalSummary;
   final bool isInfoBoxExpanded;
   final bool enableCharacterHero;
@@ -59,11 +61,18 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
 
   // Callbacks.
   final VoidCallback onToggleFavorite;
+  final ValueChanged<int> onFavoriteTypeSelected;
+  final VoidCallback onFavoriteAction;
   final VoidCallback onToggleShowOriginal;
   final VoidCallback onToggleInfoBoxExpanded;
   final void Function(String tagName) onTagTap;
   final void Function(int personId) onPersonTap;
-  final void Function(int characterId, {String? characterName, String? heroImageUrl}) onCharacterTap;
+  final void Function(
+    int characterId, {
+    String? characterName,
+    String? heroImageUrl,
+  })
+  onCharacterTap;
   final void Function(BangumiEpisode episode) onEpisodeTap;
   final void Function(BangumiRelatedSubject relation) onRelationTap;
   final void Function(BangumiDataSiteEntry site) onSiteTap;
@@ -88,6 +97,9 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     required this.isLoadingMoreComments,
     required this.hasRequestedComments,
     required this.isLocalFavorite,
+    required this.favoriteType,
+    required this.isSelectingFavoriteStatus,
+    required this.isUpdatingFavorite,
     required this.showOriginalSummary,
     required this.isInfoBoxExpanded,
     required this.enableCharacterHero,
@@ -96,6 +108,8 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     required this.relationsScrollController,
     required this.sitesScrollController,
     required this.onToggleFavorite,
+    required this.onFavoriteTypeSelected,
+    required this.onFavoriteAction,
     required this.onToggleShowOriginal,
     required this.onToggleInfoBoxExpanded,
     required this.onTagTap,
@@ -129,7 +143,11 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
                 backgroundColor: bgColor,
                 surfaceTintColor: bgColor,
                 flexibleSpace: FlexibleSpaceBar(
-                  background: _buildMobileHeaderContent(context, isDark, bgColor),
+                  background: _buildMobileHeaderContent(
+                    context,
+                    isDark,
+                    bgColor,
+                  ),
                 ),
                 bottom: PreferredSize(
                   preferredSize: const Size.fromHeight(48),
@@ -165,8 +183,16 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
                         fontWeight: FontWeight.normal,
                       ),
                       tabs: [
-                        Tab(text: AppLocalizations.of(context).bangumiDetailsTabDetails),
-                        Tab(text: AppLocalizations.of(context).bangumiDetailsTabComments),
+                        Tab(
+                          text: AppLocalizations.of(
+                            context,
+                          ).bangumiDetailsTabDetails,
+                        ),
+                        Tab(
+                          text: AppLocalizations.of(
+                            context,
+                          ).bangumiDetailsTabComments,
+                        ),
                       ],
                     ),
                   ),
@@ -185,7 +211,11 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     );
   }
 
-  Widget _buildMobileHeaderContent(BuildContext context, bool isDark, Color bgColor) {
+  Widget _buildMobileHeaderContent(
+    BuildContext context,
+    bool isDark,
+    Color bgColor,
+  ) {
     final l10n = AppLocalizations.of(context);
     final imgUrl = getImageUrl(data, anime.coverUrl);
     final displayTitle = getDisplayTitle(data, anime.title);
@@ -233,7 +263,8 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Hero(
-                      tag: heroTag ??
+                      tag:
+                          heroTag ??
                           '${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
                       child: Container(
                         width: 110,
@@ -319,7 +350,12 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
                 BangumiCollectionStatsRow(
                   collection: collection,
                   isLocalFavorite: isLocalFavorite,
+                  favoriteType: favoriteType,
+                  isSelectingFavoriteStatus: isSelectingFavoriteStatus,
+                  isUpdatingFavorite: isUpdatingFavorite,
                   onToggleFavorite: onToggleFavorite,
+                  onFavoriteTypeSelected: onFavoriteTypeSelected,
+                  onFavoriteAction: onFavoriteAction,
                 ),
                 const SizedBox(height: 16),
               ],
@@ -332,7 +368,8 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
 
   Widget _buildMobileDetailsTab(BuildContext context, bool isDark) {
     final l10n = AppLocalizations.of(context);
-    final infobox = (data?['infobox'] as List?)
+    final infobox =
+        (data?['infobox'] as List?)
             ?.where((item) => !isInfoboxItemEmpty(item))
             .toList() ??
         const [];
@@ -559,5 +596,4 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
       onSiteTap: onSiteTap,
     );
   }
-
 }

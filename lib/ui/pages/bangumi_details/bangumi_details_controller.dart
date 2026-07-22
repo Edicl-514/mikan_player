@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/bangumi_details_service.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
@@ -41,17 +42,18 @@ class BangumiDetailsDataPort {
 /// Injectable local-favorites seam. SnackBars stay on the page.
 class BangumiDetailsFavoritesPort {
   const BangumiDetailsFavoritesPort({
-    required this.isFavorite,
+    required this.getFavoriteType,
     required this.addFavorite,
     required this.removeFavorite,
   });
 
-  final Future<bool> Function(int bangumiId) isFavorite;
+  final Future<int?> Function(int bangumiId) getFavoriteType;
   final Future<void> Function({
     required int bangumiId,
     required String title,
     required String coverUrl,
     required double score,
+    required int type,
   })
   addFavorite;
   final Future<void> Function(int bangumiId) removeFavorite;
@@ -94,7 +96,7 @@ class BangumiDetailsController {
   bool _isLoadingRelations = false;
   bool _isLoadingComments = false;
   bool _hasRequestedComments = false;
-  bool _isLocalFavorite = false;
+  int? _localFavoriteType;
 
   int _commentPage = 1;
   bool _hasMoreComments = true;
@@ -143,7 +145,8 @@ class BangumiDetailsController {
   bool get isLoadingRelations => _isLoadingRelations;
   bool get isLoadingComments => _isLoadingComments;
   bool get hasRequestedComments => _hasRequestedComments;
-  bool get isLocalFavorite => _isLocalFavorite;
+  bool get isLocalFavorite => _localFavoriteType != null;
+  int? get localFavoriteType => _localFavoriteType;
   int get commentPage => _commentPage;
   bool get hasMoreComments => _hasMoreComments;
   bool get isLoadingMoreComments => _isLoadingMoreComments;
@@ -188,7 +191,7 @@ class BangumiDetailsController {
     _isLoadingRelations = false;
     _isLoadingComments = false;
     _hasRequestedComments = false;
-    _isLocalFavorite = false;
+    _localFavoriteType = null;
     _commentPage = 1;
     _hasMoreComments = true;
     _isLoadingMoreComments = false;
@@ -357,47 +360,59 @@ class BangumiDetailsController {
     if (id == null) return;
 
     final token = _favoriteToken;
-    final isFav = await _favoritesPort.isFavorite(id);
+    final favoriteType = await _favoritesPort.getFavoriteType(id);
     if (!_isFavoriteCurrent(token)) return;
-    _isLocalFavorite = isFav;
+    _localFavoriteType = favoriteType;
     _notify();
   }
 
-  /// Toggles local favorite status. Returns the pre-toggle value so the page can
-  /// show the correct SnackBar without racing a second status read. Returns
-  /// `null` when the subject has no id or the controller is disposed/stale.
-  Future<bool?> toggleLocalFavorite({
+  /// Adds a local favorite or updates its Bangumi-compatible collection type.
+  Future<bool> setLocalFavoriteType({
     required String title,
     required String coverUrl,
     required double score,
+    required int type,
   }) async {
-    if (_disposed) return null;
+    if (!LocalFavoriteType.isValid(type)) {
+      throw ArgumentError.value(type, 'type', 'Unknown favorite type');
+    }
+    if (_disposed) return false;
     final id = _parseSubjectId(_anime.bangumiId);
-    if (id == null) return null;
+    if (id == null) return false;
 
     final token = _favoriteToken;
-    final wasFavorite = _isLocalFavorite;
+    await _favoritesPort.addFavorite(
+      bangumiId: id,
+      title: title,
+      coverUrl: coverUrl,
+      score: score,
+      type: type,
+    );
 
-    if (wasFavorite) {
-      await _favoritesPort.removeFavorite(id);
-    } else {
-      await _favoritesPort.addFavorite(
-        bangumiId: id,
-        title: title,
-        coverUrl: coverUrl,
-        score: score,
-      );
-    }
+    if (!_isFavoriteCurrent(token)) return false;
 
-    if (!_isFavoriteCurrent(token)) return null;
-
-    // Re-read so a failed port still surfaces truth; fakes that throw leave
-    // state unchanged only when the exception escapes (caller handles).
-    final isFav = await _favoritesPort.isFavorite(id);
-    if (!_isFavoriteCurrent(token)) return null;
-    _isLocalFavorite = isFav;
+    final favoriteType = await _favoritesPort.getFavoriteType(id);
+    if (!_isFavoriteCurrent(token)) return false;
+    _localFavoriteType = favoriteType;
     _notify();
-    return wasFavorite;
+    return favoriteType == type;
+  }
+
+  /// Removes the local favorite and refreshes the controller's status.
+  Future<bool> removeLocalFavorite() async {
+    if (_disposed) return false;
+    final id = _parseSubjectId(_anime.bangumiId);
+    if (id == null) return false;
+
+    final token = _favoriteToken;
+    await _favoritesPort.removeFavorite(id);
+    if (!_isFavoriteCurrent(token)) return false;
+
+    final favoriteType = await _favoritesPort.getFavoriteType(id);
+    if (!_isFavoriteCurrent(token)) return false;
+    _localFavoriteType = favoriteType;
+    _notify();
+    return favoriteType == null;
   }
 
   // ── Invariants ─────────────────────────────────────────────────────────────
@@ -560,18 +575,20 @@ BangumiDetailsFavoritesPort bangumiDetailsFavoritesPort(
   FavoritesManager Function() managerFactory,
 ) {
   return BangumiDetailsFavoritesPort(
-    isFavorite: (id) => managerFactory().isFavorite(id),
+    getFavoriteType: (id) => managerFactory().getFavoriteType(id),
     addFavorite:
         ({
           required bangumiId,
           required title,
           required coverUrl,
           required score,
+          required type,
         }) => managerFactory().addFavorite(
           bangumiId: bangumiId,
           title: title,
           coverUrl: coverUrl,
           score: score,
+          type: type,
         ),
     removeFavorite: (id) => managerFactory().removeFavorite(id),
   );

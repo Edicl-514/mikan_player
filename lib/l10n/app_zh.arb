@@ -503,6 +503,8 @@
   "notFoundAnimeTag": "没有找到「{tag}」相关的动画",
   "addToLocalFavorites": "已添加到本地收藏",
   "removeFromFavorites": "已取消收藏",
+  "favoriteStatusUpdated": "收藏状态已更新",
+  "favoriteUpdateFailed": "更新收藏失败: {error}",
   "playSourceTitle": "播放源",
   "episodeListTitle": "选集",
   "relatedRecommendationsTitle": "相关推荐",

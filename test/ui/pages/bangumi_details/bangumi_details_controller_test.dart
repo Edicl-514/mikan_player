@@ -217,9 +217,12 @@ class _FakeDataPort {
 }
 
 class _FakeFavorites {
-  _FakeFavorites({this.isFav = false, this.hold = false});
+  _FakeFavorites({bool isFav = false, this.hold = false, int type = 1})
+    : isFav = isFav,
+      favoriteType = isFav ? type : null;
 
   bool isFav;
+  int? favoriteType;
   Duration delay = Duration.zero;
   bool hold;
   final _statusCompleters = <Completer<bool>>[];
@@ -235,15 +238,15 @@ class _FakeFavorites {
   }
 
   BangumiDetailsFavoritesPort asPort() => BangumiDetailsFavoritesPort(
-    isFavorite: (id) async {
+    getFavoriteType: (id) async {
       isFavoriteCalls++;
       if (hold) {
         final c = Completer<bool>();
         _statusCompleters.add(c);
-        return c.future;
+        return await c.future ? (favoriteType ?? 1) : null;
       }
       if (delay > Duration.zero) await Future<void>.delayed(delay);
-      return isFav;
+      return isFav ? (favoriteType ?? 1) : null;
     },
     addFavorite:
         ({
@@ -251,13 +254,16 @@ class _FakeFavorites {
           required title,
           required coverUrl,
           required score,
+          required type,
         }) async {
           addCalls++;
           isFav = true;
+          favoriteType = type;
         },
     removeFavorite: (id) async {
       removeCalls++;
       isFav = false;
+      favoriteType = null;
     },
   );
 }
@@ -671,27 +677,40 @@ void main() {
       expectConsistent(c);
     });
 
-    test('toggleLocalFavorite add then remove', () async {
+    test('sets a typed local favorite then removes it', () async {
       final fav = _FakeFavorites(isFav: false);
       final c = _controller(favorites: fav);
-      final was = await c.toggleLocalFavorite(
+      final saved = await c.setLocalFavoriteType(
         title: 'T',
         coverUrl: 'u',
         score: 1.0,
+        type: 3,
       );
-      expect(was, isFalse);
+      expect(saved, isTrue);
       expect(c.isLocalFavorite, isTrue);
+      expect(c.localFavoriteType, 3);
+      expect(fav.favoriteType, 3);
       expect(fav.addCalls, 1);
 
-      final was2 = await c.toggleLocalFavorite(
-        title: 'T',
-        coverUrl: 'u',
-        score: 1.0,
-      );
-      expect(was2, isTrue);
+      final removed = await c.removeLocalFavorite();
+      expect(removed, isTrue);
       expect(c.isLocalFavorite, isFalse);
+      expect(c.localFavoriteType, isNull);
       expect(fav.removeCalls, 1);
       expectConsistent(c);
+    });
+
+    test('rejects an unknown local favorite type', () async {
+      final c = _controller();
+      expect(
+        () => c.setLocalFavoriteType(
+          title: 'T',
+          coverUrl: 'u',
+          score: 1.0,
+          type: 99,
+        ),
+        throwsArgumentError,
+      );
     });
 
     test('stale favorite status after dispose is ignored', () async {

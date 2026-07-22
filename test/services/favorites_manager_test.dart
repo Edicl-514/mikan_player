@@ -51,6 +51,8 @@ void main() {
 
       expect(await manager.isFavorite(42), isTrue);
       expect(await manager.isFavorite(99), isFalse);
+      expect(await manager.getFavoriteType(42), 3);
+      expect(await manager.getFavoriteType(99), isNull);
 
       final all = await manager.getAllFavorites();
       expect(all, hasLength(1));
@@ -84,6 +86,7 @@ void main() {
       expect(all.single.title, 'New');
       expect(all.single.score, 9);
       expect(all.single.type, 2);
+      expect(await manager.getFavoriteType(1), 2);
       expect(await manager.isFavorite(1), isTrue);
     });
 

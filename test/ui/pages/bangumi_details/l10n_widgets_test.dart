@@ -24,8 +24,13 @@ void main() {
         Scaffold(
           body: BangumiActionButtons(
             isLocalFavorite: false,
+            favoriteType: null,
             isCopied: false,
+            isSelectingFavoriteStatus: false,
+            isUpdatingFavorite: false,
             onToggleFavorite: () {},
+            onFavoriteTypeSelected: (_) {},
+            onFavoriteAction: () {},
             onShareTapped: () {},
           ),
         ),
@@ -39,14 +44,20 @@ void main() {
         Scaffold(
           body: BangumiActionButtons(
             isLocalFavorite: true,
+            favoriteType: 3,
             isCopied: false,
+            isSelectingFavoriteStatus: false,
+            isUpdatingFavorite: false,
             onToggleFavorite: () {},
+            onFavoriteTypeSelected: (_) {},
+            onFavoriteAction: () {},
             onShareTapped: () {},
           ),
         ),
         locale: const Locale('en'),
       );
-      expect(find.text('Favorited'), findsOneWidget);
+      // type 3 = watching; idle button shows current status instead of "Favorited".
+      expect(find.text('Watching'), findsOneWidget);
       expect(find.text('Share'), findsOneWidget);
     });
 
@@ -59,7 +70,12 @@ void main() {
           body: BangumiCollectionStatsRow(
             collection: const {'wish': 10, 'doing': 3, 'dropped': 1},
             isLocalFavorite: false,
+            favoriteType: null,
+            isSelectingFavoriteStatus: false,
+            isUpdatingFavorite: false,
             onToggleFavorite: () {},
+            onFavoriteTypeSelected: (_) {},
+            onFavoriteAction: () {},
           ),
         ),
         locale: const Locale('zh'),
@@ -75,19 +91,157 @@ void main() {
             child: BangumiCollectionStatsRow(
               collection: const {'wish': 10, 'doing': 3, 'dropped': 1},
               isLocalFavorite: true,
+              favoriteType: 3,
+              isSelectingFavoriteStatus: false,
+              isUpdatingFavorite: false,
               onToggleFavorite: () {},
+              onFavoriteTypeSelected: (_) {},
+              onFavoriteAction: () {},
             ),
           ),
         ),
         locale: const Locale('en'),
       );
-      expect(
-        find.text('10 wish / 3 watching / 1 dropped'),
-        findsOneWidget,
-      );
-      expect(find.text('Favorited'), findsOneWidget);
+      expect(find.text('10 wish / 3 watching / 1 dropped'), findsOneWidget);
+      expect(find.text('Watching'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets(
+      'favorite selector exposes all statuses and contextual action',
+      (tester) async {
+        int? selectedType;
+        var trailingTapped = false;
+
+        await pumpLocalizedWidget(
+          tester,
+          Scaffold(
+            body: SizedBox(
+              width: 302,
+              child: BangumiActionButtons(
+                isLocalFavorite: false,
+                favoriteType: null,
+                isCopied: false,
+                isSelectingFavoriteStatus: true,
+                isUpdatingFavorite: false,
+                onToggleFavorite: () {},
+                onFavoriteTypeSelected: (type) => selectedType = type,
+                onFavoriteAction: () => trailingTapped = true,
+                onShareTapped: () {},
+              ),
+            ),
+          ),
+          locale: const Locale('zh'),
+        );
+
+        expect(find.text('想看'), findsOneWidget);
+        expect(find.text('看过'), findsOneWidget);
+        expect(find.text('在看'), findsOneWidget);
+        expect(find.text('搁置'), findsOneWidget);
+        expect(find.text('抛弃'), findsOneWidget);
+        expect(find.text('返回'), findsOneWidget);
+        expect(find.text('分享'), findsNothing);
+        expect(
+          tester.getRect(find.byKey(const ValueKey('back-action'))).right,
+          lessThanOrEqualTo(
+            tester.getRect(find.byType(BangumiActionButtons)).right,
+          ),
+        );
+
+        await tester.tap(find.text('在看'));
+        expect(selectedType, 3);
+        await tester.tap(find.text('返回'));
+        expect(trailingTapped, isTrue);
+        expect(tester.takeException(), isNull);
+
+        await pumpLocalizedWidget(
+          tester,
+          Scaffold(
+            body: SizedBox(
+              width: 358,
+              child: BangumiCollectionStatsRow(
+                collection: const {'wish': 10, 'doing': 3, 'dropped': 1},
+                isLocalFavorite: true,
+                favoriteType: 3,
+                isSelectingFavoriteStatus: true,
+                isUpdatingFavorite: false,
+                onToggleFavorite: () {},
+                onFavoriteTypeSelected: (type) => selectedType = type,
+                onFavoriteAction: () {},
+              ),
+            ),
+          ),
+          locale: const Locale('zh'),
+        );
+        expect(find.text('取消'), findsOneWidget);
+        selectedType = null;
+        await tester.tap(find.text('在看'));
+        expect(selectedType, 3);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'favorite mode switch keeps wide and mobile control bounds stable',
+      (tester) async {
+        Future<Size> measureActionButtons(bool selecting) async {
+          await pumpLocalizedWidget(
+            tester,
+            Scaffold(
+              body: SizedBox(
+                width: 302,
+                child: BangumiActionButtons(
+                  isLocalFavorite: false,
+                  favoriteType: null,
+                  isCopied: false,
+                  isSelectingFavoriteStatus: selecting,
+                  isUpdatingFavorite: false,
+                  onToggleFavorite: () {},
+                  onFavoriteTypeSelected: (_) {},
+                  onFavoriteAction: () {},
+                  onShareTapped: () {},
+                ),
+              ),
+            ),
+            locale: const Locale('zh'),
+          );
+          return tester.getSize(find.byType(BangumiActionButtons));
+        }
+
+        final idleAction = await measureActionButtons(false);
+        final selectingAction = await measureActionButtons(true);
+        expect(selectingAction, idleAction);
+        expect(idleAction.height, BangumiActionButtons.actionHeight);
+
+        Future<Size> measureCollectionRow(bool selecting) async {
+          await pumpLocalizedWidget(
+            tester,
+            Scaffold(
+              body: SizedBox(
+                width: 358,
+                child: BangumiCollectionStatsRow(
+                  collection: const {'wish': 10, 'doing': 3, 'dropped': 1},
+                  isLocalFavorite: true,
+                  favoriteType: 3,
+                  isSelectingFavoriteStatus: selecting,
+                  isUpdatingFavorite: false,
+                  onToggleFavorite: () {},
+                  onFavoriteTypeSelected: (_) {},
+                  onFavoriteAction: () {},
+                ),
+              ),
+            ),
+            locale: const Locale('zh'),
+          );
+          return tester.getSize(find.byType(BangumiCollectionStatsRow));
+        }
+
+        final idleStats = await measureCollectionRow(false);
+        final selectingStats = await measureCollectionRow(true);
+        expect(selectingStats, idleStats);
+        expect(idleStats.width, 358);
+      },
+    );
 
     testWidgets('rating card localizes votes, rank, and collection buckets', (
       tester,
@@ -170,10 +324,7 @@ void main() {
         tester,
         Scaffold(
           body: BangumiInfoBoxList(
-            infobox: List.generate(
-              8,
-              (i) => {'key': 'k$i', 'value': 'v$i'},
-            ),
+            infobox: List.generate(8, (i) => {'key': 'k$i', 'value': 'v$i'}),
             isExpanded: false,
             onToggleExpanded: () {},
             isDarkBg: true,

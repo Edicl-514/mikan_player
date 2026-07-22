@@ -1284,6 +1284,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get removeFromFavorites => '已取消收藏';
 
   @override
+  String get favoriteStatusUpdated => '收藏状态已更新';
+
+  @override
+  String favoriteUpdateFailed(Object error) {
+    return '更新收藏失败: $error';
+  }
+
+  @override
   String get playSourceTitle => '播放源';
 
   @override

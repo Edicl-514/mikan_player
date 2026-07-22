@@ -1349,6 +1349,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get removeFromFavorites => 'Removed from favorites';
 
   @override
+  String get favoriteStatusUpdated => 'Favorite status updated';
+
+  @override
+  String favoriteUpdateFailed(Object error) {
+    return 'Failed to update favorite: $error';
+  }
+
+  @override
   String get playSourceTitle => 'Play sources';
 
   @override
