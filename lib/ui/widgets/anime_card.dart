@@ -9,6 +9,8 @@ class AnimeCard extends StatelessWidget {
   final double? score;
   final VoidCallback? onTap;
   final String? heroTag;
+  final int? cacheWidth;
+  final bool deferOffscreenLoad;
 
   const AnimeCard({
     super.key,
@@ -19,6 +21,8 @@ class AnimeCard extends StatelessWidget {
     this.score,
     this.onTap,
     this.heroTag,
+    this.cacheWidth,
+    this.deferOffscreenLoad = true,
   });
 
   static const _cardRadius = 12.0;
@@ -186,6 +190,8 @@ class AnimeCard extends StatelessWidget {
         ? CachedNetworkImage(
             imageUrl: coverUrl!,
             fit: BoxFit.cover,
+            cacheWidth: cacheWidth,
+            deferOffscreenLoad: deferOffscreenLoad,
             errorWidget: Image.asset(
               'assets/images/cover.png',
               fit: BoxFit.cover,

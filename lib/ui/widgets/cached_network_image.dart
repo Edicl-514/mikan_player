@@ -21,6 +21,9 @@ class CachedNetworkImage extends StatefulWidget {
   final bool deferOffscreenLoad;
   final double preloadExtent;
   final bool networkFallbackWhileCaching;
+  final int? cacheWidth;
+  final int? cacheHeight;
+  final FilterQuality filterQuality;
 
   const CachedNetworkImage({
     super.key,
@@ -35,6 +38,9 @@ class CachedNetworkImage extends StatefulWidget {
     this.deferOffscreenLoad = true,
     this.preloadExtent = 800,
     this.networkFallbackWhileCaching = true,
+    this.cacheWidth,
+    this.cacheHeight,
+    this.filterQuality = FilterQuality.medium,
   });
 
   @override
@@ -270,6 +276,9 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
         height: widget.height,
         fit: widget.fit ?? BoxFit.cover,
         alignment: widget.alignment ?? Alignment.center,
+        cacheWidth: widget.cacheWidth,
+        cacheHeight: widget.cacheHeight,
+        filterQuality: widget.filterQuality,
         gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) {
           return widget.errorWidget ?? _buildErrorWidget();
@@ -283,6 +292,10 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
         height: widget.height,
         fit: widget.fit ?? BoxFit.cover,
         alignment: widget.alignment ?? Alignment.center,
+        cacheWidth: widget.cacheWidth,
+        cacheHeight: widget.cacheHeight,
+        filterQuality: widget.filterQuality,
+        gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) {
           return widget.errorWidget ?? _buildErrorWidget();
         },
@@ -295,6 +308,10 @@ class _CachedNetworkImageState extends State<CachedNetworkImage> {
         height: widget.height,
         fit: widget.fit ?? BoxFit.cover,
         alignment: widget.alignment ?? Alignment.center,
+        cacheWidth: widget.cacheWidth,
+        cacheHeight: widget.cacheHeight,
+        filterQuality: widget.filterQuality,
+        gaplessPlayback: true,
         headers: _buildHeaders(downloadUrl),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;

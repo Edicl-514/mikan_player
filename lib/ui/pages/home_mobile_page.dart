@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
@@ -7,6 +8,7 @@ import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/models/bangumi_user_collection.dart';
 import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
+import 'package:mikan_player/services/cache/image_cache_service.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/services/playback_history_episode_resolver.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
@@ -357,6 +359,30 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
     }
   }
 
+  Future<void> _openBangumiDetails({
+    required crawler.AnimeInfo anime,
+    required String heroTag,
+  }) {
+    _precacheCover(anime.coverUrl);
+    return Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            BangumiDetailsPage(anime: anime, heroTag: heroTag),
+      ),
+    );
+  }
+
+  void _precacheCover(String? coverUrl) {
+    final url = coverUrl;
+    if (url == null || url.isEmpty) return;
+    final localPath = ImageCacheService.instance.getCachedPathSync(url);
+    if (localPath == null) return;
+    final file = File(localPath);
+    if (!file.existsSync()) return;
+    precacheImage(FileImage(file), context);
+  }
+
   Future<void> _openHistoryItem(PlaybackHistoryItem item) async {
     final episodes = await resolvePlaybackHistoryEpisodes(item);
     final playableEpisodes = episodes.releasedEpisodes();
@@ -647,15 +673,10 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
               return GestureDetector(
                 onTap: () {
                   _todayTimer?.cancel();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => BangumiDetailsPage(
-                        anime: anime,
-                        heroTag:
-                            'home_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
-                      ),
-                    ),
+                  _openBangumiDetails(
+                    anime: anime,
+                    heroTag:
+                        'home_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
                   ).then((_) => _startTodayTimer());
                 },
                 child: Container(
@@ -681,17 +702,20 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                                 aspectRatio: 3 / 4,
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: Hero(
-                                    tag:
-                                        'home_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
-                                    child: CachedNetworkImage(
-                                      imageUrl: anime.coverUrl ?? '',
-                                      fit: BoxFit.cover,
-                                      errorWidget: Container(
-                                        color: Colors.grey[800],
+                                    child: Hero(
+                                      tag:
+                                          'home_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
+                                      child: CachedNetworkImage(
+                                        imageUrl: anime.coverUrl ?? '',
+                                        fit: BoxFit.cover,
+                                        cacheWidth: 360,
+                                        cacheHeight: 480,
+                                        deferOffscreenLoad: false,
+                                        errorWidget: Container(
+                                          color: Colors.grey[800],
+                                        ),
                                       ),
                                     ),
-                                  ),
                                 ),
                               ),
                             ),
@@ -826,6 +850,8 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
               score: anime.score,
               tag: rankTag,
               heroTag: 'home_rank_${anime.bangumiId}',
+              cacheWidth: 240,
+              deferOffscreenLoad: false,
               onTap: () {
                 final info = crawler.AnimeInfo(
                   title: anime.title,
@@ -835,15 +861,10 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                   rank: anime.rank,
                   tags: [],
                 );
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => BangumiDetailsPage(
-                      anime: info,
-                      heroTag:
-                          'home_rank_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
-                    ),
-                  ),
+                _openBangumiDetails(
+                  anime: info,
+                  heroTag:
+                      'home_rank_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
                 );
               },
             ),
@@ -897,6 +918,8 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                         imageUrl: item.coverUrl ?? '',
                         width: double.infinity,
                         fit: BoxFit.cover,
+                        cacheWidth: 320,
+                        deferOffscreenLoad: false,
                       ),
                     ),
                     Padding(
@@ -990,6 +1013,8 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
               coverUrl: cover,
               score: score,
               heroTag: 'home_fav_$id',
+              cacheWidth: 240,
+              deferOffscreenLoad: false,
               onTap: () {
                 final info = crawler.AnimeInfo(
                   title: title,
@@ -998,15 +1023,10 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                   score: score,
                   tags: [],
                 );
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => BangumiDetailsPage(
-                      anime: info,
-                      heroTag:
-                          'home_fav_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
-                    ),
-                  ),
+                _openBangumiDetails(
+                  anime: info,
+                  heroTag:
+                      'home_fav_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
                 );
               },
             ),
