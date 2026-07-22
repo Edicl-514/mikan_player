@@ -48,7 +48,6 @@ class BangumiDetailsPage extends StatefulWidget {
 class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   late final BangumiDetailsController _detailsController;
   int _detailsLoadToken = 0;
-  late ScrollController _mobileDetailsScrollController;
   late ScrollController _wideLeftScrollController;
   late ScrollController _wideRightScrollController;
 
@@ -91,7 +90,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         if (mounted) setState(() {});
       },
     );
-    _mobileDetailsScrollController = createPlatformScrollController();
     _wideLeftScrollController = createPlatformScrollController();
     _wideRightScrollController = createPlatformScrollController();
     _wideRightScrollController.addListener(_handleWideRightScroll);
@@ -308,7 +306,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _detailsController.clearForDispose();
     _copyTimer?.cancel();
     _wideRightScrollController.removeListener(_handleWideRightScroll);
-    _mobileDetailsScrollController.dispose();
     _wideLeftScrollController.dispose();
     _wideRightScrollController.dispose();
     _episodesScrollController.dispose();
@@ -384,7 +381,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               showOriginalSummary: _showOriginalSummary,
               isInfoBoxExpanded: _isInfoBoxExpanded,
               enableCharacterHero: widget.enableCharacterHero,
-              mobileDetailsScrollController: _mobileDetailsScrollController,
               episodesScrollController: _episodesScrollController,
               charactersScrollController: _charactersScrollController,
               relationsScrollController: _relationsScrollController,

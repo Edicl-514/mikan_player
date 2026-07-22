@@ -50,7 +50,6 @@ PlaybackHistoryItem _historyItem() => PlaybackHistoryItem(
 );
 
 class _DetailsControllers {
-  final mobileDetails = ScrollController();
   final wideLeft = ScrollController();
   final wideRight = ScrollController();
   final episodes = ScrollController();
@@ -59,7 +58,6 @@ class _DetailsControllers {
   final sites = ScrollController();
 
   void dispose() {
-    mobileDetails.dispose();
     wideLeft.dispose();
     wideRight.dispose();
     episodes.dispose();
@@ -106,7 +104,6 @@ BangumiDetailsMobileLayout _mobileDetails(_DetailsControllers controllers) {
     showOriginalSummary: false,
     isInfoBoxExpanded: false,
     enableCharacterHero: false,
-    mobileDetailsScrollController: controllers.mobileDetails,
     episodesScrollController: controllers.episodes,
     charactersScrollController: controllers.characters,
     relationsScrollController: controllers.relations,

@@ -52,7 +52,6 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
   final bool enableCharacterHero;
 
   // Scroll controllers.
-  final ScrollController mobileDetailsScrollController;
   final ScrollController episodesScrollController;
   final ScrollController charactersScrollController;
   final ScrollController relationsScrollController;
@@ -92,7 +91,6 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     required this.showOriginalSummary,
     required this.isInfoBoxExpanded,
     required this.enableCharacterHero,
-    required this.mobileDetailsScrollController,
     required this.episodesScrollController,
     required this.charactersScrollController,
     required this.relationsScrollController,
@@ -340,9 +338,6 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
         const [];
 
     return SingleChildScrollView(
-      controller: defaultTargetPlatform == TargetPlatform.windows
-          ? mobileDetailsScrollController
-          : null,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,7 +416,13 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
   Widget _buildMobileCommentsTab(BuildContext context, bool isDark) {
     final l10n = AppLocalizations.of(context);
     if (!hasRequestedComments && !isLoadingComments) {
-      onEnsureCommentsLoaded();
+      // Defer to after the current build so the controller's synchronous
+      // _notify() → setState() chain does not run mid-build, which would
+      // trip "setState() or markNeedsBuild() called during build" on the
+      // parent BangumiDetailsPage.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        onEnsureCommentsLoaded();
+      });
     }
 
     if (isLoadingComments) {

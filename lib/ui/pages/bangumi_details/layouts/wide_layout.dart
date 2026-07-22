@@ -348,7 +348,13 @@ class BangumiDetailsWideLayout extends StatelessWidget {
   Widget _buildCommentsCard(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     if (!hasRequestedComments && !isLoadingComments) {
-      onEnsureCommentsLoaded();
+      // Defer to after the current build so the controller's synchronous
+      // _notify() → setState() chain does not run mid-build, which would
+      // trip "setState() or markNeedsBuild() called during build" on the
+      // parent BangumiDetailsPage.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        onEnsureCommentsLoaded();
+      });
     }
     return CommentsSection(
       comments: comments ?? const [],
