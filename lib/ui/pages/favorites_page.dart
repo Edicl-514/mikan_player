@@ -205,18 +205,21 @@ class _FavoritesPageState extends State<FavoritesPage>
         separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final item = _localFavorites[index];
+          final heroTag = 'favorites_local_${item.bangumiId}';
           return _buildFavoriteItem(
             context: context,
             title: item.title,
             coverUrl: item.coverUrl,
             score: item.score,
             subtitle: _getTypeLabel(context, item.type),
+            heroTag: heroTag,
             onTap: () {
               _navigateToDetails(
                 item.bangumiId.toString(),
                 item.title,
                 item.coverUrl,
                 item.score,
+                heroTag: heroTag,
               );
             },
             trailing: IconButton(
@@ -290,6 +293,7 @@ class _FavoritesPageState extends State<FavoritesPage>
         separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final item = _bangumiCollections[index];
+          final heroTag = 'favorites_bangumi_${item.subject.id}';
           return _buildFavoriteItem(
             context: context,
             title: item.subject.nameCn.isNotEmpty
@@ -298,12 +302,14 @@ class _FavoritesPageState extends State<FavoritesPage>
             coverUrl: item.subject.images.large,
             score: item.subject.score,
             subtitle: _getTypeLabel(context, item.type),
+            heroTag: heroTag,
             onTap: () {
               _navigateToDetails(
                 item.subject.id.toString(),
                 item.subject.name,
                 item.subject.images.large,
                 item.subject.score,
+                heroTag: heroTag,
               );
             },
           );
@@ -316,8 +322,9 @@ class _FavoritesPageState extends State<FavoritesPage>
     String bangumiId,
     String title,
     String cover,
-    double score,
-  ) {
+    double score, {
+    required String heroTag,
+  }) {
     final animeInfo = rust_crawler.AnimeInfo(
       title: title,
       bangumiId: bangumiId,
@@ -328,7 +335,8 @@ class _FavoritesPageState extends State<FavoritesPage>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => BangumiDetailsPage(anime: animeInfo),
+        builder: (context) =>
+            BangumiDetailsPage(anime: animeInfo, heroTag: heroTag),
       ),
     );
   }
@@ -357,6 +365,7 @@ class _FavoritesPageState extends State<FavoritesPage>
     required String coverUrl,
     required double score,
     required String subtitle,
+    required String heroTag,
     required VoidCallback onTap,
     Widget? trailing,
   }) {
@@ -371,10 +380,13 @@ class _FavoritesPageState extends State<FavoritesPage>
             SizedBox(
               width: 80,
               height: 110,
-              child: CachedNetworkImage(
-                imageUrl: coverUrl,
-                fit: BoxFit.cover,
-                errorWidget: Container(color: Colors.grey),
+              child: Hero(
+                tag: heroTag,
+                child: CachedNetworkImage(
+                  imageUrl: coverUrl,
+                  fit: BoxFit.cover,
+                  errorWidget: Container(color: Colors.grey),
+                ),
               ),
             ),
             const SizedBox(width: 12),

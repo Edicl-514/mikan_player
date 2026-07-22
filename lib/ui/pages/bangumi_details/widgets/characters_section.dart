@@ -53,7 +53,12 @@ class CharactersSection extends StatelessWidget {
   final bool isDarkBg;
   final bool enableCharacterHero;
   final ScrollController scrollController;
-  final void Function(int characterId, {String? characterName, String? heroImageUrl}) onCharacterTap;
+  final void Function(
+    int characterId, {
+    String? characterName,
+    String? heroImageUrl,
+  })
+  onCharacterTap;
   final void Function(int personId) onPersonTap;
   final Map<String, int> personIdMap;
   final WidgetBuilder loadingPlaceholder;
@@ -87,6 +92,7 @@ class CharactersSection extends StatelessWidget {
     final cardColor = isDarkBg
         ? Colors.white.withValues(alpha: 0.05)
         : Colors.grey[100];
+    final visibleCharacters = characters.take(10).toList(growable: false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -95,83 +101,78 @@ class CharactersSection extends StatelessWidget {
         const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: Scrollbar(
-            controller: scrollController,
-            thumbVisibility: true,
-            child: SingleChildScrollView(
+          child: SizedBox(
+            height: 220,
+            child: Scrollbar(
               controller: scrollController,
-              scrollDirection: Axis.horizontal,
-              child: Padding(
+              thumbVisibility: true,
+              child: ListView.builder(
+                controller: scrollController,
+                scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var index = 0; index < characters.take(10).length; index++) ...[
-                      if (index > 0) const SizedBox(width: 16),
-                      Builder(
-                        builder: (context) {
-                          final char = characters[index];
-                          final imageUrl =
-                              char.images?.large ?? char.images?.medium ?? '';
-                          final cvName = char.actors.isNotEmpty
-                              ? char.actors.first.name
-                              : '';
-                          final canOpenCharacterPage = char.id != 0;
-                          final role = _characterRoleOf(char);
+                itemCount: visibleCharacters.length,
+                itemBuilder: (context, index) {
+                  final char = visibleCharacters[index];
+                  final imageUrl =
+                      char.images?.large ?? char.images?.medium ?? '';
+                  final cvName = char.actors.isNotEmpty
+                      ? char.actors.first.name
+                      : '';
+                  final canOpenCharacterPage = char.id != 0;
+                  final role = _characterRoleOf(char);
 
-                          return SizedBox(
-                            width: 120,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _CharacterImage(
-                                  imageUrl: imageUrl,
-                                  canOpenCharacterPage: canOpenCharacterPage,
-                                  enableHero: enableCharacterHero,
-                                  heroTag: 'character_${char.id.toInt()}',
-                                  role: role,
-                                  cardColor: cardColor,
-                                  isDarkBg: isDarkBg,
-                                  onTap: canOpenCharacterPage
-                                      ? () => onCharacterTap(
-                                            char.id.toInt(),
-                                            characterName: char.name,
-                                            heroImageUrl: imageUrl,
-                                          )
-                                      : null,
-                                ),
-                                const SizedBox(height: 8),
-                                _CharacterName(
-                                  name: char.name,
-                                  canOpenCharacterPage: canOpenCharacterPage,
-                                  textColor: textColor,
-                                  isDarkBg: isDarkBg,
-                                  onTap: canOpenCharacterPage
-                                      ? () => onCharacterTap(
-                                            char.id.toInt(),
-                                            characterName: char.name,
-                                            heroImageUrl: imageUrl,
-                                          )
-                                      : null,
-                                ),
-                                if (cvName.isNotEmpty)
-                                  _CharacterCvName(
-                                    cvName: cvName,
-                                    hasPersonLink: personIdMap.containsKey(cvName),
-                                    textColor: textColor,
-                                    isDarkBg: isDarkBg,
-                                    onPersonTap: () =>
-                                        onPersonTap(personIdMap[cvName]!),
-                                  ),
-                              ],
+                  return Padding(
+                    padding: EdgeInsets.only(left: index == 0 ? 0 : 16),
+                    child: SizedBox(
+                      width: 120,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _CharacterImage(
+                            imageUrl: imageUrl,
+                            canOpenCharacterPage: canOpenCharacterPage,
+                            enableHero: enableCharacterHero,
+                            heroTag: 'character_${char.id.toInt()}',
+                            role: role,
+                            cardColor: cardColor,
+                            isDarkBg: isDarkBg,
+                            onTap: canOpenCharacterPage
+                                ? () => onCharacterTap(
+                                    char.id.toInt(),
+                                    characterName: char.name,
+                                    heroImageUrl: imageUrl,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(height: 8),
+                          _CharacterName(
+                            name: char.name,
+                            canOpenCharacterPage: canOpenCharacterPage,
+                            textColor: textColor,
+                            isDarkBg: isDarkBg,
+                            onTap: canOpenCharacterPage
+                                ? () => onCharacterTap(
+                                    char.id.toInt(),
+                                    characterName: char.name,
+                                    heroImageUrl: imageUrl,
+                                  )
+                                : null,
+                          ),
+                          if (cvName.isNotEmpty)
+                            _CharacterCvName(
+                              cvName: cvName,
+                              hasPersonLink: personIdMap.containsKey(cvName),
+                              textColor: textColor,
+                              isDarkBg: isDarkBg,
+                              onPersonTap: () =>
+                                  onPersonTap(personIdMap[cvName]!),
                             ),
-                          );
-                        },
+                        ],
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -252,10 +253,7 @@ class _CharacterImage extends StatelessWidget {
                   Positioned(
                     left: 6,
                     top: 6,
-                    child: _CharacterRoleBadge(
-                      role: role!,
-                      isDarkBg: isDarkBg,
-                    ),
+                    child: _CharacterRoleBadge(role: role!, isDarkBg: isDarkBg),
                   ),
               ],
             ),
@@ -293,7 +291,9 @@ class _CharacterName extends StatelessWidget {
             color: isDarkBg ? Colors.cyanAccent : Colors.blue.shade800,
             fontWeight: FontWeight.w600,
             decoration: TextDecoration.underline,
-            decorationColor: isDarkBg ? Colors.cyanAccent : Colors.blue.shade800,
+            decorationColor: isDarkBg
+                ? Colors.cyanAccent
+                : Colors.blue.shade800,
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,

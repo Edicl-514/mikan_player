@@ -53,30 +53,29 @@ class RelationsSection extends StatelessWidget {
         const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: Scrollbar(
-            controller: scrollController,
-            thumbVisibility: true,
-            child: SingleChildScrollView(
+          child: SizedBox(
+            height: 200,
+            child: Scrollbar(
               controller: scrollController,
-              scrollDirection: Axis.horizontal,
-              child: Padding(
+              thumbVisibility: true,
+              child: ListView.builder(
+                controller: scrollController,
+                scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var index = 0; index < relations.length; index++) ...[
-                      if (index > 0) const SizedBox(width: 16),
-                      _RelationCard(
-                        relation: relations[index],
-                        isDarkBg: isDarkBg,
-                        textColor: textColor,
-                        cardColor: cardColor,
-                        borderColor: borderColor,
-                        onTap: () => onItemTap(relations[index]),
-                      ),
-                    ],
-                  ],
-                ),
+                itemCount: relations.length,
+                itemBuilder: (context, index) {
+                  return Padding(
+                    padding: EdgeInsets.only(left: index == 0 ? 0 : 16),
+                    child: _RelationCard(
+                      relation: relations[index],
+                      isDarkBg: isDarkBg,
+                      textColor: textColor,
+                      cardColor: cardColor,
+                      borderColor: borderColor,
+                      onTap: () => onItemTap(relations[index]),
+                    ),
+                  );
+                },
               ),
             ),
           ),

@@ -529,34 +529,23 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     }
 
     // Reuse the wide-layout CommentsSection widget so the comment card
-    // markup / pagination rendering stays identical across layouts. Wrap it
-    // in a scrollable + the load-more notification listener.
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification is ScrollUpdateNotification ||
-            notification is ScrollEndNotification ||
-            notification is OverscrollNotification) {
-          if (notification.metrics.pixels >=
-              notification.metrics.maxScrollExtent - 200) {
-            onLoadMoreComments();
-          }
-        }
-        return false;
-      },
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: CommentsSection(
-          comments: comments!,
-          isLoading: false,
-          isLoadingMore: isLoadingMoreComments,
+    // markup / pagination rendering stays identical across layouts. The
+    // section observes its actual scroll notifications and fires
+    // onLoadMoreComments when the user nears the bottom of the list. Wrapping it in
+    // RepaintBoundary keeps the list's rasterized layer cached when the
+    // sibling details tab is rebuilt or scrolled.
+    return RepaintBoundary(
+      child: CommentsSection(
+        comments: comments!,
+        isLoading: false,
+        isLoadingMore: isLoadingMoreComments,
+        isDarkBg: isDark,
+        sectionTitle: SectionTitle(
+          title: l10n.bangumiDetailsComments,
           isDarkBg: isDark,
-          sectionTitle: SectionTitle(
-            title: l10n.bangumiDetailsComments,
-            isDarkBg: isDark,
-          ),
-          loadingPlaceholder: (_) => const SizedBox.shrink(),
         ),
+        loadingPlaceholder: (_) => const SizedBox.shrink(),
+        onLoadMore: onLoadMoreComments,
       ),
     );
   }

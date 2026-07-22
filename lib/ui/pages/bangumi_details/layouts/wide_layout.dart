@@ -236,70 +236,81 @@ class BangumiDetailsWideLayout extends StatelessWidget {
 
   Widget _buildRightPanel(BuildContext context) {
     return Expanded(
-      child: SingleChildScrollView(
+      child: CustomScrollView(
         controller: wideRightScrollController,
-        padding: const EdgeInsets.fromLTRB(32, kToolbarHeight + 24, 32, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            BangumiTitleSection(
-              title: getDisplayTitle(data, anime.title),
-              cnName: data?['name_cn'] ?? anime.subTitle,
-              isDarkBg: true,
-            ),
-            const SizedBox(height: 32),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(32, kToolbarHeight + 24, 32, 0),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  BangumiTitleSection(
+                    title: getDisplayTitle(data, anime.title),
+                    cnName: data?['name_cn'] ?? anime.subTitle,
+                    isDarkBg: true,
+                  ),
+                  const SizedBox(height: 32),
 
-            EpisodesSection(
-              episodes: episodes,
-              isLoading: isLoadingEpisodes,
-              isDarkBg: true,
-              scrollController: episodesScrollController,
-              onEpisodeTap: onEpisodeTap,
-            ),
-            const SizedBox(height: 32),
+                  EpisodesSection(
+                    episodes: episodes,
+                    isLoading: isLoadingEpisodes,
+                    isDarkBg: true,
+                    scrollController: episodesScrollController,
+                    onEpisodeTap: onEpisodeTap,
+                  ),
+                  const SizedBox(height: 32),
 
-            BangumiSummarySection(
-              summary:
-                  getDisplaySummary(
-                    data?['summary']?.toString(),
+                  BangumiSummarySection(
+                    summary:
+                        getDisplaySummary(
+                          data?['summary']?.toString(),
+                          showOriginal: showOriginalSummary,
+                        ) ??
+                        AppLocalizations.of(context).bangumiDetailsNoSummary,
                     showOriginal: showOriginalSummary,
-                  ) ??
-                  AppLocalizations.of(context).bangumiDetailsNoSummary,
-              showOriginal: showOriginalSummary,
-              hasBothTranslationAndOriginal: hasBothTranslationAndOriginal(
-                data?['summary']?.toString(),
+                    hasBothTranslationAndOriginal:
+                        hasBothTranslationAndOriginal(
+                          data?['summary']?.toString(),
+                        ),
+                    onToggle:
+                        hasBothTranslationAndOriginal(
+                          data?['summary']?.toString(),
+                        )
+                        ? onToggleShowOriginal
+                        : null,
+                    isDarkBg: true,
+                  ),
+                  const SizedBox(height: 32),
+
+                  BangumiTagsSection(
+                    tags: data?['tags'],
+                    isDarkBg: true,
+                    onTagTap: onTagTap,
+                  ),
+                  const SizedBox(height: 32),
+
+                  _buildCharactersCard(context),
+                  if (relations != null && relations!.isNotEmpty) ...[
+                    const SizedBox(height: 32),
+                    _buildRelationsCard(context),
+                  ],
+                  if (sites != null && sites!.isNotEmpty) ...[
+                    const SizedBox(height: 32),
+                    _buildSitesCard(context),
+                  ] else if (relations == null || relations!.isEmpty) ...[
+                    const SizedBox(height: 32),
+                  ],
+                ],
               ),
-              onToggle:
-                  hasBothTranslationAndOriginal(data?['summary']?.toString())
-                  ? onToggleShowOriginal
-                  : null,
-              isDarkBg: true,
             ),
-            const SizedBox(height: 32),
-
-            BangumiTagsSection(
-              tags: data?['tags'],
-              isDarkBg: true,
-              onTagTap: onTagTap,
-            ),
-            const SizedBox(height: 32),
-
-            _buildCharactersCard(context),
-            if (relations != null && relations!.isNotEmpty) ...[
-              const SizedBox(height: 32),
-              _buildRelationsCard(context),
-            ],
-            if (sites != null && sites!.isNotEmpty) ...[
-              const SizedBox(height: 32),
-              _buildSitesCard(context),
-            ] else if (relations == null || relations!.isEmpty) ...[
-              const SizedBox(height: 32),
-            ],
-
-            _buildCommentsCard(context),
-            const SizedBox(height: 50),
-          ],
-        ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            sliver: _buildCommentsSliver(context),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 74)),
+        ],
       ),
     );
   }
@@ -360,7 +371,7 @@ class BangumiDetailsWideLayout extends StatelessWidget {
     );
   }
 
-  Widget _buildCommentsCard(BuildContext context) {
+  Widget _buildCommentsSliver(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     if (!hasRequestedComments && !isLoadingComments) {
       // Defer to after the current build so the controller's synchronous
@@ -371,7 +382,7 @@ class BangumiDetailsWideLayout extends StatelessWidget {
         onEnsureCommentsLoaded();
       });
     }
-    return CommentsSection(
+    return CommentsSliver(
       comments: comments ?? const [],
       isLoading: isLoadingComments,
       isLoadingMore: isLoadingMoreComments,

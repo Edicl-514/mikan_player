@@ -117,6 +117,66 @@ void main() {
       expect(find.text('1月3日'), findsOneWidget);
     });
 
+    testWidgets('scrolling near the bottom invokes onLoadMore', (tester) async {
+      var loadMoreCalls = 0;
+      final comments = List.generate(
+        30,
+        (index) => _comment(userName: 'User $index', time: '1月1日'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CommentsSection(
+              comments: comments,
+              isLoading: false,
+              isLoadingMore: false,
+              isDarkBg: false,
+              sectionTitle: _buildSectionTitleStub('评论', false),
+              loadingPlaceholder: _loadingStub,
+              onLoadMore: () => loadMoreCalls++,
+            ),
+          ),
+        ),
+      );
+
+      await tester.fling(find.byType(ListView), const Offset(0, -5000), 5000);
+      await tester.pumpAndSettle();
+
+      expect(loadMoreCalls, greaterThan(0));
+    });
+
+    testWidgets('sliver variant only builds viewport-visible comments', (
+      tester,
+    ) async {
+      final comments = List.generate(
+        50,
+        (index) => _comment(userName: 'Sliver User $index', time: '1月1日'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CustomScrollView(
+              slivers: [
+                CommentsSliver(
+                  comments: comments,
+                  isLoading: false,
+                  isLoadingMore: false,
+                  isDarkBg: false,
+                  sectionTitle: _buildSectionTitleStub('评论', false),
+                  loadingPlaceholder: _loadingStub,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Sliver User 0'), findsOneWidget);
+      expect(find.text('Sliver User 49'), findsNothing);
+    });
+
     testWidgets(
       'rate renders exactly (rate/2) filled stars and the rest border',
       (tester) async {
