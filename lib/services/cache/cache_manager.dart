@@ -2,11 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:mikan_player/services/bangumi_image_bridge.dart';
 
 import 'bangumi_cache_service.dart';
 import 'image_cache_service.dart';
 import 'models/bangumi_subject_cache.dart';
+import 'platform_cache_service.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -26,6 +29,7 @@ class CacheManager {
 
   final BangumiCacheService _dbCache = BangumiCacheService.instance;
   final ImageCacheService _imageCache = ImageCacheService.instance;
+  final PlatformCacheService _platformCache = PlatformCacheService.instance;
 
   bool _isInitialized = false;
 
@@ -97,8 +101,8 @@ class CacheManager {
     await _dbCache.initialize();
     await _imageCache.initialize();
 
-    // 启动时清理过期缓存
-    await _dbCache.clearExpired();
+    // 启动时清理过期缓存，并限制 Android 图片磁盘缓存的总量。
+    await clearExpired();
 
     _isInitialized = true;
     debugPrint('CacheManager initialized');
@@ -821,7 +825,12 @@ class CacheManager {
   Future<void> clearAll() async {
     await _dbCache.clearAll();
     await _imageCache.clearAll();
+    BangumiImageBridge.clear();
+    PaintingBinding.instance.imageCache
+      ..clear()
+      ..clearLiveImages();
     await clearWebViewCookies();
+    await _platformCache.clearAll();
   }
 
   /// 清除 WebView 的 Cookie 存储
@@ -850,7 +859,11 @@ class CacheManager {
   /// 清除过期缓存
   Future<void> clearExpired() async {
     await _dbCache.clearExpired();
-    await _imageCache.cleanupOldCache();
+    await _imageCache.cleanupOldCache(
+      maxSizeBytes: defaultTargetPlatform == TargetPlatform.android
+          ? ImageCacheService.androidMaxDiskCacheSizeBytes
+          : null,
+    );
   }
 
   /// 获取缓存统计信息
@@ -858,12 +871,24 @@ class CacheManager {
     final dbStats = await _dbCache.getCacheStats();
     final imageCount = await _imageCache.getCacheCount();
     final imageSize = await _imageCache.getCacheSize();
+    final platformStats = await _platformCache.getStats();
+    final totalSize = imageSize + platformStats.totalSize;
 
     return {
       ...dbStats,
       'imageCount': imageCount,
       'imageSize': imageSize,
       'imageSizeFormatted': _formatBytes(imageSize),
+      'htmlImageSize': platformStats.htmlImageSize,
+      'htmlImageSizeFormatted': _formatBytes(platformStats.htmlImageSize),
+      'webViewCacheSize': platformStats.webViewCacheSize,
+      'webViewCacheSizeFormatted': _formatBytes(platformStats.webViewCacheSize),
+      'webViewStorageSize': platformStats.webViewStorageSize,
+      'webViewStorageSizeFormatted': _formatBytes(
+        platformStats.webViewStorageSize,
+      ),
+      'totalSize': totalSize,
+      'totalSizeFormatted': _formatBytes(totalSize),
     };
   }
 

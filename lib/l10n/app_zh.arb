@@ -140,12 +140,12 @@
   "cacheManagement": "缓存管理",
   "clearCache": "清除全部缓存",
   "confirmClearCache": "确认清除缓存",
-  "clearCacheMessage": "这将删除所有缓存数据，包括番剧信息、图片缓存和 WebView 的 Cookie。确定要继续吗？",
+  "clearCacheMessage": "这将删除番剧缓存、全部图片缓存、WebView 网络缓存、Cookie 和网站存储。部分播放源之后可能需要重新验证。确定要继续吗？",
   "cacheCleared": "缓存已清除",
   "cacheClearedFailed": "清除缓存失败: {error}",
-  "cacheStatsSummary": "条目: {subjects}, 角色: {characters}, 关联: {relations}\n时间表: {timetables}, 排行榜: {rankings}\n图片缓存: {imageSize}",
+  "cacheStatsSummary": "条目: {subjects}, 角色: {characters}, 关联: {relations}\n时间表: {timetables}, 排行榜: {rankings}\n应用图片: {imageSize}，HTML 图片: {htmlImageSize}\nWebView 缓存: {webViewCacheSize}，网站数据: {webViewStorageSize}\n可清理合计: {totalSize}",
   "@cacheStatsSummary": {
-    "description": "Summary of the cached Bangumi data and image cache size shown in Settings.",
+    "description": "Summary of database cache counts and all clearable cache sizes shown in Settings.",
     "placeholders": {
       "subjects": {
         "type": "int"
@@ -163,6 +163,18 @@
         "type": "int"
       },
       "imageSize": {
+        "type": "String"
+      },
+      "htmlImageSize": {
+        "type": "String"
+      },
+      "webViewCacheSize": {
+        "type": "String"
+      },
+      "webViewStorageSize": {
+        "type": "String"
+      },
+      "totalSize": {
         "type": "String"
       }
     }

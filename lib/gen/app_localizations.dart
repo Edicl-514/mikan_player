@@ -701,7 +701,7 @@ abstract class AppLocalizations {
   /// No description provided for @clearCacheMessage.
   ///
   /// In zh, this message translates to:
-  /// **'这将删除所有缓存数据，包括番剧信息、图片缓存和 WebView 的 Cookie。确定要继续吗？'**
+  /// **'这将删除番剧缓存、全部图片缓存、WebView 网络缓存、Cookie 和网站存储。部分播放源之后可能需要重新验证。确定要继续吗？'**
   String get clearCacheMessage;
 
   /// No description provided for @cacheCleared.
@@ -716,10 +716,10 @@ abstract class AppLocalizations {
   /// **'清除缓存失败: {error}'**
   String cacheClearedFailed(Object error);
 
-  /// Summary of the cached Bangumi data and image cache size shown in Settings.
+  /// Summary of database cache counts and all clearable cache sizes shown in Settings.
   ///
   /// In zh, this message translates to:
-  /// **'条目: {subjects}, 角色: {characters}, 关联: {relations}\n时间表: {timetables}, 排行榜: {rankings}\n图片缓存: {imageSize}'**
+  /// **'条目: {subjects}, 角色: {characters}, 关联: {relations}\n时间表: {timetables}, 排行榜: {rankings}\n应用图片: {imageSize}，HTML 图片: {htmlImageSize}\nWebView 缓存: {webViewCacheSize}，网站数据: {webViewStorageSize}\n可清理合计: {totalSize}'**
   String cacheStatsSummary(
     int subjects,
     int characters,
@@ -727,6 +727,10 @@ abstract class AppLocalizations {
     int timetables,
     int rankings,
     String imageSize,
+    String htmlImageSize,
+    String webViewCacheSize,
+    String webViewStorageSize,
+    String totalSize,
   );
 
   /// No description provided for @refresh.

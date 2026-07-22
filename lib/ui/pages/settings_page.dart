@@ -73,7 +73,6 @@ class _SettingsPageState extends State<SettingsPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(AppLocalizations.of(context).cacheCleared)),
           );
-          _loadCacheStats();
         }
       } catch (e) {
         if (mounted) {
@@ -88,6 +87,7 @@ class _SettingsPageState extends State<SettingsPage> {
       } finally {
         if (mounted) {
           setState(() => _isClearingCache = false);
+          await _loadCacheStats();
         }
       }
     }
@@ -103,6 +103,13 @@ class _SettingsPageState extends State<SettingsPage> {
     final timetables = (_cacheStats!['timetables'] as num?)?.toInt() ?? 0;
     final rankings = (_cacheStats!['rankings'] as num?)?.toInt() ?? 0;
     final imageSize = _cacheStats!['imageSizeFormatted']?.toString() ?? '0 B';
+    final htmlImageSize =
+        _cacheStats!['htmlImageSizeFormatted']?.toString() ?? '0 B';
+    final webViewCacheSize =
+        _cacheStats!['webViewCacheSizeFormatted']?.toString() ?? '0 B';
+    final webViewStorageSize =
+        _cacheStats!['webViewStorageSizeFormatted']?.toString() ?? '0 B';
+    final totalSize = _cacheStats!['totalSizeFormatted']?.toString() ?? '0 B';
 
     return l10n.cacheStatsSummary(
       subjects,
@@ -111,6 +118,10 @@ class _SettingsPageState extends State<SettingsPage> {
       timetables,
       rankings,
       imageSize,
+      htmlImageSize,
+      webViewCacheSize,
+      webViewStorageSize,
+      totalSize,
     );
   }
 

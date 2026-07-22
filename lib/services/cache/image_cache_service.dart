@@ -14,6 +14,8 @@ import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 /// 负责将网络图片下载并缓存到本地文件系统
 /// 兼容 Windows 和 Android
 class ImageCacheService {
+  static const int androidMaxDiskCacheSizeBytes = 128 << 20;
+
   static ImageCacheService? _instance;
   static ImageCacheService get instance {
     _instance ??= ImageCacheService._();
@@ -30,6 +32,7 @@ class ImageCacheService {
   bool _isInitialized = false;
   final HttpClient _httpClient;
   final Map<String, Future<String?>> _inFlightDownloads = {};
+  int _generation = 0;
   final LinkedHashMap<String, String> _memoryPathCache =
       LinkedHashMap<String, String>();
   static const int _maxMemoryCacheSize = 500;
@@ -55,7 +58,11 @@ class ImageCacheService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    _cacheDir ??= await _getImageCacheDirectory();
+    if (_cacheDir == null) {
+      final cacheDir = await _getImageCacheDirectory();
+      await _migrateLegacyAndroidCache(cacheDir);
+      _cacheDir = cacheDir;
+    }
 
     // 确保目录存在
     if (!await _cacheDir!.exists()) {
@@ -71,12 +78,12 @@ class ImageCacheService {
     Directory baseDir;
 
     if (Platform.isAndroid) {
-      // Android: 使用外部存储的应用专属目录
-      final dirs = await getExternalStorageDirectories();
+      // Android: 使用可由系统回收的应用专属外部缓存目录。
+      final dirs = await getExternalCacheDirectories();
       if (dirs != null && dirs.isNotEmpty) {
         baseDir = dirs.first;
       } else {
-        baseDir = await getApplicationDocumentsDirectory();
+        baseDir = await getTemporaryDirectory();
       }
     } else {
       // 桌面平台: 使用统一的应用数据目录
@@ -84,6 +91,72 @@ class ImageCacheService {
     }
 
     return Directory(p.join(baseDir.path, 'image_cache'));
+  }
+
+  Future<void> _migrateLegacyAndroidCache(Directory target) async {
+    if (!Platform.isAndroid) return;
+
+    try {
+      final dirs = await getExternalStorageDirectories();
+      if (dirs == null || dirs.isEmpty) return;
+      final legacy = Directory(p.join(dirs.first.path, 'image_cache'));
+      if (p.equals(legacy.path, target.path) || !await legacy.exists()) return;
+      await migrateCacheDirectory(legacy: legacy, target: target);
+      debugPrint('Image cache migrated to: ${target.path}');
+    } catch (e) {
+      debugPrint('Failed to migrate legacy image cache (non-fatal): $e');
+    }
+  }
+
+  @visibleForTesting
+  static Future<void> migrateCacheDirectory({
+    required Directory legacy,
+    required Directory target,
+  }) async {
+    if (!await legacy.exists() || p.equals(legacy.path, target.path)) return;
+
+    await target.parent.create(recursive: true);
+    if (!await target.exists()) {
+      try {
+        await legacy.rename(target.path);
+        return;
+      } on FileSystemException {
+        // Some Android storage providers do not support directory rename.
+      }
+    }
+
+    await target.create(recursive: true);
+    await for (final entity in legacy.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      final relativePath = p.relative(entity.path, from: legacy.path);
+      final destinationPath = p.join(target.path, relativePath);
+      if (entity is Directory) {
+        await Directory(destinationPath).create(recursive: true);
+        continue;
+      }
+      if (entity is! File) continue;
+
+      final destination = File(destinationPath);
+      await destination.parent.create(recursive: true);
+      if (await destination.exists()) {
+        await entity.delete();
+        continue;
+      }
+
+      try {
+        await entity.rename(destination.path);
+      } on FileSystemException {
+        final modified = (await entity.stat()).modified;
+        await entity.copy(destination.path);
+        await destination.setLastModified(modified);
+        await entity.delete();
+      }
+    }
+    if (await legacy.exists()) {
+      await legacy.delete(recursive: true);
+    }
   }
 
   static String _normalizeCacheKey(String url) {
@@ -178,9 +251,14 @@ class ImageCacheService {
       return inFlight;
     }
 
-    final future = _cacheImageWithLimit(key);
+    final generation = _generation;
+    final future = _cacheImageWithLimit(key, generation);
     _inFlightDownloads[key] = future;
-    future.whenComplete(() => _inFlightDownloads.remove(key));
+    future.whenComplete(() {
+      if (identical(_inFlightDownloads[key], future)) {
+        _inFlightDownloads.remove(key);
+      }
+    });
     final result = await future;
     if (result != null) {
       _putMemoryCache(key, result);
@@ -188,7 +266,7 @@ class ImageCacheService {
     return result;
   }
 
-  Future<String?> _cacheImageWithLimit(String url) async {
+  Future<String?> _cacheImageWithLimit(String url, int generation) async {
     await _acquireDownloadSlot();
     try {
       final existingPath = await getCachedPath(url);
@@ -201,7 +279,7 @@ class ImageCacheService {
       final downloadUrl = BangumiUrlRewriter.rewrite(url);
       final bytes = await _downloadImage(downloadUrl);
 
-      if (bytes != null && bytes.isNotEmpty) {
+      if (bytes != null && bytes.isNotEmpty && generation == _generation) {
         final file = File(localPath);
         await file.writeAsBytes(bytes);
         _putMemoryCache(url, localPath);
@@ -310,6 +388,8 @@ class ImageCacheService {
   /// 清空所有缓存图片
   Future<void> clearAll() async {
     try {
+      _generation++;
+      _inFlightDownloads.clear();
       _memoryPathCache.clear();
       if (_cacheDir != null && await _cacheDir!.exists()) {
         await _cacheDir!.delete(recursive: true);

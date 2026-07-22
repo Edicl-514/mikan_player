@@ -334,7 +334,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get clearCacheMessage =>
-      '这将删除所有缓存数据，包括番剧信息、图片缓存和 WebView 的 Cookie。确定要继续吗？';
+      '这将删除番剧缓存、全部图片缓存、WebView 网络缓存、Cookie 和网站存储。部分播放源之后可能需要重新验证。确定要继续吗？';
 
   @override
   String get cacheCleared => '缓存已清除';
@@ -352,8 +352,12 @@ class AppLocalizationsZh extends AppLocalizations {
     int timetables,
     int rankings,
     String imageSize,
+    String htmlImageSize,
+    String webViewCacheSize,
+    String webViewStorageSize,
+    String totalSize,
   ) {
-    return '条目: $subjects, 角色: $characters, 关联: $relations\n时间表: $timetables, 排行榜: $rankings\n图片缓存: $imageSize';
+    return '条目: $subjects, 角色: $characters, 关联: $relations\n时间表: $timetables, 排行榜: $rankings\n应用图片: $imageSize，HTML 图片: $htmlImageSize\nWebView 缓存: $webViewCacheSize，网站数据: $webViewStorageSize\n可清理合计: $totalSize';
   }
 
   @override

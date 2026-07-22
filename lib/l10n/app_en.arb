@@ -140,12 +140,12 @@
   "cacheManagement": "Cache Management",
   "clearCache": "Clear All Cache",
   "confirmClearCache": "Confirm cache clear",
-  "clearCacheMessage": "This will delete all cached data, including anime info, images, and WebView cookies. Continue?",
+  "clearCacheMessage": "This will delete anime cache, all image caches, WebView network cache, cookies, and website storage. Some playback sources may require verification again. Continue?",
   "cacheCleared": "Cache cleared",
   "cacheClearedFailed": "Failed to clear cache: {error}",
-  "cacheStatsSummary": "Subjects: {subjects}, Characters: {characters}, Relations: {relations}\nSchedule: {timetables}, Rankings: {rankings}\nImage cache: {imageSize}",
+  "cacheStatsSummary": "Subjects: {subjects}, Characters: {characters}, Relations: {relations}\nSchedule: {timetables}, Rankings: {rankings}\nApp images: {imageSize}, HTML images: {htmlImageSize}\nWebView cache: {webViewCacheSize}, website data: {webViewStorageSize}\nTotal clearable: {totalSize}",
   "@cacheStatsSummary": {
-    "description": "Summary of the cached Bangumi data and image cache size shown in Settings.",
+    "description": "Summary of database cache counts and all clearable cache sizes shown in Settings.",
     "placeholders": {
       "subjects": {
         "type": "int"
@@ -163,6 +163,18 @@
         "type": "int"
       },
       "imageSize": {
+        "type": "String"
+      },
+      "htmlImageSize": {
+        "type": "String"
+      },
+      "webViewCacheSize": {
+        "type": "String"
+      },
+      "webViewStorageSize": {
+        "type": "String"
+      },
+      "totalSize": {
         "type": "String"
       }
     }

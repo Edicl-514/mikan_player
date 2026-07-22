@@ -39,12 +39,17 @@ Future<void> main() async {
       WidgetsFlutterBinding.ensureInitialized();
       _installGlobalErrorLogging();
 
-      // 调大全局图片解码缓存，避免 PC 端大图被频繁清理导致返回/切换页面时
-      // 重新从磁盘读取并完整解码（参考 Flutter 默认 100MB / 1000 张）。
+      // 桌面端保留较大的解码缓存；Android 需要限制长时间浏览图片时的
+      // 常驻内存增长。
       if (!kIsWeb) {
         final cache = PaintingBinding.instance.imageCache;
-        cache.maximumSize = 2000;
-        cache.maximumSizeBytes = 512 << 20; // 512 MB
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          cache.maximumSize = 500;
+          cache.maximumSizeBytes = 128 << 20;
+        } else {
+          cache.maximumSize = 2000;
+          cache.maximumSizeBytes = 512 << 20;
+        }
       }
 
       // Initialize Rust Logic with platform-specific paths

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -113,6 +114,20 @@ void main() {
       },
     );
 
+    test('an in-flight download cannot repopulate a cleared cache', () async {
+      final response = Completer<LocalHttpServerResponse>();
+      server.setRoute('/slow.jpg', (_) => response.future);
+
+      final download = service.cacheImage(url('/slow.jpg'));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await service.clearAll();
+      response.complete(const LocalHttpServerResponse(body: [1, 2, 3]));
+
+      expect(await download, isNull);
+      expect(await service.getCacheCount(), 0);
+      expect(await service.isCached(url('/slow.jpg')), isFalse);
+    });
+
     test('age cleanup evicts stale synchronous memory paths', () async {
       server.setRoute(
         '/old.jpg',
@@ -151,6 +166,48 @@ void main() {
       expect(service.getCachedPathSync(url('/old.jpg')), isNull);
       expect(await service.getCacheSize(), 3);
     });
+
+    test(
+      'legacy cache migration merges files and removes the old directory',
+      () async {
+        final legacy = Directory(
+          '${tempDir.path}${Platform.pathSeparator}legacy',
+        );
+        final target = Directory(
+          '${tempDir.path}${Platform.pathSeparator}target',
+        );
+        await legacy.create();
+        await target.create();
+        await File(
+          '${legacy.path}${Platform.pathSeparator}old.jpg',
+        ).writeAsBytes([1, 2, 3]);
+        await File(
+          '${legacy.path}${Platform.pathSeparator}same.jpg',
+        ).writeAsBytes([1]);
+        await File(
+          '${target.path}${Platform.pathSeparator}same.jpg',
+        ).writeAsBytes([9]);
+
+        await ImageCacheService.migrateCacheDirectory(
+          legacy: legacy,
+          target: target,
+        );
+
+        expect(await legacy.exists(), isFalse);
+        expect(
+          await File(
+            '${target.path}${Platform.pathSeparator}old.jpg',
+          ).readAsBytes(),
+          [1, 2, 3],
+        );
+        expect(
+          await File(
+            '${target.path}${Platform.pathSeparator}same.jpg',
+          ).readAsBytes(),
+          [9],
+        );
+      },
+    );
 
     test(
       'batch caching preserves each input key and canonical mirror paths match',

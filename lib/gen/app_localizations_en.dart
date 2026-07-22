@@ -345,7 +345,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get clearCacheMessage =>
-      'This will delete all cached data, including anime info, images, and WebView cookies. Continue?';
+      'This will delete anime cache, all image caches, WebView network cache, cookies, and website storage. Some playback sources may require verification again. Continue?';
 
   @override
   String get cacheCleared => 'Cache cleared';
@@ -363,8 +363,12 @@ class AppLocalizationsEn extends AppLocalizations {
     int timetables,
     int rankings,
     String imageSize,
+    String htmlImageSize,
+    String webViewCacheSize,
+    String webViewStorageSize,
+    String totalSize,
   ) {
-    return 'Subjects: $subjects, Characters: $characters, Relations: $relations\nSchedule: $timetables, Rankings: $rankings\nImage cache: $imageSize';
+    return 'Subjects: $subjects, Characters: $characters, Relations: $relations\nSchedule: $timetables, Rankings: $rankings\nApp images: $imageSize, HTML images: $htmlImageSize\nWebView cache: $webViewCacheSize, website data: $webViewStorageSize\nTotal clearable: $totalSize';
   }
 
   @override
