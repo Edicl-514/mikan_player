@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:mikan_player/services/player_session/player_session_identity.dart';
 import 'package:mikan_player/services/reusable_browser_worker.dart';
 
 /// Phase 0 of `docs/tasks/webview-reuse-extraction-plan.md`.
@@ -12,8 +13,14 @@ import 'package:mikan_player/services/reusable_browser_worker.dart';
 /// 实例，然后把同一实例通过 widget 的可选 `stats` / `jobKey` 参数传给 WebView
 /// widget 构造函数。传入 `null` 的调用方（如 `subscription_debug_page.dart`）
 /// 保持完全静默、行为不变。
+///
+/// Multi-tab Phase 0: optional [sessionContext] prefixes every log line so a
+/// worker/job can be traced to a unique [PlayerSessionId].
 class WebViewSchedulerStats {
-  WebViewSchedulerStats();
+  WebViewSchedulerStats({this.sessionContext});
+
+  /// Optional owner tag for multi-session logs. Null keeps historic formatting.
+  PlayerSessionLogContext? sessionContext;
 
   // widget 生命周期
   int videoWidgetCreations = 0;
@@ -256,5 +263,12 @@ class WebViewSchedulerStats {
         'cxl=$captchaJobCancelled';
   }
 
-  void _log(String msg) => debugPrint('$_tag $msg');
+  void _log(String msg) {
+    final owner = sessionContext?.tag;
+    if (owner == null) {
+      debugPrint('$_tag $msg');
+    } else {
+      debugPrint('$owner $_tag $msg');
+    }
+  }
 }

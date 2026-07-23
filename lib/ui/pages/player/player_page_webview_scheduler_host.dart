@@ -18,8 +18,8 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
           ..sort();
     if (warmWorkerIds.isNotEmpty) {
       debugPrint(
-        '[WebViewScheduler] pending video $pageKey can reuse warm '
-        'worker=${warmWorkerIds.first}',
+        '$_sessionOwnerTag [WebViewScheduler] pending video $pageKey '
+        'can reuse warm worker=${warmWorkerIds.first}',
       );
     }
   }
@@ -140,7 +140,8 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     if (markedUnhealthy) {
       final workerId = _scheduler.activeVideoJobs[pageKey];
       debugPrint(
-        '[WebViewScheduler] video worker=$workerId marked unhealthy '
+        '$_sessionOwnerTag [WebViewScheduler] video worker=$workerId '
+        'marked unhealthy '
         'after ${_scheduler.slotOf(workerId)?.consecutiveFailures} '
         'consecutive failures',
       );
@@ -157,7 +158,8 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     if (markedUnhealthy) {
       final workerId = _scheduler.activeCaptchaJobs[taskKey];
       debugPrint(
-        '[WebViewScheduler] captcha worker=$workerId marked unhealthy '
+        '$_sessionOwnerTag [WebViewScheduler] captcha worker=$workerId '
+        'marked unhealthy '
         'after ${_scheduler.slotOf(workerId)?.consecutiveFailures} '
         'consecutive failures',
       );
@@ -175,8 +177,8 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
         null => 'idle',
       };
       debugPrint(
-        '[WebViewScheduler] disposed idle $kindLabel worker=${slot.workerId} '
-        'to keep unified slot budget',
+        '$_sessionOwnerTag [WebViewScheduler] disposed idle $kindLabel '
+        'worker=${slot.workerId} to keep unified slot budget',
       );
     }
   }
@@ -218,6 +220,7 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
           coolingTask.captchaConfig.initialDelayMs,
         ),
         token: coolingTask.loadToken,
+        ownerTag: _sessionOwnerTag,
         onReady: () {
           if (!mounted) return;
           if (!isSearchGenerationCurrent(
@@ -257,7 +260,10 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
         generation: ready.loadToken,
       );
     }
-    SourceRequestGate.instance.markStarted(ready.source.name);
+    SourceRequestGate.instance.markStarted(
+      ready.source.name,
+      ownerTag: _sessionOwnerTag,
+    );
     _captchaCoordinator.markActive(ready);
     _webViewStatus[ready.taskKey] = AppLocalizations.of(
       context,
@@ -277,7 +283,8 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     _logDisposedIdleSlots(result.disposedIdleSlots);
     if (result.slot != null && result.createdNew) {
       debugPrint(
-        '[CaptchaScheduler] created worker=${result.slot!.workerId} for captcha '
+        '$_sessionOwnerTag [CaptchaScheduler] created '
+        'worker=${result.slot!.workerId} for captcha '
         '(${_webViewWorkerPoolLabel()})',
       );
     }
@@ -314,6 +321,7 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
           sourceName: page.sourceName,
           minInterval: SourceRequestGate.defaultVideoInterval,
           token: gateToken,
+          ownerTag: _sessionOwnerTag,
           onReady: () {
             if (!isSearchGenerationCurrent(
               resultLoadToken: gateToken,
@@ -366,7 +374,8 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
       }
       if (command.createdNew) {
         debugPrint(
-          '[WebViewScheduler] created worker=${command.slot.workerId} for video '
+          '$_sessionOwnerTag [WebViewScheduler] created '
+          'worker=${command.slot.workerId} for video '
           '(${_webViewWorkerPoolLabel()})',
         );
       }
@@ -384,7 +393,7 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
         command.job.sourceName,
         generation: jobLoadToken,
       );
-      gate.markStarted(command.job.sourceName);
+      gate.markStarted(command.job.sourceName, ownerTag: _sessionOwnerTag);
       _webViewStatus[command.job.pageKey] = AppLocalizations.of(
         context,
       ).playerWebviewExtracting;
@@ -400,7 +409,7 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     final page = readyPending.first;
     final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
     _activeWebViews[pageKey] = jobLoadToken;
-    gate.markStarted(page.sourceName);
+    gate.markStarted(page.sourceName, ownerTag: _sessionOwnerTag);
     _webViewStatus[pageKey] = AppLocalizations.of(
       context,
     ).playerWebviewExtracting;
@@ -441,8 +450,8 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
   }) {
     if (sameSource) {
       debugPrint(
-        '[WebViewScheduler] worker=$workerId selected same-source job '
-        '$pickedSource ($pageKey)',
+        '$_sessionOwnerTag [WebViewScheduler] worker=$workerId selected '
+        'same-source job $pickedSource ($pageKey)',
       );
       return;
     }
@@ -451,12 +460,12 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
         : lastSource;
     if (lastSource == null || lastSource.isEmpty) {
       debugPrint(
-        '[WebViewScheduler] worker=$workerId taking job '
+        '$_sessionOwnerTag [WebViewScheduler] worker=$workerId taking job '
         '$pickedSource ($pageKey)',
       );
     } else {
       debugPrint(
-        '[WebViewScheduler] worker=$workerId stealing source '
+        '$_sessionOwnerTag [WebViewScheduler] worker=$workerId stealing source '
         '$pickedSource ($pageKey, from=$from)',
       );
     }
@@ -571,7 +580,7 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
   /// Phase 0: 输出一行结构化的调度快照日志，便于后续 worker pool 重构对比基线。
   void _logSchedulerState(String reason) {
     debugPrint(
-      '[WebViewScheduler] state ($reason): '
+      '$_sessionOwnerTag [WebViewScheduler] state ($reason): '
       '${_extractionActiveLabel()} · ${_captchaActiveLabel()} · '
       '${_webViewWorkerPoolLabel()} · '
       'per-source: ${_perSourceStatusLabel()} · '
@@ -800,8 +809,8 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
       if (health == WebViewWorkerHealth.unhealthy) {
         _scheduler.removeSlot(workerId);
         debugPrint(
-          '[WebViewScheduler] rebuilt captcha worker=$workerId by removing '
-          'unhealthy idle slot',
+          '$_sessionOwnerTag [WebViewScheduler] rebuilt captcha '
+          'worker=$workerId by removing unhealthy idle slot',
         );
       } else {
         _scheduler.markSlotIdle(workerId);

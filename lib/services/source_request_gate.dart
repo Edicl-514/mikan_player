@@ -13,6 +13,11 @@ import 'package:flutter/foundation.dart';
 /// only fires it once [minInterval] has elapsed since the previous
 /// [markStarted]. Older waiters are dropped (stack / latest-wins), so a user
 /// who lands on EP3 only pays for EP3's request, not every intermediate stop.
+///
+/// Multi-session note (Phase 0): the pending map is keyed by [sourceName]
+/// alone. Two Player sessions waiting on the same source currently overwrite
+/// each other. Phase 1 will rekey pending entries to `(sessionId, sourceName)`
+/// while keeping [_lastStartedAt] shared per source for cooldown.
 class SourceRequestGate {
   SourceRequestGate._();
 
@@ -27,6 +32,13 @@ class SourceRequestGate {
 
   final Map<String, DateTime> _lastStartedAt = <String, DateTime>{};
   final Map<String, _PendingStart> _pending = <String, _PendingStart>{};
+
+  /// Number of sources currently holding a delayed waiter (debug / invariant).
+  int get debugPendingWaiterCount => _pending.length;
+
+  /// Token currently waiting for [sourceName], or null.
+  @visibleForTesting
+  Object? debugPendingToken(String sourceName) => _pending[sourceName]?.token;
 
   /// Remaining wait before [sourceName] may start again under [minInterval],
   /// or `null` when it may start immediately.
@@ -46,10 +58,16 @@ class SourceRequestGate {
   /// Record that a real start (worker accept / load) just happened for
   /// [sourceName]. Cancels any pending delayed waiter for that source — the
   /// active start is the new generation baseline.
-  void markStarted(String sourceName) {
+  void markStarted(String sourceName, {String? ownerTag}) {
     _lastStartedAt[sourceName] = DateTime.now();
     final pending = _pending.remove(sourceName);
     pending?.timer.cancel();
+    if (ownerTag != null) {
+      debugPrint(
+        '$ownerTag [SourceRequestGate] $sourceName markStarted '
+        '(cancelledPending=${pending != null})',
+      );
+    }
   }
 
   /// Coalesce a delayed start for [sourceName].
@@ -58,11 +76,14 @@ class SourceRequestGate {
   /// token is still current, [onReady] is invoked once (typically to re-pump
   /// the WebView pool). If another start happened in the meantime the timer
   /// reschedules against the fresh baseline.
+  ///
+  /// Optional [ownerTag] is only prepended to debug logs (Phase 0 identity).
   void scheduleWhenReady({
     required String sourceName,
     required Duration minInterval,
     required Object token,
     required void Function() onReady,
+    String? ownerTag,
   }) {
     final remaining = remainingCooldown(sourceName, minInterval);
     if (remaining == null || remaining <= Duration.zero) {
@@ -77,6 +98,7 @@ class SourceRequestGate {
             minInterval: minInterval,
             token: token,
             onReady: onReady,
+            ownerTag: ownerTag,
           );
           return;
         }
@@ -93,28 +115,46 @@ class SourceRequestGate {
       token: token,
       minInterval: minInterval,
       onReady: onReady,
+      ownerTag: ownerTag,
       timer: Timer(remaining, () => _firePending(sourceName, pending)),
     );
     _pending[sourceName] = pending;
+    final prefix = ownerTag == null ? '' : '$ownerTag ';
     debugPrint(
-      '[SourceRequestGate] $sourceName cooling '
-      '${remaining.inMilliseconds}ms (token=$token)',
+      '$prefix[SourceRequestGate] $sourceName cooling '
+      '${remaining.inMilliseconds}ms (token=$token'
+      '${previous == null ? '' : ', overwrotePriorToken=${previous.token}'})',
     );
   }
 
-  void cancelPending(String sourceName, {Object? token}) {
+  void cancelPending(String sourceName, {Object? token, String? ownerTag}) {
     final pending = _pending[sourceName];
     if (pending == null) return;
     if (token != null && pending.token != token) return;
     pending.timer.cancel();
     _pending.remove(sourceName);
+    if (ownerTag != null) {
+      debugPrint(
+        '$ownerTag [SourceRequestGate] $sourceName cancelPending token=$token',
+      );
+    }
   }
 
-  void cancelAllPending() {
+  /// Cancels **every** pending waiter in the process.
+  ///
+  /// Multi-session risk: this is not session-scoped. Prefer per-source
+  /// [cancelPending] (and Phase 1 `cancelSession`) over this from PlayerPage.
+  void cancelAllPending({String? ownerTag}) {
+    final count = _pending.length;
     for (final pending in _pending.values) {
       pending.timer.cancel();
     }
     _pending.clear();
+    if (ownerTag != null && count > 0) {
+      debugPrint(
+        '$ownerTag [SourceRequestGate] cancelAllPending cleared=$count',
+      );
+    }
   }
 
   /// Test-only: drop both start history and pending timers.
@@ -144,12 +184,14 @@ class SourceRequestGate {
         minInterval: pending.minInterval,
         token: pending.token,
         onReady: pending.onReady,
+        ownerTag: pending.ownerTag,
       );
       return;
     }
 
+    final prefix = pending.ownerTag == null ? '' : '${pending.ownerTag} ';
     debugPrint(
-      '[SourceRequestGate] $sourceName ready (token=${pending.token})',
+      '$prefix[SourceRequestGate] $sourceName ready (token=${pending.token})',
     );
     pending.onReady();
   }
@@ -161,10 +203,12 @@ class _PendingStart {
     required this.minInterval,
     required this.onReady,
     required this.timer,
+    this.ownerTag,
   });
 
   final Object token;
   final Duration minInterval;
   final void Function() onReady;
   final Timer timer;
+  final String? ownerTag;
 }

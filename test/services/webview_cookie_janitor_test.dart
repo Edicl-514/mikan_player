@@ -13,7 +13,9 @@ void main() {
     janitor.requestHostCleanup(host: 'example.com');
     janitor.requestCleanup(host: 'example.com', cookieName: 'explicit');
     janitor.requestCleanup(host: 'example.com', cookieName: 'explicit');
+    expect(janitor.debugPendingCleanupCount, 2);
     await janitor.drainNow();
+    expect(janitor.debugPendingCleanupCount, 0);
 
     expect(backend.hostLookups, ['example.com']);
     expect(backend.deletions, [

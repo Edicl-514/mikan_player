@@ -95,22 +95,41 @@ class WebViewCookieJanitor {
   Timer? _maxDeferTimer;
   bool _maxDeferScheduled = false;
 
+  /// Pending cookie + host cleanup request count (debug / invariant snapshot).
+  int get debugPendingCleanupCount =>
+      _pendingCookies.length + _pendingHosts.length;
+
   /// Enqueue deletion of a single cookie for [host].
   /// Deduplicated by (host, cookieName, path).
+  ///
+  /// Optional [ownerTag] is log-only (Phase 0). Cleanup is still process-wide
+  /// and not yet lease-aware — Phase 1 adds [CookieUsageRegistry].
   void requestCleanup({
     required String host,
     required String cookieName,
     String path = '/',
+    String? ownerTag,
   }) {
     _pendingCookies.add((host: host, name: cookieName, path: path));
     _ensureMaxDeferTimer();
+    if (ownerTag != null) {
+      debugPrint(
+        '$ownerTag [WebViewCookieJanitor] requestCleanup '
+        'host=$host name=$cookieName path=$path',
+      );
+    }
   }
 
   /// Enqueue deletion of all cookies currently set for [host].
   /// Deduplicated by host.
-  void requestHostCleanup({required String host}) {
+  void requestHostCleanup({required String host, String? ownerTag}) {
     _pendingHosts.add(host);
     _ensureMaxDeferTimer();
+    if (ownerTag != null) {
+      debugPrint(
+        '$ownerTag [WebViewCookieJanitor] requestHostCleanup host=$host',
+      );
+    }
   }
 
   /// Signal that the extraction wave has gone idle. Schedules a drain a short
@@ -179,7 +198,8 @@ class WebViewCookieJanitor {
     sw.stop();
     debugPrint(
       '[WebViewCookieJanitor] batch done: hosts=${hosts.length}, '
-      'cookies=$cookieCount, duration=${sw.elapsedMilliseconds}ms',
+      'cookies=$cookieCount, duration=${sw.elapsedMilliseconds}ms '
+      'pendingAfter=$debugPendingCleanupCount',
     );
   }
 

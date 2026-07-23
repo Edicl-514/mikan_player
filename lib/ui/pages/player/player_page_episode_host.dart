@@ -63,7 +63,8 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
 
     // Stop current player and invalidate in-flight online-source work.
     _player.stop();
-    _sampleSourceController.bumpLoadToken();
+    final nextToken = _sampleSourceController.bumpLoadToken();
+    _setSessionGeneration(nextToken);
     unawaited(_cancelSearchSubscriptions());
 
     // Update current episode and reset all states

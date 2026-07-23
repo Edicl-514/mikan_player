@@ -185,6 +185,8 @@ flowchart TD
 
 **目的**：在改变资源边界前，先让多 session 问题能够被稳定复现和断言。
 
+**状态（2026-07-23）**：已完成落地（identity + 可观测性 + 双 session 夹具 + 风险回归测试）。尚未改变资源硬上限或 gate/cookie 所有权语义。
+
 #### 步骤
 
 1. 为 PlayerPage、scheduler、worker、gate 和 cookie 日志补充 `tabId/sessionId/workerId/generation`。
@@ -196,6 +198,19 @@ flowchart TD
    - 同源 gate waiter 当前会互相覆盖；
    - session A cleanup 不能影响 session B；
    - late callback 在 session 关闭后必须被 generation/owner guard 丢弃。
+
+#### 落地路径（实现索引）
+
+| 产物 | 路径 |
+|------|------|
+| Identity / lease 类型 | `lib/services/player_session/player_session_identity.dart` |
+| Debug registry + snapshot | `lib/services/player_session/player_resource_debug.dart` |
+| Gate pending 计数 / owner 日志 | `lib/services/source_request_gate.dart` |
+| Cookie pending 计数 / owner 日志 | `lib/services/webview_cookie_janitor.dart` |
+| Stats session 前缀 | `lib/services/webview_scheduler_stats.dart` |
+| PlayerPage 注册 session | `lib/ui/pages/player_page.dart` |
+| 双 session 夹具 | `test/support/fake_player_session.dart` |
+| 风险回归 | `test/services/player_session/multi_session_phase0_risk_test.dart` |
 
 #### 验收
 

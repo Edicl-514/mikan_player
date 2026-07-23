@@ -93,4 +93,20 @@ void main() {
     );
     expect(SourceRequestGate.captchaIntervalMs(3000).inMilliseconds, 3000);
   });
+
+  test('debugPendingWaiterCount tracks schedule and cancel', () {
+    const interval = Duration(seconds: 2);
+    gate.markStarted('srcA');
+    expect(gate.debugPendingWaiterCount, 0);
+    gate.scheduleWhenReady(
+      sourceName: 'srcA',
+      minInterval: interval,
+      token: 't1',
+      onReady: () {},
+    );
+    expect(gate.debugPendingWaiterCount, 1);
+    expect(gate.debugPendingToken('srcA'), 't1');
+    gate.cancelPending('srcA', token: 't1');
+    expect(gate.debugPendingWaiterCount, 0);
+  });
 }

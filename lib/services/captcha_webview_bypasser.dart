@@ -635,6 +635,12 @@ class _ReusableCaptchaWebViewBypasserState
   late final CaptchaJobRunner _runner;
   late final CaptchaJobRunnerSink _sink;
 
+  void _debugWorkerMessage(String message) {
+    final ownerTag = widget.stats?.sessionContext?.tag;
+    final prefix = ownerTag == null ? '' : '$ownerTag ';
+    debugPrint('$prefix[CaptchaWebView] $message');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -745,23 +751,21 @@ class _ReusableCaptchaWebViewBypasserState
         _runner.onConsoleMessage(consoleMessage);
       },
       onJsAlert: (_, request) async {
-        debugPrint('[CaptchaWebView] Suppressed JS alert: ${request.message}');
+        _debugWorkerMessage('Suppressed JS alert: ${request.message}');
         return JsAlertResponse(
           handledByClient: true,
           action: JsAlertResponseAction.CONFIRM,
         );
       },
       onJsConfirm: (_, request) async {
-        debugPrint(
-          '[CaptchaWebView] Suppressed JS confirm: ${request.message}',
-        );
+        _debugWorkerMessage('Suppressed JS confirm: ${request.message}');
         return JsConfirmResponse(
           handledByClient: true,
           action: JsConfirmResponseAction.CANCEL,
         );
       },
       onJsPrompt: (_, request) async {
-        debugPrint('[CaptchaWebView] Suppressed JS prompt: ${request.message}');
+        _debugWorkerMessage('Suppressed JS prompt: ${request.message}');
         return JsPromptResponse(
           handledByClient: true,
           action: JsPromptResponseAction.CANCEL,

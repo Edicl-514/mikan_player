@@ -429,6 +429,12 @@ class _ReusableBrowserWorkerState extends State<ReusableBrowserWorker> {
   WebViewJob? _lastJob;
   WebViewJobKind? _lastAcceptedKind;
 
+  void _debugWorkerMessage(String message) {
+    final ownerTag = widget.stats?.sessionContext?.tag;
+    final prefix = ownerTag == null ? '' : '$ownerTag ';
+    debugPrint('$prefix[WebViewWorker] $message');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -715,21 +721,21 @@ class _ReusableBrowserWorkerState extends State<ReusableBrowserWorker> {
         }
       },
       onJsAlert: (_, request) async {
-        debugPrint('[WebViewWorker] Suppressed JS alert: ${request.message}');
+        _debugWorkerMessage('Suppressed JS alert: ${request.message}');
         return JsAlertResponse(
           handledByClient: true,
           action: JsAlertResponseAction.CONFIRM,
         );
       },
       onJsConfirm: (_, request) async {
-        debugPrint('[WebViewWorker] Suppressed JS confirm: ${request.message}');
+        _debugWorkerMessage('Suppressed JS confirm: ${request.message}');
         return JsConfirmResponse(
           handledByClient: true,
           action: JsConfirmResponseAction.CANCEL,
         );
       },
       onJsPrompt: (_, request) async {
-        debugPrint('[WebViewWorker] Suppressed JS prompt: ${request.message}');
+        _debugWorkerMessage('Suppressed JS prompt: ${request.message}');
         return JsPromptResponse(
           handledByClient: true,
           action: JsPromptResponseAction.CANCEL,

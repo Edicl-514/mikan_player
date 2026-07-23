@@ -122,7 +122,9 @@ extension _PlayerPageWebViewWidgets on _PlayerPageState {
           onVideoResult: onVideoResult,
           onVideoIdle: onVideoIdle,
           onLog: (message) {
-            debugPrint('[WebView][worker_$workerId] $message');
+            debugPrint(
+              '$_sessionOwnerTag [WebView][worker_$workerId] $message',
+            );
           },
           showWebView: _showWebView,
           preserveCaptchaSessionOnIdle: slot.preserveCaptchaSessionOnIdle,
@@ -190,7 +192,8 @@ extension _PlayerPageWebViewWidgets on _PlayerPageState {
           generation: generation,
           showWebView: _showWebView,
           onResult: (result) => _onWebViewResult(pageKey, generation, result),
-          onLog: (msg) => debugPrint('[WebView][$pageKey] $msg'),
+          onLog: (msg) =>
+              debugPrint('$_sessionOwnerTag [WebView][$pageKey] $msg'),
           stats: _webviewStats,
           jobKey: pageKey,
         ),
@@ -215,7 +218,8 @@ extension _PlayerPageWebViewWidgets on _PlayerPageState {
             );
             changed = true;
             debugPrint(
-              '[_buildWebViewExtractors] Cleared orphan extraction task: $pageKey',
+              '$_sessionOwnerTag [_buildWebViewExtractors] Cleared orphan '
+              'extraction task: $pageKey',
             );
           }
         }
@@ -244,7 +248,9 @@ extension _PlayerPageWebViewWidgets on _PlayerPageState {
           onResult: (result) =>
               _onCaptchaPreflightResult(task.taskKey, task.loadToken, result),
           onLog: (message) {
-            debugPrint('[CaptchaBypass][${task.taskKey}] $message');
+            debugPrint(
+              '$_sessionOwnerTag [CaptchaBypass][${task.taskKey}] $message',
+            );
           },
           showWebView: _showWebView,
           stats: _webviewStats,

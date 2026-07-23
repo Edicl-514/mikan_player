@@ -525,6 +525,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
     }
 
     final loadToken = _sampleSourceController.bumpLoadToken();
+    _setSessionGeneration(loadToken);
     await _cancelSearchSubscriptions();
 
     if (!isSearchGenerationCurrent(

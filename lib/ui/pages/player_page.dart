@@ -17,6 +17,8 @@ import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/services/header_injection_proxy.dart';
 import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/services/reusable_browser_worker.dart';
+import 'package:mikan_player/services/player_session/player_resource_debug.dart';
+import 'package:mikan_player/services/player_session/player_session_identity.dart';
 import 'package:mikan_player/services/source_request_gate.dart';
 import 'package:mikan_player/services/webview_scheduler_stats.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
@@ -179,10 +181,18 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// 行为完全等价于 Round 2 之前。
   bool _useWorkerPool = true;
 
+  /// Multi-tab Phase 0: route-level Player session identity for logs /
+  /// debug registry. Resource isolation arrives in Phase 1.
+  late final PlayerSessionId _playerSessionId;
+  late final PlayerSessionDebugHandle _playerSessionHandle;
+  PlayerSessionLogContext _sessionLogContext = const PlayerSessionLogContext(
+    sessionId: PlayerSessionId('uninitialized'),
+  );
+
   /// Phase 0 调试计数：WebView widget 创建/销毁、视频/验证码 job 生命周期。
   /// 仅统计与日志，绝不参与调度。每次新搜索开始时 `reset()`，
   /// 供后续 worker pool 重构对比基线指标。
-  final WebViewSchedulerStats _webviewStats = WebViewSchedulerStats();
+  late final WebViewSchedulerStats _webviewStats;
   // 一旦某 Tier-0 源被接受并开始播放，记录其 pageKey。用于在其后取消其他低优先级
   // 提取任务，并在它们的迟到 onResult 回调里跳过 probe/autoplay，避免劫持播放。
   // 在新搜索/新剧集开始时重置为 null（与 playback auto-play eligibility 同步）。
@@ -266,6 +276,29 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _mobileTabController = TabController(length: 2, vsync: this);
     _pcEpisodeScrollController = createPlatformScrollController();
     _mobileEpisodeScrollController = ScrollController();
+
+    _playerSessionId = PlayerSessionId.allocate();
+    _sessionLogContext = PlayerSessionLogContext(sessionId: _playerSessionId);
+    _webviewStats = WebViewSchedulerStats(sessionContext: _sessionLogContext);
+    late final PlayerSessionDebugHandle sessionHandle;
+    sessionHandle = PlayerSessionDebugHandle(
+      sessionId: _playerSessionId,
+      lifecycleState: PlayerSessionLifecycleState.active,
+      reportCounts: () => playerSessionResourceCountsForMode(
+        useWorkerPool: _useWorkerPool,
+        pooledWorkerCount: _scheduler.workerCount,
+        pooledActiveVideoJobCount: _scheduler.activeVideoJobCount,
+        legacyActiveVideoJobCount: _activeWebViews.length,
+        activeCaptchaJobCount: _captchaCoordinator.activeTasks.length,
+        lifecycleState: sessionHandle.lifecycleState,
+      ),
+    );
+    _playerSessionHandle = sessionHandle;
+    PlayerResourceDebugRegistry.instance.register(_playerSessionHandle);
+    debugPrint(
+      '${_sessionLogContext.tag} [PlayerPage] init '
+      'anime=${widget.anime.bangumiId} ep=${widget.currentEpisode.sort}',
+    );
 
     _episodeController = PlayerEpisodeController(
       allEpisodes: widget.allEpisodes,
@@ -431,6 +464,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _playerSessionHandle.lifecycleState = PlayerSessionLifecycleState.closing;
     _sourceController.invalidatePendingRequests();
     try {
       final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
@@ -448,14 +482,17 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
         ),
       );
     } catch (e) {
-      debugPrint('Error saving final playback position: $e');
+      debugPrint(
+        '${_sessionLogContext.tag} [PlayerPage] Error saving final '
+        'playback position: $e',
+      );
     }
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
     // Invalidate every in-flight sample/captcha/video generation first so any
     // stream event, probe, or open that races with dispose is dropped.
-    _sampleSourceController.bumpLoadToken();
+    _setSessionGeneration(_sampleSourceController.bumpLoadToken());
     _playbackController.clearForDispose();
     _acceptedSourcePageKey = null;
     unawaited(_cancelSearchSubscriptions());
@@ -475,7 +512,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       if (btHash != null) {
         DownloadManager().setActiveStream(btHash, active: false);
         debugPrint(
-          '[Player] Notified DownloadManager: stream inactive for $btHash',
+          '${_sessionLogContext.tag} [PlayerPage] Notified '
+          'DownloadManager: stream inactive for $btHash',
         );
       }
     }
@@ -505,7 +543,21 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _captchaCoordinator.clearForDispose();
     _searchSessionCoordinator.clearForDispose();
     _videoTitleNotifier.dispose();
+    _playerSessionHandle.lifecycleState = PlayerSessionLifecycleState.disposed;
+    PlayerResourceDebugRegistry.instance.unregister(_playerSessionId);
     super.dispose();
+  }
+
+  /// Log tag for gate / scheduler / cookie lines owned by this Player session.
+  String get _sessionOwnerTag => _sessionLogContext.tag;
+
+  void _setSessionGeneration(int generation) {
+    _playerSessionHandle.generation = generation;
+    _sessionLogContext = PlayerSessionLogContext(
+      sessionId: _playerSessionId,
+      generation: generation,
+    );
+    _webviewStats.sessionContext = _sessionLogContext;
   }
 
   @override

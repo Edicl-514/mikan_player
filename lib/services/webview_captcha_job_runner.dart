@@ -178,7 +178,10 @@ class CaptchaJobRunner {
     if (clearVisitedHostsOnDispose && _visitedHosts.isNotEmpty) {
       final janitor = WebViewCookieJanitor();
       for (final host in _visitedHosts) {
-        janitor.requestHostCleanup(host: host);
+        janitor.requestHostCleanup(
+          host: host,
+          ownerTag: stats?.sessionContext?.tag,
+        );
       }
       _visitedHosts.clear();
     }
@@ -506,7 +509,10 @@ class CaptchaJobRunner {
     if (_visitedHosts.isNotEmpty) {
       final janitor = WebViewCookieJanitor();
       for (final host in _visitedHosts) {
-        janitor.requestHostCleanup(host: host);
+        janitor.requestHostCleanup(
+          host: host,
+          ownerTag: stats?.sessionContext?.tag,
+        );
       }
       _log(
         'Cross-source host/cookie cleanup: $lastSource -> '

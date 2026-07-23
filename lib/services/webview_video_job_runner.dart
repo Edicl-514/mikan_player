@@ -146,6 +146,7 @@ class VideoExtractionJobRunner {
           host: entry.domain,
           cookieName: entry.name,
           path: entry.path,
+          ownerTag: stats?.sessionContext?.tag,
         );
       }
       _cookiesWrittenToJar.clear();
