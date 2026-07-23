@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:mikan_player/services/cookie_usage_registry.dart';
 
 import 'package:mikan_player/services/captcha_ocr_service.dart';
 import 'package:mikan_player/services/captcha_webview_bypasser.dart';
@@ -85,6 +86,7 @@ class CaptchaJobRunner {
   int? _eagerStartedForToken;
   bool _eagerPollActive = false;
   String? _lastJobSourceName;
+  CookieHostLeaseId? _cookieHostLeaseId;
 
   Timer? _timeoutTimer;
 
@@ -118,6 +120,7 @@ class CaptchaJobRunner {
     _initialReferer = job.referer?.trim();
     _isSearchEntryFlow = job.initialUrl?.trim().isEmpty ?? true;
     _lastJobSourceName = incomingSource;
+    _ensureCookieHostLease(job);
     _log('Worker $workerId accept job ${job.jobKey}');
 
     final entryUrl = _initialUrl;
@@ -180,11 +183,15 @@ class CaptchaJobRunner {
       for (final host in _visitedHosts) {
         janitor.requestHostCleanup(
           host: host,
+          sessionId: stats?.sessionContext?.sessionId,
+          generation:
+              stats?.sessionContext?.generation ?? _currentJob?.generation,
           ownerTag: stats?.sessionContext?.tag,
         );
       }
       _visitedHosts.clear();
     }
+    _releaseCookieHostLease();
     _currentJob = null;
     _isCompleted = true;
   }
@@ -219,6 +226,10 @@ class CaptchaJobRunner {
       final host = Uri.tryParse(url.toString())?.host;
       if (host != null && host.isNotEmpty) {
         _visitedHosts.add(host);
+        final lease = _cookieHostLeaseId;
+        if (lease != null) {
+          CookieUsageRegistry.instance.acquireHost(lease, host);
+        }
       }
     }
     if (_isCompleted) return;
@@ -511,6 +522,8 @@ class CaptchaJobRunner {
       for (final host in _visitedHosts) {
         janitor.requestHostCleanup(
           host: host,
+          sessionId: stats?.sessionContext?.sessionId,
+          generation: _currentJob?.generation,
           ownerTag: stats?.sessionContext?.tag,
         );
       }
@@ -519,6 +532,7 @@ class CaptchaJobRunner {
         '${incomingSource ?? '(idle)'} hosts=${_visitedHosts.length}',
       );
       _visitedHosts.clear();
+      _releaseCookieHostLease();
     }
     final controller = _webViewController;
     if (controller != null && navigateControllerToBlank) {
@@ -533,6 +547,30 @@ class CaptchaJobRunner {
         );
       } catch (_) {}
     }
+  }
+
+  void _ensureCookieHostLease(CaptchaPreflightJob job) {
+    final sessionId = stats?.sessionContext?.sessionId;
+    if (sessionId == null) return;
+    final lease = _cookieHostLeaseId ??= CookieHostLeaseId(
+      sessionId: sessionId,
+      resourceKey: 'captcha:$workerId:${identityHashCode(this)}',
+    );
+    final url = _initialUrl?.trim() ?? job.initialUrl?.trim();
+    final uri = url == null || url.isEmpty ? null : Uri.tryParse(url);
+    if (uri != null && uri.host.isNotEmpty) {
+      CookieUsageRegistry.instance.acquireHost(lease, uri.host);
+    }
+    for (final host in _visitedHosts) {
+      CookieUsageRegistry.instance.acquireHost(lease, host);
+    }
+  }
+
+  void _releaseCookieHostLease() {
+    final lease = _cookieHostLeaseId;
+    if (lease == null) return;
+    CookieUsageRegistry.instance.releaseLease(lease);
+    _cookieHostLeaseId = null;
   }
 
   Future<void> _teardownWebView(InAppWebViewController controller) async {

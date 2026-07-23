@@ -228,6 +228,7 @@ class PlayerWebViewScheduler {
     Iterable<PlayerWebViewPendingVideoJob> pendingJobs, {
     required bool useWorkerPool,
     required int maxConcurrent,
+    bool Function(int localWorkerId)? canCreateWorker,
   }) {
     if (!useWorkerPool) {
       return const PlayerWebViewVideoDispatchDecision.noWork();
@@ -244,6 +245,7 @@ class PlayerWebViewScheduler {
       pendingSourceNames,
       useWorkerPool: useWorkerPool,
       maxConcurrent: maxConcurrent,
+      canCreateWorker: canCreateWorker,
     );
     final slot = acquire.slot;
     if (slot == null) {
@@ -598,6 +600,7 @@ class PlayerWebViewScheduler {
   PlayerWebViewSchedulerAcquire acquireIdleCaptchaWorkerSlot({
     required bool useWorkerPool,
     required int maxConcurrent,
+    bool Function(int localWorkerId)? canCreateWorker,
   }) {
     final disposed = <WebViewWorkerSlotSnapshot>[];
     disposed.addAll(
@@ -620,7 +623,15 @@ class PlayerWebViewScheduler {
       if (freed != null) disposed.add(freed);
     }
     if (!useWorkerPool || _slots.length < maxConcurrent) {
-      final workerId = _nextWorkerId++;
+      final workerId = _nextWorkerId;
+      if (canCreateWorker != null && !canCreateWorker(workerId)) {
+        return PlayerWebViewSchedulerAcquire(
+          slot: null,
+          disposedIdleSlots: disposed,
+          createdNew: false,
+        );
+      }
+      _nextWorkerId++;
       final slot = WebViewWorkerSlot(workerId: workerId);
       _slots[workerId] = slot;
       return PlayerWebViewSchedulerAcquire(
@@ -650,6 +661,7 @@ class PlayerWebViewScheduler {
     Set<String> pendingSourceNames, {
     required bool useWorkerPool,
     required int maxConcurrent,
+    bool Function(int localWorkerId)? canCreateWorker,
   }) {
     final disposed = <WebViewWorkerSlotSnapshot>[];
     disposed.addAll(
@@ -683,7 +695,15 @@ class PlayerWebViewScheduler {
       if (freed != null) disposed.add(freed);
     }
     if (!useWorkerPool || _slots.length < maxConcurrent) {
-      final workerId = _nextWorkerId++;
+      final workerId = _nextWorkerId;
+      if (canCreateWorker != null && !canCreateWorker(workerId)) {
+        return PlayerWebViewSchedulerAcquire(
+          slot: null,
+          disposedIdleSlots: disposed,
+          createdNew: false,
+        );
+      }
+      _nextWorkerId++;
       final slot = WebViewWorkerSlot(workerId: workerId);
       _slots[workerId] = slot;
       return PlayerWebViewSchedulerAcquire(

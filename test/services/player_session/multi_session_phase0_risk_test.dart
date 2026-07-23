@@ -6,12 +6,11 @@ import 'package:mikan_player/ui/pages/player/player_search_session_policy.dart';
 
 import '../../support/fake_player_session.dart';
 
-/// Phase 0 regression characterization for multi-Player-session risks.
+/// Multi-Player-session regression coverage carried forward from Phase 0.
 ///
-/// These tests pin **current** process-wide behaviors that Phase 1 must fix:
-/// local WebView budgets stack, same-source gate waiters overwrite, and
-/// process-wide cancel would harm other sessions. They also pin the generation
-/// / owner guards that already protect late callbacks after a session closes.
+/// Local schedulers remain independently testable, while production creation
+/// is now wrapped by WebViewResourceCoordinator. Gate and close expectations
+/// below assert the Phase 1 owner-isolated behavior.
 void main() {
   late SourceRequestGate gate;
   late PlayerResourceDebugRegistry registry;
@@ -52,9 +51,9 @@ void main() {
     );
   });
 
-  group('SourceRequestGate same-source waiters overwrite (Phase 0 risk)', () {
+  group('SourceRequestGate same-source session isolation', () {
     test(
-      'second session waiter for the same source replaces the first token',
+      'both sessions retain a waiter and start under the shared cooldown',
       () async {
         final dual = DualFakePlayerSessions();
         dual.registerAll();
@@ -76,12 +75,18 @@ void main() {
           minInterval: interval,
           token: 'token-b',
         );
-        // Latest-wins by sourceName alone: session A is dropped.
-        expect(gate.debugPendingWaiterCount, 1);
-        expect(gate.debugPendingToken('shared-src'), 'token-b');
+        expect(gate.debugPendingWaiterCount, 2);
+        expect(
+          gate.debugPendingToken('shared-src', sessionId: dual.a.sessionId),
+          'token-a',
+        );
+        expect(
+          gate.debugPendingToken('shared-src', sessionId: dual.b.sessionId),
+          'token-b',
+        );
 
-        await Future<void>.delayed(const Duration(milliseconds: 120));
-        expect(dual.a.acceptedCallbacks, isEmpty);
+        await Future<void>.delayed(const Duration(milliseconds: 220));
+        expect(dual.a.acceptedCallbacks, ['token-a']);
         expect(dual.b.acceptedCallbacks, ['token-b']);
       },
     );
@@ -153,7 +158,7 @@ void main() {
 
   group('late callback generation / owner guard', () {
     test(
-      'after closeSession, generation guard discards late gate / search callbacks',
+      'after closeSession, the session waiter is cancelled before it can fire',
       () async {
         final session = FakePlayerSession(
           sessionId: const PlayerSessionId('ps-late'),
@@ -195,7 +200,7 @@ void main() {
 
         await Future<void>.delayed(const Duration(milliseconds: 80));
         expect(session.acceptedCallbacks, isEmpty);
-        expect(session.lateCallbacks, ['late-token']);
+        expect(session.lateCallbacks, isEmpty);
       },
     );
 
@@ -243,12 +248,13 @@ void main() {
       expect(gate.debugPendingWaiterCount, 2);
 
       dual.a.closeSession();
+      expect(gate.debugPendingWaiterCount, 1);
       expect(dual.snapshot().sessionCount, 1);
       expect(dual.b.scheduler.workerCount, 3);
 
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(dual.a.acceptedCallbacks, isEmpty);
-      expect(dual.a.lateCallbacks, ['a']);
+      expect(dual.a.lateCallbacks, isEmpty);
       expect(dual.b.acceptedCallbacks, ['b']);
     });
   });

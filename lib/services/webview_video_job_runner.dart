@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:mikan_player/services/cookie_usage_registry.dart';
 import 'package:mikan_player/services/webview_video_extractor.dart';
 import 'package:mikan_player/services/webview_cookie_janitor.dart';
 import 'package:mikan_player/services/webview_scheduler_stats.dart';
@@ -61,6 +62,7 @@ class VideoExtractionJobRunner {
   final Set<String> _capturedUrls = {};
   final List<({String name, String domain, String path})> _cookiesWrittenToJar =
       [];
+  CookieHostLeaseId? _cookieHostLeaseId;
 
   /// True after [dispose] has been called. Mirrors the old State flag so
   /// async callbacks can short-circuit cleanly.
@@ -105,6 +107,7 @@ class VideoExtractionJobRunner {
     _capturedUrls.clear();
     _timeoutTimer?.cancel();
     _cookiesWrittenToJar.clear();
+    _trackJobHost(job);
 
     _log('Worker $workerId accept job ${job.jobKey} url=${job.url}');
 
@@ -146,10 +149,18 @@ class VideoExtractionJobRunner {
           host: entry.domain,
           cookieName: entry.name,
           path: entry.path,
+          sessionId: stats?.sessionContext?.sessionId,
+          generation:
+              stats?.sessionContext?.generation ?? _currentJob?.generation,
           ownerTag: stats?.sessionContext?.tag,
         );
       }
       _cookiesWrittenToJar.clear();
+    }
+    final cookieLease = _cookieHostLeaseId;
+    if (cookieLease != null) {
+      CookieUsageRegistry.instance.releaseLease(cookieLease);
+      _cookieHostLeaseId = null;
     }
     _currentJob = null;
     _webViewController = null;
@@ -157,6 +168,18 @@ class VideoExtractionJobRunner {
     _capturedUrls.clear();
     _navigationCount = 0;
     _totalUrlsChecked = 0;
+  }
+
+  void _trackJobHost(VideoExtractionJob job) {
+    final sessionId = stats?.sessionContext?.sessionId;
+    if (sessionId == null) return;
+    final uri = Uri.tryParse(job.url);
+    if (uri == null || uri.host.isEmpty) return;
+    final lease = _cookieHostLeaseId ??= CookieHostLeaseId(
+      sessionId: sessionId,
+      resourceKey: 'video:$workerId:${identityHashCode(this)}',
+    );
+    CookieUsageRegistry.instance.acquireHost(lease, uri.host);
   }
 
   // --------------------- InAppWebView hooks ---------------------

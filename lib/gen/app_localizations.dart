@@ -2176,13 +2176,13 @@ abstract class AppLocalizations {
   /// No description provided for @maxWebviewConcurrent.
   ///
   /// In zh, this message translates to:
-  /// **'最大WebView并发数量'**
+  /// **'应用级 WebView 数量上限'**
   String get maxWebviewConcurrent;
 
   /// No description provided for @maxWebviewConcurrentHint.
   ///
   /// In zh, this message translates to:
-  /// **'建议值: 1-3'**
+  /// **'所有播放页共享，建议值: 1-3'**
   String get maxWebviewConcurrentHint;
 
   /// No description provided for @webviewLaunchInterval.

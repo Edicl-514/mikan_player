@@ -1173,10 +1173,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'WebView Scraper settings (Dynamic WebView sources only)';
 
   @override
-  String get maxWebviewConcurrent => 'Max concurrent WebViews';
+  String get maxWebviewConcurrent => 'App-wide WebView limit';
 
   @override
-  String get maxWebviewConcurrentHint => 'Recommended: 1-3';
+  String get maxWebviewConcurrentHint =>
+      'Shared by all Player pages; recommended: 1-3';
 
   @override
   String get webviewLaunchInterval => 'WebView launch interval (ms)';

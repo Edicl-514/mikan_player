@@ -19,9 +19,13 @@ import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/services/reusable_browser_worker.dart';
 import 'package:mikan_player/services/player_session/player_resource_debug.dart';
 import 'package:mikan_player/services/player_session/player_session_identity.dart';
+import 'package:mikan_player/services/player_session/player_session_lifecycle.dart';
+import 'package:mikan_player/services/cookie_usage_registry.dart';
 import 'package:mikan_player/services/source_request_gate.dart';
+import 'package:mikan_player/services/webview_resource_coordinator.dart';
 import 'package:mikan_player/services/webview_scheduler_stats.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
+import 'package:mikan_player/ui/widgets/webview_lease_boundary.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/source_list_panel.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_data_service.dart';
@@ -184,10 +188,16 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   /// Multi-tab Phase 0: route-level Player session identity for logs /
   /// debug registry. Resource isolation arrives in Phase 1.
   late final PlayerSessionId _playerSessionId;
+  late final PlayerSessionLifecycleController _sessionLifecycle;
   late final PlayerSessionDebugHandle _playerSessionHandle;
   PlayerSessionLogContext _sessionLogContext = const PlayerSessionLogContext(
     sessionId: PlayerSessionId('uninitialized'),
   );
+  final Map<String, int> _legacyWorkerIds = <String, int>{};
+  int _nextLegacyWorkerId = -1;
+  bool _sessionQuiesced = false;
+  bool _isDisposing = false;
+  bool _idleWorkerReleaseScheduled = false;
 
   /// Phase 0 调试计数：WebView widget 创建/销毁、视频/验证码 job 生命周期。
   /// 仅统计与日志，绝不参与调度。每次新搜索开始时 `reset()`，
@@ -280,6 +290,12 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _playerSessionId = PlayerSessionId.allocate();
     _sessionLogContext = PlayerSessionLogContext(sessionId: _playerSessionId);
     _webviewStats = WebViewSchedulerStats(sessionContext: _sessionLogContext);
+    _sessionLifecycle = PlayerSessionLifecycleController(
+      sessionId: _playerSessionId,
+      onStateChanged: (state) {
+        _playerSessionHandle.lifecycleState = state;
+      },
+    );
     late final PlayerSessionDebugHandle sessionHandle;
     sessionHandle = PlayerSessionDebugHandle(
       sessionId: _playerSessionId,
@@ -295,6 +311,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
     _playerSessionHandle = sessionHandle;
     PlayerResourceDebugRegistry.instance.register(_playerSessionHandle);
+    CookieUsageRegistry.instance.registerSession(_playerSessionId);
+    WebViewResourceCoordinator.instance.registerSession(
+      sessionId: _playerSessionId,
+      onCapacityAvailable: _onGlobalWebViewCapacityAvailable,
+      onReleaseIdleWorkers: _releaseIdleWorkersForGlobalQuota,
+    );
+    _sessionLifecycle.activate();
     debugPrint(
       '${_sessionLogContext.tag} [PlayerPage] init '
       'anime=${widget.anime.bangumiId} ep=${widget.currentEpisode.sort}',
@@ -464,46 +487,13 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _playerSessionHandle.lifecycleState = PlayerSessionLifecycleState.closing;
-    _sourceController.invalidatePendingRequests();
-    try {
-      final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
-      // Prefer the furthest known progress so a late zero tick cannot wipe
-      // the resume position when the page is closed mid-seek / mid-load.
-      final saveMs = posMs > 1000
-          ? posMs
-          : (_lastSavedPositionMs > 0 ? _lastSavedPositionMs : posMs);
-      unawaited(
-        _historyManager.addOrUpdate(
-          anime: widget.anime,
-          currentEpisode: _episodeController.currentEpisode,
-          allEpisodes: widget.allEpisodes,
-          lastPositionMs: saveMs,
-        ),
-      );
-    } catch (e) {
-      debugPrint(
-        '${_sessionLogContext.tag} [PlayerPage] Error saving final '
-        'playback position: $e',
-      );
-    }
+    _isDisposing = true;
+    unawaited(_prepareToClose(rebuildWorkerTree: false));
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
-    // Invalidate every in-flight sample/captcha/video generation first so any
-    // stream event, probe, or open that races with dispose is dropped.
-    _setSessionGeneration(_sampleSourceController.bumpLoadToken());
     _playbackController.clearForDispose();
     _acceptedSourcePageKey = null;
-    unawaited(_cancelSearchSubscriptions());
-    _captchaCoordinator.clearForDispose();
-    // Drop active jobs so runners stop loading; framework dispose of
-    // ReusableBrowserWorker tears down InAppWebViews afterwards.
-    _scheduler.resetForNewSearch();
-    // Phase 2 B6：清理统一 pool 调度记账。worker widget 在 widget 树卸载时
-    // 由框架负责 dispose（含 InAppWebView），scheduler 侧只需清空内部表
-    // 以避免后续 post-frame 回调进来时引用已 dispose 的 slot。
-    _scheduler.clearForDispose();
     // 通知下载管理器BT流不再活跃
     if (_playbackController.currentStreamUrl != null) {
       final btHash = _extractBtHashFromStreamUrl(
@@ -543,15 +533,87 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _captchaCoordinator.clearForDispose();
     _searchSessionCoordinator.clearForDispose();
     _videoTitleNotifier.dispose();
-    _playerSessionHandle.lifecycleState = PlayerSessionLifecycleState.disposed;
+    _sessionLifecycle.markDisposed();
+    WebViewResourceCoordinator.instance.unregisterSession(_playerSessionId);
+    CookieUsageRegistry.instance.releaseSession(_playerSessionId);
     PlayerResourceDebugRegistry.instance.unregister(_playerSessionId);
     super.dispose();
+  }
+
+  /// Async close entry used by the future route/Tab close protocol. Work is
+  /// rejected synchronously; resource teardown is awaited only up to a bound.
+  Future<void> _prepareToClose({bool rebuildWorkerTree = true}) {
+    return _sessionLifecycle.prepareToClose(() async {
+      if (_sessionQuiesced) return;
+      _sessionQuiesced = true;
+      _sourceController.invalidatePendingRequests();
+
+      final closingGeneration = _sampleSourceController.bumpLoadToken();
+      _setSessionGeneration(closingGeneration);
+      SourceRequestGate.instance.cancelSession(
+        _playerSessionId,
+        ownerTag: _sessionOwnerTag,
+      );
+      final coordinator = WebViewResourceCoordinator.instance;
+      coordinator.cancelPendingSession(_playerSessionId);
+
+      final waits = <Future<void>>[_cancelSearchSubscriptions()];
+      try {
+        final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
+        final saveMs = posMs > 1000
+            ? posMs
+            : (_lastSavedPositionMs > 0 ? _lastSavedPositionMs : posMs);
+        waits.add(
+          _historyManager.addOrUpdate(
+            anime: widget.anime,
+            currentEpisode: _episodeController.currentEpisode,
+            allEpisodes: widget.allEpisodes,
+            lastPositionMs: saveMs,
+          ),
+        );
+      } catch (e) {
+        debugPrint(
+          '${_sessionLogContext.tag} [PlayerPage] Error saving final '
+          'playback position: $e',
+        );
+      }
+
+      _captchaCoordinator.clearForDispose();
+      _activeWebViews.clear();
+      _scheduler.resetForNewSearch();
+      _scheduler.clearForDispose();
+      coordinator.releaseAllOwnedBy(_playerSessionId);
+      if (rebuildWorkerTree && mounted && !_isDisposing) {
+        setState(() {});
+      }
+
+      waits.add(
+        coordinator.waitUntilSessionReleased(
+          _playerSessionId,
+          timeout: const Duration(milliseconds: 1200),
+        ),
+      );
+      await Future.wait(waits);
+    });
   }
 
   /// Log tag for gate / scheduler / cookie lines owned by this Player session.
   String get _sessionOwnerTag => _sessionLogContext.tag;
 
   void _setSessionGeneration(int generation) {
+    SourceRequestGate.instance.cancelSession(
+      _playerSessionId,
+      ownerTag: _sessionOwnerTag,
+    );
+    WebViewResourceCoordinator.instance.cancelPendingSession(_playerSessionId);
+    WebViewResourceCoordinator.instance.releaseUnmaterializedOwnedBy(
+      _playerSessionId,
+    );
+    _sessionLifecycle.setGeneration(generation);
+    CookieUsageRegistry.instance.updateSessionGeneration(
+      _playerSessionId,
+      generation,
+    );
     _playerSessionHandle.generation = generation;
     _sessionLogContext = PlayerSessionLogContext(
       sessionId: _playerSessionId,
@@ -559,6 +621,9 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     );
     _webviewStats.sessionContext = _sessionLogContext;
   }
+
+  bool _acceptsSessionCallback(int generation) =>
+      mounted && _sessionLifecycle.acceptsCallback(generation);
 
   @override
   Widget build(BuildContext context) {

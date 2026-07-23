@@ -38,7 +38,7 @@ void main() {
       find.text('WebView Scraper设置 (仅针对Dynamic Webview源)'),
       findsOneWidget,
     );
-    expect(find.text('最大WebView并发数量'), findsOneWidget);
+    expect(find.text('应用级 WebView 数量上限'), findsOneWidget);
     expect(find.text('WebView启动间隔 (毫秒)'), findsOneWidget);
     expect(find.text('自动搜索在线源'), findsOneWidget);
     expect(find.text('播放后取消低优先级源提取'), findsOneWidget);
@@ -61,7 +61,7 @@ void main() {
       find.text('WebView Scraper settings (Dynamic WebView sources only)'),
       findsOneWidget,
     );
-    expect(find.text('Max concurrent WebViews'), findsOneWidget);
+    expect(find.text('App-wide WebView limit'), findsOneWidget);
     expect(find.text('WebView launch interval (ms)'), findsOneWidget);
     expect(find.text('Auto search online sources'), findsOneWidget);
     expect(

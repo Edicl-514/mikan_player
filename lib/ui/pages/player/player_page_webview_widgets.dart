@@ -112,23 +112,35 @@ extension _PlayerPageWebViewWidgets on _PlayerPageState {
           break;
       }
 
+      final leaseId = _pooledLeaseId(workerId);
+      if (!WebViewResourceCoordinator.instance.ownsLease(leaseId)) {
+        debugPrint(
+          '$_sessionOwnerTag [WebViewResourceCoordinator] refused to build '
+          'unleased pooled worker=$workerId',
+        );
+        continue;
+      }
       children.add(
-        ReusableBrowserWorker(
-          key: ValueKey('worker_$workerId'),
-          workerId: workerId,
-          job: job,
-          onCaptchaResult: onCaptchaResult,
-          onCaptchaIdle: onCaptchaIdle,
-          onVideoResult: onVideoResult,
-          onVideoIdle: onVideoIdle,
-          onLog: (message) {
-            debugPrint(
-              '$_sessionOwnerTag [WebView][worker_$workerId] $message',
-            );
-          },
-          showWebView: _showWebView,
-          preserveCaptchaSessionOnIdle: slot.preserveCaptchaSessionOnIdle,
-          stats: _webviewStats,
+        WebViewLeaseBoundary(
+          key: ValueKey('pool_lease_$workerId'),
+          leaseId: leaseId,
+          child: ReusableBrowserWorker(
+            key: ValueKey('worker_$workerId'),
+            workerId: workerId,
+            job: job,
+            onCaptchaResult: onCaptchaResult,
+            onCaptchaIdle: onCaptchaIdle,
+            onVideoResult: onVideoResult,
+            onVideoIdle: onVideoIdle,
+            onLog: (message) {
+              debugPrint(
+                '$_sessionOwnerTag [WebView][worker_$workerId] $message',
+              );
+            },
+            showWebView: _showWebView,
+            preserveCaptchaSessionOnIdle: slot.preserveCaptchaSessionOnIdle,
+            stats: _webviewStats,
+          ),
         ),
       );
     }
@@ -175,27 +187,34 @@ extension _PlayerPageWebViewWidgets on _PlayerPageState {
         continue;
       }
 
+      final resourceKey = 'video:$pageKey';
+      final leaseId = _legacyLeaseId(resourceKey);
+      if (!WebViewResourceCoordinator.instance.ownsLease(leaseId)) continue;
       children.add(
-        WebViewVideoExtractorWidget(
-          key: ValueKey('webview_$pageKey'),
-          url: matchedPage.playPageUrl,
-          customVideoRegex: matchedPage.videoRegex != r'$^'
-              ? matchedPage.videoRegex
-              : null,
-          enableNestedUrl: matchedPage.enableNestedUrl,
-          matchNestedUrl: matchedPage.matchNestedUrl != r'$^'
-              ? matchedPage.matchNestedUrl
-              : null,
-          headers: matchedPage.headers,
-          cookies: matchedPage.cookies,
-          timeout: const Duration(seconds: 20),
-          generation: generation,
-          showWebView: _showWebView,
-          onResult: (result) => _onWebViewResult(pageKey, generation, result),
-          onLog: (msg) =>
-              debugPrint('$_sessionOwnerTag [WebView][$pageKey] $msg'),
-          stats: _webviewStats,
-          jobKey: pageKey,
+        WebViewLeaseBoundary(
+          key: ValueKey('legacy_video_lease_${leaseId.localWorkerId}'),
+          leaseId: leaseId,
+          child: WebViewVideoExtractorWidget(
+            key: ValueKey('webview_$pageKey'),
+            url: matchedPage.playPageUrl,
+            customVideoRegex: matchedPage.videoRegex != r'$^'
+                ? matchedPage.videoRegex
+                : null,
+            enableNestedUrl: matchedPage.enableNestedUrl,
+            matchNestedUrl: matchedPage.matchNestedUrl != r'$^'
+                ? matchedPage.matchNestedUrl
+                : null,
+            headers: matchedPage.headers,
+            cookies: matchedPage.cookies,
+            timeout: const Duration(seconds: 20),
+            generation: generation,
+            showWebView: _showWebView,
+            onResult: (result) => _onWebViewResult(pageKey, generation, result),
+            onLog: (msg) =>
+                debugPrint('$_sessionOwnerTag [WebView][$pageKey] $msg'),
+            stats: _webviewStats,
+            jobKey: pageKey,
+          ),
         ),
       );
     }
@@ -234,27 +253,34 @@ extension _PlayerPageWebViewWidgets on _PlayerPageState {
 
     // 构建活动的验证码预处理 WebView（与提取任务共用池子）
     for (final task in _captchaCoordinator.activeTasks.values) {
+      final resourceKey = 'captcha:${task.taskKey}';
+      final leaseId = _legacyLeaseId(resourceKey);
+      if (!WebViewResourceCoordinator.instance.ownsLease(leaseId)) continue;
       children.add(
-        CaptchaWebViewBypassWidget(
-          key: ValueKey('captcha_pool_${task.taskKey}_${task.loadToken}'),
-          source: task.source,
-          searchKeyword: task.searchKeyword,
-          initialUrl: task.initialUrl,
-          referer: task.referer,
-          initialCookies: task.initialCookies,
-          captchaConfig: task.captchaConfig,
-          timeout: const Duration(seconds: 45),
-          generation: task.loadToken,
-          onResult: (result) =>
-              _onCaptchaPreflightResult(task.taskKey, task.loadToken, result),
-          onLog: (message) {
-            debugPrint(
-              '$_sessionOwnerTag [CaptchaBypass][${task.taskKey}] $message',
-            );
-          },
-          showWebView: _showWebView,
-          stats: _webviewStats,
-          jobKey: task.taskKey,
+        WebViewLeaseBoundary(
+          key: ValueKey('legacy_captcha_lease_${leaseId.localWorkerId}'),
+          leaseId: leaseId,
+          child: CaptchaWebViewBypassWidget(
+            key: ValueKey('captcha_pool_${task.taskKey}_${task.loadToken}'),
+            source: task.source,
+            searchKeyword: task.searchKeyword,
+            initialUrl: task.initialUrl,
+            referer: task.referer,
+            initialCookies: task.initialCookies,
+            captchaConfig: task.captchaConfig,
+            timeout: const Duration(seconds: 45),
+            generation: task.loadToken,
+            onResult: (result) =>
+                _onCaptchaPreflightResult(task.taskKey, task.loadToken, result),
+            onLog: (message) {
+              debugPrint(
+                '$_sessionOwnerTag [CaptchaBypass][${task.taskKey}] $message',
+              );
+            },
+            showWebView: _showWebView,
+            stats: _webviewStats,
+            jobKey: task.taskKey,
+          ),
         ),
       );
     }

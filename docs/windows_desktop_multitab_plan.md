@@ -224,6 +224,20 @@ flowchart TD
 
 **目的**：先让“多个 PlayerPage 同时存在”在无 Tab UI 的情况下资源安全。
 
+**状态（2026-07-23）**：已完成落地。Player session 关闭/换代会同步拒绝新任务并按 owner 取消等待；pool 与 legacy WebView 创建均受应用级 lease 硬上限约束；Gate waiter、Cookie host 使用与延迟清理均已按 session/generation 隔离。Tab/route 对 `prepareToClose()` 的统一 await 接入仍按 Phase 2 推进。
+
+#### 落地路径（实现索引）
+
+| 产物 | 路径 |
+|------|------|
+| Session 生命周期与有界关闭 | `lib/services/player_session/player_session_lifecycle.dart`、`lib/ui/pages/player_page.dart` |
+| 应用级 WebView 配额/公平队列 | `lib/services/webview_resource_coordinator.dart` |
+| widget dispose 后释放 lease | `lib/ui/widgets/webview_lease_boundary.dart` |
+| pool/legacy 配额接入 | `lib/ui/pages/player/player_page_webview_scheduler_host.dart`、`player_page_webview_widgets.dart` |
+| 多 session SourceRequestGate | `lib/services/source_request_gate.dart` |
+| Cookie host lease / owner cleanup | `lib/services/cookie_usage_registry.dart`、`lib/services/webview_cookie_janitor.dart` |
+| Phase 1 纯 Dart / widget 测试 | `test/services/webview_resource_coordinator_test.dart`、`source_request_gate_test.dart`、`webview_cookie_janitor_test.dart`、`test/ui/widgets/webview_lease_boundary_test.dart` |
+
 #### 1.1 Player session 生命周期
 
 1. 新增 `PlayerSessionId` 和 `PlayerSessionLifecycleState`：`created / active / background / closing / disposed`。

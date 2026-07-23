@@ -67,11 +67,7 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
     );
     _probingSourceKeys.remove(sourceKey);
 
-    if (!isSearchGenerationCurrent(
-      resultLoadToken: loadToken,
-      currentLoadToken: _sampleSourceController.sampleLoadToken,
-      isDisposed: !mounted,
-    )) {
+    if (!_acceptsSessionCallback(loadToken)) {
       return;
     }
 
@@ -129,11 +125,7 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
       source.channelIndex,
     );
 
-    if (!isSearchGenerationCurrent(
-      resultLoadToken: expectedLoadToken,
-      currentLoadToken: _sampleSourceController.sampleLoadToken,
-      isDisposed: !mounted,
-    )) {
+    if (!_acceptsSessionCallback(expectedLoadToken)) {
       debugPrint(
         '[_openOnlineSource] drop stale open for $sourceKey '
         '(loadToken=$expectedLoadToken now=${_sampleSourceController.sampleLoadToken})',
@@ -157,11 +149,7 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
       source,
       autoFallback: autoFallback,
       loadToken: expectedLoadToken,
-      isLoadTokenCurrent: (token) => isSearchGenerationCurrent(
-        resultLoadToken: token,
-        currentLoadToken: _sampleSourceController.sampleLoadToken,
-        isDisposed: !mounted,
-      ),
+      isLoadTokenCurrent: _acceptsSessionCallback,
       autoPlayReservationId: autoPlayReservationId,
       proxyUrlBuilder: (url, headers) => _headerProxy.registerUrl(url, headers),
       callbacks: PlayerPlaybackOpenCallbacks(
@@ -174,11 +162,7 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
             _applyPendingStartPosition(generation: openGeneration),
         onStateChanged: _onPlaybackControllerStateChanged,
         onFallbackRequested: (request) {
-          if (!isSearchGenerationCurrent(
-            resultLoadToken: request.loadToken,
-            currentLoadToken: _sampleSourceController.sampleLoadToken,
-            isDisposed: !mounted,
-          )) {
+          if (!_acceptsSessionCallback(request.loadToken)) {
             return;
           }
           _attemptAutoPlay(
@@ -249,11 +233,7 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
         runtimeOverride: runtimeOverride,
       );
 
-      if (!isSearchGenerationCurrent(
-        resultLoadToken: loadToken,
-        currentLoadToken: _sampleSourceController.sampleLoadToken,
-        isDisposed: !mounted,
-      )) {
+      if (!_acceptsSessionCallback(loadToken)) {
         return;
       }
 
@@ -316,11 +296,7 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
       );
     } finally {
       _resolvingChannelPlayPageKeys.remove(pageKey);
-      if (isSearchGenerationCurrent(
-        resultLoadToken: loadToken,
-        currentLoadToken: _sampleSourceController.sampleLoadToken,
-        isDisposed: !mounted,
-      )) {
+      if (_acceptsSessionCallback(loadToken)) {
         _startNextWebViewExtraction();
       }
     }

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:mikan_player/services/cookie_usage_registry.dart';
 import 'package:mikan_player/services/player_session/player_session_identity.dart';
 import 'package:mikan_player/services/source_request_gate.dart';
 import 'package:mikan_player/services/webview_cookie_janitor.dart';
@@ -57,7 +58,7 @@ class PlayerResourceDebugRegistry {
   /// process-wide gate / cookie cleanup counts.
   PlayerResourceDebugSnapshot snapshot({
     WebViewCookieJanitor? cookieJanitor,
-    int cookieLeaseCount = 0,
+    int? cookieLeaseCount,
   }) {
     var liveWorkers = 0;
     var activeJobs = 0;
@@ -76,7 +77,8 @@ class PlayerResourceDebugRegistry {
       activeJobCount: activeJobs,
       pendingGateWaiterCount: gate.debugPendingWaiterCount,
       pendingCookieCleanupCount: janitor.debugPendingCleanupCount,
-      cookieLeaseCount: cookieLeaseCount,
+      cookieLeaseCount:
+          cookieLeaseCount ?? CookieUsageRegistry.instance.leaseCount,
       playbackFocusSessionId: playbackFocusSessionId,
       perSession:
           Map<PlayerSessionId, PlayerSessionResourceCounts>.unmodifiable(

@@ -96,6 +96,7 @@ class FakePlayerSession {
     final gateToken = token;
     final capturedGeneration = generation;
     SourceRequestGate.instance.scheduleWhenReady(
+      sessionId: sessionId,
       sourceName: sourceName,
       minInterval: minInterval,
       token: gateToken,
@@ -105,6 +106,11 @@ class FakePlayerSession {
           lateCallbacks.add(gateToken);
           return;
         }
+        SourceRequestGate.instance.markStarted(
+          sourceName,
+          sessionId: sessionId,
+          ownerTag: ownerTag,
+        );
         acceptedCallbacks.add(gateToken);
       },
     );
@@ -121,6 +127,7 @@ class FakePlayerSession {
   /// that is process-wide and would cancel other sessions (Phase 0 risk).
   void closeSession() {
     handle.lifecycleState = PlayerSessionLifecycleState.closing;
+    SourceRequestGate.instance.cancelSession(sessionId, ownerTag: ownerTag);
     bumpGeneration();
     isDisposed = true;
     scheduler.resetForNewSearch();

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mikan_player/services/cookie_usage_registry.dart';
+import 'package:mikan_player/services/player_session/player_session_identity.dart';
 import 'package:mikan_player/services/webview_cookie_janitor.dart';
 
 void main() {
@@ -64,6 +66,81 @@ void main() {
       ]);
     },
   );
+
+  test('host cleanup waits until every session lease is released', () async {
+    const a = PlayerSessionId('a');
+    const b = PlayerSessionId('b');
+    final usage = CookieUsageRegistry()
+      ..registerSession(a, generation: 1)
+      ..registerSession(b, generation: 1);
+    const leaseA = CookieHostLeaseId(sessionId: a, resourceKey: 'worker-a');
+    const leaseB = CookieHostLeaseId(sessionId: b, resourceKey: 'worker-b');
+    usage.acquireHost(leaseA, 'shared.example');
+    usage.acquireHost(leaseB, 'shared.example');
+    final backend = _FakeCookieBackend()
+      ..namesByHost['shared.example'] = ['challenge'];
+    final janitor = WebViewCookieJanitor.forTesting(
+      backend: backend,
+      usageRegistry: usage,
+    );
+
+    janitor.requestHostCleanup(
+      host: 'shared.example',
+      sessionId: a,
+      generation: 1,
+    );
+    usage.releaseLease(leaseA);
+    await janitor.drainNow();
+    expect(backend.deletions, isEmpty);
+    expect(janitor.debugPendingCleanupCount, 1);
+
+    usage.releaseLease(leaseB);
+    await janitor.drainNow();
+    expect(backend.deletions, [('shared.example', 'challenge', '/')]);
+    expect(janitor.debugPendingCleanupCount, 0);
+  });
+
+  test('stale owner generation cleanup is discarded', () async {
+    const a = PlayerSessionId('a');
+    final usage = CookieUsageRegistry()..registerSession(a, generation: 1);
+    final backend = _FakeCookieBackend();
+    final janitor = WebViewCookieJanitor.forTesting(
+      backend: backend,
+      usageRegistry: usage,
+    );
+    janitor.requestCleanup(
+      host: 'example.com',
+      cookieName: 'old',
+      sessionId: a,
+      generation: 1,
+    );
+
+    usage.updateSessionGeneration(a, 2);
+    await janitor.drainNow();
+    expect(backend.attempts, isEmpty);
+    expect(janitor.debugPendingCleanupCount, 0);
+  });
+
+  test('shutdown drain may ignore active host leases', () async {
+    const a = PlayerSessionId('a');
+    final usage = CookieUsageRegistry()..registerSession(a, generation: 1);
+    const lease = CookieHostLeaseId(sessionId: a, resourceKey: 'worker');
+    usage.acquireHost(lease, 'example.com');
+    final backend = _FakeCookieBackend();
+    final janitor = WebViewCookieJanitor.forTesting(
+      backend: backend,
+      usageRegistry: usage,
+    );
+    janitor.requestCleanup(
+      host: 'example.com',
+      cookieName: 'shutdown',
+      sessionId: a,
+      generation: 1,
+    );
+
+    await janitor.drainForShutdown();
+    expect(backend.deletions, [('example.com', 'shutdown', '/')]);
+  });
 }
 
 class _FakeCookieBackend implements WebViewCookieBackend {

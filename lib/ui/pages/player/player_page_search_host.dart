@@ -361,7 +361,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
       targetSources: targetSources,
       loadToken: loadToken,
       currentLoadToken: () => _sampleSourceController.sampleLoadToken,
-      isDisposed: () => !mounted,
+      isDisposed: () => !mounted || !_sessionLifecycle.acceptsNewWork,
       streamTag: streamTag,
       onProgress: (progress) {
         _updateState(() {
@@ -429,6 +429,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
   }
 
   void _maybeFinishSampleSearch() {
+    if (!mounted || !_sessionLifecycle.acceptsNewWork) return;
     final activeExtraction = _useWorkerPool
         ? _scheduler.activeVideoJobs.isNotEmpty
         : _activeWebViews.isNotEmpty;
@@ -470,6 +471,14 @@ extension _PlayerPageSearchHost on _PlayerPageState {
     // ReusableBrowserWorker and disposes its InAppWebView. This is deliberately
     // separate from the per-job idle transition above.
     final disposedWorkers = _scheduler.clearForSearchCompletion();
+    SourceRequestGate.instance.cancelSession(
+      _playerSessionId,
+      ownerTag: _sessionOwnerTag,
+    );
+    WebViewResourceCoordinator.instance.cancelPendingSession(_playerSessionId);
+    WebViewResourceCoordinator.instance.releaseUnmaterializedOwnedBy(
+      _playerSessionId,
+    );
     if (disposedWorkers.isNotEmpty) {
       _logDisposedIdleSlots(disposedWorkers);
     }
@@ -485,6 +494,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
   }
 
   Future<void> _loadSampleSource({bool manual = false}) async {
+    if (!mounted || !_sessionLifecycle.acceptsNewWork) return;
     if (!manual && _disableAutoSourceSearchForCurrentEpisode) {
       if (mounted) {
         _updateState(() {
@@ -528,11 +538,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
     _setSessionGeneration(loadToken);
     await _cancelSearchSubscriptions();
 
-    if (!isSearchGenerationCurrent(
-      resultLoadToken: loadToken,
-      currentLoadToken: _sampleSourceController.sampleLoadToken,
-      isDisposed: !mounted,
-    )) {
+    if (!_acceptsSessionCallback(loadToken)) {
       return;
     }
 
@@ -544,11 +550,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
 
     if (btTask != null && _playbackController.currentStreamUrl == null) {
       final streamUrl = await _downloadManager.getOrCreateStreamUrl(btTask.id);
-      if (!isSearchGenerationCurrent(
-        resultLoadToken: loadToken,
-        currentLoadToken: _sampleSourceController.sampleLoadToken,
-        isDisposed: !mounted,
-      )) {
+      if (!_acceptsSessionCallback(loadToken)) {
         return;
       }
       if (streamUrl != null) {
@@ -595,11 +597,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
       final sources = await getPlaybackSources();
       final enabledSources = sources.where((s) => s.enabled).toList();
       if (enabledSources.isEmpty) {
-        if (isSearchGenerationCurrent(
-          resultLoadToken: loadToken,
-          currentLoadToken: _sampleSourceController.sampleLoadToken,
-          isDisposed: !mounted,
-        )) {
+        if (_acceptsSessionCallback(loadToken)) {
           _updateState(() {
             _sampleSourceController.setSampleErrorAndIdle(
               AppLocalizations.of(context).playerSearchNoEnabledSource,
@@ -624,11 +622,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
       final searchName = _buildSearchNameForSources();
       final captchaPreflightKeyword = _buildCaptchaPreflightKeyword();
 
-      if (!isSearchGenerationCurrent(
-        resultLoadToken: loadToken,
-        currentLoadToken: _sampleSourceController.sampleLoadToken,
-        isDisposed: !mounted,
-      )) {
+      if (!_acceptsSessionCallback(loadToken)) {
         return;
       }
 
@@ -685,11 +679,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
           searchKeyword: captchaPreflightKeyword,
           loadToken: loadToken,
           onCompleted: (runtimeOverride) {
-            if (!isSearchGenerationCurrent(
-              resultLoadToken: loadToken,
-              currentLoadToken: _sampleSourceController.sampleLoadToken,
-              isDisposed: !mounted,
-            )) {
+            if (!_acceptsSessionCallback(loadToken)) {
               return;
             }
             if (runtimeOverride.skipSearchError != null) {
@@ -713,11 +703,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
       _maybeFinishSampleSearch();
     } catch (e) {
       debugPrint("Error loading Sample source: $e");
-      if (isSearchGenerationCurrent(
-        resultLoadToken: loadToken,
-        currentLoadToken: _sampleSourceController.sampleLoadToken,
-        isDisposed: !mounted,
-      )) {
+      if (_acceptsSessionCallback(loadToken)) {
         _updateState(() {
           _sampleSourceController.setSampleErrorAndIdle(e.toString());
         });

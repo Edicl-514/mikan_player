@@ -11,18 +11,13 @@ extension _PlayerPageWebViewResultHost on _PlayerPageState {
       'timedOut=${result.timedOut}, videoUrl=${result.videoUrl}, '
       'error=${result.error}',
     );
-    if (!mounted) return;
+    if (!_acceptsSessionCallback(resultLoadToken)) return;
 
     final sourceNameForKey = SourceChannelKey.fromPageKey(pageKey).sourceName;
     final isActiveIdentity = _useWorkerPool
         ? _scheduler.isActiveVideoJobIdentity(pageKey, resultLoadToken)
         : _activeWebViews[pageKey] == resultLoadToken;
-    if (!isSearchGenerationCurrent(
-          resultLoadToken: resultLoadToken,
-          currentLoadToken: _sampleSourceController.sampleLoadToken,
-          isDisposed: !mounted,
-        ) ||
-        !isActiveIdentity) {
+    if (!isActiveIdentity) {
       _webviewStats.onVideoJobLateAfterCancel(pageKey, sourceNameForKey);
       return;
     }
@@ -199,6 +194,10 @@ extension _PlayerPageWebViewResultHost on _PlayerPageState {
 
   void _onWorkerIdlePostFrame(int workerId, VideoExtractionJob completedJob) {
     if (!mounted) return;
+    WebViewResourceCoordinator.instance.markLeaseBusy(
+      _pooledLeaseId(workerId),
+      busy: false,
+    );
     final slot = _scheduler.slotOf(workerId);
     if (slot == null) return;
     if (slot.kind != null &&
@@ -259,23 +258,23 @@ extension _PlayerPageWebViewResultHost on _PlayerPageState {
   /// `_activeWebViews` 残留或 pool 模式下 slot 与 widget 树不对齐。下一帧
   /// 起重按新路径调度；captcha active task 保留，但 slot 反查按目标路径重建。
   void _setUseWorkerPool(bool next) {
+    WebViewResourceCoordinator.instance.cancelPendingSession(_playerSessionId);
+    WebViewResourceCoordinator.instance.releaseUnmaterializedOwnedBy(
+      _playerSessionId,
+    );
+    final activeCaptcha = _captchaCoordinator.activeTasks.values.toList();
     _updateState(() {
       _useWorkerPool = next;
       _activeWebViews.clear();
       // 把 pool slot 整体丢弃：worker widget 在下次 build 不被 emit → 框架
       // 负责 dispose；scheduler 侧不再引用已 dispose 的 state。
       _scheduler.clearForPoolToggle();
-      if (next) {
-        for (final task in _captchaCoordinator.activeTasks.values) {
-          final slot = _acquireIdleCaptchaWorkerSlot();
-          if (slot == null) continue;
-          _scheduler.startCaptchaJob(
-            slot,
-            task.taskKey,
-            task.source.name,
-            generation: task.loadToken,
-          );
-        }
+      // A mode switch removes the old widget tree first. Requeue active
+      // captcha work so the replacement path obtains a fresh global lease
+      // after those widgets have actually disposed.
+      for (final task in activeCaptcha.reversed) {
+        _captchaCoordinator.removeActive(task.taskKey);
+        _captchaCoordinator.requeueFront(task);
       }
       _webViewStatus.clear();
     });

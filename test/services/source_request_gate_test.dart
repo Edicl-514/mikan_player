@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mikan_player/services/player_session/player_session_identity.dart';
 import 'package:mikan_player/services/source_request_gate.dart';
 
 void main() {
@@ -108,5 +109,74 @@ void main() {
     expect(gate.debugPendingToken('srcA'), 't1');
     gate.cancelPending('srcA', token: 't1');
     expect(gate.debugPendingWaiterCount, 0);
+  });
+
+  test('same source keeps one latest waiter per session', () async {
+    const a = PlayerSessionId('a');
+    const b = PlayerSessionId('b');
+    const interval = Duration(milliseconds: 40);
+    gate.markStarted('shared', sessionId: a);
+    final fired = <String>[];
+
+    gate.scheduleWhenReady(
+      sessionId: a,
+      sourceName: 'shared',
+      minInterval: interval,
+      token: 'a-old',
+      onReady: () => fired.add('a-old'),
+    );
+    gate.scheduleWhenReady(
+      sessionId: a,
+      sourceName: 'shared',
+      minInterval: interval,
+      token: 'a-new',
+      onReady: () {
+        fired.add('a-new');
+        gate.markStarted('shared', sessionId: a);
+      },
+    );
+    gate.scheduleWhenReady(
+      sessionId: b,
+      sourceName: 'shared',
+      minInterval: interval,
+      token: 'b',
+      onReady: () {
+        fired.add('b');
+        gate.markStarted('shared', sessionId: b);
+      },
+    );
+
+    expect(gate.debugPendingWaiterCount, 2);
+    expect(gate.debugPendingToken('shared', sessionId: a), 'a-new');
+    expect(gate.debugPendingToken('shared', sessionId: b), 'b');
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(fired, ['a-new', 'b']);
+  });
+
+  test('cancelSession leaves another session waiter intact', () async {
+    const a = PlayerSessionId('a');
+    const b = PlayerSessionId('b');
+    const interval = Duration(milliseconds: 40);
+    gate.markStarted('shared', sessionId: a);
+    final fired = <String>[];
+    gate.scheduleWhenReady(
+      sessionId: a,
+      sourceName: 'shared',
+      minInterval: interval,
+      token: 'a',
+      onReady: () => fired.add('a'),
+    );
+    gate.scheduleWhenReady(
+      sessionId: b,
+      sourceName: 'shared',
+      minInterval: interval,
+      token: 'b',
+      onReady: () => fired.add('b'),
+    );
+
+    gate.cancelSession(a);
+    expect(gate.debugPendingWaiterCount, 1);
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+    expect(fired, ['b']);
   });
 }

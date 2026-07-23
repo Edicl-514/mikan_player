@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/player_page.dart';
+import 'package:mikan_player/services/webview_resource_coordinator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mikan_player/src/rust/api/simple.dart' as simple;
@@ -56,8 +57,10 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
     final concurrency =
-        int.tryParse(_concurrencyController.text) ??
-        PlayerPage.kDefaultMaxConcurrentWebViews;
+        (int.tryParse(_concurrencyController.text) ??
+                PlayerPage.kDefaultMaxConcurrentWebViews)
+            .clamp(1, 64)
+            .toInt();
     final interval = int.tryParse(_intervalController.text) ?? 200;
     final searchConcurrency =
         int.tryParse(_searchConcurrencyController.text) ?? 3;
@@ -70,6 +73,7 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
       'cancel_low_priority_sources_on_play',
       _cancelLowPrioritySourcesOnPlay,
     );
+    WebViewResourceCoordinator.instance.updateLimit(concurrency);
 
     // Update Rust runtime config
     await simple.setMaxConcurrentSearches(limit: searchConcurrency);

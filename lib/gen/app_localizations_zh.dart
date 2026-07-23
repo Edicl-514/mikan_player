@@ -1112,10 +1112,10 @@ class AppLocalizationsZh extends AppLocalizations {
       'WebView Scraper设置 (仅针对Dynamic Webview源)';
 
   @override
-  String get maxWebviewConcurrent => '最大WebView并发数量';
+  String get maxWebviewConcurrent => '应用级 WebView 数量上限';
 
   @override
-  String get maxWebviewConcurrentHint => '建议值: 1-3';
+  String get maxWebviewConcurrentHint => '所有播放页共享，建议值: 1-3';
 
   @override
   String get webviewLaunchInterval => 'WebView启动间隔 (毫秒)';

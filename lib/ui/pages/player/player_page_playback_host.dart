@@ -6,9 +6,9 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
   /// 多个网络请求 / WebView 启动 / 弹幕解析同时争抢主线程导致首屏卡一下。
   void _scheduleDeferredEntryWork() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
+      if (!mounted || !_sessionLifecycle.acceptsNewWork) return;
       await Future.delayed(_PlayerPageState._entryAnimationGuard);
-      if (!mounted) return;
+      if (!mounted || !_sessionLifecycle.acceptsNewWork) return;
       unawaited(_loadComments());
       unawaited(_loadRecommendations());
       unawaited(_loadOnairSites());
@@ -23,7 +23,7 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
     if ((_pendingStartPositionMs == null || _pendingStartPositionMs! <= 0) &&
         (widget.startPositionMs == null || widget.startPositionMs! <= 0)) {
       await _hydrateResumePositionFromHistory();
-      if (!mounted) return;
+      if (!mounted || !_sessionLifecycle.acceptsNewWork) return;
     }
 
     var hasDownloadedPlayback = false;
@@ -37,7 +37,7 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
       hasDownloadedPlayback = await _checkAndPlayExistingBtDownload();
     }
 
-    if (!mounted) {
+    if (!mounted || !_sessionLifecycle.acceptsNewWork) {
       return;
     }
 
@@ -51,7 +51,9 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
 
     await _loadSettings(autoLoadSample: !hasDownloadedPlayback);
 
-    if (!mounted || hasDownloadedPlayback) {
+    if (!mounted ||
+        !_sessionLifecycle.acceptsNewWork ||
+        hasDownloadedPlayback) {
       return;
     }
 
@@ -71,12 +73,7 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
 
     if (btTask != null) {
       final streamUrl = await _downloadManager.getOrCreateStreamUrl(btTask.id);
-      if (!isSearchGenerationCurrent(
-            resultLoadToken: loadToken,
-            currentLoadToken: _sampleSourceController.sampleLoadToken,
-            isDisposed: !mounted,
-          ) ||
-          streamUrl == null) {
+      if (!_acceptsSessionCallback(loadToken) || streamUrl == null) {
         return false;
       }
       debugPrint(
@@ -95,11 +92,7 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
       final filePath = httpTask.localFilePath!;
       final file = File(filePath);
       if (await file.exists()) {
-        if (!isSearchGenerationCurrent(
-          resultLoadToken: loadToken,
-          currentLoadToken: _sampleSourceController.sampleLoadToken,
-          isDisposed: !mounted,
-        )) {
+        if (!_acceptsSessionCallback(loadToken)) {
           return false;
         }
         debugPrint(
@@ -118,19 +111,11 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
         final openGeneration = _resumeSeekGeneration;
         unawaited(
           _player.open(_mediaForPlayback(filePath), play: true).then((_) async {
-            if (!isSearchGenerationCurrent(
-              resultLoadToken: loadToken,
-              currentLoadToken: _sampleSourceController.sampleLoadToken,
-              isDisposed: !mounted,
-            )) {
+            if (!_acceptsSessionCallback(loadToken)) {
               return;
             }
             await _applyPlaybackSpeed();
-            if (!isSearchGenerationCurrent(
-              resultLoadToken: loadToken,
-              currentLoadToken: _sampleSourceController.sampleLoadToken,
-              isDisposed: !mounted,
-            )) {
+            if (!_acceptsSessionCallback(loadToken)) {
               return;
             }
             await _applyPendingStartPosition(generation: openGeneration);
@@ -147,11 +132,7 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
   void _playBtStreamUrl(String streamUrl, {int? loadToken}) {
     final expectedLoadToken =
         loadToken ?? _sampleSourceController.sampleLoadToken;
-    if (!isSearchGenerationCurrent(
-      resultLoadToken: expectedLoadToken,
-      currentLoadToken: _sampleSourceController.sampleLoadToken,
-      isDisposed: !mounted,
-    )) {
+    if (!_acceptsSessionCallback(expectedLoadToken)) {
       return;
     }
     _updateState(() {
@@ -177,19 +158,11 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
     final openGeneration = _resumeSeekGeneration;
     unawaited(
       _player.open(_mediaForPlayback(streamUrl), play: true).then((_) async {
-        if (!isSearchGenerationCurrent(
-          resultLoadToken: expectedLoadToken,
-          currentLoadToken: _sampleSourceController.sampleLoadToken,
-          isDisposed: !mounted,
-        )) {
+        if (!_acceptsSessionCallback(expectedLoadToken)) {
           return;
         }
         await _applyPlaybackSpeed();
-        if (!isSearchGenerationCurrent(
-          resultLoadToken: expectedLoadToken,
-          currentLoadToken: _sampleSourceController.sampleLoadToken,
-          isDisposed: !mounted,
-        )) {
+        if (!_acceptsSessionCallback(expectedLoadToken)) {
           return;
         }
         await _applyPendingStartPosition(generation: openGeneration);
@@ -469,13 +442,19 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
       final savedPlaybackSpeed = (prefs.getDouble('playback_speed') ?? 1.0)
           .clamp(0.25, 3.0)
           .toDouble();
+      final appWideWebViewLimit =
+          (prefs.getInt('max_concurrent_webviews') ??
+                  PlayerPage.kDefaultMaxConcurrentWebViews)
+              .clamp(1, 64);
+      final normalizedAppWideWebViewLimit = appWideWebViewLimit.toInt();
+      WebViewResourceCoordinator.instance.updateLimit(
+        normalizedAppWideWebViewLimit,
+      );
       if (mounted) {
         _updateState(() {
           _isAutoPlayNextEnabled = prefs.getBool('auto_play_next') ?? true;
           _autoSearchOnline = prefs.getBool('auto_search_online') ?? true;
-          _maxConcurrentWebViews =
-              prefs.getInt('max_concurrent_webviews') ??
-              PlayerPage.kDefaultMaxConcurrentWebViews;
+          _maxConcurrentWebViews = WebViewResourceCoordinator.instance.limit;
           _trimIdleWebViewWorkerSlotsToBudget();
           _cancelLowPrioritySourcesOnPlay =
               prefs.getBool('cancel_low_priority_sources_on_play') ?? true;

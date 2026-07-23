@@ -1,6 +1,74 @@
 part of '../player_page.dart';
 
 extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
+  WebViewWorkerLeaseId _pooledLeaseId(int workerId) => WebViewWorkerLeaseId(
+    playerSessionId: _playerSessionId,
+    localWorkerId: workerId,
+  );
+
+  bool _requestPooledWorkerLease(int workerId) {
+    if (!_sessionLifecycle.acceptsNewWork) return false;
+    return WebViewResourceCoordinator.instance.requestLease(
+      _pooledLeaseId(workerId),
+    );
+  }
+
+  WebViewWorkerLeaseId? _ensureLegacyWorkerLease(String resourceKey) {
+    if (!_sessionLifecycle.acceptsNewWork) return null;
+    final workerId = _legacyWorkerIds.putIfAbsent(
+      resourceKey,
+      () => _nextLegacyWorkerId--,
+    );
+    final leaseId = WebViewWorkerLeaseId(
+      playerSessionId: _playerSessionId,
+      localWorkerId: workerId,
+    );
+    return WebViewResourceCoordinator.instance.requestLease(leaseId)
+        ? leaseId
+        : null;
+  }
+
+  WebViewWorkerLeaseId _legacyLeaseId(String resourceKey) =>
+      WebViewWorkerLeaseId(
+        playerSessionId: _playerSessionId,
+        localWorkerId: _legacyWorkerIds[resourceKey]!,
+      );
+
+  void _onGlobalWebViewCapacityAvailable() {
+    final coordinator = WebViewResourceCoordinator.instance;
+    if (!mounted || !_sessionLifecycle.acceptsNewWork) {
+      coordinator.releaseUnmaterializedOwnedBy(_playerSessionId);
+      return;
+    }
+    final limit = coordinator.limit;
+    if (_maxConcurrentWebViews != limit) {
+      _updateState(() => _maxConcurrentWebViews = limit);
+    }
+    _scheduleWebViewPoolPump(immediate: true);
+    coordinator.releaseUnmaterializedOwnedBy(_playerSessionId);
+  }
+
+  void _releaseIdleWorkersForGlobalQuota() {
+    if (!mounted || _isDisposing || _idleWorkerReleaseScheduled) return;
+    _idleWorkerReleaseScheduled = true;
+    scheduleMicrotask(() {
+      _idleWorkerReleaseScheduled = false;
+      if (!mounted || _isDisposing) return;
+      final limit = WebViewResourceCoordinator.instance.limit;
+      final limitChanged = _maxConcurrentWebViews != limit;
+      _maxConcurrentWebViews = limit;
+      final busySlots =
+          _scheduler.activeVideoJobCount + _scheduler.activeCaptchaJobCount;
+      final removed = _scheduler.trimIdleWorkerSlotsToBudget(
+        useWorkerPool: _useWorkerPool,
+        maxConcurrent: busySlots,
+      );
+      if (removed.isEmpty && !limitChanged) return;
+      _logDisposedIdleSlots(removed);
+      _updateState(() {});
+    });
+  }
+
   void _addSamplePlayPage(SearchPlayResult page) {
     final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
     _sampleSourceController.appendPlayPage(page, pageKey: pageKey);
@@ -205,7 +273,8 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     // used to cancel an in-flight captcha and immediately re-hit the same host,
     // which is exactly when OCR sources start returning blank images.
     final poll = _captchaCoordinator.pollNextReady(
-      canStartNow: SourceRequestGate.instance.canStartNow,
+      canStartNow: (sourceName, interval) => SourceRequestGate.instance
+          .canSessionStartNow(_playerSessionId, sourceName, interval),
       intervalFor: (task) => SourceRequestGate.captchaIntervalMs(
         task.captchaConfig.initialDelayMs,
       ),
@@ -215,6 +284,7 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
         (t) => t.source.name == sourceName,
       );
       SourceRequestGate.instance.scheduleWhenReady(
+        sessionId: _playerSessionId,
         sourceName: sourceName,
         minInterval: SourceRequestGate.captchaIntervalMs(
           coolingTask.captchaConfig.initialDelayMs,
@@ -222,12 +292,7 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
         token: coolingTask.loadToken,
         ownerTag: _sessionOwnerTag,
         onReady: () {
-          if (!mounted) return;
-          if (!isSearchGenerationCurrent(
-            resultLoadToken: coolingTask.loadToken,
-            currentLoadToken: _sampleSourceController.sampleLoadToken,
-            isDisposed: !mounted,
-          )) {
+          if (!_acceptsSessionCallback(coolingTask.loadToken)) {
             return;
           }
           _scheduleWebViewPoolPump(immediate: true);
@@ -239,11 +304,12 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     if (ready == null) {
       return false;
     }
-    if (!mayStartSearchScopedJob(
-      jobLoadToken: ready.loadToken,
-      currentLoadToken: _sampleSourceController.sampleLoadToken,
-      isDisposed: !mounted,
-    )) {
+    if (!_acceptsSessionCallback(ready.loadToken) ||
+        !mayStartSearchScopedJob(
+          jobLoadToken: ready.loadToken,
+          currentLoadToken: _sampleSourceController.sampleLoadToken,
+          isDisposed: !mounted,
+        )) {
       return false;
     }
 
@@ -259,9 +325,25 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
         ready.source.name,
         generation: ready.loadToken,
       );
+      WebViewResourceCoordinator.instance.markLeaseMaterialized(
+        _pooledLeaseId(slot.workerId),
+      );
+      WebViewResourceCoordinator.instance.markLeaseBusy(
+        _pooledLeaseId(slot.workerId),
+        busy: true,
+      );
+    } else {
+      final lease = _ensureLegacyWorkerLease('captcha:${ready.taskKey}');
+      if (lease == null) {
+        _captchaCoordinator.requeueFront(ready);
+        return false;
+      }
+      WebViewResourceCoordinator.instance.markLeaseMaterialized(lease);
+      WebViewResourceCoordinator.instance.markLeaseBusy(lease, busy: true);
     }
     SourceRequestGate.instance.markStarted(
       ready.source.name,
+      sessionId: _playerSessionId,
       ownerTag: _sessionOwnerTag,
     );
     _captchaCoordinator.markActive(ready);
@@ -279,6 +361,7 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     final result = _scheduler.acquireIdleCaptchaWorkerSlot(
       useWorkerPool: _useWorkerPool,
       maxConcurrent: _maxConcurrentWebViews,
+      canCreateWorker: _requestPooledWorkerLease,
     );
     _logDisposedIdleSlots(result.disposedIdleSlots);
     if (result.slot != null && result.createdNew) {
@@ -292,7 +375,7 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
   }
 
   bool _startOneWebViewExtractionTask() {
-    if (!mounted) return false;
+    if (!mounted || !_sessionLifecycle.acceptsNewWork) return false;
     final jobLoadToken = _sampleSourceController.sampleLoadToken;
     if (_activeWebViewTaskCount >= _maxConcurrentWebViews) {
       return false;
@@ -311,23 +394,25 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     final coolingSources = <String>{};
     for (final page in pending) {
       if (gate.canStartNow(
-        page.sourceName,
-        SourceRequestGate.defaultVideoInterval,
-      )) {
+            page.sourceName,
+            SourceRequestGate.defaultVideoInterval,
+          ) &&
+          gate.canSessionStartNow(
+            _playerSessionId,
+            page.sourceName,
+            SourceRequestGate.defaultVideoInterval,
+          )) {
         readyPending.add(page);
       } else if (coolingSources.add(page.sourceName)) {
         final gateToken = jobLoadToken;
         gate.scheduleWhenReady(
+          sessionId: _playerSessionId,
           sourceName: page.sourceName,
           minInterval: SourceRequestGate.defaultVideoInterval,
           token: gateToken,
           ownerTag: _sessionOwnerTag,
           onReady: () {
-            if (!isSearchGenerationCurrent(
-              resultLoadToken: gateToken,
-              currentLoadToken: _sampleSourceController.sampleLoadToken,
-              isDisposed: !mounted,
-            )) {
+            if (!_acceptsSessionCallback(gateToken)) {
               return;
             }
             _scheduleWebViewPoolPump(immediate: true);
@@ -366,6 +451,7 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
         pendingJobs,
         useWorkerPool: _useWorkerPool,
         maxConcurrent: _maxConcurrentWebViews,
+        canCreateWorker: _requestPooledWorkerLease,
       );
       _logDisposedIdleSlots(decision.disposedIdleSlots);
       final command = decision.command;
@@ -393,7 +479,18 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
         command.job.sourceName,
         generation: jobLoadToken,
       );
-      gate.markStarted(command.job.sourceName, ownerTag: _sessionOwnerTag);
+      WebViewResourceCoordinator.instance.markLeaseMaterialized(
+        _pooledLeaseId(command.slot.workerId),
+      );
+      WebViewResourceCoordinator.instance.markLeaseBusy(
+        _pooledLeaseId(command.slot.workerId),
+        busy: true,
+      );
+      gate.markStarted(
+        command.job.sourceName,
+        sessionId: _playerSessionId,
+        ownerTag: _sessionOwnerTag,
+      );
       _webViewStatus[command.job.pageKey] = AppLocalizations.of(
         context,
       ).playerWebviewExtracting;
@@ -408,8 +505,16 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     // Fallback：per-task widget 路径（旧逻辑，行为等价于 Round 2 之前）。
     final page = readyPending.first;
     final pageKey = _buildSourceChannelKey(page.sourceName, page.channelIndex);
+    final legacyLease = _ensureLegacyWorkerLease('video:$pageKey');
+    if (legacyLease == null) return false;
     _activeWebViews[pageKey] = jobLoadToken;
-    gate.markStarted(page.sourceName, ownerTag: _sessionOwnerTag);
+    WebViewResourceCoordinator.instance.markLeaseMaterialized(legacyLease);
+    WebViewResourceCoordinator.instance.markLeaseBusy(legacyLease, busy: true);
+    gate.markStarted(
+      page.sourceName,
+      sessionId: _playerSessionId,
+      ownerTag: _sessionOwnerTag,
+    );
     _webViewStatus[pageKey] = AppLocalizations.of(
       context,
     ).playerWebviewExtracting;
@@ -653,7 +758,7 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
   }
 
   void _scheduleWebViewPoolPump({bool immediate = false}) {
-    if (!mounted) return;
+    if (!mounted || !_sessionLifecycle.acceptsNewWork) return;
 
     if (immediate) {
       final startedAny = _scheduler.pumpCoordinator.scheduleImmediate(
@@ -677,11 +782,17 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     var isFirst = true;
 
     while (_activeWebViewTaskCount < _maxConcurrentWebViews) {
-      if (!mounted || !_scheduler.pumpCoordinator.isCurrentToken(token)) break;
+      if (!_sessionLifecycle.acceptsNewWork ||
+          !mounted ||
+          !_scheduler.pumpCoordinator.isCurrentToken(token)) {
+        break;
+      }
 
       if (!isFirst && _webViewLaunchInterval > 0) {
         await Future.delayed(Duration(milliseconds: _webViewLaunchInterval));
-        if (!mounted || !_scheduler.pumpCoordinator.isCurrentToken(token)) {
+        if (!_sessionLifecycle.acceptsNewWork ||
+            !mounted ||
+            !_scheduler.pumpCoordinator.isCurrentToken(token)) {
           break;
         }
       }
@@ -750,14 +861,15 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     _captchaCoordinator.removeActive(taskKey);
     _webViewStatus.remove(taskKey);
 
-    if (!mayApplyCaptchaResult(
-      resultLoadToken: resultLoadToken,
-      currentLoadToken: _sampleSourceController.sampleLoadToken,
-      isDisposed: !mounted,
-      activeTaskPresent: true,
-      activeTaskKey: task.taskKey,
-      resultTaskKey: taskKey,
-    )) {
+    if (!_acceptsSessionCallback(resultLoadToken) ||
+        !mayApplyCaptchaResult(
+          resultLoadToken: resultLoadToken,
+          currentLoadToken: _sampleSourceController.sampleLoadToken,
+          isDisposed: !mounted,
+          activeTaskPresent: true,
+          activeTaskKey: task.taskKey,
+          resultTaskKey: taskKey,
+        )) {
       _releaseCaptchaSlotForTask(taskKey, generation: resultLoadToken);
       _webviewStats.onCaptchaJobStaleResult(taskKey);
       if (mounted) _updateState(() {});
@@ -790,6 +902,10 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
       if (!mounted) return;
       final slot = _scheduler.slotOf(workerId);
       if (slot == null) return;
+      WebViewResourceCoordinator.instance.markLeaseBusy(
+        _pooledLeaseId(workerId),
+        busy: false,
+      );
       // A reset can reassign this worker before the cancelled predecessor's
       // post-frame idle notification arrives. In that case the slot already
       // carries a new job; the stale notification must not mark it idle or

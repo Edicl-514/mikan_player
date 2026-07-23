@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:mikan_player/services/cookie_usage_registry.dart';
+import 'package:mikan_player/services/player_session/player_session_identity.dart';
 
 /// Minimal cookie-store boundary used by [WebViewCookieJanitor].
 ///
@@ -60,6 +62,7 @@ class WebViewCookieJanitor {
   WebViewCookieJanitor._internal()
     : this._(
         backend: const _InAppWebViewCookieBackend(),
+        usageRegistry: CookieUsageRegistry.instance,
         idleDelay: const Duration(seconds: 2),
         maxDeferDelay: const Duration(seconds: 30),
       );
@@ -67,28 +70,43 @@ class WebViewCookieJanitor {
   @visibleForTesting
   WebViewCookieJanitor.forTesting({
     required WebViewCookieBackend backend,
+    CookieUsageRegistry? usageRegistry,
     Duration idleDelay = Duration.zero,
     Duration maxDeferDelay = const Duration(seconds: 30),
   }) : this._(
          backend: backend,
+         usageRegistry: usageRegistry ?? CookieUsageRegistry(),
          idleDelay: idleDelay,
          maxDeferDelay: maxDeferDelay,
        );
 
   WebViewCookieJanitor._({
     required WebViewCookieBackend backend,
+    required CookieUsageRegistry usageRegistry,
     required Duration idleDelay,
     required Duration maxDeferDelay,
   }) : _backend = backend,
+       _usageRegistry = usageRegistry,
        _idleDelay = idleDelay,
        _maxDeferDelay = maxDeferDelay;
 
   final WebViewCookieBackend _backend;
+  final CookieUsageRegistry _usageRegistry;
   final Duration _idleDelay;
   final Duration _maxDeferDelay;
 
-  final Set<({String host, String name, String path})> _pendingCookies = {};
-  final Set<String> _pendingHosts = {};
+  final Set<
+    ({
+      String host,
+      String name,
+      String path,
+      PlayerSessionId? sessionId,
+      int? generation,
+    })
+  >
+  _pendingCookies = {};
+  final Set<({String host, PlayerSessionId? sessionId, int? generation})>
+  _pendingHosts = {};
 
   Future<void> _chain = Future<void>.value();
   Timer? _idleTimer;
@@ -108,9 +126,24 @@ class WebViewCookieJanitor {
     required String host,
     required String cookieName,
     String path = '/',
+    PlayerSessionId? sessionId,
+    int? generation,
     String? ownerTag,
   }) {
-    _pendingCookies.add((host: host, name: cookieName, path: path));
+    _replaceOlderCookieRequest(
+      host: host,
+      cookieName: cookieName,
+      path: path,
+      sessionId: sessionId,
+      generation: generation,
+    );
+    _pendingCookies.add((
+      host: host,
+      name: cookieName,
+      path: path,
+      sessionId: sessionId,
+      generation: generation,
+    ));
     _ensureMaxDeferTimer();
     if (ownerTag != null) {
       debugPrint(
@@ -122,8 +155,20 @@ class WebViewCookieJanitor {
 
   /// Enqueue deletion of all cookies currently set for [host].
   /// Deduplicated by host.
-  void requestHostCleanup({required String host, String? ownerTag}) {
-    _pendingHosts.add(host);
+  void requestHostCleanup({
+    required String host,
+    PlayerSessionId? sessionId,
+    int? generation,
+    String? ownerTag,
+  }) {
+    _pendingHosts.removeWhere(
+      (request) => request.host == host && request.sessionId == sessionId,
+    );
+    _pendingHosts.add((
+      host: host,
+      sessionId: sessionId,
+      generation: generation,
+    ));
     _ensureMaxDeferTimer();
     if (ownerTag != null) {
       debugPrint(
@@ -148,13 +193,31 @@ class WebViewCookieJanitor {
     _idleTimer?.cancel();
     _idleTimer = null;
     _cancelMaxDeferTimer();
-    final done = _chain.then((_) => _runBatch());
+    final done = _chain.then((_) => _runBatch(ignoreActiveLeases: false));
     // Keep the chain alive regardless of failures so later batches can run.
     _chain = done.then((_) {}, onError: (_) {});
     return done;
   }
 
-  Future<void> _runBatch() async {
+  /// Application-shutdown path. Active pages are already quiescing, so the
+  /// shared profile can be drained without waiting for host leases.
+  Future<void> drainForShutdown({
+    Duration timeout = const Duration(seconds: 2),
+  }) {
+    _idleTimer?.cancel();
+    _idleTimer = null;
+    _cancelMaxDeferTimer();
+    final done = _chain.then((_) => _runBatch(ignoreActiveLeases: true));
+    _chain = done.then((_) {}, onError: (_) {});
+    return done.timeout(timeout, onTimeout: () {});
+  }
+
+  void cancelSession(PlayerSessionId sessionId) {
+    _pendingCookies.removeWhere((request) => request.sessionId == sessionId);
+    _pendingHosts.removeWhere((request) => request.sessionId == sessionId);
+  }
+
+  Future<void> _runBatch({required bool ignoreActiveLeases}) async {
     if (_pendingCookies.isEmpty && _pendingHosts.isEmpty) return;
     final hosts = _pendingHosts.toSet();
     final cookies = _pendingCookies.toSet();
@@ -164,7 +227,15 @@ class WebViewCookieJanitor {
     final sw = Stopwatch()..start();
     var cookieCount = 0;
     try {
-      for (final host in hosts) {
+      for (final request in hosts) {
+        final host = request.host;
+        if (!_cleanupRequestIsCurrent(request.sessionId, request.generation)) {
+          continue;
+        }
+        if (!ignoreActiveLeases && _usageRegistry.hasActiveUsers(host)) {
+          _pendingHosts.add(request);
+          continue;
+        }
         try {
           final names = await _backend.cookieNamesForHost(host);
           for (final name in names) {
@@ -178,6 +249,13 @@ class WebViewCookieJanitor {
         }
       }
       for (final entry in cookies) {
+        if (!_cleanupRequestIsCurrent(entry.sessionId, entry.generation)) {
+          continue;
+        }
+        if (!ignoreActiveLeases && _usageRegistry.hasActiveUsers(entry.host)) {
+          _pendingCookies.add(entry);
+          continue;
+        }
         try {
           await _backend.deleteCookie(
             host: entry.host,
@@ -200,6 +278,29 @@ class WebViewCookieJanitor {
       '[WebViewCookieJanitor] batch done: hosts=${hosts.length}, '
       'cookies=$cookieCount, duration=${sw.elapsedMilliseconds}ms '
       'pendingAfter=$debugPendingCleanupCount',
+    );
+    if (debugPendingCleanupCount > 0) _ensureMaxDeferTimer();
+  }
+
+  bool _cleanupRequestIsCurrent(PlayerSessionId? sessionId, int? generation) {
+    if (sessionId == null || generation == null) return true;
+    return _usageRegistry.isGenerationCurrent(sessionId, generation);
+  }
+
+  void _replaceOlderCookieRequest({
+    required String host,
+    required String cookieName,
+    required String path,
+    required PlayerSessionId? sessionId,
+    required int? generation,
+  }) {
+    _pendingCookies.removeWhere(
+      (request) =>
+          request.host == host &&
+          request.name == cookieName &&
+          request.path == path &&
+          request.sessionId == sessionId &&
+          request.generation != generation,
     );
   }
 

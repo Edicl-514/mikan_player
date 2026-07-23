@@ -1,47 +1,51 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:mikan_player/services/player_session/player_session_identity.dart';
 
-/// Process-wide per-source start gate for online extraction / captcha preflight.
+typedef _PendingKey = ({PlayerSessionId sessionId, String sourceName});
+
+/// Process-wide per-source cooldown with session-isolated waiters.
 ///
-/// Rapid episode switches and player re-entry used to cancel an in-flight
-/// captcha load and immediately fire the same source again. Sites respond by
-/// serving broken/empty captcha images, after which OCR fails even though the
-/// local runner is healthy.
-///
-/// This gate keeps the **latest** waiter's callback for each [sourceName] and
-/// only fires it once [minInterval] has elapsed since the previous
-/// [markStarted]. Older waiters are dropped (stack / latest-wins), so a user
-/// who lands on EP3 only pays for EP3's request, not every intermediate stop.
-///
-/// Multi-session note (Phase 0): the pending map is keyed by [sourceName]
-/// alone. Two Player sessions waiting on the same source currently overwrite
-/// each other. Phase 1 will rekey pending entries to `(sessionId, sourceName)`
-/// while keeping [_lastStartedAt] shared per source for cooldown.
+/// Cooldown timestamps remain shared by source, but each Player session keeps
+/// its own latest-wins waiter. Only one session is handed a ready claim for a
+/// source at a time; [markStarted] releases that claim and begins the next
+/// global cooldown before another session can proceed.
 class SourceRequestGate {
   SourceRequestGate._();
 
   static final SourceRequestGate instance = SourceRequestGate._();
+  static const PlayerSessionId _legacySessionId = PlayerSessionId('legacy');
 
-  /// Default spacing for non-captcha video extraction starts.
   static const Duration defaultVideoInterval = Duration(milliseconds: 350);
-
-  /// Floor applied to captcha [initialDelayMs] so a misconfigured 0 still
-  /// provides a real cooldown under rapid re-entry.
   static const int captchaIntervalFloorMs = 800;
 
   final Map<String, DateTime> _lastStartedAt = <String, DateTime>{};
-  final Map<String, _PendingStart> _pending = <String, _PendingStart>{};
+  final Map<_PendingKey, _PendingStart> _pending = {};
+  final Map<String, Timer> _sourceTimers = {};
+  final Map<String, PlayerSessionId> _readyClaims = {};
+  final Map<String, int> _lastServedSequence = {};
+  int _sequence = 0;
 
-  /// Number of sources currently holding a delayed waiter (debug / invariant).
   int get debugPendingWaiterCount => _pending.length;
 
-  /// Token currently waiting for [sourceName], or null.
   @visibleForTesting
-  Object? debugPendingToken(String sourceName) => _pending[sourceName]?.token;
+  Object? debugPendingToken(String sourceName, {PlayerSessionId? sessionId}) {
+    if (sessionId != null) {
+      return _pending[(sessionId: sessionId, sourceName: sourceName)]?.token;
+    }
+    final matches =
+        _pending.entries
+            .where((entry) => entry.key.sourceName == sourceName)
+            .toList()
+          ..sort((a, b) => a.value.sequence.compareTo(b.value.sequence));
+    return matches.isEmpty ? null : matches.last.value.token;
+  }
 
-  /// Remaining wait before [sourceName] may start again under [minInterval],
-  /// or `null` when it may start immediately.
+  @visibleForTesting
+  PlayerSessionId? debugReadyClaim(String sourceName) =>
+      _readyClaims[sourceName];
+
   Duration? remainingCooldown(String sourceName, Duration minInterval) {
     if (minInterval <= Duration.zero) return null;
     final last = _lastStartedAt[sourceName];
@@ -51,105 +55,126 @@ class SourceRequestGate {
     return minInterval - elapsed;
   }
 
-  /// Whether [sourceName] may start a new job right now.
   bool canStartNow(String sourceName, Duration minInterval) =>
       remainingCooldown(sourceName, minInterval) == null;
 
-  /// Record that a real start (worker accept / load) just happened for
-  /// [sourceName]. Cancels any pending delayed waiter for that source — the
-  /// active start is the new generation baseline.
-  void markStarted(String sourceName, {String? ownerTag}) {
+  bool canSessionStartNow(
+    PlayerSessionId sessionId,
+    String sourceName,
+    Duration minInterval,
+  ) {
+    final claim = _readyClaims[sourceName];
+    return (claim == null || claim == sessionId) &&
+        canStartNow(sourceName, minInterval);
+  }
+
+  void markStarted(
+    String sourceName, {
+    PlayerSessionId? sessionId,
+    String? ownerTag,
+  }) {
+    final owner = sessionId ?? _legacySessionId;
     _lastStartedAt[sourceName] = DateTime.now();
-    final pending = _pending.remove(sourceName);
-    pending?.timer.cancel();
+    final key = (sessionId: owner, sourceName: sourceName);
+    final pending = _pending.remove(key);
+    _readyClaims.remove(sourceName);
     if (ownerTag != null) {
       debugPrint(
         '$ownerTag [SourceRequestGate] $sourceName markStarted '
-        '(cancelledPending=${pending != null})',
+        '(cancelledOwnPending=${pending != null})',
       );
     }
+    _scheduleSource(sourceName);
   }
 
-  /// Coalesce a delayed start for [sourceName].
-  ///
-  /// Only the most recent [token] is kept. When the interval elapses and the
-  /// token is still current, [onReady] is invoked once (typically to re-pump
-  /// the WebView pool). If another start happened in the meantime the timer
-  /// reschedules against the fresh baseline.
-  ///
-  /// Optional [ownerTag] is only prepended to debug logs (Phase 0 identity).
   void scheduleWhenReady({
+    PlayerSessionId? sessionId,
     required String sourceName,
     required Duration minInterval,
     required Object token,
     required void Function() onReady,
     String? ownerTag,
   }) {
-    final remaining = remainingCooldown(sourceName, minInterval);
-    if (remaining == null || remaining <= Duration.zero) {
-      // Already free — still hop a microtask so callers can finish their
-      // current pump loop without re-entering synchronously.
-      final existing = _pending.remove(sourceName);
-      existing?.timer.cancel();
-      scheduleMicrotask(() {
-        if (!canStartNow(sourceName, minInterval)) {
-          scheduleWhenReady(
-            sourceName: sourceName,
-            minInterval: minInterval,
-            token: token,
-            onReady: onReady,
-            ownerTag: ownerTag,
-          );
-          return;
-        }
-        onReady();
-      });
-      return;
-    }
-
-    final previous = _pending.remove(sourceName);
-    previous?.timer.cancel();
-
-    late final _PendingStart pending;
-    pending = _PendingStart(
+    final owner = sessionId ?? _legacySessionId;
+    final key = (sessionId: owner, sourceName: sourceName);
+    final previous = _pending[key];
+    _pending[key] = _PendingStart(
       token: token,
       minInterval: minInterval,
       onReady: onReady,
       ownerTag: ownerTag,
-      timer: Timer(remaining, () => _firePending(sourceName, pending)),
+      sequence: previous?.sequence ?? ++_sequence,
     );
-    _pending[sourceName] = pending;
-    final prefix = ownerTag == null ? '' : '$ownerTag ';
-    debugPrint(
-      '$prefix[SourceRequestGate] $sourceName cooling '
-      '${remaining.inMilliseconds}ms (token=$token'
-      '${previous == null ? '' : ', overwrotePriorToken=${previous.token}'})',
-    );
+    if (ownerTag != null) {
+      final remaining = remainingCooldown(sourceName, minInterval);
+      debugPrint(
+        '$ownerTag [SourceRequestGate] $sourceName queued '
+        '${remaining?.inMilliseconds ?? 0}ms (token=$token'
+        '${previous == null ? '' : ', overwroteOwnToken=${previous.token}'})',
+      );
+    }
+    _scheduleSource(sourceName);
   }
 
-  void cancelPending(String sourceName, {Object? token, String? ownerTag}) {
-    final pending = _pending[sourceName];
-    if (pending == null) return;
-    if (token != null && pending.token != token) return;
-    pending.timer.cancel();
-    _pending.remove(sourceName);
+  void cancelPending(
+    String sourceName, {
+    PlayerSessionId? sessionId,
+    Object? token,
+    String? ownerTag,
+  }) {
+    final owner = sessionId ?? _legacySessionId;
+    final key = (sessionId: owner, sourceName: sourceName);
+    final pending = _pending[key];
+    if (pending == null || (token != null && pending.token != token)) return;
+    _pending.remove(key);
+    if (_readyClaims[sourceName] == owner) {
+      _readyClaims.remove(sourceName);
+    }
     if (ownerTag != null) {
       debugPrint(
         '$ownerTag [SourceRequestGate] $sourceName cancelPending token=$token',
       );
     }
+    _scheduleSource(sourceName);
   }
 
-  /// Cancels **every** pending waiter in the process.
-  ///
-  /// Multi-session risk: this is not session-scoped. Prefer per-source
-  /// [cancelPending] (and Phase 1 `cancelSession`) over this from PlayerPage.
+  void cancelSession(PlayerSessionId sessionId, {String? ownerTag}) {
+    final sources = <String>{};
+    final keys = _pending.keys
+        .where((key) => key.sessionId == sessionId)
+        .toList(growable: false);
+    for (final key in keys) {
+      sources.add(key.sourceName);
+      _pending.remove(key);
+    }
+    final claimedSources = _readyClaims.entries
+        .where((entry) => entry.value == sessionId)
+        .map((entry) => entry.key)
+        .toList(growable: false);
+    for (final source in claimedSources) {
+      sources.add(source);
+      _readyClaims.remove(source);
+    }
+    if (ownerTag != null && (keys.isNotEmpty || claimedSources.isNotEmpty)) {
+      debugPrint(
+        '$ownerTag [SourceRequestGate] cancelSession '
+        'waiters=${keys.length} claims=${claimedSources.length}',
+      );
+    }
+    for (final source in sources) {
+      _scheduleSource(source);
+    }
+  }
+
+  /// Process-wide reset/shutdown API. Player sessions must use [cancelSession].
   void cancelAllPending({String? ownerTag}) {
     final count = _pending.length;
-    for (final pending in _pending.values) {
-      pending.timer.cancel();
-    }
     _pending.clear();
+    _readyClaims.clear();
+    for (final timer in _sourceTimers.values) {
+      timer.cancel();
+    }
+    _sourceTimers.clear();
     if (ownerTag != null && count > 0) {
       debugPrint(
         '$ownerTag [SourceRequestGate] cancelAllPending cleared=$count',
@@ -157,14 +182,14 @@ class SourceRequestGate {
     }
   }
 
-  /// Test-only: drop both start history and pending timers.
   @visibleForTesting
   void debugReset() {
     cancelAllPending();
     _lastStartedAt.clear();
+    _lastServedSequence.clear();
+    _sequence = 0;
   }
 
-  /// Captcha start spacing derived from the source's [initialDelayMs].
   static Duration captchaIntervalMs(int initialDelayMs) {
     final ms = initialDelayMs < captchaIntervalFloorMs
         ? captchaIntervalFloorMs
@@ -172,43 +197,90 @@ class SourceRequestGate {
     return Duration(milliseconds: ms);
   }
 
-  void _firePending(String sourceName, _PendingStart pending) {
-    final current = _pending[sourceName];
-    if (!identical(current, pending)) return;
-    _pending.remove(sourceName);
+  void _scheduleSource(String sourceName) {
+    _sourceTimers.remove(sourceName)?.cancel();
+    if (_readyClaims.containsKey(sourceName)) return;
 
-    final remaining = remainingCooldown(sourceName, pending.minInterval);
-    if (remaining != null && remaining > Duration.zero) {
-      scheduleWhenReady(
-        sourceName: sourceName,
-        minInterval: pending.minInterval,
-        token: pending.token,
-        onReady: pending.onReady,
-        ownerTag: pending.ownerTag,
-      );
+    final candidates = _pending.entries
+        .where((entry) => entry.key.sourceName == sourceName)
+        .toList(growable: false);
+    if (candidates.isEmpty) return;
+
+    final ready = candidates
+        .where(
+          (entry) =>
+              remainingCooldown(sourceName, entry.value.minInterval) == null,
+        )
+        .toList();
+    if (ready.isNotEmpty) {
+      final selected = _selectFair(sourceName, ready);
+      final pending = _pending.remove(selected.key);
+      if (pending == null) return;
+      _readyClaims[sourceName] = selected.key.sessionId;
+      _lastServedSequence[sourceName] = pending.sequence;
+      scheduleMicrotask(() {
+        if (_readyClaims[sourceName] != selected.key.sessionId) return;
+        final prefix = pending.ownerTag == null ? '' : '${pending.ownerTag} ';
+        debugPrint(
+          '$prefix[SourceRequestGate] $sourceName ready '
+          '(token=${pending.token})',
+        );
+        try {
+          pending.onReady();
+        } catch (error, stackTrace) {
+          if (_readyClaims[sourceName] == selected.key.sessionId) {
+            _readyClaims.remove(sourceName);
+            _scheduleSource(sourceName);
+          }
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+      });
       return;
     }
 
-    final prefix = pending.ownerTag == null ? '' : '${pending.ownerTag} ';
-    debugPrint(
-      '$prefix[SourceRequestGate] $sourceName ready (token=${pending.token})',
+    Duration? earliest;
+    for (final candidate in candidates) {
+      final remaining = remainingCooldown(
+        sourceName,
+        candidate.value.minInterval,
+      );
+      if (remaining != null && (earliest == null || remaining < earliest)) {
+        earliest = remaining;
+      }
+    }
+    if (earliest != null) {
+      _sourceTimers[sourceName] = Timer(earliest, () {
+        _sourceTimers.remove(sourceName);
+        _scheduleSource(sourceName);
+      });
+    }
+  }
+
+  MapEntry<_PendingKey, _PendingStart> _selectFair(
+    String sourceName,
+    List<MapEntry<_PendingKey, _PendingStart>> ready,
+  ) {
+    ready.sort((a, b) => a.value.sequence.compareTo(b.value.sequence));
+    final after = _lastServedSequence[sourceName] ?? -1;
+    return ready.firstWhere(
+      (entry) => entry.value.sequence > after,
+      orElse: () => ready.first,
     );
-    pending.onReady();
   }
 }
 
 class _PendingStart {
-  _PendingStart({
+  const _PendingStart({
     required this.token,
     required this.minInterval,
     required this.onReady,
-    required this.timer,
+    required this.sequence,
     this.ownerTag,
   });
 
   final Object token;
   final Duration minInterval;
   final void Function() onReady;
-  final Timer timer;
+  final int sequence;
   final String? ownerTag;
 }
