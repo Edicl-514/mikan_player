@@ -87,6 +87,7 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
       _resolvingChannelPlayPageKeys.clear();
       _sampleStatusMessageNotifier.value = '';
       _acceptedSourcePageKey = null;
+      _lowerPrioritySearchesFinalized = false;
       _webviewStats.reset();
 
       // Reset comments
@@ -94,10 +95,7 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
     });
     _videoTitleNotifier.value = AppLocalizations.of(
       context,
-    ).playerPageTitleWithEpisode(
-      widget.anime.title,
-      ep.sort.toInt(),
-    );
+    ).playerPageTitleWithEpisode(widget.anime.title, ep.sort.toInt());
     _publishPlayerControlSourceState();
 
     // New episode: clear in-page time trackers and any pending seek from the

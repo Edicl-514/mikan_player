@@ -44,6 +44,15 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
       source.sourceName,
       source.channelIndex,
     );
+    final acceptedSourcePageKey = _acceptedSourcePageKey;
+    if (acceptedSourcePageKey != null &&
+        isCancellableSourceAfterAccept(
+          sourceName: source.sourceName,
+          acceptedPageKey: acceptedSourcePageKey,
+          sourceTiers: _sampleSourceController.sourceTiers,
+        )) {
+      return;
+    }
     if (_playableSourceKeys.contains(sourceKey) ||
         _probingSourceKeys.contains(sourceKey)) {
       return;
@@ -63,6 +72,17 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
       currentLoadToken: _sampleSourceController.sampleLoadToken,
       isDisposed: !mounted,
     )) {
+      return;
+    }
+
+    final currentAcceptedSourcePageKey = _acceptedSourcePageKey;
+    if (currentAcceptedSourcePageKey != null &&
+        isCancellableSourceAfterAccept(
+          sourceName: source.sourceName,
+          acceptedPageKey: currentAcceptedSourcePageKey,
+          sourceTiers: _sampleSourceController.sourceTiers,
+        )) {
+      _maybeFinishSampleSearch();
       return;
     }
 
@@ -390,6 +410,25 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
           sourceTiers: _sampleSourceController.sourceTiers,
         );
 
+    // Direct-URL probes do not expose a cancellation handle. Stop counting
+    // lower-priority probes as session work now; their completion callback has
+    // a matching tier guard and will discard the late result.
+    _probingSourceKeys.removeWhere(isCancellableWebViewKey);
+
+    // Pages that have arrived but have not acquired a worker yet have no
+    // active reverse-map entry to cancel. Mark them failed for this generation
+    // as well; `_pageIsPendingForExtraction` also guards late pages, so neither
+    // path can re-enter the WebView pump after autoplay has been accepted.
+    for (final page in _sampleSourceController.samplePlayPages) {
+      final pageKey = _buildSourceChannelKey(
+        page.sourceName,
+        page.channelIndex,
+      );
+      if (isCancellableWebViewKey(pageKey)) {
+        _failedWebViewPageKeys.add(pageKey);
+      }
+    }
+
     if (_useWorkerPool) {
       // Pool 模式：把对应 slot 的 pageKey 清 null。下一次 build 时
       // `_buildWebViewExtractors` 会让该 worker 拿到 `job: null`，触发
@@ -450,6 +489,8 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
       _selectedSourceIndexNotifier.value =
           _playbackController.selectedSourceIndex;
     });
+
+    _maybeFinalizeLowerPrioritySearches();
 
     // freed slots can be reused (or stay empty — either way the pump must run
     // to avoid stale entries).

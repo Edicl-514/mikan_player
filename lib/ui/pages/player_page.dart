@@ -187,6 +187,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // 提取任务，并在它们的迟到 onResult 回调里跳过 probe/autoplay，避免劫持播放。
   // 在新搜索/新剧集开始时重置为 null（与 playback auto-play eligibility 同步）。
   String? _acceptedSourcePageKey;
+  bool _lowerPrioritySearchesFinalized = false;
 
   // Auto Play Logic
   bool _isAutoPlayNextEnabled = true;

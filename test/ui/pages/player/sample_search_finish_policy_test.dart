@@ -84,6 +84,49 @@ void main() {
     });
   });
 
+  group('allTierZeroSourcesTerminal', () {
+    test('requires at least one Tier-0 source', () {
+      expect(
+        allTierZeroSourcesTerminal(
+          enabledSourceNames: const ['lower'],
+          sourceTiers: const {'lower': 1},
+          sourceProgressMap: {'lower': _progress('lower', SearchStep.success)},
+        ),
+        isFalse,
+      );
+    });
+
+    test('waits for every Tier-0 source', () {
+      expect(
+        allTierZeroSourcesTerminal(
+          enabledSourceNames: const ['t0-a', 't0-b', 'lower'],
+          sourceTiers: const {'t0-a': 0, 't0-b': 0, 'lower': 1},
+          sourceProgressMap: {
+            't0-a': _progress('t0-a', SearchStep.success),
+            't0-b': _progress('t0-b', SearchStep.searching),
+            'lower': _progress('lower', SearchStep.failed),
+          },
+        ),
+        isFalse,
+      );
+    });
+
+    test('ignores unfinished lower-priority sources', () {
+      expect(
+        allTierZeroSourcesTerminal(
+          enabledSourceNames: const ['t0-a', 't0-b', 'lower'],
+          sourceTiers: const {'t0-a': 0, 't0-b': 0, 'lower': 1},
+          sourceProgressMap: {
+            't0-a': _progress('t0-a', SearchStep.success),
+            't0-b': _progress('t0-b', SearchStep.failed),
+            'lower': _progress('lower', SearchStep.searching),
+          },
+        ),
+        isTrue,
+      );
+    });
+  });
+
   group('mayMarkSampleSearchIdle', () {
     bool idle({
       bool isMounted = true,

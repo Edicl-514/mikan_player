@@ -31,6 +31,27 @@ bool allEnabledSourcesTerminal({
   return true;
 }
 
+/// Whether every enabled Tier-0 source has reached a terminal search step.
+/// Lower-priority sources do not participate in this decision.
+bool allTierZeroSourcesTerminal({
+  required Iterable<String> enabledSourceNames,
+  required Map<String, int> sourceTiers,
+  required Map<String, SourceSearchProgress> sourceProgressMap,
+}) {
+  final tierZeroSourceNames = enabledSourceNames.where(
+    (sourceName) => (sourceTiers[sourceName] ?? 999) == 0,
+  );
+  var foundTierZero = false;
+  for (final sourceName in tierZeroSourceNames) {
+    foundTierZero = true;
+    final progress = sourceProgressMap[sourceName];
+    if (progress == null || !isSearchStepTerminal(progress.step)) {
+      return false;
+    }
+  }
+  return foundTierZero;
+}
+
 /// Whether the page may mark sample search idle and compute final status.
 ///
 /// Mirrors the early-return chain in `_maybeFinishSampleSearch` before the

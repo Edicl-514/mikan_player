@@ -35,6 +35,64 @@ extension _PlayerPageSearchHost on _PlayerPageState {
     sourceProgressMap: _sampleSourceController.sourceProgressMap,
   );
 
+  bool _areAllTierZeroSourceSearchesFinished() {
+    return allTierZeroSourcesTerminal(
+      enabledSourceNames: _sampleSourceController.enabledSourceNames,
+      sourceTiers: _sampleSourceController.sourceTiers,
+      sourceProgressMap: _sampleSourceController.sourceProgressMap,
+    );
+  }
+
+  /// Once autoplay has accepted a Tier-0 source, keep all Tier-0 searches
+  /// alive for fallback choices. As soon as every Tier-0 source has reached a
+  /// terminal search step, cancel the shared search stream and mark unfinished
+  /// lower-priority sources terminal so they cannot enqueue late WebView work.
+  void _maybeFinalizeLowerPrioritySearches() {
+    final acceptedPageKey = _acceptedSourcePageKey;
+    if (_lowerPrioritySearchesFinalized ||
+        !_cancelLowPrioritySourcesOnPlay ||
+        acceptedPageKey == null ||
+        !_areAllTierZeroSourceSearchesFinished()) {
+      return;
+    }
+
+    final cancelledMessage = AppLocalizations.of(context).cancel;
+    _updateState(() {
+      _lowerPrioritySearchesFinalized = true;
+      for (final sourceName in _sampleSourceController.enabledSourceNames) {
+        final tier = _sampleSourceController.sourceTiers[sourceName] ?? 999;
+        final current = _sampleSourceController.sourceProgressMap[sourceName];
+        if (tier == 0 ||
+            (current != null && _isSearchStepFinished(current.step))) {
+          continue;
+        }
+        _sampleSourceController.setSourceProgress(
+          sourceName,
+          SourceSearchProgress(
+            sourceName: sourceName,
+            step: SearchStep.failed,
+            error: cancelledMessage,
+            playPageUrl: null,
+            videoRegex: null,
+            directVideoUrl: null,
+            cookies: null,
+            headers: null,
+            enableNestedUrl: false,
+          ),
+        );
+      }
+      _cancelLowerPriorityExtraction(except: acceptedPageKey);
+    });
+
+    _scheduleWebViewPoolPump(immediate: true);
+    unawaited(
+      _cancelSearchSubscriptions().whenComplete(() {
+        if (!mounted) return;
+        _maybeFinishSampleSearch();
+      }),
+    );
+  }
+
   /// Round 4 Stage 3：把 [page] 追加到 `_sampleSourceController.samplePlayPages` 的统一入口。
   ///
   /// `_sampleSourceController.samplePlayPages` 每次接受完新增项后都会按 tier `sort()`，导致 `List`
@@ -97,6 +155,16 @@ extension _PlayerPageSearchHost on _PlayerPageState {
     required String searchName,
     required int currentEpNumber,
   }) {
+    if (_acceptedSourcePageKey != null &&
+        (_sampleSourceController.sourceTiers[progress.sourceName] ?? 999) !=
+            0) {
+      debugPrint(
+        '[SampleSearch] Ignoring late lower-priority progress from '
+        '${progress.sourceName}',
+      );
+      return;
+    }
+
     // Debug: Print channel information
     if (progress.allChannels != null && progress.allChannels!.isNotEmpty) {
       debugPrint(
@@ -303,6 +371,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
             currentEpNumber: currentEpNumber,
           );
         });
+        _maybeFinalizeLowerPrioritySearches();
         _scheduleWebViewPoolPump(immediate: true);
         _maybeFinishSampleSearch();
       },
@@ -332,6 +401,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
             );
           }
         });
+        _maybeFinalizeLowerPrioritySearches();
         _scheduleWebViewPoolPump();
         _maybeFinishSampleSearch();
       },
@@ -392,6 +462,18 @@ extension _PlayerPageSearchHost on _PlayerPageState {
       successfulSourceCount:
           _sampleSourceController.sampleSuccessfulSources.length,
     );
+
+    // Worker slots are intentionally warm while the search is in flight so a
+    // completed extraction can hand its WebView to the next job. Once every
+    // source, probe, and extraction is terminal, that reuse window is over:
+    // remove every slot before the rebuild so Flutter unmounts each
+    // ReusableBrowserWorker and disposes its InAppWebView. This is deliberately
+    // separate from the per-job idle transition above.
+    final disposedWorkers = _scheduler.clearForSearchCompletion();
+    if (disposedWorkers.isNotEmpty) {
+      _logDisposedIdleSlots(disposedWorkers);
+    }
+    _webViewStatus.clear();
     _updateState(() {
       _sampleSourceController.markSampleIdle();
       if (finish.error != null) {
@@ -502,6 +584,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
         context,
       ).playerSearchFetchingSourceList;
       _acceptedSourcePageKey = null;
+      _lowerPrioritySearchesFinalized = false;
       _webviewStats.reset();
     });
     _publishPlayerControlSourceState();
@@ -609,6 +692,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
               return;
             }
             if (runtimeOverride.skipSearchError != null) {
+              _maybeFinalizeLowerPrioritySearches();
               _maybeFinishSampleSearch();
               return;
             }

@@ -585,6 +585,42 @@ void main() {
       expect(s.activeCaptchaJobs, isEmpty);
     });
 
+    test('clearForSearchCompletion removes warm and cancelling slots', () {
+      final s = newScheduler();
+      final warm = s
+          .acquireIdleVideoWorkerSlot(
+            {'srcA'},
+            useWorkerPool: true,
+            maxConcurrent: _maxConcurrent,
+          )
+          .slot!;
+      s.startVideoJob(warm, 'pageA', 'srcA');
+
+      final cancelling = s
+          .acquireIdleVideoWorkerSlot(
+            {'srcB'},
+            useWorkerPool: true,
+            maxConcurrent: _maxConcurrent,
+          )
+          .slot!;
+      s.startVideoJob(cancelling, 'pageB', 'srcB');
+      s.cancelVideoJob('pageB');
+      expect(cancelling.health, WebViewWorkerHealth.cancelling);
+      s.releaseVideoSlotOnIdle(warm.workerId);
+      s.markSlotIdle(warm.workerId);
+      expectConsistent(s, 'before search completion cleanup');
+
+      final removed = s.clearForSearchCompletion();
+      expect(
+        removed.map((slot) => slot.workerId),
+        containsAll([warm.workerId, cancelling.workerId]),
+      );
+      expect(s.workerCount, 0);
+      expect(s.activeVideoJobs, isEmpty);
+      expect(s.activeCaptchaJobs, isEmpty);
+      expectConsistent(s, 'after search completion cleanup');
+    });
+
     test('clearForDispose empties everything', () {
       final s = newScheduler();
       s.startVideoJob(

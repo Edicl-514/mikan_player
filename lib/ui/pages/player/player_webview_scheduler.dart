@@ -748,6 +748,25 @@ class PlayerWebViewScheduler {
     _slots.clear();
   }
 
+  /// Removes every worker slot when the current search session has reached a
+  /// terminal state. Unlike the normal budget trim, this also removes slots
+  /// that are still completing cancellation callbacks: the corresponding
+  /// widgets are about to leave the tree and their State.dispose() path is the
+  /// owner of the underlying InAppWebView teardown.
+  ///
+  /// Callers must only use this after there are no pending or active search,
+  /// captcha, extraction, or probe operations for the current generation.
+  List<WebViewWorkerSlotSnapshot> clearForSearchCompletion() {
+    final removed = _slots.values
+        .map(WebViewWorkerSlotSnapshot._fromSlot)
+        .toList(growable: false);
+    _activeVideoJobs.clear();
+    _activeCaptchaJobs.clear();
+    _slots.clear();
+    _pumpCoordinator.reset();
+    return removed;
+  }
+
   /// Clears all scheduler state on `dispose` so any post-frame idle callback
   /// arriving after the page is gone sees empty maps rather than disposed
   /// slots. The pump coordinator has no resources to release.

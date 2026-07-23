@@ -42,6 +42,16 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
         ? _scheduler.activeVideoJobs.containsKey(pageKey)
         : _activeWebViews.containsKey(pageKey);
     final alreadyFailed = _failedWebViewPageKeys.contains(pageKey);
+    // Once autoplay has accepted a Tier-0 source, lower-priority pages that
+    // arrive late from the search stream must not be dispatched into a warm
+    // WebView. Their search result may still be useful for status/debugging,
+    // but extraction is no longer part of the current autoplay decision.
+    final acceptedSourcePageKey = _acceptedSourcePageKey;
+    if (acceptedSourcePageKey != null) {
+      final sourceTier =
+          _sampleSourceController.sourceTiers[page.sourceName] ?? 999;
+      if (sourceTier != 0) return false;
+    }
     // A source whose WebView extraction just finished is being probed
     // asynchronously (_probingSourceKeys) or has already been registered as
     // playable (_playableSourceKeys). It MUST be excluded here, otherwise
