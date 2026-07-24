@@ -96,25 +96,29 @@ class _WindowsDesktopFrameState extends State<WindowsDesktopFrame>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: WindowsDesktopFrameController.instance,
-      builder: (context, _) {
-        if (WindowsDesktopFrameController.instance.isContentFullscreen) {
-          return widget.child;
-        }
+    // MaterialApp.builder places the desktop frame above the Navigator's
+    // Overlay. Keep title-bar tooltips and tab drag proxies in a local overlay.
+    return Overlay.wrap(
+      child: AnimatedBuilder(
+        animation: WindowsDesktopFrameController.instance,
+        builder: (context, _) {
+          if (WindowsDesktopFrameController.instance.isContentFullscreen) {
+            return widget.child;
+          }
 
-        final colors = Theme.of(context).colorScheme;
-        return ColoredBox(
-          color: colors.surface,
-          child: Column(
-            children: [
-              _buildTitleBar(context, colors),
-              if (widget.contextToolbar != null) widget.contextToolbar!,
-              Expanded(child: widget.child),
-            ],
-          ),
-        );
-      },
+          final colors = Theme.of(context).colorScheme;
+          return ColoredBox(
+            color: colors.surface,
+            child: Column(
+              children: [
+                _buildTitleBar(context, colors),
+                if (widget.contextToolbar != null) widget.contextToolbar!,
+                Expanded(child: widget.child),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 

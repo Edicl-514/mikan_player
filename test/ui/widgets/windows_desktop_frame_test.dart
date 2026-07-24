@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/ui/widgets/windows_desktop_frame.dart';
@@ -56,5 +58,25 @@ void main() {
     expect(find.byIcon(Icons.close), findsNothing);
     expect(find.byIcon(Icons.add), findsNothing);
     expect(find.text('fullscreen player'), findsOneWidget);
+  });
+
+  testWidgets('provides an overlay for title bar interactions', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => WindowsDesktopFrame(
+          onNewTab: () {},
+          child: child ?? const SizedBox.shrink(),
+        ),
+        home: const SizedBox(),
+      ),
+    );
+
+    final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await pointer.addPointer(location: Offset.zero);
+    await pointer.moveTo(tester.getCenter(find.byIcon(Icons.add)));
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('New tab'), findsOneWidget);
   });
 }
