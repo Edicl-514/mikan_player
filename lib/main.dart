@@ -7,6 +7,9 @@ import 'package:mikan_player/src/rust/api/simple.dart';
 import 'package:mikan_player/src/rust/rust_init.dart';
 import 'package:mikan_player/ui/screens/home_screen.dart';
 import 'package:mikan_player/ui/widgets/windows_desktop_frame.dart';
+import 'package:mikan_player/services/workspace_tab_controller.dart';
+import 'package:mikan_player/ui/widgets/workspace_tab_host.dart';
+import 'package:mikan_player/ui/widgets/workspace_tab_strip.dart';
 import 'package:mikan_player/ui/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
@@ -407,8 +410,13 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  late final WorkspaceTabController _workspaceController;
+  late final WorkspaceTabHostController _workspaceHostController;
+
   @override
   void initState() {
+    _workspaceController = WorkspaceTabController();
+    _workspaceHostController = WorkspaceTabHostController();
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     if (!kIsWeb && Platform.isWindows) {
@@ -427,6 +435,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _workspaceHostController.dispose();
+    _workspaceController.dispose();
     DownloadManager().saveLibtorrentResumeDataForShutdown();
     if (!kIsWeb && Platform.isWindows) {
       _appLifecycleChannel.setMethodCallHandler(null);
@@ -493,10 +503,24 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 return child ?? const SizedBox.shrink();
               }
               return WindowsDesktopFrame(
+                tabStrip: WorkspaceTabStrip(
+                  controller: _workspaceController,
+                  hostController: _workspaceHostController,
+                ),
+                contextToolbar: WorkspaceContextToolbar(
+                  controller: _workspaceController,
+                  hostController: _workspaceHostController,
+                ),
+                onNewTab: () => _workspaceController.create(),
                 child: child ?? const SizedBox.shrink(),
               );
             },
-            home: const HomeScreen(),
+            home: _windowsDesktopFrameEnabled
+                ? WorkspaceTabHost(
+                    controller: _workspaceController,
+                    hostController: _workspaceHostController,
+                  )
+                : const HomeScreen(),
           ),
         );
       },

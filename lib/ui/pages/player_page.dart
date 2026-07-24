@@ -27,6 +27,8 @@ import 'package:mikan_player/services/webview_resource_coordinator.dart';
 import 'package:mikan_player/services/webview_scheduler_stats.dart';
 import 'package:mikan_player/services/workspace_lifecycle.dart';
 import 'package:mikan_player/services/workspace_route_observer.dart';
+import 'package:mikan_player/services/workspace_tab_controller.dart';
+import 'package:mikan_player/ui/widgets/workspace_tab_host.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/widgets/webview_lease_boundary.dart';
 import 'package:mikan_player/ui/widgets/workspace_route_close_scope.dart';
@@ -198,6 +200,9 @@ class _PlayerPageState extends State<PlayerPage>
   late final PlayerSessionDebugHandle _playerSessionHandle;
   late final PlayerSessionHandle _workspaceSessionHandle;
   PageRoute<dynamic>? _subscribedRoute;
+  RouteObserver<PageRoute<dynamic>> _routeObserver = workspaceRouteObserver;
+  WorkspaceTabId? _workspaceTabId;
+  WorkspaceTabController? _workspaceTabController;
   PlayerSessionLogContext _sessionLogContext = const PlayerSessionLogContext(
     sessionId: PlayerSessionId('uninitialized'),
   );
@@ -444,6 +449,14 @@ class _PlayerPageState extends State<PlayerPage>
           _playerSessionId,
           playing: playing,
         );
+        final tabId = _workspaceTabId;
+        if (tabId != null) {
+          _workspaceTabController?.updateMetadata(
+            tabId,
+            isAudible: playing,
+            icon: WorkspaceTabIcon.media,
+          );
+        }
         if (playing) {
           _playbackController.notifyPlaybackStarted();
         }
@@ -497,17 +510,43 @@ class _PlayerPageState extends State<PlayerPage>
     super.didChangeDependencies();
     final modalRoute = ModalRoute.of(context);
     final route = modalRoute is PageRoute<dynamic> ? modalRoute : null;
-    if (route != _subscribedRoute) {
+    final routeObserver =
+        WorkspaceRouteObserverScope.maybeOf(context) ?? workspaceRouteObserver;
+    if (route != _subscribedRoute || routeObserver != _routeObserver) {
       final previous = _subscribedRoute;
-      if (previous != null) workspaceRouteObserver.unsubscribe(this);
+      if (previous != null) _routeObserver.unsubscribe(this);
+      _routeObserver = routeObserver;
       _subscribedRoute = route;
-      if (route != null) workspaceRouteObserver.subscribe(this, route);
+      if (route != null) _routeObserver.subscribe(this, route);
     }
-    _videoTitleNotifier.value = AppLocalizations.of(context)
-        .playerPageTitleWithEpisode(
-          widget.anime.title,
-          _episodeController.currentEpisode.sort.toInt(),
+    final tabId = WorkspaceTabScope.maybeOf(context);
+    final tabController = WorkspaceTabScope.controllerOf(context);
+    _workspaceTabController = tabController;
+    if (tabId != null && tabId != _workspaceTabId) {
+      _workspaceTabId = tabId;
+      WorkspaceLifecycleRegistry.instance.assignToTab(_playerSessionId, tabId);
+      _playerSessionHandle.tabId = tabId;
+      _sessionLogContext = PlayerSessionLogContext(
+        tabId: tabId,
+        sessionId: _playerSessionId,
+      );
+      _webviewStats.sessionContext = _sessionLogContext;
+    }
+    final pageTitle = AppLocalizations.of(context).playerPageTitleWithEpisode(
+      widget.anime.title,
+      _episodeController.currentEpisode.sort.toInt(),
+    );
+    _videoTitleNotifier.value = pageTitle;
+    if (tabId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _workspaceTabId != tabId) return;
+        tabController?.updateMetadata(
+          tabId,
+          title: pageTitle,
+          icon: WorkspaceTabIcon.media,
         );
+      });
+    }
   }
 
   void _updateState(VoidCallback mutation) => setState(mutation);
@@ -550,7 +589,7 @@ class _PlayerPageState extends State<PlayerPage>
       WindowsDesktopFrameController.instance.setContentFullscreen(false);
     }
     unawaited(_prepareToClose(rebuildWorkerTree: false));
-    workspaceRouteObserver.unsubscribe(this);
+    _routeObserver.unsubscribe(this);
     _subscribedRoute = null;
     WorkspaceLifecycleRegistry.instance.unregister(_playerSessionId);
     PlaybackFocusCoordinator.instance.unregisterSession(_playerSessionId);
@@ -685,6 +724,7 @@ class _PlayerPageState extends State<PlayerPage>
     );
     _playerSessionHandle.generation = generation;
     _sessionLogContext = PlayerSessionLogContext(
+      tabId: _workspaceTabId,
       sessionId: _playerSessionId,
       generation: generation,
     );

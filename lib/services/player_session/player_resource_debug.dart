@@ -147,7 +147,7 @@ class PlayerSessionDebugHandle {
            ));
 
   final PlayerSessionId sessionId;
-  final WorkspaceTabId? tabId;
+  WorkspaceTabId? tabId;
   PlayerSessionLifecycleState lifecycleState;
   final PlayerSessionResourceCounts Function() _reportCounts;
 

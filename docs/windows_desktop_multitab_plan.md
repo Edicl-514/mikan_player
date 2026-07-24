@@ -350,7 +350,7 @@ flowchart TD
 
 **目的**：建立稳定的窗口外壳，但暂不开放完整多 Tab 导航。
 
-**状态（2026-07-24）**：已完成落地。Windows 在首帧前通过 `window_manager` 配置 hidden title bar、`1280 x 720` 初始尺寸和 `720 x 520` 最小尺寸；`MaterialApp.builder` 将 `WindowsDesktopFrame` 放在根 Navigator 外，保留现有 route 行为的同时让窗口控制持续可见。frame 已提供 TabStrip、`+`和 context toolbar 插槽，当前不启用 Tab 创建；播放器全屏会临时覆盖 frame，初始化失败则回退原生标题栏。
+**状态（2026-07-24）**：已完成落地。Windows 在首帧前通过 `window_manager` 配置 hidden title bar、`1280 x 720` 初始尺寸和 `720 x 520` 最小尺寸；`MaterialApp.builder` 将 `WindowsDesktopFrame` 放在根 Navigator 外，保留现有 route 行为的同时让窗口控制持续可见。frame 已提供 TabStrip、`+`和 context toolbar 插槽；Phase 3 落地时未启用 Tab 创建，现已由 Phase 4 接入。播放器全屏会临时覆盖 frame，初始化失败则回退原生标题栏。
 
 #### 落地路径（实现索引）
 
@@ -390,6 +390,20 @@ flowchart TD
 ### Phase 4：Workspace Tab 核心与独立导航栈
 
 **目的**：建立浏览器式 Tab 容器，先用轻量页面验证，不立即迁移全部入口。
+
+**状态（2026-07-24）**：已完成落地。Windows frame 已接入纯状态 `WorkspaceTabController`、独立 Navigator host、两阶段 Tab close、前进/后退与常用快捷键；Tab body 通过 Offstage/TickerMode/FocusScope 保持并隔离状态，TabStrip 支持横向滚动、鼠标中键关闭和拖动排序。Player session 会绑定所属 Tab，切换只更新资源优先级，关闭只 await 该 Tab participants。业务入口的新后台 Tab 打开规则仍按 Phase 5 迁移。
+
+#### 落地路径（实现索引）
+
+| 产物 | 路径 |
+|------|------|
+| Tab identity/state/history controller | `lib/services/workspace_tab_controller.dart` |
+| Tab participant ownership/close | `lib/services/workspace_lifecycle.dart` |
+| 独立 Navigator host / shortcuts / lifecycle | `lib/ui/widgets/workspace_tab_host.dart` |
+| TabStrip / context toolbar | `lib/ui/widgets/workspace_tab_strip.dart` |
+| Windows frame/root integration | `lib/main.dart`、`lib/ui/widgets/windows_desktop_frame.dart` |
+| Player Tab owner/route metadata | `lib/ui/pages/player_page.dart`、`lib/services/workspace_route_observer.dart` |
+| Phase 4 tests | `test/services/workspace_tab_controller_test.dart`、`test/ui/widgets/workspace_tab_host_test.dart` |
 
 #### 4.1 Tab 状态模型
 

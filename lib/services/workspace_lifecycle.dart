@@ -110,20 +110,57 @@ class WorkspaceLifecycleRegistry {
 
   final Map<PlayerSessionId, WorkspaceLifecycleParticipant> _participants =
       <PlayerSessionId, WorkspaceLifecycleParticipant>{};
+  final Map<PlayerSessionId, WorkspaceTabId> _tabOwners =
+      <PlayerSessionId, WorkspaceTabId>{};
 
   Iterable<WorkspaceLifecycleParticipant> get participants =>
       List<WorkspaceLifecycleParticipant>.unmodifiable(_participants.values);
 
-  void register(WorkspaceLifecycleParticipant participant) {
+  void register(
+    WorkspaceLifecycleParticipant participant, {
+    WorkspaceTabId? tabId,
+  }) {
     _participants[participant.sessionId] = participant;
+    if (tabId != null) _tabOwners[participant.sessionId] = tabId;
+  }
+
+  void assignToTab(PlayerSessionId sessionId, WorkspaceTabId tabId) {
+    if (_participants.containsKey(sessionId)) _tabOwners[sessionId] = tabId;
   }
 
   void unregister(PlayerSessionId sessionId) {
     _participants.remove(sessionId);
+    _tabOwners.remove(sessionId);
   }
 
   WorkspaceLifecycleParticipant? participantOf(PlayerSessionId sessionId) =>
       _participants[sessionId];
+
+  Iterable<WorkspaceLifecycleParticipant> participantsForTab(
+    WorkspaceTabId tabId,
+  ) => List<WorkspaceLifecycleParticipant>.unmodifiable(
+    _participants.entries
+        .where((entry) => _tabOwners[entry.key] == tabId)
+        .map((entry) => entry.value),
+  );
+
+  Future<void> notifyTabActivated(WorkspaceTabId tabId) => Future.wait(
+    participantsForTab(
+      tabId,
+    ).map((participant) => participant.onTabActivated()),
+  );
+
+  Future<void> notifyTabBackgrounded(WorkspaceTabId tabId) => Future.wait(
+    participantsForTab(
+      tabId,
+    ).map((participant) => participant.onTabBackgrounded()),
+  );
+
+  Future<void> prepareTabToClose(WorkspaceTabId tabId) => Future.wait(
+    participantsForTab(
+      tabId,
+    ).map((participant) => participant.prepareToClose()),
+  );
 
   Future<void> prepareAllToClose() async {
     final snapshot = _participants.values.toList(growable: false);
@@ -133,7 +170,10 @@ class WorkspaceLifecycleRegistry {
   }
 
   @visibleForTesting
-  void debugReset() => _participants.clear();
+  void debugReset() {
+    _participants.clear();
+    _tabOwners.clear();
+  }
 }
 
 class AppShutdownCoordinator {

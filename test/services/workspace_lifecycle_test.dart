@@ -168,4 +168,32 @@ void main() {
     expect(closed, unorderedEquals(['a', 'b']));
     registry.debugReset();
   });
+
+  test('tab close prepares only participants owned by that tab', () async {
+    final registry = WorkspaceLifecycleRegistry.instance;
+    registry.debugReset();
+    final closed = <String>[];
+
+    for (final id in ['a', 'b']) {
+      registry.register(
+        PlayerSessionHandle(
+          sessionId: PlayerSessionId(id),
+          isPlaying: () => false,
+          isBusy: () => false,
+          pause: () {},
+          resume: () {},
+          prepareToClose: () => closed.add(id),
+        ),
+        tabId: WorkspaceTabId('tab-$id'),
+      );
+    }
+
+    await registry.prepareTabToClose(const WorkspaceTabId('tab-a'));
+    expect(closed, ['a']);
+    expect(
+      registry.participantsForTab(const WorkspaceTabId('tab-b')),
+      hasLength(1),
+    );
+    registry.debugReset();
+  });
 }
