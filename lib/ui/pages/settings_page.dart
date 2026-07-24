@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
-import 'package:mikan_player/ui/pages/data_source_settings_page.dart';
-import 'package:mikan_player/ui/pages/download_settings_page.dart';
-import 'package:mikan_player/ui/pages/network_settings_page.dart';
-import 'package:mikan_player/ui/pages/search_settings_page.dart';
-import 'package:mikan_player/ui/pages/subscription_debug_page.dart';
-import 'package:mikan_player/ui/pages/theme_settings_page.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/settings_service.dart';
 import 'package:mikan_player/utils/feature_flags.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
+import 'package:mikan_player/services/workspace_tab_controller.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -137,42 +133,21 @@ class _SettingsPageState extends State<SettingsPage> {
             Icons.source,
             AppLocalizations.of(context).dataSourceSettings,
             AppLocalizations.of(context).dataSourceSubtitle,
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const DataSourceSettingsPage(),
-                ),
-              );
-            },
+            WorkspaceDestinations.dataSourceSettings(context),
           ),
           _buildSettingTile(
             context,
             Icons.network_wifi,
             AppLocalizations.of(context).networkSettings,
             AppLocalizations.of(context).networkSettingsSubtitle,
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const NetworkSettingsPage(),
-                ),
-              );
-            },
+            WorkspaceDestinations.networkSettings(context),
           ),
           _buildSettingTile(
             context,
             Icons.search,
             AppLocalizations.of(context).searchSettings,
             AppLocalizations.of(context).searchSubtitle,
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SearchSettingsPage(),
-                ),
-              );
-            },
+            WorkspaceDestinations.searchSettings(context),
           ),
           if (enableSubscriptionDebug)
             _buildSettingTile(
@@ -180,42 +155,21 @@ class _SettingsPageState extends State<SettingsPage> {
               Icons.bug_report,
               AppLocalizations.of(context).subscriptionDebugEntryTitle,
               AppLocalizations.of(context).subscriptionDebugEntrySubtitle,
-              () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SubscriptionDebugPage(),
-                  ),
-                );
-              },
+              WorkspaceDestinations.subscriptionDebug(context),
             ),
           _buildSettingTile(
             context,
             Icons.download,
             AppLocalizations.of(context).downloadSettingsTitle,
             AppLocalizations.of(context).downloadSettingsEntrySubtitle,
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const DownloadSettingsPage(),
-                ),
-              );
-            },
+            WorkspaceDestinations.downloadSettings(context),
           ),
           _buildSettingTile(
             context,
             Icons.palette,
             AppLocalizations.of(context).themeSettings,
             AppLocalizations.of(context).themeSettingsSubtitle,
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ThemeSettingsPage(),
-                ),
-              );
-            },
+            WorkspaceDestinations.themeSettings(context),
           ),
           _buildLanguageTile(context),
           _buildCacheTile(context),
@@ -325,21 +279,27 @@ class _SettingsPageState extends State<SettingsPage> {
     IconData icon,
     String title,
     String subtitle,
-    VoidCallback onTap,
+    WorkspaceDestination destination,
   ) {
-    return Card(
-      elevation: 0,
-      color: Theme.of(
-        context,
-      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
+    return WorkspaceLink(
+      destination: destination,
+      builder: (context, activate) => Card(
+        elevation: 0,
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        margin: const EdgeInsets.only(bottom: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ListTile(
+          leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(subtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: activate,
+        ),
       ),
     );
   }

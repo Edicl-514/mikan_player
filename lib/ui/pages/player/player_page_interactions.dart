@@ -94,12 +94,11 @@ extension _PlayerPageInteractions on _PlayerPageState {
       fullJson: null,
     );
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => BangumiDetailsPage(
-          anime: animeInfo,
-          heroTag: 'player_rec_${item.bangumiId}',
-        ),
+    await WorkspaceNavigation.open<void>(
+      context,
+      WorkspaceDestinations.bangumiDetails(
+        anime: animeInfo,
+        heroTag: 'player_rec_${item.bangumiId}',
       ),
     );
   }

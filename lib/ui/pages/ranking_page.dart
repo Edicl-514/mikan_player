@@ -3,10 +3,10 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart' as ranking;
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
-import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 typedef RankingPageFetcher =
     Future<List<ranking.RankingAnime>> Function(String sortType, int page);
@@ -173,108 +173,69 @@ class _RankingListState extends State<RankingList>
     // However, if we scroll, index + 1 is a good proxy for "Current List Position".
     // But if `item.rank` exists (parsed from "Rank X"), use it.
     final rankDisplay = item.rank != null ? '#${item.rank}' : '#${index + 1}';
+    final animeInfo = crawler.AnimeInfo(
+      title: item.title,
+      bangumiId: item.bangumiId,
+      coverUrl: item.coverUrl,
+      score: item.score,
+      rank: item.rank,
+      tags: item.info.split(' / ').toList(),
+      subTitle: item.originalTitle,
+    );
+    final destination = WorkspaceDestinations.bangumiDetails(
+      anime: animeInfo,
+      heroTag:
+          'ranking_cover_${animeInfo.bangumiId ?? animeInfo.mikanId ?? animeInfo.title.hashCode}',
+    );
 
-    return Container(
-      height: 140, // Slightly taller for more info
-      margin: const EdgeInsets.only(bottom: 16),
-      child: InkWell(
-        onTap: () {
-          // Navigate to details
-          final animeInfo = crawler.AnimeInfo(
-            title: item.title,
-            bangumiId: item.bangumiId,
-            coverUrl: item.coverUrl,
-            score: item.score,
-            rank: item.rank,
-            tags: item.info
-                .split(' / ')
-                .toList(), // Bangumi info usually separated by / or space
-            // Other fields optional/default
-            subTitle: item.originalTitle,
-            mikanId: null,
-            siteUrl: null,
-            broadcastDay: null,
-            broadcastTime: null,
-            fullJson: null,
-          );
-
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => BangumiDetailsPage(
-                anime: animeInfo,
-                heroTag:
-                    'ranking_cover_${animeInfo.bangumiId ?? animeInfo.mikanId ?? animeInfo.title.hashCode}',
-              ),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Row(
-          children: [
-            // Cover with Score and Rank
-            AspectRatio(
-              aspectRatio: 0.7,
-              child: Stack(
-                children: [
-                  Hero(
-                    tag:
-                        'ranking_cover_${item.bangumiId.isNotEmpty ? item.bangumiId : item.title.hashCode}',
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: item.coverUrl.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: item.coverUrl,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              height: double.infinity,
-                              errorWidget: Container(color: Colors.grey[300]),
-                            )
-                          : Container(color: Colors.grey[300]),
-                    ),
-                  ),
-                  // Rank Tag
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: const BorderRadius.only(
-                          bottomRight: Radius.circular(8),
-                        ),
-                      ),
-                      child: Text(
-                        rankDisplay,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+    return WorkspaceLink(
+      destination: destination,
+      builder: (context, activate) => Container(
+        height: 140,
+        margin: const EdgeInsets.only(bottom: 16),
+        child: InkWell(
+          onTap: activate,
+          borderRadius: BorderRadius.circular(8),
+          child: Row(
+            children: [
+              // Cover with Score and Rank
+              AspectRatio(
+                aspectRatio: 0.7,
+                child: Stack(
+                  children: [
+                    Hero(
+                      tag:
+                          'ranking_cover_${item.bangumiId.isNotEmpty ? item.bangumiId : item.title.hashCode}',
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: item.coverUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: item.coverUrl,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                                errorWidget: Container(color: Colors.grey[300]),
+                              )
+                            : Container(color: Colors.grey[300]),
                       ),
                     ),
-                  ),
-                  if (item.score != null && item.score! > 0)
+                    // Rank Tag
                     Positioned(
                       top: 0,
-                      right: 0,
+                      left: 0,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 4,
                           vertical: 2,
                         ),
-                        decoration: const BoxDecoration(
-                          color: Colors.amber,
-                          borderRadius: BorderRadius.only(
-                            bottomLeft: Radius.circular(8),
-                            topRight: Radius.circular(8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          borderRadius: const BorderRadius.only(
+                            bottomRight: Radius.circular(8),
                           ),
                         ),
                         child: Text(
-                          item.score!.toStringAsFixed(1),
+                          rankDisplay,
                           style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -283,45 +244,72 @@ class _RankingListState extends State<RankingList>
                         ),
                       ),
                     ),
-                ],
+                    if (item.score != null && item.score! > 0)
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: Colors.amber,
+                            borderRadius: BorderRadius.only(
+                              bottomLeft: Radius.circular(8),
+                              topRight: Radius.circular(8),
+                            ),
+                          ),
+                          child: Text(
+                            item.score!.toStringAsFixed(1),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 16),
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    item.title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (item.originalTitle != null &&
-                      item.originalTitle!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+              const SizedBox(width: 16),
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                     Text(
-                      item.originalTitle!,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                      maxLines: 1,
+                      item.title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (item.originalTitle != null &&
+                        item.originalTitle!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        item.originalTitle!,
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(
+                      item.info,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                  const SizedBox(height: 8),
-                  Text(
-                    item.info,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

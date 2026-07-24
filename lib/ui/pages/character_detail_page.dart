@@ -7,8 +7,7 @@ import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
-import 'bangumi_details_page.dart';
-import 'person_detail_page.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 typedef CharacterDetailsLoader = Future<CharacterDetails> Function(int id);
 typedef CharacterSubjectsLoader =
@@ -107,19 +106,17 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
 
   void _openBangumiPage(int subjectId) {
     final subject = _subjects.firstWhere((s) => s.id.toInt() == subjectId);
-    Navigator.push(
+    WorkspaceNavigation.open<void>(
       context,
-      MaterialPageRoute(
-        builder: (context) => BangumiDetailsPage(
-          anime: AnimeInfo(
-            title: subject.nameCn.isNotEmpty ? subject.nameCn : subject.name,
-            bangumiId: subjectId.toString(),
-            coverUrl: subject.image,
-            tags: const [],
-          ),
-          heroTag: 'bangumi_$subjectId',
-          enableCharacterHero: false,
+      WorkspaceDestinations.bangumiDetails(
+        anime: AnimeInfo(
+          title: subject.nameCn.isNotEmpty ? subject.nameCn : subject.name,
+          bangumiId: subjectId.toString(),
+          coverUrl: subject.image,
+          tags: const [],
         ),
+        heroTag: 'bangumi_$subjectId',
+        enableCharacterHero: false,
       ),
     );
   }
@@ -132,15 +129,13 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
   ) {
     final heroTag =
         'character_${widget.characterId}_subject_${subjectId}_person_$personId';
-    Navigator.push(
+    WorkspaceNavigation.open<void>(
       context,
-      MaterialPageRoute(
-        builder: (context) => PersonDetailPage(
-          personId: personId,
-          personName: personName,
-          heroImageUrl: imageUrl,
-          heroTag: heroTag,
-        ),
+      WorkspaceDestinations.person(
+        personId: personId,
+        personName: personName,
+        heroImageUrl: imageUrl,
+        heroTag: heroTag,
       ),
     );
   }

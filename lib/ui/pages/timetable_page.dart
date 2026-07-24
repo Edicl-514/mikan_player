@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
-import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/ui/utils/broadcast_day_tokens.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 class TimeTablePage extends StatefulWidget {
   const TimeTablePage({super.key});
@@ -337,146 +337,152 @@ class _TimeTablePageState extends State<TimeTablePage>
   }
 
   Widget _buildAnimeItem(crawler.AnimeInfo anime) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => BangumiDetailsPage(
-                anime: anime,
-                heroTag:
-                    'timetable_cover_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
-              ),
-            ),
-          );
-        },
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                Hero(
-                  tag:
-                      'timetable_cover_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: anime.coverUrl != null
-                        ? CachedNetworkImage(
-                            imageUrl: anime.coverUrl!,
-                            width: 70,
-                            height: 100,
-                            fit: BoxFit.cover,
-                            errorWidget: Container(
+    final heroTag =
+        'timetable_cover_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}';
+    return WorkspaceLink(
+      destination: WorkspaceDestinations.bangumiDetails(
+        anime: anime,
+        heroTag: heroTag,
+      ),
+      builder: (context, activate) => Padding(
+        padding: const EdgeInsets.only(bottom: 16.0),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: activate,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  Hero(
+                    tag: heroTag,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: anime.coverUrl != null
+                          ? CachedNetworkImage(
+                              imageUrl: anime.coverUrl!,
+                              width: 70,
+                              height: 100,
+                              fit: BoxFit.cover,
+                              errorWidget: Container(
+                                width: 70,
+                                height: 100,
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.broken_image,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            )
+                          : Container(
                               width: 70,
                               height: 100,
                               color: Colors.grey[300],
                               child: const Icon(
-                                Icons.broken_image,
+                                Icons.movie,
                                 color: Colors.grey,
                               ),
                             ),
-                          )
-                        : Container(
-                            width: 70,
-                            height: 100,
-                            color: Colors.grey[300],
-                            child: const Icon(Icons.movie, color: Colors.grey),
+                    ),
+                  ),
+                  if (anime.rank != null && anime.rank! > 0)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          borderRadius: const BorderRadius.only(
+                            bottomRight: Radius.circular(8),
                           ),
-                  ),
-                ),
-                if (anime.rank != null && anime.rank! > 0)
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: const BorderRadius.only(
-                          bottomRight: Radius.circular(8),
                         ),
-                      ),
-                      child: Text(
-                        '#${anime.rank}',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                        child: Text(
+                          '#${anime.rank}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                if (anime.score != null && anime.score! > 0)
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      decoration: const BoxDecoration(
-                        color: Colors.amber,
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(8),
+                  if (anime.score != null && anime.score! > 0)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
                         ),
-                      ),
-                      child: Text(
-                        anime.score!.toStringAsFixed(1),
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                        decoration: const BoxDecoration(
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.only(
+                            bottomLeft: Radius.circular(8),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 4),
-                  Text(
-                    anime.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (anime.subTitle != null && anime.subTitle!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(
-                        anime.subTitle!,
-                        style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  if (anime.tags.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(
-                        anime.tags.take(4).join(' / '),
-                        style: TextStyle(color: Colors.grey[500], fontSize: 11),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        child: Text(
+                          anime.score!.toStringAsFixed(1),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 4),
+                    Text(
+                      anime.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (anime.subTitle != null && anime.subTitle!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text(
+                          anime.subTitle!,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    if (anime.tags.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text(
+                          anime.tags.take(4).join(' / '),
+                          style: TextStyle(
+                            color: Colors.grey[500],
+                            fontSize: 11,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

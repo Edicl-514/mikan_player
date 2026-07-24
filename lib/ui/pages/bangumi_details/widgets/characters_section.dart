@@ -4,6 +4,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/section_title.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 /// Classification of a character's role in the cast. Drives both badge color
 /// and the localized label, so badge chrome never compares display strings.
@@ -205,57 +206,68 @@ class _CharacterImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: 120,
-          height: 140,
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isDarkBg ? Colors.white10 : Colors.grey[300]!,
+    return WorkspaceLinkAction(
+      onOpen: (disposition) {
+        final callback = onTap;
+        if (callback != null) {
+          WorkspaceNavigation.dispatchLink(disposition, callback);
+        }
+      },
+      builder: (context, activate) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap == null ? null : activate,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: 120,
+            height: 140,
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDarkBg ? Colors.white10 : Colors.grey[300]!,
+              ),
             ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                imageUrl.isNotEmpty
-                    ? (enableHero
-                          ? Hero(
-                              tag: heroTag,
-                              child: CachedNetworkImage(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  imageUrl.isNotEmpty
+                      ? (enableHero
+                            ? Hero(
+                                tag: heroTag,
+                                child: CachedNetworkImage(
+                                  imageUrl: imageUrl,
+                                  fit: BoxFit.cover,
+                                  alignment: Alignment.topCenter,
+                                  deferOffscreenLoad: false,
+                                ),
+                              )
+                            : CachedNetworkImage(
                                 imageUrl: imageUrl,
                                 fit: BoxFit.cover,
                                 alignment: Alignment.topCenter,
                                 deferOffscreenLoad: false,
-                              ),
-                            )
-                          : CachedNetworkImage(
-                              imageUrl: imageUrl,
-                              fit: BoxFit.cover,
-                              alignment: Alignment.topCenter,
-                              deferOffscreenLoad: false,
-                            ))
-                    : Center(
-                        child: Icon(
-                          Icons.person,
-                          color: isDarkBg ? Colors.white24 : Colors.grey[400],
-                          size: 40,
+                              ))
+                      : Center(
+                          child: Icon(
+                            Icons.person,
+                            color: isDarkBg ? Colors.white24 : Colors.grey[400],
+                            size: 40,
+                          ),
                         ),
+                  if (role != null)
+                    Positioned(
+                      left: 6,
+                      top: 6,
+                      child: _CharacterRoleBadge(
+                        role: role!,
+                        isDarkBg: isDarkBg,
                       ),
-                if (role != null)
-                  Positioned(
-                    left: 6,
-                    top: 6,
-                    child: _CharacterRoleBadge(role: role!, isDarkBg: isDarkBg),
-                  ),
-              ],
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -282,21 +294,29 @@ class _CharacterName extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (canOpenCharacterPage) {
-      return GestureDetector(
-        onTap: onTap,
-        child: Text(
-          name,
-          style: TextStyle(
-            fontSize: 12,
-            color: isDarkBg ? Colors.cyanAccent : Colors.blue.shade800,
-            fontWeight: FontWeight.w600,
-            decoration: TextDecoration.underline,
-            decorationColor: isDarkBg
-                ? Colors.cyanAccent
-                : Colors.blue.shade800,
+      return WorkspaceLinkAction(
+        onOpen: (disposition) {
+          final callback = onTap;
+          if (callback != null) {
+            WorkspaceNavigation.dispatchLink(disposition, callback);
+          }
+        },
+        builder: (context, activate) => GestureDetector(
+          onTap: activate,
+          child: Text(
+            name,
+            style: TextStyle(
+              fontSize: 12,
+              color: isDarkBg ? Colors.cyanAccent : Colors.blue.shade800,
+              fontWeight: FontWeight.w600,
+              decoration: TextDecoration.underline,
+              decorationColor: isDarkBg
+                  ? Colors.cyanAccent
+                  : Colors.blue.shade800,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
         ),
       );
     }
@@ -343,18 +363,26 @@ class _CharacterCvName extends StatelessWidget {
         ),
         Expanded(
           child: hasPersonLink
-              ? GestureDetector(
-                  onTap: onPersonTap,
-                  child: Text(
-                    cvName,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: linkColor,
-                      decoration: TextDecoration.underline,
-                      decorationColor: linkColor,
+              ? WorkspaceLinkAction(
+                  onOpen: (disposition) {
+                    final callback = onPersonTap;
+                    if (callback != null) {
+                      WorkspaceNavigation.dispatchLink(disposition, callback);
+                    }
+                  },
+                  builder: (context, activate) => GestureDetector(
+                    onTap: activate,
+                    child: Text(
+                      cvName,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: linkColor,
+                        decoration: TextDecoration.underline,
+                        decorationColor: linkColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 )
               : Text(

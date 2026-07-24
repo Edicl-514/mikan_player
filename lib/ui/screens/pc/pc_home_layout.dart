@@ -3,9 +3,9 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/home_pc_page.dart';
 import 'package:mikan_player/ui/pages/index_page.dart';
 import 'package:mikan_player/ui/pages/my_page.dart';
-import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/ui/widgets/network_avatar.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 class PcHomeLayout extends StatefulWidget {
   const PcHomeLayout({super.key});
@@ -105,13 +105,10 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
                       const Spacer(),
                       // Search Icon
                       IconButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => const SearchPage(),
-                            ),
-                          );
-                        },
+                        onPressed: () => WorkspaceNavigation.open<void>(
+                          context,
+                          WorkspaceDestinations.search(context),
+                        ),
                         icon: const Icon(Icons.search),
                         tooltip: AppLocalizations.of(context).searchHint,
                       ),

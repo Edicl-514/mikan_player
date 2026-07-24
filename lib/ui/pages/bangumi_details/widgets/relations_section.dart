@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 /// Horizontal-scrolling list of related subjects (relations) for a Bangumi
 /// details page.
@@ -104,66 +105,70 @@ class _RelationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 110,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 110,
-              height: 120,
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: borderColor),
-              ),
-              child: relation.image.isNotEmpty
-                  ? Hero(
-                      tag: 'bangumi_relation_${relation.id.toInt()}',
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: CachedNetworkImage(
-                          imageUrl: relation.image,
-                          fit: BoxFit.cover,
-                          alignment: Alignment.center,
-                          deferOffscreenLoad: false,
+    return WorkspaceLinkAction(
+      onOpen: (disposition) =>
+          WorkspaceNavigation.dispatchLink(disposition, onTap),
+      builder: (context, activate) => GestureDetector(
+        onTap: activate,
+        child: SizedBox(
+          width: 110,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 110,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
+                ),
+                child: relation.image.isNotEmpty
+                    ? Hero(
+                        tag: 'bangumi_relation_${relation.id.toInt()}',
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: CachedNetworkImage(
+                            imageUrl: relation.image,
+                            fit: BoxFit.cover,
+                            alignment: Alignment.center,
+                            deferOffscreenLoad: false,
+                          ),
+                        ),
+                      )
+                    : Center(
+                        child: Icon(
+                          Icons.movie_outlined,
+                          color: isDarkBg ? Colors.white24 : Colors.grey[400],
+                          size: 32,
                         ),
                       ),
-                    )
-                  : Center(
-                      child: Icon(
-                        Icons.movie_outlined,
-                        color: isDarkBg ? Colors.white24 : Colors.grey[400],
-                        size: 32,
-                      ),
-                    ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              relation.relation,
-              style: TextStyle(
-                fontSize: 11,
-                color: isDarkBg ? Colors.amber : Colors.deepPurple,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              relation.nameCn.isNotEmpty ? relation.nameCn : relation.name,
-              style: TextStyle(
-                fontSize: 13,
-                color: textColor!.withValues(alpha: 0.9),
-                fontWeight: FontWeight.w500,
-                height: 1.3,
+              const SizedBox(height: 10),
+              Text(
+                relation.relation,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDarkBg ? Colors.amber : Colors.deepPurple,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                relation.nameCn.isNotEmpty ? relation.nameCn : relation.name,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: textColor!.withValues(alpha: 0.9),
+                  fontWeight: FontWeight.w500,
+                  height: 1.3,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );

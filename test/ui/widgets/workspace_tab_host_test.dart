@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/services/player_session/player_session_identity.dart';
 import 'package:mikan_player/services/workspace_lifecycle.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/ui/widgets/workspace_tab_host.dart';
 import 'package:mikan_player/ui/widgets/workspace_tab_strip.dart';
 
@@ -153,6 +154,60 @@ void main() {
 
     expect(controller.tabById(first), isNull);
     expect(controller.activeTabId, second);
+  });
+
+  testWidgets('ctrl click opens a destination as an inactive tab root', (
+    tester,
+  ) async {
+    final controller = WorkspaceTabController();
+    final hostController = WorkspaceTabHostController();
+    final originalTab = controller.activeTabId;
+    final destination = WorkspaceDestination(
+      routeId: WorkspaceRouteId.allocate(),
+      kind: 'target',
+      title: 'Target',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WorkspaceTabHost(
+          controller: controller,
+          hostController: hostController,
+          destinationBuilder: (context, current) {
+            if (current.kind != WorkspaceDestination.homeKind) {
+              return Text(current.title);
+            }
+            return Material(
+              child: Center(
+                child: WorkspaceLink(
+                  destination: destination,
+                  builder: (context, activate) => InkWell(
+                    key: const ValueKey('workspace-link'),
+                    onTap: activate,
+                    child: const SizedBox(width: 120, height: 48),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    final pointer = TestPointer(9, PointerDeviceKind.mouse);
+    final location = tester.getCenter(
+      find.byKey(const ValueKey('workspace-link')),
+    );
+    await tester.sendEventToBinding(pointer.down(location));
+    await tester.sendEventToBinding(pointer.up());
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+
+    expect(controller.tabs, hasLength(2));
+    expect(controller.activeTabId, originalTab);
+    expect(controller.tabs.last.destinations, [destination]);
+    expect(controller.tabs.last.canGoBack, isFalse);
   });
 }
 

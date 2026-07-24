@@ -15,11 +15,8 @@ import 'package:mikan_player/ui/pages/bangumi_details/layouts/mobile_layout.dart
 import 'package:mikan_player/ui/pages/bangumi_details/layouts/wide_layout.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
-import 'character_detail_page.dart';
-import 'person_detail_page.dart';
-import 'player_page.dart';
-import 'tag_browse_page.dart';
 
 class BangumiDetailsPage extends StatefulWidget {
   final AnimeInfo anime;
@@ -177,11 +174,11 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   // --- Navigation handlers ---
 
   void _openPersonPage(int personId) {
-    Navigator.push(
+    WorkspaceNavigation.open<void>(
       context,
-      MaterialPageRoute(
-        builder: (context) =>
-            PersonDetailPage(personId: personId, enableHeroAnimation: false),
+      WorkspaceDestinations.person(
+        personId: personId,
+        enableHeroAnimation: false,
       ),
     );
   }
@@ -191,22 +188,18 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     String? characterName,
     String? heroImageUrl,
   }) {
-    Navigator.push(
+    WorkspaceNavigation.open<void>(
       context,
-      MaterialPageRoute(
-        builder: (context) => CharacterDetailPage(
-          characterId: characterId,
-          characterName: characterName,
-          heroImageUrl: heroImageUrl,
-        ),
+      WorkspaceDestinations.character(
+        characterId: characterId,
+        characterName: characterName,
+        heroImageUrl: heroImageUrl,
       ),
     );
   }
 
   void _openTagBrowsePage(String tagName) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => TagBrowsePage(tagName: tagName)));
+    WorkspaceNavigation.open<void>(context, WorkspaceDestinations.tag(tagName));
   }
 
   Future<void> _openEpisodePlayer(BangumiEpisode ep) async {
@@ -221,32 +214,29 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
       startPositionMs = null;
     }
     if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PlayerPage(
-          anime: anime,
-          currentEpisode: ep,
-          allEpisodes: _episodes!,
-          startPositionMs: startPositionMs,
-        ),
+    WorkspaceNavigation.open<void>(
+      context,
+      WorkspaceDestinations.player(
+        anime: anime,
+        currentEpisode: ep,
+        allEpisodes: _episodes!,
+        startPositionMs: startPositionMs,
       ),
     );
   }
 
   void _openRelationPage(BangumiRelatedSubject rel) {
-    Navigator.push(
+    WorkspaceNavigation.open<void>(
       context,
-      MaterialPageRoute(
-        builder: (context) => BangumiDetailsPage(
-          anime: AnimeInfo(
-            title: rel.nameCn.isNotEmpty ? rel.nameCn : rel.name,
-            bangumiId: rel.id.toString(),
-            coverUrl: rel.image,
-            tags: const [],
-          ),
-          heroTag: 'bangumi_relation_${rel.id.toInt()}',
-          enableCharacterHero: false,
+      WorkspaceDestinations.bangumiDetails(
+        anime: AnimeInfo(
+          title: rel.nameCn.isNotEmpty ? rel.nameCn : rel.name,
+          bangumiId: rel.id.toString(),
+          coverUrl: rel.image,
+          tags: const [],
         ),
+        heroTag: 'bangumi_relation_${rel.id.toInt()}',
+        enableCharacterHero: false,
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/bangumi_details_helpers.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/person_text_spans.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/section_title.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 /// Story summary section with optional translation/original toggle.
 ///
@@ -37,10 +38,7 @@ class BangumiSummarySection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionTitle(
-          title: l10n.bangumiDetailsStory,
-          isDarkBg: isDarkBg,
-        ),
+        SectionTitle(title: l10n.bangumiDetailsStory, isDarkBg: isDarkBg),
         const SizedBox(height: 12),
         GestureDetector(
           onTap: onToggle,
@@ -103,22 +101,32 @@ class BangumiTagsSection extends StatelessWidget {
           runSpacing: 8,
           children: tagList.map<Widget>((tag) {
             final name = (tag['name'] ?? '') as String;
-            return GestureDetector(
-              onTap: name.isNotEmpty ? () => onTagTap(name) : null,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: isDarkBg ? Colors.white10 : Colors.grey[200],
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  name,
-                  style: TextStyle(
-                    color: isDarkBg ? Colors.white : Colors.black87,
-                    fontSize: 12,
+            return WorkspaceLinkAction(
+              onOpen: (disposition) {
+                if (name.isNotEmpty) {
+                  WorkspaceNavigation.dispatchLink(
+                    disposition,
+                    () => onTagTap(name),
+                  );
+                }
+              },
+              builder: (context, activate) => GestureDetector(
+                onTap: name.isNotEmpty ? activate : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDarkBg ? Colors.white10 : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    name,
+                    style: TextStyle(
+                      color: isDarkBg ? Colors.white : Colors.black87,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ),
@@ -161,27 +169,37 @@ class BangumiMobileTags extends StatelessWidget {
       children: tagList.take(15).map<Widget>((tag) {
         final name = tag['name'];
         final count = tag['count'];
-        return GestureDetector(
-          onTap: name != null ? () => onTagTap(name as String) : null,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              border: Border.all(color: borderColor),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: "$name ",
-                    style: TextStyle(fontSize: 12, color: textColor),
-                  ),
-                  if (count != null)
+        return WorkspaceLinkAction(
+          onOpen: (disposition) {
+            if (name != null) {
+              WorkspaceNavigation.dispatchLink(
+                disposition,
+                () => onTagTap(name as String),
+              );
+            }
+          },
+          builder: (context, activate) => GestureDetector(
+            onTap: name != null ? activate : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                border: Border.all(color: borderColor),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: RichText(
+                text: TextSpan(
+                  children: [
                     TextSpan(
-                      text: "$count",
-                      style: TextStyle(fontSize: 10, color: countColor),
+                      text: "$name ",
+                      style: TextStyle(fontSize: 12, color: textColor),
                     ),
-                ],
+                    if (count != null)
+                      TextSpan(
+                        text: "$count",
+                        style: TextStyle(fontSize: 10, color: countColor),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -227,8 +245,9 @@ class BangumiInfoBoxList extends StatelessWidget {
         ? Colors.white.withValues(alpha: 0.05)
         : Colors.grey.withValues(alpha: 0.1);
     final canCollapse = shouldEnableInfoBoxCollapse(infobox);
-    final visibleItems =
-        isExpanded || !canCollapse ? infobox : infobox.take(6).toList();
+    final visibleItems = isExpanded || !canCollapse
+        ? infobox
+        : infobox.take(6).toList();
     final hiddenCount = infobox.length - visibleItems.length;
 
     return RepaintBoundary(

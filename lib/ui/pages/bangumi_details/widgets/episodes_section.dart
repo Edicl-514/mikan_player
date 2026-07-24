@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/placeholder_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/section_title.dart';
 
@@ -92,64 +93,77 @@ class EpisodesSection extends StatelessWidget {
                 final epDateColor = released
                     ? epTextColor.withValues(alpha: 0.5)
                     : epTextColor.withValues(alpha: 0.72);
-                return Material(
-                  color: epCardColor,
-                  borderRadius: BorderRadius.circular(8),
-                  child: InkWell(
-                    onTap: released ? () => onEpisodeTap(ep) : null,
+                return WorkspaceLinkAction(
+                  onOpen: (disposition) {
+                    if (released) {
+                      WorkspaceNavigation.dispatchLink(
+                        disposition,
+                        () => onEpisodeTap(ep),
+                      );
+                    }
+                  },
+                  builder: (context, activate) => Material(
+                    color: epCardColor,
                     borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      width: 140,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: epBorderColor),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            // i18n-ignore: product lexicon episode index prefix
-                            'EP ${ep.sort % 1 == 0 ? ep.sort.toInt() : ep.sort}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: epIndexColor,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          if (ep.name.isNotEmpty)
+                    child: InkWell(
+                      onTap: released ? activate : null,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        width: 140,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: epBorderColor),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              ep.name,
+                              // i18n-ignore: product lexicon episode index prefix
+                              'EP ${ep.sort % 1 == 0 ? ep.sort.toInt() : ep.sort}',
                               style: TextStyle(
-                                fontSize: 10,
-                                color: epTextColor.withValues(alpha: 0.7),
-                                height: 1.3,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: epIndexColor,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          if (ep.nameCn.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              ep.nameCn,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: epTextColor,
-                                fontWeight: FontWeight.w500,
-                                height: 1.3,
+                            const SizedBox(height: 6),
+                            if (ep.name.isNotEmpty)
+                              Text(
+                                ep.name,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: epTextColor.withValues(alpha: 0.7),
+                                  height: 1.3,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            if (ep.nameCn.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                ep.nameCn,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: epTextColor,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.3,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                            const Spacer(),
+                            if (ep.airdate.isNotEmpty)
+                              Text(
+                                ep.airdate,
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: epDateColor,
+                                ),
+                              ),
                           ],
-                          const Spacer(),
-                          if (ep.airdate.isNotEmpty)
-                            Text(
-                              ep.airdate,
-                              style: TextStyle(fontSize: 9, color: epDateColor),
-                            ),
-                        ],
+                        ),
                       ),
                     ),
                   ),

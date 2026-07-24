@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/services/workspace_tab_controller.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 class AnimeCard extends StatelessWidget {
@@ -8,6 +10,7 @@ class AnimeCard extends StatelessWidget {
   final String? coverUrl;
   final double? score;
   final VoidCallback? onTap;
+  final WorkspaceDestination? destination;
   final String? heroTag;
   final int? cacheWidth;
   final bool deferOffscreenLoad;
@@ -20,6 +23,7 @@ class AnimeCard extends StatelessWidget {
     this.coverUrl,
     this.score,
     this.onTap,
+    this.destination,
     this.heroTag,
     this.cacheWidth,
     this.deferOffscreenLoad = true,
@@ -29,6 +33,17 @@ class AnimeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final destination = this.destination;
+    if (destination != null) {
+      return WorkspaceLink(
+        destination: destination,
+        builder: (context, activate) => _buildCard(context, activate),
+      );
+    }
+    return _buildCard(context, onTap);
+  }
+
+  Widget _buildCard(BuildContext context, VoidCallback? activate) {
     final theme = Theme.of(context);
 
     return Container(
@@ -163,7 +178,7 @@ class AnimeCard extends StatelessWidget {
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: onTap,
+                    onTap: activate,
                     borderRadius: BorderRadius.circular(_cardRadius),
                     splashColor: theme.colorScheme.primary.withValues(
                       alpha: 0.2,

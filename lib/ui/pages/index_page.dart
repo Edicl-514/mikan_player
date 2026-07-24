@@ -3,12 +3,11 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
-import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/pages/index_filter_labels.dart';
-import 'package:mikan_player/ui/pages/search_page.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 class IndexPage extends StatefulWidget {
   const IndexPage({super.key});
@@ -890,8 +889,8 @@ class _IndexPageState extends State<IndexPage> {
                   coverUrl: anime.coverUrl,
                   score: anime.score,
                   heroTag: heroTag,
-                  onTap: () {
-                    final animeInfo = crawler.AnimeInfo(
+                  destination: WorkspaceDestinations.bangumiDetails(
+                    anime: crawler.AnimeInfo(
                       title: anime.title,
                       bangumiId: anime.bangumiId,
                       coverUrl: anime.coverUrl,
@@ -904,18 +903,9 @@ class _IndexPageState extends State<IndexPage> {
                       broadcastDay: null,
                       broadcastTime: null,
                       fullJson: null,
-                    );
-
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => BangumiDetailsPage(
-                          anime: animeInfo,
-                          heroTag:
-                              'index_cover_${animeInfo.bangumiId ?? animeInfo.mikanId ?? animeInfo.title.hashCode}',
-                        ),
-                      ),
-                    );
-                  },
+                    ),
+                    heroTag: heroTag,
+                  ),
                 );
               }, childCount: _animes.length),
             ),
@@ -942,12 +932,10 @@ class _IndexPageState extends State<IndexPage> {
             IconButton(
               icon: const Icon(Icons.search),
               tooltip: l10n.searchHint,
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SearchPage()),
-                );
-              },
+              onPressed: () => WorkspaceNavigation.open<void>(
+                context,
+                WorkspaceDestinations.search(context),
+              ),
             ),
           ],
         ),

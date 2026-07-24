@@ -4,17 +4,13 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
-import 'package:mikan_player/ui/pages/settings_page.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/services/user_manager.dart';
-import 'package:mikan_player/ui/pages/search_page.dart';
-import 'package:mikan_player/ui/pages/favorites_page.dart';
-import 'package:mikan_player/ui/pages/history_page.dart';
-import 'package:mikan_player/ui/pages/player_page.dart';
-import 'package:mikan_player/ui/pages/about_page.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
+import 'package:mikan_player/services/workspace_tab_controller.dart';
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -127,24 +123,14 @@ class _MyPageState extends State<MyPage> {
           Icons.history,
           AppLocalizations.of(context).historyTitle,
           AppLocalizations.of(context).historySubtitle,
-          () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const HistoryPage()),
-            );
-          },
+          WorkspaceDestinations.history(context),
         ),
         _buildTile(
           context,
           Icons.favorite,
           AppLocalizations.of(context).favoritesTitle,
           AppLocalizations.of(context).favoritesSubtitle,
-          () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const FavoritesPage()),
-            );
-          },
+          WorkspaceDestinations.favorites(context),
         ),
         const Divider(),
         _buildTile(
@@ -152,24 +138,14 @@ class _MyPageState extends State<MyPage> {
           Icons.settings,
           AppLocalizations.of(context).navSettings,
           AppLocalizations.of(context).settingsSubtitle,
-          () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const SettingsPage()),
-            );
-          },
+          WorkspaceDestinations.settings(context),
         ),
         _buildTile(
           context,
           Icons.info,
           AppLocalizations.of(context).aboutTitle,
           AppLocalizations.of(context).version('1.0.0'),
-          () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AboutPage()),
-            );
-          },
+          WorkspaceDestinations.about(context),
         ),
       ],
     );
@@ -186,9 +162,9 @@ class _MyPageState extends State<MyPage> {
               icon: const Icon(Icons.search),
               tooltip: AppLocalizations.of(context).searchHint,
               onPressed: () {
-                Navigator.push(
+                WorkspaceNavigation.open<void>(
                   context,
-                  MaterialPageRoute(builder: (context) => const SearchPage()),
+                  WorkspaceDestinations.search(context),
                 );
               },
             ),
@@ -205,81 +181,81 @@ class _MyPageState extends State<MyPage> {
     final activeCount = _downloadManager.activeCount;
     final seedingCount = _downloadManager.seedingCount;
 
-    return Card(
-      elevation: 0,
-      color: Theme.of(
-        context,
-      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Icon(Icons.download, color: Theme.of(context).colorScheme.primary),
-            // Show red badge only for active downloads (not seeding)
-            if (activeCount > 0)
-              Positioned(
-                right: 0,
-                top: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(2.5),
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    '$activeCount',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+    return WorkspaceLink(
+      destination: WorkspaceDestinations.downloads(context),
+      builder: (context, activate) => Card(
+        elevation: 0,
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        margin: const EdgeInsets.only(bottom: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ListTile(
+          leading: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                Icons.download,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              // Show red badge only for active downloads (not seeding)
+              if (activeCount > 0)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(2.5),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '$activeCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            // Show green badge for seeding only if no active downloads
-            if (activeCount == 0 && seedingCount > 0)
-              Positioned(
-                right: 0,
-                top: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(2.5),
-                  decoration: const BoxDecoration(
-                    color: Colors.green,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    '$seedingCount',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+              // Show green badge for seeding only if no active downloads
+              if (activeCount == 0 && seedingCount > 0)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(2.5),
+                    decoration: const BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '$seedingCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
+          title: Text(
+            AppLocalizations.of(context).downloadTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(
+            activeCount > 0
+                ? '$activeCount ${AppLocalizations.of(context).downloading}${seedingCount > 0 ? ', $seedingCount ${AppLocalizations.of(context).seeding}' : ''}'
+                : seedingCount > 0
+                ? '$seedingCount ${AppLocalizations.of(context).seeding}'
+                : AppLocalizations.of(context).downloadSubtitle,
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: activate,
         ),
-        title: Text(
-          AppLocalizations.of(context).downloadTitle,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(
-          activeCount > 0
-              ? '$activeCount ${AppLocalizations.of(context).downloading}${seedingCount > 0 ? ', $seedingCount ${AppLocalizations.of(context).seeding}' : ''}'
-              : seedingCount > 0
-              ? '$seedingCount ${AppLocalizations.of(context).seeding}'
-              : AppLocalizations.of(context).downloadSubtitle,
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const DownloadManagerPage(),
-            ),
-          );
-        },
       ),
     );
   }
@@ -288,22 +264,28 @@ class _MyPageState extends State<MyPage> {
     BuildContext context,
     IconData icon,
     String title,
-    String subtitle, [
-    VoidCallback? onTap,
-  ]) {
-    return Card(
-      elevation: 0,
-      color: Theme.of(
-        context,
-      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap ?? () {},
+    String subtitle,
+    WorkspaceDestination destination,
+  ) {
+    return WorkspaceLink(
+      destination: destination,
+      builder: (context, activate) => Card(
+        elevation: 0,
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        margin: const EdgeInsets.only(bottom: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ListTile(
+          leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(subtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: activate,
+        ),
       ),
     );
   }
@@ -1019,9 +1001,9 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
                   children: [
                     Expanded(
                       child: Text(
-                        AppLocalizations.of(context).downloadEpisodeNumber(
-                          task.episodeNumber!,
-                        ),
+                        AppLocalizations.of(
+                          context,
+                        ).downloadEpisodeNumber(task.episodeNumber!),
                         style: TextStyle(color: Colors.grey[500], fontSize: 11),
                       ),
                     ),
@@ -1376,16 +1358,14 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
 
     if (!mounted) return;
 
-    Navigator.push(
+    WorkspaceNavigation.open<void>(
       context,
-      MaterialPageRoute(
-        builder: (context) => PlayerPage(
-          anime: anime!,
-          currentEpisode: currentEpisode!,
-          allEpisodes: allEpisodes,
-          btStreamUrl: streamUrl,
-          startPositionMs: startPositionMs,
-        ),
+      WorkspaceDestinations.player(
+        anime: anime,
+        currentEpisode: currentEpisode,
+        allEpisodes: allEpisodes,
+        btStreamUrl: streamUrl,
+        startPositionMs: startPositionMs,
       ),
     );
   }

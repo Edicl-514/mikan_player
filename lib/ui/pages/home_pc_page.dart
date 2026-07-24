@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
@@ -8,7 +7,6 @@ import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/models/bangumi_user_collection.dart';
 import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
-import 'package:mikan_player/services/cache/image_cache_service.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/services/playback_history_episode_resolver.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
@@ -17,12 +15,6 @@ import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart' as rust_bangumi;
 import 'package:mikan_player/src/rust/api/ranking.dart';
-import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
-import 'package:mikan_player/ui/pages/favorites_page.dart';
-import 'package:mikan_player/ui/pages/history_page.dart';
-import 'package:mikan_player/ui/pages/player_page.dart';
-import 'package:mikan_player/ui/pages/ranking_page.dart';
-import 'package:mikan_player/ui/pages/timetable_page.dart';
 import 'package:mikan_player/ui/utils/broadcast_day_tokens.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
@@ -30,6 +22,7 @@ import 'package:mikan_player/ui/widgets/blurred_cover_background.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 class HomePcPage extends StatefulWidget {
   const HomePcPage({super.key});
@@ -346,31 +339,10 @@ class _HomePcPageState extends State<HomePcPage> {
     }
   }
 
-  Future<void> _openBangumiDetails({
-    required crawler.AnimeInfo anime,
-    required String heroTag,
-  }) {
-    _precacheCover(anime.coverUrl);
-    return Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            BangumiDetailsPage(anime: anime, heroTag: heroTag),
-      ),
-    );
-  }
-
-  void _precacheCover(String? coverUrl) {
-    final url = coverUrl;
-    if (url == null || url.isEmpty) return;
-    final localPath = ImageCacheService.instance.getCachedPathSync(url);
-    if (localPath == null) return;
-    final file = File(localPath);
-    if (!file.existsSync()) return;
-    precacheImage(FileImage(file), context);
-  }
-
-  Future<void> _openHistoryItem(PlaybackHistoryItem item) async {
+  Future<void> _openHistoryItem(
+    PlaybackHistoryItem item, {
+    WorkspaceOpenDisposition disposition = WorkspaceOpenDisposition.currentTab,
+  }) async {
     final episodes = await resolvePlaybackHistoryEpisodes(item);
     final playableEpisodes = episodes.releasedEpisodes();
     if (playableEpisodes.isEmpty) {
@@ -398,16 +370,15 @@ class _HomePcPageState extends State<HomePcPage> {
     }
 
     if (!mounted) return;
-    Navigator.push(
+    WorkspaceNavigation.open<void>(
       context,
-      MaterialPageRoute(
-        builder: (context) => PlayerPage(
-          anime: item.toAnimeInfo(),
-          currentEpisode: currentEpisode,
-          allEpisodes: playableEpisodes,
-          startPositionMs: item.lastPositionMs,
-        ),
+      WorkspaceDestinations.player(
+        anime: item.toAnimeInfo(),
+        currentEpisode: currentEpisode,
+        allEpisodes: playableEpisodes,
+        startPositionMs: item.lastPositionMs,
       ),
+      disposition: disposition,
     );
   }
 
@@ -427,11 +398,9 @@ class _HomePcPageState extends State<HomePcPage> {
                 _buildTodaySection(),
                 const SizedBox(height: 32),
                 _buildSectionHeader(AppLocalizations.of(context).recentHot, () {
-                  Navigator.push(
+                  WorkspaceNavigation.open<void>(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const RankingPage(),
-                    ),
+                    WorkspaceDestinations.ranking(context),
                   );
                 }),
                 const SizedBox(height: 16),
@@ -440,11 +409,9 @@ class _HomePcPageState extends State<HomePcPage> {
                 _buildSectionHeader(
                   AppLocalizations.of(context).historyTitle,
                   () {
-                    Navigator.push(
+                    WorkspaceNavigation.open<void>(
                       context,
-                      MaterialPageRoute(
-                        builder: (context) => const HistoryPage(),
-                      ),
+                      WorkspaceDestinations.history(context),
                     );
                   },
                 ),
@@ -454,11 +421,9 @@ class _HomePcPageState extends State<HomePcPage> {
                 _buildSectionHeader(
                   AppLocalizations.of(context).favoritesTitle,
                   () {
-                    Navigator.push(
+                    WorkspaceNavigation.open<void>(
                       context,
-                      MaterialPageRoute(
-                        builder: (context) => const FavoritesPage(),
-                      ),
+                      WorkspaceDestinations.favorites(context),
                     );
                   },
                 ),
@@ -567,11 +532,9 @@ class _HomePcPageState extends State<HomePcPage> {
               ElevatedButton.icon(
                 icon: const Icon(Icons.calendar_month),
                 onPressed: () {
-                  Navigator.push(
+                  WorkspaceNavigation.open<void>(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const TimeTablePage(),
-                    ),
+                    WorkspaceDestinations.timetable(context),
                   );
                 },
                 label: Text(AppLocalizations.of(context).viewFullTimetable),
@@ -594,11 +557,9 @@ class _HomePcPageState extends State<HomePcPage> {
             ),
             IconButton(
               onPressed: () {
-                Navigator.push(
+                WorkspaceNavigation.open<void>(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const TimeTablePage(),
-                  ),
+                  WorkspaceDestinations.timetable(context),
                 );
               },
               icon: const Icon(Icons.calendar_month),
@@ -614,6 +575,8 @@ class _HomePcPageState extends State<HomePcPage> {
             controller: _todayPageController,
             itemBuilder: (context, index) {
               final anime = _todayAnimes[index];
+              final heroTag =
+                  'home_pc_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}';
               return AnimatedBuilder(
                 animation: _todayPageController,
                 builder: (context, child) {
@@ -630,143 +593,146 @@ class _HomePcPageState extends State<HomePcPage> {
                     ),
                   );
                 },
-                child: GestureDetector(
-                  onTap: () {
-                    _todayTimer?.cancel();
-                    _openBangumiDetails(
-                      anime: anime,
-                      heroTag:
-                          'home_pc_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
-                    ).then((_) => _startTodayTimer());
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 12.0),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        BlurredCoverBackground(
-                          imageUrl: anime.coverUrl ?? '',
-                          borderRadius: BorderRadius.circular(24),
-                          blurSigma: 26,
-                          scale: 1.16,
-                          overlayOpacity: 0.1,
-                          highlightOpacity: 0.14,
-                          borderOpacity: 0.14,
-                        ),
-                        Positioned.fill(
-                          child: Row(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.all(24.0),
-                                child: AspectRatio(
-                                  aspectRatio: 3 / 4,
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Hero(
-                                      tag:
-                                          'home_pc_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
-                                      child: CachedNetworkImage(
-                                        imageUrl: anime.coverUrl ?? '',
-                                        fit: BoxFit.cover,
-                                        cacheWidth: 600,
-                                        cacheHeight: 800,
-                                        deferOffscreenLoad: false,
-                                        errorWidget: Container(
-                                          color: Colors.grey[800],
+                child: WorkspaceLink(
+                  destination: WorkspaceDestinations.bangumiDetails(
+                    anime: anime,
+                    heroTag: heroTag,
+                  ),
+                  builder: (context, activate) => GestureDetector(
+                    onTap: () {
+                      _todayTimer?.cancel();
+                      activate();
+                      _startTodayTimer();
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 12.0),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          BlurredCoverBackground(
+                            imageUrl: anime.coverUrl ?? '',
+                            borderRadius: BorderRadius.circular(24),
+                            blurSigma: 26,
+                            scale: 1.16,
+                            overlayOpacity: 0.1,
+                            highlightOpacity: 0.14,
+                            borderOpacity: 0.14,
+                          ),
+                          Positioned.fill(
+                            child: Row(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(24.0),
+                                  child: AspectRatio(
+                                    aspectRatio: 3 / 4,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Hero(
+                                        tag: heroTag,
+                                        child: CachedNetworkImage(
+                                          imageUrl: anime.coverUrl ?? '',
+                                          fit: BoxFit.cover,
+                                          cacheWidth: 600,
+                                          cacheHeight: 800,
+                                          deferOffscreenLoad: false,
+                                          errorWidget: Container(
+                                            color: Colors.grey[800],
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.only(
-                                    right: 32.0,
-                                    top: 32,
-                                    bottom: 32,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        anime.title,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 32,
-                                          fontWeight: FontWeight.bold,
-                                          shadows: [
-                                            Shadow(
-                                              color: Colors.black45,
-                                              blurRadius: 8,
-                                            ),
-                                          ],
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      if (anime.broadcastTime != null)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            AppLocalizations.of(
-                                              context,
-                                            ).updateTime(anime.broadcastTime!),
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                      const SizedBox(height: 16),
-                                      Expanded(
-                                        child: Builder(
-                                          builder: (context) {
-                                            final extra = _getExtraInfo(
-                                              anime,
-                                              AppLocalizations.of(context),
-                                            );
-                                            if (extra.isEmpty) {
-                                              return const SizedBox();
-                                            }
-                                            return Text(
-                                              extra,
-                                              style: TextStyle(
-                                                color: Colors.white.withValues(
-                                                  alpha: 0.85,
-                                                ),
-                                                fontSize: 14,
-                                                height: 1.5,
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(
+                                      right: 32.0,
+                                      top: 32,
+                                      bottom: 32,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          anime.title,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.bold,
+                                            shadows: [
+                                              Shadow(
+                                                color: Colors.black45,
+                                                blurRadius: 8,
                                               ),
-                                              maxLines: 5,
-                                              overflow: TextOverflow.ellipsis,
-                                            );
-                                          },
+                                            ],
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(height: 16),
+                                        if (anime.broadcastTime != null)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 6,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.primary,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              AppLocalizations.of(
+                                                context,
+                                              ).updateTime(
+                                                anime.broadcastTime!,
+                                              ),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        const SizedBox(height: 16),
+                                        Expanded(
+                                          child: Builder(
+                                            builder: (context) {
+                                              final extra = _getExtraInfo(
+                                                anime,
+                                                AppLocalizations.of(context),
+                                              );
+                                              if (extra.isEmpty) {
+                                                return const SizedBox();
+                                              }
+                                              return Text(
+                                                extra,
+                                                style: TextStyle(
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.85),
+                                                  fontSize: 14,
+                                                  height: 1.5,
+                                                ),
+                                                maxLines: 5,
+                                                overflow: TextOverflow.ellipsis,
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -827,21 +793,17 @@ class _HomePcPageState extends State<HomePcPage> {
                 heroTag: 'home_pc_rank_${anime.bangumiId}',
                 cacheWidth: 320,
                 deferOffscreenLoad: false,
-                onTap: () {
-                  final info = crawler.AnimeInfo(
+                destination: WorkspaceDestinations.bangumiDetails(
+                  anime: crawler.AnimeInfo(
                     title: anime.title,
                     bangumiId: anime.bangumiId,
                     coverUrl: anime.coverUrl,
                     score: anime.score,
                     rank: anime.rank,
                     tags: [],
-                  );
-                  _openBangumiDetails(
-                    anime: info,
-                    heroTag:
-                        'home_pc_rank_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
-                  );
-                },
+                  ),
+                  heroTag: 'home_pc_rank_${anime.bangumiId}',
+                ),
               );
             }).toList(),
           );
@@ -886,59 +848,65 @@ class _HomePcPageState extends State<HomePcPage> {
             mainAxisSpacing: spacing,
             childAspectRatio: cardWidth / cardHeight,
             children: items.map((item) {
-              return Card(
-                elevation: 0,
-                color: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: () => _openHistoryItem(item),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: CachedNetworkImage(
-                          imageUrl: item.coverUrl ?? '',
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          cacheWidth: 360,
-                          deferOffscreenLoad: false,
+              return WorkspaceLinkAction(
+                onOpen: (disposition) =>
+                    _openHistoryItem(item, disposition: disposition),
+                builder: (context, activate) => Card(
+                  elevation: 0,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: activate,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: CachedNetworkImage(
+                            imageUrl: item.coverUrl ?? '',
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            cacheWidth: 360,
+                            deferOffscreenLoad: false,
+                          ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
                               ),
-                            ),
-                            Text(
-                              AppLocalizations.of(context).homeEpisodeProgress(
-                                '${item.episodeSort % 1 == 0 ? item.episodeSort.toInt() : item.episodeSort}',
-                                item.episodeName,
+                              Text(
+                                AppLocalizations.of(
+                                  context,
+                                ).homeEpisodeProgress(
+                                  '${item.episodeSort % 1 == 0 ? item.episodeSort.toInt() : item.episodeSort}',
+                                  item.episodeName,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -1013,20 +981,16 @@ class _HomePcPageState extends State<HomePcPage> {
                 heroTag: 'home_pc_fav_$id',
                 cacheWidth: 320,
                 deferOffscreenLoad: false,
-                onTap: () {
-                  final info = crawler.AnimeInfo(
+                destination: WorkspaceDestinations.bangumiDetails(
+                  anime: crawler.AnimeInfo(
                     title: title,
                     bangumiId: id,
                     coverUrl: cover,
                     score: score,
                     tags: [],
-                  );
-                  _openBangumiDetails(
-                    anime: info,
-                    heroTag:
-                        'home_pc_fav_${info.bangumiId ?? info.mikanId ?? info.title.hashCode}',
-                  );
-                },
+                  ),
+                  heroTag: 'home_pc_fav_$id',
+                ),
               );
             }).toList(),
           );

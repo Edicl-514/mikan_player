@@ -4,11 +4,12 @@ import 'package:mikan_player/models/bangumi_user_collection.dart';
 import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/services/user_manager.dart';
-import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
+import 'package:mikan_player/services/workspace_tab_controller.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart' as rust_bangumi;
 import 'package:mikan_player/src/rust/api/crawler.dart' as rust_crawler;
@@ -213,15 +214,13 @@ class _FavoritesPageState extends State<FavoritesPage>
             score: item.score,
             subtitle: _getTypeLabel(context, item.type),
             heroTag: heroTag,
-            onTap: () {
-              _navigateToDetails(
-                item.bangumiId.toString(),
-                item.title,
-                item.coverUrl,
-                item.score,
-                heroTag: heroTag,
-              );
-            },
+            destination: _detailsDestination(
+              item.bangumiId.toString(),
+              item.title,
+              item.coverUrl,
+              item.score,
+              heroTag: heroTag,
+            ),
             trailing: IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: l10n.favoritesRemoveTooltip,
@@ -303,22 +302,20 @@ class _FavoritesPageState extends State<FavoritesPage>
             score: item.subject.score,
             subtitle: _getTypeLabel(context, item.type),
             heroTag: heroTag,
-            onTap: () {
-              _navigateToDetails(
-                item.subject.id.toString(),
-                item.subject.name,
-                item.subject.images.large,
-                item.subject.score,
-                heroTag: heroTag,
-              );
-            },
+            destination: _detailsDestination(
+              item.subject.id.toString(),
+              item.subject.name,
+              item.subject.images.large,
+              item.subject.score,
+              heroTag: heroTag,
+            ),
           );
         },
       ),
     );
   }
 
-  void _navigateToDetails(
+  WorkspaceDestination _detailsDestination(
     String bangumiId,
     String title,
     String cover,
@@ -332,12 +329,9 @@ class _FavoritesPageState extends State<FavoritesPage>
       score: score,
       tags: [],
     );
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            BangumiDetailsPage(anime: animeInfo, heroTag: heroTag),
-      ),
+    return WorkspaceDestinations.bangumiDetails(
+      anime: animeInfo,
+      heroTag: heroTag,
     );
   }
 
@@ -366,91 +360,98 @@ class _FavoritesPageState extends State<FavoritesPage>
     required double score,
     required String subtitle,
     required String heroTag,
-    required VoidCallback onTap,
+    required WorkspaceDestination destination,
     Widget? trailing,
   }) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Cover
-            SizedBox(
-              width: 80,
-              height: 110,
-              child: Hero(
-                tag: heroTag,
-                child: CachedNetworkImage(
-                  imageUrl: coverUrl,
-                  fit: BoxFit.cover,
-                  errorWidget: Container(color: Colors.grey),
+    return WorkspaceLink(
+      destination: destination,
+      builder: (context, activate) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: activate,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Cover
+              SizedBox(
+                width: 80,
+                height: 110,
+                child: Hero(
+                  tag: heroTag,
+                  child: CachedNetworkImage(
+                    imageUrl: coverUrl,
+                    fit: BoxFit.cover,
+                    errorWidget: Container(color: Colors.grey),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            // Info
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+              const SizedBox(width: 12),
+              // Info
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            subtitle,
-                            style: TextStyle(
-                              fontSize: 10,
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
                               color: Theme.of(
                                 context,
-                              ).colorScheme.onPrimaryContainer,
+                              ).colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              subtitle,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (score > 0) ...[
-                          const Icon(Icons.star, size: 14, color: Colors.amber),
-                          const SizedBox(width: 2),
-                          Text(
-                            "$score",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                          const SizedBox(width: 8),
+                          if (score > 0) ...[
+                            const Icon(
+                              Icons.star,
+                              size: 14,
+                              color: Colors.amber,
                             ),
-                          ),
+                            const SizedBox(width: 2),
+                            Text(
+                              "$score",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            if (trailing != null)
-              Padding(padding: const EdgeInsets.all(12.0), child: trailing),
-          ],
+              if (trailing != null)
+                Padding(padding: const EdgeInsets.all(12.0), child: trailing),
+            ],
+          ),
         ),
       ),
     );

@@ -5,8 +5,8 @@ import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
-import 'package:mikan_player/ui/pages/bangumi_details_page.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 typedef SearchPageFetcher =
     Future<List<RankingAnime>> Function(SearchRequest request, int page);
@@ -386,8 +386,8 @@ class _SearchPageState extends State<SearchPage> {
                 coverUrl: anime.coverUrl,
                 score: anime.score,
                 heroTag: heroTag,
-                onTap: () {
-                  final animeInfo = crawler.AnimeInfo(
+                destination: WorkspaceDestinations.bangumiDetails(
+                  anime: crawler.AnimeInfo(
                     title: anime.title,
                     bangumiId: anime.bangumiId,
                     coverUrl: anime.coverUrl,
@@ -400,17 +400,9 @@ class _SearchPageState extends State<SearchPage> {
                     broadcastDay: null,
                     broadcastTime: null,
                     fullJson: null,
-                  );
-
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => BangumiDetailsPage(
-                        anime: animeInfo,
-                        heroTag: heroTag,
-                      ),
-                    ),
-                  );
-                },
+                  ),
+                  heroTag: heroTag,
+                ),
               );
             }, childCount: _results.length),
           ),

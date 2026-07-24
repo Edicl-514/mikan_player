@@ -9,8 +9,7 @@ import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
-import 'bangumi_details_page.dart';
-import 'character_detail_page.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 typedef PersonDetailsLoader = Future<PersonDetails> Function(int id);
 typedef PersonSubjectsLoader = Future<List<PersonSubject>> Function(int id);
@@ -188,35 +187,31 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     String? heroTag,
   }) {
     final tag = heroTag ?? 'person_${widget.personId}_subj_$subjectId';
-    Navigator.push(
+    WorkspaceNavigation.open<void>(
       context,
-      MaterialPageRoute(
-        builder: (context) => BangumiDetailsPage(
-          anime: AnimeInfo(
-            title: name,
-            bangumiId: subjectId.toString(),
-            coverUrl: image,
-            tags: const [],
-          ),
-          heroTag: tag,
-          enableCharacterHero: false,
+      WorkspaceDestinations.bangumiDetails(
+        anime: AnimeInfo(
+          title: name,
+          bangumiId: subjectId.toString(),
+          coverUrl: image,
+          tags: const [],
         ),
+        heroTag: tag,
+        enableCharacterHero: false,
       ),
     );
   }
 
   void _openCharacterPage(int characterId, String name, String? imageUrl) {
     final heroTag = 'person_${widget.personId}_char_$characterId';
-    Navigator.push(
+    WorkspaceNavigation.open<void>(
       context,
-      MaterialPageRoute(
-        builder: (context) => CharacterDetailPage(
-          characterId: characterId,
-          characterName: name,
-          heroImageUrl: imageUrl,
-          enableHeroAnimation: true,
-          heroTag: heroTag,
-        ),
+      WorkspaceDestinations.character(
+        characterId: characterId,
+        characterName: name,
+        heroImageUrl: imageUrl,
+        enableHeroAnimation: true,
+        heroTag: heroTag,
       ),
     );
   }

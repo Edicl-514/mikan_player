@@ -4,10 +4,10 @@ import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/services/playback_history_episode_resolver.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
-import 'package:mikan_player/ui/pages/player_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 typedef HistoryLoader = Future<List<PlaybackHistoryItem>> Function();
 typedef HistoryRemover = Future<void> Function(String key);
@@ -71,7 +71,10 @@ class _HistoryPageState extends State<HistoryPage> {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _openHistoryItem(PlaybackHistoryItem item) async {
+  Future<void> _openHistoryItem(
+    PlaybackHistoryItem item, {
+    WorkspaceOpenDisposition disposition = WorkspaceOpenDisposition.currentTab,
+  }) async {
     final episodes = await resolvePlaybackHistoryEpisodes(item);
     final playableEpisodes = episodes.releasedEpisodes();
     if (playableEpisodes.isEmpty) {
@@ -99,16 +102,15 @@ class _HistoryPageState extends State<HistoryPage> {
     }
 
     if (!mounted) return;
-    Navigator.push(
+    WorkspaceNavigation.open<void>(
       context,
-      MaterialPageRoute(
-        builder: (context) => PlayerPage(
-          anime: item.toAnimeInfo(),
-          currentEpisode: currentEpisode,
-          allEpisodes: playableEpisodes,
-          startPositionMs: item.lastPositionMs,
-        ),
+      WorkspaceDestinations.player(
+        anime: item.toAnimeInfo(),
+        currentEpisode: currentEpisode,
+        allEpisodes: playableEpisodes,
+        startPositionMs: item.lastPositionMs,
       ),
+      disposition: disposition,
     );
   }
 
@@ -169,62 +171,66 @@ class _HistoryPageState extends State<HistoryPage> {
             // i18n-ignore: product lexicon episode index prefix
             final episodeLabel = 'EP ${_formatEpisodeSort(item.episodeSort)}';
 
-            return Card(
-              elevation: 0,
-              color: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+            return WorkspaceLinkAction(
+              onOpen: (disposition) =>
+                  _openHistoryItem(item, disposition: disposition),
+              builder: (context, activate) => Card(
+                elevation: 0,
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                leading: coverUrl.isEmpty
-                    ? Container(
-                        width: 56,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[800],
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  leading: coverUrl.isEmpty
+                      ? Container(
+                          width: 56,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[800],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.image, color: Colors.grey),
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: coverUrl,
+                          width: 56,
+                          height: 80,
+                          fit: BoxFit.cover,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.image, color: Colors.grey),
-                      )
-                    : CachedNetworkImage(
-                        imageUrl: coverUrl,
-                        width: 56,
-                        height: 80,
-                        fit: BoxFit.cover,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                title: Text(
-                  item.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  title: Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    // i18n-ignore: composed history subtitle with upstream episode title
+                    '$episodeLabel  ${item.episodeNameCn.isNotEmpty ? item.episodeNameCn : item.episodeName}${item.lastPositionMs > 0 ? ' · ${_formatMs(item.lastPositionMs)}' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: l10n.historyDeleteTooltip,
+                    onPressed: () async {
+                      final remove = widget.removeHistory;
+                      if (remove != null) {
+                        await remove(item.key);
+                      } else {
+                        await _historyManager.remove(item.key);
+                      }
+                      if (mounted) await _reload();
+                    },
+                  ),
+                  onTap: activate,
                 ),
-                subtitle: Text(
-                  // i18n-ignore: composed history subtitle with upstream episode title
-                  '$episodeLabel  ${item.episodeNameCn.isNotEmpty ? item.episodeNameCn : item.episodeName}${item.lastPositionMs > 0 ? ' · ${_formatMs(item.lastPositionMs)}' : ''}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: l10n.historyDeleteTooltip,
-                  onPressed: () async {
-                    final remove = widget.removeHistory;
-                    if (remove != null) {
-                      await remove(item.key);
-                    } else {
-                      await _historyManager.remove(item.key);
-                    }
-                    if (mounted) await _reload();
-                  },
-                ),
-                onTap: () => _openHistoryItem(item),
               ),
             );
           },

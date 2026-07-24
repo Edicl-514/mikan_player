@@ -451,6 +451,18 @@ flowchart TD
 
 **目的**：按页面族渐进迁移，不一次性替换所有 `Navigator.push`。
 
+**状态（2026-07-24）**：已完成落地。集中式 `WorkspaceDestination` 构建器覆盖首页、检索/排行/时间表、详情人物/角色/标签/关联、历史/收藏/我的/设置子页和 Player；Windows 链接统一支持当前 Tab、Ctrl+左键与中键后台 Tab，异步解析 Player destination 时仍保留打开意图；移动端无 Workspace capability 时继续使用原 Navigator，返回值型设置编辑页保持当前 Tab 命令式路由。
+
+#### 落地路径（实现索引）
+
+| 产物 | 路径 |
+|------|------|
+| 集中 destination 工厂 / route builder / capability | `lib/ui/navigation/workspace_navigation.dart` |
+| 浏览器式链接手势适配 | `lib/ui/navigation/workspace_navigation.dart`、`lib/ui/widgets/anime_card.dart` |
+| 后台 Tab 初始历史与独立 host 接入 | `lib/services/workspace_tab_controller.dart`、`lib/ui/widgets/workspace_tab_host.dart` |
+| 主要页面族迁移 | `lib/ui/pages/`、`lib/ui/screens/pc/pc_home_layout.dart` |
+| Phase 5 导航与输入测试 | `test/ui/navigation/workspace_navigation_test.dart`、`test/services/workspace_tab_controller_test.dart` |
+
 #### 步骤
 
 1. 建立 `WorkspaceDestination` 类型和集中 route builder：

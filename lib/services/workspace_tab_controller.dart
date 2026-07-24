@@ -118,8 +118,11 @@ class WorkspaceTabController extends ChangeNotifier {
     return null;
   }
 
-  WorkspaceTabId create({bool activate = true}) {
-    final tab = _newTabState();
+  WorkspaceTabId create({
+    bool activate = true,
+    WorkspaceDestination? initialDestination,
+  }) {
+    final tab = _newTabState(initialDestination: initialDestination);
     _tabs = <WorkspaceTabState>[..._tabs, tab];
     if (activate) _activeTabId = tab.id;
     notifyListeners();
@@ -283,8 +286,9 @@ class WorkspaceTabController extends ChangeNotifier {
     notifyListeners();
   }
 
-  WorkspaceTabState _newTabState() {
-    final destination = WorkspaceDestination.home(title: _homeTitle);
+  WorkspaceTabState _newTabState({WorkspaceDestination? initialDestination}) {
+    final destination =
+        initialDestination ?? WorkspaceDestination.home(title: _homeTitle);
     return WorkspaceTabState(
       id: WorkspaceTabId('workspace-${++_nextTabId}'),
       destinations: <WorkspaceDestination>[destination],

@@ -7,7 +7,7 @@ import 'package:mikan_player/services/player_session/player_session_identity.dar
 import 'package:mikan_player/services/workspace_lifecycle.dart';
 import 'package:mikan_player/services/workspace_route_observer.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
-import 'package:mikan_player/ui/screens/home_screen.dart';
+import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 
 typedef WorkspaceDestinationBuilder =
     Widget Function(BuildContext context, WorkspaceDestination destination);
@@ -240,10 +240,7 @@ class _WorkspaceTabHostState extends State<WorkspaceTabHost> {
   ) {
     final customBuilder = widget.destinationBuilder;
     if (customBuilder != null) return customBuilder(context, destination);
-    if (destination.kind == WorkspaceDestination.homeKind) {
-      return const HomeScreen();
-    }
-    return const SizedBox.shrink();
+    return buildWorkspaceDestination(context, destination);
   }
 
   @override
@@ -296,33 +293,43 @@ class _WorkspaceTabHostState extends State<WorkspaceTabHost> {
             child: WorkspaceTabScope(
               tabId: tab.id,
               controller: widget.controller,
-              child: WorkspaceRouteObserverScope(
-                observer: entry.routeObserver,
-                child: Navigator(
-                  key: entry.navigatorKey,
-                  observers: <NavigatorObserver>[
-                    entry.routeObserver,
-                    entry.capabilityObserver,
-                  ],
-                  pages: <Page<void>>[
-                    for (final destination in visibleDestinations)
-                      MaterialPage<void>(
-                        key: ValueKey(destination.routeId),
-                        name: destination.kind,
-                        child: Builder(
-                          builder: (context) =>
-                              _buildDestination(context, destination),
+              child: WorkspaceNavigationScope(
+                openCurrent: (destination) =>
+                    widget.controller.navigate(tab.id, destination),
+                openBackground: (destination) {
+                  widget.controller.create(
+                    activate: false,
+                    initialDestination: destination,
+                  );
+                },
+                child: WorkspaceRouteObserverScope(
+                  observer: entry.routeObserver,
+                  child: Navigator(
+                    key: entry.navigatorKey,
+                    observers: <NavigatorObserver>[
+                      entry.routeObserver,
+                      entry.capabilityObserver,
+                    ],
+                    pages: <Page<void>>[
+                      for (final destination in visibleDestinations)
+                        MaterialPage<void>(
+                          key: ValueKey(destination.routeId),
+                          name: destination.kind,
+                          child: Builder(
+                            builder: (context) =>
+                                _buildDestination(context, destination),
+                          ),
                         ),
-                      ),
-                  ],
-                  onDidRemovePage: (page) {
-                    final key = page.key;
-                    if (key is! ValueKey<WorkspaceRouteId>) return;
-                    final current = widget.controller.tabById(tab.id);
-                    if (current?.currentDestination.routeId == key.value) {
-                      widget.controller.back(tab.id);
-                    }
-                  },
+                    ],
+                    onDidRemovePage: (page) {
+                      final key = page.key;
+                      if (key is! ValueKey<WorkspaceRouteId>) return;
+                      final current = widget.controller.tabById(tab.id);
+                      if (current?.currentDestination.routeId == key.value) {
+                        widget.controller.back(tab.id);
+                      }
+                    },
+                  ),
                 ),
               ),
             ),

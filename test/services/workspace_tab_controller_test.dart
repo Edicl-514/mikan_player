@@ -87,4 +87,24 @@ void main() {
     expect(controller.tabs.map((tab) => tab.id), [keep]);
     expect(controller.activeTabId, keep);
   });
+
+  test('creates a background tab directly at its destination', () {
+    final controller = WorkspaceTabController();
+    final destination = WorkspaceDestination(
+      routeId: WorkspaceRouteId.allocate(),
+      kind: 'bangumi',
+      title: 'Target',
+    );
+
+    final id = controller.create(
+      activate: false,
+      initialDestination: destination,
+    );
+
+    final tab = controller.tabById(id)!;
+    expect(controller.activeTabId, isNot(id));
+    expect(tab.destinations, [destination]);
+    expect(tab.historyIndex, 0);
+    expect(tab.canGoBack, isFalse);
+  });
 }
