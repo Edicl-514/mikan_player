@@ -350,6 +350,17 @@ flowchart TD
 
 **目的**：建立稳定的窗口外壳，但暂不开放完整多 Tab 导航。
 
+**状态（2026-07-24）**：已完成落地。Windows 在首帧前通过 `window_manager` 配置 hidden title bar、`1280 x 720` 初始尺寸和 `720 x 520` 最小尺寸；`MaterialApp.builder` 将 `WindowsDesktopFrame` 放在根 Navigator 外，保留现有 route 行为的同时让窗口控制持续可见。frame 已提供 TabStrip、`+`和 context toolbar 插槽，当前不启用 Tab 创建；播放器全屏会临时覆盖 frame，初始化失败则回退原生标题栏。
+
+#### 落地路径（实现索引）
+
+| 产物 | 路径 |
+|------|------|
+| Window initialization / native title-bar fail-safe | `pubspec.yaml`、`lib/main.dart` |
+| Windows custom frame / drag region / window controls / toolbar slots | `lib/ui/widgets/windows_desktop_frame.dart` |
+| Player fullscreen frame handoff | `lib/ui/pages/player_page.dart`、`lib/ui/pages/player/player_page_video_area.dart` |
+| Phase 3 widget coverage | `test/ui/widgets/windows_desktop_frame_test.dart` |
+
 #### 步骤
 
 1. 引入 `window_manager`，在首帧显示前完成 Windows window initialization。

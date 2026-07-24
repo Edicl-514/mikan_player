@@ -6,6 +6,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/src/rust/api/simple.dart';
 import 'package:mikan_player/src/rust/rust_init.dart';
 import 'package:mikan_player/ui/screens/home_screen.dart';
+import 'package:mikan_player/ui/widgets/windows_desktop_frame.dart';
 import 'package:mikan_player/ui/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
@@ -32,9 +33,11 @@ import 'package:mikan_player/utils/app_directories.dart';
 import 'package:mikan_player/utils/url_latency.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:window_manager/window_manager.dart';
 
 /// 全局 WebView 环境（Windows 平台需要）
 WebViewEnvironment? webViewEnvironment;
+bool _windowsDesktopFrameEnabled = false;
 const MethodChannel _appLifecycleChannel = MethodChannel(
   'mikan_player/app_lifecycle',
 );
@@ -44,6 +47,7 @@ Future<void> main() async {
     () async {
       WidgetsFlutterBinding.ensureInitialized();
       _installGlobalErrorLogging();
+      await _initializeWindowsDesktopFrame();
 
       // 桌面端保留较大的解码缓存；Android 需要限制长时间浏览图片时的
       // 常驻内存增长。
@@ -144,6 +148,37 @@ Future<void> main() async {
       debugPrint('$stackTrace');
     },
   );
+}
+
+Future<void> _initializeWindowsDesktopFrame() async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return;
+
+  try {
+    await windowManager.ensureInitialized();
+    await windowManager.waitUntilReadyToShow(
+      const WindowOptions(
+        size: Size(1280, 720),
+        minimumSize: Size(720, 520),
+        center: true,
+        titleBarStyle: TitleBarStyle.hidden,
+        windowButtonVisibility: false,
+      ),
+      () async {
+        await windowManager.show();
+        await windowManager.focus();
+      },
+    );
+    _windowsDesktopFrameEnabled = true;
+  } catch (error, stackTrace) {
+    // Keep the runner's native title bar when custom chrome is unavailable.
+    debugPrint('Windows desktop frame initialization failed: $error');
+    debugPrint('$stackTrace');
+    try {
+      await windowManager.setTitleBarStyle(TitleBarStyle.normal);
+    } catch (_) {
+      // The plugin itself may be unavailable; the runner remains usable.
+    }
+  }
 }
 
 void _installGlobalErrorLogging() {
@@ -453,6 +488,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             ),
             themeMode: SettingsService().themeMode,
             navigatorObservers: [workspaceRouteObserver],
+            builder: (context, child) {
+              if (!_windowsDesktopFrameEnabled) {
+                return child ?? const SizedBox.shrink();
+              }
+              return WindowsDesktopFrame(
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
             home: const HomeScreen(),
           ),
         );

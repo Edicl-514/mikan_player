@@ -30,6 +30,7 @@ import 'package:mikan_player/services/workspace_route_observer.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/widgets/webview_lease_boundary.dart';
 import 'package:mikan_player/ui/widgets/workspace_route_close_scope.dart';
+import 'package:mikan_player/ui/widgets/windows_desktop_frame.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/source_list_panel.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_data_service.dart';
@@ -545,6 +546,9 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   void dispose() {
     _isDisposing = true;
+    if (_isVideoFullscreen) {
+      WindowsDesktopFrameController.instance.setContentFullscreen(false);
+    }
     unawaited(_prepareToClose(rebuildWorkerTree: false));
     workspaceRouteObserver.unsubscribe(this);
     _subscribedRoute = null;

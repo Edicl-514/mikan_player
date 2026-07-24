@@ -65,9 +65,11 @@ extension _PlayerPageVideoArea on _PlayerPageState {
       onPlayRequested: () => unawaited(_playWithFocus()),
       onEnterFullscreen: () async {
         _isVideoFullscreen = true;
+        WindowsDesktopFrameController.instance.setContentFullscreen(true);
       },
       onExitFullscreen: () async {
         _isVideoFullscreen = false;
+        WindowsDesktopFrameController.instance.setContentFullscreen(false);
       },
     );
   }
