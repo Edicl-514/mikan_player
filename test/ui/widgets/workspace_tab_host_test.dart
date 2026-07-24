@@ -4,15 +4,23 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mikan_player/services/player_session/player_resource_debug.dart';
 import 'package:mikan_player/services/player_session/player_session_identity.dart';
+import 'package:mikan_player/services/source_request_gate.dart';
 import 'package:mikan_player/services/workspace_lifecycle.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/ui/widgets/workspace_tab_host.dart';
 import 'package:mikan_player/ui/widgets/workspace_tab_strip.dart';
 
+import '../../support/fake_player_session.dart';
+
 void main() {
-  tearDown(() => WorkspaceLifecycleRegistry.instance.debugReset());
+  tearDown(() {
+    WorkspaceLifecycleRegistry.instance.debugReset();
+    PlayerResourceDebugRegistry.instance.debugReset();
+    SourceRequestGate.instance.debugReset();
+  });
 
   testWidgets(
     'keeps tab state alive while switching and closes asynchronously',
@@ -208,6 +216,130 @@ void main() {
     expect(controller.activeTabId, originalTab);
     expect(controller.tabs.last.destinations, [destination]);
     expect(controller.tabs.last.canGoBack, isFalse);
+  });
+
+  testWidgets('closing tab A leaves tab B worker and queued job running', (
+    tester,
+  ) async {
+    final controller = WorkspaceTabController();
+    final hostController = WorkspaceTabHostController();
+    final tabA = controller.activeTabId;
+    final tabB = controller.create();
+    final sessions = DualFakePlayerSessions(maxConcurrentPerSession: 1);
+    sessions.registerAll();
+    sessions.a.fillLocalBudget(sourcePrefix: 'a');
+    sessions.b.fillLocalBudget(sourcePrefix: 'b');
+
+    const interval = Duration(milliseconds: 40);
+    SourceRequestGate.instance.markStarted('b-source');
+    sessions.b.scheduleGateWaiter(
+      sourceName: 'b-source',
+      minInterval: interval,
+      token: 'b-job',
+    );
+
+    WorkspaceLifecycleRegistry.instance.register(
+      PlayerSessionHandle(
+        sessionId: sessions.a.sessionId,
+        isPlaying: () => false,
+        isBusy: () => true,
+        pause: () {},
+        resume: () {},
+        prepareToClose: sessions.a.closeSession,
+      ),
+      tabId: tabA,
+    );
+    WorkspaceLifecycleRegistry.instance.register(
+      PlayerSessionHandle(
+        sessionId: sessions.b.sessionId,
+        isPlaying: () => false,
+        isBusy: () => true,
+        pause: () {},
+        resume: () {},
+        prepareToClose: sessions.b.closeSession,
+      ),
+      tabId: tabB,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WorkspaceTabHost(
+          controller: controller,
+          hostController: hostController,
+          destinationBuilder: (context, destination) => const SizedBox(),
+        ),
+      ),
+    );
+
+    await hostController.closeTab(tabA);
+    await tester.pump();
+
+    expect(sessions.a.isDisposed, isTrue);
+    expect(sessions.b.isDisposed, isFalse);
+    expect(sessions.b.scheduler.workerCount, 1);
+    expect(sessions.b.scheduler.activeVideoJobCount, 1);
+    expect(
+      WorkspaceLifecycleRegistry.instance.participantsForTab(tabB),
+      hasLength(1),
+    );
+
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(sessions.b.acceptedCallbacks, ['b-job']);
+
+    sessions.b.closeSession();
+  });
+
+  testWidgets('nested routes stay in the tab while fullscreen uses root', (
+    tester,
+  ) async {
+    final controller = WorkspaceTabController();
+    final hostController = WorkspaceTabHostController();
+    late BuildContext tabContext;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WorkspaceTabHost(
+          controller: controller,
+          hostController: hostController,
+          destinationBuilder: (context, destination) {
+            tabContext = context;
+            return const SizedBox.expand();
+          },
+        ),
+      ),
+    );
+
+    final tabNavigator = Navigator.of(tabContext);
+    final rootNavigator = Navigator.of(tabContext, rootNavigator: true);
+    expect(tabNavigator, isNot(same(rootNavigator)));
+
+    tabNavigator.push<void>(
+      MaterialPageRoute<void>(builder: (_) => const Text('nested route')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('nested route'), findsOneWidget);
+    expect(controller.activeTab.canGoBack, isTrue);
+
+    rootNavigator.push<void>(
+      PageRouteBuilder<void>(
+        pageBuilder: (_, _, _) => const Material(child: Text('fullscreen')),
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+      ),
+    );
+    await tester.pump();
+    expect(find.text('fullscreen'), findsOneWidget);
+    expect(
+      Navigator.of(tester.element(find.text('fullscreen'))),
+      rootNavigator,
+    );
+
+    rootNavigator.pop();
+    await tester.pump();
+    expect(find.text('nested route'), findsOneWidget);
   });
 }
 

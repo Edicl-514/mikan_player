@@ -542,6 +542,8 @@ flowchart TD
 
 #### 7.1 自动化测试
 
+**状态（2026-07-25）**：已完成。Phase 1–6 的资源配额、请求 gate、Cookie、播放焦点、route 覆盖、Tab reducer 测试已按本节矩阵复核；补充了 Tab A 关闭后 Tab B fake worker/job 继续、nested route 与 fullscreen root Navigator 层级，以及 compact/wide 往返保持 Player State/session identity 的 widget 回归测试。
+
 新增或扩展以下测试族：
 
 - `webview_resource_coordinator_test.dart`
