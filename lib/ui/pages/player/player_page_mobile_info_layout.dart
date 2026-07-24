@@ -1,7 +1,10 @@
 part of '../player_page.dart';
 
 extension _PlayerPageMobileInfoLayout on _PlayerPageState {
-  Widget _buildMobileInfoTab(BuildContext context) {
+  Widget _buildMobileInfoTab(
+    BuildContext context, {
+    PlayerUiMode uiMode = PlayerUiMode.mobile,
+  }) {
     return PlayerMobileInfoLayout(
       animeTitle: widget.anime.title,
       currentEpisode: _episodeController.currentEpisode,
@@ -57,7 +60,7 @@ extension _PlayerPageMobileInfoLayout on _PlayerPageState {
         // `_onEpisodeSelected` in-place so warm workers survive.
         onEpisodeSelected: (ep) => unawaited(_onEpisodeSelected(ep)),
       ),
-      playSourceSelector: _buildPlaySourceSelector(isMobile: true),
+      playSourceSelector: _buildPlaySourceSelector(uiMode: uiMode),
       resourceList: _buildResourceList(),
       onairSites: _sidePanelLoader.onairSites,
       recommendations: _sidePanelLoader.recommendations,

@@ -503,6 +503,17 @@ flowchart TD
 
 **目的**：修复“Windows 窄窗口被当成手机”的输入和布局耦合。
 
+**状态（2026-07-24）**：已完成落地。新增显式 `PlayerUiMode`（`mobile`、`desktopCompact`、`desktopWide`）及平台/宽度解析；Windows 720–900 px 复用单列信息结构但使用桌面视频控件，不再启用移动端顶部栏、锁屏和触屏专属交互。布局切换只改变当前 widget 分支，PlayerPage State、播放器、scheduler 和 session 不因 resize 重建。播放页返回仍经过当前 Tab 的 Navigator 与 `WorkspaceRouteCloseScope`，Tab 音频状态沿用现有固定宽度图标槽。新增模式解析及紧凑源选择器回归测试。
+
+#### 落地路径（实现索引）
+
+| 产物 | 路径 |
+|------|------|
+| 显式播放 UI mode / resolver | `lib/ui/pages/player/player_ui_mode.dart` |
+| compact/wide/mobile 页面分支 | `lib/ui/pages/player_page.dart`、`lib/ui/pages/player/player_page_layouts.dart` |
+| 桌面输入能力传递 | `lib/ui/pages/player/widgets/player_video_area.dart`、`lib/ui/widgets/video_player_controls.dart`、`lib/ui/pages/player/widgets/player_source_selector.dart` |
+| Phase 6 模式与紧凑布局测试 | `test/ui/pages/player/player_ui_mode_test.dart` |
+
 #### 步骤
 
 1. 用显式 UI mode 替代 `isWide/isMobile` 混合布尔值：

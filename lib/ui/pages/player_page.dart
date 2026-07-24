@@ -61,6 +61,7 @@ import 'package:mikan_player/ui/pages/player/widgets/player_source_selector.dart
 import 'package:mikan_player/ui/pages/player/widgets/player_sample_source_panel.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_mobile_layout.dart';
 import 'package:mikan_player/ui/pages/player/widgets/player_pc_layout.dart';
+import 'package:mikan_player/ui/pages/player/player_ui_mode.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_state_transitions.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
@@ -769,7 +770,9 @@ class _PlayerPageState extends State<PlayerPage>
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.of(context).size.width > 900;
+    final uiMode = PlayerUiModeResolver.resolve(
+      width: MediaQuery.sizeOf(context).width,
+    );
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = isDark
@@ -782,7 +785,11 @@ class _PlayerPageState extends State<PlayerPage>
         body: Stack(
           children: [
             // 主界面
-            isWide ? _buildPCLayout(context) : _buildMobileLayout(context),
+            switch (uiMode) {
+              PlayerUiMode.mobile => _buildMobileLayout(context),
+              PlayerUiMode.desktopCompact => _buildCompactLayout(context),
+              PlayerUiMode.desktopWide => _buildPCLayout(context),
+            },
 
             // 后台WebView容器（始终存在，用于验证码预处理+视频提取）
             Positioned(

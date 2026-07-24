@@ -18,10 +18,14 @@ extension _PlayerPageVideoArea on _PlayerPageState {
 
   Widget _buildVideoPlayerPlaceholder(
     BuildContext context, {
-    required bool isMobile,
+    PlayerUiMode uiMode = PlayerUiMode.mobile,
+    @Deprecated('Use uiMode') bool? isMobile,
   }) {
+    final effectiveMode = isMobile == null
+        ? uiMode
+        : (isMobile ? PlayerUiMode.mobile : PlayerUiMode.desktopWide);
     return PlayerVideoArea(
-      isMobile: isMobile,
+      uiMode: effectiveMode,
       isPlayerInitialized: _isPlayerInitialized,
       currentStreamUrl: _playbackController.currentStreamUrl,
       isLoadingVideo: _playbackController.isLoadingVideo,

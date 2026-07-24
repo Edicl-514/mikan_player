@@ -7,12 +7,15 @@ import 'package:mikan_player/services/subtitle_service.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls.dart';
+import 'package:mikan_player/ui/pages/player/player_ui_mode.dart';
 
 /// Video surface + empty/loading/error placeholder for [PlayerPage].
 ///
 /// Pure presentation: all player/controller objects are injected; no page State.
 class PlayerVideoArea extends StatelessWidget {
-  final bool isMobile;
+  final PlayerUiMode uiMode;
+  @Deprecated('Use uiMode')
+  final bool? isMobile;
   final bool isPlayerInitialized;
   final String? currentStreamUrl;
   final bool isLoadingVideo;
@@ -49,7 +52,8 @@ class PlayerVideoArea extends StatelessWidget {
 
   const PlayerVideoArea({
     super.key,
-    required this.isMobile,
+    this.uiMode = PlayerUiMode.mobile,
+    @Deprecated('Use uiMode') this.isMobile,
     required this.isPlayerInitialized,
     required this.currentStreamUrl,
     required this.isLoadingVideo,
@@ -87,6 +91,9 @@ class PlayerVideoArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveMode = isMobile == null
+        ? uiMode
+        : (isMobile! ? PlayerUiMode.mobile : PlayerUiMode.desktopWide);
     final l10n = AppLocalizations.of(context);
     if (isPlayerInitialized && currentStreamUrl != null) {
       // 字幕由 CustomVideoControls 内的 SubtitleOverlay 渲染，
@@ -105,7 +112,7 @@ class PlayerVideoArea extends StatelessWidget {
           ),
           controls: (state) => CustomVideoControls(
             state: state,
-            isMobile: isMobile,
+            uiMode: effectiveMode,
             danmakuService: danmakuService,
             subtitleService: subtitleService,
             currentVideoTimeListenable: currentVideoTimeListenable,
@@ -229,7 +236,7 @@ class PlayerVideoArea extends StatelessWidget {
               ],
             ),
           ),
-        if (isMobile)
+        if (effectiveMode.isMobile)
           Positioned(
             top: 0,
             left: 0,

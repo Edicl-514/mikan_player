@@ -12,13 +12,19 @@ extension _PlayerPageSourcePanel on _PlayerPageState {
     );
   }
 
-  Widget _buildPlaySourceSelector({required bool isMobile}) {
+  Widget _buildPlaySourceSelector({
+    PlayerUiMode uiMode = PlayerUiMode.mobile,
+    @Deprecated('Use uiMode') bool? isMobile,
+  }) {
+    final effectiveMode = isMobile == null
+        ? uiMode
+        : (isMobile ? PlayerUiMode.mobile : PlayerUiMode.desktopWide);
     final btCount = dedupBtResources([
       ..._sourceController.mikanResources,
       ..._sourceController.dmhyResources,
     ]).length;
     return PlayerSourceSelector(
-      isMobile: isMobile,
+      uiMode: effectiveMode,
       isExpanded: _isSourceControlExpanded,
       activeSource: _activeSource,
       btCount: btCount,

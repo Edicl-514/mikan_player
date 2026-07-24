@@ -15,12 +15,15 @@ import 'package:mikan_player/ui/widgets/video_player_controls/mobile_gesture_and
 import 'package:mikan_player/ui/widgets/video_player_controls/settings_panel.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/source_list_panel.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/system_time_display.dart';
+import 'package:mikan_player/ui/pages/player/player_ui_mode.dart';
 
 /// 自定义视频播放器控件 - 整合弹幕与播放控制
 /// 深度集成 media_kit_video 的 Material 风格控件
 class CustomVideoControls extends StatefulWidget {
   final VideoState state;
-  final bool isMobile;
+  final PlayerUiMode uiMode;
+  @Deprecated('Use uiMode')
+  final bool? isMobile;
 
   // 弹幕相关
   final DanmakuService danmakuService;
@@ -67,7 +70,8 @@ class CustomVideoControls extends StatefulWidget {
   const CustomVideoControls({
     super.key,
     required this.state,
-    required this.isMobile,
+    this.uiMode = PlayerUiMode.mobile,
+    @Deprecated('Use uiMode') this.isMobile,
     required this.danmakuService,
     required this.currentVideoTimeListenable,
     required this.isVideoPausedListenable,
@@ -155,7 +159,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
     final videoTitle = _resolvedVideoTitle;
     final danmakuService = widget.danmakuService;
     final subtitleService = widget.subtitleService;
-    final isMobile = widget.isMobile;
+    final isMobile = widget.isMobile ?? widget.uiMode.isMobile;
     final isLoading = widget.isLoading;
     final onUserInteraction = widget.onUserInteraction;
     final mobilePlayerLockNotifier = widget.mobilePlayerLockNotifier;

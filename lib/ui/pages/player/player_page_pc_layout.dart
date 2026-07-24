@@ -6,14 +6,19 @@ extension _PlayerPagePcLayout on _PlayerPageState {
       animeTitle: widget.anime.title,
       currentEpisode: _episodeController.currentEpisode,
       currentSourceActions: _buildCurrentSourceActionButtons(),
-      videoArea: _buildVideoPlayerPlaceholder(context, isMobile: false),
+      videoArea: _buildVideoPlayerPlaceholder(
+        context,
+        uiMode: PlayerUiMode.desktopWide,
+      ),
       isDescriptionExpanded: _isDescriptionExpanded,
       onToggleDescription: () {
         _updateState(() {
           _isDescriptionExpanded = !_isDescriptionExpanded;
         });
       },
-      playSourceSelector: _buildPlaySourceSelector(isMobile: false),
+      playSourceSelector: _buildPlaySourceSelector(
+        uiMode: PlayerUiMode.desktopWide,
+      ),
       resourceList: _buildResourceList(),
       onairSites: _sidePanelLoader.onairSites,
       commentSortButton: _buildSortButton(),

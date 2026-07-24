@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:mikan_player/ui/pages/player/player_ui_mode.dart';
 
 /// Collapsed / expanded play-source control bar (BT vs sample tabs).
 class PlayerSourceSelector extends StatelessWidget {
-  final bool isMobile;
+  final PlayerUiMode uiMode;
+  @Deprecated('Use uiMode')
+  final bool? isMobile;
   final bool isExpanded;
   final String activeSource;
   final int btCount;
@@ -20,7 +23,8 @@ class PlayerSourceSelector extends StatelessWidget {
 
   const PlayerSourceSelector({
     super.key,
-    required this.isMobile,
+    this.uiMode = PlayerUiMode.mobile,
+    @Deprecated('Use uiMode') this.isMobile,
     required this.isExpanded,
     required this.activeSource,
     required this.btCount,
@@ -37,6 +41,9 @@ class PlayerSourceSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveMode = isMobile == null
+        ? uiMode
+        : (isMobile! ? PlayerUiMode.mobile : PlayerUiMode.desktopWide);
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -60,7 +67,7 @@ class PlayerSourceSelector extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: isMobile
+                child: effectiveMode.isMobile
                     ? Row(
                         children: [
                           Text(
