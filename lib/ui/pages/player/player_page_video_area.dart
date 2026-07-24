@@ -62,6 +62,13 @@ extension _PlayerPageVideoArea on _PlayerPageState {
       mobilePlayerLockNotifier: _mobilePlayerLockNotifier,
       videoTitle: _videoTitleNotifier.value,
       videoTitleListenable: _videoTitleNotifier,
+      onPlayRequested: () => unawaited(_playWithFocus()),
+      onEnterFullscreen: () async {
+        _isVideoFullscreen = true;
+      },
+      onExitFullscreen: () async {
+        _isVideoFullscreen = false;
+      },
     );
   }
 }

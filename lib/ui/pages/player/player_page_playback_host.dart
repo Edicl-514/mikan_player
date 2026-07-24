@@ -110,7 +110,7 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
         _resumeSeekGeneration++;
         final openGeneration = _resumeSeekGeneration;
         unawaited(
-          _player.open(_mediaForPlayback(filePath), play: true).then((_) async {
+          _openWithFocus(_mediaForPlayback(filePath)).then((_) async {
             if (!_acceptsSessionCallback(loadToken)) {
               return;
             }
@@ -157,7 +157,7 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
     _resumeSeekGeneration++;
     final openGeneration = _resumeSeekGeneration;
     unawaited(
-      _player.open(_mediaForPlayback(streamUrl), play: true).then((_) async {
+      _openWithFocus(_mediaForPlayback(streamUrl)).then((_) async {
         if (!_acceptsSessionCallback(expectedLoadToken)) {
           return;
         }

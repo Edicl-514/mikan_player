@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/src/rust/api/simple.dart';
@@ -25,6 +26,8 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/services/settings_service.dart';
+import 'package:mikan_player/services/workspace_lifecycle.dart';
+import 'package:mikan_player/services/workspace_route_observer.dart';
 import 'package:mikan_player/utils/app_directories.dart';
 import 'package:mikan_player/utils/url_latency.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -32,6 +35,9 @@ import 'package:mikan_player/gen/app_localizations.dart';
 
 /// 全局 WebView 环境（Windows 平台需要）
 WebViewEnvironment? webViewEnvironment;
+const MethodChannel _appLifecycleChannel = MethodChannel(
+  'mikan_player/app_lifecycle',
+);
 
 Future<void> main() async {
   await runZonedGuarded<Future<void>>(
@@ -370,13 +376,35 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (!kIsWeb && Platform.isWindows) {
+      _appLifecycleChannel.setMethodCallHandler(_handleNativeLifecycleCall);
+      unawaited(_notifyNativeCloseHandlerReady());
+    }
+  }
+
+  Future<void> _notifyNativeCloseHandlerReady() async {
+    try {
+      await _appLifecycleChannel.invokeMethod<void>('ready');
+    } on MissingPluginException {
+      // Widget tests and non-runner embeddings retain default close behavior.
+    }
   }
 
   @override
   void dispose() {
     DownloadManager().saveLibtorrentResumeDataForShutdown();
+    if (!kIsWeb && Platform.isWindows) {
+      _appLifecycleChannel.setMethodCallHandler(null);
+    }
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  Future<void> _handleNativeLifecycleCall(MethodCall call) async {
+    if (call.method != 'requestClose') return;
+    DownloadManager().saveLibtorrentResumeDataForShutdown();
+    await AppShutdownCoordinator.instance.prepareToClose();
+    await _appLifecycleChannel.invokeMethod<void>('closeReady');
   }
 
   @override
@@ -388,6 +416,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         state == AppLifecycleState.detached) {
       DownloadManager().saveLibtorrentResumeDataForShutdown();
     }
+  }
+
+  @override
+  Future<ui.AppExitResponse> didRequestAppExit() async {
+    DownloadManager().saveLibtorrentResumeDataForShutdown();
+    await AppShutdownCoordinator.instance.prepareToClose();
+    return ui.AppExitResponse.exit;
   }
 
   @override
@@ -417,6 +452,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               pureBackground: SettingsService().pureBackground,
             ),
             themeMode: SettingsService().themeMode,
+            navigatorObservers: [workspaceRouteObserver],
             home: const HomeScreen(),
           ),
         );

@@ -20,12 +20,16 @@ import 'package:mikan_player/services/reusable_browser_worker.dart';
 import 'package:mikan_player/services/player_session/player_resource_debug.dart';
 import 'package:mikan_player/services/player_session/player_session_identity.dart';
 import 'package:mikan_player/services/player_session/player_session_lifecycle.dart';
+import 'package:mikan_player/services/playback_focus_coordinator.dart';
 import 'package:mikan_player/services/cookie_usage_registry.dart';
 import 'package:mikan_player/services/source_request_gate.dart';
 import 'package:mikan_player/services/webview_resource_coordinator.dart';
 import 'package:mikan_player/services/webview_scheduler_stats.dart';
+import 'package:mikan_player/services/workspace_lifecycle.dart';
+import 'package:mikan_player/services/workspace_route_observer.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/widgets/webview_lease_boundary.dart';
+import 'package:mikan_player/ui/widgets/workspace_route_close_scope.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/source_list_panel.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/bangumi_data_service.dart';
@@ -97,7 +101,8 @@ class PlayerPage extends StatefulWidget {
   State<PlayerPage> createState() => _PlayerPageState();
 }
 
-class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
+class _PlayerPageState extends State<PlayerPage>
+    with TickerProviderStateMixin, RouteAware {
   late TabController _mobileTabController;
   late ScrollController _pcEpisodeScrollController;
   late ScrollController _mobileEpisodeScrollController;
@@ -190,6 +195,8 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   late final PlayerSessionId _playerSessionId;
   late final PlayerSessionLifecycleController _sessionLifecycle;
   late final PlayerSessionDebugHandle _playerSessionHandle;
+  late final PlayerSessionHandle _workspaceSessionHandle;
+  PageRoute<dynamic>? _subscribedRoute;
   PlayerSessionLogContext _sessionLogContext = const PlayerSessionLogContext(
     sessionId: PlayerSessionId('uninitialized'),
   );
@@ -198,6 +205,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   bool _sessionQuiesced = false;
   bool _isDisposing = false;
   bool _idleWorkerReleaseScheduled = false;
+  bool _isVideoFullscreen = false;
 
   /// Phase 0 调试计数：WebView widget 创建/销毁、视频/验证码 job 生命周期。
   /// 仅统计与日志，绝不参与调度。每次新搜索开始时 `reset()`，
@@ -350,6 +358,43 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _videoController = VideoController(_player);
     _isPlayerInitialized = true;
 
+    _workspaceSessionHandle = PlayerSessionHandle(
+      sessionId: _playerSessionId,
+      isPlaying: () => _player.state.playing,
+      isBusy: () =>
+          _playerSessionHandle.reportCounts().activeJobCount > 0 ||
+          _playbackController.isLoadingVideo,
+      pause: _player.pause,
+      resume: _playWithFocus,
+      prepareToClose: _prepareToClose,
+      onTabActivated: () {
+        if (_sessionLifecycle.state == PlayerSessionLifecycleState.background) {
+          _sessionLifecycle.activate();
+        }
+        WebViewResourceCoordinator.instance.updateSessionPriority(
+          _playerSessionId,
+          WebViewSessionPriority.foreground,
+        );
+      },
+      onTabBackgrounded: () {
+        if (_sessionLifecycle.state == PlayerSessionLifecycleState.active) {
+          _sessionLifecycle.background();
+        }
+        WebViewResourceCoordinator.instance.updateSessionPriority(
+          _playerSessionId,
+          WebViewSessionPriority.background,
+        );
+      },
+    );
+    WorkspaceLifecycleRegistry.instance.register(_workspaceSessionHandle);
+    PlaybackFocusCoordinator.instance.registerSession(
+      sessionId: _playerSessionId,
+      onPause: () async {
+        await _workspaceSessionHandle.onPlaybackFocusLost();
+        if (_player.state.playing) await _player.pause();
+      },
+    );
+
     // Bind subtitle service to player
     _subtitleService.bindPlayer(_player);
 
@@ -394,6 +439,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     _playingSubscription = _player.stream.playing.listen((playing) {
       if (mounted) {
         _isVideoPausedNotifier.value = !playing;
+        PlaybackFocusCoordinator.instance.notifyPlaying(
+          _playerSessionId,
+          playing: playing,
+        );
         if (playing) {
           _playbackController.notifyPlaybackStarted();
         }
@@ -445,6 +494,14 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final modalRoute = ModalRoute.of(context);
+    final route = modalRoute is PageRoute<dynamic> ? modalRoute : null;
+    if (route != _subscribedRoute) {
+      final previous = _subscribedRoute;
+      if (previous != null) workspaceRouteObserver.unsubscribe(this);
+      _subscribedRoute = route;
+      if (route != null) workspaceRouteObserver.subscribe(this, route);
+    }
     _videoTitleNotifier.value = AppLocalizations.of(context)
         .playerPageTitleWithEpisode(
           widget.anime.title,
@@ -489,6 +546,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   void dispose() {
     _isDisposing = true;
     unawaited(_prepareToClose(rebuildWorkerTree: false));
+    workspaceRouteObserver.unsubscribe(this);
+    _subscribedRoute = null;
+    WorkspaceLifecycleRegistry.instance.unregister(_playerSessionId);
+    PlaybackFocusCoordinator.instance.unregisterSession(_playerSessionId);
     _positionSubscription?.cancel();
     _playingSubscription?.cancel();
     _completedSubscription?.cancel();
@@ -546,6 +607,7 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     return _sessionLifecycle.prepareToClose(() async {
       if (_sessionQuiesced) return;
       _sessionQuiesced = true;
+      PlaybackFocusCoordinator.instance.unregisterSession(_playerSessionId);
       _sourceController.invalidatePendingRequests();
 
       final closingGeneration = _sampleSourceController.bumpLoadToken();
@@ -557,7 +619,10 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
       final coordinator = WebViewResourceCoordinator.instance;
       coordinator.cancelPendingSession(_playerSessionId);
 
-      final waits = <Future<void>>[_cancelSearchSubscriptions()];
+      final waits = <Future<void>>[
+        _cancelSearchSubscriptions(),
+        if (_player.state.playing) _player.pause(),
+      ];
       try {
         final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
         final saveMs = posMs > 1000
@@ -625,6 +690,39 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   bool _acceptsSessionCallback(int generation) =>
       mounted && _sessionLifecycle.acceptsCallback(generation);
 
+  Future<bool> _requestPlaybackFocus() =>
+      PlaybackFocusCoordinator.instance.requestFocus(_playerSessionId);
+
+  Future<void> _playWithFocus() async {
+    if (!_sessionLifecycle.acceptsNewWork) return;
+    if (await _requestPlaybackFocus()) await _player.play();
+  }
+
+  Future<void> _openWithFocus(Media media) async {
+    if (!_sessionLifecycle.acceptsNewWork) return;
+    if (await _requestPlaybackFocus()) {
+      await _player.open(media, play: true);
+    }
+  }
+
+  @override
+  void didPushNext() {
+    scheduleMicrotask(() {
+      if (mounted && !_isVideoFullscreen) {
+        unawaited(_workspaceSessionHandle.onRouteCovered());
+      }
+    });
+  }
+
+  @override
+  void didPopNext() {
+    scheduleMicrotask(() {
+      if (mounted && !_isVideoFullscreen) {
+        unawaited(_workspaceSessionHandle.onRouteRevealed());
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width > 900;
@@ -633,29 +731,32 @@ class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
     final bgColor = isDark
         ? const Color(0xFF0F0F13)
         : theme.scaffoldBackgroundColor;
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: Stack(
-        children: [
-          // 主界面
-          isWide ? _buildPCLayout(context) : _buildMobileLayout(context),
+    return WorkspaceRouteCloseScope<Object?>(
+      prepareToClose: _workspaceSessionHandle.prepareToClose,
+      child: Scaffold(
+        backgroundColor: bgColor,
+        body: Stack(
+          children: [
+            // 主界面
+            isWide ? _buildPCLayout(context) : _buildMobileLayout(context),
 
-          // 后台WebView容器（始终存在，用于验证码预处理+视频提取）
-          Positioned(
-            left: 0,
-            top: 0,
-            width: _showWebView ? 400 : 1,
-            height: _showWebView ? 300 : 1,
-            child: Visibility(
-              visible: _showWebView, // 调试时可以显示
-              maintainState: true, // 保持状态，确保WebView在隐藏时仍然运行
-              child: Container(
-                color: Colors.black,
-                child: _buildWebViewExtractors(),
+            // 后台WebView容器（始终存在，用于验证码预处理+视频提取）
+            Positioned(
+              left: 0,
+              top: 0,
+              width: _showWebView ? 400 : 1,
+              height: _showWebView ? 300 : 1,
+              child: Visibility(
+                visible: _showWebView, // 调试时可以显示
+                maintainState: true, // 保持状态，确保WebView在隐藏时仍然运行
+                child: Container(
+                  color: Colors.black,
+                  child: _buildWebViewExtractors(),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

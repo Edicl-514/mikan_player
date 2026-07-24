@@ -305,6 +305,19 @@ flowchart TD
 
 **目的**：把“后台继续播放”和“最多一个音频源”的产品规则固化为可测试协议。
 
+**状态（2026-07-24）**：已完成落地。所有 Player 播放入口与直接播放控件均接入应用级焦点仲裁；route 覆盖/恢复由全局 observer 驱动并排除播放器全屏 route；Player route pop 与应用退出均先 await 同一套有界 session 收尾协议，同时保留 DownloadManager 的退出保存。
+
+#### 落地路径（实现索引）
+
+| 产物 | 路径 |
+|------|------|
+| 应用级播放焦点仲裁 | `lib/services/playback_focus_coordinator.dart` |
+| Workspace participant / Player session handle / shutdown | `lib/services/workspace_lifecycle.dart`、`windows/runner/flutter_window.cpp` |
+| 全局 route visibility observer | `lib/services/workspace_route_observer.dart`、`lib/main.dart` |
+| 异步 route close guard | `lib/ui/widgets/workspace_route_close_scope.dart`、`lib/ui/pages/player_page.dart` |
+| Player open/play/focus 与 fullscreen 接入 | `lib/ui/pages/player_page.dart`、`lib/ui/pages/player/`、`lib/ui/widgets/video_player_controls.dart` |
+| Phase 2 协议与 widget 测试 | `test/services/playback_focus_coordinator_test.dart`、`test/services/workspace_lifecycle_test.dart`、`test/ui/widgets/workspace_route_close_scope_test.dart` |
+
 #### 步骤
 
 1. 新增 `PlaybackFocusCoordinator`：

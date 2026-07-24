@@ -43,6 +43,9 @@ class PlayerVideoArea extends StatelessWidget {
   final ValueNotifier<bool> mobilePlayerLockNotifier;
   final String videoTitle;
   final ValueNotifier<String> videoTitleListenable;
+  final VoidCallback onPlayRequested;
+  final Future<void> Function() onEnterFullscreen;
+  final Future<void> Function() onExitFullscreen;
 
   const PlayerVideoArea({
     super.key,
@@ -77,6 +80,9 @@ class PlayerVideoArea extends StatelessWidget {
     required this.mobilePlayerLockNotifier,
     required this.videoTitle,
     required this.videoTitleListenable,
+    required this.onPlayRequested,
+    required this.onEnterFullscreen,
+    required this.onExitFullscreen,
   });
 
   @override
@@ -92,6 +98,8 @@ class PlayerVideoArea extends StatelessWidget {
         onPointerUp: (_) => onUserInteraction(),
         child: Video(
           controller: videoController,
+          onEnterFullscreen: onEnterFullscreen,
+          onExitFullscreen: onExitFullscreen,
           subtitleViewConfiguration: const SubtitleViewConfiguration(
             visible: false,
           ),
@@ -123,6 +131,7 @@ class PlayerVideoArea extends StatelessWidget {
             mobilePlayerLockNotifier: mobilePlayerLockNotifier,
             videoTitle: videoTitle,
             videoTitleListenable: videoTitleListenable,
+            onPlayRequested: onPlayRequested,
           ),
         ),
       );

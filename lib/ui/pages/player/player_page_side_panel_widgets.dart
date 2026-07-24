@@ -39,9 +39,9 @@ extension _PlayerPageSidePanelWidgets on _PlayerPageState {
       onCopyMagnet: (res) {
         Clipboard.setData(ClipboardData(text: res.magnet));
         final l10n = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.playerSidePanelCopyMagnet)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.playerSidePanelCopyMagnet)));
       },
       onDownload: (res) async {
         final l10n = AppLocalizations.of(context);
@@ -77,21 +77,21 @@ extension _PlayerPageSidePanelWidgets on _PlayerPageState {
             return;
           }
           if (streamUrl == null) {
+            _updateState(() {
+              _playbackController.setVideoError(
+                AppLocalizations.of(context).playerSidePanelLoadFailed,
+              );
+              _loadingMagnet = null;
+            });
+            return;
+          }
+          debugPrint('[Player] Got stream URL: $streamUrl');
           _updateState(() {
-            _playbackController.setVideoError(
-              AppLocalizations.of(context).playerSidePanelLoadFailed,
+            _playbackController.markLocalPlayback(
+              streamUrl,
+              label: AppLocalizations.of(context).playerSourceTabBt,
             );
-            _loadingMagnet = null;
           });
-          return;
-        }
-        debugPrint('[Player] Got stream URL: $streamUrl');
-        _updateState(() {
-          _playbackController.markLocalPlayback(
-            streamUrl,
-            label: AppLocalizations.of(context).playerSourceTabBt,
-          );
-        });
           final btHash = _extractBtHashFromStreamUrl(streamUrl);
           if (btHash != null) {
             _downloadManager.setActiveStream(btHash);
@@ -109,7 +109,7 @@ extension _PlayerPageSidePanelWidgets on _PlayerPageState {
           }
           _resumeSeekGeneration++;
           final openGeneration = _resumeSeekGeneration;
-          await _player.open(_mediaForPlayback(streamUrl));
+          await _openWithFocus(_mediaForPlayback(streamUrl));
           if (!isSearchGenerationCurrent(
             resultLoadToken: loadToken,
             currentLoadToken: _sampleSourceController.sampleLoadToken,

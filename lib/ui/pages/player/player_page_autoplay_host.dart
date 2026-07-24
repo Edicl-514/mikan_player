@@ -154,7 +154,7 @@ extension _PlayerPageAutoplayHost on _PlayerPageState {
       proxyUrlBuilder: (url, headers) => _headerProxy.registerUrl(url, headers),
       callbacks: PlayerPlaybackOpenCallbacks(
         stopPlayer: _player.stop,
-        openUrl: (url) => _player.open(_mediaForPlayback(url), play: true),
+        openUrl: (url) => _openWithFocus(_mediaForPlayback(url)),
         hasPlaybackStarted: () =>
             _player.state.playing || _player.state.position > Duration.zero,
         applyPlaybackSpeed: _applyPlaybackSpeed,

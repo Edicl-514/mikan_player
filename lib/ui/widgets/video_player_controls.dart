@@ -62,6 +62,7 @@ class CustomVideoControls extends StatefulWidget {
   // 视频标题
   final String? videoTitle;
   final ValueListenable<String>? videoTitleListenable;
+  final VoidCallback onPlayRequested;
 
   const CustomVideoControls({
     super.key,
@@ -89,6 +90,7 @@ class CustomVideoControls extends StatefulWidget {
     required this.mobilePlayerLockNotifier,
     this.videoTitle,
     this.videoTitleListenable,
+    required this.onPlayRequested,
     required this.isAutoPlayNextEnabled,
     required this.onToggleAutoPlayNext,
     required this.playbackSpeed,
@@ -511,7 +513,9 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
                     // 1. 应用侧字幕层（避开 media_kit 全屏路由里 SubtitleView 不刷新的问题）
                     Positioned.fill(
                       child: IgnorePointer(
-                        child: SubtitleOverlay(subtitleService: subtitleService),
+                        child: SubtitleOverlay(
+                          subtitleService: subtitleService,
+                        ),
                       ),
                     ),
 
@@ -846,7 +850,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
     if (isPlaying) {
       player.pause();
     } else {
-      player.play();
+      widget.onPlayRequested();
     }
   }
 
@@ -966,8 +970,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
               availableSourcesListenable: widget.availableSourcesListenable,
               sourceIndexNotifier: widget.sourceIndexNotifier,
               currentSourceLabel: widget.currentSourceLabel,
-              currentSourceLabelListenable:
-                  widget.currentSourceLabelListenable,
+              currentSourceLabelListenable: widget.currentSourceLabelListenable,
               isAutoPlayNextEnabled: widget.isAutoPlayNextEnabled,
               onToggleAutoPlayNext: widget.onToggleAutoPlayNext,
               playbackSpeed: _resolveCurrentPlaybackSpeed(),
