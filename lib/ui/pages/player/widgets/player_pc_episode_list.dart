@@ -7,6 +7,7 @@ class PlayerPcEpisodeList extends StatelessWidget {
   final BangumiEpisode currentEpisode;
   final ScrollController scrollController;
   final ValueChanged<BangumiEpisode> onEpisodeSelected;
+  final double maxHeight;
 
   const PlayerPcEpisodeList({
     super.key,
@@ -14,10 +15,15 @@ class PlayerPcEpisodeList extends StatelessWidget {
     required this.currentEpisode,
     required this.scrollController,
     required this.onEpisodeSelected,
+    this.maxHeight = 420.0,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (episodes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final cardColor = isDark
@@ -33,15 +39,30 @@ class PlayerPcEpisodeList extends StatelessWidget {
     final faintTextColor = isDark
         ? Colors.white24
         : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7);
-    // Must receive a bounded height from the parent. shrinkWrap + nested
-    // CustomScrollView breaks mouse-wheel scrolling on desktop (PC sidebar).
-    return Scrollbar(
-      controller: scrollController,
-      thumbVisibility: true,
-      child: ListView.separated(
-        controller: scrollController,
+
+    // Calculate estimated total height for all items to determine if shrinkWrap
+    // should be used (when total height fits within [maxHeight]).
+    double totalEstimatedHeight = 0;
+    for (int i = 0; i < episodes.length; i++) {
+      final ep = episodes[i];
+      final hasTwoLines = ep.nameCn.isNotEmpty && ep.name.isNotEmpty;
+      totalEstimatedHeight += hasTwoLines ? 58.0 : 44.0;
+      if (i < episodes.length - 1) {
+        totalEstimatedHeight += 8.0;
+      }
+    }
+
+    final bool fitsInMaxHeight = totalEstimatedHeight <= maxHeight;
+
+    Widget buildListView() {
+      return ListView.separated(
+        controller: fitsInMaxHeight ? null : scrollController,
         primary: false,
-        padding: const EdgeInsets.only(right: 12),
+        shrinkWrap: fitsInMaxHeight,
+        physics: fitsInMaxHeight
+            ? const NeverScrollableScrollPhysics()
+            : const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.only(right: fitsInMaxHeight ? 0 : 12),
         itemCount: episodes.length,
         separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
@@ -139,6 +160,19 @@ class PlayerPcEpisodeList extends StatelessWidget {
             ),
           );
         },
+      );
+    }
+
+    if (fitsInMaxHeight) {
+      return buildListView();
+    }
+
+    return SizedBox(
+      height: maxHeight,
+      child: Scrollbar(
+        controller: scrollController,
+        thumbVisibility: true,
+        child: buildListView(),
       ),
     );
   }
