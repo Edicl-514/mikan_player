@@ -24,28 +24,34 @@ class WorkspaceTabStrip extends StatelessWidget {
           builder: (context, constraints) {
             final tabWidth = (constraints.maxWidth / controller.tabs.length)
                 .clamp(120.0, 220.0);
-            return ReorderableListView.builder(
-              scrollDirection: Axis.horizontal,
-              buildDefaultDragHandles: false,
-              padding: EdgeInsets.zero,
-              itemCount: controller.tabs.length,
-              onReorderItem: controller.reorder,
-              itemBuilder: (context, index) {
-                final tab = controller.tabs[index];
-                return SizedBox(
-                  key: ValueKey(tab.id),
-                  width: tabWidth,
-                  child: ReorderableDelayedDragStartListener(
-                    index: index,
-                    child: _WorkspaceTab(
-                      tab: tab,
-                      isActive: tab.id == controller.activeTabId,
-                      onActivate: () => controller.activate(tab.id),
-                      onClose: () => unawaited(hostController.closeTab(tab.id)),
+            // Keep the strip's reported width to the visible tabs so the
+            // title bar can place the new-tab button directly after them.
+            return SizedBox(
+              width: tabWidth * controller.tabs.length,
+              child: ReorderableListView.builder(
+                scrollDirection: Axis.horizontal,
+                buildDefaultDragHandles: false,
+                padding: EdgeInsets.zero,
+                itemCount: controller.tabs.length,
+                onReorderItem: controller.reorder,
+                itemBuilder: (context, index) {
+                  final tab = controller.tabs[index];
+                  return SizedBox(
+                    key: ValueKey(tab.id),
+                    width: tabWidth,
+                    child: ReorderableDelayedDragStartListener(
+                      index: index,
+                      child: _WorkspaceTab(
+                        tab: tab,
+                        isActive: tab.id == controller.activeTabId,
+                        onActivate: () => controller.activate(tab.id),
+                        onClose: () =>
+                            unawaited(hostController.closeTab(tab.id)),
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             );
           },
         );

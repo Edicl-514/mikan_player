@@ -2,7 +2,10 @@ import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/widgets/windows_desktop_frame.dart';
+import 'package:mikan_player/ui/widgets/workspace_tab_host.dart';
+import 'package:mikan_player/ui/widgets/workspace_tab_strip.dart';
 
 void main() {
   tearDown(() {
@@ -78,5 +81,33 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('New tab'), findsOneWidget);
+  });
+
+  testWidgets('places new-tab button directly after the tab strip', (
+    tester,
+  ) async {
+    final controller = WorkspaceTabController();
+    final hostController = WorkspaceTabHostController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WindowsDesktopFrame(
+          tabStrip: WorkspaceTabStrip(
+            controller: controller,
+            hostController: hostController,
+          ),
+          onNewTab: controller.create,
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+
+    final tabRect = tester.getRect(
+      find.byKey(ValueKey(controller.activeTabId)),
+    );
+    final newTabRect = tester.getRect(find.byIcon(Icons.add));
+
+    // The button's 18px icon is centered in the 46px title-bar button.
+    expect(newTabRect.left, tabRect.right + 14);
   });
 }

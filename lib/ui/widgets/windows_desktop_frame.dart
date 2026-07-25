@@ -126,49 +126,61 @@ class _WindowsDesktopFrameState extends State<WindowsDesktopFrame>
     final iconColor = colors.onSurfaceVariant;
     return SizedBox(
       height: WindowsDesktopFrame.titleBarHeight,
-      child: Row(
-        children: [
-          SizedBox(
-            width: 48,
-            child: Center(
-              child: Icon(
-                Icons.play_circle_fill_rounded,
-                color: colors.primary,
-                size: 24,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const fixedWidth = 48 + WindowsDesktopFrame.windowControlWidth * 4;
+          final tabStripMaxWidth = (constraints.maxWidth - fixedWidth).clamp(
+            0.0,
+            double.infinity,
+          );
+          return Row(
+            children: [
+              SizedBox(
+                width: 48,
+                child: Center(
+                  child: Icon(
+                    Icons.play_circle_fill_rounded,
+                    color: colors.primary,
+                    size: 24,
+                  ),
+                ),
               ),
-            ),
-          ),
-          Expanded(flex: 3, child: widget.tabStrip ?? const SizedBox.expand()),
-          _TitleBarButton(
-            tooltip: 'New tab',
-            icon: Icons.add,
-            iconColor: iconColor,
-            onPressed: widget.onNewTab,
-          ),
-          Expanded(
-            flex: 2,
-            child: DragToMoveArea(child: const SizedBox.expand()),
-          ),
-          _TitleBarButton(
-            tooltip: 'Minimize',
-            icon: Icons.remove,
-            iconColor: iconColor,
-            onPressed: () => windowManager.minimize(),
-          ),
-          _TitleBarButton(
-            tooltip: _isMaximized ? 'Restore' : 'Maximize',
-            icon: _isMaximized ? Icons.filter_none_outlined : Icons.crop_square,
-            iconColor: iconColor,
-            onPressed: _toggleMaximize,
-          ),
-          _TitleBarButton(
-            tooltip: 'Close',
-            icon: Icons.close,
-            iconColor: iconColor,
-            isCloseButton: true,
-            onPressed: () => windowManager.close(),
-          ),
-        ],
+              if (widget.tabStrip != null)
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: tabStripMaxWidth),
+                  child: widget.tabStrip!,
+                ),
+              _TitleBarButton(
+                tooltip: 'New tab',
+                icon: Icons.add,
+                iconColor: iconColor,
+                onPressed: widget.onNewTab,
+              ),
+              Expanded(child: DragToMoveArea(child: const SizedBox.expand())),
+              _TitleBarButton(
+                tooltip: 'Minimize',
+                icon: Icons.remove,
+                iconColor: iconColor,
+                onPressed: () => windowManager.minimize(),
+              ),
+              _TitleBarButton(
+                tooltip: _isMaximized ? 'Restore' : 'Maximize',
+                icon: _isMaximized
+                    ? Icons.filter_none_outlined
+                    : Icons.crop_square,
+                iconColor: iconColor,
+                onPressed: _toggleMaximize,
+              ),
+              _TitleBarButton(
+                tooltip: 'Close',
+                icon: Icons.close,
+                iconColor: iconColor,
+                isCloseButton: true,
+                onPressed: () => windowManager.close(),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
