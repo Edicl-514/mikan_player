@@ -120,6 +120,8 @@ Windows 页面移除自身 `AppBar` 后，页面根布局需要检查以下问�
 - `SubscriptionDebugPage`（包括 feature disabled/error 分支）
 - `IndexPage`、`MyPage` 的 Windows 独立 Tab 标题处理
 
+**状态（2026-07-26）**：已完成落地。`AboutPage`、`HistoryPage`、`SettingsPage`、`ThemeSettingsPage`、`SubscriptionDebugPage`（含 feature-flag 的 disabled 与 enabled 分支）从 `Scaffold(appBar: AppBar(...), body: ...)` 改为 `DesktopPageScaffold(title: Text(...), body: ...)`：未被承载路径仍渲染与之前完全一致的 `Scaffold`+`AppBar`；被承载路径不再绘制 AppBar，标题由 destination metadata 与 `WorkspaceContextToolbar` 提供。`IndexPage`/`MyPage` 在原有 `MediaQuery.size.width < 600` 分流前插入一道 `DesktopPageChromeScope.hostsPageHeader(context)` 判断：被承载时不再绘制副本 AppBar；宽度不足 600 px 的 Windows 窗口会在内容顶部显示紧凑搜索 action row，避免走 `MobileHomeLayout` 时丢失原 AppBar 搜索入口；未被承载时保持原宽度分流，移动端 `Scaffold+AppBar+search` 不变。宽屏独立 Tab 的共享搜索入口按计划留到 Round 2。所有改动后的页面 body 仍使用原 `EdgeInsets.all(16)` 等固定间距，未引入 `kToolbarHeight` 顶部 padding，因此列表首项无额外空白。
+
 实现要点：
 
 - Windows 删除 `Scaffold.appBar`，保留 body、滚动控制器和状态。
@@ -127,6 +129,8 @@ Windows 页面移除自身 `AppBar` 后，页面根布局需要检查以下问�
 - `IndexPage`/`MyPage` 的搜索按钮不因删除移动 AppBar 而消失；放到 Round 2 的共享 action row，或在本轮暂时保留桌面内容入口。
 
 验收：页面标题只在全局上下文工具栏出现一次，Back 只出现一次，列表首项无额外空白。
+
+**验收结果**：`flutter analyze` 无问题；`flutter test` 1424 项通过（新增 1 项 `hosted pages drop their AppBar in the desktop shell`，并把 `HistoryPage`/`SettingsPage`/`SubscriptionDebugPage` 纳入 `mobile tree stays untouched` 的回归锁定）。被承载路径下 `find.byType(AppBar)` 全部为 `findsNothing`，且 `DesktopPageScaffold` 仍提供 `Scaffold`，snackbar / `ScaffoldMessenger` 上下文不变；移动端五页仍渲染唯一 AppBar 并由回归测试锁定。`IndexPage`/`MyPage` 因 `_fetchAnimes` 等直接调用 Rust，本轮未补 widget 测试，Round 2 在 `PcHomeLayout` 与共享 action row 改造时按基线补齐。
 
 ### Round 2：业务操作迁移（中等工作量，约 4–6 人日）
 

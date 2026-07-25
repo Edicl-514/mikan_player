@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutPage extends StatelessWidget {
@@ -9,8 +10,8 @@ class AboutPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(title: Text(AppLocalizations.of(context).aboutTitle)),
+    return DesktopPageScaffold(
+      title: Text(AppLocalizations.of(context).aboutTitle),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [

@@ -11,6 +11,8 @@ import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -46,6 +48,7 @@ class _MyPageState extends State<MyPage> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final hosted = DesktopPageChromeScope.hostsPageHeader(context);
 
     Widget body = ListView(
       padding: const EdgeInsets.all(16),
@@ -149,6 +152,29 @@ class _MyPageState extends State<MyPage> {
         ),
       ],
     );
+
+    if (hosted) {
+      if (isMobile) {
+        return Column(
+          children: [
+            DesktopPageActionRow(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  tooltip: AppLocalizations.of(context).searchHint,
+                  onPressed: () => WorkspaceNavigation.open<void>(
+                    context,
+                    WorkspaceDestinations.search(context),
+                  ),
+                ),
+              ],
+            ),
+            Expanded(child: body),
+          ],
+        );
+      }
+      return body;
+    }
 
     if (isMobile) {
       return Scaffold(

@@ -3,6 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/services/workspace_page_chrome.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/pages/about_page.dart';
+import 'package:mikan_player/ui/pages/history_page.dart';
+import 'package:mikan_player/ui/pages/settings_page.dart';
+import 'package:mikan_player/ui/pages/subscription_debug_page.dart';
 import 'package:mikan_player/ui/pages/theme_settings_page.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
@@ -314,7 +317,10 @@ void main() {
     ) async {
       for (final page in <Widget>[
         const AboutPage(),
+        const HistoryPage(),
+        const SettingsPage(),
         const ThemeSettingsPage(),
+        const SubscriptionDebugPage(),
       ]) {
         await pumpLocalizedWidget(tester, page);
         expect(
@@ -325,6 +331,33 @@ void main() {
         expect(
           DesktopPageChromeScope.isHosted(tester.element(find.byType(AppBar))),
           isFalse,
+        );
+      }
+    });
+
+    // The counterpart for Round 1: when the workspace shell hosts the page, the
+    // page-owned AppBar must disappear so the tab strip / context toolbar stays
+    // the only place Back and the title come from.
+    testWidgets('hosted pages drop their AppBar in the desktop shell', (
+      tester,
+    ) async {
+      for (final page in <Widget>[
+        const AboutPage(),
+        const HistoryPage(),
+        const SettingsPage(),
+        const ThemeSettingsPage(),
+        const SubscriptionDebugPage(),
+      ]) {
+        await pumpLocalizedWidget(tester, DesktopPageChromeScope(child: page));
+        expect(
+          find.byType(AppBar),
+          findsNothing,
+          reason: '${page.runtimeType} yields its header to the shell',
+        );
+        expect(
+          find.byType(DesktopPageScaffold),
+          findsOneWidget,
+          reason: '${page.runtimeType} still builds content under the shell',
         );
       }
     });

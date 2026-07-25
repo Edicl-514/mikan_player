@@ -5,6 +5,7 @@ import 'package:mikan_player/services/settings_service.dart';
 import 'package:mikan_player/utils/feature_flags.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -123,8 +124,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(AppLocalizations.of(context).settingsTitle)),
+    return DesktopPageScaffold(
+      title: Text(AppLocalizations.of(context).settingsTitle),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

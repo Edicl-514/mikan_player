@@ -3,6 +3,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/theme/app_theme.dart';
 import 'package:mikan_player/services/settings_service.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 class ThemeSettingsPage extends StatefulWidget {
   const ThemeSettingsPage({super.key});
@@ -16,8 +17,8 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(AppLocalizations.of(context).themeSettings)),
+    return DesktopPageScaffold(
+      title: Text(AppLocalizations.of(context).themeSettings),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

@@ -8,6 +8,8 @@ import 'package:mikan_player/ui/widgets/anime_card.dart';
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 class IndexPage extends StatefulWidget {
   const IndexPage({super.key});
@@ -817,6 +819,7 @@ class _IndexPageState extends State<IndexPage> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final hosted = DesktopPageChromeScope.hostsPageHeader(context);
     final bool showMonthFilter = _selectedYear != indexFilterUnlimited;
 
     Widget body = CustomScrollView(
@@ -919,6 +922,30 @@ class _IndexPageState extends State<IndexPage> {
           ),
       ],
     );
+
+    if (hosted) {
+      if (isMobile) {
+        final l10n = AppLocalizations.of(context);
+        return Column(
+          children: [
+            DesktopPageActionRow(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  tooltip: l10n.searchHint,
+                  onPressed: () => WorkspaceNavigation.open<void>(
+                    context,
+                    WorkspaceDestinations.search(context),
+                  ),
+                ),
+              ],
+            ),
+            Expanded(child: body),
+          ],
+        );
+      }
+      return body;
+    }
 
     if (isMobile) {
       final l10n = AppLocalizations.of(context);

@@ -5,6 +5,7 @@ import 'package:mikan_player/services/playback_history_episode_resolver.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
@@ -237,9 +238,6 @@ class _HistoryPageState extends State<HistoryPage> {
         ),
       );
     }
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.historyTitle)),
-      body: body,
-    );
+    return DesktopPageScaffold(title: Text(l10n.historyTitle), body: body);
   }
 }

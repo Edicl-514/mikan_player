@@ -12,6 +12,7 @@ import 'package:mikan_player/src/rust/api/generic_scraper.dart'
     as generic_scraper;
 import 'package:mikan_player/utils/feature_flags.dart';
 import 'package:mikan_player/utils/source_channel_key.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 class SubscriptionDebugPage extends StatefulWidget {
   const SubscriptionDebugPage({super.key});
@@ -1262,8 +1263,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
   Widget build(BuildContext context) {
     if (!enableSubscriptionDebug) {
       final l10n = AppLocalizations.of(context);
-      return Scaffold(
-        appBar: AppBar(title: Text(l10n.subscriptionDebugTitle)),
+      return DesktopPageScaffold(
+        title: Text(l10n.subscriptionDebugTitle),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -1274,8 +1275,8 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
     }
 
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.subscriptionDebugJsonTitle)),
+    return DesktopPageScaffold(
+      title: Text(l10n.subscriptionDebugJsonTitle),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
