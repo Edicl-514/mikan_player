@@ -72,13 +72,42 @@ Windows 页面移除自身 `AppBar` 后，页面根布局需要检查以下问�
 
 目标是先让页面能在 Windows 判断“是否由 Workspace 承载”，不改移动端树。
 
+**状态（2026-07-26）**：已完成落地。能力由 `DesktopPageChromeScope` 的存在与否表达，`WorkspaceTabHost` 按 destination 逐个安装，因此不需要页面自行判断平台或宽度；`DesktopPageScaffold` 在被承载时移除自身 AppBar 并把 header 业务内容下移到内容区，未被承载时渲染与此前完全一致的 `Scaffold`+`AppBar`。标题改为“destination 为基准 + 路由生命周期内细化”的单一通道，`WorkspacePageChromeRegistry` 负责 per-tab 的标题栈与 toolbar action 槽，PlayerPage 的临时 `updateMetadata` 标题写入已迁移到该通道。本轮未改动任何页面的布局。
+
 1. 定义 `DesktopPageChromeScope`/页面 action row 的最小 API，或在现有 `WorkspaceContextToolbar` 上增加等价的可选 action slot。
 2. 统一 desktop page body 的顶部间距规则，提供不带 AppBar 的 `DesktopPageScaffold`（名称可调整）。
 3. 确认 `WorkspaceDestination` 的 title 是唯一的 Windows route 标题来源；处理异步打开和前进重建后的标题更新。
 4. 增加 widget 测试：Windows 分支无重复 back/title；非 Windows 分支仍渲染原 AppBar；全屏时页面 Chrome 不覆盖播放器。
 5. 建立页面清单截图基线：720、900、1280 px，亮/暗主题各一组。
 
+#### 落地路径（实现索引）
+
+| 产物 | 路径 |
+|------|------|
+| Per-tab 标题栈 / toolbar action 注册表 | `lib/services/workspace_page_chrome.dart` |
+| 能力 scope / 间距常量 / 页面侧发布器 | `lib/ui/widgets/desktop_page_chrome.dart` |
+| 无 AppBar 页面 scaffold / action row / pinned sliver | `lib/ui/widgets/desktop_page_scaffold.dart` |
+| Scope 安装与标题回落协调 | `lib/ui/widgets/workspace_tab_host.dart` |
+| Context toolbar trailing action 槽 | `lib/ui/widgets/workspace_tab_strip.dart` |
+| Player 标题接入共享通道 | `lib/ui/pages/player_page.dart` |
+| 能力 / scaffold / 全屏 / 移动端回归 | `test/ui/widgets/desktop_page_chrome_test.dart` |
+| 标题唯一来源 / toolbar 槽 | `test/ui/widgets/workspace_page_chrome_test.dart` |
+| 720/900/1280 px × 亮暗几何基线 | `test/ui/widgets/desktop_page_chrome_baseline_test.dart` |
+
+#### 落地约定
+
+- **能力判断**：页面只调用 `DesktopPageChromeScope.hostsPageHeader(context)`（或更细的 `hostsNavigation`/`hostsTitle`），不得新增宽度断点代替平台判断。scope 由 host 安装在每个 destination 外层，所以命令式 push 到 Tab 内的 route 默认仍保留自己的 AppBar——Tab 标题此时指向它下面的 destination。这类 route 若只想去掉重复的 Back，用 `providesTitle: false` 覆盖 scope。
+- **顶部间距**：`DesktopPageMetrics.contentTopInset` 为 0，frame 的 toolbar 就是视觉分隔；`topInsetFor(context, reserved:)` 用来替换详情页里 `kToolbarHeight + n` 形式的常量，在移动端返回原值。
+- **action 落位**：默认放页面内容第一行（`DesktopPageActionRow`，需要常驻可见时用 `DesktopPagePinnedActionRow`）。`WorkspaceToolbarActions` 只留给必须在内容滚动时仍可达的操作，Round 3 的播放器下载/复制是唯一预期用例。
+- **标题**：destination title 是基准值，`WorkspaceRouteTitle` 只在 route 存活期间细化它（剧集后缀、异步解析出的实体名）。撤回即回落，因此异步打开和前进重建都不需要页面自己跟踪导航。
+
+#### 已知取舍
+
+- 第 5 项落成几何基线测试而非图片 golden：仓库尚无 golden 基础设施，且 widget 测试使用 Ahem 字体，像素对比对“页面顶部是否多留一条 toolbar 高度”这一实际回归几乎没有增量信号。基线断言 frame 的 82 px（40 标题栏 + 42 toolbar）之后内容立即开始、action row 只增加自身高度，正好覆盖 Round 1–3 最容易静默出现的那类回归。真实像素验收仍留在 Round 4 的手动矩阵。
+
 验收：只打开基础能力开关时，移动端像素和交互无变化，Windows 仍可通过全局 Back 返回/关闭 route。
+
+**验收结果**：`flutter analyze` 无问题；`flutter test` 1423 项通过（新增 35 项）。移动端未被承载路径的 `AboutPage`/`ThemeSettingsPage` 仍渲染唯一 AppBar 并有回归测试锁定；Windows 承载路径下 Back 只出现在 context toolbar，标题只出现在 Tab 与 toolbar；播放器全屏时 frame 与页面发布的 toolbar action 一并隐藏。
 
 ### Round 1：纯标题栏页面（低工作量，约 1–2 人日）
 
@@ -167,4 +196,3 @@ Windows 页面移除自身 `AppBar` 后，页面根布局需要检查以下问�
 - 详情页和播放器的沉浸式/高频操作不被普通页规则破坏。
 - 切换、关闭、前进重建 Tab 不改变 Player session 的生命周期协议。
 - Android/iOS 不引入桌面 action row、不删除现有 AppBar、不改变底部导航和移动播放器交互。
-

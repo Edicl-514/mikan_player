@@ -5,9 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/player_session/player_session_identity.dart';
 import 'package:mikan_player/services/workspace_lifecycle.dart';
+import 'package:mikan_player/services/workspace_page_chrome.dart';
 import 'package:mikan_player/services/workspace_route_observer.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 
 typedef WorkspaceDestinationBuilder =
     Widget Function(BuildContext context, WorkspaceDestination destination);
@@ -69,11 +71,18 @@ class WorkspaceTabHost extends StatefulWidget {
     required this.controller,
     required this.hostController,
     this.destinationBuilder,
+    this.providesPageChrome = true,
   });
 
   final WorkspaceTabController controller;
   final WorkspaceTabHostController hostController;
   final WorkspaceDestinationBuilder? destinationBuilder;
+
+  /// Whether hosted pages may drop their own back button and title.
+  ///
+  /// True wherever the desktop frame draws them. Only the frame-less fallback
+  /// (and tests exercising the mobile tree) turns this off.
+  final bool providesPageChrome;
 
   @override
   State<WorkspaceTabHost> createState() => _WorkspaceTabHostState();
@@ -81,6 +90,8 @@ class WorkspaceTabHost extends StatefulWidget {
 
 class _WorkspaceTabHostState extends State<WorkspaceTabHost> {
   final Map<WorkspaceTabId, _TabNavigatorEntry> _entries = {};
+  final WorkspacePageChromeRegistry _pageChrome =
+      WorkspacePageChromeRegistry.instance;
   late WorkspaceTabId _previousActiveTabId;
 
   @override
@@ -89,6 +100,7 @@ class _WorkspaceTabHostState extends State<WorkspaceTabHost> {
     _previousActiveTabId = widget.controller.activeTabId;
     _syncEntries();
     widget.controller.addListener(_onControllerChanged);
+    _pageChrome.addListener(_onPageChromeChanged);
     widget.hostController._attach(this);
   }
 
@@ -128,6 +140,7 @@ class _WorkspaceTabHostState extends State<WorkspaceTabHost> {
   void dispose() {
     widget.hostController._detach(this);
     widget.controller.removeListener(_onControllerChanged);
+    _pageChrome.removeListener(_onPageChromeChanged);
     for (final entry in _entries.values) {
       entry.dispose();
     }
@@ -139,6 +152,7 @@ class _WorkspaceTabHostState extends State<WorkspaceTabHost> {
     _entries.removeWhere((id, entry) {
       if (liveIds.contains(id)) return false;
       entry.dispose();
+      _pageChrome.clearTab(id);
       return true;
     });
     for (final tab in widget.controller.tabs) {
@@ -163,7 +177,28 @@ class _WorkspaceTabHostState extends State<WorkspaceTabHost> {
       });
     }
     _syncEntries();
+    _syncPublishedTitles();
     if (mounted) setState(() {});
+  }
+
+  void _onPageChromeChanged() {
+    if (!mounted) return;
+    _syncPublishedTitles();
+  }
+
+  /// Reconciles tab titles with what live routes published.
+  ///
+  /// The destination title is the base value, so a tab with nothing published
+  /// falls back to it. That covers both directions of history: forward rebuilds
+  /// start from the destination, and a route that refined the title restores the
+  /// destination's when it goes away.
+  void _syncPublishedTitles() {
+    for (final tab in widget.controller.tabs) {
+      final published = _pageChrome.titleFor(tab.id);
+      final title = published ?? tab.currentDestination.title;
+      if (title == tab.title) continue;
+      widget.controller.updateMetadata(tab.id, title: title);
+    }
   }
 
   void _updateNavigationCapability(WorkspaceTabId tabId) {
@@ -177,14 +212,17 @@ class _WorkspaceTabHostState extends State<WorkspaceTabHost> {
             .tabById(tabId)
             ?.currentDestination;
         if (destination != null) {
+          // A tab back at its destination root has no nested route to own the
+          // audio state; the title still defers to anything the root published.
           widget.controller.updateMetadata(
             tabId,
-            title: destination.title,
+            title: _pageChrome.titleFor(tabId) ?? destination.title,
             icon: destination.icon,
             isAudible: false,
           );
         }
       }
+      _syncPublishedTitles();
     });
   }
 
@@ -239,8 +277,13 @@ class _WorkspaceTabHostState extends State<WorkspaceTabHost> {
     WorkspaceDestination destination,
   ) {
     final customBuilder = widget.destinationBuilder;
-    if (customBuilder != null) return customBuilder(context, destination);
-    return buildWorkspaceDestination(context, destination);
+    final page = customBuilder != null
+        ? customBuilder(context, destination)
+        : buildWorkspaceDestination(context, destination);
+    if (!widget.providesPageChrome) return page;
+    // Installed per route rather than around the whole host so a route can opt
+    // back into its own header by overriding the scope.
+    return DesktopPageChromeScope(child: page);
   }
 
   @override

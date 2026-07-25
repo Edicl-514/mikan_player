@@ -26,6 +26,7 @@ import 'package:mikan_player/services/source_request_gate.dart';
 import 'package:mikan_player/services/webview_resource_coordinator.dart';
 import 'package:mikan_player/services/webview_scheduler_stats.dart';
 import 'package:mikan_player/services/workspace_lifecycle.dart';
+import 'package:mikan_player/services/workspace_page_chrome.dart';
 import 'package:mikan_player/services/workspace_route_observer.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/widgets/workspace_tab_host.dart';
@@ -205,6 +206,7 @@ class _PlayerPageState extends State<PlayerPage>
   RouteObserver<PageRoute<dynamic>> _routeObserver = workspaceRouteObserver;
   WorkspaceTabId? _workspaceTabId;
   WorkspaceTabController? _workspaceTabController;
+  final Object _pageChromeOwner = Object();
   PlayerSessionLogContext _sessionLogContext = const PlayerSessionLogContext(
     sessionId: PlayerSessionId('uninitialized'),
   );
@@ -525,6 +527,13 @@ class _PlayerPageState extends State<PlayerPage>
     final tabController = WorkspaceTabScope.controllerOf(context);
     _workspaceTabController = tabController;
     if (tabId != null && tabId != _workspaceTabId) {
+      final previousTabId = _workspaceTabId;
+      if (previousTabId != null) {
+        WorkspacePageChromeRegistry.instance.retractTitle(
+          previousTabId,
+          _pageChromeOwner,
+        );
+      }
       _workspaceTabId = tabId;
       WorkspaceLifecycleRegistry.instance.assignToTab(_playerSessionId, tabId);
       _playerSessionHandle.tabId = tabId;
@@ -534,21 +543,28 @@ class _PlayerPageState extends State<PlayerPage>
       );
       _webviewStats.sessionContext = _sessionLogContext;
     }
+    _updateWorkspacePageTitle();
+    if (tabId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _workspaceTabId != tabId) return;
+        tabController?.updateMetadata(tabId, icon: WorkspaceTabIcon.media);
+      });
+    }
+  }
+
+  void _updateWorkspacePageTitle() {
     final pageTitle = AppLocalizations.of(context).playerPageTitleWithEpisode(
       widget.anime.title,
       _episodeController.currentEpisode.sort.toInt(),
     );
     _videoTitleNotifier.value = pageTitle;
-    if (tabId != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _workspaceTabId != tabId) return;
-        tabController?.updateMetadata(
-          tabId,
-          title: pageTitle,
-          icon: WorkspaceTabIcon.media,
-        );
-      });
-    }
+    final tabId = _workspaceTabId;
+    if (tabId == null) return;
+    WorkspacePageChromeRegistry.instance.publishTitle(
+      tabId,
+      _pageChromeOwner,
+      pageTitle,
+    );
   }
 
   void _updateState(VoidCallback mutation) => setState(mutation);
@@ -589,6 +605,13 @@ class _PlayerPageState extends State<PlayerPage>
     _isDisposing = true;
     if (_isVideoFullscreen) {
       WindowsDesktopFrameController.instance.setContentFullscreen(false);
+    }
+    final chromeTabId = _workspaceTabId;
+    if (chromeTabId != null) {
+      WorkspacePageChromeRegistry.instance.retractTitle(
+        chromeTabId,
+        _pageChromeOwner,
+      );
     }
     unawaited(_prepareToClose(rebuildWorkerTree: false));
     _routeObserver.unsubscribe(this);
@@ -753,6 +776,13 @@ class _PlayerPageState extends State<PlayerPage>
 
   @override
   void didPushNext() {
+    final tabId = _workspaceTabId;
+    if (tabId != null) {
+      WorkspacePageChromeRegistry.instance.retractTitle(
+        tabId,
+        _pageChromeOwner,
+      );
+    }
     scheduleMicrotask(() {
       if (mounted && !_isVideoFullscreen) {
         unawaited(_workspaceSessionHandle.onRouteCovered());
@@ -762,6 +792,7 @@ class _PlayerPageState extends State<PlayerPage>
 
   @override
   void didPopNext() {
+    _updateWorkspacePageTitle();
     scheduleMicrotask(() {
       if (mounted && !_isVideoFullscreen) {
         unawaited(_workspaceSessionHandle.onRouteRevealed());

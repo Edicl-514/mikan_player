@@ -94,9 +94,7 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
       // Reset comments
       _sidePanelLoader.resetComments();
     });
-    _videoTitleNotifier.value = AppLocalizations.of(
-      context,
-    ).playerPageTitleWithEpisode(widget.anime.title, ep.sort.toInt());
+    _updateWorkspacePageTitle();
     _publishPlayerControlSourceState();
 
     // New episode: clear in-page time trackers and any pending seek from the

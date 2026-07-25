@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:mikan_player/services/workspace_page_chrome.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/widgets/workspace_tab_host.dart';
 
@@ -161,6 +162,11 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
   }
 }
 
+/// Back, Forward and the active tab's title.
+///
+/// The trailing slot only carries what the active route published through
+/// [WorkspacePageChromeRegistry]; page-level business actions belong in the
+/// page's own action row so they cannot crowd out the title.
 class WorkspaceContextToolbar extends StatelessWidget {
   const WorkspaceContextToolbar({
     super.key,
@@ -168,19 +174,27 @@ class WorkspaceContextToolbar extends StatelessWidget {
     required this.hostController,
   });
 
+  static const double height = 42;
+
   final WorkspaceTabController controller;
   final WorkspaceTabHostController hostController;
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: controller,
+      listenable: Listenable.merge(<Listenable>[
+        controller,
+        WorkspacePageChromeRegistry.instance,
+      ]),
       builder: (context, _) {
         final tab = controller.activeTab;
+        final actions = WorkspacePageChromeRegistry.instance.toolbarActionsFor(
+          tab.id,
+        );
         return Material(
           color: Theme.of(context).colorScheme.surface,
           child: SizedBox(
-            height: 42,
+            height: height,
             child: Row(
               children: [
                 const SizedBox(width: 8),
@@ -205,6 +219,8 @@ class WorkspaceContextToolbar extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
+                for (final action in actions) action.build(context),
+                if (actions.isNotEmpty) const SizedBox(width: 8),
               ],
             ),
           ),
