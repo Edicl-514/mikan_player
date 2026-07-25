@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tract_onnx::prelude::*;
 
-type CaptchaModel = SimplePlan<TypedFact, Box<dyn TypedOp>, TypedModel>;
+type CaptchaModel = Arc<TypedSimplePlan>;
 
 lazy_static! {
     static ref CAPTCHA_ENGINE: Mutex<Option<CaptchaOcrEngine>> = Mutex::new(None);
@@ -210,7 +210,7 @@ fn decode_output(
     options: Option<&CaptchaConstraintOptions>,
 ) -> Result<String> {
     let output = output
-        .to_array_view::<f32>()
+        .to_plain_array_view::<f32>()
         .context("failed to read captcha output tensor as f32")?;
     let shape = output.shape();
     let allowed_indices = options.map(|item| build_allowed_indices(charset, item));

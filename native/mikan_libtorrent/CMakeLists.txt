@@ -44,6 +44,12 @@ add_subdirectory("${MIKAN_LIBTORRENT_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/libtorren
 
 if(WIN32)
   target_compile_definitions(torrent-rasterbar PRIVATE _WIN32_WINNT=0x0A00)
+  if(MSVC)
+    # libtorrent 2.1 uses Boost.JSON header-only sources for WebRTC trackers.
+    # vcpkg's Windows triplet enables Boost DLL auto-linking by default, so
+    # force matching static declarations for the header-only implementation.
+    target_compile_definitions(torrent-rasterbar PRIVATE BOOST_JSON_STATIC_LINK)
+  endif()
 endif()
 
 if(ANDROID)

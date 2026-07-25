@@ -336,12 +336,13 @@ void set_playback_deadlines(
   }
 
   for (int p : old_pieces) {
-    handle.reset_piece_deadline(p);
+    handle.reset_piece_deadline(lt::piece_index_t{p});
   }
 
   std::vector<int> pieces;
   for (int p = first_piece; p <= last_piece; ++p) {
-    handle.set_piece_deadline(p, (p - first_piece) * 100, lt::torrent_handle::alert_when_available);
+    handle.set_piece_deadline(lt::piece_index_t{p}, (p - first_piece) * 100,
+                              lt::torrent_handle::alert_when_available);
     pieces.push_back(p);
   }
 
@@ -366,7 +367,7 @@ void clear_playback_deadlines(
     ctx->deadline_last_piece = -1;
   }
   for (int p : pieces) {
-    handle.reset_piece_deadline(p);
+    handle.reset_piece_deadline(lt::piece_index_t{p});
   }
 }
 
@@ -382,7 +383,7 @@ bool are_pieces_ready(
   if (pieces.empty()) return false;
   for (int p = first_piece; p <= last_piece; ++p) {
     if (p >= static_cast<int>(pieces.size())) return false;
-    if (!pieces[p]) return false;
+    if (!pieces[lt::piece_index_t{p}]) return false;
   }
   return true;
 }
