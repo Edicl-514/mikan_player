@@ -74,6 +74,17 @@ extension _PlayerPageVideoArea on _PlayerPageState {
       onExitFullscreen: () async {
         _isVideoFullscreen = false;
         WindowsDesktopFrameController.instance.setContentFullscreen(false);
+        final frameController = WindowsDesktopFrameController.instance;
+        if (frameController.isWindowFullscreen) {
+          // Esc/back can pop media_kit's fullscreen route without going
+          // through the combined button. Keep native window state coupled.
+          frameController.setWindowFullscreen(false);
+          try {
+            await windowManager.setFullScreen(false);
+          } catch (_) {
+            // The window manager is only available on desktop platforms.
+          }
+        }
       },
     );
   }

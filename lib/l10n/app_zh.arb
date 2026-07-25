@@ -1,4 +1,8 @@
 {
+  "playerAppFullscreen": "应用内全屏",
+  "playerAppFullscreenExit": "退出应用内全屏",
+  "playerWindowFullscreen": "窗口全屏",
+  "playerWindowFullscreenExit": "退出窗口全屏",
   "@@locale": "zh",
   "appTitle": "Mikan Player",
   "homeTitle": "Mikan Player",

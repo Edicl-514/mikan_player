@@ -9,6 +9,18 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get playerAppFullscreen => 'App fullscreen';
+
+  @override
+  String get playerAppFullscreenExit => 'Exit app fullscreen';
+
+  @override
+  String get playerWindowFullscreen => 'Window fullscreen';
+
+  @override
+  String get playerWindowFullscreenExit => 'Exit window fullscreen';
+
+  @override
   String get appTitle => 'Mikan Player';
 
   @override

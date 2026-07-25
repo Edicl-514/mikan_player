@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
@@ -16,6 +17,7 @@ import 'package:mikan_player/ui/widgets/video_player_controls/settings_panel.dar
 import 'package:mikan_player/ui/widgets/video_player_controls/source_list_panel.dart';
 import 'package:mikan_player/ui/widgets/video_player_controls/system_time_display.dart';
 import 'package:mikan_player/ui/pages/player/player_ui_mode.dart';
+import 'package:mikan_player/ui/widgets/windows_desktop_frame.dart';
 
 /// 自定义视频播放器控件 - 整合弹幕与播放控制
 /// 深度集成 media_kit_video 的 Material 风格控件
@@ -430,7 +432,15 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
                     onPressed: () => _showSettingsMenu(context),
                   ),
                   const SizedBox(width: 8),
-                  const MaterialDesktopFullscreenButton(),
+                  _DesktopAppFullscreenButton(
+                    enterTooltip: l10n.playerAppFullscreen,
+                    exitTooltip: l10n.playerAppFullscreenExit,
+                  ),
+                  const SizedBox(width: 8),
+                  _DesktopWindowFullscreenButton(
+                    enterTooltip: l10n.playerWindowFullscreen,
+                    exitTooltip: l10n.playerWindowFullscreenExit,
+                  ),
                   const SizedBox(width: 8),
                 ],
               ),
@@ -505,7 +515,15 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
                     onPressed: () => _showSettingsMenu(context),
                   ),
                   const SizedBox(width: 8),
-                  const MaterialDesktopFullscreenButton(),
+                  _DesktopAppFullscreenButton(
+                    enterTooltip: l10n.playerAppFullscreen,
+                    exitTooltip: l10n.playerAppFullscreenExit,
+                  ),
+                  const SizedBox(width: 8),
+                  _DesktopWindowFullscreenButton(
+                    enterTooltip: l10n.playerWindowFullscreen,
+                    exitTooltip: l10n.playerWindowFullscreenExit,
+                  ),
                   const SizedBox(width: 16),
                 ],
               ),
@@ -1102,6 +1120,191 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
 }
 
 enum _EpisodeSkipDirection { previous, next }
+
+class _DesktopAppFullscreenButton extends StatelessWidget {
+  const _DesktopAppFullscreenButton({
+    required this.enterTooltip,
+    required this.exitTooltip,
+  });
+
+  final String enterTooltip;
+  final String exitTooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: WindowsDesktopFrameController.instance,
+      builder: (context, _) {
+        // The combined window+player fullscreen action owns the exit path;
+        // keeping this button mounted would allow two competing transitions.
+        if (WindowsDesktopFrameController.instance.isWindowFullscreen) {
+          return const SizedBox.shrink();
+        }
+        final fullscreen = isFullscreen(context);
+        return Tooltip(
+          message: fullscreen ? exitTooltip : enterTooltip,
+          child: IconButton(
+            onPressed: () => toggleFullscreen(context),
+            icon: Icon(fullscreen ? Icons.fullscreen_exit : Icons.fullscreen),
+            iconSize: 24,
+            color: Colors.white,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DesktopWindowFullscreenButton extends StatefulWidget {
+  const _DesktopWindowFullscreenButton({
+    required this.enterTooltip,
+    required this.exitTooltip,
+  });
+
+  final String enterTooltip;
+  final String exitTooltip;
+
+  @override
+  State<_DesktopWindowFullscreenButton> createState() =>
+      _DesktopWindowFullscreenButtonState();
+}
+
+class _DesktopWindowFullscreenButtonState
+    extends State<_DesktopWindowFullscreenButton>
+    with WindowListener {
+  static Future<void> _operation = Future<void>.value();
+  static bool _nativeTransitionInProgress = false;
+  bool? _requestedFullscreen;
+
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+    _syncState();
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
+
+  Future<void> _syncState() async {
+    try {
+      final isFullscreen = await windowManager.isFullScreen();
+      WindowsDesktopFrameController.instance.setWindowFullscreen(isFullscreen);
+    } catch (_) {
+      // window_manager is unavailable on non-desktop platforms; this widget
+      // is only inserted in the desktop controls tree.
+    }
+  }
+
+  @override
+  void onWindowEnterFullScreen() {
+    final controller = WindowsDesktopFrameController.instance;
+    controller.setWindowFullscreen(true);
+    if (!_nativeTransitionInProgress && !controller.isContentFullscreen) {
+      _enqueue(() => _enterPlayerFullscreen(context));
+    }
+  }
+
+  @override
+  void onWindowLeaveFullScreen() {
+    final controller = WindowsDesktopFrameController.instance;
+    controller.setWindowFullscreen(false);
+    if (!_nativeTransitionInProgress && controller.isContentFullscreen) {
+      _enqueue(() => _exitPlayerFullscreen(context));
+    }
+  }
+
+  Future<void> _enqueue(Future<void> Function() action) {
+    final next = _operation.then((_) => action());
+    _operation = next.catchError((_) {});
+    return next;
+  }
+
+  Future<void> _enterPlayerFullscreen(BuildContext context) async {
+    final controller = WindowsDesktopFrameController.instance;
+    if (!controller.isContentFullscreen && mounted) {
+      await enterFullscreen(context);
+    }
+  }
+
+  Future<void> _exitPlayerFullscreen(BuildContext context) async {
+    final controller = WindowsDesktopFrameController.instance;
+    if (!controller.isContentFullscreen || !mounted) return;
+    if (isFullscreen(context)) {
+      await exitFullscreen(context);
+    } else {
+      // The button below the fullscreen route remains mounted. Pop only when
+      // the player page confirms that its content fullscreen route is active.
+      await Navigator.of(context, rootNavigator: true).maybePop();
+    }
+  }
+
+  Future<void> _setCombinedFullscreen(bool value) async {
+    final controller = WindowsDesktopFrameController.instance;
+    if (value) {
+      await _enterPlayerFullscreen(context);
+      if (!controller.isWindowFullscreen) {
+        // Hide the app-only button before the native transition starts. The
+        // native event arrives asynchronously and must not expose a second
+        // exit path during that gap.
+        controller.setWindowFullscreen(true);
+        _nativeTransitionInProgress = true;
+        try {
+          await windowManager.setFullScreen(true);
+        } finally {
+          _nativeTransitionInProgress = false;
+        }
+      }
+    } else {
+      if (controller.isWindowFullscreen) {
+        _nativeTransitionInProgress = true;
+        try {
+          await windowManager.setFullScreen(false);
+        } finally {
+          _nativeTransitionInProgress = false;
+        }
+        controller.setWindowFullscreen(false);
+      }
+      if (!mounted) return;
+      await _exitPlayerFullscreen(context);
+    }
+  }
+
+  Future<void> _toggle() {
+    final controller = WindowsDesktopFrameController.instance;
+    final target = !(_requestedFullscreen ?? controller.isWindowFullscreen);
+    _requestedFullscreen = target;
+    return _enqueue(() async {
+      await _setCombinedFullscreen(target);
+      if (_requestedFullscreen == target) _requestedFullscreen = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: WindowsDesktopFrameController.instance,
+      builder: (context, _) {
+        final isFullscreen =
+            WindowsDesktopFrameController.instance.isWindowFullscreen;
+        return Tooltip(
+          message: isFullscreen ? widget.exitTooltip : widget.enterTooltip,
+          child: IconButton(
+            onPressed: _toggle,
+            icon: Icon(
+              isFullscreen ? Icons.fullscreen_exit : Icons.open_in_full,
+            ),
+            iconSize: 24,
+            color: Colors.white,
+          ),
+        );
+      },
+    );
+  }
+}
 
 class _ReactiveListenablesBuilder extends StatefulWidget {
   final List<Listenable> listenables;

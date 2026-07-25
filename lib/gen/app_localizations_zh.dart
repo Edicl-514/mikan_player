@@ -9,6 +9,18 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get playerAppFullscreen => '应用内全屏';
+
+  @override
+  String get playerAppFullscreenExit => '退出应用内全屏';
+
+  @override
+  String get playerWindowFullscreen => '窗口全屏';
+
+  @override
+  String get playerWindowFullscreenExit => '退出窗口全屏';
+
+  @override
   String get appTitle => 'Mikan Player';
 
   @override

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
-/// Shares the player fullscreen state with the desktop frame without coupling
-/// media_kit's fullscreen route to the application navigator.
+/// Shares player and native-window fullscreen state with the desktop frame
+/// without coupling either mode to the application navigator.
 class WindowsDesktopFrameController extends ChangeNotifier {
   WindowsDesktopFrameController._();
 
@@ -10,12 +10,21 @@ class WindowsDesktopFrameController extends ChangeNotifier {
       WindowsDesktopFrameController._();
 
   bool _isContentFullscreen = false;
+  bool _isWindowFullscreen = false;
 
   bool get isContentFullscreen => _isContentFullscreen;
+
+  bool get isWindowFullscreen => _isWindowFullscreen;
 
   void setContentFullscreen(bool value) {
     if (_isContentFullscreen == value) return;
     _isContentFullscreen = value;
+    notifyListeners();
+  }
+
+  void setWindowFullscreen(bool value) {
+    if (_isWindowFullscreen == value) return;
+    _isWindowFullscreen = value;
     notifyListeners();
   }
 }
@@ -78,12 +87,12 @@ class _WindowsDesktopFrameState extends State<WindowsDesktopFrame>
 
   @override
   void onWindowEnterFullScreen() {
-    WindowsDesktopFrameController.instance.setContentFullscreen(true);
+    WindowsDesktopFrameController.instance.setWindowFullscreen(true);
   }
 
   @override
   void onWindowLeaveFullScreen() {
-    WindowsDesktopFrameController.instance.setContentFullscreen(false);
+    WindowsDesktopFrameController.instance.setWindowFullscreen(false);
   }
 
   Future<void> _toggleMaximize() async {
@@ -102,7 +111,9 @@ class _WindowsDesktopFrameState extends State<WindowsDesktopFrame>
       child: AnimatedBuilder(
         animation: WindowsDesktopFrameController.instance,
         builder: (context, _) {
-          if (WindowsDesktopFrameController.instance.isContentFullscreen) {
+          final frameController = WindowsDesktopFrameController.instance;
+          if (frameController.isContentFullscreen ||
+              frameController.isWindowFullscreen) {
             return widget.child;
           }
 

@@ -65,6 +65,7 @@ import 'package:mikan_player/ui/pages/player/player_ui_mode.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_slot.dart';
 import 'package:mikan_player/ui/pages/player/webview_worker_state_transitions.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:window_manager/window_manager.dart';
 
 part 'player/player_page_layouts.dart';
 part 'player/player_page_mobile_info_layout.dart';

@@ -98,6 +98,30 @@ abstract class AppLocalizations {
     Locale('zh'),
   ];
 
+  /// No description provided for @playerAppFullscreen.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用内全屏'**
+  String get playerAppFullscreen;
+
+  /// No description provided for @playerAppFullscreenExit.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出应用内全屏'**
+  String get playerAppFullscreenExit;
+
+  /// No description provided for @playerWindowFullscreen.
+  ///
+  /// In zh, this message translates to:
+  /// **'窗口全屏'**
+  String get playerWindowFullscreen;
+
+  /// No description provided for @playerWindowFullscreenExit.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出窗口全屏'**
+  String get playerWindowFullscreenExit;
+
   /// No description provided for @appTitle.
   ///
   /// In zh, this message translates to:

@@ -1,4 +1,8 @@
 {
+  "playerAppFullscreen": "App fullscreen",
+  "playerAppFullscreenExit": "Exit app fullscreen",
+  "playerWindowFullscreen": "Window fullscreen",
+  "playerWindowFullscreenExit": "Exit window fullscreen",
   "@@locale": "en",
   "appTitle": "Mikan Player",
   "homeTitle": "Mikan Player",
