@@ -76,7 +76,7 @@ List<InlineSpan> buildPersonInlineSpans(
   required TextStyle textStyle,
   required TextStyle linkStyle,
   required Map<String, int> personIdMap,
-  required void Function(int personId) onPersonTap,
+  required void Function(int personId, {String? personName}) onPersonTap,
 }) {
   if (text.isEmpty || personIdMap.isEmpty) {
     return [TextSpan(text: text, style: textStyle)];
@@ -106,7 +106,7 @@ List<InlineSpan> buildPersonInlineSpans(
         text: match.name,
         style: linkStyle,
         recognizer: TapGestureRecognizer()
-          ..onTap = () => onPersonTap(match.personId),
+          ..onTap = () => onPersonTap(match.personId, personName: match.name),
       ),
     );
     cursor = match.end;
@@ -126,7 +126,7 @@ class PersonAwareText extends StatelessWidget {
   final TextStyle textStyle;
   final TextStyle linkStyle;
   final Map<String, int> personIdMap;
-  final void Function(int personId) onPersonTap;
+  final void Function(int personId, {String? personName}) onPersonTap;
 
   const PersonAwareText({
     super.key,

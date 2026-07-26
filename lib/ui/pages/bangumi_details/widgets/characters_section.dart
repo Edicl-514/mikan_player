@@ -60,7 +60,7 @@ class CharactersSection extends StatelessWidget {
     String? heroImageUrl,
   })
   onCharacterTap;
-  final void Function(int personId) onPersonTap;
+  final void Function(int personId, {String? personName}) onPersonTap;
   final Map<String, int> personIdMap;
   final WidgetBuilder loadingPlaceholder;
   final String sectionTitle;
@@ -167,7 +167,7 @@ class CharactersSection extends StatelessWidget {
                               textColor: textColor,
                               isDarkBg: isDarkBg,
                               onPersonTap: () =>
-                                  onPersonTap(personIdMap[cvName]!),
+                                  onPersonTap(personIdMap[cvName]!, personName: cvName),
                             ),
                         ],
                       ),

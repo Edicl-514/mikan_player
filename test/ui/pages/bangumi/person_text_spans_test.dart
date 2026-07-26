@@ -76,50 +76,41 @@ void main() {
       // The personId is whichever non-duped key was applied last; both
       // keys collapse to "Bob" so the second entry's personId wins the
       // update inside the loop's `if name.length < 2 || !seenNames.add(name)`
-      // short-circuit. We just assert the matcher stays stable across
-      // rebuilds by checking the matched name text only.
-      expect([1, 2], contains(match.personId));
-    });
-  });
-
-  group('buildPersonInlineSpans', () {
-    test('returns a single TextSpan when personIdMap is empty', () {
-      final spans = buildPersonInlineSpans(
-        'hello',
-        textStyle: const TextStyle(fontSize: 14),
-        linkStyle: const TextStyle(fontSize: 14, color: Colors.blue),
-        personIdMap: const {},
-        onPersonTap: (_) {},
-      );
-      expect(spans.length, 1);
-      expect(spans.first, isA<TextSpan>());
-      expect(spans.first.toPlainText(), 'hello');
-    });
-
-    test('returns a single TextSpan when nothing matches', () {
-      final spans = buildPersonInlineSpans(
-        'hello world',
-        textStyle: const TextStyle(fontSize: 14),
-        linkStyle: const TextStyle(fontSize: 14, color: Colors.blue),
-        personIdMap: const {'Bob': 1},
-        onPersonTap: (_) {},
-      );
-      expect(spans.length, 1);
-      expect(spans.first.toPlainText(), 'hello world');
-    });
-
-    test('splits into plain + link + plain when one match is in the middle', () {
       final spans = buildPersonInlineSpans(
         'hello Bob world',
         textStyle: const TextStyle(fontSize: 14),
         linkStyle: const TextStyle(fontSize: 14, color: Colors.blue),
         personIdMap: const {'Bob': 7},
-        onPersonTap: (_) {},
+        onPersonTap: (id, {personName}) {},
       );
       expect(spans.length, 3);
       expect(spans[0].toPlainText(), 'hello ');
       expect(spans[1].toPlainText(), 'Bob');
       expect(spans[2].toPlainText(), ' world');
+    });
+
+    test('case-sensitive match works', () {
+      final spans = buildPersonInlineSpans(
+        'hello bob world',
+        textStyle: const TextStyle(fontSize: 14),
+        linkStyle: const TextStyle(fontSize: 14, color: Colors.blue),
+        personIdMap: const {'Bob': 7},
+        onPersonTap: (id, {personName}) {},
+      );
+      expect(spans.length, 1);
+      expect(spans[0].toPlainText(), 'hello bob world');
+    });
+
+    test('empty personIdMap returns single plain text span', () {
+      final spans = buildPersonInlineSpans(
+        'hello Bob world',
+        textStyle: const TextStyle(fontSize: 14),
+        linkStyle: const TextStyle(fontSize: 14, color: Colors.blue),
+        personIdMap: const {},
+        onPersonTap: (id, {personName}) {},
+      );
+      expect(spans.length, 1);
+      expect(spans[0].toPlainText(), 'hello Bob world');
     });
 
     test('link span carries a TapGestureRecognizer bound to onPersonTap', () {
@@ -129,7 +120,7 @@ void main() {
         textStyle: const TextStyle(fontSize: 14),
         linkStyle: const TextStyle(fontSize: 14, color: Colors.blue),
         personIdMap: const {'Bob': 7},
-        onPersonTap: tapped.add,
+        onPersonTap: (id, {personName}) => tapped.add(id),
       );
       final link = spans[1] as TextSpan;
       expect(link.recognizer, isA<TapGestureRecognizer>());
@@ -144,7 +135,7 @@ void main() {
         textStyle: const TextStyle(fontSize: 14),
         linkStyle: const TextStyle(fontSize: 14, color: Colors.blue),
         personIdMap: const {'Bob': 7},
-        onPersonTap: (_) {},
+        onPersonTap: (id, {personName}) {},
       );
       expect(spans.length, 2);
       expect(spans[0].toPlainText(), 'Bob');
@@ -157,7 +148,7 @@ void main() {
         textStyle: const TextStyle(fontSize: 14),
         linkStyle: const TextStyle(fontSize: 14, color: Colors.blue),
         personIdMap: const {'Bob': 7},
-        onPersonTap: (_) {},
+        onPersonTap: (id, {personName}) {},
       );
       expect(spans.length, 2);
       expect(spans[0].toPlainText(), 'hello ');
@@ -206,4 +197,4 @@ void main() {
   });
 }
 
-void _noOpTap(int _) {}
+void _noOpTap(int _, {String? personName}) {}

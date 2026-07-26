@@ -67,7 +67,7 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
   final VoidCallback onToggleShowOriginal;
   final VoidCallback onToggleInfoBoxExpanded;
   final void Function(String tagName) onTagTap;
-  final void Function(int personId) onPersonTap;
+  final void Function(int personId, {String? personName}) onPersonTap;
   final void Function(
     int characterId, {
     String? characterName,

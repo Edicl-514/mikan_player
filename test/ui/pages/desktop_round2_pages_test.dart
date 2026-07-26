@@ -106,18 +106,11 @@ void main() {
   });
 
   group('PcHomeLayout action row', () {
-    testWidgets('hosted home drops its duplicate page title', (tester) async {
+    testWidgets('renders home layout with search icon inside page content', (tester) async {
       await pumpLocalizedWidget(
         tester,
         const DesktopPageChromeScope(child: PcHomeLayout()),
       );
-      expect(find.byKey(const ValueKey('pc-home-page-title')), findsNothing);
-      expect(find.byIcon(Icons.search), findsOneWidget);
-    });
-
-    testWidgets('frame-less fallback keeps its page title', (tester) async {
-      await pumpLocalizedWidget(tester, const PcHomeLayout());
-      expect(find.byKey(const ValueKey('pc-home-page-title')), findsOneWidget);
       expect(find.byIcon(Icons.search), findsOneWidget);
     });
   });

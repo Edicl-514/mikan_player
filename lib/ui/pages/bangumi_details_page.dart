@@ -173,11 +173,12 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   // --- Navigation handlers ---
 
-  void _openPersonPage(int personId) {
+  void _openPersonPage(int personId, {String? personName}) {
     WorkspaceNavigation.open<void>(
       context,
       WorkspaceDestinations.person(
         personId: personId,
+        personName: personName,
         enableHeroAnimation: false,
       ),
     );

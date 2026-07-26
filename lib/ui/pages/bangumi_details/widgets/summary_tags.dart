@@ -220,7 +220,7 @@ class BangumiInfoBoxList extends StatelessWidget {
   final VoidCallback onToggleExpanded;
   final bool isDarkBg;
   final Map<String, int> personIdMap;
-  final void Function(int personId) onPersonTap;
+  final void Function(int personId, {String? personName}) onPersonTap;
 
   const BangumiInfoBoxList({
     super.key,
@@ -336,7 +336,7 @@ class _BangumiInfoBoxItem extends StatelessWidget {
   final Color keyColor;
   final bool isDarkBg;
   final Map<String, int> personIdMap;
-  final void Function(int personId) onPersonTap;
+  final void Function(int personId, {String? personName}) onPersonTap;
 
   const _BangumiInfoBoxItem({
     required this.item,
@@ -409,7 +409,7 @@ class BangumiExpandedInfoBoxValue extends StatelessWidget {
   final TextStyle valueStyle;
   final TextStyle linkStyle;
   final Map<String, int> personIdMap;
-  final void Function(int personId) onPersonTap;
+  final void Function(int personId, {String? personName}) onPersonTap;
 
   const BangumiExpandedInfoBoxValue({
     super.key,

@@ -90,116 +90,104 @@ class PlayerPcLayout extends StatelessWidget {
       children: [
         Expanded(
           flex: 3,
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-                color: bgColor,
+          child: CustomScrollView(
+            controller: mainScrollController,
+            slivers: [
+              SliverToBoxAdapter(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Hosted desktop tabs get Back + the anime title from
-                        // the workspace shell, so the header drops its own copy
-                        // and keeps only the episode label as an in-content
-                        // heading. The download/copy actions stay put — the
-                        // header sits outside the scroll view, so they remain
-                        // reachable while the body scrolls.
-                        if (showInternalChrome) ...[
-                          InkWell(
-                            onTap: () => Navigator.of(context).pop(),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? Colors.white.withValues(alpha: 0.05)
-                                    : Colors.grey.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: borderColor),
-                              ),
-                              child: Icon(
-                                Icons.arrow_back_ios_new,
-                                color: textColor,
-                                size: 18,
-                              ),
-                            ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: Container(
+                            color: Colors.black,
+                            child: videoArea,
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  animeTitle,
-                                  style: TextStyle(
-                                    color: textColor,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  episodeLabel,
-                                  style: TextStyle(
-                                    color: subTextColor,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ] else
-                          Expanded(
-                            child: Text(
-                              episodeLabel,
-                              style: TextStyle(
-                                color: textColor,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ),
-                        const SizedBox(width: 16),
-                        currentSourceActions,
-                      ],
+                        ),
+                      ),
                     ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: CustomScrollView(
-                  controller: mainScrollController,
-                  slivers: [
-                    SliverToBoxAdapter(
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                      color: bgColor,
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: AspectRatio(
-                                aspectRatio: 16 / 9,
-                                child: Container(
-                                  color: Colors.black,
-                                  child: videoArea,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // Hosted desktop tabs get Back + the anime title from
+                              // the workspace shell, so the header drops its own copy
+                              // and keeps only the episode label as an in-content
+                              // heading. Embedded below video player to scroll
+                              // with page content.
+                              if (showInternalChrome) ...[
+                                InkWell(
+                                  onTap: () => Navigator.of(context).pop(),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.05)
+                                          : Colors.grey.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: borderColor),
+                                    ),
+                                    child: Icon(
+                                      Icons.arrow_back_ios_new,
+                                      color: textColor,
+                                      size: 18,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        animeTitle,
+                                        style: TextStyle(
+                                          color: textColor,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        episodeLabel,
+                                        style: TextStyle(
+                                          color: subTextColor,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ] else
+                                Expanded(
+                                  child: Text(
+                                    episodeLabel,
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(width: 16),
+                              currentSourceActions,
+                            ],
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 16,
-                            ),
-                            color: bgColor,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                          const SizedBox(height: 16),
                                 GestureDetector(
                                   onTap: onToggleDescription,
                                   child: Container(
@@ -368,9 +356,6 @@ class PlayerPcLayout extends StatelessWidget {
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
         Container(
           width: 380,
           color: sidebarColor,

@@ -924,44 +924,16 @@ class _IndexPageState extends State<IndexPage> {
     );
 
     if (hosted) {
-      final l10n = AppLocalizations.of(context);
-      return Column(
-        children: [
-          DesktopPageActionRow(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.search),
-                tooltip: l10n.searchHint,
-                onPressed: () => WorkspaceNavigation.open<void>(
-                  context,
-                  WorkspaceDestinations.search(context),
-                ),
-              ),
-            ],
-          ),
-          Expanded(child: body),
-        ],
-      );
+      return body;
     }
 
     if (isMobile) {
-      final l10n = AppLocalizations.of(context);
       return Scaffold(
         appBar: AppBar(
           title: Text(
             AppLocalizations.of(context).navIndex,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.search),
-              tooltip: l10n.searchHint,
-              onPressed: () => WorkspaceNavigation.open<void>(
-                context,
-                WorkspaceDestinations.search(context),
-              ),
-            ),
-          ],
         ),
         body: body,
       );

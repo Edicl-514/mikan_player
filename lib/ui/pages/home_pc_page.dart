@@ -20,6 +20,7 @@ import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
 import 'package:mikan_player/ui/widgets/blurred_cover_background.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/widgets/network_avatar.dart';
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
@@ -506,15 +507,59 @@ class _HomePcPageState extends State<HomePcPage> {
   }
 
   Widget _buildTodaySection() {
+    final l10n = AppLocalizations.of(context);
+    final headerRow = Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          l10n.todayBroadcast,
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        ),
+        Row(
+          children: [
+            IconButton(
+              onPressed: () {
+                WorkspaceNavigation.open<void>(
+                  context,
+                  WorkspaceDestinations.timetable(context),
+                );
+              },
+              icon: const Icon(Icons.calendar_month),
+              tooltip: l10n.viewFullTimetable,
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: () => WorkspaceNavigation.open<void>(
+                context,
+                WorkspaceDestinations.search(context),
+              ),
+              icon: const Icon(Icons.search),
+              tooltip: l10n.searchHint,
+            ),
+            const SizedBox(width: 8),
+            NetworkAvatar(
+              imageUrl: _userManager.isLoggedIn
+                  ? _userManager.user!.avatar.medium
+                  : null,
+              radius: 16,
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest,
+              fallback: const Icon(Icons.person, size: 20),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    Widget content;
     if (_isLoadingToday) {
-      return const SizedBox(
+      content = const SizedBox(
         height: 320,
         child: Center(child: CircularProgressIndicator()),
       );
-    }
-
-    if (_todayAnimes.isEmpty) {
-      return Container(
+    } else if (_todayAnimes.isEmpty) {
+      content = Container(
         height: 320,
         width: double.infinity,
         decoration: BoxDecoration(
@@ -527,7 +572,7 @@ class _HomePcPageState extends State<HomePcPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(AppLocalizations.of(context).noTodayUpdate),
+              Text(l10n.noTodayUpdate),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 icon: const Icon(Icons.calendar_month),
@@ -537,39 +582,15 @@ class _HomePcPageState extends State<HomePcPage> {
                     WorkspaceDestinations.timetable(context),
                   );
                 },
-                label: Text(AppLocalizations.of(context).viewFullTimetable),
+                label: Text(l10n.viewFullTimetable),
               ),
             ],
           ),
         ),
       );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              AppLocalizations.of(context).todayBroadcast,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            IconButton(
-              onPressed: () {
-                WorkspaceNavigation.open<void>(
-                  context,
-                  WorkspaceDestinations.timetable(context),
-                );
-              },
-              icon: const Icon(Icons.calendar_month),
-              tooltip: AppLocalizations.of(context).viewFullTimetable,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 360,
+    } else {
+      content = SizedBox(
+        height: 360,
           child: PageView.builder(
             itemCount: _todayAnimes.length,
             controller: _todayPageController,
@@ -738,8 +759,16 @@ class _HomePcPageState extends State<HomePcPage> {
                 ),
               );
             },
-          ),
         ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        headerRow,
+        const SizedBox(height: 16),
+        content,
       ],
     );
   }

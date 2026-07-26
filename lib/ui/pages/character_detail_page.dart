@@ -163,8 +163,14 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     final hostsChrome = DesktopPageChromeScope.hostsNavigation(context);
     final l10n = AppLocalizations.of(context);
 
+    final displayTitle = _characterDetails?.name.isNotEmpty == true
+        ? _characterDetails!.name
+        : (widget.characterName?.isNotEmpty == true
+            ? widget.characterName!
+            : '#${widget.characterId}');
+
     if (_controller.detailsError != null && _characterDetails == null) {
-      return Scaffold(
+      final errorPage = Scaffold(
         backgroundColor: const Color(0xFF16161E),
         appBar: hostsChrome
             ? null
@@ -192,6 +198,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
           ),
         ),
       );
+      return WorkspaceRouteTitle(title: displayTitle, child: errorPage);
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -199,7 +206,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
         ? const Color(0xFF16161E)
         : Theme.of(context).scaffoldBackgroundColor;
 
-    return Scaffold(
+    final page = Scaffold(
       backgroundColor: bgColor,
       extendBodyBehindAppBar: !hostsChrome,
       appBar: hostsChrome
@@ -234,6 +241,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
           ? _buildMobileLayout(context, isDark: isDark)
           : _buildDesktopLayout(context),
     );
+
+    return WorkspaceRouteTitle(title: displayTitle, child: page);
   }
 
   Widget _buildMobileLayout(BuildContext context, {required bool isDark}) {

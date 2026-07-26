@@ -257,8 +257,14 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     final hostsChrome = DesktopPageChromeScope.hostsNavigation(context);
     final l10n = AppLocalizations.of(context);
 
+    final displayTitle = _details?.name.isNotEmpty == true
+        ? _details!.name
+        : (widget.personName?.isNotEmpty == true
+            ? widget.personName!
+            : '#${widget.personId}');
+
     if (_controller.detailsError != null && _details == null) {
-      return Scaffold(
+      final errorPage = Scaffold(
         backgroundColor: const Color(0xFF16161E),
         appBar: hostsChrome
             ? null
@@ -286,6 +292,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
           ),
         ),
       );
+      return WorkspaceRouteTitle(title: displayTitle, child: errorPage);
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -293,7 +300,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
         ? const Color(0xFF16161E)
         : Theme.of(context).scaffoldBackgroundColor;
 
-    return Scaffold(
+    final page = Scaffold(
       backgroundColor: bgColor,
       extendBodyBehindAppBar: !hostsChrome,
       appBar: hostsChrome
@@ -328,6 +335,8 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
           ? _buildMobileLayout(context, isDark: isDark)
           : _buildDesktopLayout(context),
     );
+
+    return WorkspaceRouteTitle(title: displayTitle, child: page);
   }
 
   // ── Backgrounds ──────────────────────────────────────────────────────────

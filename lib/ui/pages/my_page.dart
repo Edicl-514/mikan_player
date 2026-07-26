@@ -153,24 +153,7 @@ class _MyPageState extends State<MyPage> {
     );
 
     if (hosted) {
-      final l10n = AppLocalizations.of(context);
-      return Column(
-        children: [
-          DesktopPageActionRow(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.search),
-                tooltip: l10n.searchHint,
-                onPressed: () => WorkspaceNavigation.open<void>(
-                  context,
-                  WorkspaceDestinations.search(context),
-                ),
-              ),
-            ],
-          ),
-          Expanded(child: body),
-        ],
-      );
+      return body;
     }
 
     if (isMobile) {
@@ -180,18 +163,6 @@ class _MyPageState extends State<MyPage> {
             AppLocalizations.of(context).navMy,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.search),
-              tooltip: AppLocalizations.of(context).searchHint,
-              onPressed: () {
-                WorkspaceNavigation.open<void>(
-                  context,
-                  WorkspaceDestinations.search(context),
-                );
-              },
-            ),
-          ],
         ),
         body: body,
       );

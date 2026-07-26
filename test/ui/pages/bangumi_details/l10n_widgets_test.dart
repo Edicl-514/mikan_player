@@ -329,7 +329,7 @@ void main() {
             onToggleExpanded: () {},
             isDarkBg: true,
             personIdMap: const {},
-            onPersonTap: (_) {},
+            onPersonTap: (_, {personName}) {},
           ),
         ),
         locale: const Locale('en'),
