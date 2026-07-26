@@ -223,13 +223,24 @@ Windows 页面移除自身 `AppBar` 后，页面根布局需要检查以下问�
 
 ### Round 4：收尾、清理与跨页面回归（约 2–3 人日）
 
-1. 删除 Windows 分支中已无调用的 AppBar/标题专用代码和重复 padding。
-2. 检查所有 loading/error/empty/dialog 返回路径，确认没有页面重新创建旧顶部栏。
+1. 删除 Windows 分支中已无调用的 AppBar/标题专用代码和重复 padding。**已完成（2026-07-26）**：逐页扫描 Round 1–3 范围内的 `AppBar`、`SliverAppBar`、`kToolbarHeight`、`extendBodyBehindAppBar` 与返回图标。剩余 `AppBar` 均属于未承载/移动端 fallback；剩余固定 toolbar inset 仅属于移动详情折叠头或非承载回落。修正了沉浸式详情页的 capability 边界：透明栏按 `hostsNavigation` 移除时，顶部 inset 现在也按同一条件清零，避免 `providesTitle: false` 的嵌套路由留下 56 px 空条。
+2. 检查所有 loading/error/empty/dialog 返回路径，确认没有页面重新创建旧顶部栏。**已完成（2026-07-26）**：普通页状态分支只替换 body，角色/人物详情 error 分支与主分支共用 `hostsNavigation`，播放器状态只替换视频/评论内容，对话框均保持 modal。新增 Round 4 widget 回归，覆盖 History 的 loading → error → retry → empty、Search 的 loading → empty，以及 Settings dialog 打开/关闭；所有承载状态均断言无页面自有 `AppBar`。
 3. 完成页面矩阵测试：
    - 720/900/1280 px；亮/暗主题；鼠标/键盘；窗口最大化/还原；应用全屏。
    - 当前 Tab、Ctrl+左键后台 Tab、中键后台 Tab、Back/Forward、关闭 Tab。
    - 移动端至少覆盖 360/412 px，确认 AppBar、底部导航、播放器手势和 `SliverAppBar` 未改变。
 4. 更新截图基线和用户可见文案（若设置页 action row 需要新 tooltip）。
+
+#### Round 4（1–2）落地路径
+
+| 产物 | 路径 |
+|------|------|
+| 导航栏 inset capability 修正 | `lib/ui/widgets/desktop_page_chrome.dart` |
+| 详情页 inset 调用点 | `lib/ui/pages/character_detail_page.dart`, `lib/ui/pages/person_detail_page.dart`, `lib/ui/pages/bangumi_details/layouts/wide_layout.dart` |
+| 状态分支 / dialog 回归 | `test/ui/pages/desktop_round4_chrome_states_test.dart` |
+| capability 边界回归 | `test/ui/widgets/desktop_page_chrome_test.dart` |
+
+**Round 4（1–2）验收结果**：`flutter analyze` 无问题；`flutter test` 1456 项全部通过。定向验证覆盖详情页导航-only scope 的 inset 清理，以及承载页面在 loading/error/retry/empty/dialog 状态切换期间持续不创建页面自有 `AppBar`。Round 4 第 3、4 项的真实窗口矩阵、截图与文案复核仍待后续执行。
 
 ## 4. 依赖与风险
 

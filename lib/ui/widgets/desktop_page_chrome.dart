@@ -84,12 +84,17 @@ class DesktopPageMetrics {
     vertical: 4,
   );
 
-  /// Replaces a page's `kToolbarHeight`-based top padding.
+  /// Replaces a navigation bar's `kToolbarHeight`-based top padding.
   ///
-  /// Returns [reserved] unchanged when no desktop shell is hosting the page, so
-  /// mobile keeps the inset its own `AppBar` requires.
-  static double topInsetFor(BuildContext context, {required double reserved}) =>
-      DesktopPageChromeScope.hostsPageHeader(context)
+  /// Immersive pages remove their transparent `AppBar` as soon as the shell
+  /// owns navigation, even when the route keeps publishing its own title.
+  /// Match that condition here so a navigation-only scope cannot leave behind
+  /// an empty toolbar-height strip. Non-hosted pages keep the inset required by
+  /// their own `AppBar`.
+  static double navigationTopInsetFor(
+    BuildContext context, {
+    required double reserved,
+  }) => DesktopPageChromeScope.hostsNavigation(context)
       ? contentTopInset
       : reserved;
 }

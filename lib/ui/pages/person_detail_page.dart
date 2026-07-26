@@ -402,7 +402,11 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     // the column's own 32px gap. Hosted drops only the toolbar reservation; the
     // 32px gap stays so the poster/title don't sit flush against the shell bar.
     final topInset =
-        DesktopPageMetrics.topInsetFor(context, reserved: kToolbarHeight) + 32;
+        DesktopPageMetrics.navigationTopInsetFor(
+          context,
+          reserved: kToolbarHeight,
+        ) +
+        32;
     return Stack(
       children: [
         Positioned.fill(child: _buildBlurredBackground(context)),

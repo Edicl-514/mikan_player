@@ -136,7 +136,10 @@ void main() {
       expect(DesktopPageChromeScope.hostsTitle(probe), isFalse);
       expect(DesktopPageChromeScope.hostsPageHeader(probe), isFalse);
       expect(
-        DesktopPageMetrics.topInsetFor(probe, reserved: kToolbarHeight),
+        DesktopPageMetrics.navigationTopInsetFor(
+          probe,
+          reserved: kToolbarHeight,
+        ),
         kToolbarHeight,
       );
     });
@@ -164,6 +167,13 @@ void main() {
       expect(DesktopPageChromeScope.hostsNavigation(probe), isTrue);
       expect(DesktopPageChromeScope.hostsTitle(probe), isFalse);
       expect(DesktopPageChromeScope.hostsPageHeader(probe), isFalse);
+      expect(
+        DesktopPageMetrics.navigationTopInsetFor(
+          probe,
+          reserved: kToolbarHeight,
+        ),
+        DesktopPageMetrics.contentTopInset,
+      );
       expect(find.byType(AppBar), findsNothing);
     });
 
@@ -185,7 +195,10 @@ void main() {
       );
 
       expect(
-        DesktopPageMetrics.topInsetFor(probe, reserved: kToolbarHeight + 24),
+        DesktopPageMetrics.navigationTopInsetFor(
+          probe,
+          reserved: kToolbarHeight + 24,
+        ),
         DesktopPageMetrics.contentTopInset,
       );
     });

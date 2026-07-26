@@ -198,7 +198,10 @@ class BangumiDetailsWideLayout extends StatelessWidget {
         controller: wideLeftScrollController,
         padding: EdgeInsets.fromLTRB(
           24,
-          DesktopPageMetrics.topInsetFor(context, reserved: kToolbarHeight) +
+          DesktopPageMetrics.navigationTopInsetFor(
+                context,
+                reserved: kToolbarHeight,
+              ) +
               24,
           24,
           24,
@@ -252,7 +255,7 @@ class BangumiDetailsWideLayout extends StatelessWidget {
           SliverPadding(
             padding: EdgeInsets.fromLTRB(
               32,
-              DesktopPageMetrics.topInsetFor(
+              DesktopPageMetrics.navigationTopInsetFor(
                     context,
                     reserved: kToolbarHeight,
                   ) +
