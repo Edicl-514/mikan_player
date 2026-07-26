@@ -16,6 +16,7 @@ import 'package:mikan_player/ui/pages/bangumi_details/widgets/section_title.dart
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/sites_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/summary_tags.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 
 /// Mobile layout for the Bangumi details page.
 ///
@@ -138,6 +139,10 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
               SliverAppBar(
                 expandedHeight: 380,
                 pinned: true,
+                // Hosted desktop tabs already draw Back in the workspace shell,
+                // so suppress the implicit leading arrow to avoid a duplicate.
+                automaticallyImplyLeading:
+                    !DesktopPageChromeScope.hostsNavigation(context),
                 elevation: 0,
                 scrolledUnderElevation: 0,
                 backgroundColor: bgColor,

@@ -10,6 +10,8 @@ import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart' as rust_bangumi;
 import 'package:mikan_player/src/rust/api/crawler.dart' as rust_crawler;
@@ -157,33 +159,66 @@ class _FavoritesPageState extends State<FavoritesPage>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
+    final tabBar = TabBar(
+      controller: _tabController,
+      tabs: [
+        Tab(text: l10n.favoritesTabLocal),
+        Tab(text: l10n.favoritesTabBangumi),
+      ],
+    );
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.favoritesTitle),
-        actions: [
-          IconButton(
-            onPressed: () {
-              _fetchLocalFavorites();
-              if (_userManager.isLoggedIn) {
-                _fetchBangumiCollections();
-              }
-            },
-            icon: const Icon(Icons.refresh),
-            tooltip: l10n.refreshAllFavorites,
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(text: l10n.favoritesTabLocal),
-            Tab(text: l10n.favoritesTabBangumi),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [_buildLocalFavorites(), _buildBangumiFavorites()],
-      ),
+      appBar: isHosted
+          ? null
+          : AppBar(
+              title: Text(l10n.favoritesTitle),
+              actions: [
+                IconButton(
+                  onPressed: () {
+                    _fetchLocalFavorites();
+                    if (_userManager.isLoggedIn) {
+                      _fetchBangumiCollections();
+                    }
+                  },
+                  icon: const Icon(Icons.refresh),
+                  tooltip: l10n.refreshAllFavorites,
+                ),
+              ],
+              bottom: tabBar,
+            ),
+      body: isHosted
+          ? Column(
+              children: [
+                DesktopPageActionRow(
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        _fetchLocalFavorites();
+                        if (_userManager.isLoggedIn) {
+                          _fetchBangumiCollections();
+                        }
+                      },
+                      icon: const Icon(Icons.refresh),
+                      tooltip: l10n.refreshAllFavorites,
+                    ),
+                  ],
+                ),
+                Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  child: tabBar,
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [_buildLocalFavorites(), _buildBangumiFavorites()],
+                  ),
+                ),
+              ],
+            )
+          : TabBarView(
+              controller: _tabController,
+              children: [_buildLocalFavorites(), _buildBangumiFavorites()],
+            ),
     );
   }
 

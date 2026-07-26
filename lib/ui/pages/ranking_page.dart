@@ -7,6 +7,7 @@ import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 
 typedef RankingPageFetcher =
     Future<List<ranking.RankingAnime>> Function(String sortType, int page);
@@ -17,24 +18,49 @@ class RankingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.rankingTitle),
-          bottom: TabBar(
-            tabs: [
-              Tab(text: l10n.rankingTrending),
-              Tab(text: l10n.rankingRanking),
-            ],
-          ),
-        ),
-        body: const TabBarView(
-          children: [
-            RankingList(sortType: 'trends'),
-            RankingList(sortType: 'rank'),
-          ],
-        ),
+        appBar: isHosted
+            ? null
+            : AppBar(
+                title: Text(l10n.rankingTitle),
+                bottom: TabBar(
+                  tabs: [
+                    Tab(text: l10n.rankingTrending),
+                    Tab(text: l10n.rankingRanking),
+                  ],
+                ),
+              ),
+        body: isHosted
+            ? Column(
+                children: [
+                  Material(
+                    color: Theme.of(context).colorScheme.surface,
+                    child: TabBar(
+                      tabs: [
+                        Tab(text: l10n.rankingTrending),
+                        Tab(text: l10n.rankingRanking),
+                      ],
+                    ),
+                  ),
+                  const Expanded(
+                    child: TabBarView(
+                      children: [
+                        RankingList(sortType: 'trends'),
+                        RankingList(sortType: 'rank'),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : const TabBarView(
+                children: [
+                  RankingList(sortType: 'trends'),
+                  RankingList(sortType: 'rank'),
+                ],
+              ),
       ),
     );
   }

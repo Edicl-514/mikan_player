@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 typedef SourceConfigPersistCallback =
     Future<void> Function(SourceConfigUpdate update);
@@ -1315,29 +1317,28 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
     final isPc = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
     final isWide = MediaQuery.sizeOf(context).width >= 760;
     final isReadOnly = widget.source != null && !widget.source!.isManual;
+    final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
+    final title = widget.source == null
+        ? l10n.dataSourceConfigNew
+        : l10n.dataSourceConfigEditing(widget.source!.name);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.source == null
-              ? l10n.dataSourceConfigNew
-              : l10n.dataSourceConfigEditing(widget.source!.name),
-        ),
-        actions: [
-          if (!isReadOnly)
-            IconButton(
-              tooltip: l10n.dataSourceConfigSave,
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save),
-              onPressed: _isSaving ? null : _save,
-            ),
-        ],
-      ),
+    final page = DesktopPageScaffold(
+      title: Text(title),
+      actions: [
+        if (!isReadOnly)
+          IconButton(
+            tooltip: l10n.dataSourceConfigSave,
+            icon: _isSaving
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save),
+            onPressed: _isSaving ? null : _save,
+          ),
+      ],
+      desktopActionRow: isReadOnly ? const SizedBox.shrink() : null,
       body: Form(
         key: _formKey,
         child: ListView(
@@ -1371,5 +1372,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
         ),
       ),
     );
+
+    return isHosted ? WorkspaceRouteTitle(title: title, child: page) : page;
   }
 }

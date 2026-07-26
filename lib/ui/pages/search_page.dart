@@ -7,6 +7,7 @@ import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/ui/widgets/anime_card.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 
 typedef SearchPageFetcher =
     Future<List<RankingAnime>> Function(SearchRequest request, int page);
@@ -216,98 +217,73 @@ class _SearchPageState extends State<SearchPage> {
         ? _sortType
         : (sortOptions.isEmpty ? _sortType : sortOptions.first.value);
 
+    final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
+    final hintText = _searchMode == SearchMode.keyword
+        ? AppLocalizations.of(context).searchHintText
+        : (_isLegacyMode
+              ? AppLocalizations.of(context).searchEnterTag
+              : AppLocalizations.of(context).searchEnterTagsMulti);
+
+    final searchField = TextField(
+      controller: _searchController,
+      decoration: InputDecoration(
+        hintText: hintText,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        border: const OutlineInputBorder(),
+        prefixIcon: const Icon(Icons.search),
+      ),
+      textInputAction: TextInputAction.search,
+      onSubmitted: _handleSearchSubmit,
+      autofocus: widget.autofocus && !isHosted,
+    );
+
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      appBar: AppBar(
-        title: TextField(
-          controller: _searchController,
-          decoration: InputDecoration(
-            hintText: _searchMode == SearchMode.keyword
-                ? AppLocalizations.of(context).searchHintText
-                : (_isLegacyMode
-                      ? AppLocalizations.of(context).searchEnterTag
-                      : AppLocalizations.of(context).searchEnterTagsMulti),
-            border: InputBorder.none,
-            hintStyle: TextStyle(
-              color:
-                  Theme.of(
-                    context,
-                  ).appBarTheme.titleTextStyle?.color?.withValues(alpha: 0.7) ??
-                  Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.color?.withValues(alpha: 0.7),
-            ),
-          ),
-          style: TextStyle(
-            color:
-                Theme.of(context).appBarTheme.titleTextStyle?.color ??
-                Theme.of(context).textTheme.titleLarge?.color,
-          ),
-          textInputAction: TextInputAction.search,
-          onSubmitted: _handleSearchSubmit,
-          autofocus: widget.autofocus,
-        ),
-        actions: [
-          PopupMenuButton<SearchMode>(
-            icon: Icon(
-              _searchMode == SearchMode.keyword
-                  ? Icons.text_fields
-                  : Icons.label,
-            ),
-            tooltip: AppLocalizations.of(context).searchModeTooltip,
-            onSelected: _setSearchMode,
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: SearchMode.keyword,
-                child: Row(
-                  children: [
-                    if (_searchMode == SearchMode.keyword)
-                      Icon(
-                        Icons.check,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.primary,
-                      )
-                    else
-                      const SizedBox(width: 18),
-                    const SizedBox(width: 12),
-                    Text(AppLocalizations.of(context).searchKeywordModeLabel),
-                  ],
+      appBar: isHosted
+          ? null
+          : AppBar(
+              title: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: hintText,
+                  border: InputBorder.none,
+                  hintStyle: TextStyle(
+                    color:
+                        Theme.of(
+                          context,
+                        ).appBarTheme.titleTextStyle?.color?.withValues(
+                          alpha: 0.7,
+                        ) ??
+                        Theme.of(
+                          context,
+                        ).textTheme.titleLarge?.color?.withValues(alpha: 0.7),
+                  ),
                 ),
-              ),
-              PopupMenuItem(
-                value: SearchMode.tag,
-                child: Row(
-                  children: [
-                    if (_searchMode == SearchMode.tag)
-                      Icon(
-                        Icons.check,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.primary,
-                      )
-                    else
-                      const SizedBox(width: 18),
-                    const SizedBox(width: 12),
-                    Text(AppLocalizations.of(context).searchTagModeLabel),
-                  ],
+                style: TextStyle(
+                  color:
+                      Theme.of(context).appBarTheme.titleTextStyle?.color ??
+                      Theme.of(context).textTheme.titleLarge?.color,
                 ),
+                textInputAction: TextInputAction.search,
+                onSubmitted: _handleSearchSubmit,
+                autofocus: widget.autofocus,
               ),
-            ],
-          ),
-          if (sortOptions.isNotEmpty)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.sort),
-              tooltip: l10n.searchSortTooltip,
-              onSelected: (value) async {
-                if (value == effectiveSortType) return;
-                await _setSortType(value);
-              },
-              itemBuilder: (context) => sortOptions
-                  .map(
-                    (option) => PopupMenuItem(
-                      value: option.value,
+              actions: [
+                PopupMenuButton<SearchMode>(
+                  icon: Icon(
+                    _searchMode == SearchMode.keyword
+                        ? Icons.text_fields
+                        : Icons.label,
+                  ),
+                  tooltip: AppLocalizations.of(context).searchModeTooltip,
+                  onSelected: _setSearchMode,
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: SearchMode.keyword,
                       child: Row(
                         children: [
-                          if (option.value == effectiveSortType)
+                          if (_searchMode == SearchMode.keyword)
                             Icon(
                               Icons.check,
                               size: 18,
@@ -316,21 +292,184 @@ class _SearchPageState extends State<SearchPage> {
                           else
                             const SizedBox(width: 18),
                           const SizedBox(width: 12),
-                          Text(option.label),
+                          Text(
+                            AppLocalizations.of(context).searchKeywordModeLabel,
+                          ),
                         ],
                       ),
                     ),
-                  )
-                  .toList(),
+                    PopupMenuItem(
+                      value: SearchMode.tag,
+                      child: Row(
+                        children: [
+                          if (_searchMode == SearchMode.tag)
+                            Icon(
+                              Icons.check,
+                              size: 18,
+                              color: Theme.of(context).colorScheme.primary,
+                            )
+                          else
+                            const SizedBox(width: 18),
+                          const SizedBox(width: 12),
+                          Text(AppLocalizations.of(context).searchTagModeLabel),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                if (sortOptions.isNotEmpty)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.sort),
+                    tooltip: l10n.searchSortTooltip,
+                    onSelected: (value) async {
+                      if (value == effectiveSortType) return;
+                      await _setSortType(value);
+                    },
+                    itemBuilder: (context) => sortOptions
+                        .map(
+                          (option) => PopupMenuItem(
+                            value: option.value,
+                            child: Row(
+                              children: [
+                                if (option.value == effectiveSortType)
+                                  Icon(
+                                    Icons.check,
+                                    size: 18,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  )
+                                else
+                                  const SizedBox(width: 18),
+                                const SizedBox(width: 12),
+                                Text(option.label),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  tooltip: AppLocalizations.of(context).searchHint,
+                  onPressed: () => _handleSearchSubmit(_searchController.text),
+                ),
+              ],
             ),
-          IconButton(
-            icon: const Icon(Icons.search),
-            tooltip: AppLocalizations.of(context).searchHint,
-            onPressed: () => _handleSearchSubmit(_searchController.text),
-          ),
-        ],
+      body: isHosted
+          ? Column(
+              children: [
+                _buildHostedCommandRow(
+                  context: context,
+                  searchField: searchField,
+                  sortOptions: sortOptions,
+                  effectiveSortType: effectiveSortType,
+                ),
+                Expanded(child: _buildBody()),
+              ],
+            )
+          : _buildBody(),
+    );
+  }
+
+  Widget _buildHostedCommandRow({
+    required BuildContext context,
+    required Widget searchField,
+    required List<_SearchSortOption> sortOptions,
+    required String effectiveSortType,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        child: Row(
+          children: [
+            PopupMenuButton<SearchMode>(
+              icon: Icon(
+                _searchMode == SearchMode.keyword
+                    ? Icons.text_fields
+                    : Icons.label,
+              ),
+              tooltip: AppLocalizations.of(context).searchModeTooltip,
+              onSelected: _setSearchMode,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: SearchMode.keyword,
+                  child: Row(
+                    children: [
+                      if (_searchMode == SearchMode.keyword)
+                        Icon(
+                          Icons.check,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
+                      else
+                        const SizedBox(width: 18),
+                      const SizedBox(width: 12),
+                      Text(AppLocalizations.of(context).searchKeywordModeLabel),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: SearchMode.tag,
+                  child: Row(
+                    children: [
+                      if (_searchMode == SearchMode.tag)
+                        Icon(
+                          Icons.check,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
+                      else
+                        const SizedBox(width: 18),
+                      const SizedBox(width: 12),
+                      Text(AppLocalizations.of(context).searchTagModeLabel),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: searchField),
+            const SizedBox(width: 8),
+            if (sortOptions.isNotEmpty)
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.sort),
+                tooltip: l10n.searchSortTooltip,
+                onSelected: (value) async {
+                  if (value == effectiveSortType) return;
+                  await _setSortType(value);
+                },
+                itemBuilder: (context) => sortOptions
+                    .map(
+                      (option) => PopupMenuItem(
+                        value: option.value,
+                        child: Row(
+                          children: [
+                            if (option.value == effectiveSortType)
+                              Icon(
+                                Icons.check,
+                                size: 18,
+                                color: Theme.of(context).colorScheme.primary,
+                              )
+                            else
+                              const SizedBox(width: 18),
+                            const SizedBox(width: 12),
+                            Text(option.label),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: AppLocalizations.of(context).searchHint,
+              onPressed: () => _handleSearchSubmit(_searchController.text),
+            ),
+          ],
+        ),
       ),
-      body: _buildBody(),
     );
   }
 

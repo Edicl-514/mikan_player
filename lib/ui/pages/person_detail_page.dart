@@ -10,6 +10,7 @@ import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 
 typedef PersonDetailsLoader = Future<PersonDetails> Function(int id);
 typedef PersonSubjectsLoader = Future<List<PersonSubject>> Function(int id);
@@ -253,16 +254,19 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 800;
+    final hostsChrome = DesktopPageChromeScope.hostsNavigation(context);
     final l10n = AppLocalizations.of(context);
 
     if (_controller.detailsError != null && _details == null) {
       return Scaffold(
         backgroundColor: const Color(0xFF16161E),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          iconTheme: const IconThemeData(color: Colors.white),
-        ),
+        appBar: hostsChrome
+            ? null
+            : AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                iconTheme: const IconThemeData(color: Colors.white),
+              ),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -291,33 +295,35 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: IconThemeData(
-          color: isDark
-              ? Colors.white
-              : Theme.of(context).colorScheme.onSurface,
-        ),
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.4),
-                    Colors.black.withValues(alpha: 0.0),
-                  ],
+      extendBodyBehindAppBar: !hostsChrome,
+      appBar: hostsChrome
+          ? null
+          : AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              iconTheme: IconThemeData(
+                color: isDark
+                    ? Colors.white
+                    : Theme.of(context).colorScheme.onSurface,
+              ),
+              flexibleSpace: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.4),
+                          Colors.black.withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
-      ),
       body: isMobile
           ? _buildMobileLayout(context, isDark: isDark)
           : _buildDesktopLayout(context),
@@ -392,6 +398,11 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   }
 
   Widget _buildDesktopLayout(BuildContext context) {
+    // Non-hosted keeps the transparent AppBar's kToolbarHeight reservation plus
+    // the column's own 32px gap. Hosted drops only the toolbar reservation; the
+    // 32px gap stays so the poster/title don't sit flush against the shell bar.
+    final topInset =
+        DesktopPageMetrics.topInsetFor(context, reserved: kToolbarHeight) + 32;
     return Stack(
       children: [
         Positioned.fill(child: _buildBlurredBackground(context)),
@@ -406,12 +417,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                   width: 380,
                   child: SingleChildScrollView(
                     controller: _desktopLeftScrollController,
-                    padding: const EdgeInsets.fromLTRB(
-                      32,
-                      kToolbarHeight + 32,
-                      32,
-                      32,
-                    ),
+                    padding: EdgeInsets.fromLTRB(32, topInset, 32, 32),
                     child: Column(
                       children: [
                         _buildPoster(context, radius: 16),
@@ -429,12 +435,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                     controller: _desktopRightScrollController,
                     slivers: [
                       SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(
-                          32,
-                          kToolbarHeight + 32,
-                          32,
-                          50,
-                        ),
+                        padding: EdgeInsets.fromLTRB(32, topInset, 32, 50),
                         sliver: SliverList(
                           delegate: SliverChildListDelegate([
                             _buildTitleSection(context),

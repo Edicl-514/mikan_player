@@ -33,6 +33,11 @@ class PlayerPcLayout extends StatelessWidget {
   final ScrollController mainScrollController;
   final ScrollController sidebarScrollController;
 
+  /// When false, the surrounding desktop shell already draws Back + the anime
+  /// title, so the header drops its own back button and duplicate title and
+  /// keeps only the episode label as an in-content heading.
+  final bool showInternalChrome;
+
   const PlayerPcLayout({
     super.key,
     required this.animeTitle,
@@ -56,6 +61,7 @@ class PlayerPcLayout extends StatelessWidget {
     required this.onRecommendationTap,
     required this.mainScrollController,
     required this.sidebarScrollController,
+    this.showInternalChrome = true,
   });
 
   @override
@@ -95,50 +101,69 @@ class PlayerPcLayout extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        InkWell(
-                          onTap: () => Navigator.of(context).pop(),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.05)
-                                  : Colors.grey.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: borderColor),
-                            ),
-                            child: Icon(
-                              Icons.arrow_back_ios_new,
-                              color: textColor,
-                              size: 18,
+                        // Hosted desktop tabs get Back + the anime title from
+                        // the workspace shell, so the header drops its own copy
+                        // and keeps only the episode label as an in-content
+                        // heading. The download/copy actions stay put — the
+                        // header sits outside the scroll view, so they remain
+                        // reachable while the body scrolls.
+                        if (showInternalChrome) ...[
+                          InkWell(
+                            onTap: () => Navigator.of(context).pop(),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.05)
+                                    : Colors.grey.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: borderColor),
+                              ),
+                              child: Icon(
+                                Icons.arrow_back_ios_new,
+                                color: textColor,
+                                size: 18,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                animeTitle,
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  animeTitle,
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                episodeLabel,
-                                style: TextStyle(
-                                  color: subTextColor,
-                                  fontSize: 14,
+                                const SizedBox(height: 4),
+                                Text(
+                                  episodeLabel,
+                                  style: TextStyle(
+                                    color: subTextColor,
+                                    fontSize: 14,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
+                        ] else
+                          Expanded(
+                            child: Text(
+                              episodeLabel,
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
                         const SizedBox(width: 16),
                         currentSourceActions,
                       ],

@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:file_selector_windows/file_selector_windows.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/download_manager.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 class DownloadSettingsPage extends StatefulWidget {
   const DownloadSettingsPage({super.key});
@@ -113,176 +115,197 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.downloadSettingsTitle),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            tooltip: l10n.save,
-            onPressed: _saveSettings,
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // BT 后端
-          Card(
-            elevation: 0,
-            color: Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-            margin: const EdgeInsets.only(bottom: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ListTile(
-              leading: Icon(
-                Icons.hub_outlined,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              title: Text(
-                l10n.downloadEngineTitle,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: Text(l10n.downloadEngineSubtitle),
-              trailing: DropdownButton<BtBackendKind>(
-                value: _backendKind,
-                underline: const SizedBox(),
-                onChanged: (backend) async {
-                  if (backend == null) return;
-                  await _dm.setBackendKind(backend);
-                  if (!mounted) return;
-                  setState(() => _backendKind = backend);
-                },
-                items: const [
-                  DropdownMenuItem(
-                    value: BtBackendKind.rqbit,
-                    // i18n-ignore: product name
-                    child: Text('rqbit'),
-                  ),
-                  DropdownMenuItem(
-                    value: BtBackendKind.libtorrent,
-                    // i18n-ignore: product name
-                    child: Text('libtorrent'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
+    final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
 
-          // 引擎说明
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+    final formBody = ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // BT 后端
+        Card(
+          elevation: 0,
+          color: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          margin: const EdgeInsets.only(bottom: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: ListTile(
+            leading: Icon(
+              Icons.hub_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            title: Text(
+              l10n.downloadEngineTitle,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(l10n.downloadEngineSubtitle),
+            trailing: DropdownButton<BtBackendKind>(
+              value: _backendKind,
+              underline: const SizedBox(),
+              onChanged: (backend) async {
+                if (backend == null) return;
+                await _dm.setBackendKind(backend);
+                if (!mounted) return;
+                setState(() => _backendKind = backend);
+              },
+              items: const [
+                DropdownMenuItem(
+                  value: BtBackendKind.rqbit,
+                  // i18n-ignore: product name
+                  child: Text('rqbit'),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _backendKind == BtBackendKind.rqbit
-                        ? l10n.downloadEngineRqbitDescription
-                        : l10n.downloadEngineLibtorrentDescription,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      height: 1.4,
-                    ),
-                  ),
+                DropdownMenuItem(
+                  value: BtBackendKind.libtorrent,
+                  // i18n-ignore: product name
+                  child: Text('libtorrent'),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
+        ),
+        const SizedBox(height: 8),
 
+        // 引擎说明
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 16,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _backendKind == BtBackendKind.rqbit
+                      ? l10n.downloadEngineRqbitDescription
+                      : l10n.downloadEngineLibtorrentDescription,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        _buildSwitchCard(
+          icon: Icons.cloud_download_outlined,
+          title: l10n.allowBackgroundDownload,
+          subtitle: l10n.allowBackgroundDownloadSubtitle,
+          value: _allowBackgroundDownload,
+          onChanged: (value) async {
+            setState(() {
+              _allowBackgroundDownload = value;
+              if (!value) {
+                _keepSeedingInBackground = false;
+              }
+            });
+            await _dm.setDownloadSettings(
+              allowBackgroundDownload: _allowBackgroundDownload,
+              keepSeedingInBackground: _keepSeedingInBackground,
+            );
+          },
+        ),
+        if (_allowBackgroundDownload) ...[
+          const SizedBox(height: 8),
           _buildSwitchCard(
-            icon: Icons.cloud_download_outlined,
-            title: l10n.allowBackgroundDownload,
-            subtitle: l10n.allowBackgroundDownloadSubtitle,
-            value: _allowBackgroundDownload,
+            icon: Icons.all_inclusive,
+            title: l10n.keepSeedingMode,
+            subtitle: l10n.keepSeedingModeSubtitle,
+            value: _keepSeedingInBackground,
             onChanged: (value) async {
-              setState(() {
-                _allowBackgroundDownload = value;
-                if (!value) {
-                  _keepSeedingInBackground = false;
-                }
-              });
+              setState(() => _keepSeedingInBackground = value);
               await _dm.setDownloadSettings(
-                allowBackgroundDownload: _allowBackgroundDownload,
                 keepSeedingInBackground: _keepSeedingInBackground,
               );
             },
           ),
-          if (_allowBackgroundDownload) ...[
-            const SizedBox(height: 8),
-            _buildSwitchCard(
-              icon: Icons.all_inclusive,
-              title: l10n.keepSeedingMode,
-              subtitle: l10n.keepSeedingModeSubtitle,
-              value: _keepSeedingInBackground,
-              onChanged: (value) async {
-                setState(() => _keepSeedingInBackground = value);
-                await _dm.setDownloadSettings(
-                  keepSeedingInBackground: _keepSeedingInBackground,
-                );
-              },
-            ),
-          ],
-          const SizedBox(height: 16),
-
-          // 下载路径（仅 Windows 桌面平台）
-          if (!kIsWeb && Platform.isWindows) ...[
-            _buildDownloadDirCard(),
-            const SizedBox(height: 16),
-          ],
-
-          // 并行下载数
-          _buildNumberField(
-            controller: _concurrentController,
-            label: l10n.downloadParallelTasks,
-            hint: l10n.downloadParallelHint,
-            icon: Icons.sync_alt,
-            allowDecimal: false,
-          ),
-          const SizedBox(height: 16),
-
-          const Divider(),
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              l10n.downloadSpeedLimitsHeader,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-
-          // 下载限速
-          _buildNumberField(
-            controller: _downloadLimitController,
-            label: l10n.downloadDownloadLimit,
-            hint: l10n.downloadDownloadLimitHint,
-            icon: Icons.download,
-          ),
-          const SizedBox(height: 16),
-
-          // 上传限速
-          _buildNumberField(
-            controller: _uploadLimitController,
-            label: l10n.downloadUploadLimit,
-            hint: l10n.downloadUploadLimitHint,
-            icon: Icons.upload,
-          ),
         ],
-      ),
+        const SizedBox(height: 16),
+
+        // 下载路径（仅 Windows 桌面平台）
+        if (!kIsWeb && Platform.isWindows) ...[
+          _buildDownloadDirCard(),
+          const SizedBox(height: 16),
+        ],
+
+        // 并行下载数
+        _buildNumberField(
+          controller: _concurrentController,
+          label: l10n.downloadParallelTasks,
+          hint: l10n.downloadParallelHint,
+          icon: Icons.sync_alt,
+          allowDecimal: false,
+        ),
+        const SizedBox(height: 16),
+
+        const Divider(),
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            l10n.downloadSpeedLimitsHeader,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
+        ),
+
+        // 下载限速
+        _buildNumberField(
+          controller: _downloadLimitController,
+          label: l10n.downloadDownloadLimit,
+          hint: l10n.downloadDownloadLimitHint,
+          icon: Icons.download,
+        ),
+        const SizedBox(height: 16),
+
+        // 上传限速
+        _buildNumberField(
+          controller: _uploadLimitController,
+          label: l10n.downloadUploadLimit,
+          hint: l10n.downloadUploadLimitHint,
+          icon: Icons.upload,
+        ),
+      ],
+    );
+
+    return Scaffold(
+      appBar: isHosted
+          ? null
+          : AppBar(
+              title: Text(l10n.downloadSettingsTitle),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.save),
+                  tooltip: l10n.save,
+                  onPressed: _saveSettings,
+                ),
+              ],
+            ),
+      body: isHosted
+          ? Column(
+              children: [
+                DesktopPageActionRow(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.save),
+                      tooltip: l10n.save,
+                      onPressed: _saveSettings,
+                    ),
+                  ],
+                ),
+                Expanded(child: formBody),
+              ],
+            )
+          : formBody,
     );
   }
 

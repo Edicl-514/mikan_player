@@ -33,6 +33,9 @@ extension _PlayerPagePcLayout on _PlayerPageState {
       onRecommendationTap: _navigateToAnime,
       mainScrollController: _pcMainScrollController,
       sidebarScrollController: _pcSidebarScrollController,
+      // The workspace shell already draws Back + the anime title for this tab,
+      // so the header drops its own copies when hosted.
+      showInternalChrome: !DesktopPageChromeScope.hostsNavigation(context),
     );
   }
 }

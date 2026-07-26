@@ -18,6 +18,7 @@ import 'package:mikan_player/ui/pages/bangumi_details/widgets/relations_section.
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/section_title.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/sites_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/summary_tags.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 
 /// Wide (PC) layout for the Bangumi details page.
 ///
@@ -133,6 +134,7 @@ class BangumiDetailsWideLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hostsNavigation = DesktopPageChromeScope.hostsNavigation(context);
     return Stack(
       children: [
         Positioned.fill(
@@ -140,30 +142,32 @@ class BangumiDetailsWideLayout extends StatelessWidget {
         ),
         Scaffold(
           backgroundColor: Colors.transparent,
-          extendBodyBehindAppBar: true,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            iconTheme: const IconThemeData(color: Colors.white),
-            flexibleSpace: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.4),
-                        Colors.black.withValues(alpha: 0.0),
-                      ],
+          extendBodyBehindAppBar: !hostsNavigation,
+          appBar: hostsNavigation
+              ? null
+              : AppBar(
+                  backgroundColor: Colors.transparent,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 0,
+                  iconTheme: const IconThemeData(color: Colors.white),
+                  flexibleSpace: ClipRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.4),
+                              Colors.black.withValues(alpha: 0.0),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-          ),
           // Load-more is owned by the host via [wideRightScrollController]
           // listener; keep this body free of a second NotificationListener so
           // end-of-list scroll does not fire pagination twice.
@@ -192,7 +196,13 @@ class BangumiDetailsWideLayout extends StatelessWidget {
       width: 350,
       child: SingleChildScrollView(
         controller: wideLeftScrollController,
-        padding: const EdgeInsets.fromLTRB(24, kToolbarHeight + 24, 24, 24),
+        padding: EdgeInsets.fromLTRB(
+          24,
+          DesktopPageMetrics.topInsetFor(context, reserved: kToolbarHeight) +
+              24,
+          24,
+          24,
+        ),
         child: Column(
           children: [
             BangumiPoster(
@@ -240,7 +250,16 @@ class BangumiDetailsWideLayout extends StatelessWidget {
         controller: wideRightScrollController,
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(32, kToolbarHeight + 24, 32, 0),
+            padding: EdgeInsets.fromLTRB(
+              32,
+              DesktopPageMetrics.topInsetFor(
+                    context,
+                    reserved: kToolbarHeight,
+                  ) +
+                  24,
+              32,
+              0,
+            ),
             sliver: SliverToBoxAdapter(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

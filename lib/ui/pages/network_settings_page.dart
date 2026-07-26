@@ -12,6 +12,8 @@ import 'package:mikan_player/services/base_url_list_service.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/utils/url_latency.dart';
 import 'package:mikan_player/ui/widgets/url_dropdown_field.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 String bangumiDataStatusSubtitle(
   BangumiDataCacheStatus? status,
@@ -461,49 +463,65 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     final dohDisplay = _dohEndpoints.isNotEmpty
         ? _dohEndpoints
         : BangumiEchService.defaultDohEndpoints;
+    final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.networkSettingsTitle),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.restore),
-            tooltip: l10n.restoreDefault,
-            onPressed: _resetDefaults,
-          ),
-          IconButton(
-            icon: const Icon(Icons.save),
-            tooltip: l10n.save,
-            onPressed: _saveSettings,
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _sectionTitle(l10n.networkSectionBaseUrl),
-                UrlDropdownField(
-                  label: l10n.bgmBaseUrl,
-                  hint: 'https://bgmlist.com',
-                  kind: BaseUrlKind.bgmlist,
-                  allUrls: _allBgmUrls,
-                  selectedUrl: _selectedBgm,
-                  onSelected: (url) => setState(() => _selectedBgm = url),
-                  onUrlsChanged: () => _reloadKind(BaseUrlKind.bgmlist),
+    final formBody = _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _sectionTitle(l10n.networkSectionBaseUrl),
+              UrlDropdownField(
+                label: l10n.bgmBaseUrl,
+                hint: 'https://bgmlist.com',
+                kind: BaseUrlKind.bgmlist,
+                allUrls: _allBgmUrls,
+                selectedUrl: _selectedBgm,
+                onSelected: (url) => setState(() => _selectedBgm = url),
+                onUrlsChanged: () => _reloadKind(BaseUrlKind.bgmlist),
+              ),
+              const SizedBox(height: 16),
+              UrlDropdownField(
+                label: l10n.mikanBaseUrl,
+                hint: 'https://mikanani.kas.pub',
+                kind: BaseUrlKind.mikan,
+                allUrls: _allMikanUrls,
+                selectedUrl: _selectedMikan,
+                onSelected: (url) => setState(() => _selectedMikan = url),
+                onUrlsChanged: () => _reloadKind(BaseUrlKind.mikan),
+                trailing: IconButton(
+                  icon: _isAutoSettingMikan
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_fix_high),
+                  tooltip: l10n.autoSelectFastestSource,
+                  onPressed: _isAutoSettingMikan
+                      ? null
+                      : () => _autoSelect(
+                          kind: BaseUrlKind.mikan,
+                          setBusy: (v) => _isAutoSettingMikan = v,
+                          setSelected: (url) => _selectedMikan = url,
+                        ),
                 ),
-                const SizedBox(height: 16),
+              ),
+              const SizedBox(height: 16),
+              if (hideBangumiUrl)
+                _buildBangumiUrlHiddenCard(context)
+              else
                 UrlDropdownField(
-                  label: l10n.mikanBaseUrl,
-                  hint: 'https://mikanani.kas.pub',
-                  kind: BaseUrlKind.mikan,
-                  allUrls: _allMikanUrls,
-                  selectedUrl: _selectedMikan,
-                  onSelected: (url) => setState(() => _selectedMikan = url),
-                  onUrlsChanged: () => _reloadKind(BaseUrlKind.mikan),
+                  label: l10n.bangumiBaseUrl,
+                  hint: 'https://bangumi.tv',
+                  kind: BaseUrlKind.bangumi,
+                  allUrls: _allBangumiUrls,
+                  selectedUrl: _selectedBangumi,
+                  onSelected: (url) =>
+                      setState(() => _selectedBangumi = url),
+                  onUrlsChanged: () => _reloadKind(BaseUrlKind.bangumi),
                   trailing: IconButton(
-                    icon: _isAutoSettingMikan
+                    icon: _isAutoSettingBangumi
                         ? const SizedBox(
                             width: 16,
                             height: 16,
@@ -511,170 +529,182 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                           )
                         : const Icon(Icons.auto_fix_high),
                     tooltip: l10n.autoSelectFastestSource,
-                    onPressed: _isAutoSettingMikan
+                    onPressed: _isAutoSettingBangumi
                         ? null
                         : () => _autoSelect(
-                            kind: BaseUrlKind.mikan,
-                            setBusy: (v) => _isAutoSettingMikan = v,
-                            setSelected: (url) => _selectedMikan = url,
+                            kind: BaseUrlKind.bangumi,
+                            setBusy: (v) => _isAutoSettingBangumi = v,
+                            setSelected: (url) => _selectedBangumi = url,
                           ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                if (hideBangumiUrl)
-                  _buildBangumiUrlHiddenCard(context)
-                else
-                  UrlDropdownField(
-                    label: l10n.bangumiBaseUrl,
-                    hint: 'https://bangumi.tv',
-                    kind: BaseUrlKind.bangumi,
-                    allUrls: _allBangumiUrls,
-                    selectedUrl: _selectedBangumi,
-                    onSelected: (url) => setState(() => _selectedBangumi = url),
-                    onUrlsChanged: () => _reloadKind(BaseUrlKind.bangumi),
-                    trailing: IconButton(
-                      icon: _isAutoSettingBangumi
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.auto_fix_high),
-                      tooltip: l10n.autoSelectFastestSource,
-                      onPressed: _isAutoSettingBangumi
-                          ? null
-                          : () => _autoSelect(
-                              kind: BaseUrlKind.bangumi,
-                              setBusy: (v) => _isAutoSettingBangumi = v,
-                              setSelected: (url) => _selectedBangumi = url,
-                            ),
-                    ),
+              const SizedBox(height: 24),
+              _sectionTitle(l10n.networkSectionBangumiMode),
+              DropdownButtonFormField<BangumiRequestMode>(
+                initialValue: _bangumiRequestMode,
+                decoration: InputDecoration(
+                  labelText: l10n.networkSectionBangumiMode,
+                  border: const OutlineInputBorder(),
+                  filled: true,
+                ),
+                items: [
+                  DropdownMenuItem(
+                    value: BangumiRequestMode.legacy,
+                    child: Text(l10n.networkBangumiRequestModeLegacy),
                   ),
-                const SizedBox(height: 24),
-                _sectionTitle(l10n.networkSectionBangumiMode),
-                DropdownButtonFormField<BangumiRequestMode>(
-                  initialValue: _bangumiRequestMode,
-                  decoration: InputDecoration(
-                    labelText: l10n.networkSectionBangumiMode,
-                    border: const OutlineInputBorder(),
-                    filled: true,
+                  DropdownMenuItem(
+                    value: BangumiRequestMode.hybrid,
+                    child: Text(l10n.networkBangumiRequestModeHybrid),
                   ),
-                  items: [
-                    DropdownMenuItem(
-                      value: BangumiRequestMode.legacy,
-                      child: Text(l10n.networkBangumiRequestModeLegacy),
-                    ),
-                    DropdownMenuItem(
-                      value: BangumiRequestMode.hybrid,
-                      child: Text(l10n.networkBangumiRequestModeHybrid),
-                    ),
-                    DropdownMenuItem(
-                      value: BangumiRequestMode.modern,
-                      child: Text(l10n.networkBangumiRequestModeModern),
-                    ),
-                  ],
+                  DropdownMenuItem(
+                    value: BangumiRequestMode.modern,
+                    child: Text(l10n.networkBangumiRequestModeModern),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _bangumiRequestMode = value);
+                },
+              ),
+              const SizedBox(height: 24),
+              _sectionTitle(l10n.networkSectionAdvanced),
+              _buildCard(
+                context,
+                child: SwitchListTile(
+                  value: _bangumiUseReverseProxy,
                   onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => _bangumiRequestMode = value);
+                    setState(() => _bangumiUseReverseProxy = value);
                   },
-                ),
-                const SizedBox(height: 24),
-                _sectionTitle(l10n.networkSectionAdvanced),
-                _buildCard(
-                  context,
-                  child: SwitchListTile(
-                    value: _bangumiUseReverseProxy,
-                    onChanged: (value) {
-                      setState(() => _bangumiUseReverseProxy = value);
-                    },
-                    title: Text(l10n.bangumiReverseProxyTitle),
-                    subtitle: Text(
-                      l10n.bangumiReverseProxyDescription,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    secondary: const Icon(Icons.dns_outlined),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
+                  title: Text(l10n.bangumiReverseProxyTitle),
+                  subtitle: Text(
+                    l10n.bangumiReverseProxyDescription,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  secondary: const Icon(Icons.dns_outlined),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
                   ),
                 ),
-                const SizedBox(height: 16),
-                _buildCard(
-                  context,
-                  child: Column(
-                    children: [
-                      SwitchListTile(
-                        value: _bangumiUseEch,
-                        onChanged: (value) {
-                          setState(() => _bangumiUseEch = value);
-                        },
-                        title: Text(l10n.bangumiEchTitle),
+              ),
+              const SizedBox(height: 16),
+              _buildCard(
+                context,
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      value: _bangumiUseEch,
+                      onChanged: (value) {
+                        setState(() => _bangumiUseEch = value);
+                      },
+                      title: Text(l10n.bangumiEchTitle),
+                      subtitle: Text(
+                        l10n.bangumiEchDescription,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      secondary: const Icon(Icons.lock_outline),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                    ),
+                    if (_bangumiUseEch)
+                      ListTile(
+                        leading: const Icon(Icons.refresh),
+                        title: Text(l10n.bangumiEchRefreshTitle),
                         subtitle: Text(
-                          l10n.bangumiEchDescription,
+                          _echRefreshResult ??
+                              l10n.bangumiEchRefreshDescription,
                           style: const TextStyle(fontSize: 12),
                         ),
-                        secondary: const Icon(Icons.lock_outline),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
+                        trailing: _isRefreshingEch
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.chevron_right),
+                        onTap: _isRefreshingEch ? null : _refreshEchConfig,
                       ),
-                      if (_bangumiUseEch)
-                        ListTile(
-                          leading: const Icon(Icons.refresh),
-                          title: Text(l10n.bangumiEchRefreshTitle),
-                          subtitle: Text(
-                            _echRefreshResult ??
-                                l10n.bangumiEchRefreshDescription,
-                            style: const TextStyle(fontSize: 12),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildCard(
+                context,
+                child: ListTile(
+                  leading: Icon(
+                    _bangumiDataStatus?.cached ?? false
+                        ? Icons.cloud_done_outlined
+                        : Icons.cloud_download_outlined,
+                  ),
+                  title: Text(l10n.networkBangumiOfflineBroadcastData),
+                  subtitle: Text(
+                    _bangumiDataRefreshResult ??
+                        bangumiDataStatusSubtitle(_bangumiDataStatus, l10n),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: _isRefreshingBangumiData
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
                           ),
-                          trailing: _isRefreshingEch
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.chevron_right),
-                          onTap: _isRefreshingEch ? null : _refreshEchConfig,
-                        ),
-                    ],
-                  ),
+                        )
+                      : const Icon(Icons.chevron_right),
+                  onTap: _isRefreshingBangumiData
+                      ? null
+                      : _refreshBangumiDataCache,
                 ),
-                const SizedBox(height: 16),
-                _buildCard(
-                  context,
-                  child: ListTile(
-                    leading: Icon(
-                      _bangumiDataStatus?.cached ?? false
-                          ? Icons.cloud_done_outlined
-                          : Icons.cloud_download_outlined,
-                    ),
-                    title: Text(l10n.networkBangumiOfflineBroadcastData),
-                    subtitle: Text(
-                      _bangumiDataRefreshResult ??
-                          bangumiDataStatusSubtitle(_bangumiDataStatus, l10n),
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    trailing: _isRefreshingBangumiData
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.chevron_right),
-                    onTap: _isRefreshingBangumiData
-                        ? null
-                        : _refreshBangumiDataCache,
-                  ),
+              ),
+              const SizedBox(height: 16),
+              _buildDohCard(context, dohDisplay),
+              const SizedBox(height: 32),
+            ],
+          );
+
+    return Scaffold(
+      appBar: isHosted
+          ? null
+          : AppBar(
+              title: Text(l10n.networkSettingsTitle),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.restore),
+                  tooltip: l10n.restoreDefault,
+                  onPressed: _resetDefaults,
                 ),
-                const SizedBox(height: 16),
-                _buildDohCard(context, dohDisplay),
-                const SizedBox(height: 32),
+                IconButton(
+                  icon: const Icon(Icons.save),
+                  tooltip: l10n.save,
+                  onPressed: _saveSettings,
+                ),
               ],
             ),
+      body: isHosted
+          ? Column(
+              children: [
+                DesktopPageActionRow(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.restore),
+                      tooltip: l10n.restoreDefault,
+                      onPressed: _resetDefaults,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.save),
+                      tooltip: l10n.save,
+                      onPressed: _saveSettings,
+                    ),
+                  ],
+                ),
+                Expanded(child: formBody),
+              ],
+            )
+          : formBody,
     );
   }
 

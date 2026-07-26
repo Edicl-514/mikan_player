@@ -924,27 +924,24 @@ class _IndexPageState extends State<IndexPage> {
     );
 
     if (hosted) {
-      if (isMobile) {
-        final l10n = AppLocalizations.of(context);
-        return Column(
-          children: [
-            DesktopPageActionRow(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  tooltip: l10n.searchHint,
-                  onPressed: () => WorkspaceNavigation.open<void>(
-                    context,
-                    WorkspaceDestinations.search(context),
-                  ),
+      final l10n = AppLocalizations.of(context);
+      return Column(
+        children: [
+          DesktopPageActionRow(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.search),
+                tooltip: l10n.searchHint,
+                onPressed: () => WorkspaceNavigation.open<void>(
+                  context,
+                  WorkspaceDestinations.search(context),
                 ),
-              ],
-            ),
-            Expanded(child: body),
-          ],
-        );
-      }
-      return body;
+              ),
+            ],
+          ),
+          Expanded(child: body),
+        ],
+      );
     }
 
     if (isMobile) {

@@ -151,6 +151,35 @@ Windows 页面移除自身 `AppBar` 后，页面根布局需要检查以下问�
 
 验收：所有原 AppBar action 都能在 Windows 找到；键盘输入、Tab 切换、刷新、保存和滚动位置不回归；页面标题不重复。
 
+**状态（2026-07-26）**：已完成落地。`SearchPage`、`RankingPage`、`TimeTablePage`、`FavoritesPage` 改为判断 `DesktopPageChromeScope.hostsPageHeader(context)` 后切换布局：被承载路径不再绘制页面 AppBar，原 AppBar 的业务内容下移到内容区——`SearchPage` 把搜索 `TextField` 与模式/排序/提交按钮拼成 `Material+Padding+Row` command row 放到 body 顶部（保留 submit、`autofocus=false` 避免和 shell 抢焦点），`RankingPage`/`FavoritesPage`/`TimeTablePage` 把 `TabBar` 移到 body 顶部的 `Material` 容器内，季度选择器作为 `DesktopPageActionRow` 紧贴其下。`DownloadManagerPage` 在 hosted 路径下用 `Column(actionRow, body)` 模式，清理按钮仅在有任务时显示；4 个设置页（`DataSourceSettingsPage`/`NetworkSettingsPage`/`SearchSettingsPage`/`DownloadSettingsPage`）同样把保存/恢复迁移到 `DesktopPageActionRow`，保存反馈和 SnackBar 行为不变。`IndexPage`/`MyPage` 在 hosted 路径下把"isMobile 才补搜索入口"条件去掉，桌面宽度也获得 action row 上的搜索图标。`PcHomeLayout` 把内部 `Container` 自定义标题栏换成更紧凑的 `Material+Padding+Row`；被 Workspace 承载时删除重复页面标题、保留搜索和头像，frame-less fallback 仍保留页面标题。`TagBrowsePage` 通过复用 `SearchPage` 自动跟随。`TimeTablePage.initState` 中 `_loadArchives` 改为 `addPostFrameCallback` 触发，顺带修掉了一处 latent bug：当 Rust 同步抛错时 `setState` 会在 initState 阶段访问 `Localizations.of`，现在改为下一帧才执行。
+
+实现要点：
+
+- Windows 删除 `Scaffold.appBar`，保留 body、滚动控制器和状态。
+- 所有内容顶部 padding 重新按 frame/context toolbar 后的可用高度计算，不继续使用为 AppBar 预留的 `kToolbarHeight`。
+- `IndexPage`/`MyPage` 的搜索按钮不因删除移动 AppBar 而消失；放到 Round 2 的共享 action row，或在本轮暂时保留桌面内容入口。
+
+验收：所有原 AppBar action 都能在 Windows 找到；键盘输入、Tab 切换、刷新、保存和滚动位置不回归；页面标题不重复。
+
+**验收结果**：全量回归 1451 项通过；补齐首页壳回归后，Round 2/3 定向套件 29 项再次通过，`flutter analyze` 再次无问题。被承载路径下改造页面不再绘制页面自有 `AppBar`，业务 action 仍在 body 顶部 `DesktopPageActionRow`、TabBar 或 command row 中可触达；移动端页面保留原有 `AppBar` 分支。`IndexPage`/`MyPage` 在桌面宽度下获得搜索入口；`SearchPage` 命令行保留提交、模式切换、排序选择；`TimeTablePage` 季度选择器和日期 TabBar 位于 body 顶部；`PcHomeLayout` 的 hosted/fallback 标题分支及搜索入口已有 widget 回归覆盖。各页面的真实窗口滚动/鼠标验收留在 Round 4 矩阵。
+
+#### 落地路径（实现索引）
+
+| 产物 | 路径 |
+|------|------|
+| 搜索命令行 / 模式/排序按钮 | `lib/ui/pages/search_page.dart` |
+| 趋势/排行 TabBar | `lib/ui/pages/ranking_page.dart` |
+| 季度按钮 + 日期 TabBar | `lib/ui/pages/timetable_page.dart` |
+| 收藏刷新 + Local/Bangumi TabBar | `lib/ui/pages/favorites_page.dart` |
+| 下载清理按钮 | `lib/ui/pages/my_page.dart` (`DownloadManagerPage`) |
+| 播放源 / 恢复默认 / 保存 | `lib/ui/pages/data_source_settings_page.dart` |
+| 恢复默认 / 保存 | `lib/ui/pages/network_settings_page.dart` |
+| 保存 | `lib/ui/pages/search_settings_page.dart` |
+| 保存 | `lib/ui/pages/download_settings_page.dart` |
+| Index/My 共享搜索入口 | `lib/ui/pages/index_page.dart`, `lib/ui/pages/my_page.dart` |
+| 首页壳 (mobile tree) 标题栏 | `lib/ui/screens/pc/pc_home_layout.dart` |
+| Round 2 回归锁定 | `test/ui/pages/desktop_round2_pages_test.dart` |
+
 ### Round 3：沉浸式详情与播放器（高工作量，约 5–8 人日）
 
 这是风险最高的一轮，单独处理不能套用普通 Scaffold 规则的页面。
@@ -170,6 +199,27 @@ Windows 页面移除自身 `AppBar` 后，页面根布局需要检查以下问�
    - 保持 `WorkspaceRouteCloseScope`、播放焦点、session close、全屏 frame handoff 不变。
 
 验收：详情/播放器在 720、900、1280 px 下无重叠、无黑色/空白顶部；播放器下载、复制、切集、返回、全屏和后台 Tab 播放行为不变；Android/iOS 截图与现状一致。
+
+**状态（2026-07-26）**：已完成落地。四个页面均改为判断 `DesktopPageChromeScope.hostsNavigation(context)`（详情页）或由装配层传入的开关（播放器），被承载时移除页面自身的透明 AppBar / 内部返回栏，未被承载路径与此前完全一致。
+
+- `BangumiDetailsPage`：宽屏布局按 `DesktopPageChromeScope.hostsNavigation(context)` 移除透明 `AppBar`，左右滚动区的旧 `kToolbarHeight` 顶部预留改为 `DesktopPageMetrics.topInsetFor`；非承载路径保留原透明 `AppBar`。移动/紧凑分支的 `SliverAppBar` 将 `automaticallyImplyLeading` 改为 `!DesktopPageChromeScope.hostsNavigation(context)`，避免被承载时与 shell 的 Back 叠出第二个返回箭头；折叠头、TabBar 和底部 Tab 结构不动。
+- `CharacterDetailPage` / `PersonDetailPage`：主分支与 error 分支各有一个 `extendBodyBehindAppBar: true` + 透明模糊 AppBar。被承载时 `appBar` 置 null、`extendBodyBehindAppBar` 关闭，背景渐变 `_buildBlurredBackground` 与错误重试按钮保留。桌面左右列原来写死的 `kToolbarHeight + 32` 顶部 padding 改为 `DesktopPageMetrics.topInsetFor(context, reserved: kToolbarHeight) + 32`——未被承载回落原值，被承载时只去掉为 toolbar 预留的高度、保留内容自身 32 px 间距。error 分支按约定同样去掉重复返回栏（仅靠 shell Back 返回）。`isMobile = width < 800` 仅做布局密度分流，保留不动。
+- `PlayerPage` / `PlayerPcLayout`：`PlayerPcLayout` 新增 `showInternalChrome` 开关，由装配层 `_buildPCLayout` 传入 `!DesktopPageChromeScope.hostsNavigation(context)`（纯展示 widget 不自行查 scope）。被承载时 header 去掉内部返回 `InkWell` 与重复的 `animeTitle`，`episodeLabel` 升为内容 heading 保留；`currentSourceActions`（下载/复制）留在原位——该 header 本就在 `CustomScrollView` 之外、不随主滚动消失，已满足"操作常驻"要求，未动用 `WorkspaceToolbarActions` 槽。标题仍通过 `WorkspacePageChromeRegistry` 发布，session/close scope/全屏协议未改。`desktopCompact` 走 `PlayerMobileLayout`，视频区返回按钮只在 `effectiveMode.isMobile` 时绘制，desktopCompact 天然无返回，无需改动。
+
+#### 落地路径（实现索引）
+
+| 产物 | 路径 |
+|------|------|
+| 角色页 AppBar 去重 + 顶部 inset | `lib/ui/pages/character_detail_page.dart` |
+| 人物页 AppBar 去重 + 顶部 inset | `lib/ui/pages/person_detail_page.dart` |
+| 播放器 header 内部返回/标题开关 | `lib/ui/pages/player/widgets/player_pc_layout.dart` |
+| 开关装配 | `lib/ui/pages/player/player_page_pc_layout.dart`, `lib/ui/pages/player_page.dart` |
+| 移动 SliverAppBar 返回箭头抑制 | `lib/ui/pages/bangumi_details/layouts/mobile_layout.dart` |
+| 宽屏详情 AppBar/inset 去重 | `lib/ui/pages/bangumi_details/layouts/wide_layout.dart` |
+| 数据源编辑器桌面 action row | `lib/ui/pages/data_source_config_page.dart`, `lib/ui/pages/data_source_settings_page.dart` |
+| Round 3 回归锁定 | `test/ui/pages/desktop_round3_pages_test.dart` |
+
+**验收结果**：全量回归 1451 项通过；最终 Round 2/3 定向套件 29 项通过，`flutter analyze` 再次无问题。被承载路径下角色/人物页（含 error 分支）无页面自有 `AppBar` 且背景渐变仍在；宽屏详情页无透明 `AppBar`，左右滚动区不再额外预留一条 toolbar 高度；数据源编辑器的保存按钮迁移到桌面 action row，只读状态仍可见，未承载路径保留原 `AppBar`。播放器 wide 布局被承载时无内部 `arrow_back_ios_new`、无重复 anime title，`EP 1` heading 仍在；非承载保留返回按钮与标题。移动 `SliverAppBar` 被承载时 `automaticallyImplyLeading == false`、非承载为 `true`。全屏 frame handoff 与 session 协议未改，由既有播放器测试覆盖。真实像素/交互验收（720/900/1280 px、亮暗、鼠标键盘、全屏、后台 Tab）仍留在 Round 4 的手动矩阵。
 
 ### Round 4：收尾、清理与跨页面回归（约 2–3 人日）
 

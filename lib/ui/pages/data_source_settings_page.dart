@@ -8,6 +8,8 @@ import 'package:mikan_player/src/rust/api/generic_scraper.dart'
     as generic_scraper;
 import 'data_source_config_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 class DataSourceSettingsPage extends StatefulWidget {
   const DataSourceSettingsPage({super.key});
@@ -256,138 +258,115 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final sortedSources = _buildSortedSources();
+    final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.dataSourceSettings),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.restore),
-            tooltip: l10n.restoreDefault,
-            onPressed: _resetDefaults,
-          ),
-          IconButton(
-            icon: const Icon(Icons.save),
-            tooltip: l10n.save,
-            onPressed: _saveSettings,
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildTextField(
-                        controller: _playbackSubController,
-                        label: l10n.playbackSourceSubscriptionUrl,
-                        hint:
-                            'https://gitee.com/edicl/online-subscription/raw/master/online.json',
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: IconButton(
-                        icon: _isRefreshing
-                            ? SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                              )
-                            : const Icon(Icons.refresh),
-                        onPressed: _isRefreshing
-                            ? null
-                            : _refreshPlaybackSources,
-                        tooltip: l10n.refreshPlaybackSource,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                if (_sources.isNotEmpty) ...[
-                  Padding(
-                    padding: EdgeInsets.only(left: 4, bottom: 8),
-                    child: Text(
-                      l10n.subscriptionSwitchTitle,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+    final formBody = _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      controller: _playbackSubController,
+                      label: l10n.playbackSourceSubscriptionUrl,
+                      hint:
+                          'https://gitee.com/edicl/online-subscription/raw/master/online.json',
                     ),
                   ),
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: sortedSources.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final source = sortedSources[index];
-                      final isEnabled = !_disabledSources.contains(source.name);
-                      return Card(
-                        margin: EdgeInsets.zero,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: Theme.of(context).dividerColor.withAlpha(50),
-                          ),
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: IconButton(
+                      icon: _isRefreshing
+                          ? SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                            )
+                          : const Icon(Icons.refresh),
+                      onPressed: _isRefreshing ? null : _refreshPlaybackSources,
+                      tooltip: l10n.refreshPlaybackSource,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              if (_sources.isNotEmpty) ...[
+                Padding(
+                  padding: EdgeInsets.only(left: 4, bottom: 8),
+                  child: Text(
+                    l10n.subscriptionSwitchTitle,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: sortedSources.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final source = sortedSources[index];
+                    final isEnabled = !_disabledSources.contains(source.name);
+                    return Card(
+                      margin: EdgeInsets.zero,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: Theme.of(context).dividerColor.withAlpha(50),
                         ),
-                        child: ListTile(
-                          onTap: source.isManual
-                              ? () async {
-                                  final changed = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          DataSourceConfigPage(source: source),
-                                    ),
-                                  );
-                                  if (changed == true) {
-                                    _loadSettings();
-                                  }
+                      ),
+                      child: ListTile(
+                        onTap: source.isManual
+                            ? () async {
+                                final changed = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) {
+                                      final page = DataSourceConfigPage(
+                                        source: source,
+                                      );
+                                      return isHosted
+                                          ? DesktopPageChromeScope(child: page)
+                                          : page;
+                                    },
+                                  ),
+                                );
+                                if (changed == true) {
+                                  _loadSettings();
                                 }
-                              : () {
-                                  final l10n = AppLocalizations.of(context);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        l10n.subscriptionSourceReadOnly,
-                                      ),
+                              }
+                            : () {
+                                final l10n = AppLocalizations.of(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      l10n.subscriptionSourceReadOnly,
                                     ),
-                                  );
-                                },
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          leading: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: source.iconUrl.isNotEmpty
-                                ? CachedNetworkImage(
-                                    imageUrl: source.iconUrl,
-                                    width: 40,
-                                    height: 40,
-                                    fit: BoxFit.cover,
-                                    errorWidget: Container(
-                                      width: 40,
-                                      height: 40,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.surfaceContainerHighest,
-                                      child: const Icon(Icons.source),
-                                    ),
-                                  )
-                                : Container(
+                                  ),
+                                );
+                              },
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: source.iconUrl.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: source.iconUrl,
+                                  width: 40,
+                                  height: 40,
+                                  fit: BoxFit.cover,
+                                  errorWidget: Container(
                                     width: 40,
                                     height: 40,
                                     color: Theme.of(
@@ -395,97 +374,147 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                                     ).colorScheme.surfaceContainerHighest,
                                     child: const Icon(Icons.source),
                                   ),
-                          ),
-                          title: Text(
-                            source.name,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  source.description.isNotEmpty
-                                      ? source.description
-                                      : l10n.customSourceDescription,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall?.color,
+                                )
+                              : Container(
+                                  width: 40,
+                                  height: 40,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.surfaceContainerHighest,
+                                  child: const Icon(Icons.source),
+                                ),
+                        ),
+                        title: Text(
+                          source.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                source.description.isNotEmpty
+                                    ? source.description
+                                    : l10n.customSourceDescription,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall?.color,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: [
+                                  _buildInfoTag(
+                                    context,
+                                    source.isManual
+                                        ? l10n.manualSourceTag
+                                        : l10n.subscriptionSourceTag,
+                                    source.isManual
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.secondary
+                                        : Theme.of(context).colorScheme.primary,
                                   ),
-                                ),
-                                const SizedBox(height: 6),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 4,
-                                  children: [
+                                  _buildInfoTag(
+                                    context,
+                                    'Tier ${source.tier}',
+                                    Theme.of(context).colorScheme.tertiary,
+                                  ),
+                                  if (source.defaultResolution.isNotEmpty)
                                     _buildInfoTag(
                                       context,
-                                      source.isManual
-                                          ? l10n.manualSourceTag
-                                          : l10n.subscriptionSourceTag,
-                                      source.isManual
-                                          ? Theme.of(
-                                              context,
-                                            ).colorScheme.secondary
-                                          : Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
+                                      source.defaultResolution,
+                                      Theme.of(context).colorScheme.primary,
                                     ),
+                                  if (source.defaultSubtitleLanguage.isNotEmpty)
                                     _buildInfoTag(
                                       context,
-                                      'Tier ${source.tier}',
-                                      Theme.of(context).colorScheme.tertiary,
+                                      source.defaultSubtitleLanguage,
+                                      Theme.of(context).colorScheme.secondary,
                                     ),
-                                    if (source.defaultResolution.isNotEmpty)
-                                      _buildInfoTag(
-                                        context,
-                                        source.defaultResolution,
-                                        Theme.of(context).colorScheme.primary,
-                                      ),
-                                    if (source
-                                        .defaultSubtitleLanguage
-                                        .isNotEmpty)
-                                      _buildInfoTag(
-                                        context,
-                                        source.defaultSubtitleLanguage,
-                                        Theme.of(context).colorScheme.secondary,
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          trailing: Switch(
-                            value: isEnabled,
-                            onChanged: (val) {
-                              setState(() {
-                                if (val) {
-                                  _disabledSources.remove(source.name);
-                                } else {
-                                  _disabledSources.add(source.name);
-                                }
-                              });
-                            },
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ],
-                const SizedBox(height: 32),
+                        trailing: Switch(
+                          value: isEnabled,
+                          onChanged: (val) {
+                            setState(() {
+                              if (val) {
+                                _disabledSources.remove(source.name);
+                              } else {
+                                _disabledSources.add(source.name);
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+              const SizedBox(height: 32),
+            ],
+          );
+
+    return Scaffold(
+      appBar: isHosted
+          ? null
+          : AppBar(
+              title: Text(l10n.dataSourceSettings),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.restore),
+                  tooltip: l10n.restoreDefault,
+                  onPressed: _resetDefaults,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.save),
+                  tooltip: l10n.save,
+                  onPressed: _saveSettings,
+                ),
               ],
             ),
+      body: isHosted
+          ? Column(
+              children: [
+                DesktopPageActionRow(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.restore),
+                      tooltip: l10n.restoreDefault,
+                      onPressed: _resetDefaults,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.save),
+                      tooltip: l10n.save,
+                      onPressed: _saveSettings,
+                    ),
+                  ],
+                ),
+                Expanded(child: formBody),
+              ],
+            )
+          : formBody,
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final changed = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const DataSourceConfigPage(source: null),
+              builder: (context) {
+                const page = DataSourceConfigPage(source: null);
+                return isHosted
+                    ? const DesktopPageChromeScope(child: page)
+                    : page;
+              },
             ),
           );
           if (changed == true) {

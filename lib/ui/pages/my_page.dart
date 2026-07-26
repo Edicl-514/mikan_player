@@ -13,7 +13,6 @@ import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
-
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
 
@@ -154,26 +153,24 @@ class _MyPageState extends State<MyPage> {
     );
 
     if (hosted) {
-      if (isMobile) {
-        return Column(
-          children: [
-            DesktopPageActionRow(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  tooltip: AppLocalizations.of(context).searchHint,
-                  onPressed: () => WorkspaceNavigation.open<void>(
-                    context,
-                    WorkspaceDestinations.search(context),
-                  ),
+      final l10n = AppLocalizations.of(context);
+      return Column(
+        children: [
+          DesktopPageActionRow(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.search),
+                tooltip: l10n.searchHint,
+                onPressed: () => WorkspaceNavigation.open<void>(
+                  context,
+                  WorkspaceDestinations.search(context),
                 ),
-              ],
-            ),
-            Expanded(child: body),
-          ],
-        );
-      }
-      return body;
+              ),
+            ],
+          ),
+          Expanded(child: body),
+        ],
+      );
     }
 
     if (isMobile) {
@@ -505,150 +502,160 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
     final tasks = _downloadManager.tasks;
     final groupedTasks = _groupedByAnime;
     final l10n = AppLocalizations.of(context);
+    final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.downloadTitle),
-        actions: [
-          if (tasks.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete_sweep),
-              tooltip: l10n.clearCompleted,
-              onPressed: () async {
-                final completedCount = tasks
-                    .where(
-                      (t) =>
-                          t.status == DownloadTaskStatus.completed ||
-                          t.status == DownloadTaskStatus.seeding,
-                    )
-                    .length;
-
-                if (completedCount == 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        AppLocalizations.of(context).noCompletedTasks,
-                      ),
-                    ),
-                  );
-                  return;
-                }
-
-                final forceDeleteFiles = _forceDeleteFilesOnAndroid;
-                bool deleteFiles = forceDeleteFiles;
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => StatefulBuilder(
-                    builder: (context, setDialogState) => AlertDialog(
-                      title: Text(
-                        AppLocalizations.of(context).clearConfirmTitle,
-                      ),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            AppLocalizations.of(
-                              context,
-                            ).clearConfirmMessage(completedCount),
-                          ),
-                          if (forceDeleteFiles) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              AppLocalizations.of(context).deleteFiles,
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          ] else ...[
-                            const SizedBox(height: 12),
-                            CheckboxListTile(
-                              title: Text(
-                                AppLocalizations.of(context).deleteFiles,
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                              value: deleteFiles,
-                              onChanged: (val) => setDialogState(
-                                () => deleteFiles = val ?? false,
-                              ),
-                              contentPadding: EdgeInsets.zero,
-                              controlAffinity: ListTileControlAffinity.leading,
-                            ),
-                          ],
-                        ],
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: Text(AppLocalizations.of(context).cancel),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: Text(AppLocalizations.of(context).confirm),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-
-                if (confirmed == true) {
-                  await _downloadManager.clearCompleted(
-                    deleteFiles: deleteFiles,
-                  );
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          AppLocalizations.of(
-                            context,
-                          ).clearedTasks(completedCount),
-                        ),
-                      ),
-                    );
-                  }
-                }
-              },
-            ),
-        ],
-      ),
-      body: tasks.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.download_outlined,
-                    size: 64,
-                    color: Colors.grey[600],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    AppLocalizations.of(context).noDownloads,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    AppLocalizations.of(context).startDownloadHint,
-                    style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                  ),
-                ],
-              ),
-            )
-          : Column(
+    final body = tasks.isEmpty
+        ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Status filter chips
-                _buildFilterChips(l10n),
-                // Task list grouped by anime
-                Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: groupedTasks.length,
-                    itemBuilder: (context, index) {
-                      final entry = groupedTasks.entries.elementAt(index);
-                      return _buildAnimeGroup(entry.key, entry.value, l10n);
-                    },
-                  ),
+                Icon(
+                  Icons.download_outlined,
+                  size: 64,
+                  color: Colors.grey[600],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  AppLocalizations.of(context).noDownloads,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  AppLocalizations.of(context).startDownloadHint,
+                  style: TextStyle(color: Colors.grey[700], fontSize: 12),
                 ),
               ],
             ),
+          )
+        : Column(
+            children: [
+              // Status filter chips
+              _buildFilterChips(l10n),
+              // Task list grouped by anime
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: groupedTasks.length,
+                  itemBuilder: (context, index) {
+                    final entry = groupedTasks.entries.elementAt(index);
+                    return _buildAnimeGroup(entry.key, entry.value, l10n);
+                  },
+                ),
+              ),
+            ],
+          );
+
+    return Scaffold(
+      appBar: isHosted
+          ? null
+          : AppBar(
+              title: Text(l10n.downloadTitle),
+              actions: [
+                if (tasks.isNotEmpty) _buildClearCompletedButton(context, tasks),
+              ],
+            ),
+      body: isHosted
+          ? Column(
+              children: [
+                if (tasks.isNotEmpty)
+                  DesktopPageActionRow(
+                    children: [_buildClearCompletedButton(context, tasks)],
+                  ),
+                Expanded(child: body),
+              ],
+            )
+          : body,
+    );
+  }
+
+  Widget _buildClearCompletedButton(
+    BuildContext context,
+    List<DownloadTask> tasks,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    return IconButton(
+      icon: const Icon(Icons.delete_sweep),
+      tooltip: l10n.clearCompleted,
+      onPressed: () async {
+        final completedCount = tasks
+            .where(
+              (t) =>
+                  t.status == DownloadTaskStatus.completed ||
+                  t.status == DownloadTaskStatus.seeding,
+            )
+            .length;
+
+        if (completedCount == 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppLocalizations.of(context).noCompletedTasks)),
+          );
+          return;
+        }
+
+        final forceDeleteFiles = _forceDeleteFilesOnAndroid;
+        bool deleteFiles = forceDeleteFiles;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+              title: Text(AppLocalizations.of(context).clearConfirmTitle),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    AppLocalizations.of(context).clearConfirmMessage(completedCount),
+                  ),
+                  if (forceDeleteFiles) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      AppLocalizations.of(context).deleteFiles,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 12),
+                    CheckboxListTile(
+                      title: Text(
+                        AppLocalizations.of(context).deleteFiles,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      value: deleteFiles,
+                      onChanged: (val) => setDialogState(
+                        () => deleteFiles = val ?? false,
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(AppLocalizations.of(context).cancel),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: Text(AppLocalizations.of(context).confirm),
+                ),
+              ],
+            ),
+          ),
+        );
+
+        if (confirmed == true) {
+          await _downloadManager.clearCompleted(deleteFiles: deleteFiles);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  AppLocalizations.of(context).clearedTasks(completedCount),
+                ),
+              ),
+            );
+          }
+        }
+      },
     );
   }
 

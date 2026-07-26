@@ -5,6 +5,8 @@ import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/ui/utils/broadcast_day_tokens.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 class TimeTablePage extends StatefulWidget {
   const TimeTablePage({super.key});
@@ -44,7 +46,14 @@ class _TimeTablePageState extends State<TimeTablePage>
     if (todayIndex >= 0 && todayIndex < 7) {
       _dayTabController.index = todayIndex;
     }
-    _loadArchives();
+    // Defer to the next frame so the initial Rust call never lands in the
+    // synchronous `initState` segment. That keeps the test environment (where
+    // `flutter_rust_bridge` may not be initialised) and the production path on
+    // the same footing, and avoids calling `Localizations.of` before
+    // `initState` finishes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadArchives();
+    });
   }
 
   @override
@@ -496,117 +505,149 @@ class _TimeTablePageState extends State<TimeTablePage>
     final currentTimeStr =
         "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
 
+    final l10n = AppLocalizations.of(context);
+    final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
+
+    final dayTabBar = TabBar(
+      controller: _dayTabController,
+      isScrollable: true,
+      tabs: List.generate(_dayKeys.length, (index) {
+        final day = _getLocalizedDay(l10n, _dayKeys[index]);
+        if (index < 7 && _selectedArchive == _archives.firstOrNull) {
+          final now = DateTime.now();
+          final monday = now.subtract(Duration(days: now.weekday - 1));
+          final targetDate = monday.add(Duration(days: index));
+          return Tab(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "${targetDate.month}/${targetDate.day}",
+                  style: const TextStyle(fontSize: 10),
+                ),
+                Text(day),
+              ],
+            ),
+          );
+        }
+        return Tab(text: day);
+      }),
+      indicatorSize: TabBarIndicatorSize.label,
+    );
+
+    Widget body;
+    if (_isLoading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (_errorMessage != null && _archives.isEmpty) {
+      body = _buildErrorView();
+    } else {
+      body = TabBarView(
+        controller: _dayTabController,
+        children: _internalDays.map((day) {
+          final animes = grouped[day] ?? [];
+          if (animes.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.movie_filter,
+                    size: 64,
+                    color: Colors.grey.withValues(alpha: 0.5),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(l10n.noAnimeFoundDay),
+                ],
+              ),
+            );
+          }
+
+          // Mix time headers and anime items
+          final listItems = <Widget>[];
+          String? lastTime;
+          bool markerAdded = false;
+
+          for (final anime in animes) {
+            final time = anime.broadcastTime ?? "TBA";
+
+            // Add current time marker if it's today and we passing that time
+            if (day == todayStr &&
+                !markerAdded &&
+                time != "TBA" &&
+                time.compareTo(currentTimeStr) > 0) {
+              listItems.add(_buildTimeMarker(currentTimeStr));
+              markerAdded = true;
+            }
+
+            if (time != lastTime) {
+              listItems.add(
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                  child: Text(
+                    time,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              );
+              lastTime = time;
+            }
+            listItems.add(_buildAnimeItem(anime));
+          }
+
+          // Add marker at end if not added and it's today
+          if (day == todayStr && !markerAdded) {
+            listItems.add(_buildTimeMarker(currentTimeStr));
+          }
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: listItems,
+          );
+        }).toList(),
+      );
+    }
+
+    if (isHosted) {
+      return Scaffold(
+        body: Column(
+          children: [
+            DesktopPageActionRow(
+              children: [
+                IconButton(
+                  onPressed: _archives.isEmpty ? null : _showQuarterPicker,
+                  icon: const Icon(Icons.calendar_month),
+                  tooltip: l10n.selectQuarter,
+                ),
+              ],
+            ),
+            Material(
+              color: Theme.of(context).colorScheme.surface,
+              child: dayTabBar,
+            ),
+            Expanded(child: body),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _selectedArchive?.title ?? AppLocalizations.of(context).navTimetable,
+          _selectedArchive?.title ?? l10n.navTimetable,
         ),
         actions: [
           IconButton(
             onPressed: _archives.isEmpty ? null : _showQuarterPicker,
             icon: const Icon(Icons.calendar_month),
-            tooltip: AppLocalizations.of(context).selectQuarter,
+            tooltip: l10n.selectQuarter,
           ),
         ],
-        bottom: TabBar(
-          controller: _dayTabController,
-          isScrollable: true,
-          tabs: List.generate(_dayKeys.length, (index) {
-            final l10n = AppLocalizations.of(context);
-            final day = _getLocalizedDay(l10n, _dayKeys[index]);
-            if (index < 7 && _selectedArchive == _archives.firstOrNull) {
-              final now = DateTime.now();
-              final monday = now.subtract(Duration(days: now.weekday - 1));
-              final targetDate = monday.add(Duration(days: index));
-              return Tab(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      "${targetDate.month}/${targetDate.day}",
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                    Text(day),
-                  ],
-                ),
-              );
-            }
-            return Tab(text: day);
-          }),
-          indicatorSize: TabBarIndicatorSize.label,
-        ),
+        bottom: dayTabBar,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null && _archives.isEmpty
-          ? _buildErrorView()
-          : TabBarView(
-              controller: _dayTabController,
-              children: _internalDays.map((day) {
-                final animes = grouped[day] ?? [];
-                if (animes.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.movie_filter,
-                          size: 64,
-                          color: Colors.grey.withValues(alpha: 0.5),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(AppLocalizations.of(context).noAnimeFoundDay),
-                      ],
-                    ),
-                  );
-                }
-
-                // Mix time headers and anime items
-                final listItems = <Widget>[];
-                String? lastTime;
-                bool markerAdded = false;
-
-                for (final anime in animes) {
-                  final time = anime.broadcastTime ?? "TBA";
-
-                  // Add current time marker if it's today and we passing that time
-                  if (day == todayStr &&
-                      !markerAdded &&
-                      time != "TBA" &&
-                      time.compareTo(currentTimeStr) > 0) {
-                    listItems.add(_buildTimeMarker(currentTimeStr));
-                    markerAdded = true;
-                  }
-
-                  if (time != lastTime) {
-                    listItems.add(
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12.0),
-                        child: Text(
-                          time,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ),
-                    );
-                    lastTime = time;
-                  }
-                  listItems.add(_buildAnimeItem(anime));
-                }
-
-                // Add marker at end if not added and it's today
-                if (day == todayStr && !markerAdded) {
-                  listItems.add(_buildTimeMarker(currentTimeStr));
-                }
-
-                return ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: listItems,
-                );
-              }).toList(),
-            ),
+      body: body,
     );
   }
 

@@ -3,6 +3,8 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/pages/player_page.dart';
 import 'package:mikan_player/services/webview_resource_coordinator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 import 'package:mikan_player/src/rust/api/simple.dart' as simple;
 
@@ -89,78 +91,99 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.searchSettingsTitle),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            tooltip: l10n.save,
-            onPressed: _saveSettings,
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _buildTextField(
-                  controller: _searchConcurrencyController,
-                  label: l10n.maxParallelSearchSources,
-                  hint: l10n.maxParallelSearchSourcesHint,
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-                const Divider(),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    l10n.webviewScraperSettingsTitle,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                    ),
+    final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
+
+    final formBody = _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _buildTextField(
+                controller: _searchConcurrencyController,
+                label: l10n.maxParallelSearchSources,
+                hint: l10n.maxParallelSearchSourcesHint,
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              const Divider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  l10n.webviewScraperSettingsTitle,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
                   ),
                 ),
-                _buildTextField(
-                  controller: _concurrencyController,
-                  label: l10n.maxWebviewConcurrent,
-                  hint: l10n.maxWebviewConcurrentHint,
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-                _buildTextField(
-                  controller: _intervalController,
-                  label: l10n.webviewLaunchInterval,
-                  hint: l10n.webviewLaunchIntervalHint,
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-                const Divider(),
-                SwitchListTile(
-                  title: Text(l10n.autoSearchOnlineTitle),
-                  subtitle: Text(l10n.autoSearchOnlineSubtitle),
-                  value: _autoSearchOnline,
-                  onChanged: (bool value) {
-                    setState(() {
-                      _autoSearchOnline = value;
-                    });
-                  },
-                ),
-                SwitchListTile(
-                  title: Text(l10n.cancelLowPrioritySourcesTitle),
-                  subtitle: Text(l10n.cancelLowPrioritySourcesSubtitle),
-                  value: _cancelLowPrioritySourcesOnPlay,
-                  onChanged: (bool value) {
-                    setState(() {
-                      _cancelLowPrioritySourcesOnPlay = value;
-                    });
-                  },
+              ),
+              _buildTextField(
+                controller: _concurrencyController,
+                label: l10n.maxWebviewConcurrent,
+                hint: l10n.maxWebviewConcurrentHint,
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              _buildTextField(
+                controller: _intervalController,
+                label: l10n.webviewLaunchInterval,
+                hint: l10n.webviewLaunchIntervalHint,
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              const Divider(),
+              SwitchListTile(
+                title: Text(l10n.autoSearchOnlineTitle),
+                subtitle: Text(l10n.autoSearchOnlineSubtitle),
+                value: _autoSearchOnline,
+                onChanged: (bool value) {
+                  setState(() {
+                    _autoSearchOnline = value;
+                  });
+                },
+              ),
+              SwitchListTile(
+                title: Text(l10n.cancelLowPrioritySourcesTitle),
+                subtitle: Text(l10n.cancelLowPrioritySourcesSubtitle),
+                value: _cancelLowPrioritySourcesOnPlay,
+                onChanged: (bool value) {
+                  setState(() {
+                    _cancelLowPrioritySourcesOnPlay = value;
+                  });
+                },
+              ),
+            ],
+          );
+
+    return Scaffold(
+      appBar: isHosted
+          ? null
+          : AppBar(
+              title: Text(l10n.searchSettingsTitle),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.save),
+                  tooltip: l10n.save,
+                  onPressed: _saveSettings,
                 ),
               ],
             ),
+      body: isHosted
+          ? Column(
+              children: [
+                DesktopPageActionRow(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.save),
+                      tooltip: l10n.save,
+                      onPressed: _saveSettings,
+                    ),
+                  ],
+                ),
+                Expanded(child: formBody),
+              ],
+            )
+          : formBody,
     );
   }
 

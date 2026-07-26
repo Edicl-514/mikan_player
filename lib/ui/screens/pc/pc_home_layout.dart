@@ -6,6 +6,7 @@ import 'package:mikan_player/ui/pages/my_page.dart';
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/ui/widgets/network_avatar.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 
 class PcHomeLayout extends StatefulWidget {
   const PcHomeLayout({super.key});
@@ -47,6 +48,7 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: Row(
         children: [
@@ -70,17 +72,17 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
               NavigationRailDestination(
                 icon: const Icon(Icons.home_outlined),
                 selectedIcon: const Icon(Icons.home),
-                label: Text(AppLocalizations.of(context).navHome),
+                label: Text(l10n.navHome),
               ),
               NavigationRailDestination(
                 icon: const Icon(Icons.category_outlined),
                 selectedIcon: const Icon(Icons.category),
-                label: Text(AppLocalizations.of(context).navIndex),
+                label: Text(l10n.navIndex),
               ),
               NavigationRailDestination(
                 icon: const Icon(Icons.person_outline),
                 selectedIcon: const Icon(Icons.person),
-                label: Text(AppLocalizations.of(context).navMy),
+                label: Text(l10n.navMy),
               ),
             ],
           ),
@@ -88,45 +90,9 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
           Expanded(
             child: Column(
               children: [
-                // Custom Top Bar for Search and Title
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  color: Theme.of(context).colorScheme.surface,
-                  child: Row(
-                    children: [
-                      Text(
-                        _titles(context)[_selectedIndex],
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const Spacer(),
-                      // Search Icon
-                      IconButton(
-                        onPressed: () => WorkspaceNavigation.open<void>(
-                          context,
-                          WorkspaceDestinations.search(context),
-                        ),
-                        icon: const Icon(Icons.search),
-                        tooltip: AppLocalizations.of(context).searchHint,
-                      ),
-                      const SizedBox(width: 8),
-                      // User Avatar
-                      NetworkAvatar(
-                        imageUrl: _userManager.isLoggedIn
-                            ? _userManager.user!.avatar.medium
-                            : null,
-                        radius: 16,
-                        backgroundColor: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        fallback: const Icon(Icons.person, size: 20),
-                      ),
-                    ],
-                  ),
-                ),
+                // Search/avatar stay page-local. The workspace shell owns the
+                // hosted page title, while the frame-less fallback keeps it.
+                _buildActionRow(context),
                 Expanded(
                   child: IndexedStack(index: _selectedIndex, children: _pages),
                 ),
@@ -134,6 +100,53 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionRow(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final isHosted = DesktopPageChromeScope.hostsTitle(context);
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Row(
+          children: [
+            if (isHosted)
+              const Spacer()
+            else
+              Expanded(
+                child: Text(
+                  _titles(context)[_selectedIndex],
+                  key: const ValueKey('pc-home-page-title'),
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: () => WorkspaceNavigation.open<void>(
+                context,
+                WorkspaceDestinations.search(context),
+              ),
+              icon: const Icon(Icons.search),
+              tooltip: l10n.searchHint,
+            ),
+            const SizedBox(width: 8),
+            NetworkAvatar(
+              imageUrl: _userManager.isLoggedIn
+                  ? _userManager.user!.avatar.medium
+                  : null,
+              radius: 16,
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest,
+              fallback: const Icon(Icons.person, size: 20),
+            ),
+          ],
+        ),
       ),
     );
   }
