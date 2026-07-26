@@ -69,10 +69,16 @@ extension _PlayerPageVideoArea on _PlayerPageState {
       onPlayRequested: () => unawaited(_playWithFocus()),
       onEnterFullscreen: () async {
         _isVideoFullscreen = true;
-        WindowsDesktopFrameController.instance.setContentFullscreen(true);
+        if (!Platform.isAndroid && !Platform.isIOS) {
+          WindowsDesktopFrameController.instance.setContentFullscreen(true);
+        }
       },
       onExitFullscreen: () async {
         _isVideoFullscreen = false;
+        if (Platform.isAndroid || Platform.isIOS) {
+          await defaultExitNativeFullscreen();
+          return;
+        }
         WindowsDesktopFrameController.instance.setContentFullscreen(false);
         final frameController = WindowsDesktopFrameController.instance;
         if (frameController.isWindowFullscreen) {

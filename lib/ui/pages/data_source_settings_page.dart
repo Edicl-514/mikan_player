@@ -10,6 +10,7 @@ import 'data_source_config_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/utils/debounced_async_action.dart';
 
 class DataSourceSettingsPage extends StatefulWidget {
   const DataSourceSettingsPage({super.key});
@@ -24,6 +25,9 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   bool _isRefreshing = false;
   List<generic_scraper.SourceState> _sources = [];
   Set<String> _disabledSources = {};
+  final DebouncedAsyncAction _persistAction = DebouncedAsyncAction(
+    debugLabel: 'data source settings',
+  );
 
   bool? _parseBool(dynamic value) {
     if (value is bool) {
@@ -102,6 +106,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
 
   @override
   void dispose() {
+    _persistAction.dispose();
     _playbackSubController.dispose();
     super.dispose();
   }
@@ -133,38 +138,55 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     });
   }
 
-  Future<void> _saveSettings() async {
+  /// Persists the subscription URL and per-source enabled state, syncing both
+  /// to the Rust runtime.
+  ///
+  /// Called on every change so the page saves automatically without a save
+  /// button. Base URLs / reverse-proxy are owned by the Network settings page;
+  /// their current values are read back so `updateConfig` keeps the runtime in
+  /// sync without clobbering them.
+  Future<void> _persist({
+    required String playbackSub,
+    required List<String> disabledSources,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Base URLs / reverse-proxy are now managed by the Network settings page;
-    // read their current values so updateConfig keeps the runtime in sync
-    // without clobbering them.
     final bgm = prefs.getString('bgmlist_url') ?? 'https://bgmlist.com';
     final bangumi = prefs.getString('bangumi_url') ?? 'https://bangumi.tv';
     final mikan = prefs.getString('mikan_url') ?? 'https://mikanani.kas.pub';
     final useReverseProxy =
         prefs.getBool(BangumiReverseProxyService.preferenceKey) ?? false;
 
-    await prefs.setString('playback_sub_url', _playbackSubController.text);
-    await prefs.setStringList('disabled_sources', _disabledSources.toList());
+    await prefs.setString('playback_sub_url', playbackSub);
+    await prefs.setStringList('disabled_sources', disabledSources);
 
     // Sync to Rust
-    await rust.setDisabledSources(sources: _disabledSources.toList());
+    await rust.setDisabledSources(sources: disabledSources);
     await rust.updateConfig(
       bgm: bgm,
       bangumi: bangumi,
       mikan: mikan,
-      playbackSub: _playbackSubController.text,
+      playbackSub: playbackSub,
       useReverseProxy: useReverseProxy,
     );
+  }
 
-    if (mounted) {
-      final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.settingsSaved)));
-      Navigator.pop(context);
-    }
+  Future<void> _persistNow() {
+    final playbackSub = _playbackSubController.text;
+    final disabledSources = _disabledSources.toList(growable: false);
+    return _persistAction.run(
+      () =>
+          _persist(playbackSub: playbackSub, disabledSources: disabledSources),
+    );
+  }
+
+  void _schedulePersist() {
+    final playbackSub = _playbackSubController.text;
+    final disabledSources = _disabledSources.toList(growable: false);
+    _persistAction.schedule(
+      () =>
+          _persist(playbackSub: playbackSub, disabledSources: disabledSources),
+    );
   }
 
   Future<void> _refreshPlaybackSources() async {
@@ -247,11 +269,12 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     }
   }
 
-  void _resetDefaults() {
+  Future<void> _resetDefaults() async {
     setState(() {
       _playbackSubController.text =
           'https://gitee.com/edicl/online-subscription/raw/master/online.json';
     });
+    await _persistNow();
   }
 
   @override
@@ -454,6 +477,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                                 _disabledSources.add(source.name);
                               }
                             });
+                            _persistNow();
                           },
                         ),
                       ),
@@ -461,49 +485,19 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
                   },
                 ),
               ],
+              const SizedBox(height: 24),
+              OutlinedButton.icon(
+                onPressed: _resetDefaults,
+                icon: const Icon(Icons.restore),
+                label: Text(l10n.restoreDefault),
+              ),
               const SizedBox(height: 32),
             ],
           );
 
-    return Scaffold(
-      appBar: isHosted
-          ? null
-          : AppBar(
-              title: Text(l10n.dataSourceSettings),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.restore),
-                  tooltip: l10n.restoreDefault,
-                  onPressed: _resetDefaults,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.save),
-                  tooltip: l10n.save,
-                  onPressed: _saveSettings,
-                ),
-              ],
-            ),
-      body: isHosted
-          ? Column(
-              children: [
-                DesktopPageActionRow(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.restore),
-                      tooltip: l10n.restoreDefault,
-                      onPressed: _resetDefaults,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.save),
-                      tooltip: l10n.save,
-                      onPressed: _saveSettings,
-                    ),
-                  ],
-                ),
-                Expanded(child: formBody),
-              ],
-            )
-          : formBody,
+    return DesktopPageScaffold(
+      title: Text(l10n.dataSourceSettings),
+      body: formBody,
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final changed = await Navigator.push(
@@ -558,6 +552,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
         border: const OutlineInputBorder(),
         filled: true,
       ),
+      onChanged: (_) => _schedulePersist(),
     );
   }
 }

@@ -52,7 +52,10 @@ void main() {
     expect(find.text('旧版'), findsOneWidget);
     expect(find.text('混合（推荐）'), findsWidgets);
     expect(find.text('新版'), findsOneWidget);
-    await tester.tap(find.text('旧版'));
+    // Dismiss the menu without changing the selection. Selecting an item now
+    // triggers auto-save, which calls the uninitialized FRB bridge; this test
+    // only checks that the options are localized (per the file header).
+    await tester.tapAt(const Offset(20, 20));
     await tester.pumpAndSettle();
 
     await tester.dragUntilVisible(
@@ -98,7 +101,10 @@ void main() {
     expect(find.text('Legacy'), findsOneWidget);
     expect(find.text('Hybrid (recommended)'), findsWidgets);
     expect(find.text('Modern'), findsOneWidget);
-    await tester.tap(find.text('Legacy'));
+    // Dismiss the menu without changing the selection. Selecting an item now
+    // triggers auto-save, which calls the uninitialized FRB bridge; this test
+    // only checks that the options are localized (per the file header).
+    await tester.tapAt(const Offset(20, 20));
     await tester.pumpAndSettle();
 
     await tester.dragUntilVisible(

@@ -55,7 +55,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Search settings'), findsOneWidget);
-    expect(find.byTooltip('Save'), findsOneWidget);
+    expect(find.byTooltip('Save'), findsNothing);
     expect(find.text('Max parallel search sources'), findsOneWidget);
     expect(
       find.text('WebView Scraper settings (Dynamic WebView sources only)'),

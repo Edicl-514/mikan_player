@@ -252,7 +252,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
       const SizedBox(width: 8),
       const MaterialPositionIndicator(),
       const Spacer(),
-      const MaterialFullscreenButton(),
+      const _MobileFullscreenButton(),
       const SizedBox(width: 8),
     ];
 
@@ -275,7 +275,7 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
         ),
       ),
       const SizedBox(width: 8),
-      const MaterialFullscreenButton(),
+      const _MobileFullscreenButton(),
       const SizedBox(width: 16),
     ];
 
@@ -1120,6 +1120,72 @@ class _CustomVideoControlsState extends State<CustomVideoControls> {
 }
 
 enum _EpisodeSkipDirection { previous, next }
+
+class _MobileFullscreenButton extends StatefulWidget {
+  const _MobileFullscreenButton();
+
+  @override
+  State<_MobileFullscreenButton> createState() =>
+      _MobileFullscreenButtonState();
+}
+
+class _MobileFullscreenButtonState extends State<_MobileFullscreenButton> {
+  bool _transitioning = false;
+
+  Future<void> _toggle() async {
+    if (_transitioning) return;
+    _transitioning = true;
+    final fullscreen = isFullscreen(context);
+    try {
+      if (fullscreen) {
+        await exitFullscreen(context);
+        return;
+      }
+
+      // media_kit invokes onEnterFullscreen after pushing its route. Prepare
+      // the mobile viewport first so the fullscreen video is built once at
+      // its final landscape size instead of visibly relaying out afterward.
+      final usesNativeMobileFullscreen =
+          !kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS);
+      if (usesNativeMobileFullscreen) {
+        await defaultEnterNativeFullscreen();
+        await WidgetsBinding.instance.endOfFrame;
+      }
+      if (!mounted) {
+        if (usesNativeMobileFullscreen) {
+          await defaultExitNativeFullscreen();
+        }
+        return;
+      }
+      try {
+        await enterFullscreen(context);
+      } catch (_) {
+        if (usesNativeMobileFullscreen) {
+          await defaultExitNativeFullscreen();
+        }
+        rethrow;
+      }
+    } finally {
+      _transitioning = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fullscreen = isFullscreen(context);
+    final l10n = AppLocalizations.of(context);
+    return IconButton(
+      onPressed: _transitioning ? null : _toggle,
+      icon: Icon(fullscreen ? Icons.fullscreen_exit : Icons.fullscreen),
+      color: Colors.white,
+      tooltip: fullscreen
+          ? l10n.playerAppFullscreenExit
+          : l10n.playerAppFullscreen,
+    );
+  }
+}
 
 class _DesktopAppFullscreenButton extends StatelessWidget {
   const _DesktopAppFullscreenButton({

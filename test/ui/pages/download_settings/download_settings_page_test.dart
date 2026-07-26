@@ -43,7 +43,7 @@ void main() {
 
     expect(find.text('Download Settings'), findsOneWidget);
     expect(find.text('BT Engine'), findsOneWidget);
-    expect(find.byTooltip('Save'), findsOneWidget);
+    expect(find.byTooltip('Save'), findsNothing);
     expect(find.text('rqbit'), findsOneWidget);
     expect(find.textContaining('rqbit is built in Rust'), findsOneWidget);
     expect(

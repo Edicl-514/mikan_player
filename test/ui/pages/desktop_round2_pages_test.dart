@@ -68,15 +68,23 @@ void main() {
       expect(find.byType(TabBar), findsOneWidget);
     });
 
-    testWidgets('FavoritesPage exposes refresh + TabBar above the body', (
+    testWidgets('FavoritesPage refreshes via a floating button, no action row', (
       tester,
     ) async {
       await pumpLocalizedWidget(
         tester,
         DesktopPageChromeScope(child: const FavoritesPage()),
       );
-      expect(find.byType(DesktopPageActionRow), findsOneWidget);
-      expect(find.byIcon(Icons.refresh), findsOneWidget);
+      // The refresh moved to a bottom-right FAB (mirroring the data source
+      // page's add button); the former action-row bar is gone.
+      expect(find.byType(DesktopPageActionRow), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(FloatingActionButton),
+          matching: find.byIcon(Icons.refresh),
+        ),
+        findsOneWidget,
+      );
       expect(find.byType(TabBar), findsOneWidget);
     });
   });
@@ -129,7 +137,7 @@ void main() {
     });
   });
 
-  group('settings pages (action rows)', () {
+  group('settings pages (auto-save)', () {
     const hostedSettingsPages = <Widget>[
       DataSourceSettingsPage(),
       NetworkSettingsPage(),
@@ -137,24 +145,26 @@ void main() {
       DownloadSettingsPage(),
     ];
 
+    // These pages now save on every change, so their former Save/Restore
+    // action row is gone. Hosted, they drop both the AppBar and the action
+    // row entirely; the desktop shell supplies the title and back button.
     for (final page in hostedSettingsPages) {
       testWidgets(
-        '${page.runtimeType} drops its AppBar and surfaces a desktop action row',
+        '${page.runtimeType} drops its AppBar and action row in the shell',
         (tester) async {
           await pumpLocalizedWidget(
             tester,
             DesktopPageChromeScope(child: page),
           );
           expect(find.byType(AppBar), findsNothing);
-          expect(find.byType(DesktopPageActionRow), findsOneWidget);
+          expect(find.byType(DesktopPageActionRow), findsNothing);
         },
       );
     }
 
-    // The mobile branch keeps the page-owned AppBar so back/title remain in
-    // their original positions. Network / data source expose Save/Restore in
-    // `actions`; the other two expose Save only.
-    testWidgets('mobile pages keep their AppBar with the same actions', (
+    // The mobile branch keeps a page-owned AppBar for the title, but it no
+    // longer carries Save/Restore actions now that changes persist inline.
+    testWidgets('mobile pages keep a title-only AppBar with no save action', (
       tester,
     ) async {
       for (final page in hostedSettingsPages) {
@@ -167,6 +177,14 @@ void main() {
         expect(
           DesktopPageChromeScope.isHosted(tester.element(find.byType(AppBar))),
           isFalse,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(AppBar),
+            matching: find.byIcon(Icons.save),
+          ),
+          findsNothing,
+          reason: '${page.runtimeType} no longer shows a save button',
         );
       }
     });

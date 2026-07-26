@@ -12,8 +12,8 @@ import 'package:mikan_player/services/base_url_list_service.dart';
 import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/utils/url_latency.dart';
 import 'package:mikan_player/ui/widgets/url_dropdown_field.dart';
-import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/utils/debounced_async_action.dart';
 
 String bangumiDataStatusSubtitle(
   BangumiDataCacheStatus? status,
@@ -89,6 +89,10 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
   List<String> _dohEndpoints = const <String>[];
   bool _isDohBusy = false;
   final _dohAddController = TextEditingController();
+  final DebouncedAsyncAction _persistAction = DebouncedAsyncAction(
+    delay: Duration.zero,
+    debugLabel: 'network settings',
+  );
 
   @override
   void initState() {
@@ -98,6 +102,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
 
   @override
   void dispose() {
+    _persistAction.dispose();
     _dohAddController.dispose();
     super.dispose();
   }
@@ -402,6 +407,8 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
       setSelected(bestUrl);
       setBusy(false);
     });
+    await _persistNow();
+    if (!mounted) return;
     final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -410,38 +417,61 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     );
   }
 
-  Future<void> _saveSettings() async {
+  /// Persists the current selections and syncs them to the Rust runtime.
+  ///
+  /// Called on every change so the page saves automatically without a save
+  /// button. Base URLs and reverse-proxy state are written together because
+  /// `updateConfig` takes them as one snapshot.
+  Future<void> _persist({
+    required String selectedBgm,
+    required String selectedBangumi,
+    required String selectedMikan,
+    required BangumiRequestMode requestMode,
+    required bool useReverseProxy,
+    required bool useEch,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final playbackSub =
         prefs.getString('playback_sub_url') ??
         'https://gitee.com/edicl/online-subscription/raw/master/online.json';
 
-    await BaseUrlListService.setSelected(BaseUrlKind.bgmlist, _selectedBgm);
-    await BaseUrlListService.setSelected(BaseUrlKind.bangumi, _selectedBangumi);
-    await BaseUrlListService.setSelected(BaseUrlKind.mikan, _selectedMikan);
+    await BaseUrlListService.setSelected(BaseUrlKind.bgmlist, selectedBgm);
+    await BaseUrlListService.setSelected(BaseUrlKind.bangumi, selectedBangumi);
+    await BaseUrlListService.setSelected(BaseUrlKind.mikan, selectedMikan);
 
     // Sync to Rust
     await rust.updateConfig(
-      bgm: _selectedBgm,
-      bangumi: _selectedBangumi,
-      mikan: _selectedMikan,
+      bgm: selectedBgm,
+      bangumi: selectedBangumi,
+      mikan: selectedMikan,
       playbackSub: playbackSub,
-      useReverseProxy: _bangumiUseReverseProxy,
+      useReverseProxy: useReverseProxy,
     );
-    await BangumiRequestModeService.save(_bangumiRequestMode);
-    await BangumiReverseProxyService.save(_bangumiUseReverseProxy);
-    await BangumiEchService.save(_bangumiUseEch);
-
-    if (mounted) {
-      final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.settingsSaved)));
-      Navigator.pop(context);
-    }
+    await BangumiRequestModeService.save(requestMode);
+    await BangumiReverseProxyService.save(useReverseProxy);
+    await BangumiEchService.save(useEch);
   }
 
-  void _resetDefaults() {
+  Future<void> _persistNow() {
+    final selectedBgm = _selectedBgm;
+    final selectedBangumi = _selectedBangumi;
+    final selectedMikan = _selectedMikan;
+    final requestMode = _bangumiRequestMode;
+    final useReverseProxy = _bangumiUseReverseProxy;
+    final useEch = _bangumiUseEch;
+    return _persistAction.run(
+      () => _persist(
+        selectedBgm: selectedBgm,
+        selectedBangumi: selectedBangumi,
+        selectedMikan: selectedMikan,
+        requestMode: requestMode,
+        useReverseProxy: useReverseProxy,
+        useEch: useEch,
+      ),
+    );
+  }
+
+  Future<void> _resetDefaults() async {
     setState(() {
       _selectedBgm = BaseUrlListService.builtinFor(BaseUrlKind.bgmlist).first;
       _selectedBangumi = BaseUrlListService.builtinFor(
@@ -454,6 +484,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
       _echRefreshResult = null;
       _bangumiDataRefreshResult = null;
     });
+    await _persistNow();
   }
 
   @override
@@ -463,7 +494,6 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     final dohDisplay = _dohEndpoints.isNotEmpty
         ? _dohEndpoints
         : BangumiEchService.defaultDohEndpoints;
-    final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
 
     final formBody = _isLoading
         ? const Center(child: CircularProgressIndicator())
@@ -477,7 +507,10 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                 kind: BaseUrlKind.bgmlist,
                 allUrls: _allBgmUrls,
                 selectedUrl: _selectedBgm,
-                onSelected: (url) => setState(() => _selectedBgm = url),
+                onSelected: (url) {
+                  setState(() => _selectedBgm = url);
+                  _persistNow();
+                },
                 onUrlsChanged: () => _reloadKind(BaseUrlKind.bgmlist),
               ),
               const SizedBox(height: 16),
@@ -487,7 +520,10 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                 kind: BaseUrlKind.mikan,
                 allUrls: _allMikanUrls,
                 selectedUrl: _selectedMikan,
-                onSelected: (url) => setState(() => _selectedMikan = url),
+                onSelected: (url) {
+                  setState(() => _selectedMikan = url);
+                  _persistNow();
+                },
                 onUrlsChanged: () => _reloadKind(BaseUrlKind.mikan),
                 trailing: IconButton(
                   icon: _isAutoSettingMikan
@@ -517,8 +553,10 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                   kind: BaseUrlKind.bangumi,
                   allUrls: _allBangumiUrls,
                   selectedUrl: _selectedBangumi,
-                  onSelected: (url) =>
-                      setState(() => _selectedBangumi = url),
+                  onSelected: (url) {
+                    setState(() => _selectedBangumi = url);
+                    _persistNow();
+                  },
                   onUrlsChanged: () => _reloadKind(BaseUrlKind.bangumi),
                   trailing: IconButton(
                     icon: _isAutoSettingBangumi
@@ -564,6 +602,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                 onChanged: (value) {
                   if (value == null) return;
                   setState(() => _bangumiRequestMode = value);
+                  _persistNow();
                 },
               ),
               const SizedBox(height: 24),
@@ -574,6 +613,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                   value: _bangumiUseReverseProxy,
                   onChanged: (value) {
                     setState(() => _bangumiUseReverseProxy = value);
+                    _persistNow();
                   },
                   title: Text(l10n.bangumiReverseProxyTitle),
                   subtitle: Text(
@@ -596,6 +636,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                       value: _bangumiUseEch,
                       onChanged: (value) {
                         setState(() => _bangumiUseEch = value);
+                        _persistNow();
                       },
                       title: Text(l10n.bangumiEchTitle),
                       subtitle: Text(
@@ -650,9 +691,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.chevron_right),
                   onTap: _isRefreshingBangumiData
@@ -662,49 +701,19 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
               ),
               const SizedBox(height: 16),
               _buildDohCard(context, dohDisplay),
+              const SizedBox(height: 24),
+              OutlinedButton.icon(
+                onPressed: _resetDefaults,
+                icon: const Icon(Icons.restore),
+                label: Text(l10n.restoreDefault),
+              ),
               const SizedBox(height: 32),
             ],
           );
 
-    return Scaffold(
-      appBar: isHosted
-          ? null
-          : AppBar(
-              title: Text(l10n.networkSettingsTitle),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.restore),
-                  tooltip: l10n.restoreDefault,
-                  onPressed: _resetDefaults,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.save),
-                  tooltip: l10n.save,
-                  onPressed: _saveSettings,
-                ),
-              ],
-            ),
-      body: isHosted
-          ? Column(
-              children: [
-                DesktopPageActionRow(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.restore),
-                      tooltip: l10n.restoreDefault,
-                      onPressed: _resetDefaults,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.save),
-                      tooltip: l10n.save,
-                      onPressed: _saveSettings,
-                    ),
-                  ],
-                ),
-                Expanded(child: formBody),
-              ],
-            )
-          : formBody,
+    return DesktopPageScaffold(
+      title: Text(l10n.networkSettingsTitle),
+      body: formBody,
     );
   }
 

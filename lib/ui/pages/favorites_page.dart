@@ -11,7 +11,6 @@ import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
-import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart' as rust_bangumi;
 import 'package:mikan_player/src/rust/api/crawler.dart' as rust_crawler;
@@ -156,6 +155,13 @@ class _FavoritesPageState extends State<FavoritesPage>
     }
   }
 
+  void _refreshAll() {
+    _fetchLocalFavorites();
+    if (_userManager.isLoggedIn) {
+      _fetchBangumiCollections();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -167,58 +173,35 @@ class _FavoritesPageState extends State<FavoritesPage>
         Tab(text: l10n.favoritesTabBangumi),
       ],
     );
+    final tabBarView = TabBarView(
+      controller: _tabController,
+      children: [_buildLocalFavorites(), _buildBangumiFavorites()],
+    );
     return Scaffold(
       appBar: isHosted
           ? null
-          : AppBar(
-              title: Text(l10n.favoritesTitle),
-              actions: [
-                IconButton(
-                  onPressed: () {
-                    _fetchLocalFavorites();
-                    if (_userManager.isLoggedIn) {
-                      _fetchBangumiCollections();
-                    }
-                  },
-                  icon: const Icon(Icons.refresh),
-                  tooltip: l10n.refreshAllFavorites,
-                ),
-              ],
-              bottom: tabBar,
-            ),
+          : AppBar(title: Text(l10n.favoritesTitle), bottom: tabBar),
+      // Desktop refreshes through this floating button (mirroring the data
+      // source page's "add source" action); mobile refreshes by pulling the
+      // list down.
+      floatingActionButton: isHosted
+          ? FloatingActionButton(
+              onPressed: _refreshAll,
+              tooltip: l10n.refreshAllFavorites,
+              child: const Icon(Icons.refresh),
+            )
+          : null,
       body: isHosted
           ? Column(
               children: [
-                DesktopPageActionRow(
-                  children: [
-                    IconButton(
-                      onPressed: () {
-                        _fetchLocalFavorites();
-                        if (_userManager.isLoggedIn) {
-                          _fetchBangumiCollections();
-                        }
-                      },
-                      icon: const Icon(Icons.refresh),
-                      tooltip: l10n.refreshAllFavorites,
-                    ),
-                  ],
-                ),
                 Material(
                   color: Theme.of(context).colorScheme.surface,
                   child: tabBar,
                 ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [_buildLocalFavorites(), _buildBangumiFavorites()],
-                  ),
-                ),
+                Expanded(child: tabBarView),
               ],
             )
-          : TabBarView(
-              controller: _tabController,
-              children: [_buildLocalFavorites(), _buildBangumiFavorites()],
-            ),
+          : tabBarView,
     );
   }
 
@@ -229,13 +212,17 @@ class _FavoritesPageState extends State<FavoritesPage>
     }
 
     if (_localFavorites.isEmpty) {
-      return Center(child: Text(l10n.noLocalFavorites));
+      return _buildRefreshableEmpty(
+        message: l10n.noLocalFavorites,
+        onRefresh: _fetchLocalFavorites,
+      );
     }
 
     return RefreshIndicator(
       onRefresh: _fetchLocalFavorites,
       child: ListView.separated(
         controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         itemCount: _localFavorites.length,
         separatorBuilder: (context, index) => const SizedBox(height: 12),
@@ -315,13 +302,17 @@ class _FavoritesPageState extends State<FavoritesPage>
     }
 
     if (_bangumiCollections.isEmpty) {
-      return Center(child: Text(l10n.noBangumiFavorites));
+      return _buildRefreshableEmpty(
+        message: l10n.noBangumiFavorites,
+        onRefresh: _fetchBangumiCollections,
+      );
     }
 
     return RefreshIndicator(
       onRefresh: _fetchBangumiCollections,
       child: ListView.separated(
         controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         itemCount: _bangumiCollections.length,
         separatorBuilder: (context, index) => const SizedBox(height: 12),
@@ -346,6 +337,24 @@ class _FavoritesPageState extends State<FavoritesPage>
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildRefreshableEmpty({
+    required String message,
+    required RefreshCallback onRefresh,
+  }) {
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: Text(message)),
+          ),
+        ],
       ),
     );
   }

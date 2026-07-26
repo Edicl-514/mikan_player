@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:file_selector_windows/file_selector_windows.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/download_manager.dart';
-import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/utils/debounced_async_action.dart';
 
 class DownloadSettingsPage extends StatefulWidget {
   const DownloadSettingsPage({super.key});
@@ -28,6 +28,9 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
   final _concurrentController = TextEditingController();
   final _downloadLimitController = TextEditingController();
   final _uploadLimitController = TextEditingController();
+  final DebouncedAsyncAction _persistAction = DebouncedAsyncAction(
+    debugLabel: 'download settings',
+  );
 
   @override
   void initState() {
@@ -46,14 +49,20 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
 
   @override
   void dispose() {
+    _persistAction.dispose();
     _concurrentController.dispose();
     _downloadLimitController.dispose();
     _uploadLimitController.dispose();
     super.dispose();
   }
 
-  Future<void> _saveSettings() async {
-    final l10n = AppLocalizations.of(context);
+  /// Persists the number fields (concurrency + speed limits) as they change.
+  ///
+  /// Called on every edit so the page saves automatically without a save
+  /// button. Invalid or half-typed input is skipped silently rather than
+  /// surfacing a snackbar on each keystroke, and the controllers are never
+  /// reformatted here so typing is not interrupted.
+  void _schedulePersistNumbers() {
     final concurrent =
         (int.tryParse(_concurrentController.text) ?? _maxConcurrent).clamp(
           1,
@@ -61,38 +70,40 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
         );
     final dlLimit = _parseLimit(_downloadLimitController.text);
     final ulLimit = _parseLimit(_uploadLimitController.text);
-    if (dlLimit == null || ulLimit == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.downloadSettingsInvalidNumber)),
-      );
-      return;
-    }
+    if (dlLimit == null || ulLimit == null) return;
+    final allowBackgroundDownload = _allowBackgroundDownload;
+    final keepSeedingInBackground = _keepSeedingInBackground;
 
+    _persistAction.schedule(
+      () => _persistNumbers(
+        concurrent: concurrent,
+        downloadLimit: dlLimit,
+        uploadLimit: ulLimit,
+        allowBackgroundDownload: allowBackgroundDownload,
+        keepSeedingInBackground: keepSeedingInBackground,
+      ),
+    );
+  }
+
+  Future<void> _persistNumbers({
+    required int concurrent,
+    required double downloadLimit,
+    required double uploadLimit,
+    required bool allowBackgroundDownload,
+    required bool keepSeedingInBackground,
+  }) async {
     await _dm.setDownloadSettings(
       maxConcurrent: concurrent,
-      downloadLimitMbps: dlLimit,
-      uploadLimitMbps: ulLimit,
-      allowBackgroundDownload: _allowBackgroundDownload,
-      keepSeedingInBackground: _keepSeedingInBackground,
+      downloadLimitMbps: downloadLimit,
+      uploadLimitMbps: uploadLimit,
+      allowBackgroundDownload: allowBackgroundDownload,
+      keepSeedingInBackground: keepSeedingInBackground,
     );
 
     if (!mounted) return;
-
-    setState(() {
-      _maxConcurrent = _dm.maxConcurrentDownloads;
-      _downloadLimit = _dm.downloadLimitMbps;
-      _uploadLimit = _dm.uploadLimitMbps;
-      _allowBackgroundDownload = _dm.allowBackgroundDownload;
-      _keepSeedingInBackground = _dm.keepSeedingInBackground;
-    });
-
-    _concurrentController.text = _maxConcurrent.toString();
-    _downloadLimitController.text = _formatLimitValue(_downloadLimit);
-    _uploadLimitController.text = _formatLimitValue(_uploadLimit);
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(l10n.downloadSettingsSaved)));
+    _maxConcurrent = _dm.maxConcurrentDownloads;
+    _downloadLimit = _dm.downloadLimitMbps;
+    _uploadLimit = _dm.uploadLimitMbps;
   }
 
   double? _parseLimit(String raw) {
@@ -115,7 +126,6 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
 
     final formBody = ListView(
       padding: const EdgeInsets.all(16),
@@ -277,35 +287,9 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
       ],
     );
 
-    return Scaffold(
-      appBar: isHosted
-          ? null
-          : AppBar(
-              title: Text(l10n.downloadSettingsTitle),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.save),
-                  tooltip: l10n.save,
-                  onPressed: _saveSettings,
-                ),
-              ],
-            ),
-      body: isHosted
-          ? Column(
-              children: [
-                DesktopPageActionRow(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.save),
-                      tooltip: l10n.save,
-                      onPressed: _saveSettings,
-                    ),
-                  ],
-                ),
-                Expanded(child: formBody),
-              ],
-            )
-          : formBody,
+    return DesktopPageScaffold(
+      title: Text(l10n.downloadSettingsTitle),
+      body: formBody,
     );
   }
 
@@ -343,6 +327,7 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
                 inputFormatters: allowDecimal
                     ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))]
                     : [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (_) => _schedulePersistNumbers(),
               ),
             ),
           ],

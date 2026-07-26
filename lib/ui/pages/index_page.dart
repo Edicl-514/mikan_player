@@ -9,7 +9,6 @@ import 'package:mikan_player/services/bangumi_request_mode_service.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
-import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 class IndexPage extends StatefulWidget {
   const IndexPage({super.key});
