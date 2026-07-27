@@ -1362,6 +1362,74 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get bangumiCollectionEditorTitle => '编辑 Bangumi 收藏';
+
+  @override
+  String get bangumiCollectionStatus => '收藏状态';
+
+  @override
+  String get bangumiCollectionRating => '我的评分';
+
+  @override
+  String get bangumiCollectionNotRated => '未评分';
+
+  @override
+  String bangumiCollectionRatingValue(int rating) {
+    return '$rating / 10';
+  }
+
+  @override
+  String get bangumiCollectionComment => '我的评价';
+
+  @override
+  String get bangumiCollectionCommentHint => '写下对这部作品的感受';
+
+  @override
+  String get bangumiCollectionTags => '我的标签';
+
+  @override
+  String get bangumiCollectionTagInputHint => '输入标签后按回车';
+
+  @override
+  String get bangumiCollectionAddTag => '添加标签';
+
+  @override
+  String get bangumiCollectionSuggestedTags => '条目标签';
+
+  @override
+  String get bangumiCollectionPrivate => '设为私密收藏';
+
+  @override
+  String get bangumiCollectionPrivateDescription => '仅自己可见';
+
+  @override
+  String get bangumiCollectionSave => '保存收藏';
+
+  @override
+  String get bangumiCollectionRemove => '取消收藏';
+
+  @override
+  String get bangumiCollectionAdded => '已添加到 Bangumi 收藏';
+
+  @override
+  String get bangumiCollectionUpdated => 'Bangumi 收藏已更新';
+
+  @override
+  String bangumiCollectionLoadFailed(Object error) {
+    return '读取 Bangumi 收藏失败: $error';
+  }
+
+  @override
+  String bangumiCollectionUpdateFailed(Object error) {
+    return '更新 Bangumi 收藏失败: $error';
+  }
+
+  @override
+  String bangumiCollectionInvalidTag(Object tag) {
+    return '标签不能包含空格：$tag';
+  }
+
+  @override
   String get collectionConflictTitle => '收藏冲突';
 
   @override

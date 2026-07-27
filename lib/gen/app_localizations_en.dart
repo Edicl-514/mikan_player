@@ -1432,6 +1432,75 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get bangumiCollectionEditorTitle => 'Edit Bangumi collection';
+
+  @override
+  String get bangumiCollectionStatus => 'Collection status';
+
+  @override
+  String get bangumiCollectionRating => 'My rating';
+
+  @override
+  String get bangumiCollectionNotRated => 'Not rated';
+
+  @override
+  String bangumiCollectionRatingValue(int rating) {
+    return '$rating / 10';
+  }
+
+  @override
+  String get bangumiCollectionComment => 'My comment';
+
+  @override
+  String get bangumiCollectionCommentHint =>
+      'Share your thoughts about this title';
+
+  @override
+  String get bangumiCollectionTags => 'My tags';
+
+  @override
+  String get bangumiCollectionTagInputHint => 'Enter a tag and press Return';
+
+  @override
+  String get bangumiCollectionAddTag => 'Add tag';
+
+  @override
+  String get bangumiCollectionSuggestedTags => 'Subject tags';
+
+  @override
+  String get bangumiCollectionPrivate => 'Private collection';
+
+  @override
+  String get bangumiCollectionPrivateDescription => 'Visible only to you';
+
+  @override
+  String get bangumiCollectionSave => 'Save collection';
+
+  @override
+  String get bangumiCollectionRemove => 'Remove collection';
+
+  @override
+  String get bangumiCollectionAdded => 'Added to Bangumi collection';
+
+  @override
+  String get bangumiCollectionUpdated => 'Bangumi collection updated';
+
+  @override
+  String bangumiCollectionLoadFailed(Object error) {
+    return 'Failed to load Bangumi collection: $error';
+  }
+
+  @override
+  String bangumiCollectionUpdateFailed(Object error) {
+    return 'Failed to update Bangumi collection: $error';
+  }
+
+  @override
+  String bangumiCollectionInvalidTag(Object tag) {
+    return 'Tags cannot contain whitespace: $tag';
+  }
+
+  @override
   String get collectionConflictTitle => 'Collection conflicts';
 
   @override

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/header_actions.dart';
+import 'package:mikan_player/ui/pages/bangumi_details/widgets/collection_editor_panel.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/header_collection_stats.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/header_rating.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/placeholder_section.dart';
@@ -16,6 +17,45 @@ import '../../../support/localized_widget_tester.dart';
 
 void main() {
   group('Bangumi details i18n (L10N-3)', () {
+    testWidgets('collection editor localizes fields and adds subject tags', (
+      tester,
+    ) async {
+      await pumpLocalizedWidget(
+        tester,
+        Scaffold(
+          body: SizedBox(
+            width: 360,
+            height: 720,
+            child: BangumiCollectionEditorPanel(
+              initialType: 3,
+              initialRate: 7,
+              initialComment: '',
+              initialTags: const ['已看'],
+              initialPrivate: false,
+              suggestedTags: const ['科幻', '校园'],
+              canRemove: true,
+            ),
+          ),
+        ),
+        locale: const Locale('zh'),
+      );
+
+      expect(find.text('编辑 Bangumi 收藏'), findsOneWidget);
+      expect(find.text('我的评分'), findsOneWidget);
+      expect(find.text('7 / 10'), findsOneWidget);
+      expect(find.text('条目标签'), findsOneWidget);
+      expect(find.text('取消收藏'), findsOneWidget);
+      final subjectTag = find.widgetWithText(ActionChip, '科幻');
+      await tester.ensureVisible(subjectTag);
+      await tester.tap(subjectTag);
+      expect(
+        find.byKey(const ValueKey('collection-selected-tags')),
+        findsOneWidget,
+      );
+      expect(find.text('科幻'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('header actions localize favorite labels in zh/en', (
       tester,
     ) async {

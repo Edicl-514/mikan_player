@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:mikan_player/models/bangumi_user_collection.dart';
+import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/services/bangumi_auth_manager.dart';
-import 'package:mikan_player/services/bangumi_collections_repository.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -15,6 +16,7 @@ import 'package:mikan_player/ui/pages/bangumi_details/bangumi_details_controller
 import 'package:mikan_player/ui/pages/bangumi_details/bangumi_details_helpers.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/layouts/mobile_layout.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/layouts/wide_layout.dart';
+import 'package:mikan_player/ui/pages/bangumi_details/widgets/collection_editor_panel.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
@@ -248,6 +250,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   void _showFavoriteStatusSelector() {
     if (_isUpdatingFavorite) return;
+    if (BangumiAuthManager().isAuthenticated) {
+      unawaited(_openCollectionEditor());
+      return;
+    }
     setState(() => _isSelectingFavoriteStatus = true);
   }
 
@@ -290,114 +296,105 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     if (error != null) {
       _showFavoriteSnackBar(l10n.favoriteUpdateFailed(error.toString()));
     } else if (saved) {
-      try {
-        await _showCollectionMetadataEditor();
-      } catch (error) {
-        if (mounted) {
-          _showFavoriteSnackBar('Collection metadata update failed: $error');
-        }
-      }
       _showFavoriteSnackBar(
         wasFavorite ? l10n.favoriteStatusUpdated : l10n.addToLocalFavorites,
       );
     }
   }
 
-  Future<void> _showCollectionMetadataEditor() async {
-    if (!BangumiAuthManager().isAuthenticated) return;
-    final remote = await _detailsController.fetchRemoteCollection();
-    if (!mounted || remote == null) return;
-    final rateController = TextEditingController(
-      text: remote.rate == 0 ? '' : remote.rate.toString(),
-    );
-    final commentController = TextEditingController(text: remote.comment);
-    final tagsController = TextEditingController(text: remote.tags.join(', '));
-    var isPrivate = remote.private;
+  Future<void> _openCollectionEditor() async {
+    if (_isUpdatingFavorite || !BangumiAuthManager().isAuthenticated) return;
+    setState(() => _isUpdatingFavorite = true);
+    BangumiUserCollection? remote;
     try {
-      final result = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Edit Bangumi collection'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: rateController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Rating (0-10)'),
-                  ),
-                  TextField(
-                    controller: commentController,
-                    maxLines: 4,
-                    decoration: const InputDecoration(labelText: 'Comment'),
-                  ),
-                  TextField(
-                    controller: tagsController,
-                    decoration: const InputDecoration(
-                      labelText: 'Tags (comma separated)',
-                    ),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Private'),
-                    value: isPrivate,
-                    onChanged: (value) => setDialogState(() => isPrivate = value),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: Text(MaterialLocalizations.of(context).okButtonLabel),
-              ),
-            ],
-          ),
-        ),
-      );
-      if (result != true || !mounted) return;
-
-      final parsedRate = rateController.text.trim().isEmpty
-          ? 0
-          : int.tryParse(rateController.text.trim());
-      if (parsedRate == null || parsedRate < 0 || parsedRate > 10) {
-        _showFavoriteSnackBar('Rating must be between 0 and 10');
-        return;
+      remote = await _detailsController.fetchRemoteCollection();
+    } catch (error) {
+      if (mounted) {
+        _showFavoriteSnackBar(
+          AppLocalizations.of(
+            context,
+          ).bangumiCollectionLoadFailed(error.toString()),
+        );
       }
-      List<String> tags;
-      try {
-        tags = normalizeBangumiTags(tagsController.text.split(','));
-      } on FormatException catch (error) {
-        _showFavoriteSnackBar(error.message);
-        return;
-      }
-      final nextComment = commentController.text;
-      final dirtyRate = parsedRate != remote.rate;
-      final dirtyComment = nextComment != remote.comment;
-      final dirtyTags = tags.join('\u0000') !=
-          remote.tags.map((tag) => tag.toString()).join('\u0000');
-      final dirtyPrivate = isPrivate != remote.private;
-      if (!(dirtyRate || dirtyComment || dirtyTags || dirtyPrivate)) return;
-
-      await _detailsController.patchRemoteMetadata(
-        rate: dirtyRate ? parsedRate : null,
-        comment: dirtyComment ? nextComment : null,
-        tags: dirtyTags ? tags : null,
-        private: dirtyPrivate ? isPrivate : null,
-      );
-      // Re-read after a successful write so the form and subsequent edits use
-      // the server's canonical representation.
-      await _detailsController.fetchRemoteCollection();
+      return;
     } finally {
-      rateController.dispose();
-      commentController.dispose();
-      tagsController.dispose();
+      if (mounted) setState(() => _isUpdatingFavorite = false);
+    }
+    if (!mounted) return;
+
+    final result = await showDialog<BangumiCollectionEditorResult>(
+      context: context,
+      builder: (context) => BangumiCollectionEditorPanel(
+        initialType:
+            remote?.type ?? _localFavoriteType ?? LocalFavoriteType.wish,
+        initialRate: remote?.rate ?? 0,
+        initialComment: remote?.comment ?? '',
+        initialTags:
+            remote?.tags.map((tag) => tag.toString()).toList() ?? const [],
+        initialPrivate: remote?.private ?? false,
+        suggestedTags: extractCurrentTags(_data?['tags'], widget.anime.tags),
+        canRemove: remote != null || _isLocalFavorite,
+      ),
+    );
+    if (!mounted || result == null) return;
+    if (result.action == BangumiCollectionEditorAction.remove) {
+      await _removeFavorite();
+      return;
+    }
+
+    setState(() => _isUpdatingFavorite = true);
+    final l10n = AppLocalizations.of(context);
+    final wasRemote = remote != null;
+    final oldRate = remote?.rate ?? 0;
+    final oldComment = remote?.comment ?? '';
+    final oldTags =
+        remote?.tags.map((tag) => tag.toString()).toList() ?? const <String>[];
+    final oldPrivate = remote?.private ?? false;
+    final statusDirty =
+        remote == null ||
+        !_isLocalFavorite ||
+        _localFavoriteType != result.type;
+    final metadataDirty =
+        result.rate != oldRate ||
+        result.comment != oldComment ||
+        result.tags.join('\u0000') != oldTags.join('\u0000') ||
+        result.private != oldPrivate;
+    try {
+      if (statusDirty) {
+        final saved = await _detailsController.setLocalFavoriteType(
+          title: widget.anime.title,
+          coverUrl: widget.anime.coverUrl ?? '',
+          score: widget.anime.score ?? 0.0,
+          type: result.type,
+        );
+        if (!saved) {
+          throw StateError('Bangumi collection status was not saved');
+        }
+      }
+      if (metadataDirty) {
+        await _detailsController.patchRemoteMetadata(
+          rate: result.rate != oldRate ? result.rate : null,
+          comment: result.comment != oldComment ? result.comment : null,
+          tags: result.tags.join('\u0000') != oldTags.join('\u0000')
+              ? result.tags
+              : null,
+          private: result.private != oldPrivate ? result.private : null,
+        );
+        await _detailsController.fetchRemoteCollection();
+      }
+      if (statusDirty || metadataDirty) {
+        _showFavoriteSnackBar(
+          wasRemote
+              ? l10n.bangumiCollectionUpdated
+              : l10n.bangumiCollectionAdded,
+        );
+      }
+    } catch (error) {
+      _showFavoriteSnackBar(
+        l10n.bangumiCollectionUpdateFailed(error.toString()),
+      );
+    } finally {
+      if (mounted) setState(() => _isUpdatingFavorite = false);
     }
   }
 

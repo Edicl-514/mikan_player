@@ -2629,6 +2629,126 @@ abstract class AppLocalizations {
   /// **'更新收藏失败: {error}'**
   String favoriteUpdateFailed(Object error);
 
+  /// No description provided for @bangumiCollectionEditorTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑 Bangumi 收藏'**
+  String get bangumiCollectionEditorTitle;
+
+  /// No description provided for @bangumiCollectionStatus.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏状态'**
+  String get bangumiCollectionStatus;
+
+  /// No description provided for @bangumiCollectionRating.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的评分'**
+  String get bangumiCollectionRating;
+
+  /// No description provided for @bangumiCollectionNotRated.
+  ///
+  /// In zh, this message translates to:
+  /// **'未评分'**
+  String get bangumiCollectionNotRated;
+
+  /// Rating selected in the Bangumi collection editor.
+  ///
+  /// In zh, this message translates to:
+  /// **'{rating} / 10'**
+  String bangumiCollectionRatingValue(int rating);
+
+  /// No description provided for @bangumiCollectionComment.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的评价'**
+  String get bangumiCollectionComment;
+
+  /// No description provided for @bangumiCollectionCommentHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'写下对这部作品的感受'**
+  String get bangumiCollectionCommentHint;
+
+  /// No description provided for @bangumiCollectionTags.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的标签'**
+  String get bangumiCollectionTags;
+
+  /// No description provided for @bangumiCollectionTagInputHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入标签后按回车'**
+  String get bangumiCollectionTagInputHint;
+
+  /// No description provided for @bangumiCollectionAddTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加标签'**
+  String get bangumiCollectionAddTag;
+
+  /// No description provided for @bangumiCollectionSuggestedTags.
+  ///
+  /// In zh, this message translates to:
+  /// **'条目标签'**
+  String get bangumiCollectionSuggestedTags;
+
+  /// No description provided for @bangumiCollectionPrivate.
+  ///
+  /// In zh, this message translates to:
+  /// **'设为私密收藏'**
+  String get bangumiCollectionPrivate;
+
+  /// No description provided for @bangumiCollectionPrivateDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅自己可见'**
+  String get bangumiCollectionPrivateDescription;
+
+  /// No description provided for @bangumiCollectionSave.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存收藏'**
+  String get bangumiCollectionSave;
+
+  /// No description provided for @bangumiCollectionRemove.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消收藏'**
+  String get bangumiCollectionRemove;
+
+  /// No description provided for @bangumiCollectionAdded.
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加到 Bangumi 收藏'**
+  String get bangumiCollectionAdded;
+
+  /// No description provided for @bangumiCollectionUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'Bangumi 收藏已更新'**
+  String get bangumiCollectionUpdated;
+
+  /// No description provided for @bangumiCollectionLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取 Bangumi 收藏失败: {error}'**
+  String bangumiCollectionLoadFailed(Object error);
+
+  /// No description provided for @bangumiCollectionUpdateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新 Bangumi 收藏失败: {error}'**
+  String bangumiCollectionUpdateFailed(Object error);
+
+  /// No description provided for @bangumiCollectionInvalidTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'标签不能包含空格：{tag}'**
+  String bangumiCollectionInvalidTag(Object tag);
+
   /// No description provided for @collectionConflictTitle.
   ///
   /// In zh, this message translates to:
