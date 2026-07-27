@@ -20,7 +20,7 @@ v0 = `bangumi/api` 仓库 `open-api/v0.yaml`。
 | 阶段 | 内容 | 写操作 | 状态 |
 |---|---|---|---|
 | **Phase 1** | OAuth 登录 + 收藏状态同步 | 有 | ✅ 已完成 |
-| Phase 2 | 收藏的评价 / 评分 / 标签 / 隐私 | 有 | ⏳ 待开发 |
+| Phase 2 | 收藏的评价 / 评分 / 标签 / 隐私 | 有 | 🚧 进行中 |
 | Phase 3 | 社区内容只读（条目吐槽、长评、讨论版、透视、角色 / 人物吐槽） | 无 | ⏳ 待开发 |
 | — | 发送吐槽 / 发帖 / 说句话 | — | ❌ 不实现，见第 6 章 |
 
@@ -194,6 +194,21 @@ credential-aware URL helper，并用 mock server / URL resolver 测试认证与�
 ---
 
 ### 5.2 Phase 2：收藏的评价 / 评分 / 标签 / 隐私
+
+#### 本轮已落地（2026-07-27）
+
+- 认证 v0 请求增加 credential-aware 官方域名 helper；启用内容反代时，带 bearer 的
+  `/v0/me`、收藏列表、单条读取、POST/PATCH/DELETE 均不会发往反代。
+- 收藏写入边界拆成状态 POST 与元数据 PATCH。PATCH 不携带 `type`，并保持
+  `tags: null`（省略）与 `tags: []`（清空）语义；评分 `0`、空评价也会原样发送。
+- 新增使用真实 username 的单条完整收藏读取，替换原先使用 `-` 别名的单条读取。
+- Dart repository 暴露 `setStatus`、`patchMetadata`、`fetchMineOne`；详情页新增评分、评价、
+  标签、隐私编辑器，提交按 dirty field 发送并在成功后回读。
+- 增加 `BangumiApiError` 结构和 `Retry-After` 秒数退避基础；Rust mock contract tests
+  覆盖 PATCH body、单条读取和鉴权头，现有同步 / 模型测试保持通过。
+
+剩余工作：将结构化错误映射到本地化提示、补充 repository/UI contract tests，并完成真实
+账号的增改清空与反代路由人工验收；完成后再把本阶段标记为 ✅。
 
 #### 现状
 

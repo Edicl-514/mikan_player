@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:mikan_player/models/local_favorite.dart';
+import 'package:mikan_player/models/bangumi_user_collection.dart';
 import 'package:mikan_player/services/bangumi_details_service.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/services/bangumi_auth_manager.dart';
@@ -48,6 +49,8 @@ class BangumiDetailsFavoritesPort {
     required this.getFavoriteType,
     required this.addFavorite,
     required this.removeFavorite,
+    this.fetchCollection,
+    this.patchMetadata,
   });
 
   final Future<int?> Function(int bangumiId) getFavoriteType;
@@ -60,6 +63,19 @@ class BangumiDetailsFavoritesPort {
   })
   addFavorite;
   final Future<void> Function(int bangumiId) removeFavorite;
+  final Future<BangumiUserCollection?> Function({
+    required String username,
+    required int bangumiId,
+  })?
+  fetchCollection;
+  final Future<void> Function({
+    required int bangumiId,
+    int? rate,
+    String? comment,
+    List<String>? tags,
+    bool? private,
+  })?
+  patchMetadata;
 }
 
 /// Phase 4 bangumi-details responsibility split: request state, comment paging,
@@ -418,6 +434,32 @@ class BangumiDetailsController {
     return favoriteType == null;
   }
 
+  Future<BangumiUserCollection?> fetchRemoteCollection() async {
+    if (_disposed || _favoritesPort.fetchCollection == null) return null;
+    final username = UserManager().user?.username;
+    final id = _parseSubjectId(_anime.bangumiId);
+    if (username == null || id == null) return null;
+    return _favoritesPort.fetchCollection!(username: username, bangumiId: id);
+  }
+
+  Future<void> patchRemoteMetadata({
+    int? rate,
+    String? comment,
+    List<String>? tags,
+    bool? private,
+  }) async {
+    if (_disposed || _favoritesPort.patchMetadata == null) return;
+    final id = _parseSubjectId(_anime.bangumiId);
+    if (id == null) return;
+    await _favoritesPort.patchMetadata!(
+      bangumiId: id,
+      rate: rate,
+      comment: comment,
+      tags: tags,
+      private: private,
+    );
+  }
+
   // ── Invariants ─────────────────────────────────────────────────────────────
 
   List<String> validateInvariants() {
@@ -623,5 +665,18 @@ BangumiDetailsFavoritesPort bangumiDetailsFavoritesPort(
       }
       await managerFactory().removeFavorite(id);
     },
+    fetchCollection: ({required username, required bangumiId}) async {
+      if (!BangumiAuthManager().isAuthenticated) return null;
+      return repository.fetchMineOne(username: username, subjectId: bangumiId);
+    },
+    patchMetadata:
+        ({required bangumiId, rate, comment, tags, private}) =>
+            repository.patchMetadata(
+              subjectId: bangumiId,
+              rate: rate,
+              comment: comment,
+              tags: tags,
+              private: private,
+            ),
   );
 }

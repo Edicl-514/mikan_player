@@ -222,3 +222,15 @@ pub struct BangumiUserCollectionEntry {
     pub image_medium: String,
     pub image_common: String,
 }
+
+/// Stable error payload for authenticated Bangumi operations. The FRB facade
+/// serializes this value into the error text so Dart can classify failures
+/// without parsing upstream prose.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiApiError {
+    pub operation: String,
+    pub status: u16,
+    pub upstream_code: Option<String>,
+    pub retry_after_seconds: Option<u64>,
+    pub message: String,
+}

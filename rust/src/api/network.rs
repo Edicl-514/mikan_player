@@ -279,6 +279,11 @@ fn is_transient_status(status: StatusCode) -> bool {
     )
 }
 
+fn retry_after_delay(headers: &reqwest::header::HeaderMap) -> Option<Duration> {
+    let value = headers.get(reqwest::header::RETRY_AFTER)?.to_str().ok()?;
+    value.trim().parse::<u64>().ok().map(Duration::from_secs)
+}
+
 fn is_certificate_error(error: &(dyn StdError + 'static)) -> bool {
     let mut current = Some(error);
     while let Some(error) = current {
@@ -404,7 +409,8 @@ async fn retry_request_inner_with_policy(
             Ok(resp) => {
                 let status = resp.status();
                 if is_transient_status(status) && attempt < policy.max_retries {
-                    let delay = policy.delay_before_retry(attempt);
+                    let delay = retry_after_delay(resp.headers())
+                        .unwrap_or_else(|| policy.delay_before_retry(attempt));
                     log::warn!(
                         "{}: HTTP {} on attempt {}/{}, retrying in {}ms",
                         label,

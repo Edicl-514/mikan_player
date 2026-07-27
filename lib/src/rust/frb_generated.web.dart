@@ -141,6 +141,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiImages dco_decode_box_autoadd_bangumi_images(dynamic raw);
 
   @protected
+  BangumiUserCollectionEntry
+  dco_decode_box_autoadd_bangumi_user_collection_entry(dynamic raw);
+
+  @protected
   bool dco_decode_box_autoadd_bool(dynamic raw);
 
   @protected
@@ -373,6 +377,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiImages? dco_decode_opt_box_autoadd_bangumi_images(dynamic raw);
 
   @protected
+  BangumiUserCollectionEntry?
+  dco_decode_opt_box_autoadd_bangumi_user_collection_entry(dynamic raw);
+
+  @protected
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
 
   @protected
@@ -594,6 +602,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BangumiImages sse_decode_box_autoadd_bangumi_images(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  BangumiUserCollectionEntry
+  sse_decode_box_autoadd_bangumi_user_collection_entry(
     SseDeserializer deserializer,
   );
 
@@ -882,6 +896,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  BangumiUserCollectionEntry?
+  sse_decode_opt_box_autoadd_bangumi_user_collection_entry(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
@@ -1149,6 +1169,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_bangumi_images(
     BangumiImages self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_bangumi_user_collection_entry(
+    BangumiUserCollectionEntry self,
     SseSerializer serializer,
   );
 
@@ -1507,6 +1533,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_bangumi_images(
     BangumiImages? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_bangumi_user_collection_entry(
+    BangumiUserCollectionEntry? self,
     SseSerializer serializer,
   );
 

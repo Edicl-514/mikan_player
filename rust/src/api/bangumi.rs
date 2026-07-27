@@ -28,5 +28,6 @@ pub(crate) use types::*;
 pub(crate) use user::{
     delete_bangumi_collection, fetch_bangumi_image_url, fetch_bangumi_me,
     fetch_bangumi_subject_image, fetch_bangumi_user_collections, fetch_bangumi_user_info,
-    fetch_my_bangumi_collection_type, fetch_my_bangumi_collections, update_bangumi_collection,
+    fetch_my_bangumi_collection, fetch_my_bangumi_collection_type, fetch_my_bangumi_collections,
+    patch_bangumi_collection_metadata, set_bangumi_collection_status, update_bangumi_collection,
 };

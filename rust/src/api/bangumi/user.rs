@@ -12,6 +12,35 @@ fn require_access_token() -> anyhow::Result<String> {
         .ok_or_else(|| anyhow::anyhow!("not logged in: no Bangumi access token"))
 }
 
+fn structured_api_error(
+    operation: &str,
+    status: reqwest::StatusCode,
+    body: &str,
+    retry_after_seconds: Option<u64>,
+) -> anyhow::Error {
+    let upstream_code = serde_json::from_str::<Value>(body)
+        .ok()
+        .and_then(|json| json.get("code").and_then(Value::as_str).map(str::to_string));
+    let error = BangumiApiError {
+        operation: operation.to_string(),
+        status: status.as_u16(),
+        upstream_code,
+        retry_after_seconds,
+        message: truncate(body, 256).to_string(),
+    };
+    anyhow::anyhow!(
+        "bangumi_api_error:{}",
+        serde_json::to_string(&error).unwrap_or_else(|_| "{}".to_string())
+    )
+}
+
+fn retry_after_seconds(resp: &reqwest::Response) -> Option<u64> {
+    resp.headers()
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse().ok())
+}
+
 fn parse_bangumi_user_info(json: &Value, fallback_username: &str) -> BangumiUserInfo {
     let avatar = &json["avatar"];
     BangumiUserInfo {
@@ -70,6 +99,23 @@ fn parse_bangumi_user_collections(json: &Value) -> anyhow::Result<Vec<BangumiUse
             })
         })
         .collect())
+}
+
+fn parse_bangumi_user_collection(json: &Value) -> anyhow::Result<BangumiUserCollectionEntry> {
+    if json.get("data").and_then(Value::as_object).is_some() {
+        return parse_bangumi_user_collection(json.get("data").unwrap());
+    }
+    if let Some(items) = json.get("data").and_then(Value::as_array) {
+        return items
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("bangumi.user.collection: response data[] is empty"))
+            .and_then(parse_bangumi_user_collection);
+    }
+    let wrapped = serde_json::json!({"data": [json]});
+    parse_bangumi_user_collections(&wrapped)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("bangumi.user.collection: response missing subject_id"))
 }
 
 /// `GET /v0/users/{username}` — public user profile lookup.
@@ -213,7 +259,10 @@ pub(crate) async fn fetch_bangumi_image_url(url: String) -> anyhow::Result<Vec<u
 /// (replacing the old username-based public lookup).
 pub(crate) async fn fetch_bangumi_me() -> anyhow::Result<BangumiUserInfo> {
     let token = require_access_token()?;
-    let url = format!("{}/v0/me", crate::api::config::get_bangumi_api_url());
+    let url = format!(
+        "{}/v0/me",
+        crate::api::config::get_bangumi_authenticated_api_url()
+    );
     let resp = crate::api::network::retry_request_bangumi_with_status(
         "bangumi.me",
         |client| {
@@ -227,9 +276,15 @@ pub(crate) async fn fetch_bangumi_me() -> anyhow::Result<BangumiUserInfo> {
     )
     .await?;
     let status = resp.status();
+    let retry_after = retry_after_seconds(&resp);
     let body = resp.text().await?;
     if !status.is_success() {
-        anyhow::bail!("bangumi.me HTTP {status}: {}", truncate(&body, 256));
+        return Err(structured_api_error(
+            "bangumi.me",
+            status,
+            &body,
+            retry_after,
+        ));
     }
     let json: Value = serde_json::from_str(&body)
         .with_context(|| format!("bangumi.me: invalid JSON: {}", truncate(&body, 256)))?;
@@ -254,7 +309,7 @@ pub(crate) async fn fetch_my_bangumi_collections(
     let token = require_access_token()?;
     let mut url = format!(
         "{}/v0/users/{}/collections?subject_type={}&limit={}&offset={}",
-        crate::api::config::get_bangumi_api_url(),
+        crate::api::config::get_bangumi_authenticated_api_url(),
         urlencoding::encode(&username),
         subject_type,
         limit,
@@ -277,24 +332,27 @@ pub(crate) async fn fetch_my_bangumi_collections(
     )
     .await?;
     let status = resp.status();
+    let retry_after = retry_after_seconds(&resp);
     let body = resp.text().await?;
     if !status.is_success() {
-        anyhow::bail!("{label} HTTP {status}: {}", truncate(&body, 256));
+        return Err(structured_api_error(label, status, &body, retry_after));
     }
     let json: Value = serde_json::from_str(&body)
         .with_context(|| format!("{label}: invalid JSON: {}", truncate(&body, 256)))?;
     parse_bangumi_user_collections(&json)
 }
 
-/// Read one authenticated collection state. A missing collection is a normal
-/// result and is represented as `None`.
-pub(crate) async fn fetch_my_bangumi_collection_type(
+/// Read one authenticated collection. The list endpoint does not accept the
+/// `-` username alias, so callers must provide the real username from `/v0/me`.
+pub(crate) async fn fetch_my_bangumi_collection(
+    username: String,
     subject_id: i64,
-) -> anyhow::Result<Option<i32>> {
+) -> anyhow::Result<Option<BangumiUserCollectionEntry>> {
     let token = require_access_token()?;
     let url = format!(
-        "{}/v0/users/-/collections/{}",
-        crate::api::config::get_bangumi_api_url(),
+        "{}/v0/users/{}/collections/{}",
+        crate::api::config::get_bangumi_authenticated_api_url(),
+        urlencoding::encode(&username),
         subject_id
     );
     let label = "bangumi.me.collection";
@@ -311,17 +369,27 @@ pub(crate) async fn fetch_my_bangumi_collection_type(
     )
     .await?;
     let status = resp.status();
+    let retry_after = retry_after_seconds(&resp);
     if status == reqwest::StatusCode::NOT_FOUND {
         return Ok(None);
     }
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
-        anyhow::bail!("{label} HTTP {status}: {}", truncate(&text, 256));
+        return Err(structured_api_error(label, status, &text, retry_after));
     }
     let body = resp.text().await.context("bangumi collection read body")?;
     let json: Value = serde_json::from_str(&body)
         .with_context(|| format!("{label}: invalid JSON: {}", truncate(&body, 256)))?;
-    Ok(json_i32(&json["type"]).filter(|value| matches!(value, 1 | 2 | 3 | 4 | 5)))
+    Ok(Some(parse_bangumi_user_collection(&json)?))
+}
+
+pub(crate) async fn fetch_my_bangumi_collection_type(
+    username: String,
+    subject_id: i64,
+) -> anyhow::Result<Option<i32>> {
+    Ok(fetch_my_bangumi_collection(username, subject_id)
+        .await?
+        .map(|entry| entry.collection_type))
 }
 
 /// `POST /v0/users/-/collections/{subject_id}` — create or update the
@@ -342,7 +410,7 @@ pub(crate) async fn update_bangumi_collection(
     let token = require_access_token()?;
     let url = format!(
         "{}/v0/users/-/collections/{}",
-        crate::api::config::get_bangumi_api_url(),
+        crate::api::config::get_bangumi_authenticated_api_url(),
         subject_id
     );
 
@@ -377,9 +445,83 @@ pub(crate) async fn update_bangumi_collection(
     )
     .await?;
     let status = resp.status();
+    let retry_after = retry_after_seconds(&resp);
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
-        anyhow::bail!("{label} HTTP {status}: {}", truncate(&text, 256));
+        return Err(structured_api_error(label, status, &text, retry_after));
+    }
+    Ok(())
+}
+
+pub(crate) async fn set_bangumi_collection_status(
+    subject_id: i64,
+    collection_type: i32,
+) -> anyhow::Result<()> {
+    update_bangumi_collection(subject_id, collection_type, None, None, None, None).await
+}
+
+/// `PATCH /v0/users/-/collections/{subject_id}` — modify only collection
+/// metadata. `None` means omit the field; `Some(vec![])` deliberately clears
+/// every tag. An empty payload is rejected before any network request.
+pub(crate) async fn patch_bangumi_collection_metadata(
+    subject_id: i64,
+    rate: Option<i32>,
+    comment: Option<String>,
+    private: Option<bool>,
+    tags: Option<Vec<String>>,
+) -> anyhow::Result<()> {
+    let token = require_access_token()?;
+    if rate.is_none() && comment.is_none() && private.is_none() && tags.is_none() {
+        anyhow::bail!("bangumi.collection.patch: metadata payload is empty");
+    }
+    if let Some(rate) = rate {
+        if !(0..=10).contains(&rate) {
+            anyhow::bail!("bangumi.collection.patch: rate must be between 0 and 10");
+        }
+    }
+    if let Some(tags) = &tags {
+        if tags.iter().any(|tag| tag.chars().any(char::is_whitespace)) {
+            anyhow::bail!("bangumi.collection.patch: tags must not contain whitespace");
+        }
+    }
+    let url = format!(
+        "{}/v0/users/-/collections/{}",
+        crate::api::config::get_bangumi_authenticated_api_url(),
+        subject_id
+    );
+    let mut payload = serde_json::Map::new();
+    if let Some(rate) = rate {
+        payload.insert("rate".into(), Value::from(rate));
+    }
+    if let Some(comment) = comment {
+        payload.insert("comment".into(), Value::from(comment));
+    }
+    if let Some(private) = private {
+        payload.insert("private".into(), Value::from(private));
+    }
+    if let Some(tags) = tags {
+        payload.insert("tags".into(), Value::from(tags));
+    }
+    let body = Value::Object(payload);
+    let label = "bangumi.collection.patch";
+    let resp = crate::api::network::retry_request_bangumi_with_status(
+        label,
+        |client| {
+            client
+                .patch(&url)
+                .header("accept", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .header("User-Agent", "MikanPlayer/1.0.0 (flutter)")
+                .json(&body)
+        },
+        true,
+    )
+    .await?;
+    let status = resp.status();
+    let retry_after = retry_after_seconds(&resp);
+    if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(structured_api_error(label, status, &text, retry_after));
     }
     Ok(())
 }
@@ -390,7 +532,7 @@ pub(crate) async fn delete_bangumi_collection(subject_id: i64) -> anyhow::Result
     let token = require_access_token()?;
     let url = format!(
         "{}/v0/users/-/collections/{}",
-        crate::api::config::get_bangumi_api_url(),
+        crate::api::config::get_bangumi_authenticated_api_url(),
         subject_id
     );
     let label = "bangumi.collection.delete";
@@ -407,12 +549,13 @@ pub(crate) async fn delete_bangumi_collection(subject_id: i64) -> anyhow::Result
     )
     .await?;
     let status = resp.status();
+    let retry_after = retry_after_seconds(&resp);
     if status == reqwest::StatusCode::NOT_FOUND {
         return Ok(());
     }
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
-        anyhow::bail!("{label} HTTP {status}: {}", truncate(&text, 256));
+        return Err(structured_api_error(label, status, &text, retry_after));
     }
     Ok(())
 }
@@ -662,6 +805,75 @@ mod tests {
         assert!(body.get("comment").is_none());
         assert!(body.get("tags").is_none());
         assert_eq!(request.headers["authorization"], "Bearer tok");
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn collection_metadata_patch_omits_type_and_preserves_empty_values() {
+        let _config = isolate_runtime_config();
+        let server = TestServer::spawn([TestRoute::new(
+            Method::PATCH,
+            "/v0/users/-/collections/7",
+            TestResponse::new(StatusCode::NO_CONTENT, ""),
+        )])
+        .await;
+        point_bangumi_at(&server.base_url());
+        crate::api::config::set_bangumi_access_token("tok".to_string());
+
+        patch_bangumi_collection_metadata(
+            7,
+            Some(0),
+            Some(String::new()),
+            Some(false),
+            Some(Vec::new()),
+        )
+        .await
+        .unwrap();
+        let request = &server.requests()[0];
+        let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
+        assert!(body.get("type").is_none());
+        assert_eq!(body["rate"], 0);
+        assert_eq!(body["comment"], "");
+        assert_eq!(body["private"], false);
+        assert_eq!(body["tags"], json!([]));
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn single_collection_uses_real_username_and_parses_metadata() {
+        let _config = isolate_runtime_config();
+        let server = TestServer::spawn([TestRoute::get(
+            "/v0/users/alice/collections/7",
+            TestResponse::ok(
+                json!({
+                    "subject_id": 7,
+                    "type": 3,
+                    "rate": 8,
+                    "comment": "great",
+                    "private": true,
+                    "tags": ["sci-fi"],
+                    "updated_at": "2026-07-27T00:00:00Z",
+                    "subject": {"name": "Anime"}
+                })
+                .to_string(),
+            ),
+        )])
+        .await;
+        point_bangumi_at(&server.base_url());
+        crate::api::config::set_bangumi_access_token("tok".to_string());
+
+        let item = fetch_my_bangumi_collection("alice".to_string(), 7)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(item.collection_type, 3);
+        assert_eq!(item.rate, 8);
+        assert_eq!(item.comment, "great");
+        assert_eq!(item.tags, ["sci-fi"]);
+        assert_eq!(
+            server.requests()[0].uri.path(),
+            "/v0/users/alice/collections/7"
+        );
         server.shutdown().await;
     }
 

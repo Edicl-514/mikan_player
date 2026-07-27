@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
+import 'package:mikan_player/services/bangumi_auth_manager.dart';
+import 'package:mikan_player/services/bangumi_collections_repository.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -288,9 +290,114 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     if (error != null) {
       _showFavoriteSnackBar(l10n.favoriteUpdateFailed(error.toString()));
     } else if (saved) {
+      try {
+        await _showCollectionMetadataEditor();
+      } catch (error) {
+        if (mounted) {
+          _showFavoriteSnackBar('Collection metadata update failed: $error');
+        }
+      }
       _showFavoriteSnackBar(
         wasFavorite ? l10n.favoriteStatusUpdated : l10n.addToLocalFavorites,
       );
+    }
+  }
+
+  Future<void> _showCollectionMetadataEditor() async {
+    if (!BangumiAuthManager().isAuthenticated) return;
+    final remote = await _detailsController.fetchRemoteCollection();
+    if (!mounted || remote == null) return;
+    final rateController = TextEditingController(
+      text: remote.rate == 0 ? '' : remote.rate.toString(),
+    );
+    final commentController = TextEditingController(text: remote.comment);
+    final tagsController = TextEditingController(text: remote.tags.join(', '));
+    var isPrivate = remote.private;
+    try {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Edit Bangumi collection'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: rateController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Rating (0-10)'),
+                  ),
+                  TextField(
+                    controller: commentController,
+                    maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'Comment'),
+                  ),
+                  TextField(
+                    controller: tagsController,
+                    decoration: const InputDecoration(
+                      labelText: 'Tags (comma separated)',
+                    ),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Private'),
+                    value: isPrivate,
+                    onChanged: (value) => setDialogState(() => isPrivate = value),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(MaterialLocalizations.of(context).okButtonLabel),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (result != true || !mounted) return;
+
+      final parsedRate = rateController.text.trim().isEmpty
+          ? 0
+          : int.tryParse(rateController.text.trim());
+      if (parsedRate == null || parsedRate < 0 || parsedRate > 10) {
+        _showFavoriteSnackBar('Rating must be between 0 and 10');
+        return;
+      }
+      List<String> tags;
+      try {
+        tags = normalizeBangumiTags(tagsController.text.split(','));
+      } on FormatException catch (error) {
+        _showFavoriteSnackBar(error.message);
+        return;
+      }
+      final nextComment = commentController.text;
+      final dirtyRate = parsedRate != remote.rate;
+      final dirtyComment = nextComment != remote.comment;
+      final dirtyTags = tags.join('\u0000') !=
+          remote.tags.map((tag) => tag.toString()).join('\u0000');
+      final dirtyPrivate = isPrivate != remote.private;
+      if (!(dirtyRate || dirtyComment || dirtyTags || dirtyPrivate)) return;
+
+      await _detailsController.patchRemoteMetadata(
+        rate: dirtyRate ? parsedRate : null,
+        comment: dirtyComment ? nextComment : null,
+        tags: dirtyTags ? tags : null,
+        private: dirtyPrivate ? isPrivate : null,
+      );
+      // Re-read after a successful write so the form and subsequent edits use
+      // the server's canonical representation.
+      await _detailsController.fetchRemoteCollection();
+    } finally {
+      rateController.dispose();
+      commentController.dispose();
+      tagsController.dispose();
     }
   }
 

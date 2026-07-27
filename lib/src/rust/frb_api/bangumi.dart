@@ -179,11 +179,48 @@ Future<void> updateBangumiCollection({
   private: private,
 );
 
-/// Read one authenticated collection state. Returns `None` when uncollected.
-Future<int?> fetchMyBangumiCollectionType({required PlatformInt64 subjectId}) =>
-    RustLib.instance.api.crateFrbApiBangumiFetchMyBangumiCollectionType(
-      subjectId: subjectId,
-    );
+/// Set or change only the collection status using the idempotent POST path.
+Future<void> setBangumiCollectionStatus({
+  required PlatformInt64 subjectId,
+  required int collectionType,
+}) => RustLib.instance.api.crateFrbApiBangumiSetBangumiCollectionStatus(
+  subjectId: subjectId,
+  collectionType: collectionType,
+);
+
+/// Read one authenticated collection. Returns `None` when uncollected.
+Future<BangumiUserCollectionEntry?> fetchMyBangumiCollection({
+  required String username,
+  required PlatformInt64 subjectId,
+}) => RustLib.instance.api.crateFrbApiBangumiFetchMyBangumiCollection(
+  username: username,
+  subjectId: subjectId,
+);
+
+/// Read only the collection type for compatibility with existing callers.
+Future<int?> fetchMyBangumiCollectionType({
+  required String username,
+  required PlatformInt64 subjectId,
+}) => RustLib.instance.api.crateFrbApiBangumiFetchMyBangumiCollectionType(
+  username: username,
+  subjectId: subjectId,
+);
+
+/// Patch only collection metadata. `None` omits a field; an empty tag list
+/// clears all tags. `type` is intentionally not part of this request.
+Future<void> patchBangumiCollectionMetadata({
+  required PlatformInt64 subjectId,
+  int? rate,
+  String? comment,
+  List<String>? tags,
+  bool? private,
+}) => RustLib.instance.api.crateFrbApiBangumiPatchBangumiCollectionMetadata(
+  subjectId: subjectId,
+  rate: rate,
+  comment: comment,
+  tags: tags,
+  private: private,
+);
 
 /// `DELETE /v0/users/-/collections/{subject_id}` — remove the authenticated
 /// user's collection entry for a subject.

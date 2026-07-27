@@ -86,6 +86,12 @@ Future<String> getBangumiNextUrl() =>
 Future<String> getBangumiOauthUrl() =>
     RustLib.instance.api.crateApiConfigGetBangumiOauthUrl();
 
+Future<String> getBangumiAuthenticatedNextUrl() =>
+    RustLib.instance.api.crateApiConfigGetBangumiAuthenticatedNextUrl();
+
+Future<String> getBangumiAuthenticatedApiUrl() =>
+    RustLib.instance.api.crateApiConfigGetBangumiAuthenticatedApiUrl();
+
 Future<String> getBangumiLainUrl() =>
     RustLib.instance.api.crateApiConfigGetBangumiLainUrl();
 

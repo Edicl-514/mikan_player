@@ -304,6 +304,30 @@ pub fn get_bangumi_oauth_url() -> String {
     "https://bgm.tv".to_string()
 }
 
+pub fn get_bangumi_authenticated_next_url() -> String {
+    let config = CONFIG.read().unwrap();
+    if cfg!(test)
+        && !config.bangumi_next_url.contains("bangumi.tv")
+        && !config.bangumi_next_url.contains("bgm.tv")
+        && !config.bangumi_next_url.contains("chii.in")
+    {
+        return config.bangumi_next_url.clone();
+    }
+    "https://next.bgm.tv".to_string()
+}
+
+pub fn get_bangumi_authenticated_api_url() -> String {
+    let config = CONFIG.read().unwrap();
+    if cfg!(test)
+        && !config.bangumi_api_url.contains("bangumi.tv")
+        && !config.bangumi_api_url.contains("bgm.tv")
+        && !config.bangumi_api_url.contains("chii.in")
+    {
+        return config.bangumi_api_url.clone();
+    }
+    "https://api.bgm.tv".to_string()
+}
+
 pub fn get_bangumi_lain_url() -> String {
     let config = CONFIG.read().unwrap();
     bangumi_url_for_proxy_mode(&config.bangumi_lain_url, config.bangumi_use_reverse_proxy)

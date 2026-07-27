@@ -354,16 +354,87 @@ pub async fn update_bangumi_collection(
     )
 }
 
-/// Read one authenticated collection state. Returns `None` when uncollected.
-pub async fn fetch_my_bangumi_collection_type(subject_id: i64) -> anyhow::Result<Option<i32>> {
-    const API: &str = "fetch_my_bangumi_collection_type";
+/// Set or change only the collection status using the idempotent POST path.
+pub async fn set_bangumi_collection_status(
+    subject_id: i64,
+    collection_type: i32,
+) -> anyhow::Result<()> {
+    const API: &str = "set_bangumi_collection_status";
     contract::public_result(
         API,
         contract::require_positive_i64("subject_id", subject_id),
     )?;
     contract::public_result(
         API,
-        bangumi_impl::fetch_my_bangumi_collection_type(subject_id).await,
+        if matches!(collection_type, 1 | 2 | 3 | 4 | 5) {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "invalid argument `collection_type`: must be one of: 1, 2, 3, 4, 5"
+            ))
+        },
+    )?;
+    contract::public_result(
+        API,
+        bangumi_impl::set_bangumi_collection_status(subject_id, collection_type).await,
+    )
+}
+
+/// Read one authenticated collection. Returns `None` when uncollected.
+pub async fn fetch_my_bangumi_collection(
+    username: String,
+    subject_id: i64,
+) -> anyhow::Result<Option<bangumi_impl::BangumiUserCollectionEntry>> {
+    const API: &str = "fetch_my_bangumi_collection";
+    contract::public_result(API, contract::require_non_blank("username", &username))?;
+    contract::public_result(
+        API,
+        contract::require_positive_i64("subject_id", subject_id),
+    )?;
+    contract::public_result(
+        API,
+        bangumi_impl::fetch_my_bangumi_collection(username, subject_id).await,
+    )
+}
+
+/// Read only the collection type for compatibility with existing callers.
+pub async fn fetch_my_bangumi_collection_type(
+    username: String,
+    subject_id: i64,
+) -> anyhow::Result<Option<i32>> {
+    const API: &str = "fetch_my_bangumi_collection_type";
+    contract::public_result(
+        API,
+        contract::require_positive_i64("subject_id", subject_id),
+    )?;
+    contract::public_result(API, contract::require_non_blank("username", &username))?;
+    contract::public_result(
+        API,
+        bangumi_impl::fetch_my_bangumi_collection_type(username, subject_id).await,
+    )
+}
+
+/// Patch only collection metadata. `None` omits a field; an empty tag list
+/// clears all tags. `type` is intentionally not part of this request.
+pub async fn patch_bangumi_collection_metadata(
+    subject_id: i64,
+    rate: Option<i32>,
+    comment: Option<String>,
+    tags: Option<Vec<String>>,
+    private: Option<bool>,
+) -> anyhow::Result<()> {
+    const API: &str = "patch_bangumi_collection_metadata";
+    contract::public_result(
+        API,
+        contract::require_positive_i64("subject_id", subject_id),
+    )?;
+    if let Some(rate) = rate {
+        contract::public_result(API, contract::require_i32_range("rate", rate, 0, 10))?;
+    }
+    contract::public_result(
+        API,
+        bangumi_impl::patch_bangumi_collection_metadata(subject_id, rate, comment, private, tags)
+            .await,
     )
 }
 
