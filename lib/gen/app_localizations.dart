@@ -1285,6 +1285,48 @@ abstract class AppLocalizations {
   /// **'登录失败，请检查用户名或网络'**
   String get loginError;
 
+  /// No description provided for @bangumiLoginTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用 Bangumi 登录'**
+  String get bangumiLoginTitle;
+
+  /// No description provided for @bangumiLoginInitError.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法启动登录，应用可能缺少 Bangumi 凭据。'**
+  String get bangumiLoginInitError;
+
+  /// No description provided for @bangumiLoginCallbackError.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法验证登录回调，请重试。'**
+  String get bangumiLoginCallbackError;
+
+  /// No description provided for @bangumiSyncCollections.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步收藏'**
+  String get bangumiSyncCollections;
+
+  /// No description provided for @bangumiSyncStarted.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在同步收藏……'**
+  String get bangumiSyncStarted;
+
+  /// No description provided for @bangumiSyncDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏已同步'**
+  String get bangumiSyncDone;
+
+  /// No description provided for @bangumiSyncFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步失败，请稍后重试'**
+  String get bangumiSyncFailed;
+
   /// No description provided for @cannotLoadEpisodes.
   ///
   /// In zh, this message translates to:

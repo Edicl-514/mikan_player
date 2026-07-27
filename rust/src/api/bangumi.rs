@@ -1,3 +1,4 @@
+mod auth;
 mod character_detail;
 mod fetch_characters;
 mod fetch_comments;
@@ -10,6 +11,10 @@ pub(crate) mod types;
 mod user;
 mod util;
 
+pub(crate) use auth::{
+    bangumi_oauth_authorize_url, bangumi_oauth_client_id, exchange_bangumi_oauth_code,
+    refresh_bangumi_oauth_token,
+};
 pub(crate) use character_detail::{fetch_character_details, fetch_character_subjects};
 pub(crate) use fetch_characters::fetch_bangumi_characters;
 pub(crate) use fetch_comments::{fetch_bangumi_comments, fetch_bangumi_episode_comments};
@@ -21,6 +26,7 @@ pub(crate) use person_detail::{
 };
 pub(crate) use types::*;
 pub(crate) use user::{
-    fetch_bangumi_image_url, fetch_bangumi_subject_image, fetch_bangumi_user_collections,
-    fetch_bangumi_user_info,
+    fetch_bangumi_image_url, fetch_bangumi_me, fetch_bangumi_subject_image,
+    fetch_bangumi_user_collections, fetch_bangumi_user_info, fetch_my_bangumi_collections,
+    update_bangumi_collection,
 };

@@ -101,3 +101,79 @@ Future<Uint8List> fetchBangumiSubjectImage({
 
 Future<Uint8List> fetchBangumiImageUrl({required String url}) =>
     RustLib.instance.api.crateFrbApiBangumiFetchBangumiImageUrl(url: url);
+
+/// The OAuth `client_id` for building the authorization URL that the login
+/// WebView opens. Not a secret — it appears in that URL in plaintext.
+Future<String> bangumiOauthClientId() =>
+    RustLib.instance.api.crateFrbApiBangumiBangumiOauthClientId();
+
+/// The OAuth authorization page URL the login WebView opens. Pins `bgm.tv`
+/// (never the `bangumi.tv` alias) so the later token-exchange POST does not hit
+/// a body-dropping 301. `redirect_uri` must match the value later passed to
+/// [`exchange_bangumi_oauth_code`] byte-for-byte.
+Future<String> bangumiOauthAuthorizeUrl({required String redirectUri}) =>
+    RustLib.instance.api.crateFrbApiBangumiBangumiOauthAuthorizeUrl(
+      redirectUri: redirectUri,
+    );
+
+/// Exchange an OAuth authorization `code` for an access/refresh token pair.
+/// The `client_secret` stays in Rust — it never crosses this boundary.
+Future<BangumiOAuthToken> exchangeBangumiOauthCode({
+  required String code,
+  required String redirectUri,
+}) => RustLib.instance.api.crateFrbApiBangumiExchangeBangumiOauthCode(
+  code: code,
+  redirectUri: redirectUri,
+);
+
+/// Refresh an access token using the stored `refresh_token`.
+Future<BangumiOAuthToken> refreshBangumiOauthToken({
+  required String refreshToken,
+  required String redirectUri,
+}) => RustLib.instance.api.crateFrbApiBangumiRefreshBangumiOauthToken(
+  refreshToken: refreshToken,
+  redirectUri: redirectUri,
+);
+
+/// `GET /v0/me` — the authenticated user's profile. Requires a stored token.
+Future<BangumiUserInfo> fetchBangumiMe() =>
+    RustLib.instance.api.crateFrbApiBangumiFetchBangumiMe();
+
+/// `GET /v0/users/{username}/collections` — the authenticated user's own
+/// collections. `collection_type` of `0` means "all types" (no filter).
+///
+/// Requires the real `username` (from `/v0/me`): the list endpoint returns 404
+/// for the literal `-` alias, unlike the write endpoint. The bearer token is
+/// still sent so private collections are included.
+Future<List<BangumiUserCollectionEntry>> fetchMyBangumiCollections({
+  required String username,
+  required int subjectType,
+  required int collectionType,
+  required int limit,
+  required int offset,
+}) => RustLib.instance.api.crateFrbApiBangumiFetchMyBangumiCollections(
+  username: username,
+  subjectType: subjectType,
+  collectionType: collectionType,
+  limit: limit,
+  offset: offset,
+);
+
+/// `POST /v0/users/-/collections/{subject_id}` — upsert the authenticated
+/// user's collection for a subject. Optional fields left `None` are omitted
+/// from the request so an existing rating/comment is not clobbered.
+Future<void> updateBangumiCollection({
+  required PlatformInt64 subjectId,
+  required int collectionType,
+  int? rate,
+  String? comment,
+  List<String>? tags,
+  bool? private,
+}) => RustLib.instance.api.crateFrbApiBangumiUpdateBangumiCollection(
+  subjectId: subjectId,
+  collectionType: collectionType,
+  rate: rate,
+  comment: comment,
+  tags: tags,
+  private: private,
+);

@@ -191,6 +191,169 @@ pub async fn fetch_bangumi_image_url(url: String) -> anyhow::Result<Vec<u8>> {
     contract::public_result(API, bangumi_impl::fetch_bangumi_image_url(url).await)
 }
 
+/// The OAuth `client_id` for building the authorization URL that the login
+/// WebView opens. Not a secret — it appears in that URL in plaintext.
+pub fn bangumi_oauth_client_id() -> anyhow::Result<String> {
+    const API: &str = "bangumi_oauth_client_id";
+    contract::public_result(API, bangumi_impl::bangumi_oauth_client_id())
+}
+
+/// The OAuth authorization page URL the login WebView opens. Pins `bgm.tv`
+/// (never an alias or the optional content reverse proxy). `redirect_uri` must
+/// match the value later passed to [`exchange_bangumi_oauth_code`]
+/// byte-for-byte.
+pub fn bangumi_oauth_authorize_url(redirect_uri: String) -> anyhow::Result<String> {
+    const API: &str = "bangumi_oauth_authorize_url";
+    contract::public_result(
+        API,
+        contract::require_non_blank("redirect_uri", &redirect_uri),
+    )?;
+    contract::public_result(API, bangumi_impl::bangumi_oauth_authorize_url(redirect_uri))
+}
+
+/// Exchange an OAuth authorization `code` for an access/refresh token pair.
+/// The `client_secret` stays on the Rust side of the bridge, but remains
+/// extractable from a distributed client binary.
+pub async fn exchange_bangumi_oauth_code(
+    code: String,
+    redirect_uri: String,
+) -> anyhow::Result<bangumi_impl::BangumiOAuthToken> {
+    const API: &str = "exchange_bangumi_oauth_code";
+    contract::public_result(API, contract::require_non_blank("code", &code))?;
+    contract::public_result(
+        API,
+        contract::require_non_blank("redirect_uri", &redirect_uri),
+    )?;
+    contract::public_result(
+        API,
+        bangumi_impl::exchange_bangumi_oauth_code(code, redirect_uri).await,
+    )
+}
+
+/// Refresh an access token using the stored `refresh_token`.
+pub async fn refresh_bangumi_oauth_token(
+    refresh_token: String,
+    redirect_uri: String,
+) -> anyhow::Result<bangumi_impl::BangumiOAuthToken> {
+    const API: &str = "refresh_bangumi_oauth_token";
+    contract::public_result(
+        API,
+        contract::require_non_blank("refresh_token", &refresh_token),
+    )?;
+    contract::public_result(
+        API,
+        contract::require_non_blank("redirect_uri", &redirect_uri),
+    )?;
+    contract::public_result(
+        API,
+        bangumi_impl::refresh_bangumi_oauth_token(refresh_token, redirect_uri).await,
+    )
+}
+
+/// `GET /v0/me` — the authenticated user's profile. Requires a stored token.
+pub async fn fetch_bangumi_me() -> anyhow::Result<bangumi_impl::BangumiUserInfo> {
+    const API: &str = "fetch_bangumi_me";
+    contract::public_result(API, bangumi_impl::fetch_bangumi_me().await)
+}
+
+/// `GET /v0/users/{username}/collections` — the authenticated user's own
+/// collections. `collection_type` of `0` means "all types" (no filter).
+///
+/// Requires the real `username` (from `/v0/me`): the list endpoint returns 404
+/// for the literal `-` alias, unlike the write endpoint. The bearer token is
+/// still sent so private collections are included.
+pub async fn fetch_my_bangumi_collections(
+    username: String,
+    subject_type: i32,
+    collection_type: i32,
+    limit: i32,
+    offset: i32,
+) -> anyhow::Result<Vec<bangumi_impl::BangumiUserCollectionEntry>> {
+    const API: &str = "fetch_my_bangumi_collections";
+    contract::public_result(API, contract::require_non_blank("username", &username))?;
+    contract::public_result(
+        API,
+        if matches!(subject_type, 1 | 2 | 3 | 4 | 6) {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "invalid argument `subject_type`: must be one of: 1, 2, 3, 4, 6"
+            ))
+        },
+    )?;
+    contract::public_result(
+        API,
+        if matches!(collection_type, 0 | 1 | 2 | 3 | 4 | 5) {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "invalid argument `collection_type`: must be one of: 0, 1, 2, 3, 4, 5"
+            ))
+        },
+    )?;
+    contract::public_result(API, contract::require_i32_range("limit", limit, 1, 100))?;
+    contract::public_result(API, contract::require_non_negative_i32("offset", offset))?;
+    let type_filter = if collection_type == 0 {
+        None
+    } else {
+        Some(collection_type)
+    };
+    contract::public_result(
+        API,
+        bangumi_impl::fetch_my_bangumi_collections(
+            username,
+            subject_type,
+            type_filter,
+            limit,
+            offset,
+        )
+        .await,
+    )
+}
+
+/// `POST /v0/users/-/collections/{subject_id}` — upsert the authenticated
+/// user's collection for a subject. Optional fields left `None` are omitted
+/// from the request so an existing rating/comment is not clobbered.
+pub async fn update_bangumi_collection(
+    subject_id: i64,
+    collection_type: i32,
+    rate: Option<i32>,
+    comment: Option<String>,
+    tags: Option<Vec<String>>,
+    private: Option<bool>,
+) -> anyhow::Result<()> {
+    const API: &str = "update_bangumi_collection";
+    contract::public_result(
+        API,
+        contract::require_positive_i64("subject_id", subject_id),
+    )?;
+    contract::public_result(
+        API,
+        if matches!(collection_type, 1 | 2 | 3 | 4 | 5) {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "invalid argument `collection_type`: must be one of: 1, 2, 3, 4, 5"
+            ))
+        },
+    )?;
+    if let Some(rate) = rate {
+        contract::public_result(API, contract::require_i32_range("rate", rate, 0, 10))?;
+    }
+    contract::public_result(
+        API,
+        bangumi_impl::update_bangumi_collection(
+            subject_id,
+            collection_type,
+            rate,
+            comment,
+            private,
+            tags,
+        )
+        .await,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

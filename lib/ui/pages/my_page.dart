@@ -6,6 +6,8 @@ import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/services/user_manager.dart';
+import 'package:mikan_player/services/bangumi_auth_manager.dart';
+import 'package:mikan_player/ui/pages/oauth/bangumi_oauth_page.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
@@ -285,84 +287,34 @@ class _MyPageState extends State<MyPage> {
   }
 
   Future<void> _showLoginDialog() async {
-    final controller = TextEditingController();
-    bool loading = false;
-    String? error;
-
-    await showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          final l10n = AppLocalizations.of(context);
-          return AlertDialog(
-            title: Text(l10n.loginDialogTitle),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l10n.loginDialogMessage),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: controller,
-                  decoration: InputDecoration(
-                    labelText: l10n.loginUsernameLabel,
-                    border: const OutlineInputBorder(),
-                    hintText: l10n.loginUsernameHint,
-                    errorText: error,
-                  ),
-                  enabled: !loading,
-                  autofocus: true,
-                  onSubmitted: (_) async {
-                    // Initial trigger handled by button but TextField enter is nice too
-                    // Skipping for simplicity or logic duplication avoidance
-                  },
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: loading ? null : () => Navigator.pop(context),
-                child: Text(l10n.cancel),
-              ),
-              FilledButton(
-                onPressed: loading
-                    ? null
-                    : () async {
-                        if (controller.text.trim().isEmpty) return;
-
-                        setState(() {
-                          loading = true;
-                          error = null;
-                        });
-
-                        try {
-                          await _userManager.login(controller.text.trim());
-                          if (context.mounted) Navigator.pop(context);
-                        } catch (e) {
-                          if (context.mounted) {
-                            setState(() {
-                              loading = false;
-                              error = l10n.loginError;
-                            });
-                          }
-                        }
-                      },
-                child: loading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(l10n.confirm),
-              ),
-            ],
-          );
-        },
+    final l10n = AppLocalizations.of(context);
+    // OAuth login: open the Bangumi authorization page in a WebView, capture
+    // the redirect `code`, then exchange it for a token in Rust.
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (context) => const BangumiOAuthPage(),
+        fullscreenDialog: true,
       ),
     );
+    if (code == null || code.isEmpty) return;
+
+    try {
+      await BangumiAuthManager().completeLogin(code);
+      await _userManager.refreshFromMe();
+    } catch (e) {
+      // The token exchange failed or /v0/me was unreachable: roll back so we
+      // don't leave a half-authenticated state.
+      await BangumiAuthManager().logout();
+      debugPrint('Bangumi OAuth login failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${l10n.loginError}: $e'),
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _showLogoutDialog() async {
@@ -386,6 +338,7 @@ class _MyPageState extends State<MyPage> {
     );
 
     if (confirm == true) {
+      await BangumiAuthManager().logout();
       await _userManager.logout();
     }
   }

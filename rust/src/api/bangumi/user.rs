@@ -3,6 +3,15 @@ use super::util::*;
 use anyhow::Context;
 use serde_json::Value;
 
+/// The OAuth access token currently stored in `RuntimeConfig`, or an error when
+/// the user is not logged in. Authenticated endpoints call this first so they
+/// fail fast with a clear message instead of sending an unauthenticated request
+/// that the server would reject with a 401.
+fn require_access_token() -> anyhow::Result<String> {
+    crate::api::config::get_bangumi_access_token()
+        .ok_or_else(|| anyhow::anyhow!("not logged in: no Bangumi access token"))
+}
+
 fn parse_bangumi_user_info(json: &Value, fallback_username: &str) -> BangumiUserInfo {
     let avatar = &json["avatar"];
     BangumiUserInfo {
@@ -199,6 +208,144 @@ pub(crate) async fn fetch_bangumi_image_url(url: String) -> anyhow::Result<Vec<u
     Ok(resp.bytes().await?.to_vec())
 }
 
+/// `GET /v0/me` — the authenticated user's own profile. Requires a stored
+/// access token; this is how we populate `UserManager` after OAuth login
+/// (replacing the old username-based public lookup).
+pub(crate) async fn fetch_bangumi_me() -> anyhow::Result<BangumiUserInfo> {
+    let token = require_access_token()?;
+    let url = format!("{}/v0/me", crate::api::config::get_bangumi_api_url());
+    let resp = crate::api::network::retry_request_bangumi_with_status(
+        "bangumi.me",
+        |client| {
+            client
+                .get(&url)
+                .header("accept", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .header("User-Agent", "MikanPlayer/1.0.0 (flutter)")
+        },
+        true,
+    )
+    .await?;
+    let status = resp.status();
+    let body = resp.text().await?;
+    if !status.is_success() {
+        anyhow::bail!("bangumi.me HTTP {status}: {}", truncate(&body, 256));
+    }
+    let json: Value = serde_json::from_str(&body)
+        .with_context(|| format!("bangumi.me: invalid JSON: {}", truncate(&body, 256)))?;
+    Ok(parse_bangumi_user_info(&json, ""))
+}
+
+/// `GET /v0/users/{username}/collections` — the authenticated user's own
+/// collections. `type_filter` narrows to a single collection state
+/// (1=wish … 5=dropped) when `Some`.
+///
+/// NOTE: unlike the write endpoint, the **list** endpoint does NOT accept the
+/// literal `-` alias — `GET /v0/users/-/collections` returns 404 "user doesn't
+/// exist". It requires the real `username`. We still send the bearer token so
+/// the caller's private collections are included in the response.
+pub(crate) async fn fetch_my_bangumi_collections(
+    username: String,
+    subject_type: i32,
+    type_filter: Option<i32>,
+    limit: i32,
+    offset: i32,
+) -> anyhow::Result<Vec<BangumiUserCollectionEntry>> {
+    let token = require_access_token()?;
+    let mut url = format!(
+        "{}/v0/users/{}/collections?subject_type={}&limit={}&offset={}",
+        crate::api::config::get_bangumi_api_url(),
+        urlencoding::encode(&username),
+        subject_type,
+        limit,
+        offset
+    );
+    if let Some(type_filter) = type_filter {
+        url.push_str(&format!("&type={type_filter}"));
+    }
+    let label = "bangumi.me.collections";
+    let resp = crate::api::network::retry_request_bangumi_with_status(
+        label,
+        |client| {
+            client
+                .get(&url)
+                .header("accept", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .header("User-Agent", "MikanPlayer/1.0.0 (flutter)")
+        },
+        true,
+    )
+    .await?;
+    let status = resp.status();
+    let body = resp.text().await?;
+    if !status.is_success() {
+        anyhow::bail!("{label} HTTP {status}: {}", truncate(&body, 256));
+    }
+    let json: Value = serde_json::from_str(&body)
+        .with_context(|| format!("{label}: invalid JSON: {}", truncate(&body, 256)))?;
+    parse_bangumi_user_collections(&json)
+}
+
+/// `POST /v0/users/-/collections/{subject_id}` — create or update the
+/// authenticated user's collection for a subject (idempotent per the Bangumi
+/// docs). `collection_type` is required (1=wish … 5=dropped); the rest are only
+/// sent when `Some`, so an unset field leaves the server value untouched.
+///
+/// `rate` of `0` clears the score; `1..=10` sets it. Returns nothing — callers
+/// re-fetch if they need the canonical stored state.
+pub(crate) async fn update_bangumi_collection(
+    subject_id: i64,
+    collection_type: i32,
+    rate: Option<i32>,
+    comment: Option<String>,
+    private: Option<bool>,
+    tags: Option<Vec<String>>,
+) -> anyhow::Result<()> {
+    let token = require_access_token()?;
+    let url = format!(
+        "{}/v0/users/-/collections/{}",
+        crate::api::config::get_bangumi_api_url(),
+        subject_id
+    );
+
+    let mut payload = serde_json::Map::new();
+    payload.insert("type".to_string(), Value::from(collection_type));
+    if let Some(rate) = rate {
+        payload.insert("rate".to_string(), Value::from(rate));
+    }
+    if let Some(comment) = comment {
+        payload.insert("comment".to_string(), Value::from(comment));
+    }
+    if let Some(private) = private {
+        payload.insert("private".to_string(), Value::from(private));
+    }
+    if let Some(tags) = tags {
+        payload.insert("tags".to_string(), Value::from(tags));
+    }
+    let body = Value::Object(payload);
+
+    let label = "bangumi.collection.update";
+    let resp = crate::api::network::retry_request_bangumi_with_status(
+        label,
+        |client| {
+            client
+                .post(&url)
+                .header("accept", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .header("User-Agent", "MikanPlayer/1.0.0 (flutter)")
+                .json(&body)
+        },
+        true,
+    )
+    .await?;
+    let status = resp.status();
+    if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        anyhow::bail!("{label} HTTP {status}: {}", truncate(&text, 256));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -332,5 +479,111 @@ mod tests {
             .await
             .unwrap_err();
         assert!(error.to_string().contains("host not allowed"));
+    }
+
+    #[tokio::test]
+    async fn authenticated_endpoints_fail_fast_without_a_token() {
+        let _config = isolate_runtime_config();
+        crate::api::config::clear_bangumi_access_token();
+        assert!(
+            fetch_bangumi_me()
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("not logged in")
+        );
+        assert!(
+            fetch_my_bangumi_collections("alice".to_string(), 2, None, 30, 0)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("not logged in")
+        );
+        assert!(
+            update_bangumi_collection(7, 3, None, None, None, None)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("not logged in")
+        );
+    }
+
+    #[tokio::test]
+    async fn me_sends_bearer_and_parses_profile() {
+        let _config = isolate_runtime_config();
+        let server = TestServer::spawn([TestRoute::get(
+            "/v0/me",
+            TestResponse::ok(
+                json!({"id": 42, "username": "alice", "nickname": "Alice"}).to_string(),
+            ),
+        )])
+        .await;
+        point_bangumi_at(&server.base_url());
+        crate::api::config::set_bangumi_access_token("tok-123".to_string());
+
+        let user = fetch_bangumi_me().await.unwrap();
+        assert_eq!(user.id, 42);
+        assert_eq!(user.username, "alice");
+        assert_eq!(
+            server.requests()[0].headers["authorization"],
+            "Bearer tok-123"
+        );
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn my_collections_send_type_filter_only_when_nonzero() {
+        let _config = isolate_runtime_config();
+        let server = TestServer::spawn([TestRoute::get(
+            "/v0/users/alice/collections",
+            TestResponse::ok(
+                json!({"data": [{"subject_id": 7, "type": 3, "subject": {"name": "Anime"}}]})
+                    .to_string(),
+            ),
+        )])
+        .await;
+        point_bangumi_at(&server.base_url());
+        crate::api::config::set_bangumi_access_token("tok".to_string());
+
+        fetch_my_bangumi_collections("alice".to_string(), 2, None, 30, 0)
+            .await
+            .unwrap();
+        fetch_my_bangumi_collections("alice".to_string(), 2, Some(3), 30, 60)
+            .await
+            .unwrap();
+        let requests = server.requests();
+        assert_eq!(
+            requests[0].uri.query(),
+            Some("subject_type=2&limit=30&offset=0")
+        );
+        assert_eq!(
+            requests[1].uri.query(),
+            Some("subject_type=2&limit=30&offset=60&type=3")
+        );
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn collection_update_omits_absent_optional_fields() {
+        let _config = isolate_runtime_config();
+        let server = TestServer::spawn([TestRoute::post(
+            "/v0/users/-/collections/7",
+            TestResponse::new(StatusCode::ACCEPTED, ""),
+        )])
+        .await;
+        point_bangumi_at(&server.base_url());
+        crate::api::config::set_bangumi_access_token("tok".to_string());
+
+        update_bangumi_collection(7, 3, Some(8), None, None, None)
+            .await
+            .unwrap();
+        let request = &server.requests()[0];
+        let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
+        assert_eq!(body["type"], 3);
+        assert_eq!(body["rate"], 8);
+        assert!(body.get("comment").is_none());
+        assert!(body.get("tags").is_none());
+        assert_eq!(request.headers["authorization"], "Bearer tok");
+        server.shutdown().await;
     }
 }

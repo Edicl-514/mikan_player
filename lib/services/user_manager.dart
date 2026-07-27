@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:mikan_player/models/user.dart';
+import 'package:mikan_player/services/bangumi_auth_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart' as rust;
 import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -36,9 +37,14 @@ class UserManager extends ChangeNotifier {
       try {
         _user = User.fromJson(jsonDecode(userJson));
         notifyListeners();
-        // Auto update in background (goes through the ECH-capable Rust client)
+        // Auto update in background (goes through the ECH-capable Rust client).
+        // Prefer the authenticated /v0/me endpoint when an OAuth token was
+        // restored; fall back to the public username lookup otherwise.
         if (!debugSkipAutoRefresh) {
-          login(_user!.username).catchError((e) {
+          final refresh = BangumiAuthManager().isAuthenticated
+              ? refreshFromMe()
+              : login(_user!.username);
+          refresh.catchError((e) {
             debugPrint('Failed to auto-update user: $e');
           });
         }
@@ -51,6 +57,24 @@ class UserManager extends ChangeNotifier {
 
   Future<void> login(String username) async {
     final info = await rust.fetchBangumiUserInfo(username: username);
+    await _applyUserInfo(info);
+  }
+
+  /// Refresh the cached profile from the authenticated `/v0/me` endpoint.
+  ///
+  /// Requires a valid OAuth access token to already be in Rust config (set by
+  /// [BangumiAuthManager]); call this right after a successful OAuth login and
+  /// on startup when a token was restored. Unlike [login] it does not depend on
+  /// a username, so a rename never breaks it.
+  Future<void> refreshFromMe() async {
+    if (!await BangumiAuthManager().ensureFreshToken()) {
+      throw StateError('Bangumi login expired');
+    }
+    final info = await rust.fetchBangumiMe();
+    await _applyUserInfo(info);
+  }
+
+  Future<void> _applyUserInfo(rust.BangumiUserInfo info) async {
     final host = await BangumiUrlRewriter.hostFor('api');
     String? rewrite(String? url) {
       if (url == null) return null;

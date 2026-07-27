@@ -17,6 +17,11 @@ pub struct RuntimeConfig {
     pub mikan_url: String,
     pub playback_sub_url: String,
     pub bangumi_request_mode: String,
+    /// OAuth access token for authenticated Bangumi requests. `None` when the
+    /// user is logged out. Set by Dart after a successful OAuth exchange (or on
+    /// app init from secure storage) and read by the authenticated request
+    /// helpers to add the `Authorization: Bearer` header. Never logged.
+    pub bangumi_access_token: Option<String>,
     pub disabled_sources: Vec<String>,
     pub cache_dir: String,
     pub download_dir: String,
@@ -37,6 +42,7 @@ lazy_static! {
         playback_sub_url: "https://gitee.com/edicl/online-subscription/raw/master/online.json"
             .to_string(),
         bangumi_request_mode: "hybrid".to_string(),
+        bangumi_access_token: None,
         disabled_sources: vec![],
         cache_dir: ".".to_string(),
         download_dir: "downloads".to_string(),
@@ -170,6 +176,28 @@ pub fn get_bangumi_use_ech() -> bool {
     CONFIG.read().unwrap().bangumi_use_ech
 }
 
+/// Store the OAuth access token used to authenticate Bangumi write requests.
+/// Called by Dart after a successful OAuth exchange and on app init from
+/// secure storage. The token value is never logged.
+pub fn set_bangumi_access_token(token: String) {
+    let mut config = CONFIG.write().unwrap();
+    config.bangumi_access_token = Some(token);
+    log::info!("Bangumi access token set");
+}
+
+/// Clear the stored OAuth access token (on logout or when a refresh fails).
+pub fn clear_bangumi_access_token() {
+    let mut config = CONFIG.write().unwrap();
+    config.bangumi_access_token = None;
+    log::info!("Bangumi access token cleared");
+}
+
+/// Read the current OAuth access token, if any. Used by the authenticated
+/// request helpers to attach the `Authorization: Bearer` header.
+pub fn get_bangumi_access_token() -> Option<String> {
+    CONFIG.read().unwrap().bangumi_access_token.clone()
+}
+
 pub fn get_bgmlist_url() -> String {
     CONFIG.read().unwrap().bgmlist_url.clone()
 }
@@ -251,6 +279,29 @@ pub fn get_bangumi_api_url() -> String {
 pub fn get_bangumi_next_url() -> String {
     let config = CONFIG.read().unwrap();
     bangumi_url_for_proxy_mode(&config.bangumi_next_url, config.bangumi_use_reverse_proxy)
+}
+
+/// The base URL for OAuth (`/oauth/authorize`, `/oauth/access_token`).
+///
+/// OAuth lives on the **main site** but *must* be `bgm.tv`, not the historical
+/// `bangumi.tv` alias: a POST to `bangumi.tv/oauth/access_token` 301-redirects
+/// to `bgm.tv`, and reqwest drops the form body across that redirect, so the
+/// token exchange fails with a 400. OAuth also carries application and user
+/// credentials, so production builds always bypass the optional content
+/// reverse proxy and use `https://bgm.tv` directly.
+pub fn get_bangumi_oauth_url() -> String {
+    let config = CONFIG.read().unwrap();
+    // OAuth carries authorization codes, refresh tokens, and the application
+    // credential. It must never be routed through the optional content mirror.
+    // Unit tests may still point it at a loopback server to verify request
+    // encoding without contacting the live service.
+    if cfg!(test) {
+        let base = &config.bangumi_url;
+        if !base.contains("bangumi.tv") && !base.contains("bgm.tv") && !base.contains("chii.in") {
+            return base.clone();
+        }
+    }
+    "https://bgm.tv".to_string()
 }
 
 pub fn get_bangumi_lain_url() -> String {
@@ -668,5 +719,27 @@ mod tests {
             rewrite_bangumi_url_if_proxied("https://lain.bgm.tv/img/icon.png"),
             "https://lain.bangumi.lol/img/icon.png"
         );
+    }
+
+    #[test]
+    fn oauth_url_pins_bgm_tv_even_when_base_is_the_bangumi_tv_alias() {
+        let _guard = isolate_runtime_config();
+        // Default base is `https://bangumi.tv`. OAuth POSTs must still target
+        // `bgm.tv` — a POST to `bangumi.tv/oauth/access_token` 301-redirects to
+        // `bgm.tv` and the form body is dropped across the redirect.
+        set_bangumi_reverse_proxy(false);
+        {
+            let mut config = CONFIG.write().unwrap();
+            config.bangumi_url = "https://bangumi.tv".to_string();
+        }
+        assert_eq!(get_bangumi_oauth_url(), "https://bgm.tv");
+
+        // OAuth credentials must bypass the optional content reverse proxy.
+        set_bangumi_reverse_proxy(true);
+        {
+            let mut config = CONFIG.write().unwrap();
+            config.bangumi_url = "https://bgm.tv".to_string();
+        }
+        assert_eq!(get_bangumi_oauth_url(), "https://bgm.tv");
     }
 }

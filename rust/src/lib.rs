@@ -1,9 +1,9 @@
 #[cfg(target_os = "android")]
+use jni::EnvUnowned;
+#[cfg(target_os = "android")]
 use jni::objects::{JClass, JObject};
 #[cfg(target_os = "android")]
 use jni::sys::jboolean;
-#[cfg(target_os = "android")]
-use jni::EnvUnowned;
 
 pub mod api;
 pub(crate) mod frb_api;

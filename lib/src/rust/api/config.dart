@@ -45,6 +45,21 @@ Future<void> setBangumiUseEch({required bool enabled}) =>
 Future<bool> getBangumiUseEch() =>
     RustLib.instance.api.crateApiConfigGetBangumiUseEch();
 
+/// Store the OAuth access token used to authenticate Bangumi write requests.
+/// Called by Dart after a successful OAuth exchange and on app init from
+/// secure storage. The token value is never logged.
+Future<void> setBangumiAccessToken({required String token}) =>
+    RustLib.instance.api.crateApiConfigSetBangumiAccessToken(token: token);
+
+/// Clear the stored OAuth access token (on logout or when a refresh fails).
+Future<void> clearBangumiAccessToken() =>
+    RustLib.instance.api.crateApiConfigClearBangumiAccessToken();
+
+/// Read the current OAuth access token, if any. Used by the authenticated
+/// request helpers to attach the `Authorization: Bearer` header.
+Future<String?> getBangumiAccessToken() =>
+    RustLib.instance.api.crateApiConfigGetBangumiAccessToken();
+
 Future<String> getBgmlistUrl() =>
     RustLib.instance.api.crateApiConfigGetBgmlistUrl();
 
@@ -59,6 +74,17 @@ Future<String> getBangumiApiUrl() =>
 
 Future<String> getBangumiNextUrl() =>
     RustLib.instance.api.crateApiConfigGetBangumiNextUrl();
+
+/// The base URL for OAuth (`/oauth/authorize`, `/oauth/access_token`).
+///
+/// OAuth lives on the **main site** but *must* be `bgm.tv`, not the historical
+/// `bangumi.tv` alias: a POST to `bangumi.tv/oauth/access_token` 301-redirects
+/// to `bgm.tv`, and reqwest drops the form body across that redirect, so the
+/// token exchange fails with a 400. We therefore force `bgm.tv` here (mirroring
+/// the hard-coded `api.bgm.tv` mapping in [`get_bangumi_api_url`]) instead of
+/// deriving it from the user-configured `bangumi_url`.
+Future<String> getBangumiOauthUrl() =>
+    RustLib.instance.api.crateApiConfigGetBangumiOauthUrl();
 
 Future<String> getBangumiLainUrl() =>
     RustLib.instance.api.crateApiConfigGetBangumiLainUrl();

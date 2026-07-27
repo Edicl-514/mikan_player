@@ -29,6 +29,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:mikan_player/services/user_manager.dart';
+import 'package:mikan_player/services/bangumi_auth_manager.dart';
 import 'package:mikan_player/services/settings_service.dart';
 import 'package:mikan_player/services/workspace_lifecycle.dart';
 import 'package:mikan_player/services/workspace_route_observer.dart';
@@ -96,6 +97,10 @@ Future<void> main() async {
 
       // Initialize Bangumi Cache Database
       await CacheManager.instance.initialize();
+
+      // Restore any persisted Bangumi OAuth token first so it is in Rust
+      // config before UserManager's /v0/me refresh runs.
+      await BangumiAuthManager().init();
 
       // Initialize UserManager
       await UserManager().init();

@@ -662,6 +662,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loginError => 'Login failed, please check username or network';
 
   @override
+  String get bangumiLoginTitle => 'Login with Bangumi';
+
+  @override
+  String get bangumiLoginInitError =>
+      'Could not start login. The app may be missing its Bangumi credentials.';
+
+  @override
+  String get bangumiLoginCallbackError =>
+      'The login callback could not be verified. Please try again.';
+
+  @override
+  String get bangumiSyncCollections => 'Sync collections';
+
+  @override
+  String get bangumiSyncStarted => 'Syncing collections...';
+
+  @override
+  String get bangumiSyncDone => 'Collections synced';
+
+  @override
+  String get bangumiSyncFailed => 'Sync failed, please try again later';
+
+  @override
   String get cannotLoadEpisodes => 'Unable to load episode list';
 
   @override

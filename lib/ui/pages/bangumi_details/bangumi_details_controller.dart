@@ -3,9 +3,11 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:mikan_player/models/local_favorite.dart';
+import 'package:mikan_player/services/bangumi_auth_manager.dart';
 import 'package:mikan_player/services/bangumi_details_service.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
+import 'package:mikan_player/src/rust/api/bangumi.dart' as rust_bangumi;
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/bangumi_details_helpers.dart';
 
@@ -45,6 +47,7 @@ class BangumiDetailsFavoritesPort {
     required this.getFavoriteType,
     required this.addFavorite,
     required this.removeFavorite,
+    this.syncRemoteCollection,
   });
 
   final Future<int?> Function(int bangumiId) getFavoriteType;
@@ -57,6 +60,13 @@ class BangumiDetailsFavoritesPort {
   })
   addFavorite;
   final Future<void> Function(int bangumiId) removeFavorite;
+
+  /// Best-effort write-through to Bangumi's collection API. `null` when no sync
+  /// backend is wired (e.g. in tests). Production supplies a callback that no-ops
+  /// when the user is not OAuth-authenticated. A `type` of `null` is not used
+  /// here — removing a local favorite does not delete the remote collection.
+  final Future<void> Function({required int subjectId, required int type})?
+  syncRemoteCollection;
 }
 
 /// Phase 4 bangumi-details responsibility split: request state, comment paging,
@@ -391,6 +401,18 @@ class BangumiDetailsController {
 
     if (!_isFavoriteCurrent(token)) return false;
 
+    // Best-effort write-through to Bangumi. Failures (offline, not logged in,
+    // rate limited) must not break the local favorite that already succeeded.
+    final sync = _favoritesPort.syncRemoteCollection;
+    if (sync != null) {
+      try {
+        await sync(subjectId: id, type: type);
+      } catch (e) {
+        debugPrint('Bangumi collection sync failed for $id: $e');
+      }
+      if (!_isFavoriteCurrent(token)) return false;
+    }
+
     final favoriteType = await _favoritesPort.getFavoriteType(id);
     if (!_isFavoriteCurrent(token)) return false;
     _localFavoriteType = favoriteType;
@@ -591,5 +613,19 @@ BangumiDetailsFavoritesPort bangumiDetailsFavoritesPort(
           type: type,
         ),
     removeFavorite: (id) => managerFactory().removeFavorite(id),
+    // Write the collection status through to Bangumi. Gated on an OAuth token
+    // so logged-out users keep a purely local favorite. `ensureFreshToken`
+    // avoids a mid-session 401 by refreshing a near-expiry token first.
+    syncRemoteCollection: ({required subjectId, required type}) async {
+      final auth = BangumiAuthManager();
+      if (!auth.isAuthenticated) return;
+      if (!await auth.ensureFreshToken()) {
+        throw StateError('Bangumi login expired');
+      }
+      await rust_bangumi.updateBangumiCollection(
+        subjectId: subjectId,
+        collectionType: type,
+      );
+    },
   );
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/models/bangumi_user_collection.dart';
 import 'package:mikan_player/models/local_favorite.dart';
+import 'package:mikan_player/services/bangumi_auth_manager.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
@@ -91,14 +92,37 @@ class _FavoritesPageState extends State<FavoritesPage>
     }
 
     try {
+      // Hit Rust so the request goes through the ECH-capable client. When an
+      // OAuth token is present, use the authenticated collections endpoint so
+      // private collections are included; otherwise fall back to the public
+      // lookup. Both need the real username — the `-` alias 404s on the list
+      // endpoint (only the write endpoint accepts it).
       final username = _userManager.user!.username;
-      // Hit Rust so the request goes through the ECH-capable client.
-      final raw = await rust_bangumi.fetchBangumiUserCollections(
-        username: username,
-        subjectType: 2,
-        limit: 30,
-        offset: 0,
-      );
+      final auth = BangumiAuthManager();
+      final authenticated = auth.isAuthenticated;
+      if (authenticated && !await auth.ensureFreshToken()) {
+        throw StateError('Bangumi login expired');
+      }
+      const pageSize = 100;
+      final raw = <rust_bangumi.BangumiUserCollectionEntry>[];
+      for (var offset = 0; ; offset += pageSize) {
+        final page = authenticated
+            ? await rust_bangumi.fetchMyBangumiCollections(
+                username: username,
+                subjectType: 2,
+                collectionType: 0,
+                limit: pageSize,
+                offset: offset,
+              )
+            : await rust_bangumi.fetchBangumiUserCollections(
+                username: username,
+                subjectType: 2,
+                limit: pageSize,
+                offset: offset,
+              );
+        raw.addAll(page);
+        if (page.length < pageSize) break;
+      }
       final apiHost = await BangumiUrlRewriter.hostFor('api');
       String rewrite(String url) {
         if (url.isEmpty) return url;

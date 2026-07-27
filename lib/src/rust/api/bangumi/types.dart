@@ -219,6 +219,43 @@ class BangumiImages {
           common == other.common;
 }
 
+/// Result of an OAuth token exchange (authorization code → tokens) or a
+/// refresh. Mirrors the JSON returned by `POST /oauth/access_token`.
+///
+/// `expires_in` is the token lifetime in seconds as returned by Bangumi
+/// (typically 2592000 = 30 days). The Dart side turns this into an absolute
+/// expiry timestamp for its proactive-refresh scheduling.
+class BangumiOAuthToken {
+  final String accessToken;
+  final String refreshToken;
+  final PlatformInt64 expiresIn;
+  final PlatformInt64 userId;
+
+  const BangumiOAuthToken({
+    required this.accessToken,
+    required this.refreshToken,
+    required this.expiresIn,
+    required this.userId,
+  });
+
+  @override
+  int get hashCode =>
+      accessToken.hashCode ^
+      refreshToken.hashCode ^
+      expiresIn.hashCode ^
+      userId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiOAuthToken &&
+          runtimeType == other.runtimeType &&
+          accessToken == other.accessToken &&
+          refreshToken == other.refreshToken &&
+          expiresIn == other.expiresIn &&
+          userId == other.userId;
+}
+
 class BangumiPerson {
   final PlatformInt64 id;
   final String name;

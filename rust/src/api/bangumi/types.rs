@@ -186,6 +186,20 @@ pub struct BangumiUserInfo {
     pub avatar_medium: Option<String>,
     pub avatar_small: Option<String>,
 }
+
+/// Result of an OAuth token exchange (authorization code → tokens) or a
+/// refresh. Mirrors the JSON returned by `POST /oauth/access_token`.
+///
+/// `expires_in` is the token lifetime in seconds as returned by Bangumi
+/// (typically 2592000 = 30 days). The Dart side turns this into an absolute
+/// expiry timestamp for its proactive-refresh scheduling.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiOAuthToken {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_in: i64,
+    pub user_id: i64,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BangumiUserCollectionEntry {
     pub updated_at: String,

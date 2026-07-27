@@ -113,6 +113,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiImages dco_decode_bangumi_images(dynamic raw);
 
   @protected
+  BangumiOAuthToken dco_decode_bangumi_o_auth_token(dynamic raw);
+
+  @protected
   BangumiPerson dco_decode_bangumi_person(dynamic raw);
 
   @protected
@@ -134,6 +137,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BangumiImages dco_decode_box_autoadd_bangumi_images(dynamic raw);
+
+  @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw);
 
   @protected
   CaptchaConstraintOptions dco_decode_box_autoadd_captcha_constraint_options(
@@ -365,6 +371,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiImages? dco_decode_opt_box_autoadd_bangumi_images(dynamic raw);
 
   @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
+
+  @protected
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
 
   @protected
@@ -555,6 +564,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiImages sse_decode_bangumi_images(SseDeserializer deserializer);
 
   @protected
+  BangumiOAuthToken sse_decode_bangumi_o_auth_token(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   BangumiPerson sse_decode_bangumi_person(SseDeserializer deserializer);
 
   @protected
@@ -580,6 +594,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiImages sse_decode_box_autoadd_bangumi_images(
     SseDeserializer deserializer,
   );
+
+  @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
   CaptchaConstraintOptions sse_decode_box_autoadd_captcha_constraint_options(
@@ -863,6 +880,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
@@ -1089,6 +1109,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_bangumi_images(BangumiImages self, SseSerializer serializer);
 
   @protected
+  void sse_encode_bangumi_o_auth_token(
+    BangumiOAuthToken self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_bangumi_person(BangumiPerson self, SseSerializer serializer);
 
   @protected
@@ -1123,6 +1149,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     BangumiImages self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_captcha_constraint_options(
@@ -1478,6 +1507,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     BangumiImages? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);

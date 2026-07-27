@@ -643,6 +643,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginError => '登录失败，请检查用户名或网络';
 
   @override
+  String get bangumiLoginTitle => '使用 Bangumi 登录';
+
+  @override
+  String get bangumiLoginInitError => '无法启动登录，应用可能缺少 Bangumi 凭据。';
+
+  @override
+  String get bangumiLoginCallbackError => '无法验证登录回调，请重试。';
+
+  @override
+  String get bangumiSyncCollections => '同步收藏';
+
+  @override
+  String get bangumiSyncStarted => '正在同步收藏……';
+
+  @override
+  String get bangumiSyncDone => '收藏已同步';
+
+  @override
+  String get bangumiSyncFailed => '同步失败，请稍后重试';
+
+  @override
   String get cannotLoadEpisodes => '无法加载剧集列表';
 
   @override
