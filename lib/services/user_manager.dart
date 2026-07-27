@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:mikan_player/models/bangumi_account_mode.dart';
 import 'package:mikan_player/models/user.dart';
 import 'package:mikan_player/services/bangumi_auth_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart' as rust;
@@ -12,10 +13,15 @@ class UserManager extends ChangeNotifier {
   UserManager._internal();
 
   User? _user;
+  BangumiAccountMode? _accountMode;
   User? get user => _user;
   bool get isLoggedIn => _user != null;
+  BangumiAccountMode? get accountMode => _accountMode;
+  bool get isSyncMode =>
+      _user != null && _accountMode == BangumiAccountMode.sync;
 
   static const String _userKey = 'bangumi_user';
+  static const String _accountModeKey = 'bangumi_account_mode';
 
   /// When true, [init] restores the cached user but skips the background
   /// network refresh via [login]. Tests that only exercise persistence must
@@ -27,6 +33,7 @@ class UserManager extends ChangeNotifier {
   @visibleForTesting
   void debugResetForTest() {
     _user = null;
+    _accountMode = null;
     debugSkipAutoRefresh = false;
   }
 
@@ -36,14 +43,26 @@ class UserManager extends ChangeNotifier {
     if (userJson != null) {
       try {
         _user = User.fromJson(jsonDecode(userJson));
+        _accountMode = BangumiAccountMode.fromStorage(
+          prefs.getString(_accountModeKey),
+        );
+        // Existing installs predate the mode key. An OAuth token means the
+        // account came from the new authenticated flow; otherwise preserve the
+        // original public-profile behavior.
+        _accountMode ??= BangumiAuthManager().isAuthenticated
+            ? BangumiAccountMode.sync
+            : BangumiAccountMode.public;
+        await prefs.setString(_accountModeKey, _accountMode!.storageValue);
         notifyListeners();
         // Auto update in background (goes through the ECH-capable Rust client).
         // Prefer the authenticated /v0/me endpoint when an OAuth token was
         // restored; fall back to the public username lookup otherwise.
         if (!debugSkipAutoRefresh) {
-          final refresh = BangumiAuthManager().isAuthenticated
-              ? refreshFromMe()
-              : login(_user!.username);
+          final refresh = isSyncMode
+              ? (BangumiAuthManager().isAuthenticated
+                    ? refreshFromMe()
+                    : Future<void>.value())
+              : _refreshPublicProfile(_user!.username);
           refresh.catchError((e) {
             debugPrint('Failed to auto-update user: $e');
           });
@@ -56,6 +75,15 @@ class UserManager extends ChangeNotifier {
   }
 
   Future<void> login(String username) async {
+    await loginPublic(username);
+  }
+
+  Future<void> loginPublic(String username) async {
+    final info = await rust.fetchBangumiUserInfo(username: username);
+    await _applyUserInfo(info, mode: BangumiAccountMode.public);
+  }
+
+  Future<void> _refreshPublicProfile(String username) async {
     final info = await rust.fetchBangumiUserInfo(username: username);
     await _applyUserInfo(info);
   }
@@ -71,10 +99,13 @@ class UserManager extends ChangeNotifier {
       throw StateError('Bangumi login expired');
     }
     final info = await rust.fetchBangumiMe();
-    await _applyUserInfo(info);
+    await _applyUserInfo(info, mode: BangumiAccountMode.sync);
   }
 
-  Future<void> _applyUserInfo(rust.BangumiUserInfo info) async {
+  Future<void> _applyUserInfo(
+    rust.BangumiUserInfo info, {
+    BangumiAccountMode? mode,
+  }) async {
     final host = await BangumiUrlRewriter.hostFor('api');
     String? rewrite(String? url) {
       if (url == null) return null;
@@ -93,14 +124,17 @@ class UserManager extends ChangeNotifier {
         small: rewrite(info.avatarSmall) ?? '',
       ),
     );
+    if (mode != null) _accountMode = mode;
     await _saveUser();
     notifyListeners();
   }
 
   Future<void> logout() async {
     _user = null;
+    _accountMode = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_userKey);
+    await prefs.remove(_accountModeKey);
     notifyListeners();
   }
 
@@ -108,6 +142,9 @@ class UserManager extends ChangeNotifier {
     if (_user != null) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_userKey, jsonEncode(_user!.toJson()));
+      if (_accountMode != null) {
+        await prefs.setString(_accountModeKey, _accountMode!.storageValue);
+      }
     }
   }
 }

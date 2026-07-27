@@ -664,6 +664,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bangumiSyncFailed => '同步失败，请稍后重试';
 
   @override
+  String bangumiSyncFailedWithError(Object error) {
+    return '同步失败：$error';
+  }
+
+  @override
+  String get bangumiLoginModeTitle => '选择收藏模式';
+
+  @override
+  String get bangumiSyncMode => '同步模式';
+
+  @override
+  String get bangumiPublicMode => '非同步模式';
+
+  @override
+  String get bangumiSyncModeDescription => '使用 Bangumi 授权登录，本地收藏与云端收藏合并并保持同步';
+
+  @override
+  String get bangumiPublicModeDescription =>
+      '只输入用户 ID 或用户名，读取公开收藏，不修改 Bangumi 账号';
+
+  @override
+  String get continueButton => '继续';
+
+  @override
   String get cannotLoadEpisodes => '无法加载剧集列表';
 
   @override
@@ -1336,6 +1360,32 @@ class AppLocalizationsZh extends AppLocalizations {
   String favoriteUpdateFailed(Object error) {
     return '更新收藏失败: $error';
   }
+
+  @override
+  String get collectionConflictTitle => '收藏冲突';
+
+  @override
+  String collectionConflictDescription(Object count) {
+    return '有 $count 个条目的本地状态和 Bangumi 状态不同，请选择要保留的版本。';
+  }
+
+  @override
+  String get collectionResolveConflicts => '应用选择';
+
+  @override
+  String get collectionKeepLocal => '保留本地';
+
+  @override
+  String get collectionKeepBangumi => '保留 Bangumi';
+
+  @override
+  String get collectionSourceLocal => '本地收藏';
+
+  @override
+  String get collectionConflictStatus => '状态';
+
+  @override
+  String get collectionConflictUpdated => '更新时间';
 
   @override
   String get playSourceTitle => '播放源';

@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:mikan_player/models/bangumi_account_mode.dart';
+import 'package:mikan_player/services/bangumi_collection_sync_service.dart';
 import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
@@ -14,6 +16,7 @@ import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/pages/favorites/bangumi_collection_conflict_panel.dart';
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -84,8 +87,10 @@ class _MyPageState extends State<MyPage> {
               ),
               accountEmail: Text(
                 _userManager.user != null
-                    ? "@${_userManager.user!.username}"
+                    ? "@${_userManager.user!.username} · ${_userManager.isSyncMode ? AppLocalizations.of(context).bangumiSyncMode : AppLocalizations.of(context).bangumiPublicMode}"
                     : AppLocalizations.of(context).loginSubtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: Theme.of(
                     context,
@@ -287,6 +292,13 @@ class _MyPageState extends State<MyPage> {
   }
 
   Future<void> _showLoginDialog() async {
+    final mode = await _showLoginModeDialog();
+    if (mode == null || !mounted) return;
+    if (mode == BangumiAccountMode.public) {
+      await _showPublicLoginDialog();
+      return;
+    }
+
     final l10n = AppLocalizations.of(context);
     // OAuth login: open the Bangumi authorization page in a WebView, capture
     // the redirect `code`, then exchange it for a token in Rust.
@@ -301,6 +313,7 @@ class _MyPageState extends State<MyPage> {
     try {
       await BangumiAuthManager().completeLogin(code);
       await _userManager.refreshFromMe();
+      await _syncAfterLogin();
     } catch (e) {
       // The token exchange failed or /v0/me was unreachable: roll back so we
       // don't leave a half-authenticated state.
@@ -314,6 +327,240 @@ class _MyPageState extends State<MyPage> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _syncAfterLogin() async {
+    final user = _userManager.user;
+    if (user == null || !_userManager.isSyncMode || !mounted) return;
+    final service = BangumiCollectionSyncService();
+    try {
+      final result = await service.synchronize(user.username);
+      if (!mounted || result.conflicts.isEmpty) return;
+      await _showConflictDialog(service, result.conflicts);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(
+              context,
+            ).bangumiSyncFailedWithError(e.toString()),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showConflictDialog(
+    BangumiCollectionSyncService service,
+    List<BangumiCollectionConflict> conflicts,
+  ) async {
+    final choices = <int, BangumiCollectionConflictChoice>{};
+    var resolving = false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final l10n = AppLocalizations.of(context);
+          return Dialog(
+            child: SizedBox(
+              width: 820,
+              height: MediaQuery.sizeOf(context).height * 0.82,
+              child: BangumiCollectionConflictPanel(
+                conflicts: conflicts,
+                choices: choices,
+                statusLabel: (type) => _favoriteTypeLabel(context, type),
+                onChoiceChanged: (subjectId, choice) {
+                  setDialogState(() => choices[subjectId] = choice);
+                },
+                isResolving: resolving,
+                onResolve: choices.length == conflicts.length && !resolving
+                    ? () async {
+                        setDialogState(() => resolving = true);
+                        try {
+                          await service.resolveConflicts(conflicts, choices);
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext);
+                          }
+                        } catch (e) {
+                          if (!dialogContext.mounted) return;
+                          setDialogState(() => resolving = false);
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                l10n.bangumiSyncFailedWithError(e.toString()),
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    : null,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _favoriteTypeLabel(BuildContext context, int type) {
+    final l10n = AppLocalizations.of(context);
+    switch (type) {
+      case 1:
+        return l10n.favoritesStatusWish;
+      case 2:
+        return l10n.favoritesStatusWatched;
+      case 3:
+        return l10n.favoritesStatusWatching;
+      case 4:
+        return l10n.favoritesStatusOnHold;
+      case 5:
+        return l10n.favoritesStatusDropped;
+      default:
+        return l10n.favoritesStatusUnknown;
+    }
+  }
+
+  Future<BangumiAccountMode?> _showLoginModeDialog() {
+    final l10n = AppLocalizations.of(context);
+    var selected = BangumiAccountMode.sync;
+    return showDialog<BangumiAccountMode>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(l10n.bangumiLoginModeTitle),
+          content: SizedBox(
+            width: 520,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SegmentedButton<BangumiAccountMode>(
+                  segments: [
+                    ButtonSegment(
+                      value: BangumiAccountMode.sync,
+                      icon: const Icon(Icons.sync),
+                      label: Text(l10n.bangumiSyncMode),
+                    ),
+                    ButtonSegment(
+                      value: BangumiAccountMode.public,
+                      icon: const Icon(Icons.visibility_outlined),
+                      label: Text(l10n.bangumiPublicMode),
+                    ),
+                  ],
+                  selected: {selected},
+                  onSelectionChanged: (selection) {
+                    setDialogState(() => selected = selection.single);
+                  },
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    selected == BangumiAccountMode.sync
+                        ? Icons.cloud_sync_outlined
+                        : Icons.public,
+                  ),
+                  title: Text(
+                    selected == BangumiAccountMode.sync
+                        ? l10n.bangumiSyncModeDescription
+                        : l10n.bangumiPublicModeDescription,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, selected),
+              child: Text(l10n.continueButton),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showPublicLoginDialog() async {
+    final controller = TextEditingController();
+    var loading = false;
+    String? error;
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) {
+            final l10n = AppLocalizations.of(context);
+            Future<void> submit() async {
+              final username = controller.text.trim();
+              if (username.isEmpty || loading) return;
+              setDialogState(() {
+                loading = true;
+                error = null;
+              });
+              try {
+                await BangumiAuthManager().logout();
+                await _userManager.loginPublic(username);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              } catch (e) {
+                if (!dialogContext.mounted) return;
+                setDialogState(() {
+                  loading = false;
+                  error = l10n.loginError;
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: Text(l10n.loginDialogTitle),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.loginDialogMessage),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: controller,
+                      enabled: !loading,
+                      autofocus: true,
+                      onSubmitted: (_) => submit(),
+                      decoration: InputDecoration(
+                        labelText: l10n.loginUsernameLabel,
+                        hintText: l10n.loginUsernameHint,
+                        errorText: error,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: loading ? null : () => Navigator.pop(context),
+                  child: Text(l10n.cancel),
+                ),
+                FilledButton(
+                  onPressed: loading ? null : submit,
+                  child: loading
+                      ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(l10n.confirm),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    } finally {
+      controller.dispose();
     }
   }
 

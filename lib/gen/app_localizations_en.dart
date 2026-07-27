@@ -685,6 +685,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bangumiSyncFailed => 'Sync failed, please try again later';
 
   @override
+  String bangumiSyncFailedWithError(Object error) {
+    return 'Sync failed: $error';
+  }
+
+  @override
+  String get bangumiLoginModeTitle => 'Choose collection mode';
+
+  @override
+  String get bangumiSyncMode => 'Sync mode';
+
+  @override
+  String get bangumiPublicMode => 'Public mode';
+
+  @override
+  String get bangumiSyncModeDescription =>
+      'Authorize Bangumi and merge local collections with your cloud collection';
+
+  @override
+  String get bangumiPublicModeDescription =>
+      'Enter a user ID or username to read public collections without changing the account';
+
+  @override
+  String get continueButton => 'Continue';
+
+  @override
   String get cannotLoadEpisodes => 'Unable to load episode list';
 
   @override
@@ -1405,6 +1430,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String favoriteUpdateFailed(Object error) {
     return 'Failed to update favorite: $error';
   }
+
+  @override
+  String get collectionConflictTitle => 'Collection conflicts';
+
+  @override
+  String collectionConflictDescription(Object count) {
+    return '$count entries have different local and Bangumi statuses. Choose which version to keep.';
+  }
+
+  @override
+  String get collectionResolveConflicts => 'Apply choices';
+
+  @override
+  String get collectionKeepLocal => 'Keep local';
+
+  @override
+  String get collectionKeepBangumi => 'Keep Bangumi';
+
+  @override
+  String get collectionSourceLocal => 'Local collection';
+
+  @override
+  String get collectionConflictStatus => 'Status';
+
+  @override
+  String get collectionConflictUpdated => 'Updated';
 
   @override
   String get playSourceTitle => 'Play sources';

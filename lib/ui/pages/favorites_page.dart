@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/models/bangumi_user_collection.dart';
 import 'package:mikan_player/models/local_favorite.dart';
-import 'package:mikan_player/services/bangumi_auth_manager.dart';
+import 'package:mikan_player/services/bangumi_collection_sync_service.dart';
+import 'package:mikan_player/services/bangumi_collections_repository.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/services/user_manager.dart';
+import 'package:mikan_player/ui/pages/favorites/bangumi_collection_conflict_panel.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
-import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 
-import 'package:mikan_player/src/rust/api/bangumi.dart' as rust_bangumi;
 import 'package:mikan_player/src/rust/api/crawler.dart' as rust_crawler;
 
 class FavoritesPage extends StatefulWidget {
@@ -28,6 +28,13 @@ class _FavoritesPageState extends State<FavoritesPage>
   late TabController _tabController;
   final UserManager _userManager = UserManager();
   final FavoritesManager _favoritesManager = FavoritesManager();
+  final BangumiCollectionsRepository _collectionsRepository =
+      BangumiCollectionsRepository();
+  late final BangumiCollectionSyncService _syncService =
+      BangumiCollectionSyncService(
+        favoritesManager: _favoritesManager,
+        repository: _collectionsRepository,
+      );
   final ScrollController _scrollController = createPlatformScrollController();
 
   // Bangumi Data
@@ -40,24 +47,44 @@ class _FavoritesPageState extends State<FavoritesPage>
   bool _isLoadingLocal = false;
   final RequestGenerationGuard _localGuard = RequestGenerationGuard();
   final RequestGenerationGuard _bangumiGuard = RequestGenerationGuard();
+  final Map<int, BangumiCollectionConflictChoice> _conflictChoices = {};
+  List<BangumiCollectionConflict> _conflicts = [];
+  bool _isSyncing = false;
+  bool _isResolvingConflicts = false;
+  String? _syncError;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _favoritesManager.init().then((_) => _fetchLocalFavorites());
-    if (_userManager.isLoggedIn) {
-      _fetchBangumiCollections();
-    }
+    _userManager.addListener(_onAccountChanged);
+    _favoritesManager.init().then((_) => _loadForCurrentMode());
   }
 
   @override
   void dispose() {
     _localGuard.dispose();
     _bangumiGuard.dispose();
+    _userManager.removeListener(_onAccountChanged);
     _tabController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onAccountChanged() {
+    if (!mounted) return;
+    _loadForCurrentMode();
+  }
+
+  Future<void> _loadForCurrentMode() async {
+    if (_userManager.isSyncMode) {
+      await _synchronizeCollections();
+      return;
+    }
+    await _fetchLocalFavorites();
+    if (_userManager.isLoggedIn) {
+      await _fetchBangumiCollections();
+    }
   }
 
   Future<void> _fetchLocalFavorites() async {
@@ -92,74 +119,8 @@ class _FavoritesPageState extends State<FavoritesPage>
     }
 
     try {
-      // Hit Rust so the request goes through the ECH-capable client. When an
-      // OAuth token is present, use the authenticated collections endpoint so
-      // private collections are included; otherwise fall back to the public
-      // lookup. Both need the real username — the `-` alias 404s on the list
-      // endpoint (only the write endpoint accepts it).
       final username = _userManager.user!.username;
-      final auth = BangumiAuthManager();
-      final authenticated = auth.isAuthenticated;
-      if (authenticated && !await auth.ensureFreshToken()) {
-        throw StateError('Bangumi login expired');
-      }
-      const pageSize = 100;
-      final raw = <rust_bangumi.BangumiUserCollectionEntry>[];
-      for (var offset = 0; ; offset += pageSize) {
-        final page = authenticated
-            ? await rust_bangumi.fetchMyBangumiCollections(
-                username: username,
-                subjectType: 2,
-                collectionType: 0,
-                limit: pageSize,
-                offset: offset,
-              )
-            : await rust_bangumi.fetchBangumiUserCollections(
-                username: username,
-                subjectType: 2,
-                limit: pageSize,
-                offset: offset,
-              );
-        raw.addAll(page);
-        if (page.length < pageSize) break;
-      }
-      final apiHost = await BangumiUrlRewriter.hostFor('api');
-      String rewrite(String url) {
-        if (url.isEmpty) return url;
-        return BangumiUrlRewriter.rewrite(
-          url,
-        ).replaceFirst('api.bgm.tv', apiHost);
-      }
-
-      final collections = raw
-          .map(
-            (e) => BangumiUserCollection(
-              date: e.updatedAt,
-              comment: e.comment,
-              tags: e.tags,
-              subjectId: e.subjectId,
-              type: e.collectionType,
-              rate: e.rate,
-              private: e.private,
-              subject: BangumiUserCollectionSubject(
-                id: e.subjectId,
-                name: e.subjectName,
-                nameCn: e.subjectNameCn,
-                shortSummary: e.subjectShortSummary,
-                score: e.subjectScore,
-                eps: e.subjectEps,
-                collectionTotal: e.subjectCollectionTotal,
-                images: rust_bangumi.BangumiImages(
-                  small: rewrite(e.imageSmall),
-                  grid: rewrite(e.imageGrid),
-                  large: rewrite(e.imageLarge),
-                  medium: rewrite(e.imageMedium),
-                  common: rewrite(e.imageCommon),
-                ),
-              ),
-            ),
-          )
-          .toList();
+      final collections = await _collectionsRepository.fetchPublic(username);
 
       if (mounted && _bangumiGuard.isCurrent(generation)) {
         setState(() {
@@ -179,17 +140,92 @@ class _FavoritesPageState extends State<FavoritesPage>
     }
   }
 
-  void _refreshAll() {
-    _fetchLocalFavorites();
-    if (_userManager.isLoggedIn) {
-      _fetchBangumiCollections();
+  Future<void> _synchronizeCollections() async {
+    final user = _userManager.user;
+    if (user == null || !_userManager.isSyncMode || _isSyncing) return;
+    final generation = _bangumiGuard.begin();
+    if (mounted) {
+      setState(() {
+        _isSyncing = true;
+        _syncError = null;
+      });
+    }
+    try {
+      final result = await _syncService.synchronize(user.username);
+      if (!mounted || !_bangumiGuard.isCurrent(generation)) return;
+      setState(() {
+        _localFavorites = result.favorites;
+        _conflicts = result.conflicts;
+        // Do not silently choose a side. The comparison panel requires an
+        // explicit choice for every conflicting subject.
+        _conflictChoices.clear();
+        _isLoadingLocal = false;
+        _isSyncing = false;
+      });
+    } catch (e) {
+      debugPrint('Error synchronizing collections: $e');
+      if (!mounted || !_bangumiGuard.isCurrent(generation)) return;
+      setState(() {
+        _syncError = AppLocalizations.of(
+          context,
+        ).fetchCollectionsFailed(e.toString());
+        _isSyncing = false;
+      });
+      await _fetchLocalFavorites();
     }
   }
+
+  Future<void> _resolveConflicts() async {
+    if (_isResolvingConflicts || _conflictChoices.length != _conflicts.length) {
+      return;
+    }
+    setState(() => _isResolvingConflicts = true);
+    try {
+      final favorites = await _syncService.resolveConflicts(
+        _conflicts,
+        _conflictChoices,
+      );
+      if (!mounted) return;
+      setState(() {
+        _localFavorites = favorites;
+        _conflicts = [];
+        _conflictChoices.clear();
+        _isResolvingConflicts = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isResolvingConflicts = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(
+              context,
+            ).bangumiSyncFailedWithError(e.toString()),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _refreshAll() => _loadForCurrentMode();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
+    if (_userManager.isSyncMode) {
+      return Scaffold(
+        appBar: isHosted ? null : AppBar(title: Text(l10n.favoritesTitle)),
+        floatingActionButton: isHosted
+            ? FloatingActionButton(
+                onPressed: _isSyncing ? null : _refreshAll,
+                tooltip: l10n.refreshAllFavorites,
+                child: const Icon(Icons.sync),
+              )
+            : null,
+        body: _buildSynchronizedFavorites(),
+      );
+    }
     final tabBar = TabBar(
       controller: _tabController,
       tabs: [
@@ -229,7 +265,92 @@ class _FavoritesPageState extends State<FavoritesPage>
     );
   }
 
-  Widget _buildLocalFavorites() {
+  Widget _buildSynchronizedFavorites() {
+    if (_isSyncing && _localFavorites.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_syncError != null && _localFavorites.isEmpty) {
+      return _buildErrorState(_syncError!, _synchronizeCollections);
+    }
+
+    final favorites = _buildLocalFavorites(
+      onRefresh: _synchronizeCollections,
+      synchronized: true,
+    );
+    if (_conflicts.isEmpty) {
+      return Column(
+        children: [
+          if (_isSyncing) const LinearProgressIndicator(),
+          if (_syncError != null) _buildSyncErrorBanner(_syncError!),
+          Expanded(child: favorites),
+        ],
+      );
+    }
+
+    final panel = BangumiCollectionConflictPanel(
+      conflicts: _conflicts,
+      choices: _conflictChoices,
+      statusLabel: (type) => _getTypeLabel(context, type),
+      onChoiceChanged: (subjectId, choice) {
+        setState(() => _conflictChoices[subjectId] = choice);
+      },
+      onResolve: _resolveConflicts,
+      isResolving: _isResolvingConflicts,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 900) return panel;
+        return Row(
+          children: [
+            Expanded(child: favorites),
+            const VerticalDivider(width: 1),
+            SizedBox(width: 520, child: panel),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSyncErrorBanner(String message) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.errorContainer,
+      child: ListTile(
+        dense: true,
+        leading: Icon(Icons.sync_problem, color: colors.onErrorContainer),
+        title: Text(message),
+        trailing: IconButton(
+          onPressed: _synchronizeCollections,
+          tooltip: AppLocalizations.of(context).pageRetry,
+          icon: const Icon(Icons.refresh),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String message, Future<void> Function() retry) {
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(message, textAlign: TextAlign.center),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(onPressed: retry, child: Text(l10n.pageRetry)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocalFavorites({
+    Future<void> Function()? onRefresh,
+    bool synchronized = false,
+  }) {
     final l10n = AppLocalizations.of(context);
     if (_isLoadingLocal) {
       return const Center(child: CircularProgressIndicator());
@@ -238,12 +359,12 @@ class _FavoritesPageState extends State<FavoritesPage>
     if (_localFavorites.isEmpty) {
       return _buildRefreshableEmpty(
         message: l10n.noLocalFavorites,
-        onRefresh: _fetchLocalFavorites,
+        onRefresh: onRefresh ?? _fetchLocalFavorites,
       );
     }
 
     return RefreshIndicator(
-      onRefresh: _fetchLocalFavorites,
+      onRefresh: onRefresh ?? _fetchLocalFavorites,
       child: ListView.separated(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
@@ -271,8 +392,22 @@ class _FavoritesPageState extends State<FavoritesPage>
               icon: const Icon(Icons.delete_outline),
               tooltip: l10n.favoritesRemoveTooltip,
               onPressed: () async {
-                await _favoritesManager.removeFavorite(item.bangumiId);
-                _fetchLocalFavorites();
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  if (synchronized) {
+                    await _syncService.deleteFavorite(item.bangumiId);
+                  } else {
+                    await _favoritesManager.removeFavorite(item.bangumiId);
+                  }
+                  await _fetchLocalFavorites();
+                } catch (e) {
+                  if (!mounted) return;
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.favoriteUpdateFailed(e.toString())),
+                    ),
+                  );
+                }
               },
             ),
           );

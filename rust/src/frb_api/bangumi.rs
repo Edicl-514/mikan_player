@@ -354,6 +354,33 @@ pub async fn update_bangumi_collection(
     )
 }
 
+/// Read one authenticated collection state. Returns `None` when uncollected.
+pub async fn fetch_my_bangumi_collection_type(subject_id: i64) -> anyhow::Result<Option<i32>> {
+    const API: &str = "fetch_my_bangumi_collection_type";
+    contract::public_result(
+        API,
+        contract::require_positive_i64("subject_id", subject_id),
+    )?;
+    contract::public_result(
+        API,
+        bangumi_impl::fetch_my_bangumi_collection_type(subject_id).await,
+    )
+}
+
+/// `DELETE /v0/users/-/collections/{subject_id}` — remove the authenticated
+/// user's collection entry for a subject.
+pub async fn delete_bangumi_collection(subject_id: i64) -> anyhow::Result<()> {
+    const API: &str = "delete_bangumi_collection";
+    contract::public_result(
+        API,
+        contract::require_positive_i64("subject_id", subject_id),
+    )?;
+    contract::public_result(
+        API,
+        bangumi_impl::delete_bangumi_collection(subject_id).await,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

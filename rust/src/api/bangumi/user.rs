@@ -286,6 +286,44 @@ pub(crate) async fn fetch_my_bangumi_collections(
     parse_bangumi_user_collections(&json)
 }
 
+/// Read one authenticated collection state. A missing collection is a normal
+/// result and is represented as `None`.
+pub(crate) async fn fetch_my_bangumi_collection_type(
+    subject_id: i64,
+) -> anyhow::Result<Option<i32>> {
+    let token = require_access_token()?;
+    let url = format!(
+        "{}/v0/users/-/collections/{}",
+        crate::api::config::get_bangumi_api_url(),
+        subject_id
+    );
+    let label = "bangumi.me.collection";
+    let resp = crate::api::network::retry_request_bangumi_with_status(
+        label,
+        |client| {
+            client
+                .get(&url)
+                .header("accept", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .header("User-Agent", "MikanPlayer/1.0.0 (flutter)")
+        },
+        true,
+    )
+    .await?;
+    let status = resp.status();
+    if status == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        anyhow::bail!("{label} HTTP {status}: {}", truncate(&text, 256));
+    }
+    let body = resp.text().await.context("bangumi collection read body")?;
+    let json: Value = serde_json::from_str(&body)
+        .with_context(|| format!("{label}: invalid JSON: {}", truncate(&body, 256)))?;
+    Ok(json_i32(&json["type"]).filter(|value| matches!(value, 1 | 2 | 3 | 4 | 5)))
+}
+
 /// `POST /v0/users/-/collections/{subject_id}` — create or update the
 /// authenticated user's collection for a subject (idempotent per the Bangumi
 /// docs). `collection_type` is required (1=wish … 5=dropped); the rest are only
@@ -346,12 +384,45 @@ pub(crate) async fn update_bangumi_collection(
     Ok(())
 }
 
+/// `DELETE /v0/users/-/collections/{subject_id}` — remove the authenticated
+/// user's collection entry for a subject.
+pub(crate) async fn delete_bangumi_collection(subject_id: i64) -> anyhow::Result<()> {
+    let token = require_access_token()?;
+    let url = format!(
+        "{}/v0/users/-/collections/{}",
+        crate::api::config::get_bangumi_api_url(),
+        subject_id
+    );
+    let label = "bangumi.collection.delete";
+    let resp = crate::api::network::retry_request_bangumi_with_status(
+        label,
+        |client| {
+            client
+                .delete(&url)
+                .header("accept", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .header("User-Agent", "MikanPlayer/1.0.0 (flutter)")
+        },
+        true,
+    )
+    .await?;
+    let status = resp.status();
+    if status == reqwest::StatusCode::NOT_FOUND {
+        return Ok(());
+    }
+    if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        anyhow::bail!("{label} HTTP {status}: {}", truncate(&text, 256));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_support::http_server::{TestResponse, TestRoute, TestServer};
     use crate::test_support::state::isolate_runtime_config;
-    use axum::http::StatusCode;
+    use axum::http::{Method, StatusCode};
     use serde_json::json;
 
     fn point_bangumi_at(base_url: &str) {
@@ -506,6 +577,13 @@ mod tests {
                 .to_string()
                 .contains("not logged in")
         );
+        assert!(
+            delete_bangumi_collection(7)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("not logged in")
+        );
     }
 
     #[tokio::test]
@@ -583,6 +661,25 @@ mod tests {
         assert_eq!(body["rate"], 8);
         assert!(body.get("comment").is_none());
         assert!(body.get("tags").is_none());
+        assert_eq!(request.headers["authorization"], "Bearer tok");
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn collection_delete_sends_bearer() {
+        let _config = isolate_runtime_config();
+        let server = TestServer::spawn([TestRoute::new(
+            Method::DELETE,
+            "/v0/users/-/collections/7",
+            TestResponse::new(StatusCode::NO_CONTENT, ""),
+        )])
+        .await;
+        point_bangumi_at(&server.base_url());
+        crate::api::config::set_bangumi_access_token("tok".to_string());
+
+        delete_bangumi_collection(7).await.unwrap();
+        let request = &server.requests()[0];
+        assert_eq!(request.method, Method::DELETE);
         assert_eq!(request.headers["authorization"], "Bearer tok");
         server.shutdown().await;
     }

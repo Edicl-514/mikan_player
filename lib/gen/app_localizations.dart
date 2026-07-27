@@ -1327,6 +1327,48 @@ abstract class AppLocalizations {
   /// **'同步失败，请稍后重试'**
   String get bangumiSyncFailed;
 
+  /// No description provided for @bangumiSyncFailedWithError.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步失败：{error}'**
+  String bangumiSyncFailedWithError(Object error);
+
+  /// No description provided for @bangumiLoginModeTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择收藏模式'**
+  String get bangumiLoginModeTitle;
+
+  /// No description provided for @bangumiSyncMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步模式'**
+  String get bangumiSyncMode;
+
+  /// No description provided for @bangumiPublicMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'非同步模式'**
+  String get bangumiPublicMode;
+
+  /// No description provided for @bangumiSyncModeDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用 Bangumi 授权登录，本地收藏与云端收藏合并并保持同步'**
+  String get bangumiSyncModeDescription;
+
+  /// No description provided for @bangumiPublicModeDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'只输入用户 ID 或用户名，读取公开收藏，不修改 Bangumi 账号'**
+  String get bangumiPublicModeDescription;
+
+  /// No description provided for @continueButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续'**
+  String get continueButton;
+
   /// No description provided for @cannotLoadEpisodes.
   ///
   /// In zh, this message translates to:
@@ -2586,6 +2628,54 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'更新收藏失败: {error}'**
   String favoriteUpdateFailed(Object error);
+
+  /// No description provided for @collectionConflictTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏冲突'**
+  String get collectionConflictTitle;
+
+  /// No description provided for @collectionConflictDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'有 {count} 个条目的本地状态和 Bangumi 状态不同，请选择要保留的版本。'**
+  String collectionConflictDescription(Object count);
+
+  /// No description provided for @collectionResolveConflicts.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用选择'**
+  String get collectionResolveConflicts;
+
+  /// No description provided for @collectionKeepLocal.
+  ///
+  /// In zh, this message translates to:
+  /// **'保留本地'**
+  String get collectionKeepLocal;
+
+  /// No description provided for @collectionKeepBangumi.
+  ///
+  /// In zh, this message translates to:
+  /// **'保留 Bangumi'**
+  String get collectionKeepBangumi;
+
+  /// No description provided for @collectionSourceLocal.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地收藏'**
+  String get collectionSourceLocal;
+
+  /// No description provided for @collectionConflictStatus.
+  ///
+  /// In zh, this message translates to:
+  /// **'状态'**
+  String get collectionConflictStatus;
+
+  /// No description provided for @collectionConflictUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新时间'**
+  String get collectionConflictUpdated;
 
   /// No description provided for @playSourceTitle.
   ///

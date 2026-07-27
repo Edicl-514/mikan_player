@@ -26,7 +26,7 @@ pub(crate) use person_detail::{
 };
 pub(crate) use types::*;
 pub(crate) use user::{
-    fetch_bangumi_image_url, fetch_bangumi_me, fetch_bangumi_subject_image,
-    fetch_bangumi_user_collections, fetch_bangumi_user_info, fetch_my_bangumi_collections,
-    update_bangumi_collection,
+    delete_bangumi_collection, fetch_bangumi_image_url, fetch_bangumi_me,
+    fetch_bangumi_subject_image, fetch_bangumi_user_collections, fetch_bangumi_user_info,
+    fetch_my_bangumi_collection_type, fetch_my_bangumi_collections, update_bangumi_collection,
 };

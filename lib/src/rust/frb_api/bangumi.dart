@@ -108,16 +108,17 @@ Future<String> bangumiOauthClientId() =>
     RustLib.instance.api.crateFrbApiBangumiBangumiOauthClientId();
 
 /// The OAuth authorization page URL the login WebView opens. Pins `bgm.tv`
-/// (never the `bangumi.tv` alias) so the later token-exchange POST does not hit
-/// a body-dropping 301. `redirect_uri` must match the value later passed to
-/// [`exchange_bangumi_oauth_code`] byte-for-byte.
+/// (never an alias or the optional content reverse proxy). `redirect_uri` must
+/// match the value later passed to [`exchange_bangumi_oauth_code`]
+/// byte-for-byte.
 Future<String> bangumiOauthAuthorizeUrl({required String redirectUri}) =>
     RustLib.instance.api.crateFrbApiBangumiBangumiOauthAuthorizeUrl(
       redirectUri: redirectUri,
     );
 
 /// Exchange an OAuth authorization `code` for an access/refresh token pair.
-/// The `client_secret` stays in Rust — it never crosses this boundary.
+/// The `client_secret` stays on the Rust side of the bridge, but remains
+/// extractable from a distributed client binary.
 Future<BangumiOAuthToken> exchangeBangumiOauthCode({
   required String code,
   required String redirectUri,
@@ -177,3 +178,16 @@ Future<void> updateBangumiCollection({
   tags: tags,
   private: private,
 );
+
+/// Read one authenticated collection state. Returns `None` when uncollected.
+Future<int?> fetchMyBangumiCollectionType({required PlatformInt64 subjectId}) =>
+    RustLib.instance.api.crateFrbApiBangumiFetchMyBangumiCollectionType(
+      subjectId: subjectId,
+    );
+
+/// `DELETE /v0/users/-/collections/{subject_id}` — remove the authenticated
+/// user's collection entry for a subject.
+Future<void> deleteBangumiCollection({required PlatformInt64 subjectId}) =>
+    RustLib.instance.api.crateFrbApiBangumiDeleteBangumiCollection(
+      subjectId: subjectId,
+    );

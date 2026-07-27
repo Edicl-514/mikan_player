@@ -80,9 +80,9 @@ Future<String> getBangumiNextUrl() =>
 /// OAuth lives on the **main site** but *must* be `bgm.tv`, not the historical
 /// `bangumi.tv` alias: a POST to `bangumi.tv/oauth/access_token` 301-redirects
 /// to `bgm.tv`, and reqwest drops the form body across that redirect, so the
-/// token exchange fails with a 400. We therefore force `bgm.tv` here (mirroring
-/// the hard-coded `api.bgm.tv` mapping in [`get_bangumi_api_url`]) instead of
-/// deriving it from the user-configured `bangumi_url`.
+/// token exchange fails with a 400. OAuth also carries application and user
+/// credentials, so production builds always bypass the optional content
+/// reverse proxy and use `https://bgm.tv` directly.
 Future<String> getBangumiOauthUrl() =>
     RustLib.instance.api.crateApiConfigGetBangumiOauthUrl();
 
