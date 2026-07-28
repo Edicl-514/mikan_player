@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
@@ -267,6 +268,13 @@ class _CommentCard extends StatelessWidget {
                       ),
                   ],
                 ),
+                if (comment.collectionType != null) ...[
+                  const SizedBox(height: 4),
+                  _CollectionTypeLabel(
+                    collectionType: comment.collectionType!,
+                    isDarkBg: isDarkBg,
+                  ),
+                ],
                 const SizedBox(height: 2),
                 Text(
                   comment.time,
@@ -286,10 +294,110 @@ class _CommentCard extends StatelessWidget {
                     height: 1.4,
                   ),
                 ),
+                if (comment.reactions.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: comment.reactions
+                        .where((reaction) => reaction.count > 0)
+                        .map(
+                          (reaction) => _ReactionBadge(
+                            reaction: reaction,
+                            isDarkBg: isDarkBg,
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                ],
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CollectionTypeLabel extends StatelessWidget {
+  const _CollectionTypeLabel({
+    required this.collectionType,
+    required this.isDarkBg,
+  });
+
+  final int collectionType;
+  final bool isDarkBg;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final label = switch (collectionType) {
+      1 => l10n.favoritesStatusWish,
+      2 => l10n.favoritesStatusWatched,
+      3 => l10n.favoritesStatusWatching,
+      4 => l10n.favoritesStatusOnHold,
+      5 => l10n.favoritesStatusDropped,
+      _ => '',
+    };
+    if (label.isEmpty) return const SizedBox.shrink();
+
+    final color = isDarkBg ? Colors.white60 : Colors.black54;
+    return Text(
+      label,
+      style: TextStyle(fontSize: 11, color: color),
+    );
+  }
+}
+
+class _ReactionBadge extends StatelessWidget {
+  const _ReactionBadge({required this.reaction, required this.isDarkBg});
+
+  final BangumiCommentReaction reaction;
+  final bool isDarkBg;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = isDarkBg ? Colors.white70 : Colors.black54;
+    return Tooltip(
+      message: '(${reaction.name}) ${reaction.count}',
+      child: Container(
+        key: ValueKey('bangumi-reaction-${reaction.name}'),
+        height: 24,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        decoration: BoxDecoration(
+          color: reaction.reacted
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.14)
+              : (isDarkBg
+                    ? Colors.white10
+                    : Colors.black.withValues(alpha: 0.04)),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Semantics(
+              label: reaction.name,
+              image: true,
+              child: ExcludeSemantics(
+                child: CachedNetworkImage(
+                  imageUrl: reaction.imageUrl,
+                  width: 16,
+                  height: 16,
+                  fit: BoxFit.contain,
+                  deferOffscreenLoad: false,
+                  networkFallbackWhileCaching: false,
+                  placeholder: const SizedBox(width: 16, height: 16),
+                  errorWidget: const Icon(Icons.sentiment_neutral, size: 14),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '${reaction.count}',
+              style: TextStyle(fontSize: 11, color: foreground),
+            ),
+          ],
+        ),
       ),
     );
   }

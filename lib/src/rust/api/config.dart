@@ -6,9 +6,9 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_reverse_proxy_settings`, `bangumi_url_for_proxy_mode`, `canonical_bangumi_host`, `mirror_for_host`, `normalize_url`, `rewrite_host_in_authority`, `split_scheme`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CONFIG`, `RuntimeConfig`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `deref`, `initialize`
+// These functions are ignored because they are not marked as `pub`: `apply_reverse_proxy_settings`, `authenticated_next_url`, `bangumi_url_for_proxy_mode`, `canonical_bangumi_host`, `get_bangumi_next_request_context`, `mirror_for_host`, `normalize_url`, `rewrite_host_in_authority`, `split_scheme`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BangumiNextRequestContext`, `CONFIG`, `RuntimeConfig`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `deref`, `initialize`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `bangumi_canonical_hosts`, `get_bangumi_data_cdn_urls`, `get_bangumi_data_sha512_hex`
 
 Future<void> initConfig({
@@ -48,8 +48,13 @@ Future<bool> getBangumiUseEch() =>
 /// Store the OAuth access token used to authenticate Bangumi write requests.
 /// Called by Dart after a successful OAuth exchange and on app init from
 /// secure storage. The token value is never logged.
-Future<void> setBangumiAccessToken({required String token}) =>
-    RustLib.instance.api.crateApiConfigSetBangumiAccessToken(token: token);
+Future<void> setBangumiAccessToken({
+  required String token,
+  PlatformInt64? userId,
+}) => RustLib.instance.api.crateApiConfigSetBangumiAccessToken(
+  token: token,
+  userId: userId,
+);
 
 /// Clear the stored OAuth access token (on logout or when a refresh fails).
 Future<void> clearBangumiAccessToken() =>

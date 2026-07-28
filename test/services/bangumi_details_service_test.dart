@@ -236,20 +236,23 @@ void main() {
   );
 
   test('comments preserve page arguments and backend errors', () async {
-    backend.comments = const [
+    backend.commentsPage = const BangumiCommentsPage(comments: [
       BangumiComment(
+        id: 1,
+        userId: 'user',
         userName: 'user',
         rate: 8,
         content: 'text',
         contentHtml: '<p>text</p>',
         time: 'now',
         avatar: '',
+        reactions: [],
       ),
-    ];
+    ]);
 
     expect(
       await service.fetchCommentsPage(subjectId: 9, page: 3),
-      backend.comments,
+      backend.commentsPage,
     );
     expect(backend.commentArgs, [(9, 3)]);
 
@@ -292,7 +295,7 @@ class FakeBangumiDetailsBackend implements BangumiDetailsBackend {
   List<BangumiPerson> persons = const [];
   List<AnimeInfo> filled = const [];
   List<BangumiDataSiteEntry> sites = const [];
-  List<BangumiComment> comments = const [];
+  BangumiCommentsPage commentsPage = const BangumiCommentsPage(comments: []);
   final cachedWrites = <AnimeInfo>[];
   final commentArgs = <(int, int)>[];
   Object? subjectError;
@@ -387,13 +390,13 @@ class FakeBangumiDetailsBackend implements BangumiDetailsBackend {
   }
 
   @override
-  Future<List<BangumiComment>> fetchComments({
+  Future<BangumiCommentsPage> fetchComments({
     required int subjectId,
     required int page,
   }) async {
     calls.add('fetchComments');
     commentArgs.add((subjectId, page));
     if (commentsError case final error?) throw error;
-    return comments;
+    return commentsPage;
   }
 }

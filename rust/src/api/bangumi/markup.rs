@@ -1,6 +1,6 @@
 use super::util::*;
 
-pub(super) fn bangumi_smile_html(code: &str) -> Option<String> {
+pub(super) fn bangumi_smile_asset(code: &str) -> Option<(String, &'static str)> {
     let normalized = code.trim();
     if normalized.is_empty() {
         return None;
@@ -58,6 +58,12 @@ pub(super) fn bangumi_smile_html(code: &str) -> Option<String> {
         return None;
     };
 
+    Some((src, class_name))
+}
+
+pub(super) fn bangumi_smile_html(code: &str) -> Option<String> {
+    let normalized = code.trim();
+    let (src, class_name) = bangumi_smile_asset(normalized)?;
     Some(format!(
         "<img src=\"{}\" class=\"{}\" smileid=\"{}\" alt=\"({})\" />",
         escape_html_attribute(&src),

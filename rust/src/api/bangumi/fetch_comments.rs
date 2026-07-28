@@ -2,15 +2,18 @@ use super::types::*;
 use super::util::*;
 use scraper::{Html, Selector};
 
-use super::markup::render_bangumi_markup;
+use super::markup::{bangumi_smile_asset, render_bangumi_markup};
 
 pub(super) const BANGUMI_SUBJECT_COMMENTS_LEGACY_LABEL: &str = "bangumi.comments.subject.legacy";
 pub(super) const BANGUMI_SUBJECT_COMMENTS_NEXT_LABEL: &str = "bangumi.comments.subject.next";
 pub(super) const BANGUMI_EPISODE_COMMENTS_LEGACY_LABEL: &str = "bangumi.comments.episode.legacy";
 pub(super) const BANGUMI_EPISODE_COMMENTS_NEXT_LABEL: &str = "bangumi.comments.episode.next";
 
-fn parse_bangumi_comments_next(json: &serde_json::Value) -> Vec<BangumiComment> {
-    json["data"]
+fn parse_bangumi_comments_next(
+    json: &serde_json::Value,
+    current_user_id: Option<i64>,
+) -> BangumiCommentsPage {
+    let comments = json["data"]
         .as_array()
         .into_iter()
         .flatten()
@@ -21,13 +24,27 @@ fn parse_bangumi_comments_next(json: &serde_json::Value) -> Vec<BangumiComment> 
             }
             let user = &item["user"];
             let rate = json_i32(&item["rate"]).filter(|rate| (1..=10).contains(rate));
+            let collection_type = json_i32(&item["type"]).filter(|value| (1..=5).contains(value));
+            let reactions = item["reactions"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|item| parse_comment_reaction(item, current_user_id))
+                .collect();
 
             Some(BangumiComment {
+                id: json_i64(&item["id"]).unwrap_or_default(),
+                user_id: user["username"]
+                    .as_str()
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string)
+                    .unwrap_or_else(|| json_i64(&user["id"]).unwrap_or_default().to_string()),
                 user_name: user["nickname"]
                     .as_str()
                     .filter(|value| !value.is_empty())
                     .unwrap_or_else(|| user["username"].as_str().unwrap_or(""))
                     .to_string(),
+                collection_type,
                 rate,
                 content: content.to_string(),
                 content_html: render_bangumi_markup(content),
@@ -36,9 +53,41 @@ fn parse_bangumi_comments_next(json: &serde_json::Value) -> Vec<BangumiComment> 
                     .map(format_bangumi_timestamp)
                     .unwrap_or_default(),
                 avatar: normalize_avatar_url(user["avatar"]["large"].as_str()),
+                reactions,
             })
         })
-        .collect()
+        .collect::<Vec<_>>();
+
+    BangumiCommentsPage {
+        comments,
+        total: json_i32(&json["total"]).filter(|total| *total >= 0),
+    }
+}
+
+fn parse_comment_reaction(
+    item: &serde_json::Value,
+    current_user_id: Option<i64>,
+) -> Option<BangumiCommentReaction> {
+    let value = json_i32(&item["value"])?;
+    let name = format!("bgm{value}");
+    let (image_url, _) = bangumi_smile_asset(&name)?;
+    let users = item["users"].as_array();
+    let count = users
+        .and_then(|items| i32::try_from(items.len()).ok())
+        .unwrap_or_default();
+    let reacted = current_user_id.is_some_and(|current_user_id| {
+        users.is_some_and(|items| {
+            items
+                .iter()
+                .any(|user| json_i64(&user["id"]) == Some(current_user_id))
+        })
+    });
+    Some(BangumiCommentReaction {
+        name,
+        image_url,
+        count,
+        reacted,
+    })
 }
 
 /// Scrape comments from the Bangumi website
@@ -46,7 +95,7 @@ fn parse_bangumi_comments_next(json: &serde_json::Value) -> Vec<BangumiComment> 
 pub(crate) async fn fetch_bangumi_comments(
     subject_id: i64,
     page: i32,
-) -> anyhow::Result<Vec<BangumiComment>> {
+) -> anyhow::Result<BangumiCommentsPage> {
     let mode = crate::api::config::get_bangumi_request_mode();
     log::info!(
         "bangumi.comments.subject mode={} subject_id={} page={}",
@@ -88,7 +137,7 @@ pub(crate) async fn fetch_bangumi_comments(
 pub(super) async fn fetch_bangumi_comments_legacy(
     subject_id: i64,
     page: i32,
-) -> anyhow::Result<Vec<BangumiComment>> {
+) -> anyhow::Result<BangumiCommentsPage> {
     let url = format!(
         "{}/subject/{}/comments?page={}",
         crate::api::config::get_bangumi_url(),
@@ -104,7 +153,10 @@ pub(super) async fn fetch_bangumi_comments_legacy(
     .await?;
 
     if !resp.status().is_success() {
-        return Ok(Vec::new());
+        return Ok(BangumiCommentsPage {
+            comments: Vec::new(),
+            total: None,
+        });
     }
 
     let html = resp.text().await?;
@@ -191,18 +243,25 @@ pub(super) async fn fetch_bangumi_comments_legacy(
 
             if !user_name.is_empty() && (!content.is_empty() || !content_html.is_empty()) {
                 comments.push(BangumiComment {
+                    id: 0,
+                    user_id: String::new(),
                     user_name,
+                    collection_type: None,
                     rate,
                     content,
                     content_html,
                     time,
                     avatar,
+                    reactions: Vec::new(),
                 });
             }
         }
     }
 
-    Ok(comments)
+    Ok(BangumiCommentsPage {
+        comments,
+        total: None,
+    })
 }
 /// Scrape episode comments from Bangumi
 /// URL: https://bangumi.tv/ep/{episode_id}
@@ -411,23 +470,32 @@ pub(super) async fn fetch_bangumi_episode_comments_legacy(
 pub(super) async fn fetch_bangumi_comments_next(
     subject_id: i64,
     page: i32,
-) -> anyhow::Result<Vec<BangumiComment>> {
+) -> anyhow::Result<BangumiCommentsPage> {
     let page = page.max(1);
     let offset = i64::from(page - 1) * BANGUMI_NEXT_COMMENTS_PAGE_SIZE;
-    let url = bangumi_next_url(&format!(
+    let (url, access_token, current_user_id) = bangumi_next_request(&format!(
         "/p1/subjects/{subject_id}/comments?limit={BANGUMI_NEXT_COMMENTS_PAGE_SIZE}&offset={offset}"
     ));
 
     let resp = crate::api::network::retry_request_bangumi_with_status(
         BANGUMI_SUBJECT_COMMENTS_NEXT_LABEL,
-        |client| client.get(&url).header("accept", "application/json"),
+        move |client| {
+            let request = client.get(&url).header("accept", "application/json");
+            match &access_token {
+                Some(token) => request.header("Authorization", format!("Bearer {token}")),
+                None => request,
+            }
+        },
         true,
     )
     .await?;
 
     let status = resp.status();
     if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::BAD_REQUEST {
-        return Ok(Vec::new());
+        return Ok(BangumiCommentsPage {
+            comments: Vec::new(),
+            total: Some(0),
+        });
     }
 
     if !status.is_success() {
@@ -435,7 +503,7 @@ pub(super) async fn fetch_bangumi_comments_next(
     }
 
     let json: serde_json::Value = resp.json().await?;
-    Ok(parse_bangumi_comments_next(&json))
+    Ok(parse_bangumi_comments_next(&json, current_user_id))
 }
 
 pub(super) fn parse_next_episode_comment(item: &serde_json::Value) -> BangumiEpisodeComment {
@@ -474,11 +542,18 @@ pub(super) fn parse_next_episode_comment(item: &serde_json::Value) -> BangumiEpi
 pub(super) async fn fetch_bangumi_episode_comments_next(
     episode_id: i64,
 ) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
-    let url = bangumi_next_url(&format!("/p1/episodes/{episode_id}/comments"));
+    let (url, access_token, _) =
+        bangumi_next_request(&format!("/p1/episodes/{episode_id}/comments"));
 
     let resp = crate::api::network::retry_request_bangumi_with_status(
         BANGUMI_EPISODE_COMMENTS_NEXT_LABEL,
-        |client| client.get(&url).header("accept", "application/json"),
+        move |client| {
+            let request = client.get(&url).header("accept", "application/json");
+            match &access_token {
+                Some(token) => request.header("Authorization", format!("Bearer {token}")),
+                None => request,
+            }
+        },
         true,
     )
     .await?;
@@ -504,6 +579,7 @@ pub(super) async fn fetch_bangumi_episode_comments_next(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::fixture::fixture_json;
     use crate::test_support::http_server::{TestResponse, TestRoute, TestServer};
     use crate::test_support::state::isolate_runtime_config;
     use axum::http::{Method, StatusCode};
@@ -521,29 +597,35 @@ mod tests {
 
     #[test]
     fn next_subject_comments_escape_markup_and_validate_rating_range() {
-        let comments = parse_bangumi_comments_next(&json!({"data": [
-            {
-                "comment": "[b]bold[/b] <script>alert(1)</script> (bgm38)",
-                "rate": 10,
-                "user": {"nickname": "", "username": "alice", "avatar": {"large": "//lain.bgm.tv/a.jpg"}}
-            },
-            {"comment": "rate too high", "rate": 11, "user": {"nickname": "Bob"}},
-            {"comment": "overflow", "rate": 2147483648_i64, "user": {}},
-            {"comment": "   ", "rate": 5}
-        ]}));
+        let fixture = fixture_json("bangumi/subject_comments.json");
+        let page = parse_bangumi_comments_next(&fixture, Some(7));
 
-        assert_eq!(comments.len(), 3);
-        assert_eq!(comments[0].user_name, "alice");
-        assert_eq!(comments[0].rate, Some(10));
+        assert_eq!(page.total, Some(4));
+        assert_eq!(page.comments.len(), 3);
+        assert_eq!(page.comments[0].id, 12);
+        assert_eq!(page.comments[0].user_name, "alice");
+        assert_eq!(page.comments[0].collection_type, Some(2));
+        assert_eq!(page.comments[0].rate, Some(10));
+        assert_eq!(page.comments[0].reactions[0].name, "bgm104");
         assert!(
-            comments[0]
+            page.comments[0].reactions[0]
+                .image_url
+                .ends_with("/img/smiles/tv/81.gif")
+        );
+        assert_eq!(page.comments[0].reactions[0].count, 2);
+        assert!(page.comments[0].reactions[0].reacted);
+        assert_eq!(page.comments[0].reactions.len(), 1);
+        assert!(
+            page.comments[0]
                 .content_html
                 .contains("<span style=\"font-weight:bold;\">bold</span>")
         );
-        assert!(comments[0].content_html.contains("&lt;script&gt;"));
-        assert!(!comments[0].content_html.contains("<script>"));
-        assert_eq!(comments[1].rate, None);
-        assert_eq!(comments[2].rate, None);
+        assert!(page.comments[0].content_html.contains("&lt;script&gt;"));
+        assert!(!page.comments[0].content_html.contains("<script>"));
+        assert_eq!(page.comments[1].rate, None);
+        assert_eq!(page.comments[1].user_id, "0");
+        assert_eq!(page.comments[1].collection_type, None);
+        assert_eq!(page.comments[2].rate, None);
     }
 
     #[test]
@@ -580,9 +662,44 @@ mod tests {
             fetch_bangumi_comments_next(7, i32::MIN)
                 .await
                 .unwrap()
+                .comments
                 .is_empty()
         );
         assert_eq!(server.requests()[0].uri.query(), Some("limit=20&offset=0"));
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn subject_comments_attach_only_the_snapshotted_bearer_and_reject_bad_json() {
+        let _config = isolate_runtime_config();
+        let fixture: serde_json::Value = fixture_json("bangumi/subject_comments.json");
+        let server = TestServer::spawn([
+            TestRoute::get(
+                "/p1/subjects/7/comments",
+                TestResponse::ok(fixture.to_string())
+                    .with_header("content-type", "application/json"),
+            ),
+            TestRoute::get(
+                "/p1/subjects/8/comments",
+                TestResponse::ok("{broken").with_header("content-type", "application/json"),
+            ),
+        ])
+        .await;
+        point_bangumi_at(&server.base_url(), "modern");
+
+        let anonymous = fetch_bangumi_comments_next(7, 1).await.unwrap();
+        assert!(!anonymous.comments[0].reactions[0].reacted);
+        assert!(server.requests()[0].headers.get("authorization").is_none());
+
+        crate::api::config::set_bangumi_access_token("secret".to_string(), Some(7));
+        let authenticated = fetch_bangumi_comments_next(7, 1).await.unwrap();
+        assert!(authenticated.comments[0].reactions[0].reacted);
+        assert_eq!(
+            server.requests()[1].headers["authorization"],
+            "Bearer secret"
+        );
+
+        assert!(fetch_bangumi_comments_next(8, 1).await.is_err());
         server.shutdown().await;
     }
 
@@ -611,13 +728,13 @@ mod tests {
         .await;
         point_bangumi_at(&server.base_url(), "hybrid");
 
-        let comments = fetch_bangumi_comments(7, 2).await.unwrap();
-        assert_eq!(comments.len(), 1);
-        assert_eq!(comments[0].user_name, "Legacy User");
-        assert_eq!(comments[0].rate, Some(8));
-        assert_eq!(comments[0].avatar, "https://lain.bgm.tv/avatar.jpg");
+        let page = fetch_bangumi_comments(7, 2).await.unwrap();
+        assert_eq!(page.comments.len(), 1);
+        assert_eq!(page.comments[0].user_name, "Legacy User");
+        assert_eq!(page.comments[0].rate, Some(8));
+        assert_eq!(page.comments[0].avatar, "https://lain.bgm.tv/avatar.jpg");
         assert!(
-            comments[0]
+            page.comments[0]
                 .content_html
                 .contains("<script>not executed</script>")
         );

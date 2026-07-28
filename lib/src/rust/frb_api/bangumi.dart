@@ -25,7 +25,7 @@ Future<List<BangumiRelatedSubject>> fetchBangumiRelations({
   subjectId: subjectId,
 );
 
-Future<List<BangumiComment>> fetchBangumiComments({
+Future<BangumiCommentsPage> fetchBangumiComments({
   required PlatformInt64 subjectId,
   required int page,
 }) => RustLib.instance.api.crateFrbApiBangumiFetchBangumiComments(

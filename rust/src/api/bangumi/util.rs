@@ -3,8 +3,13 @@ use chrono::{Local, TimeZone};
 
 pub(super) const BANGUMI_NEXT_COMMENTS_PAGE_SIZE: i64 = 20;
 
-pub(super) fn bangumi_next_url(path: &str) -> String {
-    format!("{}{}", crate::api::config::get_bangumi_next_url(), path)
+pub(super) fn bangumi_next_request(path: &str) -> (String, Option<String>, Option<i64>) {
+    let context = crate::api::config::get_bangumi_next_request_context();
+    (
+        format!("{}{}", context.base_url, path),
+        context.access_token,
+        context.user_id,
+    )
 }
 
 pub(super) fn format_bangumi_timestamp(timestamp: i64) -> String {
@@ -68,6 +73,10 @@ pub(super) fn parse_bangumi_images(images_data: &serde_json::Value) -> Option<Ba
 
 pub(super) fn json_i32(value: &serde_json::Value) -> Option<i32> {
     value.as_i64().and_then(|value| i32::try_from(value).ok())
+}
+
+pub(super) fn json_i64(value: &serde_json::Value) -> Option<i64> {
+    value.as_i64()
 }
 
 pub(super) fn parse_infobox(value: &serde_json::Value) -> Vec<InfoboxItem> {

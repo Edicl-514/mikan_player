@@ -21,7 +21,7 @@ v0 = `bangumi/api` 仓库 `open-api/v0.yaml`。
 |---|---|---|---|
 | **Phase 1** | OAuth 登录 + 收藏状态同步 | 有 | ✅ 已完成 |
 | Phase 2 | 收藏的评价 / 评分 / 标签 / 隐私 | 有 | ✅ 代码完成（真实账号验收待执行） |
-| Phase 3 | 社区内容只读（条目吐槽、长评、讨论版、透视、角色 / 人物吐槽） | 无 | ⏳ 待开发 |
+| Phase 3 | 社区内容只读（条目吐槽、长评、讨论版、透视、角色 / 人物吐槽） | 无 | 🚧 3A 代码完成，3B–3E 待开发 |
 | — | 发送吐槽 / 发帖 / 说句话 | — | ❌ 不实现，见第 6 章 |
 
 ---
@@ -334,6 +334,19 @@ Rust / FRB 不能再把 `collection_type` 作为所有更新的必填参数。�
 全部为 GET，无 Turnstile，无写操作。已核对端点、响应 schema 和匿名可用性。
 
 #### 3A 条目吐槽（当前收藏短评聚合）
+
+##### 已落地（2026-07-28）
+
+- p1 `{data,total}` 响应已贯通 Rust、FRB、repository 和详情页 controller，使用服务端
+  `total` 正确终止分页；legacy HTML 回退继续保留。
+- 展示收藏状态、用户评分、BBCode 安全渲染正文和 reaction。reaction 使用 Bangumi 原始
+  表情资源及计数；登录时用 OAuth user ID 标记自己的 reaction。
+- p1 请求以同一份运行时快照决定 URL、bearer 和用户身份，消除了登录 / 刷新并发期间
+  把新 bearer 附加到已选中反代 URL 的竞态；匿名请求仍可走内容反代，认证请求固定直连。
+- 增加 fixture 驱动解析、缺失用户 / 未知枚举、畸形 JSON、匿名 / 认证 header、反代路由、
+  分页以及 reaction UI 测试。
+
+3A 代码已完成；真实账号下自己的 reaction 高亮和反代人工验收仍应在发布前执行。
 
 ```http
 GET https://next.bgm.tv/p1/subjects/{subjectID}/comments?type=&limit=&offset=

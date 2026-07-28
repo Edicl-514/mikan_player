@@ -46,13 +46,32 @@ pub struct BangumiRelatedSubject {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiCommentReaction {
+    pub name: String,
+    pub image_url: String,
+    pub count: i32,
+    pub reacted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiCommentsPage {
+    pub comments: Vec<BangumiComment>,
+    pub total: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BangumiComment {
+    pub id: i64,
+    pub user_id: String,
     pub user_name: String,
+    /// 1=想看, 2=看过, 3=在看, 4=搁置, 5=抛弃.
+    pub collection_type: Option<i32>,
     pub rate: Option<i32>,
     pub content: String,
     pub content_html: String,
     pub time: String,
     pub avatar: String,
+    pub reactions: Vec<BangumiCommentReaction>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

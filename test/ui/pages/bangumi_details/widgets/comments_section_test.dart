@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/comments_section.dart';
 import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
+import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 BangumiComment _comment({
   String userName = '',
@@ -21,13 +22,17 @@ BangumiComment _comment({
   String contentHtml = '',
   String time = '',
   String avatar = '',
+  List<BangumiCommentReaction> reactions = const [],
 }) => BangumiComment(
+  id: 1,
+  userId: userName,
   userName: userName,
   rate: rate,
   content: content,
   contentHtml: contentHtml,
   time: time,
   avatar: avatar,
+  reactions: reactions,
 );
 
 Widget _buildSectionTitleStub(String text, bool isDarkBg) => Text(
@@ -221,6 +226,45 @@ void main() {
 
       expect(find.byIcon(Icons.star), findsNothing);
       expect(find.byIcon(Icons.star_border), findsNothing);
+    });
+
+    testWidgets('reactions render their distinct Bangumi smile assets and count', (
+      tester,
+    ) async {
+      const reactions = [
+        BangumiCommentReaction(
+          name: 'bgm104',
+          imageUrl: 'https://lain.bgm.tv/img/smiles/tv/81.gif',
+          count: 2,
+          reacted: true,
+        ),
+        BangumiCommentReaction(
+          name: 'bgm38',
+          imageUrl: 'https://lain.bgm.tv/img/smiles/tv/15.gif',
+          count: 1,
+          reacted: false,
+        ),
+      ];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CommentsSection(
+              comments: [_comment(userName: 'Reacted', reactions: reactions)],
+              isLoading: false,
+              isLoadingMore: false,
+              isDarkBg: false,
+              sectionTitle: _buildSectionTitleStub('评论', false),
+              loadingPlaceholder: _loadingStub,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const ValueKey('bangumi-reaction-bgm104')), findsOneWidget);
+      expect(find.byKey(const ValueKey('bangumi-reaction-bgm38')), findsOneWidget);
+      expect(find.byType(CachedNetworkImage), findsNWidgets(2));
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('1'), findsOneWidget);
     });
 
     testWidgets('isLoadingMore true renders trailing spinner', (tester) async {

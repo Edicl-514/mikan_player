@@ -22,6 +22,10 @@ pub struct RuntimeConfig {
     /// app init from secure storage) and read by the authenticated request
     /// helpers to add the `Authorization: Bearer` header. Never logged.
     pub bangumi_access_token: Option<String>,
+    /// OAuth account ID paired with `bangumi_access_token`. Keeping both in
+    /// the same runtime snapshot lets authenticated p1 responses identify the
+    /// current user without exposing either value outside Rust HTTP code.
+    pub bangumi_user_id: Option<i64>,
     pub disabled_sources: Vec<String>,
     pub cache_dir: String,
     pub download_dir: String,
@@ -43,6 +47,7 @@ lazy_static! {
             .to_string(),
         bangumi_request_mode: "hybrid".to_string(),
         bangumi_access_token: None,
+        bangumi_user_id: None,
         disabled_sources: vec![],
         cache_dir: ".".to_string(),
         download_dir: "downloads".to_string(),
@@ -179,9 +184,10 @@ pub fn get_bangumi_use_ech() -> bool {
 /// Store the OAuth access token used to authenticate Bangumi write requests.
 /// Called by Dart after a successful OAuth exchange and on app init from
 /// secure storage. The token value is never logged.
-pub fn set_bangumi_access_token(token: String) {
+pub fn set_bangumi_access_token(token: String, user_id: Option<i64>) {
     let mut config = CONFIG.write().unwrap();
     config.bangumi_access_token = Some(token);
+    config.bangumi_user_id = user_id.filter(|value| *value > 0);
     log::info!("Bangumi access token set");
 }
 
@@ -189,6 +195,7 @@ pub fn set_bangumi_access_token(token: String) {
 pub fn clear_bangumi_access_token() {
     let mut config = CONFIG.write().unwrap();
     config.bangumi_access_token = None;
+    config.bangumi_user_id = None;
     log::info!("Bangumi access token cleared");
 }
 
@@ -196,6 +203,32 @@ pub fn clear_bangumi_access_token() {
 /// request helpers to attach the `Authorization: Bearer` header.
 pub fn get_bangumi_access_token() -> Option<String> {
     CONFIG.read().unwrap().bangumi_access_token.clone()
+}
+
+#[derive(Clone)]
+pub(crate) struct BangumiNextRequestContext {
+    pub base_url: String,
+    pub access_token: Option<String>,
+    pub user_id: Option<i64>,
+}
+
+/// Snapshot the complete p1 request context under one read lock. URL routing
+/// and the bearer header must be derived from this same snapshot; otherwise a
+/// concurrent login could attach a newly-set token to a previously selected
+/// content-mirror URL.
+pub(crate) fn get_bangumi_next_request_context() -> BangumiNextRequestContext {
+    let config = CONFIG.read().unwrap();
+    let access_token = config.bangumi_access_token.clone();
+    let base_url = if access_token.is_some() {
+        authenticated_next_url(&config)
+    } else {
+        bangumi_url_for_proxy_mode(&config.bangumi_next_url, config.bangumi_use_reverse_proxy)
+    };
+    BangumiNextRequestContext {
+        base_url,
+        access_token,
+        user_id: config.bangumi_user_id,
+    }
 }
 
 pub fn get_bgmlist_url() -> String {
@@ -304,8 +337,7 @@ pub fn get_bangumi_oauth_url() -> String {
     "https://bgm.tv".to_string()
 }
 
-pub fn get_bangumi_authenticated_next_url() -> String {
-    let config = CONFIG.read().unwrap();
+fn authenticated_next_url(config: &RuntimeConfig) -> String {
     if cfg!(test)
         && !config.bangumi_next_url.contains("bangumi.tv")
         && !config.bangumi_next_url.contains("bgm.tv")
@@ -314,6 +346,10 @@ pub fn get_bangumi_authenticated_next_url() -> String {
         return config.bangumi_next_url.clone();
     }
     "https://next.bgm.tv".to_string()
+}
+
+pub fn get_bangumi_authenticated_next_url() -> String {
+    authenticated_next_url(&CONFIG.read().unwrap())
 }
 
 pub fn get_bangumi_authenticated_api_url() -> String {
@@ -765,5 +801,38 @@ mod tests {
             config.bangumi_url = "https://bgm.tv".to_string();
         }
         assert_eq!(get_bangumi_oauth_url(), "https://bgm.tv");
+    }
+
+    #[test]
+    fn next_request_context_keeps_routing_credentials_and_identity_atomic() {
+        let _guard = isolate_runtime_config();
+        {
+            let mut config = CONFIG.write().unwrap();
+            config.bangumi_next_url = "https://next.bgm.tv".to_string();
+            config.bangumi_use_reverse_proxy = true;
+            config.bangumi_access_token = None;
+            config.bangumi_user_id = None;
+        }
+
+        let anonymous = get_bangumi_next_request_context();
+        assert_eq!(anonymous.base_url, "https://next.bangumi.lol");
+        assert!(anonymous.access_token.is_none());
+        assert!(anonymous.user_id.is_none());
+
+        set_bangumi_access_token("secret".to_string(), Some(42));
+        let authenticated = get_bangumi_next_request_context();
+        assert_eq!(authenticated.base_url, "https://next.bgm.tv");
+        assert_eq!(authenticated.access_token.as_deref(), Some("secret"));
+        assert_eq!(authenticated.user_id, Some(42));
+
+        // A previously returned anonymous snapshot cannot acquire credentials
+        // after a concurrent login changes the process-wide config.
+        assert!(anonymous.access_token.is_none());
+        assert_eq!(anonymous.base_url, "https://next.bangumi.lol");
+
+        clear_bangumi_access_token();
+        let logged_out = get_bangumi_next_request_context();
+        assert!(logged_out.access_token.is_none());
+        assert!(logged_out.user_id.is_none());
     }
 }

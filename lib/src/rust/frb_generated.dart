@@ -197,7 +197,7 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 subjectId,
   });
 
-  Future<List<BangumiComment>> crateFrbApiBangumiFetchBangumiComments({
+  Future<BangumiCommentsPage> crateFrbApiBangumiFetchBangumiComments({
     required PlatformInt64 subjectId,
     required int page,
   });
@@ -601,7 +601,10 @@ abstract class RustLibApi extends BaseApi {
     required String nameCn,
   });
 
-  Future<void> crateApiConfigSetBangumiAccessToken({required String token});
+  Future<void> crateApiConfigSetBangumiAccessToken({
+    required String token,
+    PlatformInt64? userId,
+  });
 
   Future<void> crateFrbApiBangumiSetBangumiCollectionStatus({
     required PlatformInt64 subjectId,
@@ -1529,7 +1532,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<List<BangumiComment>> crateFrbApiBangumiFetchBangumiComments({
+  Future<BangumiCommentsPage> crateFrbApiBangumiFetchBangumiComments({
     required PlatformInt64 subjectId,
     required int page,
   }) {
@@ -1547,7 +1550,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_list_bangumi_comment,
+          decodeSuccessData: sse_decode_bangumi_comments_page,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateFrbApiBangumiFetchBangumiCommentsConstMeta,
@@ -5103,12 +5106,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiConfigSetBangumiAccessToken({required String token}) {
+  Future<void> crateApiConfigSetBangumiAccessToken({
+    required String token,
+    PlatformInt64? userId,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(token, serializer);
+          sse_encode_opt_box_autoadd_i_64(userId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -5121,7 +5128,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateApiConfigSetBangumiAccessTokenConstMeta,
-        argValues: [token],
+        argValues: [token, userId],
         apiImpl: this,
       ),
     );
@@ -5130,7 +5137,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiConfigSetBangumiAccessTokenConstMeta =>
       const TaskConstMeta(
         debugName: "set_bangumi_access_token",
-        argNames: ["token"],
+        argNames: ["token", "userId"],
       );
 
   @override
@@ -6014,15 +6021,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BangumiComment dco_decode_bangumi_comment(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return BangumiComment(
-      userName: dco_decode_String(arr[0]),
-      rate: dco_decode_opt_box_autoadd_i_32(arr[1]),
-      content: dco_decode_String(arr[2]),
-      contentHtml: dco_decode_String(arr[3]),
-      time: dco_decode_String(arr[4]),
-      avatar: dco_decode_String(arr[5]),
+      id: dco_decode_i_64(arr[0]),
+      userId: dco_decode_String(arr[1]),
+      userName: dco_decode_String(arr[2]),
+      collectionType: dco_decode_opt_box_autoadd_i_32(arr[3]),
+      rate: dco_decode_opt_box_autoadd_i_32(arr[4]),
+      content: dco_decode_String(arr[5]),
+      contentHtml: dco_decode_String(arr[6]),
+      time: dco_decode_String(arr[7]),
+      avatar: dco_decode_String(arr[8]),
+      reactions: dco_decode_list_bangumi_comment_reaction(arr[9]),
+    );
+  }
+
+  @protected
+  BangumiCommentReaction dco_decode_bangumi_comment_reaction(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return BangumiCommentReaction(
+      name: dco_decode_String(arr[0]),
+      imageUrl: dco_decode_String(arr[1]),
+      count: dco_decode_i_32(arr[2]),
+      reacted: dco_decode_bool(arr[3]),
+    );
+  }
+
+  @protected
+  BangumiCommentsPage dco_decode_bangumi_comments_page(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return BangumiCommentsPage(
+      comments: dco_decode_list_bangumi_comment(arr[0]),
+      total: dco_decode_opt_box_autoadd_i_32(arr[1]),
     );
   }
 
@@ -6537,6 +6574,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<BangumiComment> dco_decode_list_bangumi_comment(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_bangumi_comment).toList();
+  }
+
+  @protected
+  List<BangumiCommentReaction> dco_decode_list_bangumi_comment_reaction(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_bangumi_comment_reaction)
+        .toList();
   }
 
   @protected
@@ -7370,20 +7417,55 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   BangumiComment sse_decode_bangumi_comment(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_userId = sse_decode_String(deserializer);
     var var_userName = sse_decode_String(deserializer);
+    var var_collectionType = sse_decode_opt_box_autoadd_i_32(deserializer);
     var var_rate = sse_decode_opt_box_autoadd_i_32(deserializer);
     var var_content = sse_decode_String(deserializer);
     var var_contentHtml = sse_decode_String(deserializer);
     var var_time = sse_decode_String(deserializer);
     var var_avatar = sse_decode_String(deserializer);
+    var var_reactions = sse_decode_list_bangumi_comment_reaction(deserializer);
     return BangumiComment(
+      id: var_id,
+      userId: var_userId,
       userName: var_userName,
+      collectionType: var_collectionType,
       rate: var_rate,
       content: var_content,
       contentHtml: var_contentHtml,
       time: var_time,
       avatar: var_avatar,
+      reactions: var_reactions,
     );
+  }
+
+  @protected
+  BangumiCommentReaction sse_decode_bangumi_comment_reaction(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_name = sse_decode_String(deserializer);
+    var var_imageUrl = sse_decode_String(deserializer);
+    var var_count = sse_decode_i_32(deserializer);
+    var var_reacted = sse_decode_bool(deserializer);
+    return BangumiCommentReaction(
+      name: var_name,
+      imageUrl: var_imageUrl,
+      count: var_count,
+      reacted: var_reacted,
+    );
+  }
+
+  @protected
+  BangumiCommentsPage sse_decode_bangumi_comments_page(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_comments = sse_decode_list_bangumi_comment(deserializer);
+    var var_total = sse_decode_opt_box_autoadd_i_32(deserializer);
+    return BangumiCommentsPage(comments: var_comments, total: var_total);
   }
 
   @protected
@@ -8008,6 +8090,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <BangumiComment>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_bangumi_comment(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<BangumiCommentReaction> sse_decode_list_bangumi_comment_reaction(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <BangumiCommentReaction>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_bangumi_comment_reaction(deserializer));
     }
     return ans_;
   }
@@ -9206,12 +9302,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.userId, serializer);
     sse_encode_String(self.userName, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.collectionType, serializer);
     sse_encode_opt_box_autoadd_i_32(self.rate, serializer);
     sse_encode_String(self.content, serializer);
     sse_encode_String(self.contentHtml, serializer);
     sse_encode_String(self.time, serializer);
     sse_encode_String(self.avatar, serializer);
+    sse_encode_list_bangumi_comment_reaction(self.reactions, serializer);
+  }
+
+  @protected
+  void sse_encode_bangumi_comment_reaction(
+    BangumiCommentReaction self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.imageUrl, serializer);
+    sse_encode_i_32(self.count, serializer);
+    sse_encode_bool(self.reacted, serializer);
+  }
+
+  @protected
+  void sse_encode_bangumi_comments_page(
+    BangumiCommentsPage self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_bangumi_comment(self.comments, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.total, serializer);
   }
 
   @protected
@@ -9693,6 +9815,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_bangumi_comment(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_bangumi_comment_reaction(
+    List<BangumiCommentReaction> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_bangumi_comment_reaction(item, serializer);
     }
   }
 

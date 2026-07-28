@@ -34,7 +34,7 @@ class BangumiDetailsDataPort {
   })
   loadInitialData;
 
-  final Future<List<BangumiComment>> Function({
+  final Future<BangumiCommentsPage> Function({
     required int subjectId,
     required int page,
   })
@@ -127,6 +127,7 @@ class BangumiDetailsController {
   int? _localFavoriteType;
 
   int _commentPage = 1;
+  int? _commentsTotal;
   bool _hasMoreComments = true;
   bool _isLoadingMoreComments = false;
 
@@ -221,6 +222,7 @@ class BangumiDetailsController {
     _hasRequestedComments = false;
     _localFavoriteType = null;
     _commentPage = 1;
+    _commentsTotal = null;
     _hasMoreComments = true;
     _isLoadingMoreComments = false;
     _notify();
@@ -280,6 +282,7 @@ class BangumiDetailsController {
     _isLoadingComments = false;
     _hasRequestedComments = false;
     _commentPage = 1;
+    _commentsTotal = null;
     _hasMoreComments = true;
     _isLoadingMoreComments = false;
     _episodes = null;
@@ -319,13 +322,14 @@ class BangumiDetailsController {
     _notify();
 
     try {
-      final comments = await _dataPort.fetchCommentsPage(
+      final commentsPage = await _dataPort.fetchCommentsPage(
         subjectId: subjectId,
         page: 1,
       );
       if (!_isCommentsCurrent(token)) return;
-      _comments = List<BangumiComment>.from(comments);
-      _hasMoreComments = comments.isNotEmpty;
+      _commentsTotal = commentsPage.total;
+      _comments = List<BangumiComment>.from(commentsPage.comments);
+      _hasMoreComments = _hasMoreAfterPage(commentsPage.comments.length);
     } catch (e) {
       debugPrint('Error fetching comments: $e');
       if (!_isCommentsCurrent(token)) return;
@@ -357,18 +361,20 @@ class BangumiDetailsController {
     _notify();
 
     try {
-      final newComments = await _dataPort.fetchCommentsPage(
+      final commentsPage = await _dataPort.fetchCommentsPage(
         subjectId: subjectId,
         page: _commentPage + 1,
       );
       if (!_isCommentsCurrent(token)) return;
 
-      if (newComments.isEmpty) {
+      _commentsTotal = commentsPage.total ?? _commentsTotal;
+      if (commentsPage.comments.isEmpty) {
         _hasMoreComments = false;
       } else {
-        final merged = <BangumiComment>[...?_comments, ...newComments];
+        final merged = <BangumiComment>[...?_comments, ...commentsPage.comments];
         _comments = merged;
         _commentPage++;
+        _hasMoreComments = _hasMoreAfterPage(merged.length);
       }
       _isLoadingMoreComments = false;
       _notify();
@@ -378,6 +384,11 @@ class BangumiDetailsController {
       _isLoadingMoreComments = false;
       _notify();
     }
+  }
+
+  bool _hasMoreAfterPage(int loadedCount) {
+    final total = _commentsTotal;
+    return total == null ? loadedCount > 0 : loadedCount < total;
   }
 
   // ── Favorites ──────────────────────────────────────────────────────────────

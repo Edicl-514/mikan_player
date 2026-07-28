@@ -40,7 +40,7 @@ pub async fn fetch_bangumi_relations(
 pub async fn fetch_bangumi_comments(
     subject_id: i64,
     page: i32,
-) -> anyhow::Result<Vec<bangumi_impl::BangumiComment>> {
+) -> anyhow::Result<bangumi_impl::BangumiCommentsPage> {
     const API: &str = "fetch_bangumi_comments";
     contract::public_result(
         API,

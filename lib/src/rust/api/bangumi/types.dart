@@ -60,42 +60,106 @@ class BangumiCharacter {
 }
 
 class BangumiComment {
+  final PlatformInt64 id;
+  final String userId;
   final String userName;
+
+  /// 1=想看, 2=看过, 3=在看, 4=搁置, 5=抛弃.
+  final int? collectionType;
   final int? rate;
   final String content;
   final String contentHtml;
   final String time;
   final String avatar;
+  final List<BangumiCommentReaction> reactions;
 
   const BangumiComment({
+    required this.id,
+    required this.userId,
     required this.userName,
+    this.collectionType,
     this.rate,
     required this.content,
     required this.contentHtml,
     required this.time,
     required this.avatar,
+    required this.reactions,
   });
 
   @override
   int get hashCode =>
+      id.hashCode ^
+      userId.hashCode ^
       userName.hashCode ^
+      collectionType.hashCode ^
       rate.hashCode ^
       content.hashCode ^
       contentHtml.hashCode ^
       time.hashCode ^
-      avatar.hashCode;
+      avatar.hashCode ^
+      reactions.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is BangumiComment &&
           runtimeType == other.runtimeType &&
+          id == other.id &&
+          userId == other.userId &&
           userName == other.userName &&
+          collectionType == other.collectionType &&
           rate == other.rate &&
           content == other.content &&
           contentHtml == other.contentHtml &&
           time == other.time &&
-          avatar == other.avatar;
+          avatar == other.avatar &&
+          reactions == other.reactions;
+}
+
+class BangumiCommentReaction {
+  final String name;
+  final String imageUrl;
+  final int count;
+  final bool reacted;
+
+  const BangumiCommentReaction({
+    required this.name,
+    required this.imageUrl,
+    required this.count,
+    required this.reacted,
+  });
+
+  @override
+  int get hashCode =>
+      name.hashCode ^ imageUrl.hashCode ^ count.hashCode ^ reacted.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiCommentReaction &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          imageUrl == other.imageUrl &&
+          count == other.count &&
+          reacted == other.reacted;
+}
+
+class BangumiCommentsPage {
+  final List<BangumiComment> comments;
+  final int? total;
+
+  const BangumiCommentsPage({required this.comments, this.total});
+
+  @override
+  int get hashCode => comments.hashCode ^ total.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiCommentsPage &&
+          runtimeType == other.runtimeType &&
+          comments == other.comments &&
+          total == other.total;
 }
 
 class BangumiEpisode {

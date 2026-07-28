@@ -61,11 +61,14 @@ BangumiRelatedSubject _relation({
 
 BangumiComment _comment({String userName = 'u', String content = 'c'}) =>
     BangumiComment(
+      id: 1,
+      userId: userName,
       userName: userName,
       content: content,
       contentHtml: content,
       time: 't',
       avatar: '',
+      reactions: const [],
     );
 
 BangumiDataSiteEntry _site({
@@ -107,7 +110,7 @@ class _FakeDataPort {
 
   BangumiDetailsLoadResult? cached;
   BangumiDetailsLoadResult? network;
-  Map<int, List<BangumiComment>> commentsByPage;
+  Map<int, BangumiCommentsPage> commentsByPage;
   Duration cachedDelay = Duration.zero;
   Duration networkDelay = Duration.zero;
   Duration commentsDelay = Duration.zero;
@@ -123,7 +126,7 @@ class _FakeDataPort {
 
   final _cachedCompleters = <Completer<BangumiDetailsLoadResult?>>[];
   final _networkCompleters = <Completer<BangumiDetailsLoadResult>>[];
-  final _commentCompleters = <Completer<List<BangumiComment>>>[];
+  final _commentCompleters = <Completer<BangumiCommentsPage>>[];
 
   void releaseCached([BangumiDetailsLoadResult? result]) {
     final value = result ?? cached;
@@ -156,7 +159,7 @@ class _FakeDataPort {
         if (commentsError != null) {
           c.completeError(commentsError!);
         } else {
-          c.complete(page ?? const <BangumiComment>[]);
+          c.complete(BangumiCommentsPage(comments: page ?? const []));
         }
       }
     }
@@ -203,7 +206,7 @@ class _FakeDataPort {
     fetchCommentsPage: ({required subjectId, required page}) async {
       commentPagesRequested.add(page);
       if (holdFutures) {
-        final c = Completer<List<BangumiComment>>();
+        final c = Completer<BangumiCommentsPage>();
         _commentCompleters.add(c);
         return c.future;
       }
@@ -211,7 +214,7 @@ class _FakeDataPort {
         await Future<void>.delayed(commentsDelay);
       }
       if (commentsError != null) throw commentsError!;
-      return commentsByPage[page] ?? const <BangumiComment>[];
+      return commentsByPage[page] ?? const BangumiCommentsPage(comments: []);
     },
   );
 }
@@ -526,7 +529,9 @@ void main() {
     test('ensureCommentsLoaded populates first page', () async {
       final data = _FakeDataPort(
         commentsByPage: {
-          1: [_comment(userName: 'a'), _comment(userName: 'b')],
+          1: BangumiCommentsPage(
+            comments: [_comment(userName: 'a'), _comment(userName: 'b')],
+          ),
         },
       );
       final c = _controller(data: data);
@@ -555,9 +560,9 @@ void main() {
     test('loadMoreComments appends and advances page; empty ends', () async {
       final data = _FakeDataPort(
         commentsByPage: {
-          1: [_comment(userName: 'p1')],
-          2: [_comment(userName: 'p2')],
-          3: const [],
+          1: BangumiCommentsPage(comments: [_comment(userName: 'p1')]),
+          2: BangumiCommentsPage(comments: [_comment(userName: 'p2')]),
+          3: const BangumiCommentsPage(comments: []),
         },
       );
       final c = _controller(data: data);
@@ -578,7 +583,7 @@ void main() {
     test('concurrent loadMoreComments dedupes', () async {
       final data = _FakeDataPort(
         commentsByPage: {
-          1: [_comment(userName: 'p1')],
+          1: BangumiCommentsPage(comments: [_comment(userName: 'p1')]),
         },
         holdFutures: true,
       );
@@ -588,7 +593,7 @@ void main() {
       await c.ensureCommentsLoaded();
       data.holdFutures = true;
       data.commentsByPage = {
-        2: [_comment(userName: 'p2')],
+        2: BangumiCommentsPage(comments: [_comment(userName: 'p2')]),
       };
 
       final a = c.loadMoreComments();
@@ -615,7 +620,7 @@ void main() {
     test('load-more error clears loading flag and allows retry', () async {
       final data = _FakeDataPort(
         commentsByPage: {
-          1: [_comment(userName: 'p1')],
+          1: BangumiCommentsPage(comments: [_comment(userName: 'p1')]),
         },
       );
       final c = _controller(data: data);
@@ -628,10 +633,28 @@ void main() {
 
       data.commentsError = null;
       data.commentsByPage = {
-        2: [_comment(userName: 'p2')],
+        2: BangumiCommentsPage(comments: [_comment(userName: 'p2')]),
       };
       await c.loadMoreComments();
       expect(c.comments?.map((e) => e.userName).toList(), ['p1', 'p2']);
+      expectConsistent(c);
+    });
+
+    test('server total stops pagination on a full final page', () async {
+      final data = _FakeDataPort(
+        commentsByPage: {
+          1: BangumiCommentsPage(
+            comments: [_comment(userName: 'only')],
+            total: 1,
+          ),
+        },
+      );
+      final c = _controller(data: data);
+      await c.ensureCommentsLoaded();
+
+      expect(c.hasMoreComments, isFalse);
+      await c.loadMoreComments();
+      expect(data.commentPagesRequested, [1]);
       expectConsistent(c);
     });
 
@@ -766,7 +789,7 @@ void main() {
       final data = _FakeDataPort(
         network: _loadResult(episodes: [_episode()]),
         commentsByPage: {
-          1: [_comment()],
+          1: BangumiCommentsPage(comments: [_comment()]),
         },
       );
       final c = _controller(data: data, onStateChanged: () => n++);

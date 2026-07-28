@@ -1,0 +1,37 @@
+{
+  "total": 4,
+  "data": [
+    {
+      "id": 12,
+      "comment": "[b]bold[/b] <script>alert(1)</script> (bgm38)",
+      "rate": 10,
+      "type": 2,
+      "updatedAt": 1785196800,
+      "reactions": [
+        {
+          "value": 104,
+          "users": [
+            {"id": 7, "username": "alice", "nickname": "Alice"},
+            {"id": 8, "username": "bob", "nickname": "Bob"}
+          ]
+        },
+        {"value": 9999, "users": []}
+      ],
+      "user": {
+        "id": 7,
+        "nickname": "",
+        "username": "alice",
+        "avatar": {"large": "//lain.bgm.tv/a.jpg"}
+      }
+    },
+    {
+      "id": 13,
+      "comment": "missing user remains displayable",
+      "rate": 11,
+      "type": 99,
+      "updatedAt": 1785196801
+    },
+    {"id": 14, "comment": "overflow", "rate": 2147483648, "user": {}},
+    {"id": 15, "comment": "   ", "rate": 5, "user": {}}
+  ]
+}

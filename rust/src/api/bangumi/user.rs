@@ -740,7 +740,7 @@ mod tests {
         )])
         .await;
         point_bangumi_at(&server.base_url());
-        crate::api::config::set_bangumi_access_token("tok-123".to_string());
+        crate::api::config::set_bangumi_access_token("tok-123".to_string(), None);
 
         let user = fetch_bangumi_me().await.unwrap();
         assert_eq!(user.id, 42);
@@ -764,7 +764,7 @@ mod tests {
         )])
         .await;
         point_bangumi_at(&server.base_url());
-        crate::api::config::set_bangumi_access_token("tok".to_string());
+        crate::api::config::set_bangumi_access_token("tok".to_string(), None);
 
         fetch_my_bangumi_collections("alice".to_string(), 2, None, 30, 0)
             .await
@@ -793,7 +793,7 @@ mod tests {
         )])
         .await;
         point_bangumi_at(&server.base_url());
-        crate::api::config::set_bangumi_access_token("tok".to_string());
+        crate::api::config::set_bangumi_access_token("tok".to_string(), None);
 
         update_bangumi_collection(7, 3, Some(8), None, None, None)
             .await
@@ -818,7 +818,7 @@ mod tests {
         )])
         .await;
         point_bangumi_at(&server.base_url());
-        crate::api::config::set_bangumi_access_token("tok".to_string());
+        crate::api::config::set_bangumi_access_token("tok".to_string(), None);
 
         patch_bangumi_collection_metadata(
             7,
@@ -860,7 +860,7 @@ mod tests {
         )])
         .await;
         point_bangumi_at(&server.base_url());
-        crate::api::config::set_bangumi_access_token("tok".to_string());
+        crate::api::config::set_bangumi_access_token("tok".to_string(), None);
 
         let item = fetch_my_bangumi_collection("alice".to_string(), 7)
             .await
@@ -887,7 +887,7 @@ mod tests {
         )])
         .await;
         point_bangumi_at(&server.base_url());
-        crate::api::config::set_bangumi_access_token("tok".to_string());
+        crate::api::config::set_bangumi_access_token("tok".to_string(), None);
 
         delete_bangumi_collection(7).await.unwrap();
         let request = &server.requests()[0];

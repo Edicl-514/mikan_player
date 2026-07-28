@@ -22,7 +22,7 @@ abstract interface class BangumiDetailsBackend {
   Future<List<AnimeInfo>> fillDetails(List<AnimeInfo> animes);
   Future<void> cacheAnimeInfo(AnimeInfo anime);
   Future<List<BangumiDataSiteEntry>> getSites(String? bangumiId);
-  Future<List<BangumiComment>> fetchComments({
+  Future<BangumiCommentsPage> fetchComments({
     required int subjectId,
     required int page,
   });
@@ -94,7 +94,7 @@ class DefaultBangumiDetailsBackend implements BangumiDetailsBackend {
       BangumiDataService.getSites(bangumiId);
 
   @override
-  Future<List<BangumiComment>> fetchComments({
+  Future<BangumiCommentsPage> fetchComments({
     required int subjectId,
     required int page,
   }) => fetchBangumiComments(subjectId: subjectId, page: page);
@@ -262,7 +262,7 @@ class BangumiDetailsService {
     );
   }
 
-  Future<List<BangumiComment>> fetchCommentsPage({
+  Future<BangumiCommentsPage> fetchCommentsPage({
     required int subjectId,
     required int page,
   }) async {

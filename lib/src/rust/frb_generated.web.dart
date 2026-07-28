@@ -100,6 +100,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiComment dco_decode_bangumi_comment(dynamic raw);
 
   @protected
+  BangumiCommentReaction dco_decode_bangumi_comment_reaction(dynamic raw);
+
+  @protected
+  BangumiCommentsPage dco_decode_bangumi_comments_page(dynamic raw);
+
+  @protected
   BangumiDataCacheStatus dco_decode_bangumi_data_cache_status(dynamic raw);
 
   @protected
@@ -246,6 +252,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiComment> dco_decode_list_bangumi_comment(dynamic raw);
+
+  @protected
+  List<BangumiCommentReaction> dco_decode_list_bangumi_comment_reaction(
+    dynamic raw,
+  );
 
   @protected
   List<BangumiDataSiteEntry> dco_decode_list_bangumi_data_site_entry(
@@ -553,6 +564,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiComment sse_decode_bangumi_comment(SseDeserializer deserializer);
 
   @protected
+  BangumiCommentReaction sse_decode_bangumi_comment_reaction(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  BangumiCommentsPage sse_decode_bangumi_comments_page(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   BangumiDataCacheStatus sse_decode_bangumi_data_cache_status(
     SseDeserializer deserializer,
   );
@@ -727,6 +748,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiComment> sse_decode_list_bangumi_comment(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<BangumiCommentReaction> sse_decode_list_bangumi_comment_reaction(
     SseDeserializer deserializer,
   );
 
@@ -1104,6 +1130,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_bangumi_comment_reaction(
+    BangumiCommentReaction self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_bangumi_comments_page(
+    BangumiCommentsPage self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_bangumi_data_cache_status(
     BangumiDataCacheStatus self,
     SseSerializer serializer,
@@ -1319,6 +1357,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_bangumi_comment(
     List<BangumiComment> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_bangumi_comment_reaction(
+    List<BangumiCommentReaction> self,
     SseSerializer serializer,
   );
 

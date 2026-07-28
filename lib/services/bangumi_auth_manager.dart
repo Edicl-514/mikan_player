@@ -100,7 +100,10 @@ class BangumiAuthManager extends ChangeNotifier {
     }
 
     if (_accessToken != null) {
-      await rust_config.setBangumiAccessToken(token: _accessToken!);
+      await rust_config.setBangumiAccessToken(
+        token: _accessToken!,
+        userId: _userId,
+      );
       notifyListeners();
       // Best-effort proactive refresh. Authenticated consumers call
       // ensureFreshToken(), which joins this same in-flight operation.
@@ -234,7 +237,10 @@ class BangumiAuthManager extends ChangeNotifier {
       final uid = token.userId.toInt();
       _userId = uid > 0 ? uid : _userId;
 
-      await rust_config.setBangumiAccessToken(token: _accessToken!);
+      await rust_config.setBangumiAccessToken(
+        token: _accessToken!,
+        userId: _userId,
+      );
       await _persist();
       notifyListeners();
       return true;

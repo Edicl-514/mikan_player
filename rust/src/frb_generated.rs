@@ -5095,11 +5095,12 @@ fn wire__crate__api__config__set_bangumi_access_token_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_token = <String>::sse_decode(&mut deserializer);
+            let api_user_id = <Option<i64>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::config::set_bangumi_access_token(api_token);
+                        crate::api::config::set_bangumi_access_token(api_token, api_user_id);
                     })?;
                     Ok(output_ok)
                 })())
@@ -6111,19 +6112,57 @@ impl SseDecode for crate::api::bangumi::types::BangumiCharacter {
 impl SseDecode for crate::api::bangumi::types::BangumiComment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <i64>::sse_decode(deserializer);
+        let mut var_userId = <String>::sse_decode(deserializer);
         let mut var_userName = <String>::sse_decode(deserializer);
+        let mut var_collectionType = <Option<i32>>::sse_decode(deserializer);
         let mut var_rate = <Option<i32>>::sse_decode(deserializer);
         let mut var_content = <String>::sse_decode(deserializer);
         let mut var_contentHtml = <String>::sse_decode(deserializer);
         let mut var_time = <String>::sse_decode(deserializer);
         let mut var_avatar = <String>::sse_decode(deserializer);
+        let mut var_reactions =
+            <Vec<crate::api::bangumi::types::BangumiCommentReaction>>::sse_decode(deserializer);
         return crate::api::bangumi::types::BangumiComment {
+            id: var_id,
+            user_id: var_userId,
             user_name: var_userName,
+            collection_type: var_collectionType,
             rate: var_rate,
             content: var_content,
             content_html: var_contentHtml,
             time: var_time,
             avatar: var_avatar,
+            reactions: var_reactions,
+        };
+    }
+}
+
+impl SseDecode for crate::api::bangumi::types::BangumiCommentReaction {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_imageUrl = <String>::sse_decode(deserializer);
+        let mut var_count = <i32>::sse_decode(deserializer);
+        let mut var_reacted = <bool>::sse_decode(deserializer);
+        return crate::api::bangumi::types::BangumiCommentReaction {
+            name: var_name,
+            image_url: var_imageUrl,
+            count: var_count,
+            reacted: var_reacted,
+        };
+    }
+}
+
+impl SseDecode for crate::api::bangumi::types::BangumiCommentsPage {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_comments =
+            <Vec<crate::api::bangumi::types::BangumiComment>>::sse_decode(deserializer);
+        let mut var_total = <Option<i32>>::sse_decode(deserializer);
+        return crate::api::bangumi::types::BangumiCommentsPage {
+            comments: var_comments,
+            total: var_total,
         };
     }
 }
@@ -6687,6 +6726,20 @@ impl SseDecode for Vec<crate::api::bangumi::types::BangumiComment> {
             ans_.push(<crate::api::bangumi::types::BangumiComment>::sse_decode(
                 deserializer,
             ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::bangumi::types::BangumiCommentReaction> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(
+                <crate::api::bangumi::types::BangumiCommentReaction>::sse_decode(deserializer),
+            );
         }
         return ans_;
     }
@@ -8581,12 +8634,16 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiCharac
 impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiComment {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.id.into_into_dart().into_dart(),
+            self.user_id.into_into_dart().into_dart(),
             self.user_name.into_into_dart().into_dart(),
+            self.collection_type.into_into_dart().into_dart(),
             self.rate.into_into_dart().into_dart(),
             self.content.into_into_dart().into_dart(),
             self.content_html.into_into_dart().into_dart(),
             self.time.into_into_dart().into_dart(),
             self.avatar.into_into_dart().into_dart(),
+            self.reactions.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -8599,6 +8656,50 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiCommen
     for crate::api::bangumi::types::BangumiComment
 {
     fn into_into_dart(self) -> crate::api::bangumi::types::BangumiComment {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiCommentReaction {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.name.into_into_dart().into_dart(),
+            self.image_url.into_into_dart().into_dart(),
+            self.count.into_into_dart().into_dart(),
+            self.reacted.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::bangumi::types::BangumiCommentReaction
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiCommentReaction>
+    for crate::api::bangumi::types::BangumiCommentReaction
+{
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiCommentReaction {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiCommentsPage {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.comments.into_into_dart().into_dart(),
+            self.total.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::bangumi::types::BangumiCommentsPage
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiCommentsPage>
+    for crate::api::bangumi::types::BangumiCommentsPage
+{
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiCommentsPage {
         self
     }
 }
@@ -9749,12 +9850,37 @@ impl SseEncode for crate::api::bangumi::types::BangumiCharacter {
 impl SseEncode for crate::api::bangumi::types::BangumiComment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.user_id, serializer);
         <String>::sse_encode(self.user_name, serializer);
+        <Option<i32>>::sse_encode(self.collection_type, serializer);
         <Option<i32>>::sse_encode(self.rate, serializer);
         <String>::sse_encode(self.content, serializer);
         <String>::sse_encode(self.content_html, serializer);
         <String>::sse_encode(self.time, serializer);
         <String>::sse_encode(self.avatar, serializer);
+        <Vec<crate::api::bangumi::types::BangumiCommentReaction>>::sse_encode(
+            self.reactions,
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::bangumi::types::BangumiCommentReaction {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.name, serializer);
+        <String>::sse_encode(self.image_url, serializer);
+        <i32>::sse_encode(self.count, serializer);
+        <bool>::sse_encode(self.reacted, serializer);
+    }
+}
+
+impl SseEncode for crate::api::bangumi::types::BangumiCommentsPage {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::bangumi::types::BangumiComment>>::sse_encode(self.comments, serializer);
+        <Option<i32>>::sse_encode(self.total, serializer);
     }
 }
 
@@ -10120,6 +10246,16 @@ impl SseEncode for Vec<crate::api::bangumi::types::BangumiComment> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::bangumi::types::BangumiComment>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::bangumi::types::BangumiCommentReaction> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::bangumi::types::BangumiCommentReaction>::sse_encode(item, serializer);
         }
     }
 }
