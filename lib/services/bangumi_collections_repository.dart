@@ -31,11 +31,39 @@ abstract interface class BangumiCollectionsBackend {
     required int offset,
   });
 
-  Future<void> update({required int subjectId, required int type});
+  /// Status-only upsert (`POST`). Never carries metadata, so changing a status
+  /// cannot clobber a rating or comment written elsewhere.
+  Future<void> setStatus({required int subjectId, required int type});
+
+  /// Status *and* metadata in one `POST`. Only for creating a collection that
+  /// exists locally but not on Bangumi, where there is no remote value to lose.
+  Future<void> upsertWithMetadata({
+    required int subjectId,
+    required int type,
+    int? rate,
+    String? comment,
+    List<String>? tags,
+    bool? private,
+  });
+
+  /// Metadata-only `PATCH`. `null` omits a field; `tags: []` clears every tag.
+  Future<void> patchMetadata({
+    required int subjectId,
+    int? rate,
+    String? comment,
+    List<String>? tags,
+    bool? private,
+  });
 
   Future<void> delete({required int subjectId});
 
   Future<int?> fetchType({required int subjectId});
+
+  /// One full collection entry, or `null` when the subject is not collected.
+  Future<rust_bangumi.BangumiUserCollectionEntry?> fetchMineOne({
+    required String username,
+    required int subjectId,
+  });
 }
 
 class RustBangumiCollectionsBackend implements BangumiCollectionsBackend {
@@ -67,18 +95,30 @@ class RustBangumiCollectionsBackend implements BangumiCollectionsBackend {
   );
 
   @override
-  Future<void> update({required int subjectId, required int type}) =>
-      rust_bangumi.updateBangumiCollection(
-        subjectId: subjectId,
-        collectionType: type,
-      );
-
   Future<void> setStatus({required int subjectId, required int type}) =>
       rust_bangumi.setBangumiCollectionStatus(
         subjectId: subjectId,
         collectionType: type,
       );
 
+  @override
+  Future<void> upsertWithMetadata({
+    required int subjectId,
+    required int type,
+    int? rate,
+    String? comment,
+    List<String>? tags,
+    bool? private,
+  }) => rust_bangumi.updateBangumiCollection(
+    subjectId: subjectId,
+    collectionType: type,
+    rate: rate,
+    comment: comment,
+    tags: tags,
+    private: private,
+  );
+
+  @override
   Future<void> patchMetadata({
     required int subjectId,
     int? rate,
@@ -93,6 +133,7 @@ class RustBangumiCollectionsBackend implements BangumiCollectionsBackend {
     private: private,
   );
 
+  @override
   Future<rust_bangumi.BangumiUserCollectionEntry?> fetchMineOne({
     required String username,
     required int subjectId,
@@ -140,14 +181,14 @@ class BangumiCollectionsRepository {
     return _fetchAll(username: username, authenticated: true);
   }
 
-  Future<void> update({required int subjectId, required int type}) async {
-    await _requireAuthentication();
-    await _setStatusOnBackend(subjectId: subjectId, type: type);
-  }
+  /// Retained for callers that only ever change the status; [setStatus] is the
+  /// name that says what the request actually is.
+  Future<void> update({required int subjectId, required int type}) =>
+      setStatus(subjectId: subjectId, type: type);
 
   Future<void> setStatus({required int subjectId, required int type}) async {
     await _requireAuthentication();
-    await _setStatusOnBackend(subjectId: subjectId, type: type);
+    await _backend.setStatus(subjectId: subjectId, type: type);
   }
 
   Future<void> patchMetadata({
@@ -158,17 +199,35 @@ class BangumiCollectionsRepository {
     bool? private,
   }) async {
     await _requireAuthentication();
-    try {
-      await (_backend as dynamic).patchMetadata(
-        subjectId: subjectId,
-        rate: rate,
-        comment: comment,
-        tags: tags,
-        private: private,
-      );
-    } on NoSuchMethodError {
-      throw UnsupportedError('metadata patch is not supported by backend');
-    }
+    await _backend.patchMetadata(
+      subjectId: subjectId,
+      rate: rate,
+      comment: comment,
+      tags: tags,
+      private: private,
+    );
+  }
+
+  /// Creates or replaces a collection in one request, status and metadata
+  /// together. Used when uploading a local-only entry, where a status POST
+  /// followed by a metadata PATCH would leave a window with no metadata.
+  Future<void> upsertWithMetadata({
+    required int subjectId,
+    required int type,
+    int? rate,
+    String? comment,
+    List<String>? tags,
+    bool? private,
+  }) async {
+    await _requireAuthentication();
+    await _backend.upsertWithMetadata(
+      subjectId: subjectId,
+      type: type,
+      rate: rate,
+      comment: comment,
+      tags: tags,
+      private: private,
+    );
   }
 
   Future<BangumiUserCollection?> fetchMineOne({
@@ -176,34 +235,11 @@ class BangumiCollectionsRepository {
     required int subjectId,
   }) async {
     await _requireAuthentication();
-    rust_bangumi.BangumiUserCollectionEntry? entry;
-    try {
-      entry = await (_backend as dynamic).fetchMineOne(
-        username: username,
-        subjectId: subjectId,
-      );
-    } on NoSuchMethodError {
-      entry = (await _backend.fetchMyPage(
-        username: username,
-        limit: 100,
-        offset: 0,
-      )).where((item) => item.subjectId == subjectId).firstOrNull;
-    }
+    final entry = await _backend.fetchMineOne(
+      username: username,
+      subjectId: subjectId,
+    );
     return entry == null ? null : _mapEntry(entry);
-  }
-
-  Future<void> _setStatusOnBackend({
-    required int subjectId,
-    required int type,
-  }) async {
-    try {
-      await (_backend as dynamic).setStatus(
-        subjectId: subjectId,
-        type: type,
-      );
-    } on NoSuchMethodError {
-      await _backend.update(subjectId: subjectId, type: type);
-    }
   }
 
   Future<void> delete(int subjectId) async {

@@ -47,7 +47,7 @@ class _FavoritesPageState extends State<FavoritesPage>
   bool _isLoadingLocal = false;
   final RequestGenerationGuard _localGuard = RequestGenerationGuard();
   final RequestGenerationGuard _bangumiGuard = RequestGenerationGuard();
-  final Map<int, BangumiCollectionConflictChoice> _conflictChoices = {};
+  final Map<int, BangumiCollectionResolution> _conflictChoices = {};
   List<BangumiCollectionConflict> _conflicts = [];
   bool _isSyncing = false;
   bool _isResolvingConflicts = false;
@@ -175,15 +175,15 @@ class _FavoritesPageState extends State<FavoritesPage>
     }
   }
 
-  Future<void> _resolveConflicts() async {
-    if (_isResolvingConflicts || _conflictChoices.length != _conflicts.length) {
-      return;
-    }
+  Future<void> _resolveConflicts(
+    Map<int, BangumiCollectionResolution> resolutions,
+  ) async {
+    if (_isResolvingConflicts) return;
     setState(() => _isResolvingConflicts = true);
     try {
-      final favorites = await _syncService.resolveConflicts(
+      final favorites = await _syncService.resolveFieldConflicts(
         _conflicts,
-        _conflictChoices,
+        resolutions,
       );
       if (!mounted) return;
       setState(() {
@@ -289,11 +289,7 @@ class _FavoritesPageState extends State<FavoritesPage>
 
     final panel = BangumiCollectionConflictPanel(
       conflicts: _conflicts,
-      choices: _conflictChoices,
       statusLabel: (type) => _getTypeLabel(context, type),
-      onChoiceChanged: (subjectId, choice) {
-        setState(() => _conflictChoices[subjectId] = choice);
-      },
       onResolve: _resolveConflicts,
       isResolving: _isResolvingConflicts,
     );

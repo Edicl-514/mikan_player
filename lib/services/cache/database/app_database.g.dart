@@ -83,6 +83,153 @@ class $DbLocalFavoritesTable extends DbLocalFavorites
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _rateMeta = const VerificationMeta('rate');
+  @override
+  late final GeneratedColumn<int> rate = GeneratedColumn<int>(
+    'rate',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _commentMeta = const VerificationMeta(
+    'comment',
+  );
+  @override
+  late final GeneratedColumn<String> comment = GeneratedColumn<String>(
+    'comment',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _tagsJsonMeta = const VerificationMeta(
+    'tagsJson',
+  );
+  @override
+  late final GeneratedColumn<String> tagsJson = GeneratedColumn<String>(
+    'tags_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _privateMeta = const VerificationMeta(
+    'private',
+  );
+  @override
+  late final GeneratedColumn<bool> private = GeneratedColumn<bool>(
+    'private',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("private" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _baseTypeMeta = const VerificationMeta(
+    'baseType',
+  );
+  @override
+  late final GeneratedColumn<int> baseType = GeneratedColumn<int>(
+    'base_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _baseRateMeta = const VerificationMeta(
+    'baseRate',
+  );
+  @override
+  late final GeneratedColumn<int> baseRate = GeneratedColumn<int>(
+    'base_rate',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _baseCommentMeta = const VerificationMeta(
+    'baseComment',
+  );
+  @override
+  late final GeneratedColumn<String> baseComment = GeneratedColumn<String>(
+    'base_comment',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _baseTagsJsonMeta = const VerificationMeta(
+    'baseTagsJson',
+  );
+  @override
+  late final GeneratedColumn<String> baseTagsJson = GeneratedColumn<String>(
+    'base_tags_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _basePrivateMeta = const VerificationMeta(
+    'basePrivate',
+  );
+  @override
+  late final GeneratedColumn<bool> basePrivate = GeneratedColumn<bool>(
+    'base_private',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("base_private" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _remoteUpdatedAtMeta = const VerificationMeta(
+    'remoteUpdatedAt',
+  );
+  @override
+  late final GeneratedColumn<String> remoteUpdatedAt = GeneratedColumn<String>(
+    'remote_updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastSyncedAtMeta = const VerificationMeta(
+    'lastSyncedAt',
+  );
+  @override
+  late final GeneratedColumn<int> lastSyncedAt = GeneratedColumn<int>(
+    'last_synced_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ownerAccountIdMeta = const VerificationMeta(
+    'ownerAccountId',
+  );
+  @override
+  late final GeneratedColumn<int> ownerAccountId = GeneratedColumn<int>(
+    'owner_account_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -92,6 +239,19 @@ class $DbLocalFavoritesTable extends DbLocalFavorites
     type,
     score,
     createdAt,
+    rate,
+    comment,
+    tagsJson,
+    private,
+    updatedAt,
+    baseType,
+    baseRate,
+    baseComment,
+    baseTagsJson,
+    basePrivate,
+    remoteUpdatedAt,
+    lastSyncedAt,
+    ownerAccountId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -156,6 +316,102 @@ class $DbLocalFavoritesTable extends DbLocalFavorites
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('rate')) {
+      context.handle(
+        _rateMeta,
+        rate.isAcceptableOrUnknown(data['rate']!, _rateMeta),
+      );
+    }
+    if (data.containsKey('comment')) {
+      context.handle(
+        _commentMeta,
+        comment.isAcceptableOrUnknown(data['comment']!, _commentMeta),
+      );
+    }
+    if (data.containsKey('tags_json')) {
+      context.handle(
+        _tagsJsonMeta,
+        tagsJson.isAcceptableOrUnknown(data['tags_json']!, _tagsJsonMeta),
+      );
+    }
+    if (data.containsKey('private')) {
+      context.handle(
+        _privateMeta,
+        private.isAcceptableOrUnknown(data['private']!, _privateMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('base_type')) {
+      context.handle(
+        _baseTypeMeta,
+        baseType.isAcceptableOrUnknown(data['base_type']!, _baseTypeMeta),
+      );
+    }
+    if (data.containsKey('base_rate')) {
+      context.handle(
+        _baseRateMeta,
+        baseRate.isAcceptableOrUnknown(data['base_rate']!, _baseRateMeta),
+      );
+    }
+    if (data.containsKey('base_comment')) {
+      context.handle(
+        _baseCommentMeta,
+        baseComment.isAcceptableOrUnknown(
+          data['base_comment']!,
+          _baseCommentMeta,
+        ),
+      );
+    }
+    if (data.containsKey('base_tags_json')) {
+      context.handle(
+        _baseTagsJsonMeta,
+        baseTagsJson.isAcceptableOrUnknown(
+          data['base_tags_json']!,
+          _baseTagsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('base_private')) {
+      context.handle(
+        _basePrivateMeta,
+        basePrivate.isAcceptableOrUnknown(
+          data['base_private']!,
+          _basePrivateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('remote_updated_at')) {
+      context.handle(
+        _remoteUpdatedAtMeta,
+        remoteUpdatedAt.isAcceptableOrUnknown(
+          data['remote_updated_at']!,
+          _remoteUpdatedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_synced_at')) {
+      context.handle(
+        _lastSyncedAtMeta,
+        lastSyncedAt.isAcceptableOrUnknown(
+          data['last_synced_at']!,
+          _lastSyncedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('owner_account_id')) {
+      context.handle(
+        _ownerAccountIdMeta,
+        ownerAccountId.isAcceptableOrUnknown(
+          data['owner_account_id']!,
+          _ownerAccountIdMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -193,6 +449,58 @@ class $DbLocalFavoritesTable extends DbLocalFavorites
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
       )!,
+      rate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rate'],
+      ),
+      comment: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}comment'],
+      ),
+      tagsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tags_json'],
+      ),
+      private: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}private'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      ),
+      baseType: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}base_type'],
+      ),
+      baseRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}base_rate'],
+      ),
+      baseComment: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}base_comment'],
+      ),
+      baseTagsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}base_tags_json'],
+      ),
+      basePrivate: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}base_private'],
+      ),
+      remoteUpdatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}remote_updated_at'],
+      ),
+      lastSyncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_synced_at'],
+      ),
+      ownerAccountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}owner_account_id'],
+      ),
     );
   }
 
@@ -210,6 +518,27 @@ class DbLocalFavorite extends DataClass implements Insertable<DbLocalFavorite> {
   final int type;
   final double score;
   final int createdAt;
+  final int? rate;
+  final String? comment;
+  final String? tagsJson;
+  final bool? private;
+
+  /// Local last-modified time (ms since epoch) for the metadata above.
+  final int? updatedAt;
+  final int? baseType;
+  final int? baseRate;
+  final String? baseComment;
+  final String? baseTagsJson;
+  final bool? basePrivate;
+
+  /// Server-side ISO timestamp, for display/diagnostics only — never used as a
+  /// merge input (clock skew and coarse granularity make it unreliable).
+  final String? remoteUpdatedAt;
+  final int? lastSyncedAt;
+
+  /// Bangumi account the baseline belongs to. Switching accounts must not let
+  /// account A's baseline turn account B's values into "local edits".
+  final int? ownerAccountId;
   const DbLocalFavorite({
     required this.id,
     required this.bangumiId,
@@ -218,6 +547,19 @@ class DbLocalFavorite extends DataClass implements Insertable<DbLocalFavorite> {
     required this.type,
     required this.score,
     required this.createdAt,
+    this.rate,
+    this.comment,
+    this.tagsJson,
+    this.private,
+    this.updatedAt,
+    this.baseType,
+    this.baseRate,
+    this.baseComment,
+    this.baseTagsJson,
+    this.basePrivate,
+    this.remoteUpdatedAt,
+    this.lastSyncedAt,
+    this.ownerAccountId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -229,6 +571,45 @@ class DbLocalFavorite extends DataClass implements Insertable<DbLocalFavorite> {
     map['type'] = Variable<int>(type);
     map['score'] = Variable<double>(score);
     map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || rate != null) {
+      map['rate'] = Variable<int>(rate);
+    }
+    if (!nullToAbsent || comment != null) {
+      map['comment'] = Variable<String>(comment);
+    }
+    if (!nullToAbsent || tagsJson != null) {
+      map['tags_json'] = Variable<String>(tagsJson);
+    }
+    if (!nullToAbsent || private != null) {
+      map['private'] = Variable<bool>(private);
+    }
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<int>(updatedAt);
+    }
+    if (!nullToAbsent || baseType != null) {
+      map['base_type'] = Variable<int>(baseType);
+    }
+    if (!nullToAbsent || baseRate != null) {
+      map['base_rate'] = Variable<int>(baseRate);
+    }
+    if (!nullToAbsent || baseComment != null) {
+      map['base_comment'] = Variable<String>(baseComment);
+    }
+    if (!nullToAbsent || baseTagsJson != null) {
+      map['base_tags_json'] = Variable<String>(baseTagsJson);
+    }
+    if (!nullToAbsent || basePrivate != null) {
+      map['base_private'] = Variable<bool>(basePrivate);
+    }
+    if (!nullToAbsent || remoteUpdatedAt != null) {
+      map['remote_updated_at'] = Variable<String>(remoteUpdatedAt);
+    }
+    if (!nullToAbsent || lastSyncedAt != null) {
+      map['last_synced_at'] = Variable<int>(lastSyncedAt);
+    }
+    if (!nullToAbsent || ownerAccountId != null) {
+      map['owner_account_id'] = Variable<int>(ownerAccountId);
+    }
     return map;
   }
 
@@ -241,6 +622,43 @@ class DbLocalFavorite extends DataClass implements Insertable<DbLocalFavorite> {
       type: Value(type),
       score: Value(score),
       createdAt: Value(createdAt),
+      rate: rate == null && nullToAbsent ? const Value.absent() : Value(rate),
+      comment: comment == null && nullToAbsent
+          ? const Value.absent()
+          : Value(comment),
+      tagsJson: tagsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tagsJson),
+      private: private == null && nullToAbsent
+          ? const Value.absent()
+          : Value(private),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+      baseType: baseType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(baseType),
+      baseRate: baseRate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(baseRate),
+      baseComment: baseComment == null && nullToAbsent
+          ? const Value.absent()
+          : Value(baseComment),
+      baseTagsJson: baseTagsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(baseTagsJson),
+      basePrivate: basePrivate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(basePrivate),
+      remoteUpdatedAt: remoteUpdatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remoteUpdatedAt),
+      lastSyncedAt: lastSyncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSyncedAt),
+      ownerAccountId: ownerAccountId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ownerAccountId),
     );
   }
 
@@ -257,6 +675,19 @@ class DbLocalFavorite extends DataClass implements Insertable<DbLocalFavorite> {
       type: serializer.fromJson<int>(json['type']),
       score: serializer.fromJson<double>(json['score']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
+      rate: serializer.fromJson<int?>(json['rate']),
+      comment: serializer.fromJson<String?>(json['comment']),
+      tagsJson: serializer.fromJson<String?>(json['tagsJson']),
+      private: serializer.fromJson<bool?>(json['private']),
+      updatedAt: serializer.fromJson<int?>(json['updatedAt']),
+      baseType: serializer.fromJson<int?>(json['baseType']),
+      baseRate: serializer.fromJson<int?>(json['baseRate']),
+      baseComment: serializer.fromJson<String?>(json['baseComment']),
+      baseTagsJson: serializer.fromJson<String?>(json['baseTagsJson']),
+      basePrivate: serializer.fromJson<bool?>(json['basePrivate']),
+      remoteUpdatedAt: serializer.fromJson<String?>(json['remoteUpdatedAt']),
+      lastSyncedAt: serializer.fromJson<int?>(json['lastSyncedAt']),
+      ownerAccountId: serializer.fromJson<int?>(json['ownerAccountId']),
     );
   }
   @override
@@ -270,6 +701,19 @@ class DbLocalFavorite extends DataClass implements Insertable<DbLocalFavorite> {
       'type': serializer.toJson<int>(type),
       'score': serializer.toJson<double>(score),
       'createdAt': serializer.toJson<int>(createdAt),
+      'rate': serializer.toJson<int?>(rate),
+      'comment': serializer.toJson<String?>(comment),
+      'tagsJson': serializer.toJson<String?>(tagsJson),
+      'private': serializer.toJson<bool?>(private),
+      'updatedAt': serializer.toJson<int?>(updatedAt),
+      'baseType': serializer.toJson<int?>(baseType),
+      'baseRate': serializer.toJson<int?>(baseRate),
+      'baseComment': serializer.toJson<String?>(baseComment),
+      'baseTagsJson': serializer.toJson<String?>(baseTagsJson),
+      'basePrivate': serializer.toJson<bool?>(basePrivate),
+      'remoteUpdatedAt': serializer.toJson<String?>(remoteUpdatedAt),
+      'lastSyncedAt': serializer.toJson<int?>(lastSyncedAt),
+      'ownerAccountId': serializer.toJson<int?>(ownerAccountId),
     };
   }
 
@@ -281,6 +725,19 @@ class DbLocalFavorite extends DataClass implements Insertable<DbLocalFavorite> {
     int? type,
     double? score,
     int? createdAt,
+    Value<int?> rate = const Value.absent(),
+    Value<String?> comment = const Value.absent(),
+    Value<String?> tagsJson = const Value.absent(),
+    Value<bool?> private = const Value.absent(),
+    Value<int?> updatedAt = const Value.absent(),
+    Value<int?> baseType = const Value.absent(),
+    Value<int?> baseRate = const Value.absent(),
+    Value<String?> baseComment = const Value.absent(),
+    Value<String?> baseTagsJson = const Value.absent(),
+    Value<bool?> basePrivate = const Value.absent(),
+    Value<String?> remoteUpdatedAt = const Value.absent(),
+    Value<int?> lastSyncedAt = const Value.absent(),
+    Value<int?> ownerAccountId = const Value.absent(),
   }) => DbLocalFavorite(
     id: id ?? this.id,
     bangumiId: bangumiId ?? this.bangumiId,
@@ -289,6 +746,23 @@ class DbLocalFavorite extends DataClass implements Insertable<DbLocalFavorite> {
     type: type ?? this.type,
     score: score ?? this.score,
     createdAt: createdAt ?? this.createdAt,
+    rate: rate.present ? rate.value : this.rate,
+    comment: comment.present ? comment.value : this.comment,
+    tagsJson: tagsJson.present ? tagsJson.value : this.tagsJson,
+    private: private.present ? private.value : this.private,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+    baseType: baseType.present ? baseType.value : this.baseType,
+    baseRate: baseRate.present ? baseRate.value : this.baseRate,
+    baseComment: baseComment.present ? baseComment.value : this.baseComment,
+    baseTagsJson: baseTagsJson.present ? baseTagsJson.value : this.baseTagsJson,
+    basePrivate: basePrivate.present ? basePrivate.value : this.basePrivate,
+    remoteUpdatedAt: remoteUpdatedAt.present
+        ? remoteUpdatedAt.value
+        : this.remoteUpdatedAt,
+    lastSyncedAt: lastSyncedAt.present ? lastSyncedAt.value : this.lastSyncedAt,
+    ownerAccountId: ownerAccountId.present
+        ? ownerAccountId.value
+        : this.ownerAccountId,
   );
   DbLocalFavorite copyWithCompanion(DbLocalFavoritesCompanion data) {
     return DbLocalFavorite(
@@ -299,6 +773,31 @@ class DbLocalFavorite extends DataClass implements Insertable<DbLocalFavorite> {
       type: data.type.present ? data.type.value : this.type,
       score: data.score.present ? data.score.value : this.score,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      rate: data.rate.present ? data.rate.value : this.rate,
+      comment: data.comment.present ? data.comment.value : this.comment,
+      tagsJson: data.tagsJson.present ? data.tagsJson.value : this.tagsJson,
+      private: data.private.present ? data.private.value : this.private,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      baseType: data.baseType.present ? data.baseType.value : this.baseType,
+      baseRate: data.baseRate.present ? data.baseRate.value : this.baseRate,
+      baseComment: data.baseComment.present
+          ? data.baseComment.value
+          : this.baseComment,
+      baseTagsJson: data.baseTagsJson.present
+          ? data.baseTagsJson.value
+          : this.baseTagsJson,
+      basePrivate: data.basePrivate.present
+          ? data.basePrivate.value
+          : this.basePrivate,
+      remoteUpdatedAt: data.remoteUpdatedAt.present
+          ? data.remoteUpdatedAt.value
+          : this.remoteUpdatedAt,
+      lastSyncedAt: data.lastSyncedAt.present
+          ? data.lastSyncedAt.value
+          : this.lastSyncedAt,
+      ownerAccountId: data.ownerAccountId.present
+          ? data.ownerAccountId.value
+          : this.ownerAccountId,
     );
   }
 
@@ -311,14 +810,47 @@ class DbLocalFavorite extends DataClass implements Insertable<DbLocalFavorite> {
           ..write('coverUrl: $coverUrl, ')
           ..write('type: $type, ')
           ..write('score: $score, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('rate: $rate, ')
+          ..write('comment: $comment, ')
+          ..write('tagsJson: $tagsJson, ')
+          ..write('private: $private, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('baseType: $baseType, ')
+          ..write('baseRate: $baseRate, ')
+          ..write('baseComment: $baseComment, ')
+          ..write('baseTagsJson: $baseTagsJson, ')
+          ..write('basePrivate: $basePrivate, ')
+          ..write('remoteUpdatedAt: $remoteUpdatedAt, ')
+          ..write('lastSyncedAt: $lastSyncedAt, ')
+          ..write('ownerAccountId: $ownerAccountId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, bangumiId, title, coverUrl, type, score, createdAt);
+  int get hashCode => Object.hash(
+    id,
+    bangumiId,
+    title,
+    coverUrl,
+    type,
+    score,
+    createdAt,
+    rate,
+    comment,
+    tagsJson,
+    private,
+    updatedAt,
+    baseType,
+    baseRate,
+    baseComment,
+    baseTagsJson,
+    basePrivate,
+    remoteUpdatedAt,
+    lastSyncedAt,
+    ownerAccountId,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -329,7 +861,20 @@ class DbLocalFavorite extends DataClass implements Insertable<DbLocalFavorite> {
           other.coverUrl == this.coverUrl &&
           other.type == this.type &&
           other.score == this.score &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.rate == this.rate &&
+          other.comment == this.comment &&
+          other.tagsJson == this.tagsJson &&
+          other.private == this.private &&
+          other.updatedAt == this.updatedAt &&
+          other.baseType == this.baseType &&
+          other.baseRate == this.baseRate &&
+          other.baseComment == this.baseComment &&
+          other.baseTagsJson == this.baseTagsJson &&
+          other.basePrivate == this.basePrivate &&
+          other.remoteUpdatedAt == this.remoteUpdatedAt &&
+          other.lastSyncedAt == this.lastSyncedAt &&
+          other.ownerAccountId == this.ownerAccountId);
 }
 
 class DbLocalFavoritesCompanion extends UpdateCompanion<DbLocalFavorite> {
@@ -340,6 +885,19 @@ class DbLocalFavoritesCompanion extends UpdateCompanion<DbLocalFavorite> {
   final Value<int> type;
   final Value<double> score;
   final Value<int> createdAt;
+  final Value<int?> rate;
+  final Value<String?> comment;
+  final Value<String?> tagsJson;
+  final Value<bool?> private;
+  final Value<int?> updatedAt;
+  final Value<int?> baseType;
+  final Value<int?> baseRate;
+  final Value<String?> baseComment;
+  final Value<String?> baseTagsJson;
+  final Value<bool?> basePrivate;
+  final Value<String?> remoteUpdatedAt;
+  final Value<int?> lastSyncedAt;
+  final Value<int?> ownerAccountId;
   const DbLocalFavoritesCompanion({
     this.id = const Value.absent(),
     this.bangumiId = const Value.absent(),
@@ -348,6 +906,19 @@ class DbLocalFavoritesCompanion extends UpdateCompanion<DbLocalFavorite> {
     this.type = const Value.absent(),
     this.score = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.rate = const Value.absent(),
+    this.comment = const Value.absent(),
+    this.tagsJson = const Value.absent(),
+    this.private = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.baseType = const Value.absent(),
+    this.baseRate = const Value.absent(),
+    this.baseComment = const Value.absent(),
+    this.baseTagsJson = const Value.absent(),
+    this.basePrivate = const Value.absent(),
+    this.remoteUpdatedAt = const Value.absent(),
+    this.lastSyncedAt = const Value.absent(),
+    this.ownerAccountId = const Value.absent(),
   });
   DbLocalFavoritesCompanion.insert({
     this.id = const Value.absent(),
@@ -357,6 +928,19 @@ class DbLocalFavoritesCompanion extends UpdateCompanion<DbLocalFavorite> {
     required int type,
     required double score,
     required int createdAt,
+    this.rate = const Value.absent(),
+    this.comment = const Value.absent(),
+    this.tagsJson = const Value.absent(),
+    this.private = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.baseType = const Value.absent(),
+    this.baseRate = const Value.absent(),
+    this.baseComment = const Value.absent(),
+    this.baseTagsJson = const Value.absent(),
+    this.basePrivate = const Value.absent(),
+    this.remoteUpdatedAt = const Value.absent(),
+    this.lastSyncedAt = const Value.absent(),
+    this.ownerAccountId = const Value.absent(),
   }) : bangumiId = Value(bangumiId),
        title = Value(title),
        coverUrl = Value(coverUrl),
@@ -371,6 +955,19 @@ class DbLocalFavoritesCompanion extends UpdateCompanion<DbLocalFavorite> {
     Expression<int>? type,
     Expression<double>? score,
     Expression<int>? createdAt,
+    Expression<int>? rate,
+    Expression<String>? comment,
+    Expression<String>? tagsJson,
+    Expression<bool>? private,
+    Expression<int>? updatedAt,
+    Expression<int>? baseType,
+    Expression<int>? baseRate,
+    Expression<String>? baseComment,
+    Expression<String>? baseTagsJson,
+    Expression<bool>? basePrivate,
+    Expression<String>? remoteUpdatedAt,
+    Expression<int>? lastSyncedAt,
+    Expression<int>? ownerAccountId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -380,6 +977,19 @@ class DbLocalFavoritesCompanion extends UpdateCompanion<DbLocalFavorite> {
       if (type != null) 'type': type,
       if (score != null) 'score': score,
       if (createdAt != null) 'created_at': createdAt,
+      if (rate != null) 'rate': rate,
+      if (comment != null) 'comment': comment,
+      if (tagsJson != null) 'tags_json': tagsJson,
+      if (private != null) 'private': private,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (baseType != null) 'base_type': baseType,
+      if (baseRate != null) 'base_rate': baseRate,
+      if (baseComment != null) 'base_comment': baseComment,
+      if (baseTagsJson != null) 'base_tags_json': baseTagsJson,
+      if (basePrivate != null) 'base_private': basePrivate,
+      if (remoteUpdatedAt != null) 'remote_updated_at': remoteUpdatedAt,
+      if (lastSyncedAt != null) 'last_synced_at': lastSyncedAt,
+      if (ownerAccountId != null) 'owner_account_id': ownerAccountId,
     });
   }
 
@@ -391,6 +1001,19 @@ class DbLocalFavoritesCompanion extends UpdateCompanion<DbLocalFavorite> {
     Value<int>? type,
     Value<double>? score,
     Value<int>? createdAt,
+    Value<int?>? rate,
+    Value<String?>? comment,
+    Value<String?>? tagsJson,
+    Value<bool?>? private,
+    Value<int?>? updatedAt,
+    Value<int?>? baseType,
+    Value<int?>? baseRate,
+    Value<String?>? baseComment,
+    Value<String?>? baseTagsJson,
+    Value<bool?>? basePrivate,
+    Value<String?>? remoteUpdatedAt,
+    Value<int?>? lastSyncedAt,
+    Value<int?>? ownerAccountId,
   }) {
     return DbLocalFavoritesCompanion(
       id: id ?? this.id,
@@ -400,6 +1023,19 @@ class DbLocalFavoritesCompanion extends UpdateCompanion<DbLocalFavorite> {
       type: type ?? this.type,
       score: score ?? this.score,
       createdAt: createdAt ?? this.createdAt,
+      rate: rate ?? this.rate,
+      comment: comment ?? this.comment,
+      tagsJson: tagsJson ?? this.tagsJson,
+      private: private ?? this.private,
+      updatedAt: updatedAt ?? this.updatedAt,
+      baseType: baseType ?? this.baseType,
+      baseRate: baseRate ?? this.baseRate,
+      baseComment: baseComment ?? this.baseComment,
+      baseTagsJson: baseTagsJson ?? this.baseTagsJson,
+      basePrivate: basePrivate ?? this.basePrivate,
+      remoteUpdatedAt: remoteUpdatedAt ?? this.remoteUpdatedAt,
+      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+      ownerAccountId: ownerAccountId ?? this.ownerAccountId,
     );
   }
 
@@ -427,6 +1063,45 @@ class DbLocalFavoritesCompanion extends UpdateCompanion<DbLocalFavorite> {
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
+    if (rate.present) {
+      map['rate'] = Variable<int>(rate.value);
+    }
+    if (comment.present) {
+      map['comment'] = Variable<String>(comment.value);
+    }
+    if (tagsJson.present) {
+      map['tags_json'] = Variable<String>(tagsJson.value);
+    }
+    if (private.present) {
+      map['private'] = Variable<bool>(private.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (baseType.present) {
+      map['base_type'] = Variable<int>(baseType.value);
+    }
+    if (baseRate.present) {
+      map['base_rate'] = Variable<int>(baseRate.value);
+    }
+    if (baseComment.present) {
+      map['base_comment'] = Variable<String>(baseComment.value);
+    }
+    if (baseTagsJson.present) {
+      map['base_tags_json'] = Variable<String>(baseTagsJson.value);
+    }
+    if (basePrivate.present) {
+      map['base_private'] = Variable<bool>(basePrivate.value);
+    }
+    if (remoteUpdatedAt.present) {
+      map['remote_updated_at'] = Variable<String>(remoteUpdatedAt.value);
+    }
+    if (lastSyncedAt.present) {
+      map['last_synced_at'] = Variable<int>(lastSyncedAt.value);
+    }
+    if (ownerAccountId.present) {
+      map['owner_account_id'] = Variable<int>(ownerAccountId.value);
+    }
     return map;
   }
 
@@ -439,7 +1114,701 @@ class DbLocalFavoritesCompanion extends UpdateCompanion<DbLocalFavorite> {
           ..write('coverUrl: $coverUrl, ')
           ..write('type: $type, ')
           ..write('score: $score, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('rate: $rate, ')
+          ..write('comment: $comment, ')
+          ..write('tagsJson: $tagsJson, ')
+          ..write('private: $private, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('baseType: $baseType, ')
+          ..write('baseRate: $baseRate, ')
+          ..write('baseComment: $baseComment, ')
+          ..write('baseTagsJson: $baseTagsJson, ')
+          ..write('basePrivate: $basePrivate, ')
+          ..write('remoteUpdatedAt: $remoteUpdatedAt, ')
+          ..write('lastSyncedAt: $lastSyncedAt, ')
+          ..write('ownerAccountId: $ownerAccountId')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DbBangumiSyncQueueTable extends DbBangumiSyncQueue
+    with TableInfo<$DbBangumiSyncQueueTable, DbBangumiSyncQueueData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DbBangumiSyncQueueTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<int> accountId = GeneratedColumn<int>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _subjectIdMeta = const VerificationMeta(
+    'subjectId',
+  );
+  @override
+  late final GeneratedColumn<int> subjectId = GeneratedColumn<int>(
+    'subject_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _operationMeta = const VerificationMeta(
+    'operation',
+  );
+  @override
+  late final GeneratedColumn<String> operation = GeneratedColumn<String>(
+    'operation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadJsonMeta = const VerificationMeta(
+    'payloadJson',
+  );
+  @override
+  late final GeneratedColumn<String> payloadJson = GeneratedColumn<String>(
+    'payload_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _baselineJsonMeta = const VerificationMeta(
+    'baselineJson',
+  );
+  @override
+  late final GeneratedColumn<String> baselineJson = GeneratedColumn<String>(
+    'baseline_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attemptCountMeta = const VerificationMeta(
+    'attemptCount',
+  );
+  @override
+  late final GeneratedColumn<int> attemptCount = GeneratedColumn<int>(
+    'attempt_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _nextAttemptAtMeta = const VerificationMeta(
+    'nextAttemptAt',
+  );
+  @override
+  late final GeneratedColumn<int> nextAttemptAt = GeneratedColumn<int>(
+    'next_attempt_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastErrorMeta = const VerificationMeta(
+    'lastError',
+  );
+  @override
+  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
+    'last_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    accountId,
+    subjectId,
+    operation,
+    payloadJson,
+    baselineJson,
+    attemptCount,
+    nextAttemptAt,
+    lastError,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'db_bangumi_sync_queue';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DbBangumiSyncQueueData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('subject_id')) {
+      context.handle(
+        _subjectIdMeta,
+        subjectId.isAcceptableOrUnknown(data['subject_id']!, _subjectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_subjectIdMeta);
+    }
+    if (data.containsKey('operation')) {
+      context.handle(
+        _operationMeta,
+        operation.isAcceptableOrUnknown(data['operation']!, _operationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_operationMeta);
+    }
+    if (data.containsKey('payload_json')) {
+      context.handle(
+        _payloadJsonMeta,
+        payloadJson.isAcceptableOrUnknown(
+          data['payload_json']!,
+          _payloadJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadJsonMeta);
+    }
+    if (data.containsKey('baseline_json')) {
+      context.handle(
+        _baselineJsonMeta,
+        baselineJson.isAcceptableOrUnknown(
+          data['baseline_json']!,
+          _baselineJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attempt_count')) {
+      context.handle(
+        _attemptCountMeta,
+        attemptCount.isAcceptableOrUnknown(
+          data['attempt_count']!,
+          _attemptCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('next_attempt_at')) {
+      context.handle(
+        _nextAttemptAtMeta,
+        nextAttemptAt.isAcceptableOrUnknown(
+          data['next_attempt_at']!,
+          _nextAttemptAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_error')) {
+      context.handle(
+        _lastErrorMeta,
+        lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {accountId, subjectId, operation},
+  ];
+  @override
+  DbBangumiSyncQueueData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DbBangumiSyncQueueData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}account_id'],
+      )!,
+      subjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}subject_id'],
+      )!,
+      operation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}operation'],
+      )!,
+      payloadJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload_json'],
+      )!,
+      baselineJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}baseline_json'],
+      ),
+      attemptCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempt_count'],
+      )!,
+      nextAttemptAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}next_attempt_at'],
+      )!,
+      lastError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DbBangumiSyncQueueTable createAlias(String alias) {
+    return $DbBangumiSyncQueueTable(attachedDatabase, alias);
+  }
+}
+
+class DbBangumiSyncQueueData extends DataClass
+    implements Insertable<DbBangumiSyncQueueData> {
+  final int id;
+
+  /// Bangumi user id. Tasks are never sent under a different account, and are
+  /// deleted on logout / account switch.
+  final int accountId;
+  final int subjectId;
+
+  /// `status` | `metadata` | `delete`.
+  final String operation;
+
+  /// Field-level payload. Must distinguish "leave unchanged" from "clear", so
+  /// presence is encoded explicitly rather than by key omission.
+  final String payloadJson;
+
+  /// Baseline captured at enqueue time, so a replay can tell whether the remote
+  /// side was changed by someone else in the meantime.
+  final String? baselineJson;
+  final int attemptCount;
+  final int nextAttemptAt;
+  final String? lastError;
+  final int createdAt;
+  final int updatedAt;
+  const DbBangumiSyncQueueData({
+    required this.id,
+    required this.accountId,
+    required this.subjectId,
+    required this.operation,
+    required this.payloadJson,
+    this.baselineJson,
+    required this.attemptCount,
+    required this.nextAttemptAt,
+    this.lastError,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['account_id'] = Variable<int>(accountId);
+    map['subject_id'] = Variable<int>(subjectId);
+    map['operation'] = Variable<String>(operation);
+    map['payload_json'] = Variable<String>(payloadJson);
+    if (!nullToAbsent || baselineJson != null) {
+      map['baseline_json'] = Variable<String>(baselineJson);
+    }
+    map['attempt_count'] = Variable<int>(attemptCount);
+    map['next_attempt_at'] = Variable<int>(nextAttemptAt);
+    if (!nullToAbsent || lastError != null) {
+      map['last_error'] = Variable<String>(lastError);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  DbBangumiSyncQueueCompanion toCompanion(bool nullToAbsent) {
+    return DbBangumiSyncQueueCompanion(
+      id: Value(id),
+      accountId: Value(accountId),
+      subjectId: Value(subjectId),
+      operation: Value(operation),
+      payloadJson: Value(payloadJson),
+      baselineJson: baselineJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(baselineJson),
+      attemptCount: Value(attemptCount),
+      nextAttemptAt: Value(nextAttemptAt),
+      lastError: lastError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastError),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory DbBangumiSyncQueueData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DbBangumiSyncQueueData(
+      id: serializer.fromJson<int>(json['id']),
+      accountId: serializer.fromJson<int>(json['accountId']),
+      subjectId: serializer.fromJson<int>(json['subjectId']),
+      operation: serializer.fromJson<String>(json['operation']),
+      payloadJson: serializer.fromJson<String>(json['payloadJson']),
+      baselineJson: serializer.fromJson<String?>(json['baselineJson']),
+      attemptCount: serializer.fromJson<int>(json['attemptCount']),
+      nextAttemptAt: serializer.fromJson<int>(json['nextAttemptAt']),
+      lastError: serializer.fromJson<String?>(json['lastError']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'accountId': serializer.toJson<int>(accountId),
+      'subjectId': serializer.toJson<int>(subjectId),
+      'operation': serializer.toJson<String>(operation),
+      'payloadJson': serializer.toJson<String>(payloadJson),
+      'baselineJson': serializer.toJson<String?>(baselineJson),
+      'attemptCount': serializer.toJson<int>(attemptCount),
+      'nextAttemptAt': serializer.toJson<int>(nextAttemptAt),
+      'lastError': serializer.toJson<String?>(lastError),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  DbBangumiSyncQueueData copyWith({
+    int? id,
+    int? accountId,
+    int? subjectId,
+    String? operation,
+    String? payloadJson,
+    Value<String?> baselineJson = const Value.absent(),
+    int? attemptCount,
+    int? nextAttemptAt,
+    Value<String?> lastError = const Value.absent(),
+    int? createdAt,
+    int? updatedAt,
+  }) => DbBangumiSyncQueueData(
+    id: id ?? this.id,
+    accountId: accountId ?? this.accountId,
+    subjectId: subjectId ?? this.subjectId,
+    operation: operation ?? this.operation,
+    payloadJson: payloadJson ?? this.payloadJson,
+    baselineJson: baselineJson.present ? baselineJson.value : this.baselineJson,
+    attemptCount: attemptCount ?? this.attemptCount,
+    nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+    lastError: lastError.present ? lastError.value : this.lastError,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  DbBangumiSyncQueueData copyWithCompanion(DbBangumiSyncQueueCompanion data) {
+    return DbBangumiSyncQueueData(
+      id: data.id.present ? data.id.value : this.id,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
+      operation: data.operation.present ? data.operation.value : this.operation,
+      payloadJson: data.payloadJson.present
+          ? data.payloadJson.value
+          : this.payloadJson,
+      baselineJson: data.baselineJson.present
+          ? data.baselineJson.value
+          : this.baselineJson,
+      attemptCount: data.attemptCount.present
+          ? data.attemptCount.value
+          : this.attemptCount,
+      nextAttemptAt: data.nextAttemptAt.present
+          ? data.nextAttemptAt.value
+          : this.nextAttemptAt,
+      lastError: data.lastError.present ? data.lastError.value : this.lastError,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DbBangumiSyncQueueData(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('operation: $operation, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('baselineJson: $baselineJson, ')
+          ..write('attemptCount: $attemptCount, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('lastError: $lastError, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    accountId,
+    subjectId,
+    operation,
+    payloadJson,
+    baselineJson,
+    attemptCount,
+    nextAttemptAt,
+    lastError,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DbBangumiSyncQueueData &&
+          other.id == this.id &&
+          other.accountId == this.accountId &&
+          other.subjectId == this.subjectId &&
+          other.operation == this.operation &&
+          other.payloadJson == this.payloadJson &&
+          other.baselineJson == this.baselineJson &&
+          other.attemptCount == this.attemptCount &&
+          other.nextAttemptAt == this.nextAttemptAt &&
+          other.lastError == this.lastError &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class DbBangumiSyncQueueCompanion
+    extends UpdateCompanion<DbBangumiSyncQueueData> {
+  final Value<int> id;
+  final Value<int> accountId;
+  final Value<int> subjectId;
+  final Value<String> operation;
+  final Value<String> payloadJson;
+  final Value<String?> baselineJson;
+  final Value<int> attemptCount;
+  final Value<int> nextAttemptAt;
+  final Value<String?> lastError;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  const DbBangumiSyncQueueCompanion({
+    this.id = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.subjectId = const Value.absent(),
+    this.operation = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+    this.baselineJson = const Value.absent(),
+    this.attemptCount = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  DbBangumiSyncQueueCompanion.insert({
+    this.id = const Value.absent(),
+    required int accountId,
+    required int subjectId,
+    required String operation,
+    required String payloadJson,
+    this.baselineJson = const Value.absent(),
+    this.attemptCount = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+    this.lastError = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+  }) : accountId = Value(accountId),
+       subjectId = Value(subjectId),
+       operation = Value(operation),
+       payloadJson = Value(payloadJson),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<DbBangumiSyncQueueData> custom({
+    Expression<int>? id,
+    Expression<int>? accountId,
+    Expression<int>? subjectId,
+    Expression<String>? operation,
+    Expression<String>? payloadJson,
+    Expression<String>? baselineJson,
+    Expression<int>? attemptCount,
+    Expression<int>? nextAttemptAt,
+    Expression<String>? lastError,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (accountId != null) 'account_id': accountId,
+      if (subjectId != null) 'subject_id': subjectId,
+      if (operation != null) 'operation': operation,
+      if (payloadJson != null) 'payload_json': payloadJson,
+      if (baselineJson != null) 'baseline_json': baselineJson,
+      if (attemptCount != null) 'attempt_count': attemptCount,
+      if (nextAttemptAt != null) 'next_attempt_at': nextAttemptAt,
+      if (lastError != null) 'last_error': lastError,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  DbBangumiSyncQueueCompanion copyWith({
+    Value<int>? id,
+    Value<int>? accountId,
+    Value<int>? subjectId,
+    Value<String>? operation,
+    Value<String>? payloadJson,
+    Value<String?>? baselineJson,
+    Value<int>? attemptCount,
+    Value<int>? nextAttemptAt,
+    Value<String?>? lastError,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+  }) {
+    return DbBangumiSyncQueueCompanion(
+      id: id ?? this.id,
+      accountId: accountId ?? this.accountId,
+      subjectId: subjectId ?? this.subjectId,
+      operation: operation ?? this.operation,
+      payloadJson: payloadJson ?? this.payloadJson,
+      baselineJson: baselineJson ?? this.baselineJson,
+      attemptCount: attemptCount ?? this.attemptCount,
+      nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+      lastError: lastError ?? this.lastError,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<int>(accountId.value);
+    }
+    if (subjectId.present) {
+      map['subject_id'] = Variable<int>(subjectId.value);
+    }
+    if (operation.present) {
+      map['operation'] = Variable<String>(operation.value);
+    }
+    if (payloadJson.present) {
+      map['payload_json'] = Variable<String>(payloadJson.value);
+    }
+    if (baselineJson.present) {
+      map['baseline_json'] = Variable<String>(baselineJson.value);
+    }
+    if (attemptCount.present) {
+      map['attempt_count'] = Variable<int>(attemptCount.value);
+    }
+    if (nextAttemptAt.present) {
+      map['next_attempt_at'] = Variable<int>(nextAttemptAt.value);
+    }
+    if (lastError.present) {
+      map['last_error'] = Variable<String>(lastError.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DbBangumiSyncQueueCompanion(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('subjectId: $subjectId, ')
+          ..write('operation: $operation, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('baselineJson: $baselineJson, ')
+          ..write('attemptCount: $attemptCount, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('lastError: $lastError, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
@@ -5507,6 +6876,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DbLocalFavoritesTable dbLocalFavorites = $DbLocalFavoritesTable(
     this,
   );
+  late final $DbBangumiSyncQueueTable dbBangumiSyncQueue =
+      $DbBangumiSyncQueueTable(this);
   late final $DbBangumiSubjectCachesTable dbBangumiSubjectCaches =
       $DbBangumiSubjectCachesTable(this);
   late final $DbBangumiCharacterCachesTable dbBangumiCharacterCaches =
@@ -5530,6 +6901,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     dbLocalFavorites,
+    dbBangumiSyncQueue,
     dbBangumiSubjectCaches,
     dbBangumiCharacterCaches,
     dbBangumiRelationCaches,
@@ -5550,6 +6922,19 @@ typedef $$DbLocalFavoritesTableCreateCompanionBuilder =
       required int type,
       required double score,
       required int createdAt,
+      Value<int?> rate,
+      Value<String?> comment,
+      Value<String?> tagsJson,
+      Value<bool?> private,
+      Value<int?> updatedAt,
+      Value<int?> baseType,
+      Value<int?> baseRate,
+      Value<String?> baseComment,
+      Value<String?> baseTagsJson,
+      Value<bool?> basePrivate,
+      Value<String?> remoteUpdatedAt,
+      Value<int?> lastSyncedAt,
+      Value<int?> ownerAccountId,
     });
 typedef $$DbLocalFavoritesTableUpdateCompanionBuilder =
     DbLocalFavoritesCompanion Function({
@@ -5560,6 +6945,19 @@ typedef $$DbLocalFavoritesTableUpdateCompanionBuilder =
       Value<int> type,
       Value<double> score,
       Value<int> createdAt,
+      Value<int?> rate,
+      Value<String?> comment,
+      Value<String?> tagsJson,
+      Value<bool?> private,
+      Value<int?> updatedAt,
+      Value<int?> baseType,
+      Value<int?> baseRate,
+      Value<String?> baseComment,
+      Value<String?> baseTagsJson,
+      Value<bool?> basePrivate,
+      Value<String?> remoteUpdatedAt,
+      Value<int?> lastSyncedAt,
+      Value<int?> ownerAccountId,
     });
 
 class $$DbLocalFavoritesTableFilterComposer
@@ -5603,6 +7001,71 @@ class $$DbLocalFavoritesTableFilterComposer
 
   ColumnFilters<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get rate => $composableBuilder(
+    column: $table.rate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get comment => $composableBuilder(
+    column: $table.comment,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tagsJson => $composableBuilder(
+    column: $table.tagsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get private => $composableBuilder(
+    column: $table.private,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get baseType => $composableBuilder(
+    column: $table.baseType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get baseRate => $composableBuilder(
+    column: $table.baseRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baseComment => $composableBuilder(
+    column: $table.baseComment,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baseTagsJson => $composableBuilder(
+    column: $table.baseTagsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get basePrivate => $composableBuilder(
+    column: $table.basePrivate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remoteUpdatedAt => $composableBuilder(
+    column: $table.remoteUpdatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastSyncedAt => $composableBuilder(
+    column: $table.lastSyncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ownerAccountId => $composableBuilder(
+    column: $table.ownerAccountId,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5650,6 +7113,71 @@ class $$DbLocalFavoritesTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get rate => $composableBuilder(
+    column: $table.rate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get comment => $composableBuilder(
+    column: $table.comment,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tagsJson => $composableBuilder(
+    column: $table.tagsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get private => $composableBuilder(
+    column: $table.private,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get baseType => $composableBuilder(
+    column: $table.baseType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get baseRate => $composableBuilder(
+    column: $table.baseRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baseComment => $composableBuilder(
+    column: $table.baseComment,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baseTagsJson => $composableBuilder(
+    column: $table.baseTagsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get basePrivate => $composableBuilder(
+    column: $table.basePrivate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get remoteUpdatedAt => $composableBuilder(
+    column: $table.remoteUpdatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastSyncedAt => $composableBuilder(
+    column: $table.lastSyncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ownerAccountId => $composableBuilder(
+    column: $table.ownerAccountId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$DbLocalFavoritesTableAnnotationComposer
@@ -5681,6 +7209,57 @@ class $$DbLocalFavoritesTableAnnotationComposer
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get rate =>
+      $composableBuilder(column: $table.rate, builder: (column) => column);
+
+  GeneratedColumn<String> get comment =>
+      $composableBuilder(column: $table.comment, builder: (column) => column);
+
+  GeneratedColumn<String> get tagsJson =>
+      $composableBuilder(column: $table.tagsJson, builder: (column) => column);
+
+  GeneratedColumn<bool> get private =>
+      $composableBuilder(column: $table.private, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get baseType =>
+      $composableBuilder(column: $table.baseType, builder: (column) => column);
+
+  GeneratedColumn<int> get baseRate =>
+      $composableBuilder(column: $table.baseRate, builder: (column) => column);
+
+  GeneratedColumn<String> get baseComment => $composableBuilder(
+    column: $table.baseComment,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get baseTagsJson => $composableBuilder(
+    column: $table.baseTagsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get basePrivate => $composableBuilder(
+    column: $table.basePrivate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get remoteUpdatedAt => $composableBuilder(
+    column: $table.remoteUpdatedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastSyncedAt => $composableBuilder(
+    column: $table.lastSyncedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get ownerAccountId => $composableBuilder(
+    column: $table.ownerAccountId,
+    builder: (column) => column,
+  );
 }
 
 class $$DbLocalFavoritesTableTableManager
@@ -5727,6 +7306,19 @@ class $$DbLocalFavoritesTableTableManager
                 Value<int> type = const Value.absent(),
                 Value<double> score = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
+                Value<int?> rate = const Value.absent(),
+                Value<String?> comment = const Value.absent(),
+                Value<String?> tagsJson = const Value.absent(),
+                Value<bool?> private = const Value.absent(),
+                Value<int?> updatedAt = const Value.absent(),
+                Value<int?> baseType = const Value.absent(),
+                Value<int?> baseRate = const Value.absent(),
+                Value<String?> baseComment = const Value.absent(),
+                Value<String?> baseTagsJson = const Value.absent(),
+                Value<bool?> basePrivate = const Value.absent(),
+                Value<String?> remoteUpdatedAt = const Value.absent(),
+                Value<int?> lastSyncedAt = const Value.absent(),
+                Value<int?> ownerAccountId = const Value.absent(),
               }) => DbLocalFavoritesCompanion(
                 id: id,
                 bangumiId: bangumiId,
@@ -5735,6 +7327,19 @@ class $$DbLocalFavoritesTableTableManager
                 type: type,
                 score: score,
                 createdAt: createdAt,
+                rate: rate,
+                comment: comment,
+                tagsJson: tagsJson,
+                private: private,
+                updatedAt: updatedAt,
+                baseType: baseType,
+                baseRate: baseRate,
+                baseComment: baseComment,
+                baseTagsJson: baseTagsJson,
+                basePrivate: basePrivate,
+                remoteUpdatedAt: remoteUpdatedAt,
+                lastSyncedAt: lastSyncedAt,
+                ownerAccountId: ownerAccountId,
               ),
           createCompanionCallback:
               ({
@@ -5745,6 +7350,19 @@ class $$DbLocalFavoritesTableTableManager
                 required int type,
                 required double score,
                 required int createdAt,
+                Value<int?> rate = const Value.absent(),
+                Value<String?> comment = const Value.absent(),
+                Value<String?> tagsJson = const Value.absent(),
+                Value<bool?> private = const Value.absent(),
+                Value<int?> updatedAt = const Value.absent(),
+                Value<int?> baseType = const Value.absent(),
+                Value<int?> baseRate = const Value.absent(),
+                Value<String?> baseComment = const Value.absent(),
+                Value<String?> baseTagsJson = const Value.absent(),
+                Value<bool?> basePrivate = const Value.absent(),
+                Value<String?> remoteUpdatedAt = const Value.absent(),
+                Value<int?> lastSyncedAt = const Value.absent(),
+                Value<int?> ownerAccountId = const Value.absent(),
               }) => DbLocalFavoritesCompanion.insert(
                 id: id,
                 bangumiId: bangumiId,
@@ -5753,6 +7371,19 @@ class $$DbLocalFavoritesTableTableManager
                 type: type,
                 score: score,
                 createdAt: createdAt,
+                rate: rate,
+                comment: comment,
+                tagsJson: tagsJson,
+                private: private,
+                updatedAt: updatedAt,
+                baseType: baseType,
+                baseRate: baseRate,
+                baseComment: baseComment,
+                baseTagsJson: baseTagsJson,
+                basePrivate: basePrivate,
+                remoteUpdatedAt: remoteUpdatedAt,
+                lastSyncedAt: lastSyncedAt,
+                ownerAccountId: ownerAccountId,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -5777,6 +7408,335 @@ typedef $$DbLocalFavoritesTableProcessedTableManager =
         BaseReferences<_$AppDatabase, $DbLocalFavoritesTable, DbLocalFavorite>,
       ),
       DbLocalFavorite,
+      PrefetchHooks Function()
+    >;
+typedef $$DbBangumiSyncQueueTableCreateCompanionBuilder =
+    DbBangumiSyncQueueCompanion Function({
+      Value<int> id,
+      required int accountId,
+      required int subjectId,
+      required String operation,
+      required String payloadJson,
+      Value<String?> baselineJson,
+      Value<int> attemptCount,
+      Value<int> nextAttemptAt,
+      Value<String?> lastError,
+      required int createdAt,
+      required int updatedAt,
+    });
+typedef $$DbBangumiSyncQueueTableUpdateCompanionBuilder =
+    DbBangumiSyncQueueCompanion Function({
+      Value<int> id,
+      Value<int> accountId,
+      Value<int> subjectId,
+      Value<String> operation,
+      Value<String> payloadJson,
+      Value<String?> baselineJson,
+      Value<int> attemptCount,
+      Value<int> nextAttemptAt,
+      Value<String?> lastError,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+    });
+
+class $$DbBangumiSyncQueueTableFilterComposer
+    extends Composer<_$AppDatabase, $DbBangumiSyncQueueTable> {
+  $$DbBangumiSyncQueueTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get accountId => $composableBuilder(
+    column: $table.accountId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get subjectId => $composableBuilder(
+    column: $table.subjectId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baselineJson => $composableBuilder(
+    column: $table.baselineJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DbBangumiSyncQueueTableOrderingComposer
+    extends Composer<_$AppDatabase, $DbBangumiSyncQueueTable> {
+  $$DbBangumiSyncQueueTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get accountId => $composableBuilder(
+    column: $table.accountId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get subjectId => $composableBuilder(
+    column: $table.subjectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baselineJson => $composableBuilder(
+    column: $table.baselineJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DbBangumiSyncQueueTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DbBangumiSyncQueueTable> {
+  $$DbBangumiSyncQueueTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get accountId =>
+      $composableBuilder(column: $table.accountId, builder: (column) => column);
+
+  GeneratedColumn<int> get subjectId =>
+      $composableBuilder(column: $table.subjectId, builder: (column) => column);
+
+  GeneratedColumn<String> get operation =>
+      $composableBuilder(column: $table.operation, builder: (column) => column);
+
+  GeneratedColumn<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get baselineJson => $composableBuilder(
+    column: $table.baselineJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastError =>
+      $composableBuilder(column: $table.lastError, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$DbBangumiSyncQueueTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DbBangumiSyncQueueTable,
+          DbBangumiSyncQueueData,
+          $$DbBangumiSyncQueueTableFilterComposer,
+          $$DbBangumiSyncQueueTableOrderingComposer,
+          $$DbBangumiSyncQueueTableAnnotationComposer,
+          $$DbBangumiSyncQueueTableCreateCompanionBuilder,
+          $$DbBangumiSyncQueueTableUpdateCompanionBuilder,
+          (
+            DbBangumiSyncQueueData,
+            BaseReferences<
+              _$AppDatabase,
+              $DbBangumiSyncQueueTable,
+              DbBangumiSyncQueueData
+            >,
+          ),
+          DbBangumiSyncQueueData,
+          PrefetchHooks Function()
+        > {
+  $$DbBangumiSyncQueueTableTableManager(
+    _$AppDatabase db,
+    $DbBangumiSyncQueueTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DbBangumiSyncQueueTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DbBangumiSyncQueueTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DbBangumiSyncQueueTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> accountId = const Value.absent(),
+                Value<int> subjectId = const Value.absent(),
+                Value<String> operation = const Value.absent(),
+                Value<String> payloadJson = const Value.absent(),
+                Value<String?> baselineJson = const Value.absent(),
+                Value<int> attemptCount = const Value.absent(),
+                Value<int> nextAttemptAt = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+              }) => DbBangumiSyncQueueCompanion(
+                id: id,
+                accountId: accountId,
+                subjectId: subjectId,
+                operation: operation,
+                payloadJson: payloadJson,
+                baselineJson: baselineJson,
+                attemptCount: attemptCount,
+                nextAttemptAt: nextAttemptAt,
+                lastError: lastError,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int accountId,
+                required int subjectId,
+                required String operation,
+                required String payloadJson,
+                Value<String?> baselineJson = const Value.absent(),
+                Value<int> attemptCount = const Value.absent(),
+                Value<int> nextAttemptAt = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+              }) => DbBangumiSyncQueueCompanion.insert(
+                id: id,
+                accountId: accountId,
+                subjectId: subjectId,
+                operation: operation,
+                payloadJson: payloadJson,
+                baselineJson: baselineJson,
+                attemptCount: attemptCount,
+                nextAttemptAt: nextAttemptAt,
+                lastError: lastError,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DbBangumiSyncQueueTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DbBangumiSyncQueueTable,
+      DbBangumiSyncQueueData,
+      $$DbBangumiSyncQueueTableFilterComposer,
+      $$DbBangumiSyncQueueTableOrderingComposer,
+      $$DbBangumiSyncQueueTableAnnotationComposer,
+      $$DbBangumiSyncQueueTableCreateCompanionBuilder,
+      $$DbBangumiSyncQueueTableUpdateCompanionBuilder,
+      (
+        DbBangumiSyncQueueData,
+        BaseReferences<
+          _$AppDatabase,
+          $DbBangumiSyncQueueTable,
+          DbBangumiSyncQueueData
+        >,
+      ),
+      DbBangumiSyncQueueData,
       PrefetchHooks Function()
     >;
 typedef $$DbBangumiSubjectCachesTableCreateCompanionBuilder =
@@ -8331,6 +10291,8 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$DbLocalFavoritesTableTableManager get dbLocalFavorites =>
       $$DbLocalFavoritesTableTableManager(_db, _db.dbLocalFavorites);
+  $$DbBangumiSyncQueueTableTableManager get dbBangumiSyncQueue =>
+      $$DbBangumiSyncQueueTableTableManager(_db, _db.dbBangumiSyncQueue);
   $$DbBangumiSubjectCachesTableTableManager get dbBangumiSubjectCaches =>
       $$DbBangumiSubjectCachesTableTableManager(
         _db,

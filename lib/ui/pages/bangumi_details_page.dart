@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
-import 'package:mikan_player/models/bangumi_user_collection.dart';
 import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
 import 'package:mikan_player/services/bangumi_auth_manager.dart';
@@ -304,36 +303,34 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   Future<void> _openCollectionEditor() async {
     if (_isUpdatingFavorite || !BangumiAuthManager().isAuthenticated) return;
-    setState(() => _isUpdatingFavorite = true);
-    BangumiUserCollection? remote;
-    try {
-      remote = await _detailsController.fetchRemoteCollection();
-    } catch (error) {
-      if (mounted) {
-        _showFavoriteSnackBar(
-          AppLocalizations.of(
-            context,
-          ).bangumiCollectionLoadFailed(error.toString()),
-        );
-      }
-      return;
-    } finally {
-      if (mounted) setState(() => _isUpdatingFavorite = false);
-    }
+
+    // Open from local state so the panel appears immediately. A background
+    // refresh keeps the stored row current; it does not gate the UI.
+    final local = await _detailsController.readLocalCollection();
     if (!mounted) return;
+    unawaited(_detailsController.refreshCollectionInBackground());
+
+    // Snapshot what the panel opened with, so "dirty" below is measured against
+    // the values the user actually saw rather than a row a background refresh
+    // may have changed in the meantime.
+    final initialType =
+        local?.type ?? _localFavoriteType ?? LocalFavoriteType.wish;
+    final initialRate = local?.rate ?? 0;
+    final initialComment = local?.comment ?? '';
+    final initialTags = local?.tags ?? const <String>[];
+    final initialPrivate = local?.private ?? false;
+    final wasCollected = local != null || _isLocalFavorite;
 
     final result = await showDialog<BangumiCollectionEditorResult>(
       context: context,
       builder: (context) => BangumiCollectionEditorPanel(
-        initialType:
-            remote?.type ?? _localFavoriteType ?? LocalFavoriteType.wish,
-        initialRate: remote?.rate ?? 0,
-        initialComment: remote?.comment ?? '',
-        initialTags:
-            remote?.tags.map((tag) => tag.toString()).toList() ?? const [],
-        initialPrivate: remote?.private ?? false,
+        initialType: initialType,
+        initialRate: initialRate,
+        initialComment: initialComment,
+        initialTags: initialTags,
+        initialPrivate: initialPrivate,
         suggestedTags: extractCurrentTags(_data?['tags'], widget.anime.tags),
-        canRemove: remote != null || _isLocalFavorite,
+        canRemove: wasCollected,
       ),
     );
     if (!mounted || result == null) return;
@@ -344,21 +341,13 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
     setState(() => _isUpdatingFavorite = true);
     final l10n = AppLocalizations.of(context);
-    final wasRemote = remote != null;
-    final oldRate = remote?.rate ?? 0;
-    final oldComment = remote?.comment ?? '';
-    final oldTags =
-        remote?.tags.map((tag) => tag.toString()).toList() ?? const <String>[];
-    final oldPrivate = remote?.private ?? false;
-    final statusDirty =
-        remote == null ||
-        !_isLocalFavorite ||
-        _localFavoriteType != result.type;
-    final metadataDirty =
-        result.rate != oldRate ||
-        result.comment != oldComment ||
-        result.tags.join('\u0000') != oldTags.join('\u0000') ||
-        result.private != oldPrivate;
+    final statusDirty = !wasCollected || initialType != result.type;
+    final rateDirty = result.rate != initialRate;
+    final commentDirty = result.comment != initialComment;
+    final tagsDirty =
+        result.tags.join('\u0000') != initialTags.join('\u0000');
+    final privateDirty = result.private != initialPrivate;
+    final metadataDirty = rateDirty || commentDirty || tagsDirty || privateDirty;
     try {
       if (statusDirty) {
         final saved = await _detailsController.setLocalFavoriteType(
@@ -372,19 +361,21 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
         }
       }
       if (metadataDirty) {
+        // Only dirty fields travel. `tags: null` means "leave them alone";
+        // sending [] would delete every tag the user has.
         await _detailsController.patchRemoteMetadata(
-          rate: result.rate != oldRate ? result.rate : null,
-          comment: result.comment != oldComment ? result.comment : null,
-          tags: result.tags.join('\u0000') != oldTags.join('\u0000')
-              ? result.tags
-              : null,
-          private: result.private != oldPrivate ? result.private : null,
+          rate: rateDirty ? result.rate : null,
+          comment: commentDirty ? result.comment : null,
+          tags: tagsDirty ? result.tags : null,
+          private: privateDirty ? result.private : null,
         );
-        await _detailsController.fetchRemoteCollection();
       }
       if (statusDirty || metadataDirty) {
+        // The write already landed locally; Bangumi catches up through the
+        // queue, so there is no read-back here.
+        await _detailsController.refreshFavoriteStatus();
         _showFavoriteSnackBar(
-          wasRemote
+          wasCollected
               ? l10n.bangumiCollectionUpdated
               : l10n.bangumiCollectionAdded,
         );

@@ -2761,6 +2761,12 @@ abstract class AppLocalizations {
   /// **'有 {count} 个条目的本地状态和 Bangumi 状态不同，请选择要保留的版本。'**
   String collectionConflictDescription(Object count);
 
+  /// No description provided for @collectionConflictIndex.
+  ///
+  /// In zh, this message translates to:
+  /// **'{current} / {total}'**
+  String collectionConflictIndex(Object current, Object total);
+
   /// No description provided for @collectionResolveConflicts.
   ///
   /// In zh, this message translates to:
@@ -2796,6 +2802,90 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'更新时间'**
   String get collectionConflictUpdated;
+
+  /// No description provided for @collectionConflictFieldStatus.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏状态'**
+  String get collectionConflictFieldStatus;
+
+  /// No description provided for @collectionConflictFieldRate.
+  ///
+  /// In zh, this message translates to:
+  /// **'评分'**
+  String get collectionConflictFieldRate;
+
+  /// No description provided for @collectionConflictFieldComment.
+  ///
+  /// In zh, this message translates to:
+  /// **'评价'**
+  String get collectionConflictFieldComment;
+
+  /// No description provided for @collectionConflictFieldTags.
+  ///
+  /// In zh, this message translates to:
+  /// **'标签'**
+  String get collectionConflictFieldTags;
+
+  /// No description provided for @collectionConflictFieldPrivate.
+  ///
+  /// In zh, this message translates to:
+  /// **'隐私'**
+  String get collectionConflictFieldPrivate;
+
+  /// No description provided for @collectionConflictRemoteDeleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'Bangumi 上已删除'**
+  String get collectionConflictRemoteDeleted;
+
+  /// No description provided for @collectionConflictReupload.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新上传到 Bangumi'**
+  String get collectionConflictReupload;
+
+  /// No description provided for @collectionConflictDeleteLocal.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步删除本地收藏'**
+  String get collectionConflictDeleteLocal;
+
+  /// No description provided for @collectionConflictPrivateYes.
+  ///
+  /// In zh, this message translates to:
+  /// **'私密'**
+  String get collectionConflictPrivateYes;
+
+  /// No description provided for @collectionConflictPrivateNo.
+  ///
+  /// In zh, this message translates to:
+  /// **'公开'**
+  String get collectionConflictPrivateNo;
+
+  /// No description provided for @collectionConflictNotSet.
+  ///
+  /// In zh, this message translates to:
+  /// **'未设置'**
+  String get collectionConflictNotSet;
+
+  /// No description provided for @collectionConflictEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'空'**
+  String get collectionConflictEmpty;
+
+  /// No description provided for @collectionConflictResolveNext.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用并继续'**
+  String get collectionConflictResolveNext;
+
+  /// No description provided for @collectionConflictResolvePrevious.
+  ///
+  /// In zh, this message translates to:
+  /// **'上一个'**
+  String get collectionConflictResolvePrevious;
 
   /// No description provided for @playSourceTitle.
   ///

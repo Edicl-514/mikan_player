@@ -356,7 +356,6 @@ class _MyPageState extends State<MyPage> {
     BangumiCollectionSyncService service,
     List<BangumiCollectionConflict> conflicts,
   ) async {
-    final choices = <int, BangumiCollectionConflictChoice>{};
     var resolving = false;
     await showDialog<void>(
       context: context,
@@ -369,33 +368,27 @@ class _MyPageState extends State<MyPage> {
               height: MediaQuery.sizeOf(context).height * 0.82,
               child: BangumiCollectionConflictPanel(
                 conflicts: conflicts,
-                choices: choices,
                 statusLabel: (type) => _favoriteTypeLabel(context, type),
-                onChoiceChanged: (subjectId, choice) {
-                  setDialogState(() => choices[subjectId] = choice);
-                },
                 isResolving: resolving,
-                onResolve: choices.length == conflicts.length && !resolving
-                    ? () async {
-                        setDialogState(() => resolving = true);
-                        try {
-                          await service.resolveConflicts(conflicts, choices);
-                          if (dialogContext.mounted) {
-                            Navigator.pop(dialogContext);
-                          }
-                        } catch (e) {
-                          if (!dialogContext.mounted) return;
-                          setDialogState(() => resolving = false);
-                          ScaffoldMessenger.of(dialogContext).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                l10n.bangumiSyncFailedWithError(e.toString()),
-                              ),
-                            ),
-                          );
-                        }
-                      }
-                    : null,
+                onResolve: (resolutions) async {
+                  setDialogState(() => resolving = true);
+                  try {
+                    await service.resolveFieldConflicts(conflicts, resolutions);
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                    }
+                  } catch (e) {
+                    if (!dialogContext.mounted) return;
+                    setDialogState(() => resolving = false);
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          l10n.bangumiSyncFailedWithError(e.toString()),
+                        ),
+                      ),
+                    );
+                  }
+                },
               ),
             ),
           );

@@ -41,6 +41,11 @@ class FavoritesManager {
     return _db!;
   }
 
+  /// Adds a favorite or updates its status, preserving any collection metadata
+  /// and sync baseline already stored for the subject.
+  ///
+  /// This is a *local edit*: it stamps `updatedAt` so a later three-way merge
+  /// can tell the change apart from one made on Bangumi.
   Future<void> addFavorite({
     required int bangumiId,
     required String title,
@@ -50,19 +55,219 @@ class FavoritesManager {
   }) async {
     if (!_isInitialized) await init();
 
-    final favorite = LocalFavorite.create(
-      bangumiId: bangumiId,
-      title: title,
-      coverUrl: coverUrl,
-      score: score,
-      type: type,
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await db
+        .into(db.dbLocalFavorites)
+        .insert(
+          DbLocalFavoritesCompanion.insert(
+            bangumiId: bangumiId,
+            title: title,
+            coverUrl: coverUrl,
+            type: type,
+            score: score,
+            createdAt: now,
+            updatedAt: Value(now),
+          ),
+          // Deliberately not insertOrReplace: replacing the row would reset
+          // rate / comment / tags / private and the sync baseline to null.
+          onConflict: DoUpdate(
+            (_) => DbLocalFavoritesCompanion(
+              title: Value(title),
+              coverUrl: Value(coverUrl),
+              type: Value(type),
+              score: Value(score),
+              updatedAt: Value(now),
+            ),
+            target: [db.dbLocalFavorites.bangumiId],
+          ),
+        );
+  }
+
+  /// Records a local metadata edit. All four fields are written together
+  /// because the collection editor always submits a complete set; `null`
+  /// clears the field locally.
+  Future<void> setLocalMetadata({
+    required int bangumiId,
+    int? rate,
+    String? comment,
+    List<String>? tags,
+    bool? private,
+  }) async {
+    if (!_isInitialized) await init();
+
+    await (db.update(db.dbLocalFavorites)
+          ..where((tbl) => tbl.bangumiId.equals(bangumiId)))
+        .write(
+          DbLocalFavoritesCompanion(
+            rate: Value(rate),
+            comment: Value(comment),
+            tagsJson: Value(encodeFavoriteTags(tags)),
+            private: Value(private),
+            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+          ),
+        );
+  }
+
+  /// Writes the merge result for a subject without touching the baseline.
+  ///
+  /// Used when a field-level merge resolves some fields to the remote value and
+  /// others to the local one; the caller records the baseline separately once
+  /// the upload half has succeeded.
+  Future<void> applyMergedValues({
+    required int bangumiId,
+    required int type,
+    int? rate,
+    String? comment,
+    List<String>? tags,
+    bool? private,
+  }) async {
+    if (!_isInitialized) await init();
+
+    await (db.update(db.dbLocalFavorites)
+          ..where((tbl) => tbl.bangumiId.equals(bangumiId)))
+        .write(
+          DbLocalFavoritesCompanion(
+            type: Value(type),
+            rate: Value(rate),
+            comment: Value(comment),
+            tagsJson: Value(encodeFavoriteTags(tags)),
+            private: Value(private),
+            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+          ),
+        );
+  }
+
+  /// Stores the server's canonical state as both the local value and the sync
+  /// baseline, clearing any pending local-edit marker.
+  Future<void> applyRemoteSnapshot({
+    required int bangumiId,
+    required String title,
+    required String coverUrl,
+    required double score,
+    required int type,
+    required int accountId,
+    int? rate,
+    String? comment,
+    List<String>? tags,
+    bool? private,
+    String? remoteUpdatedAt,
+  }) async {
+    if (!_isInitialized) await init();
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final tagsJson = encodeFavoriteTags(tags);
+    final values = DbLocalFavoritesCompanion(
+      title: Value(title),
+      coverUrl: Value(coverUrl),
+      type: Value(type),
+      score: Value(score),
+      rate: Value(rate),
+      comment: Value(comment),
+      tagsJson: Value(tagsJson),
+      private: Value(private),
+      // Local and remote now agree, so there is no outstanding local edit.
+      updatedAt: const Value(null),
+      baseType: Value(type),
+      baseRate: Value(rate),
+      baseComment: Value(comment),
+      baseTagsJson: Value(tagsJson),
+      basePrivate: Value(private),
+      remoteUpdatedAt: Value(remoteUpdatedAt),
+      lastSyncedAt: Value(now),
+      ownerAccountId: Value(accountId),
     );
 
     await db
         .into(db.dbLocalFavorites)
         .insert(
-          _favoriteToCompanion(favorite),
-          mode: InsertMode.insertOrReplace,
+          DbLocalFavoritesCompanion.insert(
+            bangumiId: bangumiId,
+            title: title,
+            coverUrl: coverUrl,
+            type: type,
+            score: score,
+            createdAt: now,
+            rate: Value(rate),
+            comment: Value(comment),
+            tagsJson: Value(tagsJson),
+            private: Value(private),
+            baseType: Value(type),
+            baseRate: Value(rate),
+            baseComment: Value(comment),
+            baseTagsJson: Value(tagsJson),
+            basePrivate: Value(private),
+            remoteUpdatedAt: Value(remoteUpdatedAt),
+            lastSyncedAt: Value(now),
+            ownerAccountId: Value(accountId),
+          ),
+          onConflict: DoUpdate(
+            (_) => values,
+            target: [db.dbLocalFavorites.bangumiId],
+          ),
+        );
+  }
+
+  /// Marks the current local values as agreed with Bangumi after a successful
+  /// upload, without changing what the user sees.
+  Future<void> confirmBaseline({
+    required int bangumiId,
+    required int accountId,
+    String? remoteUpdatedAt,
+  }) async {
+    if (!_isInitialized) await init();
+
+    final row = await _rowFor(bangumiId);
+    if (row == null) return;
+
+    await (db.update(db.dbLocalFavorites)
+          ..where((tbl) => tbl.bangumiId.equals(bangumiId)))
+        .write(
+          DbLocalFavoritesCompanion(
+            updatedAt: const Value(null),
+            baseType: Value(row.type),
+            baseRate: Value(row.rate),
+            baseComment: Value(row.comment),
+            baseTagsJson: Value(row.tagsJson),
+            basePrivate: Value(row.private),
+            remoteUpdatedAt: Value(remoteUpdatedAt ?? row.remoteUpdatedAt),
+            lastSyncedAt: Value(DateTime.now().millisecondsSinceEpoch),
+            ownerAccountId: Value(accountId),
+          ),
+        );
+  }
+
+  /// Drops another account's collection metadata and baseline.
+  ///
+  /// Both halves have to go. Clearing only the baseline would leave account A's
+  /// rating and comment in the row with no baseline to compare against, so the
+  /// merge would read them as *this* account's unsynced local edits and upload
+  /// them into the wrong collection. The status and cover are kept: they are
+  /// what makes the entry visible in the local list, and the next sync
+  /// reconciles them.
+  Future<void> clearBaselinesForOtherAccounts(int accountId) async {
+    if (!_isInitialized) await init();
+
+    await (db.update(db.dbLocalFavorites)..where(
+          (tbl) =>
+              tbl.ownerAccountId.isNotNull() &
+              tbl.ownerAccountId.equals(accountId).not(),
+        ))
+        .write(
+          const DbLocalFavoritesCompanion(
+            rate: Value(null),
+            comment: Value(null),
+            tagsJson: Value(null),
+            private: Value(null),
+            updatedAt: Value(null),
+            baseType: Value(null),
+            baseRate: Value(null),
+            baseComment: Value(null),
+            baseTagsJson: Value(null),
+            basePrivate: Value(null),
+            remoteUpdatedAt: Value(null),
+            lastSyncedAt: Value(null),
+            ownerAccountId: Value(null),
+          ),
         );
   }
 
@@ -89,10 +294,15 @@ class FavoritesManager {
   Future<int?> getFavoriteType(int bangumiId) async {
     if (!_isInitialized) await init();
 
-    final favorite = await (db.select(
-      db.dbLocalFavorites,
-    )..where((tbl) => tbl.bangumiId.equals(bangumiId))).getSingleOrNull();
-    return favorite?.type;
+    return (await _rowFor(bangumiId))?.type;
+  }
+
+  /// Full local favorite row, including collection metadata and baseline.
+  Future<LocalFavorite?> getFavorite(int bangumiId) async {
+    if (!_isInitialized) await init();
+
+    final row = await _rowFor(bangumiId);
+    return row == null ? null : _favoriteFromRow(row);
   }
 
   Future<List<LocalFavorite>> getAllFavorites() async {
@@ -104,16 +314,9 @@ class FavoritesManager {
     return rows.map(_favoriteFromRow).toList();
   }
 
-  DbLocalFavoritesCompanion _favoriteToCompanion(LocalFavorite favorite) {
-    return DbLocalFavoritesCompanion.insert(
-      bangumiId: favorite.bangumiId,
-      title: favorite.title,
-      coverUrl: favorite.coverUrl,
-      type: favorite.type,
-      score: favorite.score,
-      createdAt: favorite.createdAt,
-    );
-  }
+  Future<DbLocalFavorite?> _rowFor(int bangumiId) => (db.select(
+    db.dbLocalFavorites,
+  )..where((tbl) => tbl.bangumiId.equals(bangumiId))).getSingleOrNull();
 
   LocalFavorite _favoriteFromRow(DbLocalFavorite row) {
     return LocalFavorite()
@@ -123,6 +326,19 @@ class FavoritesManager {
       ..coverUrl = row.coverUrl
       ..type = row.type
       ..score = row.score
-      ..createdAt = row.createdAt;
+      ..createdAt = row.createdAt
+      ..rate = row.rate
+      ..comment = row.comment
+      ..tags = decodeFavoriteTags(row.tagsJson)
+      ..private = row.private
+      ..updatedAt = row.updatedAt
+      ..baseType = row.baseType
+      ..baseRate = row.baseRate
+      ..baseComment = row.baseComment
+      ..baseTags = decodeFavoriteTags(row.baseTagsJson)
+      ..basePrivate = row.basePrivate
+      ..remoteUpdatedAt = row.remoteUpdatedAt
+      ..lastSyncedAt = row.lastSyncedAt
+      ..ownerAccountId = row.ownerAccountId;
   }
 }

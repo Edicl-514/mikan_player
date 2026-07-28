@@ -6,9 +6,7 @@ import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/models/bangumi_user_collection.dart';
 import 'package:mikan_player/services/bangumi_details_service.dart';
 import 'package:mikan_player/services/favorites_manager.dart';
-import 'package:mikan_player/services/bangumi_auth_manager.dart';
-import 'package:mikan_player/services/bangumi_collections_repository.dart';
-import 'package:mikan_player/services/user_manager.dart';
+import 'package:mikan_player/services/bangumi_collection_cache.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/bangumi_details_helpers.dart';
@@ -51,6 +49,8 @@ class BangumiDetailsFavoritesPort {
     required this.removeFavorite,
     this.fetchCollection,
     this.patchMetadata,
+    this.readLocalCollection,
+    this.refreshCollectionInBackground,
   });
 
   final Future<int?> Function(int bangumiId) getFavoriteType;
@@ -76,6 +76,15 @@ class BangumiDetailsFavoritesPort {
     bool? private,
   })?
   patchMetadata;
+
+  /// Reads the locally stored collection. This is the editor's read path: it
+  /// returns immediately so opening the panel costs no network round trip.
+  final Future<LocalFavorite?> Function(int bangumiId)? readLocalCollection;
+
+  /// Refreshes the local copy from Bangumi in the background, completing with
+  /// `true` when the stored row changed. Failures are absorbed — a stale panel
+  /// is better than a blocked one.
+  final Future<bool> Function(int bangumiId)? refreshCollectionInBackground;
 }
 
 /// Phase 4 bangumi-details responsibility split: request state, comment paging,
@@ -434,12 +443,35 @@ class BangumiDetailsController {
     return favoriteType == null;
   }
 
-  Future<BangumiUserCollection?> fetchRemoteCollection() async {
-    if (_disposed || _favoritesPort.fetchCollection == null) return null;
-    final username = UserManager().user?.username;
+  /// Locally stored collection values for this subject, or `null` when it is not
+  /// collected. Never hits the network, so the editor can open immediately.
+  Future<LocalFavorite?> readLocalCollection() async {
+    if (_disposed || _favoritesPort.readLocalCollection == null) return null;
     final id = _parseSubjectId(_anime.bangumiId);
-    if (username == null || id == null) return null;
-    return _favoritesPort.fetchCollection!(username: username, bangumiId: id);
+    if (id == null) return null;
+    return _favoritesPort.readLocalCollection!(id);
+  }
+
+  /// Refreshes this subject from Bangumi in the background and republishes the
+  /// local status if anything changed.
+  ///
+  /// Fire-and-forget by design: the UI is already showing local state, so a
+  /// failure here is silent rather than an error the user has to dismiss.
+  Future<void> refreshCollectionInBackground() async {
+    if (_disposed || _favoritesPort.refreshCollectionInBackground == null) {
+      return;
+    }
+    final id = _parseSubjectId(_anime.bangumiId);
+    if (id == null) return;
+
+    final token = _favoriteToken;
+    final changed = await _favoritesPort.refreshCollectionInBackground!(id);
+    if (!changed || !_isFavoriteCurrent(token)) return;
+
+    final favoriteType = await _favoritesPort.getFavoriteType(id);
+    if (!_isFavoriteCurrent(token)) return;
+    _localFavoriteType = favoriteType;
+    _notify();
   }
 
   Future<void> patchRemoteMetadata({
@@ -616,26 +648,23 @@ BangumiDetailsDataPort bangumiDetailsServiceDataPort([
 }
 
 /// Production wiring for [FavoritesManager].
+///
+/// Reads are local-only: opening a details page or the collection editor makes
+/// no network request. A stale local row is refreshed in the background by
+/// [BangumiCollectionCache], which notifies through
+/// [BangumiDetailsFavoritesPort.refreshCollectionInBackground].
+///
+/// Writes apply locally first and go to Bangumi through [BangumiSyncQueue], so
+/// editing a collection works offline and survives a restart.
 BangumiDetailsFavoritesPort bangumiDetailsFavoritesPort(
-  FavoritesManager Function() managerFactory,
-) {
-  final repository = BangumiCollectionsRepository();
+  FavoritesManager Function() managerFactory, {
+  BangumiCollectionCache? cache,
+}) {
+  final collectionCache = cache ?? BangumiCollectionCache.instance;
   return BangumiDetailsFavoritesPort(
-    getFavoriteType: (id) async {
-      final manager = managerFactory();
-      final localType = await manager.getFavoriteType(id);
-      final user = UserManager();
-      final auth = BangumiAuthManager();
-      if (!user.isSyncMode || !auth.isAuthenticated) return localType;
-      try {
-        // Details status follows Bangumi immediately in sync mode. A local
-        // only item remains visible until the next collection reconciliation.
-        return await repository.fetchType(id) ?? localType;
-      } catch (e) {
-        debugPrint('Bangumi collection status read failed for $id: $e');
-        return localType;
-      }
-    },
+    getFavoriteType: (id) => managerFactory().getFavoriteType(id),
+    readLocalCollection: (id) => managerFactory().getFavorite(id),
+    refreshCollectionInBackground: collectionCache.refreshAndReportChange,
     addFavorite:
         ({
           required bangumiId,
@@ -643,40 +672,23 @@ BangumiDetailsFavoritesPort bangumiDetailsFavoritesPort(
           required coverUrl,
           required score,
           required type,
-        }) async {
-          final user = UserManager();
-          final auth = BangumiAuthManager();
-          if (user.isSyncMode && auth.isAuthenticated) {
-            await repository.update(subjectId: bangumiId, type: type);
-          }
-          await managerFactory().addFavorite(
-            bangumiId: bangumiId,
-            title: title,
-            coverUrl: coverUrl,
-            score: score,
-            type: type,
-          );
-        },
-    removeFavorite: (id) async {
-      final user = UserManager();
-      final auth = BangumiAuthManager();
-      if (user.isSyncMode && auth.isAuthenticated) {
-        await repository.delete(id);
-      }
-      await managerFactory().removeFavorite(id);
-    },
-    fetchCollection: ({required username, required bangumiId}) async {
-      if (!BangumiAuthManager().isAuthenticated) return null;
-      return repository.fetchMineOne(username: username, subjectId: bangumiId);
-    },
-    patchMetadata:
-        ({required bangumiId, rate, comment, tags, private}) =>
-            repository.patchMetadata(
-              subjectId: bangumiId,
-              rate: rate,
-              comment: comment,
-              tags: tags,
-              private: private,
-            ),
+        }) => collectionCache.setStatus(
+          bangumiId: bangumiId,
+          title: title,
+          coverUrl: coverUrl,
+          score: score,
+          type: type,
+        ),
+    removeFavorite: (id) => collectionCache.remove(id),
+    fetchCollection: ({required username, required bangumiId}) =>
+        collectionCache.fetchRemote(username: username, subjectId: bangumiId),
+    patchMetadata: ({required bangumiId, rate, comment, tags, private}) =>
+        collectionCache.saveMetadata(
+          bangumiId: bangumiId,
+          rate: rate,
+          comment: comment,
+          tags: tags,
+          private: private,
+        ),
   );
 }

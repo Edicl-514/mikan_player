@@ -66,6 +66,19 @@ void main() {
     final db = AppDatabase.forTesting(
       NativeDatabase.memory(
         setup: (raw) {
+          // A real v2 database still carries the v1 favorites table; the v4
+          // upgrade adds columns to it, so the fixture must include it.
+          raw.execute('''
+            CREATE TABLE db_local_favorites (
+              id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+              bangumi_id INTEGER NOT NULL UNIQUE,
+              title TEXT NOT NULL,
+              cover_url TEXT NOT NULL,
+              type INTEGER NOT NULL,
+              score REAL NOT NULL,
+              created_at INTEGER NOT NULL
+            )
+          ''');
           raw.execute('''
             CREATE TABLE db_bangumi_episode_caches (
               id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -101,5 +114,93 @@ void main() {
           ),
         );
     expect(await db.select(db.dbBangumiPersonCaches).get(), hasLength(1));
+  });
+
+  test('migrates a v3 database to the v4 collection-sync schema', () async {
+    final db = AppDatabase.forTesting(
+      NativeDatabase.memory(
+        setup: (raw) {
+          raw.execute('''
+            CREATE TABLE db_local_favorites (
+              id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+              bangumi_id INTEGER NOT NULL UNIQUE,
+              title TEXT NOT NULL,
+              cover_url TEXT NOT NULL,
+              type INTEGER NOT NULL,
+              score REAL NOT NULL,
+              created_at INTEGER NOT NULL
+            )
+          ''');
+          raw.execute('''
+            INSERT INTO db_local_favorites
+              (bangumi_id, title, cover_url, type, score, created_at)
+            VALUES (11, 'Pre-sync', 'cover', 3, 7.5, 100)
+          ''');
+          raw.execute('PRAGMA user_version = 3');
+        },
+      ),
+    );
+    addTearDown(db.close);
+
+    // The pre-v4 row survives, and every new column reads as null rather than
+    // as an invented value the merge engine would mistake for a real edit.
+    final favorite = await db.select(db.dbLocalFavorites).getSingle();
+    expect(favorite.bangumiId, 11);
+    expect(favorite.title, 'Pre-sync');
+    expect(favorite.type, 3);
+    expect(favorite.rate, isNull);
+    expect(favorite.comment, isNull);
+    expect(favorite.tagsJson, isNull);
+    expect(favorite.private, isNull);
+    expect(favorite.updatedAt, isNull);
+    expect(favorite.baseType, isNull);
+    expect(favorite.baseRate, isNull);
+    expect(favorite.baseComment, isNull);
+    expect(favorite.baseTagsJson, isNull);
+    expect(favorite.basePrivate, isNull);
+    expect(favorite.remoteUpdatedAt, isNull);
+    expect(favorite.lastSyncedAt, isNull);
+    expect(favorite.ownerAccountId, isNull);
+
+    await db
+        .into(db.dbBangumiSyncQueue)
+        .insert(
+          DbBangumiSyncQueueCompanion.insert(
+            accountId: 5,
+            subjectId: 11,
+            operation: 'metadata',
+            payloadJson: '{"rate":{"set":8}}',
+            createdAt: 100,
+            updatedAt: 100,
+          ),
+        );
+    final queued = await db.select(db.dbBangumiSyncQueue).getSingle();
+    expect(queued.subjectId, 11);
+    expect(queued.attemptCount, 0);
+    expect(queued.nextAttemptAt, 0);
+  });
+
+  test('enforces one queued task per account/subject/operation', () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+
+    Future<void> insert(String operation) => db
+        .into(db.dbBangumiSyncQueue)
+        .insert(
+          DbBangumiSyncQueueCompanion.insert(
+            accountId: 5,
+            subjectId: 11,
+            operation: operation,
+            payloadJson: '{}',
+            createdAt: 100,
+            updatedAt: 100,
+          ),
+        );
+
+    await insert('metadata');
+    // A different operation for the same subject is allowed; a duplicate of the
+    // same one is not, which is what lets the queue merge instead of pile up.
+    await insert('status');
+    await expectLater(insert('metadata'), throwsA(isA<Exception>()));
   });
 }

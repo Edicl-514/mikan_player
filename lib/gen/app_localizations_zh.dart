@@ -1438,6 +1438,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String collectionConflictIndex(Object current, Object total) {
+    return '$current / $total';
+  }
+
+  @override
   String get collectionResolveConflicts => '应用选择';
 
   @override
@@ -1454,6 +1459,48 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get collectionConflictUpdated => '更新时间';
+
+  @override
+  String get collectionConflictFieldStatus => '收藏状态';
+
+  @override
+  String get collectionConflictFieldRate => '评分';
+
+  @override
+  String get collectionConflictFieldComment => '评价';
+
+  @override
+  String get collectionConflictFieldTags => '标签';
+
+  @override
+  String get collectionConflictFieldPrivate => '隐私';
+
+  @override
+  String get collectionConflictRemoteDeleted => 'Bangumi 上已删除';
+
+  @override
+  String get collectionConflictReupload => '重新上传到 Bangumi';
+
+  @override
+  String get collectionConflictDeleteLocal => '同步删除本地收藏';
+
+  @override
+  String get collectionConflictPrivateYes => '私密';
+
+  @override
+  String get collectionConflictPrivateNo => '公开';
+
+  @override
+  String get collectionConflictNotSet => '未设置';
+
+  @override
+  String get collectionConflictEmpty => '空';
+
+  @override
+  String get collectionConflictResolveNext => '应用并继续';
+
+  @override
+  String get collectionConflictResolvePrevious => '上一个';
 
   @override
   String get playSourceTitle => '播放源';

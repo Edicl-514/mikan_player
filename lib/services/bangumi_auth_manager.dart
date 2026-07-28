@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:mikan_player/services/bangumi_collection_sync_service.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart' as rust_bangumi;
 import 'package:mikan_player/src/rust/api/config.dart' as rust_config;
 
@@ -251,7 +252,17 @@ class BangumiAuthManager extends ChangeNotifier {
   }
 
   /// Clear the token everywhere: in-memory, secure storage, and Rust config.
+  /// Best-effort drains the sync queue before clearing to avoid losing pending
+  /// edits, but logout proceeds even if the drain times out or fails.
   Future<void> logout() async {
+    try {
+      await drainBangumiSyncQueue().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () => debugPrint('[logout] sync queue drain timeout'),
+      );
+    } catch (e) {
+      debugPrint('[logout] sync queue drain failed: $e');
+    }
     final generation = ++_sessionGeneration;
     _refreshInFlight = null;
     await _clearSession(generation: generation);

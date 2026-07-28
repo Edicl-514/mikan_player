@@ -30,6 +30,7 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:mikan_player/services/user_manager.dart';
 import 'package:mikan_player/services/bangumi_auth_manager.dart';
+import 'package:mikan_player/services/bangumi_collection_sync_service.dart';
 import 'package:mikan_player/services/settings_service.dart';
 import 'package:mikan_player/services/workspace_lifecycle.dart';
 import 'package:mikan_player/services/workspace_route_observer.dart';
@@ -104,6 +105,9 @@ Future<void> main() async {
 
       // Initialize UserManager
       await UserManager().init();
+
+      // Drain offline sync queue after auth/user init
+      unawaited(drainBangumiSyncQueue());
 
       // Initialize SettingsService
       await SettingsService().init();

@@ -1509,6 +1509,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String collectionConflictIndex(Object current, Object total) {
+    return '$current / $total';
+  }
+
+  @override
   String get collectionResolveConflicts => 'Apply choices';
 
   @override
@@ -1525,6 +1530,48 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get collectionConflictUpdated => 'Updated';
+
+  @override
+  String get collectionConflictFieldStatus => 'Collection status';
+
+  @override
+  String get collectionConflictFieldRate => 'Rating';
+
+  @override
+  String get collectionConflictFieldComment => 'Comment';
+
+  @override
+  String get collectionConflictFieldTags => 'Tags';
+
+  @override
+  String get collectionConflictFieldPrivate => 'Privacy';
+
+  @override
+  String get collectionConflictRemoteDeleted => 'Deleted on Bangumi';
+
+  @override
+  String get collectionConflictReupload => 'Re-upload to Bangumi';
+
+  @override
+  String get collectionConflictDeleteLocal => 'Delete local collection';
+
+  @override
+  String get collectionConflictPrivateYes => 'Private';
+
+  @override
+  String get collectionConflictPrivateNo => 'Public';
+
+  @override
+  String get collectionConflictNotSet => 'Not set';
+
+  @override
+  String get collectionConflictEmpty => 'Empty';
+
+  @override
+  String get collectionConflictResolveNext => 'Apply and next';
+
+  @override
+  String get collectionConflictResolvePrevious => 'Previous';
 
   @override
   String get playSourceTitle => 'Play sources';
