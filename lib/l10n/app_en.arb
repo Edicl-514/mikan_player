@@ -847,6 +847,46 @@
   "@bangumiDetailsTabComments": {
     "description": "Mobile bangumi comments tab label."
   },
+  "bangumiDetailsTabReviews": "Reviews",
+  "@bangumiDetailsTabReviews": {
+    "description": "Bangumi details reviews tab label."
+  },
+  "bangumiDetailsTabTopics": "Topics",
+  "@bangumiDetailsTabTopics": {
+    "description": "Bangumi details topics tab label."
+  },
+  "characterTabSubjects": "Appeared In",
+  "@characterTabSubjects": {
+    "description": "Character detail page subjects tab label."
+  },
+  "characterTabComments": "Comments",
+  "@characterTabComments": {
+    "description": "Character detail page comments tab label."
+  },
+  "personTabSubjects": "Works",
+  "@personTabSubjects": {
+    "description": "Person detail page subjects tab label."
+  },
+  "personTabComments": "Comments",
+  "@personTabComments": {
+    "description": "Person detail page comments tab label."
+  },
+  "bangumiDetailsPlaceholderReviews": "No reviews yet",
+  "@bangumiDetailsPlaceholderReviews": {
+    "description": "Placeholder for long reviews tab."
+  },
+  "bangumiDetailsPlaceholderTopics": "No topics yet",
+  "@bangumiDetailsPlaceholderTopics": {
+    "description": "Placeholder for topics tab."
+  },
+  "characterCommentsPlaceholder": "No character comments yet",
+  "@characterCommentsPlaceholder": {
+    "description": "Placeholder for character comments."
+  },
+  "personCommentsPlaceholder": "No person comments yet",
+  "@personCommentsPlaceholder": {
+    "description": "Placeholder for person comments."
+  },
   "bangumiDetailsCharacters": "Characters",
   "@bangumiDetailsCharacters": {
     "description": "Bangumi details characters section title."

@@ -79,8 +79,12 @@ class _DetailsControllers {
   }
 }
 
-Widget _bangumiWideLayout(_DetailsControllers c) => BangumiDetailsWideLayout(
-  anime: const AnimeInfo(title: 'Test Anime', bangumiId: '1', tags: []),
+Widget _bangumiWideLayout(
+  _DetailsControllers c, {
+  String bangumiId = '1',
+  VoidCallback? onLoadMoreComments,
+}) => BangumiDetailsWideLayout(
+  anime: AnimeInfo(title: 'Test Anime', bangumiId: bangumiId, tags: const []),
   heroTag: null,
   data: const <String, dynamic>{'infobox': <dynamic>[]},
   episodes: const [],
@@ -122,6 +126,7 @@ Widget _bangumiWideLayout(_DetailsControllers c) => BangumiDetailsWideLayout(
   onRelationTap: (_) {},
   onSiteTap: (_) {},
   onEnsureCommentsLoaded: () {},
+  onLoadMoreComments: onLoadMoreComments ?? () {},
 );
 
 void main() {
@@ -204,6 +209,73 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       await pumpLocalizedWidget(tester, _bangumiWideLayout(controllers));
       expect(find.byType(AppBar), findsOneWidget);
+    });
+
+    testWidgets('resets the selected tab when the anime changes', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await pumpLocalizedWidget(tester, _bangumiWideLayout(controllers));
+      tester
+          .widget<SegmentedButton<int>>(find.byType(SegmentedButton<int>))
+          .onSelectionChanged!({2});
+      await tester.pump();
+      expect(
+        tester
+            .widget<SegmentedButton<int>>(find.byType(SegmentedButton<int>))
+            .selected,
+        {2},
+      );
+
+      await pumpLocalizedWidget(
+        tester,
+        _bangumiWideLayout(controllers, bangumiId: '2'),
+      );
+      expect(
+        tester
+            .widget<SegmentedButton<int>>(find.byType(SegmentedButton<int>))
+            .selected,
+        {0},
+      );
+    });
+
+    testWidgets('loads more comments only from the comments tab', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1280, 400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var loadMoreCalls = 0;
+
+      await pumpLocalizedWidget(
+        tester,
+        _bangumiWideLayout(
+          controllers,
+          onLoadMoreComments: () => loadMoreCalls++,
+        ),
+      );
+      controllers.wideRight.jumpTo(
+        controllers.wideRight.position.maxScrollExtent,
+      );
+      await tester.pump();
+      expect(loadMoreCalls, 0);
+
+      tester
+          .widget<SegmentedButton<int>>(find.byType(SegmentedButton<int>))
+          .onSelectionChanged!({1});
+      await tester.pump();
+      controllers.wideRight.jumpTo(0);
+      await tester.pump();
+      controllers.wideRight.jumpTo(
+        controllers.wideRight.position.maxScrollExtent,
+      );
+      await tester.pump();
+      expect(loadMoreCalls, greaterThan(0));
     });
   });
 

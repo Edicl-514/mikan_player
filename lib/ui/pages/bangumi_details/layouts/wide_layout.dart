@@ -27,7 +27,7 @@ import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 /// controllers, and the UI state; this widget only assembles the left
 /// (poster / rating / actions / infobox) and right (title / episodes /
 /// summary / tags / characters / relations / sites / comments) panels.
-class BangumiDetailsWideLayout extends StatelessWidget {
+class BangumiDetailsWideLayout extends StatefulWidget {
   final AnimeInfo anime;
   final String? heroTag;
 
@@ -85,6 +85,7 @@ class BangumiDetailsWideLayout extends StatelessWidget {
   final void Function(BangumiRelatedSubject relation) onRelationTap;
   final void Function(BangumiDataSiteEntry site) onSiteTap;
   final VoidCallback onEnsureCommentsLoaded;
+  final VoidCallback onLoadMoreComments;
 
   const BangumiDetailsWideLayout({
     super.key,
@@ -130,7 +131,66 @@ class BangumiDetailsWideLayout extends StatelessWidget {
     required this.onRelationTap,
     required this.onSiteTap,
     required this.onEnsureCommentsLoaded,
+    required this.onLoadMoreComments,
   });
+
+  @override
+  State<BangumiDetailsWideLayout> createState() =>
+      _BangumiDetailsWideLayoutState();
+}
+
+class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
+  int _selectedTabIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.wideRightScrollController.addListener(_handleRightScroll);
+  }
+
+  @override
+  void didUpdateWidget(covariant BangumiDetailsWideLayout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.wideRightScrollController !=
+        widget.wideRightScrollController) {
+      oldWidget.wideRightScrollController.removeListener(_handleRightScroll);
+      widget.wideRightScrollController.addListener(_handleRightScroll);
+    }
+    if (!_sameAnimeIdentity(oldWidget.anime, widget.anime)) {
+      _selectedTabIndex = 0;
+    }
+    if (_selectedTabIndex == 1) {
+      _scheduleViewportFillCheck();
+    }
+  }
+
+  bool _sameAnimeIdentity(AnimeInfo a, AnimeInfo b) =>
+      a.bangumiId == b.bangumiId &&
+      a.mikanId == b.mikanId &&
+      a.title == b.title;
+
+  void _handleRightScroll() {
+    if (_selectedTabIndex != 1 ||
+        !widget.wideRightScrollController.hasClients) {
+      return;
+    }
+    final position = widget.wideRightScrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 200) {
+      widget.onLoadMoreComments();
+    }
+  }
+
+  void _scheduleViewportFillCheck() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _handleRightScroll();
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.wideRightScrollController.removeListener(_handleRightScroll);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +198,9 @@ class BangumiDetailsWideLayout extends StatelessWidget {
     return Stack(
       children: [
         Positioned.fill(
-          child: BlurredBackground(imageUrl: getImageUrl(data, anime.coverUrl)),
+          child: BlurredBackground(
+            imageUrl: getImageUrl(widget.data, widget.anime.coverUrl),
+          ),
         ),
         Scaffold(
           backgroundColor: Colors.transparent,
@@ -168,9 +230,8 @@ class BangumiDetailsWideLayout extends StatelessWidget {
                     ),
                   ),
                 ),
-          // Load-more is owned by the host via [wideRightScrollController]
-          // listener; keep this body free of a second NotificationListener so
-          // end-of-list scroll does not fire pagination twice.
+          // The state listens to the shared right controller and gates comment
+          // pagination by the selected tab.
           body: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1200),
@@ -187,7 +248,7 @@ class BangumiDetailsWideLayout extends StatelessWidget {
 
   Widget _buildLeftPanel(BuildContext context) {
     final infobox =
-        (data?['infobox'] as List?)
+        (widget.data?['infobox'] as List?)
             ?.where((item) => !isInfoboxItemEmpty(item))
             .toList() ??
         const [];
@@ -195,7 +256,7 @@ class BangumiDetailsWideLayout extends StatelessWidget {
     return SizedBox(
       width: 350,
       child: SingleChildScrollView(
-        controller: wideLeftScrollController,
+        controller: widget.wideLeftScrollController,
         padding: EdgeInsets.fromLTRB(
           24,
           DesktopPageMetrics.navigationTopInsetFor(
@@ -209,37 +270,37 @@ class BangumiDetailsWideLayout extends StatelessWidget {
         child: Column(
           children: [
             BangumiPoster(
-              imageUrl: getImageUrl(data, anime.coverUrl),
-              heroTag: heroTag,
+              imageUrl: getImageUrl(widget.data, widget.anime.coverUrl),
+              heroTag: widget.heroTag,
               heroIdFallback:
-                  '${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
+                  '${widget.anime.bangumiId ?? widget.anime.mikanId ?? widget.anime.title.hashCode}',
               radius: 16,
             ),
             const SizedBox(height: 24),
             BangumiRatingCard(
-              rating: data?['rating'],
-              collection: data?['collection'],
+              rating: widget.data?['rating'],
+              collection: widget.data?['collection'],
             ),
             const SizedBox(height: 24),
             BangumiActionButtons(
-              isLocalFavorite: isLocalFavorite,
-              favoriteType: favoriteType,
-              isCopied: isCopied,
-              isSelectingFavoriteStatus: isSelectingFavoriteStatus,
-              isUpdatingFavorite: isUpdatingFavorite,
-              onToggleFavorite: onToggleFavorite,
-              onFavoriteTypeSelected: onFavoriteTypeSelected,
-              onFavoriteAction: onFavoriteAction,
-              onShareTapped: onShareTapped,
+              isLocalFavorite: widget.isLocalFavorite,
+              favoriteType: widget.favoriteType,
+              isCopied: widget.isCopied,
+              isSelectingFavoriteStatus: widget.isSelectingFavoriteStatus,
+              isUpdatingFavorite: widget.isUpdatingFavorite,
+              onToggleFavorite: widget.onToggleFavorite,
+              onFavoriteTypeSelected: widget.onFavoriteTypeSelected,
+              onFavoriteAction: widget.onFavoriteAction,
+              onShareTapped: widget.onShareTapped,
             ),
             const SizedBox(height: 24),
             BangumiInfoBoxList(
               infobox: infobox,
-              isExpanded: isInfoBoxExpanded,
-              onToggleExpanded: onToggleInfoBoxExpanded,
+              isExpanded: widget.isInfoBoxExpanded,
+              onToggleExpanded: widget.onToggleInfoBoxExpanded,
               isDarkBg: true,
-              personIdMap: personIdMap,
-              onPersonTap: onPersonTap,
+              personIdMap: widget.personIdMap,
+              onPersonTap: widget.onPersonTap,
             ),
           ],
         ),
@@ -248,9 +309,10 @@ class BangumiDetailsWideLayout extends StatelessWidget {
   }
 
   Widget _buildRightPanel(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Expanded(
       child: CustomScrollView(
-        controller: wideRightScrollController,
+        controller: widget.wideRightScrollController,
         slivers: [
           SliverPadding(
             padding: EdgeInsets.fromLTRB(
@@ -268,86 +330,163 @@ class BangumiDetailsWideLayout extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   BangumiTitleSection(
-                    title: getDisplayTitle(data, anime.title),
-                    cnName: data?['name_cn'] ?? anime.subTitle,
+                    title: getDisplayTitle(widget.data, widget.anime.title),
+                    cnName: widget.data?['name_cn'] ?? widget.anime.subTitle,
                     isDarkBg: true,
                   ),
-                  const SizedBox(height: 32),
-
-                  EpisodesSection(
-                    episodes: episodes,
-                    isLoading: isLoadingEpisodes,
-                    isDarkBg: true,
-                    scrollController: episodesScrollController,
-                    onEpisodeTap: onEpisodeTap,
-                  ),
-                  const SizedBox(height: 32),
-
-                  BangumiSummarySection(
-                    summary:
-                        getDisplaySummary(
-                          data?['summary']?.toString(),
-                          showOriginal: showOriginalSummary,
-                        ) ??
-                        AppLocalizations.of(context).bangumiDetailsNoSummary,
-                    showOriginal: showOriginalSummary,
-                    hasBothTranslationAndOriginal:
-                        hasBothTranslationAndOriginal(
-                          data?['summary']?.toString(),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<int>(
+                      style: SegmentedButton.styleFrom(
+                        selectedForegroundColor: Colors.white,
+                        selectedBackgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.35),
+                        foregroundColor: Colors.white70,
+                        backgroundColor: Colors.black.withValues(alpha: 0.25),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.15),
                         ),
-                    onToggle:
-                        hasBothTranslationAndOriginal(
-                          data?['summary']?.toString(),
-                        )
-                        ? onToggleShowOriginal
-                        : null,
-                    isDarkBg: true,
+                      ),
+                      segments: [
+                        ButtonSegment<int>(
+                          value: 0,
+                          label: Text(l10n.bangumiDetailsTabDetails),
+                          icon: const Icon(Icons.info_outline),
+                        ),
+                        ButtonSegment<int>(
+                          value: 1,
+                          label: Text(l10n.bangumiDetailsTabComments),
+                          icon: const Icon(Icons.chat_bubble_outline),
+                        ),
+                        ButtonSegment<int>(
+                          value: 2,
+                          label: Text(l10n.bangumiDetailsTabReviews),
+                          icon: const Icon(Icons.article_outlined),
+                        ),
+                        ButtonSegment<int>(
+                          value: 3,
+                          label: Text(l10n.bangumiDetailsTabTopics),
+                          icon: const Icon(Icons.forum_outlined),
+                        ),
+                      ],
+                      selected: {_selectedTabIndex},
+                      onSelectionChanged: (newSelection) {
+                        setState(() {
+                          _selectedTabIndex = newSelection.first;
+                        });
+                        if (_selectedTabIndex == 1) {
+                          _scheduleViewportFillCheck();
+                        }
+                      },
+                    ),
                   ),
-                  const SizedBox(height: 32),
-
-                  BangumiTagsSection(
-                    tags: data?['tags'],
-                    isDarkBg: true,
-                    onTagTap: onTagTap,
-                  ),
-                  const SizedBox(height: 32),
-
-                  _buildCharactersCard(context),
-                  if (relations != null && relations!.isNotEmpty) ...[
-                    const SizedBox(height: 32),
-                    _buildRelationsCard(context),
-                  ],
-                  if (sites != null && sites!.isNotEmpty) ...[
-                    const SizedBox(height: 32),
-                    _buildSitesCard(context),
-                  ] else if (relations == null || relations!.isEmpty) ...[
-                    const SizedBox(height: 32),
-                  ],
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            sliver: _buildCommentsSliver(context),
-          ),
+          if (_selectedTabIndex == 0)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              sliver: SliverToBoxAdapter(child: _buildDetailsTab(context)),
+            ),
+          if (_selectedTabIndex == 1)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              sliver: _buildCommentsSliver(context),
+            ),
+          if (_selectedTabIndex == 2)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              sliver: SliverToBoxAdapter(
+                child: _buildPlaceholderCard(
+                  context,
+                  l10n.bangumiDetailsPlaceholderReviews,
+                  Icons.article_outlined,
+                ),
+              ),
+            ),
+          if (_selectedTabIndex == 3)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              sliver: SliverToBoxAdapter(
+                child: _buildPlaceholderCard(
+                  context,
+                  l10n.bangumiDetailsPlaceholderTopics,
+                  Icons.forum_outlined,
+                ),
+              ),
+            ),
           const SliverToBoxAdapter(child: SizedBox(height: 74)),
         ],
       ),
     );
   }
 
+  Widget _buildDetailsTab(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        EpisodesSection(
+          episodes: widget.episodes,
+          isLoading: widget.isLoadingEpisodes,
+          isDarkBg: true,
+          scrollController: widget.episodesScrollController,
+          onEpisodeTap: widget.onEpisodeTap,
+        ),
+        const SizedBox(height: 32),
+        BangumiSummarySection(
+          summary:
+              getDisplaySummary(
+                widget.data?['summary']?.toString(),
+                showOriginal: widget.showOriginalSummary,
+              ) ??
+              AppLocalizations.of(context).bangumiDetailsNoSummary,
+          showOriginal: widget.showOriginalSummary,
+          hasBothTranslationAndOriginal: hasBothTranslationAndOriginal(
+            widget.data?['summary']?.toString(),
+          ),
+          onToggle:
+              hasBothTranslationAndOriginal(widget.data?['summary']?.toString())
+              ? widget.onToggleShowOriginal
+              : null,
+          isDarkBg: true,
+        ),
+        const SizedBox(height: 32),
+        BangumiTagsSection(
+          tags: widget.data?['tags'],
+          isDarkBg: true,
+          onTagTap: widget.onTagTap,
+        ),
+        const SizedBox(height: 32),
+        _buildCharactersCard(context),
+        if (widget.relations != null && widget.relations!.isNotEmpty) ...[
+          const SizedBox(height: 32),
+          _buildRelationsCard(context),
+        ],
+        if (widget.sites != null && widget.sites!.isNotEmpty) ...[
+          const SizedBox(height: 32),
+          _buildSitesCard(context),
+        ] else if (widget.relations == null || widget.relations!.isEmpty) ...[
+          const SizedBox(height: 32),
+        ],
+      ],
+    );
+  }
+
   Widget _buildCharactersCard(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return CharactersSection(
-      characters: characters ?? const [],
-      isLoading: isLoadingCharacters,
+      characters: widget.characters ?? const [],
+      isLoading: widget.isLoadingCharacters,
       isDarkBg: true,
-      enableCharacterHero: enableCharacterHero,
-      scrollController: charactersScrollController,
-      onCharacterTap: onCharacterTap,
-      onPersonTap: onPersonTap,
-      personIdMap: personIdMap,
+      enableCharacterHero: widget.enableCharacterHero,
+      scrollController: widget.charactersScrollController,
+      onCharacterTap: widget.onCharacterTap,
+      onPersonTap: widget.onPersonTap,
+      personIdMap: widget.personIdMap,
       loadingPlaceholder: (context) => PlaceholderSection(
         title: l10n.bangumiDetailsCharacters,
         icon: Icons.person,
@@ -360,8 +499,8 @@ class BangumiDetailsWideLayout extends StatelessWidget {
   Widget _buildRelationsCard(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return RelationsSection(
-      relations: relations ?? const [],
-      isLoading: isLoadingRelations,
+      relations: widget.relations ?? const [],
+      isLoading: widget.isLoadingRelations,
       isDarkBg: true,
       sectionTitle: SectionTitle(
         title: l10n.bangumiDetailsRelatedItems,
@@ -372,42 +511,42 @@ class BangumiDetailsWideLayout extends StatelessWidget {
         icon: Icons.link,
         isDarkBg: true,
       ),
-      scrollController: relationsScrollController,
-      onItemTap: onRelationTap,
+      scrollController: widget.relationsScrollController,
+      onItemTap: widget.onRelationTap,
     );
   }
 
   Widget _buildSitesCard(BuildContext context) {
-    if (sites == null || sites!.isEmpty) {
+    if (widget.sites == null || widget.sites!.isEmpty) {
       return const SizedBox.shrink();
     }
     return SitesSection(
-      sites: sites!,
+      sites: widget.sites!,
       isDarkBg: true,
       sectionTitle: SectionTitle(
         title: AppLocalizations.of(context).bangumiDetailsRelatedSites,
         isDarkBg: true,
       ),
-      scrollController: sitesScrollController,
-      onSiteTap: onSiteTap,
+      scrollController: widget.sitesScrollController,
+      onSiteTap: widget.onSiteTap,
     );
   }
 
   Widget _buildCommentsSliver(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (!hasRequestedComments && !isLoadingComments) {
+    if (!widget.hasRequestedComments && !widget.isLoadingComments) {
       // Defer to after the current build so the controller's synchronous
       // _notify() → setState() chain does not run mid-build, which would
       // trip "setState() or markNeedsBuild() called during build" on the
       // parent BangumiDetailsPage.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        onEnsureCommentsLoaded();
+        widget.onEnsureCommentsLoaded();
       });
     }
     return CommentsSliver(
-      comments: comments ?? const [],
-      isLoading: isLoadingComments,
-      isLoadingMore: isLoadingMoreComments,
+      comments: widget.comments ?? const [],
+      isLoading: widget.isLoadingComments,
+      isLoadingMore: widget.isLoadingMoreComments,
       isDarkBg: true,
       sectionTitle: SectionTitle(
         title: l10n.bangumiDetailsComments,
@@ -417,6 +556,33 @@ class BangumiDetailsWideLayout extends StatelessWidget {
         title: l10n.bangumiDetailsComments,
         icon: Icons.comment,
         isDarkBg: true,
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderCard(
+    BuildContext context,
+    String title,
+    IconData icon,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 48, color: Colors.white38),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 14, color: Colors.white54),
+          ),
+        ],
       ),
     );
   }

@@ -843,19 +843,59 @@
   "@bangumiDetailsTabDetails": {
     "description": "Mobile bangumi details tab label."
   },
-  "bangumiDetailsTabComments": "评论",
+  "bangumiDetailsTabComments": "吐槽",
   "@bangumiDetailsTabComments": {
     "description": "Mobile bangumi comments tab label."
+  },
+  "bangumiDetailsTabReviews": "长评",
+  "@bangumiDetailsTabReviews": {
+    "description": "Bangumi details reviews tab label."
+  },
+  "bangumiDetailsTabTopics": "讨论版",
+  "@bangumiDetailsTabTopics": {
+    "description": "Bangumi details topics tab label."
+  },
+  "characterTabSubjects": "关联作品",
+  "@characterTabSubjects": {
+    "description": "Character detail page subjects tab label."
+  },
+  "characterTabComments": "角色吐槽",
+  "@characterTabComments": {
+    "description": "Character detail page comments tab label."
+  },
+  "personTabSubjects": "参与作品",
+  "@personTabSubjects": {
+    "description": "Person detail page subjects tab label."
+  },
+  "personTabComments": "人物吐槽",
+  "@personTabComments": {
+    "description": "Person detail page comments tab label."
+  },
+  "bangumiDetailsPlaceholderReviews": "暂无长评",
+  "@bangumiDetailsPlaceholderReviews": {
+    "description": "Placeholder for long reviews tab."
+  },
+  "bangumiDetailsPlaceholderTopics": "暂无讨论帖",
+  "@bangumiDetailsPlaceholderTopics": {
+    "description": "Placeholder for topics tab."
+  },
+  "characterCommentsPlaceholder": "暂无角色吐槽",
+  "@characterCommentsPlaceholder": {
+    "description": "Placeholder for character comments."
+  },
+  "personCommentsPlaceholder": "暂无人物吐槽",
+  "@personCommentsPlaceholder": {
+    "description": "Placeholder for person comments."
   },
   "bangumiDetailsCharacters": "角色",
   "@bangumiDetailsCharacters": {
     "description": "Bangumi details characters section title."
   },
-  "bangumiDetailsComments": "评论",
+  "bangumiDetailsComments": "吐槽",
   "@bangumiDetailsComments": {
     "description": "Bangumi details comments section title."
   },
-  "bangumiDetailsNoComments": "暂无评论",
+  "bangumiDetailsNoComments": "暂无吐槽",
   "@bangumiDetailsNoComments": {
     "description": "Empty comments state on bangumi details."
   },

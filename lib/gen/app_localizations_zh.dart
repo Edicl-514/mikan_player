@@ -1990,16 +1990,46 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bangumiDetailsTabDetails => '详情';
 
   @override
-  String get bangumiDetailsTabComments => '评论';
+  String get bangumiDetailsTabComments => '吐槽';
+
+  @override
+  String get bangumiDetailsTabReviews => '长评';
+
+  @override
+  String get bangumiDetailsTabTopics => '讨论版';
+
+  @override
+  String get characterTabSubjects => '关联作品';
+
+  @override
+  String get characterTabComments => '角色吐槽';
+
+  @override
+  String get personTabSubjects => '参与作品';
+
+  @override
+  String get personTabComments => '人物吐槽';
+
+  @override
+  String get bangumiDetailsPlaceholderReviews => '暂无长评';
+
+  @override
+  String get bangumiDetailsPlaceholderTopics => '暂无讨论帖';
+
+  @override
+  String get characterCommentsPlaceholder => '暂无角色吐槽';
+
+  @override
+  String get personCommentsPlaceholder => '暂无人物吐槽';
 
   @override
   String get bangumiDetailsCharacters => '角色';
 
   @override
-  String get bangumiDetailsComments => '评论';
+  String get bangumiDetailsComments => '吐槽';
 
   @override
-  String get bangumiDetailsNoComments => '暂无评论';
+  String get bangumiDetailsNoComments => '暂无吐槽';
 
   @override
   String get bangumiDetailsNoSummary => '暂无简介';

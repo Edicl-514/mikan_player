@@ -2074,6 +2074,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bangumiDetailsTabComments => 'Comments';
 
   @override
+  String get bangumiDetailsTabReviews => 'Reviews';
+
+  @override
+  String get bangumiDetailsTabTopics => 'Topics';
+
+  @override
+  String get characterTabSubjects => 'Appeared In';
+
+  @override
+  String get characterTabComments => 'Comments';
+
+  @override
+  String get personTabSubjects => 'Works';
+
+  @override
+  String get personTabComments => 'Comments';
+
+  @override
+  String get bangumiDetailsPlaceholderReviews => 'No reviews yet';
+
+  @override
+  String get bangumiDetailsPlaceholderTopics => 'No topics yet';
+
+  @override
+  String get characterCommentsPlaceholder => 'No character comments yet';
+
+  @override
+  String get personCommentsPlaceholder => 'No person comments yet';
+
+  @override
   String get bangumiDetailsCharacters => 'Characters';
 
   @override

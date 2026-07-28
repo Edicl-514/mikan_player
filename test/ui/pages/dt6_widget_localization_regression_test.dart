@@ -171,6 +171,7 @@ BangumiDetailsWideLayout _wideDetails(_DetailsControllers controllers) {
     onRelationTap: (_) {},
     onSiteTap: (_) {},
     onEnsureCommentsLoaded: () {},
+    onLoadMoreComments: () {},
   );
 }
 

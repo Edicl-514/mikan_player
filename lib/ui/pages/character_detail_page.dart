@@ -84,6 +84,7 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
   void didUpdateWidget(covariant CharacterDetailPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.characterId != widget.characterId) {
+      _selectedDesktopTabIndex = 0;
       _fetchData();
     }
   }
@@ -166,8 +167,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     final displayTitle = _characterDetails?.name.isNotEmpty == true
         ? _characterDetails!.name
         : (widget.characterName?.isNotEmpty == true
-            ? widget.characterName!
-            : '#${widget.characterId}');
+              ? widget.characterName!
+              : '#${widget.characterId}');
 
     if (_controller.detailsError != null && _characterDetails == null) {
       final errorPage = Scaffold(
@@ -245,38 +246,90 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
     return WorkspaceRouteTitle(title: displayTitle, child: page);
   }
 
+  int _selectedDesktopTabIndex = 0;
+
   Widget _buildMobileLayout(BuildContext context, {required bool isDark}) {
-    return CustomScrollView(
-      controller: _mobileScrollController,
-      slivers: [
-        SliverToBoxAdapter(child: _buildMobileHeader(context, isDark: isDark)),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: _buildSummarySection(context, isDarkBg: isDark),
+    final l10n = AppLocalizations.of(context);
+    final bgColor = isDark
+        ? const Color(0xFF16161E)
+        : Theme.of(context).scaffoldBackgroundColor;
+
+    return DefaultTabController(
+      key: ValueKey(widget.characterId),
+      length: 2,
+      child: Scaffold(
+        backgroundColor: bgColor,
+        body: NestedScrollView(
+          controller: _mobileScrollController,
+          headerSliverBuilder: (context, innerBoxIsScrolled) {
+            return [
+              SliverToBoxAdapter(
+                child: _buildMobileHeader(context, isDark: isDark),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _buildSummarySection(context, isDarkBg: isDark),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildInfoBoxSection(context, isDarkBg: isDark),
+                ),
+              ),
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _CharacterSliverTabBarDelegate(
+                  TabBar(
+                    labelColor: Theme.of(context).colorScheme.primary,
+                    unselectedLabelColor: isDark
+                        ? Colors.white70
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                    indicatorColor: Theme.of(context).colorScheme.primary,
+                    indicatorWeight: 3,
+                    indicatorSize: TabBarIndicatorSize.label,
+                    dividerColor: Colors.transparent,
+                    labelStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    unselectedLabelStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.normal,
+                    ),
+                    tabs: [
+                      Tab(text: l10n.characterTabSubjects),
+                      Tab(text: l10n.characterTabComments),
+                    ],
+                  ),
+                  backgroundColor: bgColor,
+                ),
+              ),
+            ];
+          },
+          body: TabBarView(
+            children: [
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: _buildSubjectsSection(context, isDarkBg: isDark),
+              ),
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: _buildCharacterCommentsSection(
+                  context,
+                  isDarkBg: isDark,
+                ),
+              ),
+            ],
           ),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildInfoBoxSection(context, isDarkBg: isDark),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: _buildSubjectsSection(context, isDarkBg: isDark),
-          ),
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 32)),
-      ],
+      ),
     );
   }
 
   Widget _buildDesktopLayout(BuildContext context) {
-    // Non-hosted keeps the transparent AppBar's kToolbarHeight reservation plus
-    // the column's own 32px gap. Hosted drops only the toolbar reservation; the
-    // 32px gap stays so the poster/title don't sit flush against the shell bar.
+    final l10n = AppLocalizations.of(context);
     final topInset =
         DesktopPageMetrics.navigationTopInsetFor(
           context,
@@ -321,7 +374,50 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                         const SizedBox(height: 32),
                         _buildSummarySection(context, isDarkBg: true),
                         const SizedBox(height: 32),
-                        _buildSubjectsSection(context, isDarkBg: true),
+                        SizedBox(
+                          width: double.infinity,
+                          child: SegmentedButton<int>(
+                            style: SegmentedButton.styleFrom(
+                              selectedForegroundColor: Colors.white,
+                              selectedBackgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.35),
+                              foregroundColor: Colors.white70,
+                              backgroundColor: Colors.black.withValues(
+                                alpha: 0.25,
+                              ),
+                              side: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.15),
+                              ),
+                            ),
+                            segments: [
+                              ButtonSegment<int>(
+                                value: 0,
+                                label: Text(l10n.characterTabSubjects),
+                                icon: const Icon(Icons.movie_outlined),
+                              ),
+                              ButtonSegment<int>(
+                                value: 1,
+                                label: Text(l10n.characterTabComments),
+                                icon: const Icon(Icons.comment_outlined),
+                              ),
+                            ],
+                            selected: {_selectedDesktopTabIndex},
+                            onSelectionChanged: (newSelection) {
+                              setState(() {
+                                _selectedDesktopTabIndex = newSelection.first;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        if (_selectedDesktopTabIndex == 0)
+                          _buildSubjectsSection(context, isDarkBg: true)
+                        else
+                          _buildCharacterCommentsSection(
+                            context,
+                            isDarkBg: true,
+                          ),
                         const SizedBox(height: 50),
                       ],
                     ),
@@ -1256,5 +1352,73 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
       default:
         return gender;
     }
+  }
+
+  Widget _buildCharacterCommentsSection(
+    BuildContext context, {
+    required bool isDarkBg,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final textColor = isDarkBg ? Colors.white70 : Colors.black87;
+    final cardBg = isDarkBg
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.03);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDarkBg
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.comment_outlined,
+            size: 48,
+            color: isDarkBg ? Colors.white38 : Colors.grey[400],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            l10n.characterCommentsPlaceholder,
+            style: TextStyle(fontSize: 14, color: textColor),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CharacterSliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar tabBar;
+  final Color backgroundColor;
+
+  _CharacterSliverTabBarDelegate(this.tabBar, {required this.backgroundColor});
+
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(color: backgroundColor, child: tabBar);
+  }
+
+  @override
+  bool shouldRebuild(_CharacterSliverTabBarDelegate oldDelegate) {
+    return tabBar != oldDelegate.tabBar ||
+        backgroundColor != oldDelegate.backgroundColor;
   }
 }

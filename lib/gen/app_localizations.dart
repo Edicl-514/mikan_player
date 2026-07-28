@@ -3790,8 +3790,68 @@ abstract class AppLocalizations {
   /// Mobile bangumi comments tab label.
   ///
   /// In zh, this message translates to:
-  /// **'评论'**
+  /// **'吐槽'**
   String get bangumiDetailsTabComments;
+
+  /// Bangumi details reviews tab label.
+  ///
+  /// In zh, this message translates to:
+  /// **'长评'**
+  String get bangumiDetailsTabReviews;
+
+  /// Bangumi details topics tab label.
+  ///
+  /// In zh, this message translates to:
+  /// **'讨论版'**
+  String get bangumiDetailsTabTopics;
+
+  /// Character detail page subjects tab label.
+  ///
+  /// In zh, this message translates to:
+  /// **'关联作品'**
+  String get characterTabSubjects;
+
+  /// Character detail page comments tab label.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色吐槽'**
+  String get characterTabComments;
+
+  /// Person detail page subjects tab label.
+  ///
+  /// In zh, this message translates to:
+  /// **'参与作品'**
+  String get personTabSubjects;
+
+  /// Person detail page comments tab label.
+  ///
+  /// In zh, this message translates to:
+  /// **'人物吐槽'**
+  String get personTabComments;
+
+  /// Placeholder for long reviews tab.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无长评'**
+  String get bangumiDetailsPlaceholderReviews;
+
+  /// Placeholder for topics tab.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无讨论帖'**
+  String get bangumiDetailsPlaceholderTopics;
+
+  /// Placeholder for character comments.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无角色吐槽'**
+  String get characterCommentsPlaceholder;
+
+  /// Placeholder for person comments.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无人物吐槽'**
+  String get personCommentsPlaceholder;
 
   /// Bangumi details characters section title.
   ///
@@ -3802,13 +3862,13 @@ abstract class AppLocalizations {
   /// Bangumi details comments section title.
   ///
   /// In zh, this message translates to:
-  /// **'评论'**
+  /// **'吐槽'**
   String get bangumiDetailsComments;
 
   /// Empty comments state on bangumi details.
   ///
   /// In zh, this message translates to:
-  /// **'暂无评论'**
+  /// **'暂无吐槽'**
   String get bangumiDetailsNoComments;
 
   /// Fallback when subject summary is missing.

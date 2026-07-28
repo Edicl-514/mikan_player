@@ -127,6 +127,7 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.personId != widget.personId) {
       _expandedCharIds.clear();
+      _selectedDesktopTabIndex = 0;
       _fetchData();
     }
   }
@@ -260,8 +261,8 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     final displayTitle = _details?.name.isNotEmpty == true
         ? _details!.name
         : (widget.personName?.isNotEmpty == true
-            ? widget.personName!
-            : '#${widget.personId}');
+              ? widget.personName!
+              : '#${widget.personId}');
 
     if (_controller.detailsError != null && _details == null) {
       final errorPage = Scaffold(
@@ -371,45 +372,99 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     );
   }
 
-  // ── Layouts ───────────────────────────────────────────────────────────────
+  int _selectedDesktopTabIndex = 0;
 
   Widget _buildMobileLayout(BuildContext context, {required bool isDark}) {
-    return CustomScrollView(
-      controller: _mobileScrollController,
-      slivers: [
-        SliverToBoxAdapter(child: _buildMobileHeader(context, isDark: isDark)),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: _buildSummarySection(context, isDarkBg: isDark),
+    final l10n = AppLocalizations.of(context);
+    final bgColor = isDark
+        ? const Color(0xFF16161E)
+        : Theme.of(context).scaffoldBackgroundColor;
+
+    return DefaultTabController(
+      key: ValueKey(widget.personId),
+      length: 2,
+      child: Scaffold(
+        backgroundColor: bgColor,
+        body: NestedScrollView(
+          controller: _mobileScrollController,
+          headerSliverBuilder: (context, innerBoxIsScrolled) {
+            return [
+              SliverToBoxAdapter(
+                child: _buildMobileHeader(context, isDark: isDark),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _buildSummarySection(context, isDarkBg: isDark),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildInfoBoxSection(context, isDarkBg: isDark),
+                ),
+              ),
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _PersonSliverTabBarDelegate(
+                  TabBar(
+                    labelColor: Theme.of(context).colorScheme.primary,
+                    unselectedLabelColor: isDark
+                        ? Colors.white70
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                    indicatorColor: Theme.of(context).colorScheme.primary,
+                    indicatorWeight: 3,
+                    indicatorSize: TabBarIndicatorSize.label,
+                    dividerColor: Colors.transparent,
+                    labelStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    unselectedLabelStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.normal,
+                    ),
+                    tabs: [
+                      Tab(text: l10n.personTabSubjects),
+                      Tab(text: l10n.personTabComments),
+                    ],
+                  ),
+                  backgroundColor: bgColor,
+                ),
+              ),
+            ];
+          },
+          body: TabBarView(
+            children: [
+              CustomScrollView(
+                slivers: [
+                  if (_isSeiyu)
+                    ..._buildCharactersSlivers(
+                      context,
+                      padding: const EdgeInsets.all(16),
+                      isDarkBg: isDark,
+                    ),
+                  ..._buildSubjectsSlivers(
+                    context,
+                    padding: const EdgeInsets.all(16),
+                    isDarkBg: isDark,
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                ],
+              ),
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: _buildPersonCommentsSection(context, isDarkBg: isDark),
+              ),
+            ],
           ),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildInfoBoxSection(context, isDarkBg: isDark),
-          ),
-        ),
-        if (_isSeiyu)
-          ..._buildCharactersSlivers(
-            context,
-            padding: const EdgeInsets.all(16),
-            isDarkBg: isDark,
-          ),
-        ..._buildSubjectsSlivers(
-          context,
-          padding: const EdgeInsets.all(16),
-          isDarkBg: isDark,
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 32)),
-      ],
+      ),
     );
   }
 
   Widget _buildDesktopLayout(BuildContext context) {
-    // Non-hosted keeps the transparent AppBar's kToolbarHeight reservation plus
-    // the column's own 32px gap. Hosted drops only the toolbar reservation; the
-    // 32px gap stays so the poster/title don't sit flush against the shell bar.
+    final l10n = AppLocalizations.of(context);
     final topInset =
         DesktopPageMetrics.navigationTopInsetFor(
           context,
@@ -448,39 +503,90 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                     controller: _desktopRightScrollController,
                     slivers: [
                       SliverPadding(
-                        padding: EdgeInsets.fromLTRB(32, topInset, 32, 50),
+                        padding: EdgeInsets.fromLTRB(32, topInset, 32, 24),
                         sliver: SliverList(
                           delegate: SliverChildListDelegate([
                             _buildTitleSection(context),
                             const SizedBox(height: 32),
                             _buildSummarySection(context, isDarkBg: true),
+                            const SizedBox(height: 32),
+                            SizedBox(
+                              width: double.infinity,
+                              child: SegmentedButton<int>(
+                                style: SegmentedButton.styleFrom(
+                                  selectedForegroundColor: Colors.white,
+                                  selectedBackgroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.35),
+                                  foregroundColor: Colors.white70,
+                                  backgroundColor: Colors.black.withValues(
+                                    alpha: 0.25,
+                                  ),
+                                  side: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                  ),
+                                ),
+                                segments: [
+                                  ButtonSegment<int>(
+                                    value: 0,
+                                    label: Text(l10n.personTabSubjects),
+                                    icon: const Icon(Icons.work_outline),
+                                  ),
+                                  ButtonSegment<int>(
+                                    value: 1,
+                                    label: Text(l10n.personTabComments),
+                                    icon: const Icon(Icons.comment_outlined),
+                                  ),
+                                ],
+                                selected: {_selectedDesktopTabIndex},
+                                onSelectionChanged: (newSelection) {
+                                  setState(() {
+                                    _selectedDesktopTabIndex =
+                                        newSelection.first;
+                                  });
+                                },
+                              ),
+                            ),
                           ]),
                         ),
                       ),
-                      if (_isSeiyu) ...[
+                      if (_selectedDesktopTabIndex == 0) ...[
+                        if (_isSeiyu) ...[
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(horizontal: 32),
+                            sliver: SliverToBoxAdapter(
+                              child: const SizedBox(height: 16),
+                            ),
+                          ),
+                          ..._buildCharactersSlivers(
+                            context,
+                            padding: const EdgeInsets.symmetric(horizontal: 32),
+                            isDarkBg: true,
+                          ),
+                        ],
                         SliverPadding(
                           padding: const EdgeInsets.symmetric(horizontal: 32),
                           sliver: SliverToBoxAdapter(
-                            child: const SizedBox(height: 32),
+                            child: const SizedBox(height: 16),
                           ),
                         ),
-                        ..._buildCharactersSlivers(
+                        ..._buildSubjectsSlivers(
                           context,
                           padding: const EdgeInsets.symmetric(horizontal: 32),
                           isDarkBg: true,
                         ),
-                      ],
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32),
-                        sliver: SliverToBoxAdapter(
-                          child: const SizedBox(height: 32),
+                      ] else ...[
+                        SliverPadding(
+                          padding: const EdgeInsets.all(32),
+                          sliver: SliverToBoxAdapter(
+                            child: _buildPersonCommentsSection(
+                              context,
+                              isDarkBg: true,
+                            ),
+                          ),
                         ),
-                      ),
-                      ..._buildSubjectsSlivers(
-                        context,
-                        padding: const EdgeInsets.symmetric(horizontal: 32),
-                        isDarkBg: true,
-                      ),
+                      ],
+                      const SliverToBoxAdapter(child: SizedBox(height: 50)),
                     ],
                   ),
                 ),
@@ -1601,5 +1707,73 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildPersonCommentsSection(
+    BuildContext context, {
+    required bool isDarkBg,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final textColor = isDarkBg ? Colors.white70 : Colors.black87;
+    final cardBg = isDarkBg
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.03);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDarkBg
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.comment_outlined,
+            size: 48,
+            color: isDarkBg ? Colors.white38 : Colors.grey[400],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            l10n.personCommentsPlaceholder,
+            style: TextStyle(fontSize: 14, color: textColor),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PersonSliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar tabBar;
+  final Color backgroundColor;
+
+  _PersonSliverTabBarDelegate(this.tabBar, {required this.backgroundColor});
+
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(color: backgroundColor, child: tabBar);
+  }
+
+  @override
+  bool shouldRebuild(_PersonSliverTabBarDelegate oldDelegate) {
+    return tabBar != oldDelegate.tabBar ||
+        backgroundColor != oldDelegate.backgroundColor;
   }
 }

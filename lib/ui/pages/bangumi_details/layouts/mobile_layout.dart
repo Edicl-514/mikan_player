@@ -130,7 +130,8 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
         ? const Color(0xFF16161E)
         : Theme.of(context).scaffoldBackgroundColor;
     return DefaultTabController(
-      length: 2,
+      key: ValueKey(anime.bangumiId ?? anime.mikanId ?? anime.title),
+      length: 4,
       child: Scaffold(
         backgroundColor: bgColor,
         body: NestedScrollView(
@@ -169,22 +170,20 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
                       ),
                     ),
                     child: TabBar(
-                      labelColor: isDark
-                          ? Colors.white
-                          : Theme.of(context).colorScheme.onSurface,
+                      labelColor: Theme.of(context).colorScheme.primary,
                       unselectedLabelColor: isDark
-                          ? Colors.grey
+                          ? Colors.white70
                           : Theme.of(context).colorScheme.onSurfaceVariant,
                       indicatorColor: Theme.of(context).colorScheme.primary,
                       indicatorWeight: 3,
                       indicatorSize: TabBarIndicatorSize.label,
                       dividerColor: Colors.transparent,
                       labelStyle: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
                       unselectedLabelStyle: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.normal,
                       ),
                       tabs: [
@@ -198,6 +197,16 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
                             context,
                           ).bangumiDetailsTabComments,
                         ),
+                        Tab(
+                          text: AppLocalizations.of(
+                            context,
+                          ).bangumiDetailsTabReviews,
+                        ),
+                        Tab(
+                          text: AppLocalizations.of(
+                            context,
+                          ).bangumiDetailsTabTopics,
+                        ),
                       ],
                     ),
                   ),
@@ -209,6 +218,18 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
             children: [
               _buildMobileDetailsTab(context, isDark),
               _buildMobileCommentsTab(context, isDark),
+              _buildMobilePlaceholderTab(
+                context,
+                isDark,
+                AppLocalizations.of(context).bangumiDetailsPlaceholderReviews,
+                Icons.article_outlined,
+              ),
+              _buildMobilePlaceholderTab(
+                context,
+                isDark,
+                AppLocalizations.of(context).bangumiDetailsPlaceholderTopics,
+                Icons.forum_outlined,
+              ),
             ],
           ),
         ),
@@ -588,6 +609,34 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
       ),
       scrollController: sitesScrollController,
       onSiteTap: onSiteTap,
+    );
+  }
+
+  Widget _buildMobilePlaceholderTab(
+    BuildContext context,
+    bool isDark,
+    String title,
+    IconData icon,
+  ) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            size: 48,
+            color: isDark ? Colors.white38 : Colors.grey[400],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? Colors.white54 : Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

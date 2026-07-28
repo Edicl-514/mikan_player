@@ -95,7 +95,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     );
     _wideLeftScrollController = createPlatformScrollController();
     _wideRightScrollController = createPlatformScrollController();
-    _wideRightScrollController.addListener(_handleWideRightScroll);
     _episodesScrollController = createPlatformScrollController();
     _charactersScrollController = createPlatformScrollController();
     _relationsScrollController = createPlatformScrollController();
@@ -127,14 +126,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     unawaited(_detailsController.refreshFavoriteStatus());
     unawaited(_detailsController.primeFromCache());
     unawaited(_fetchBangumiData(loadToken));
-  }
-
-  void _handleWideRightScroll() {
-    if (!_wideRightScrollController.hasClients) return;
-    final position = _wideRightScrollController.position;
-    if (position.pixels >= position.maxScrollExtent - 200) {
-      unawaited(_detailsController.loadMoreComments());
-    }
   }
 
   Future<void> _ensureCommentsLoaded() =>
@@ -343,10 +334,10 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     final statusDirty = !wasCollected || initialType != result.type;
     final rateDirty = result.rate != initialRate;
     final commentDirty = result.comment != initialComment;
-    final tagsDirty =
-        result.tags.join('\u0000') != initialTags.join('\u0000');
+    final tagsDirty = result.tags.join('\u0000') != initialTags.join('\u0000');
     final privateDirty = result.private != initialPrivate;
-    final metadataDirty = rateDirty || commentDirty || tagsDirty || privateDirty;
+    final metadataDirty =
+        rateDirty || commentDirty || tagsDirty || privateDirty;
     try {
       if (statusDirty) {
         final saved = await _detailsController.setLocalFavoriteType(
@@ -460,7 +451,6 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
     _detailsLoadToken++;
     _detailsController.clearForDispose();
     _copyTimer?.cancel();
-    _wideRightScrollController.removeListener(_handleWideRightScroll);
     _wideLeftScrollController.dispose();
     _wideRightScrollController.dispose();
     _episodesScrollController.dispose();
@@ -521,6 +511,8 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               onRelationTap: _openRelationPage,
               onSiteTap: (site) => launchBangumiSiteUrl(site.url),
               onEnsureCommentsLoaded: () => unawaited(_ensureCommentsLoaded()),
+              onLoadMoreComments: () =>
+                  unawaited(_detailsController.loadMoreComments()),
             )
           : BangumiDetailsMobileLayout(
               anime: widget.anime,
