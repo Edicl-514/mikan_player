@@ -2095,6 +2095,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bangumiDetailsPlaceholderReviews => 'No reviews yet';
 
   @override
+  String get bangumiCommentUnavailable => 'This comment is unavailable';
+
+  @override
+  String get bangumiCommentFolded => 'This comment is folded';
+
+  @override
+  String get bangumiCommentShowFolded => 'Show';
+
+  @override
+  String get bangumiBlogDetailLoadFailed => 'Unable to load this review';
+
+  @override
+  String get bangumiBlogCommentsLoadFailed => 'Unable to load review comments';
+
+  @override
   String get bangumiDetailsPlaceholderTopics => 'No topics yet';
 
   @override

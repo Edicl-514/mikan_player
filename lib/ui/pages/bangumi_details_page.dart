@@ -71,6 +71,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   List<BangumiCharacter>? get _characters => _detailsController.characters;
   List<BangumiRelatedSubject>? get _relations => _detailsController.relations;
   List<BangumiComment>? get _comments => _detailsController.comments;
+  List<BangumiReview>? get _reviews => _detailsController.reviews;
   List<BangumiDataSiteEntry>? get _sites => _detailsController.sites;
   Map<String, int> get _personIdMap => _detailsController.personIdMap;
   bool get _isLoadingEpisodes => _detailsController.isLoadingEpisodes;
@@ -78,6 +79,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   bool get _isLoadingRelations => _detailsController.isLoadingRelations;
   bool get _isLoadingComments => _detailsController.isLoadingComments;
   bool get _hasRequestedComments => _detailsController.hasRequestedComments;
+  bool get _isLoadingReviews => _detailsController.isLoadingReviews;
+  bool get _isLoadingMoreReviews => _detailsController.isLoadingMoreReviews;
+  bool get _hasRequestedReviews => _detailsController.hasRequestedReviews;
   bool get _isLocalFavorite => _detailsController.isLocalFavorite;
   int? get _localFavoriteType => _detailsController.localFavoriteType;
   bool get _isLoadingMoreComments => _detailsController.isLoadingMoreComments;
@@ -130,6 +134,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
 
   Future<void> _ensureCommentsLoaded() =>
       _detailsController.ensureCommentsLoaded();
+
+  Future<void> _ensureReviewsLoaded() =>
+      _detailsController.ensureReviewsLoaded();
 
   Future<void> _fetchBangumiData(int loadToken) async {
     await _detailsController.refreshFromNetwork();
@@ -475,6 +482,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               characters: _characters,
               relations: _relations,
               comments: _comments,
+              reviews: _reviews,
               sites: _sites,
               personIdMap: _personIdMap,
               isLoadingEpisodes: _isLoadingEpisodes,
@@ -483,6 +491,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               isLoadingComments: _isLoadingComments,
               isLoadingMoreComments: _isLoadingMoreComments,
               hasRequestedComments: _hasRequestedComments,
+              isLoadingReviews: _isLoadingReviews,
+              isLoadingMoreReviews: _isLoadingMoreReviews,
+              hasRequestedReviews: _hasRequestedReviews,
               isLocalFavorite: _isLocalFavorite,
               favoriteType: _localFavoriteType,
               isSelectingFavoriteStatus: _isSelectingFavoriteStatus,
@@ -513,6 +524,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               onEnsureCommentsLoaded: () => unawaited(_ensureCommentsLoaded()),
               onLoadMoreComments: () =>
                   unawaited(_detailsController.loadMoreComments()),
+              onEnsureReviewsLoaded: () => unawaited(_ensureReviewsLoaded()),
+              onLoadMoreReviews: () =>
+                  unawaited(_detailsController.loadMoreReviews()),
             )
           : BangumiDetailsMobileLayout(
               anime: widget.anime,
@@ -522,6 +536,7 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               characters: _characters,
               relations: _relations,
               comments: _comments,
+              reviews: _reviews,
               sites: _sites,
               personIdMap: _personIdMap,
               isLoadingEpisodes: _isLoadingEpisodes,
@@ -530,6 +545,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               isLoadingComments: _isLoadingComments,
               isLoadingMoreComments: _isLoadingMoreComments,
               hasRequestedComments: _hasRequestedComments,
+              isLoadingReviews: _isLoadingReviews,
+              isLoadingMoreReviews: _isLoadingMoreReviews,
+              hasRequestedReviews: _hasRequestedReviews,
               isLocalFavorite: _isLocalFavorite,
               favoriteType: _localFavoriteType,
               isSelectingFavoriteStatus: _isSelectingFavoriteStatus,
@@ -556,6 +574,9 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
               onLoadMoreComments: () =>
                   unawaited(_detailsController.loadMoreComments()),
               onEnsureCommentsLoaded: () => unawaited(_ensureCommentsLoaded()),
+              onEnsureReviewsLoaded: () => unawaited(_ensureReviewsLoaded()),
+              onLoadMoreReviews: () =>
+                  unawaited(_detailsController.loadMoreReviews()),
             ),
     );
   }

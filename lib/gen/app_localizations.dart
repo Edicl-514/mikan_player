@@ -3835,6 +3835,36 @@ abstract class AppLocalizations {
   /// **'暂无长评'**
   String get bangumiDetailsPlaceholderReviews;
 
+  /// Shown when Bangumi hides or removes a comment.
+  ///
+  /// In zh, this message translates to:
+  /// **'该评论不可见'**
+  String get bangumiCommentUnavailable;
+
+  /// Shown before a folded Bangumi comment is revealed.
+  ///
+  /// In zh, this message translates to:
+  /// **'该评论已折叠'**
+  String get bangumiCommentFolded;
+
+  /// Reveals a folded Bangumi comment.
+  ///
+  /// In zh, this message translates to:
+  /// **'展开'**
+  String get bangumiCommentShowFolded;
+
+  /// Error shown when a review body cannot be loaded.
+  ///
+  /// In zh, this message translates to:
+  /// **'长评正文加载失败'**
+  String get bangumiBlogDetailLoadFailed;
+
+  /// Error shown when comments for a review cannot be loaded.
+  ///
+  /// In zh, this message translates to:
+  /// **'长评评论加载失败'**
+  String get bangumiBlogCommentsLoadFailed;
+
   /// Placeholder for topics tab.
   ///
   /// In zh, this message translates to:

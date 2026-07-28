@@ -75,6 +75,41 @@ pub struct BangumiComment {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiReview {
+    pub id: i64,
+    pub entry_id: i64,
+    pub user_id: String,
+    pub user_name: String,
+    pub avatar: String,
+    pub title: String,
+    pub summary: String,
+    pub time: String,
+    pub replies_count: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiReviewsPage {
+    pub reviews: Vec<BangumiReview>,
+    pub total: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiBlogDetail {
+    pub id: i64,
+    pub title: String,
+    pub summary: String,
+    pub content: String,
+    pub content_html: String,
+    pub user_id: String,
+    pub user_name: String,
+    pub avatar: String,
+    pub time: String,
+    pub replies_count: i32,
+    pub tags: Vec<String>,
+    pub reactions: Vec<BangumiCommentReaction>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BangumiPerson {
     pub id: i64,
     pub name: String,
@@ -91,9 +126,12 @@ pub struct BangumiEpisodeComment {
     pub user_id: String,
     pub avatar: String,
     pub time: String,
+    pub state: i32,
     pub content_html: String,
     pub replies: Vec<BangumiEpisodeComment>,
+    pub reactions: Vec<BangumiCommentReaction>,
 }
+
 // ============================================================================
 // Character Detail API
 // ============================================================================
@@ -145,6 +183,7 @@ pub struct CharacterSubjectPerson {
     pub name: String,
     pub images: Option<BangumiImages>,
 }
+
 // ============================================================================
 // Person Detail API
 // ============================================================================
@@ -185,14 +224,10 @@ pub struct PersonCharacter {
     pub subject_name_cn: String,
     pub staff: String,
 }
+
 // ============================================================================
-//
-// These three endpoints used to be fetched from Dart via `dart:io HttpClient`
-// directly, which doesn't speak ECH. After enabling ECH for SNI cloaking we
-// need bangumi traffic on the Rust side so it goes through the rustls+ECH
-// client. The wire format returned here is the **canonical** bangumi JSON
-// (with the unproxied host); callers on the Dart side apply URL rewriting
-// afterwards via `BangumiUrlRewriter`.
+// User & Auth APIs
+// ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BangumiUserInfo {
@@ -208,10 +243,6 @@ pub struct BangumiUserInfo {
 
 /// Result of an OAuth token exchange (authorization code → tokens) or a
 /// refresh. Mirrors the JSON returned by `POST /oauth/access_token`.
-///
-/// `expires_in` is the token lifetime in seconds as returned by Bangumi
-/// (typically 2592000 = 30 days). The Dart side turns this into an absolute
-/// expiry timestamp for its proactive-refresh scheduling.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BangumiOAuthToken {
     pub access_token: String,
@@ -219,6 +250,7 @@ pub struct BangumiOAuthToken {
     pub expires_in: i64,
     pub user_id: i64,
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BangumiUserCollectionEntry {
     pub updated_at: String,
@@ -242,9 +274,7 @@ pub struct BangumiUserCollectionEntry {
     pub image_common: String,
 }
 
-/// Stable error payload for authenticated Bangumi operations. The FRB facade
-/// serializes this value into the error text so Dart can classify failures
-/// without parsing upstream prose.
+/// Stable error payload for authenticated Bangumi operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BangumiApiError {
     pub operation: String,

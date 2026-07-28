@@ -875,6 +875,26 @@
   "@bangumiDetailsPlaceholderReviews": {
     "description": "Placeholder for long reviews tab."
   },
+  "bangumiCommentUnavailable": "该评论不可见",
+  "@bangumiCommentUnavailable": {
+    "description": "Shown when Bangumi hides or removes a comment."
+  },
+  "bangumiCommentFolded": "该评论已折叠",
+  "@bangumiCommentFolded": {
+    "description": "Shown before a folded Bangumi comment is revealed."
+  },
+  "bangumiCommentShowFolded": "展开",
+  "@bangumiCommentShowFolded": {
+    "description": "Reveals a folded Bangumi comment."
+  },
+  "bangumiBlogDetailLoadFailed": "长评正文加载失败",
+  "@bangumiBlogDetailLoadFailed": {
+    "description": "Error shown when a review body cannot be loaded."
+  },
+  "bangumiBlogCommentsLoadFailed": "长评评论加载失败",
+  "@bangumiBlogCommentsLoadFailed": {
+    "description": "Error shown when comments for a review cannot be loaded."
+  },
   "bangumiDetailsPlaceholderTopics": "暂无讨论帖",
   "@bangumiDetailsPlaceholderTopics": {
     "description": "Placeholder for topics tab."

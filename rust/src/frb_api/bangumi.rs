@@ -78,6 +78,41 @@ pub async fn fetch_bangumi_episode_comments(
     )
 }
 
+pub async fn fetch_bangumi_subject_reviews(
+    subject_id: i64,
+    page: i32,
+) -> anyhow::Result<bangumi_impl::BangumiReviewsPage> {
+    const API: &str = "fetch_bangumi_subject_reviews";
+    contract::public_result(
+        API,
+        contract::require_positive_i64("subject_id", subject_id),
+    )?;
+    contract::public_result(API, contract::require_i32_range("page", page, 1, i32::MAX))?;
+    contract::public_result(
+        API,
+        bangumi_impl::fetch_bangumi_subject_reviews(subject_id, page).await,
+    )
+}
+
+pub async fn fetch_bangumi_blog_detail(
+    entry_id: i64,
+) -> anyhow::Result<bangumi_impl::BangumiBlogDetail> {
+    const API: &str = "fetch_bangumi_blog_detail";
+    contract::public_result(API, contract::require_positive_i64("entry_id", entry_id))?;
+    contract::public_result(API, bangumi_impl::fetch_bangumi_blog_detail(entry_id).await)
+}
+
+pub async fn fetch_bangumi_blog_comments(
+    entry_id: i64,
+) -> anyhow::Result<Vec<bangumi_impl::BangumiEpisodeComment>> {
+    const API: &str = "fetch_bangumi_blog_comments";
+    contract::public_result(API, contract::require_positive_i64("entry_id", entry_id))?;
+    contract::public_result(
+        API,
+        bangumi_impl::fetch_bangumi_blog_comments(entry_id).await,
+    )
+}
+
 pub async fn fetch_character_details(
     character_id: i64,
 ) -> anyhow::Result<bangumi_impl::CharacterDetails> {

@@ -104,6 +104,7 @@ class _FakeDataPort {
     this.cached,
     this.network,
     this.commentsByPage = const {},
+    this.reviewsByPage = const {},
     this.commentsError,
     this.holdFutures = false,
   });
@@ -111,6 +112,7 @@ class _FakeDataPort {
   BangumiDetailsLoadResult? cached;
   BangumiDetailsLoadResult? network;
   Map<int, BangumiCommentsPage> commentsByPage;
+  Map<int, BangumiReviewsPage> reviewsByPage;
   Duration cachedDelay = Duration.zero;
   Duration networkDelay = Duration.zero;
   Duration commentsDelay = Duration.zero;
@@ -215,6 +217,9 @@ class _FakeDataPort {
       }
       if (commentsError != null) throw commentsError!;
       return commentsByPage[page] ?? const BangumiCommentsPage(comments: []);
+    },
+    fetchReviewsPage: ({required subjectId, required page}) async {
+      return reviewsByPage[page] ?? const BangumiReviewsPage(reviews: []);
     },
   );
 }
@@ -530,7 +535,10 @@ void main() {
       final data = _FakeDataPort(
         commentsByPage: {
           1: BangumiCommentsPage(
-            comments: [_comment(userName: 'a'), _comment(userName: 'b')],
+            comments: [
+              _comment(userName: 'a'),
+              _comment(userName: 'b'),
+            ],
           ),
         },
       );
@@ -798,6 +806,65 @@ void main() {
       final before = n;
       await c.ensureCommentsLoaded();
       expect(n, greaterThan(before));
+    });
+  });
+
+  group('reviews', () {
+    test('ensureReviewsLoaded populates first page of reviews', () async {
+      final reviewItem = BangumiReview(
+        id: 1,
+        entryId: 10,
+        userId: 'alice',
+        userName: 'Alice',
+        avatar: '',
+        title: 'Title',
+        summary: 'Summary',
+        time: '2026-07-28',
+        repliesCount: 2,
+      );
+      final data = _FakeDataPort(
+        reviewsByPage: {
+          1: BangumiReviewsPage(reviews: [reviewItem], total: 1),
+        },
+      );
+      final c = _controller(data: data);
+      await c.ensureReviewsLoaded();
+
+      expect(c.hasRequestedReviews, isTrue);
+      expect(c.reviews, hasLength(1));
+      expect(c.reviews!.first.title, 'Title');
+      expect(c.hasMoreReviews, isFalse);
+    });
+
+    test('loadMoreReviews follows total and merges subsequent pages', () async {
+      BangumiReview review(int id) => BangumiReview(
+        id: id,
+        entryId: id + 100,
+        userId: 'user$id',
+        userName: 'User $id',
+        avatar: '',
+        title: 'Title $id',
+        summary: 'Summary $id',
+        time: '2026-07-29',
+        repliesCount: 0,
+      );
+
+      final data = _FakeDataPort(
+        reviewsByPage: {
+          1: BangumiReviewsPage(reviews: [review(1), review(2)], total: 3),
+          2: BangumiReviewsPage(reviews: [review(3)], total: 3),
+        },
+      );
+      final c = _controller(data: data);
+
+      await c.ensureReviewsLoaded();
+      expect(c.hasMoreReviews, isTrue);
+      await c.loadMoreReviews();
+
+      expect(c.reviews!.map((item) => item.id), [1, 2, 3]);
+      expect(c.reviewPage, 2);
+      expect(c.hasMoreReviews, isFalse);
+      expect(c.isLoadingMoreReviews, isFalse);
     });
   });
 }

@@ -236,19 +236,21 @@ void main() {
   );
 
   test('comments preserve page arguments and backend errors', () async {
-    backend.commentsPage = const BangumiCommentsPage(comments: [
-      BangumiComment(
-        id: 1,
-        userId: 'user',
-        userName: 'user',
-        rate: 8,
-        content: 'text',
-        contentHtml: '<p>text</p>',
-        time: 'now',
-        avatar: '',
-        reactions: [],
-      ),
-    ]);
+    backend.commentsPage = const BangumiCommentsPage(
+      comments: [
+        BangumiComment(
+          id: 1,
+          userId: 'user',
+          userName: 'user',
+          rate: 8,
+          content: 'text',
+          contentHtml: '<p>text</p>',
+          time: 'now',
+          avatar: '',
+          reactions: [],
+        ),
+      ],
+    );
 
     expect(
       await service.fetchCommentsPage(subjectId: 9, page: 3),
@@ -296,14 +298,17 @@ class FakeBangumiDetailsBackend implements BangumiDetailsBackend {
   List<AnimeInfo> filled = const [];
   List<BangumiDataSiteEntry> sites = const [];
   BangumiCommentsPage commentsPage = const BangumiCommentsPage(comments: []);
+  BangumiReviewsPage reviewsPage = const BangumiReviewsPage(reviews: []);
   final cachedWrites = <AnimeInfo>[];
   final commentArgs = <(int, int)>[];
+  final reviewArgs = <(int, int)>[];
   Object? subjectError;
   Object? episodesError;
   Object? charactersError;
   Object? relationsError;
   Object? personsError;
   Object? commentsError;
+  Object? reviewsError;
 
   @override
   Future<AnimeInfo?> getCachedSubject(int subjectId) async {
@@ -398,5 +403,16 @@ class FakeBangumiDetailsBackend implements BangumiDetailsBackend {
     commentArgs.add((subjectId, page));
     if (commentsError case final error?) throw error;
     return commentsPage;
+  }
+
+  @override
+  Future<BangumiReviewsPage> fetchReviews({
+    required int subjectId,
+    required int page,
+  }) async {
+    calls.add('fetchReviews');
+    reviewArgs.add((subjectId, page));
+    if (reviewsError case final error?) throw error;
+    return reviewsPage;
   }
 }

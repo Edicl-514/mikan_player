@@ -5,6 +5,7 @@ mod fetch_comments;
 mod fetch_episodes;
 mod fetch_persons;
 mod fetch_relations;
+mod fetch_reviews;
 mod markup;
 mod person_detail;
 pub(crate) mod types;
@@ -21,6 +22,9 @@ pub(crate) use fetch_comments::{fetch_bangumi_comments, fetch_bangumi_episode_co
 pub(crate) use fetch_episodes::fetch_bangumi_episodes;
 pub(crate) use fetch_persons::fetch_bangumi_persons;
 pub(crate) use fetch_relations::fetch_bangumi_relations;
+pub(crate) use fetch_reviews::{
+    fetch_bangumi_blog_comments, fetch_bangumi_blog_detail, fetch_bangumi_subject_reviews,
+};
 pub(crate) use person_detail::{
     fetch_person_characters, fetch_person_details, fetch_person_subjects,
 };

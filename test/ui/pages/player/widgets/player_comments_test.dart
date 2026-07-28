@@ -26,16 +26,20 @@ BangumiEpisodeComment _comment({
   String userId = '',
   String avatar = '',
   String time = '',
+  int state = 0,
   String contentHtml = '',
   List<BangumiEpisodeComment> replies = const [],
+  List<BangumiCommentReaction> reactions = const [],
 }) => BangumiEpisodeComment(
   id: id,
   userName: userName,
   userId: userId,
   avatar: avatar,
   time: time,
+  state: state,
   contentHtml: contentHtml,
   replies: replies,
+  reactions: reactions,
 );
 
 Widget _wrap(Widget child) {
@@ -89,7 +93,10 @@ void main() {
         ),
       );
 
-      expect(find.text(l10n.playerCommentsLoadFailed('network timeout')), findsOneWidget);
+      expect(
+        find.text(l10n.playerCommentsLoadFailed('network timeout')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('empty state shows localized empty copy', (tester) async {

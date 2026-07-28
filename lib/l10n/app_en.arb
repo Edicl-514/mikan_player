@@ -875,6 +875,26 @@
   "@bangumiDetailsPlaceholderReviews": {
     "description": "Placeholder for long reviews tab."
   },
+  "bangumiCommentUnavailable": "This comment is unavailable",
+  "@bangumiCommentUnavailable": {
+    "description": "Shown when Bangumi hides or removes a comment."
+  },
+  "bangumiCommentFolded": "This comment is folded",
+  "@bangumiCommentFolded": {
+    "description": "Shown before a folded Bangumi comment is revealed."
+  },
+  "bangumiCommentShowFolded": "Show",
+  "@bangumiCommentShowFolded": {
+    "description": "Reveals a folded Bangumi comment."
+  },
+  "bangumiBlogDetailLoadFailed": "Unable to load this review",
+  "@bangumiBlogDetailLoadFailed": {
+    "description": "Error shown when a review body cannot be loaded."
+  },
+  "bangumiBlogCommentsLoadFailed": "Unable to load review comments",
+  "@bangumiBlogCommentsLoadFailed": {
+    "description": "Error shown when comments for a review cannot be loaded."
+  },
   "bangumiDetailsPlaceholderTopics": "No topics yet",
   "@bangumiDetailsPlaceholderTopics": {
     "description": "Placeholder for topics tab."

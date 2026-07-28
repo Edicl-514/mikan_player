@@ -13,8 +13,10 @@ BangumiEpisodeComment _comment({int id = 1, String time = '2024-01-01'}) =>
       userId: '1',
       avatar: '',
       time: time,
+      state: 0,
       contentHtml: '',
       replies: const [],
+      reactions: const [],
     );
 
 BangumiRelatedSubject _rel({

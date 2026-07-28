@@ -1,6 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
 
 void main() {
@@ -33,6 +35,40 @@ void main() {
       expect(once, contains('data-mikan-mask-id="1"'));
       expect(twice, once);
     });
+  });
+
+  test('only permits absolute HTTP(S) external URLs', () {
+    expect(isSafeBangumiExternalUrl('https://bgm.tv/subject/1'), isTrue);
+    expect(isSafeBangumiExternalUrl('http://example.com/a.png'), isTrue);
+    expect(isSafeBangumiExternalUrl('javascript:alert(1)'), isFalse);
+    expect(isSafeBangumiExternalUrl('file:///C:/secret.txt'), isFalse);
+    expect(isSafeBangumiExternalUrl('/subject/1'), isFalse);
+  });
+
+  testWidgets('moderated and folded comment states are respected', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _localized(
+        const Column(
+          children: [
+            BangumiCommentBody(state: 6, html: 'deleted secret'),
+            BangumiCommentBody(state: 8, html: 'folded content'),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('该评论不可见'), findsOneWidget);
+    expect(find.text('deleted secret'), findsNothing);
+    expect(find.text('该评论已折叠'), findsOneWidget);
+    expect(find.text('folded content'), findsNothing);
+
+    await tester.tap(find.text('展开'));
+    await tester.pump();
+
+    expect(find.text('该评论已折叠'), findsNothing);
+    expect(find.byType(BangumiCommentHtml), findsOneWidget);
   });
 
   testWidgets('duplicate masks toggle independently', (tester) async {
@@ -90,6 +126,18 @@ void main() {
     expect(_isHiddenMask(span), isTrue);
   });
 }
+
+Widget _localized(Widget child) => MaterialApp(
+  localizationsDelegates: const [
+    AppLocalizations.delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
+  supportedLocales: AppLocalizations.supportedLocales,
+  locale: const Locale('zh'),
+  home: Scaffold(body: child),
+);
 
 List<TextSpan> _textSpans(WidgetTester tester, String text) {
   final matches = <TextSpan>[];

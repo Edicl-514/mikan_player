@@ -12,6 +12,7 @@ import 'package:mikan_player/ui/pages/bangumi_details/widgets/header_collection_
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/header_rating.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/placeholder_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/relations_section.dart';
+import 'package:mikan_player/ui/pages/bangumi_details/widgets/reviews_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/section_title.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/sites_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/summary_tags.dart';
@@ -34,6 +35,7 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
   final List<BangumiCharacter>? characters;
   final List<BangumiRelatedSubject>? relations;
   final List<BangumiComment>? comments;
+  final List<BangumiReview>? reviews;
   final List<BangumiDataSiteEntry>? sites;
   final Map<String, int> personIdMap;
 
@@ -44,6 +46,9 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
   final bool isLoadingComments;
   final bool isLoadingMoreComments;
   final bool hasRequestedComments;
+  final bool isLoadingReviews;
+  final bool isLoadingMoreReviews;
+  final bool hasRequestedReviews;
 
   // Page-level UI state.
   final bool isLocalFavorite;
@@ -79,6 +84,9 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
   final void Function(BangumiDataSiteEntry site) onSiteTap;
   final VoidCallback onLoadMoreComments;
   final VoidCallback onEnsureCommentsLoaded;
+  final VoidCallback? onLoadMoreReviews;
+  final VoidCallback? onEnsureReviewsLoaded;
+  final void Function(BangumiReview review)? onReviewTap;
 
   const BangumiDetailsMobileLayout({
     super.key,
@@ -89,6 +97,7 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     required this.characters,
     required this.relations,
     required this.comments,
+    this.reviews,
     required this.sites,
     required this.personIdMap,
     required this.isLoadingEpisodes,
@@ -97,6 +106,9 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     required this.isLoadingComments,
     required this.isLoadingMoreComments,
     required this.hasRequestedComments,
+    this.isLoadingReviews = false,
+    this.isLoadingMoreReviews = false,
+    this.hasRequestedReviews = false,
     required this.isLocalFavorite,
     required this.favoriteType,
     required this.isSelectingFavoriteStatus,
@@ -121,6 +133,9 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     required this.onSiteTap,
     required this.onLoadMoreComments,
     required this.onEnsureCommentsLoaded,
+    this.onLoadMoreReviews,
+    this.onEnsureReviewsLoaded,
+    this.onReviewTap,
   });
 
   @override
@@ -218,12 +233,7 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
             children: [
               _buildMobileDetailsTab(context, isDark),
               _buildMobileCommentsTab(context, isDark),
-              _buildMobilePlaceholderTab(
-                context,
-                isDark,
-                AppLocalizations.of(context).bangumiDetailsPlaceholderReviews,
-                Icons.article_outlined,
-              ),
+              _buildMobileReviewsTab(context, isDark),
               _buildMobilePlaceholderTab(
                 context,
                 isDark,
@@ -609,6 +619,97 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
       ),
       scrollController: sitesScrollController,
       onSiteTap: onSiteTap,
+    );
+  }
+
+  Widget _buildMobileReviewsTab(BuildContext context, bool isDark) {
+    final l10n = AppLocalizations.of(context);
+    if (!hasRequestedReviews && !isLoadingReviews) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        onEnsureReviewsLoaded?.call();
+      });
+    }
+
+    if (isLoadingReviews) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: SectionTitle(
+              title: l10n.bangumiDetailsTabReviews,
+              isDarkBg: isDark,
+            ),
+          ),
+          const SizedBox(height: 96),
+          Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: isDark ? Colors.white54 : Colors.grey,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: Text(
+              l10n.loading,
+              style: TextStyle(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.6)
+                    : Colors.grey,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (reviews == null || reviews!.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: SectionTitle(
+              title: l10n.bangumiDetailsTabReviews,
+              isDarkBg: isDark,
+            ),
+          ),
+          const SizedBox(height: 96),
+          Center(
+            child: Text(
+              l10n.bangumiDetailsPlaceholderReviews,
+              style: TextStyle(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.6)
+                    : Colors.grey,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return RepaintBoundary(
+      child: ReviewsSection(
+        reviews: reviews!,
+        isLoading: false,
+        isLoadingMore: isLoadingMoreReviews,
+        isDarkBg: isDark,
+        sectionTitle: SectionTitle(
+          title: l10n.bangumiDetailsTabReviews,
+          isDarkBg: isDark,
+        ),
+        loadingPlaceholder: (_) => const SizedBox.shrink(),
+        onLoadMore: onLoadMoreReviews,
+        onReviewTap: onReviewTap,
+      ),
     );
   }
 

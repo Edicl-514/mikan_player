@@ -21,7 +21,7 @@ v0 = `bangumi/api` 仓库 `open-api/v0.yaml`。
 |---|---|---|---|
 | **Phase 1** | OAuth 登录 + 收藏状态同步 | 有 | ✅ 已完成 |
 | Phase 2 | 收藏的评价 / 评分 / 标签 / 隐私 | 有 | ✅ 代码完成（真实账号验收待执行） |
-| Phase 3 | 社区内容只读（条目吐槽、长评、讨论版、透视、角色 / 人物吐槽） | 无 | 🚧 3A 代码完成，3B–3E 待开发 |
+| Phase 3 | 社区内容只读（条目吐槽、长评、讨论版、透视、角色 / 人物吐槽） | 无 | 🚧 3A/3B 已完成，3C–3E 待开发 |
 | — | 发送吐槽 / 发帖 / 说句话 | — | ❌ 不实现，见第 6 章 |
 
 ---
@@ -360,6 +360,24 @@ GET https://next.bgm.tv/p1/subjects/{subjectID}/comments?type=&limit=&offset=
   `rate` / `reactions` 等展示字段。
 
 #### 3B 长评（reviews）
+
+##### 已落地（2026-07-28）
+
+- Rust 端实现 `fetch_bangumi_subject_reviews`（拉取长评摘要列表）、`fetch_bangumi_blog_detail`（拉取日志正文并经 `render_bangumi_markup` 渲染为安全 HTML）与 `fetch_bangumi_blog_comments`（拉取日志下属吐槽）。评论解析保留 p1 `state`，并携带当前 OAuth user ID 计算 reaction 高亮。
+- 增强 `render_bangumi_markup`（`rust/src/api/bangumi/markup.rs`）以全面覆盖 Bangumi BBCode 规范（参照 [bgm.tv/help/bbcode](https://bgm.tv/help/bbcode)）：
+  - 基础文本与修饰：`[b]`, `[i]`, `[u]`, `[s]` / `[del]` / `[strikethrough]`, `[sub]`, `[sup]`, `[mask]` 剧透遮罩
+  - 排版与样式：`[align=...]` / `[left]` / `[center]` / `[right]`, `[color=...]`, `[size=...]`（支持字号数值及 `small`/`large` 关键字）, `[font=...]`, `[hr]` 分割线
+  - 结构与多媒体：`[url]`, `[img]`, `[photo=id]path[/photo]` 相册图片解析（自动映射至 `lain.bgm.tv/pic/photo/l/...` 绝对路径）, `[quote]`, `[code]` 代码块（保持换行与转义）, `[list]` / `[list=1]` 与 `[*]` 列表解析, `[bgmXX]` / `(bgmXX)` 表情解析（包含 `bgm200` 等 TV 系列贴纸）, 换行符 `\n` 转 `<br />` 保持段落排版。
+- 长评摘要在 Rust 端去除 BBCode 标签和媒体占位后作为安全纯文本预览；完整正文仍在展开时由 `render_bangumi_markup` 转换为安全 HTML，并在弹窗中使用 `BangumiCommentHtml` 呈现。
+- 通过 `flutter_rust_bridge_codegen` 更新 FRB 门面绑定。
+- Dart 端实现 `ReviewsSection` 与 `ReviewsSliver` 组件，并在详情页 `BangumiDetailsController` 中全贯通长评分页逻辑：
+  - **移动端**：接入全局 Theme (`isDark`)，适配亮/暗主题文字颜色与卡片背景。
+  - **PC端（Wide Layout）**：保持 `isDarkBg: true` 的半透明深色底 + **白字/浅色文本** 风格。
+- 实现 `BangumiBlogDetailModal` 弹窗（`showBangumiBlogDetailDialog`）：点击长评卡片弹窗即时加载全文正文及评论列表。
+- 正文与评论使用独立加载 / 错误状态：评论接口失败不会阻断已成功加载的正文，重试也只重试失败区块；用户界面不直接展示上游原始错误文本。
+- BBCode 生成的链接和图片只允许绝对 HTTP(S) URL，Dart HTML 组件再次拦截非 HTTP(S) scheme；评论 `state` 为删除 / 隐藏时不渲染正文，折叠状态需由用户明确展开。
+- 移动端与宽屏端均按服务端 `total` 分页；宽屏首屏内容不足时会继续执行 viewport-fill 检查。
+- 增加 Rust 单元测试（`markup.rs` / `fetch_comments.rs` / `fetch_reviews.rs`）及 Dart Widget/Controller 测试；全量测试、格式检查和静态分析需在提交前通过。
 
 ```http
 GET https://next.bgm.tv/p1/subjects/{subjectID}/reviews?limit=&offset=

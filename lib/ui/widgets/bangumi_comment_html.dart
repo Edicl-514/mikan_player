@@ -4,6 +4,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
+import 'package:mikan_player/gen/app_localizations.dart';
+
 const _maskIdAttribute = 'data-mikan-mask-id';
 
 final _textMaskSpanPattern = RegExp(
@@ -22,6 +24,7 @@ class BangumiCommentHtml extends StatefulWidget {
   final TextStyle? textStyle;
   final CustomStylesBuilder? customStylesBuilder;
   final CustomWidgetBuilder? customWidgetBuilder;
+  final Future<bool> Function(String url)? onTapUrl;
 
   const BangumiCommentHtml({
     super.key,
@@ -29,6 +32,7 @@ class BangumiCommentHtml extends StatefulWidget {
     this.textStyle,
     this.customStylesBuilder,
     this.customWidgetBuilder,
+    this.onTapUrl,
   });
 
   @override
@@ -183,10 +187,34 @@ class _BangumiCommentHtmlState extends State<BangumiCommentHtml> {
     return HtmlWidget(
       html,
       textStyle: widget.textStyle,
+      onTapUrl: (url) async {
+        if (url.startsWith('#')) return false;
+        if (!isSafeBangumiExternalUrl(url)) return true;
+        return widget.onTapUrl?.call(url) ?? false;
+      },
       // Bust fwfh's widget cache when reveal state changes.
       rebuildTriggers: <Object?>[_revision],
       customStylesBuilder: (element) {
         final base = widget.customStylesBuilder?.call(element);
+        if (element.localName == 'img') {
+          if (element.classes.contains('smile-dynamic') ||
+              element.classes.contains('smile-blake') ||
+              element.classes.contains('smile-musume')) {
+            return <String, String>{
+              ...?base,
+              'max-height': '64px',
+              'max-width': '96px',
+              'object-fit': 'contain',
+              'vertical-align': 'middle',
+            };
+          } else if (element.classes.contains('smile')) {
+            return <String, String>{
+              ...?base,
+              'max-height': '24px',
+              'vertical-align': 'middle',
+            };
+          }
+        }
         if (!element.classes.contains('text_mask')) {
           return base;
         }
@@ -220,6 +248,86 @@ class _BangumiCommentHtmlState extends State<BangumiCommentHtml> {
       factoryBuilder: () => _factory,
     );
   }
+}
+
+/// Renders a p1 comment while respecting Bangumi moderation state.
+///
+/// p1 uses state 8 for folded content. States 1, 2, 5, 6 and 7 are not
+/// viewable; the upstream API normally blanks their content, but we enforce
+/// that rule here as a second boundary before rendering HTML.
+class BangumiCommentBody extends StatefulWidget {
+  final int state;
+  final String html;
+  final TextStyle? textStyle;
+  final CustomStylesBuilder? customStylesBuilder;
+  final CustomWidgetBuilder? customWidgetBuilder;
+
+  const BangumiCommentBody({
+    super.key,
+    required this.state,
+    required this.html,
+    this.textStyle,
+    this.customStylesBuilder,
+    this.customWidgetBuilder,
+  });
+
+  @override
+  State<BangumiCommentBody> createState() => _BangumiCommentBodyState();
+}
+
+class _BangumiCommentBodyState extends State<BangumiCommentBody> {
+  bool _showFoldedContent = false;
+
+  @override
+  void didUpdateWidget(covariant BangumiCommentBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state != widget.state || oldWidget.html != widget.html) {
+      _showFoldedContent = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final style = widget.textStyle ?? DefaultTextStyle.of(context).style;
+
+    if (bangumiCommentStateHidesContent(widget.state)) {
+      return Text(l10n.bangumiCommentUnavailable, style: style);
+    }
+
+    if (widget.state == 8 && !_showFoldedContent) {
+      return Row(
+        children: [
+          Expanded(child: Text(l10n.bangumiCommentFolded, style: style)),
+          TextButton(
+            onPressed: () => setState(() => _showFoldedContent = true),
+            child: Text(l10n.bangumiCommentShowFolded),
+          ),
+        ],
+      );
+    }
+
+    return BangumiCommentHtml(
+      html: widget.html,
+      textStyle: widget.textStyle,
+      customStylesBuilder: widget.customStylesBuilder,
+      customWidgetBuilder: widget.customWidgetBuilder,
+    );
+  }
+}
+
+bool bangumiCommentStateHidesContent(int state) => switch (state) {
+  1 || 2 || 5 || 6 || 7 => true,
+  _ => false,
+};
+
+@visibleForTesting
+bool isSafeBangumiExternalUrl(String url) {
+  final uri = Uri.tryParse(url);
+  return uri != null &&
+      (uri.scheme.toLowerCase() == 'http' ||
+          uri.scheme.toLowerCase() == 'https') &&
+      uri.host.isNotEmpty;
 }
 
 /// Registers a [BuildOp] so `.text_mask` spans get tap and hover handling while

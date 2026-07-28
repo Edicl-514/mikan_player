@@ -43,8 +43,10 @@ BangumiEpisodeComment _comment({int id = 1, String userName = 'Alice'}) =>
       userId: 'u$id',
       avatar: '',
       time: '2024-01-01',
+      state: 0,
       contentHtml: 'Hello',
       replies: const [],
+      reactions: const [],
     );
 
 BangumiEpisode _ep({int id = 1, double sort = 1}) => BangumiEpisode(

@@ -2014,6 +2014,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bangumiDetailsPlaceholderReviews => '暂无长评';
 
   @override
+  String get bangumiCommentUnavailable => '该评论不可见';
+
+  @override
+  String get bangumiCommentFolded => '该评论已折叠';
+
+  @override
+  String get bangumiCommentShowFolded => '展开';
+
+  @override
+  String get bangumiBlogDetailLoadFailed => '长评正文加载失败';
+
+  @override
+  String get bangumiBlogCommentsLoadFailed => '长评评论加载失败';
+
+  @override
   String get bangumiDetailsPlaceholderTopics => '暂无讨论帖';
 
   @override

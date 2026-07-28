@@ -24,6 +24,69 @@ class BangumiActor {
           name == other.name;
 }
 
+class BangumiBlogDetail {
+  final PlatformInt64 id;
+  final String title;
+  final String summary;
+  final String content;
+  final String contentHtml;
+  final String userId;
+  final String userName;
+  final String avatar;
+  final String time;
+  final int repliesCount;
+  final List<String> tags;
+  final List<BangumiCommentReaction> reactions;
+
+  const BangumiBlogDetail({
+    required this.id,
+    required this.title,
+    required this.summary,
+    required this.content,
+    required this.contentHtml,
+    required this.userId,
+    required this.userName,
+    required this.avatar,
+    required this.time,
+    required this.repliesCount,
+    required this.tags,
+    required this.reactions,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      title.hashCode ^
+      summary.hashCode ^
+      content.hashCode ^
+      contentHtml.hashCode ^
+      userId.hashCode ^
+      userName.hashCode ^
+      avatar.hashCode ^
+      time.hashCode ^
+      repliesCount.hashCode ^
+      tags.hashCode ^
+      reactions.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiBlogDetail &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          summary == other.summary &&
+          content == other.content &&
+          contentHtml == other.contentHtml &&
+          userId == other.userId &&
+          userName == other.userName &&
+          avatar == other.avatar &&
+          time == other.time &&
+          repliesCount == other.repliesCount &&
+          tags == other.tags &&
+          reactions == other.reactions;
+}
+
 class BangumiCharacter {
   final PlatformInt64 id;
   final String name;
@@ -211,8 +274,10 @@ class BangumiEpisodeComment {
   final String userId;
   final String avatar;
   final String time;
+  final int state;
   final String contentHtml;
   final List<BangumiEpisodeComment> replies;
+  final List<BangumiCommentReaction> reactions;
 
   const BangumiEpisodeComment({
     required this.id,
@@ -220,8 +285,10 @@ class BangumiEpisodeComment {
     required this.userId,
     required this.avatar,
     required this.time,
+    required this.state,
     required this.contentHtml,
     required this.replies,
+    required this.reactions,
   });
 
   @override
@@ -231,8 +298,10 @@ class BangumiEpisodeComment {
       userId.hashCode ^
       avatar.hashCode ^
       time.hashCode ^
+      state.hashCode ^
       contentHtml.hashCode ^
-      replies.hashCode;
+      replies.hashCode ^
+      reactions.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -244,8 +313,10 @@ class BangumiEpisodeComment {
           userId == other.userId &&
           avatar == other.avatar &&
           time == other.time &&
+          state == other.state &&
           contentHtml == other.contentHtml &&
-          replies == other.replies;
+          replies == other.replies &&
+          reactions == other.reactions;
 }
 
 class BangumiImages {
@@ -285,10 +356,6 @@ class BangumiImages {
 
 /// Result of an OAuth token exchange (authorization code → tokens) or a
 /// refresh. Mirrors the JSON returned by `POST /oauth/access_token`.
-///
-/// `expires_in` is the token lifetime in seconds as returned by Bangumi
-/// (typically 2592000 = 30 days). The Dart side turns this into an absolute
-/// expiry timestamp for its proactive-refresh scheduling.
 class BangumiOAuthToken {
   final String accessToken;
   final String refreshToken;
@@ -392,6 +459,75 @@ class BangumiRelatedSubject {
           nameCn == other.nameCn &&
           relation == other.relation &&
           image == other.image;
+}
+
+class BangumiReview {
+  final PlatformInt64 id;
+  final PlatformInt64 entryId;
+  final String userId;
+  final String userName;
+  final String avatar;
+  final String title;
+  final String summary;
+  final String time;
+  final int repliesCount;
+
+  const BangumiReview({
+    required this.id,
+    required this.entryId,
+    required this.userId,
+    required this.userName,
+    required this.avatar,
+    required this.title,
+    required this.summary,
+    required this.time,
+    required this.repliesCount,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      entryId.hashCode ^
+      userId.hashCode ^
+      userName.hashCode ^
+      avatar.hashCode ^
+      title.hashCode ^
+      summary.hashCode ^
+      time.hashCode ^
+      repliesCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiReview &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          entryId == other.entryId &&
+          userId == other.userId &&
+          userName == other.userName &&
+          avatar == other.avatar &&
+          title == other.title &&
+          summary == other.summary &&
+          time == other.time &&
+          repliesCount == other.repliesCount;
+}
+
+class BangumiReviewsPage {
+  final List<BangumiReview> reviews;
+  final int? total;
+
+  const BangumiReviewsPage({required this.reviews, this.total});
+
+  @override
+  int get hashCode => reviews.hashCode ^ total.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiReviewsPage &&
+          runtimeType == other.runtimeType &&
+          reviews == other.reviews &&
+          total == other.total;
 }
 
 class BangumiUserCollectionEntry {

@@ -51,8 +51,10 @@ fn bangumi_and_crawler_dtos_round_trip_through_serde_and_frb_sse() {
         user_id: "reply".to_string(),
         avatar: "//lain.bgm.tv/reply.jpg".to_string(),
         time: "2026-07-20".to_string(),
+        state: 0,
         content_html: "<p>reply</p>".to_string(),
         replies: Vec::new(),
+        reactions: Vec::new(),
     };
     let comment = BangumiEpisodeComment {
         id: 1,
@@ -60,8 +62,10 @@ fn bangumi_and_crawler_dtos_round_trip_through_serde_and_frb_sse() {
         user_id: "root".to_string(),
         avatar: "https://lain.bgm.tv/root.jpg".to_string(),
         time: "2026-07-20".to_string(),
+        state: 0,
         content_html: "<p>root</p>".to_string(),
         replies: vec![reply],
+        reactions: Vec::new(),
     };
     assert_same_json(&serde_round_trip(&comment), &comment);
     assert_same_json(&frb_sse_round_trip(comment.clone()), &comment);

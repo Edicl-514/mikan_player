@@ -64,7 +64,7 @@ fn parse_bangumi_comments_next(
     }
 }
 
-fn parse_comment_reaction(
+pub(super) fn parse_comment_reaction(
     item: &serde_json::Value,
     current_user_id: Option<i64>,
 ) -> Option<BangumiCommentReaction> {
@@ -72,9 +72,10 @@ fn parse_comment_reaction(
     let name = format!("bgm{value}");
     let (image_url, _) = bangumi_smile_asset(&name)?;
     let users = item["users"].as_array();
-    let count = users
-        .and_then(|items| i32::try_from(items.len()).ok())
-        .unwrap_or_default();
+    let count = json_i32(&item["total"])
+        .or_else(|| json_i32(&item["count"]))
+        .or_else(|| users.and_then(|items| i32::try_from(items.len()).ok()))
+        .unwrap_or(0);
     let reacted = current_user_id.is_some_and(|current_user_id| {
         users.is_some_and(|items| {
             items
@@ -445,8 +446,10 @@ pub(super) async fn fetch_bangumi_episode_comments_legacy(
                     user_id: s_user_id,
                     avatar: s_avatar,
                     time: s_time,
+                    state: 0,
                     content_html: s_content_html,
                     replies: Vec::new(),
+                    reactions: Vec::new(),
                 });
             }
         }
@@ -458,8 +461,10 @@ pub(super) async fn fetch_bangumi_episode_comments_legacy(
                 user_id,
                 avatar,
                 time,
+                state: 0,
                 content_html,
                 replies,
+                reactions: Vec::new(),
             });
         }
     }
@@ -506,7 +511,14 @@ pub(super) async fn fetch_bangumi_comments_next(
     Ok(parse_bangumi_comments_next(&json, current_user_id))
 }
 
-pub(super) fn parse_next_episode_comment(item: &serde_json::Value) -> BangumiEpisodeComment {
+fn bangumi_comment_state_can_view_content(state: i32) -> bool {
+    !matches!(state, 1 | 2 | 5 | 6 | 7)
+}
+
+pub(super) fn parse_next_episode_comment(
+    item: &serde_json::Value,
+    current_user_id: Option<i64>,
+) -> BangumiEpisodeComment {
     let user = &item["user"];
     let user_name = user["nickname"]
         .as_str()
@@ -518,12 +530,29 @@ pub(super) fn parse_next_episode_comment(item: &serde_json::Value) -> BangumiEpi
         .filter(|value| !value.is_empty())
         .map(str::to_string)
         .unwrap_or_else(|| user["id"].as_i64().unwrap_or_default().to_string());
-    let content = item["content"].as_str().unwrap_or("");
+    let state = json_i32(&item["state"]).unwrap_or(0);
+    let content = if bangumi_comment_state_can_view_content(state) {
+        item["content"].as_str().unwrap_or("")
+    } else {
+        ""
+    };
 
     let replies = item["replies"]
         .as_array()
-        .map(|items| items.iter().map(parse_next_episode_comment).collect())
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| parse_next_episode_comment(item, current_user_id))
+                .collect()
+        })
         .unwrap_or_default();
+
+    let reactions = item["reactions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|item| parse_comment_reaction(item, current_user_id))
+        .collect();
 
     BangumiEpisodeComment {
         id: item["id"].as_i64().unwrap_or_default(),
@@ -534,15 +563,17 @@ pub(super) fn parse_next_episode_comment(item: &serde_json::Value) -> BangumiEpi
             .as_i64()
             .map(format_bangumi_timestamp)
             .unwrap_or_default(),
+        state,
         content_html: render_bangumi_markup(content),
         replies,
+        reactions,
     }
 }
 
 pub(super) async fn fetch_bangumi_episode_comments_next(
     episode_id: i64,
 ) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
-    let (url, access_token, _) =
+    let (url, access_token, current_user_id) =
         bangumi_next_request(&format!("/p1/episodes/{episode_id}/comments"));
 
     let resp = crate::api::network::retry_request_bangumi_with_status(
@@ -570,7 +601,12 @@ pub(super) async fn fetch_bangumi_episode_comments_next(
     let json: serde_json::Value = resp.json().await?;
     let comments = json
         .as_array()
-        .map(|items| items.iter().map(parse_next_episode_comment).collect())
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| parse_next_episode_comment(item, current_user_id))
+                .collect()
+        })
         .unwrap_or_default();
 
     Ok(comments)
@@ -630,14 +666,21 @@ mod tests {
 
     #[test]
     fn next_episode_comments_normalize_recursive_replies_without_executing_markup() {
-        let comment = parse_next_episode_comment(&json!({
-            "id": 1,
-            "content": "[url=https://example.com]link[/url]<img src=x>",
-            "user": {"id": 7, "nickname": "Nick"},
-            "replies": [{"id": 2, "content": "[b]reply[/b]", "user": {"username": "bob"}}]
-        }));
+        let comment = parse_next_episode_comment(
+            &json!({
+                "id": 1,
+                "content": "[url=https://example.com]link[/url]<img src=x>",
+                "state": 0,
+                "user": {"id": 7, "nickname": "Nick"},
+                "reactions": [{"value": 38, "users": [{"id": 7}]}],
+                "replies": [{"id": 2, "content": "[b]reply[/b]", "state": 0, "user": {"username": "bob"}}]
+            }),
+            Some(7),
+        );
 
         assert_eq!(comment.user_id, "7");
+        assert_eq!(comment.state, 0);
+        assert!(comment.reactions[0].reacted);
         assert!(comment.content_html.contains("&lt;img src=x&gt;"));
         assert_eq!(comment.replies.len(), 1);
         assert_eq!(comment.replies[0].user_id, "bob");
@@ -646,6 +689,34 @@ mod tests {
                 .content_html
                 .contains("<span style=\"font-weight:bold;\">reply</span>")
         );
+    }
+
+    #[test]
+    fn next_episode_comments_hide_non_viewable_moderation_states() {
+        for state in [1, 2, 5, 6, 7] {
+            let comment = parse_next_episode_comment(
+                &json!({
+                    "id": state,
+                    "content": "must not be rendered",
+                    "state": state,
+                    "user": {"id": 7, "nickname": "Nick"}
+                }),
+                None,
+            );
+            assert_eq!(comment.state, state);
+            assert!(comment.content_html.is_empty());
+        }
+
+        let folded = parse_next_episode_comment(
+            &json!({
+                "id": 8,
+                "content": "folded but available",
+                "state": 8,
+                "user": {"id": 7, "nickname": "Nick"}
+            }),
+            None,
+        );
+        assert_eq!(folded.content_html, "folded but available");
     }
 
     #[tokio::test]

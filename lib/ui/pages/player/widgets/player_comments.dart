@@ -188,7 +188,10 @@ class PlayerComments extends StatelessWidget {
     }
     if (comments.isEmpty) {
       return Center(
-        child: Text(l10n.playerCommentsEmpty, style: TextStyle(color: mutedTextColor)),
+        child: Text(
+          l10n.playerCommentsEmpty,
+          style: TextStyle(color: mutedTextColor),
+        ),
       );
     }
 
@@ -308,7 +311,8 @@ class PlayerComments extends StatelessWidget {
                 const SizedBox(height: 6),
 
                 // Content
-                BangumiCommentHtml(
+                BangumiCommentBody(
+                  state: comment.state,
                   html: comment.contentHtml,
                   textStyle: TextStyle(
                     color: isDark
@@ -396,7 +400,8 @@ class PlayerComments extends StatelessWidget {
                                       ],
                                     ),
                                     const SizedBox(height: 4),
-                                    BangumiCommentHtml(
+                                    BangumiCommentBody(
+                                      state: reply.state,
                                       html: reply.contentHtml,
                                       textStyle: TextStyle(
                                         color: isDark

@@ -15,6 +15,7 @@ import 'package:mikan_player/ui/pages/bangumi_details/widgets/header_rating.dart
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/header_title.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/placeholder_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/relations_section.dart';
+import 'package:mikan_player/ui/pages/bangumi_details/widgets/reviews_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/section_title.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/sites_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/summary_tags.dart';
@@ -37,6 +38,7 @@ class BangumiDetailsWideLayout extends StatefulWidget {
   final List<BangumiCharacter>? characters;
   final List<BangumiRelatedSubject>? relations;
   final List<BangumiComment>? comments;
+  final List<BangumiReview>? reviews;
   final List<BangumiDataSiteEntry>? sites;
   final Map<String, int> personIdMap;
 
@@ -47,6 +49,9 @@ class BangumiDetailsWideLayout extends StatefulWidget {
   final bool isLoadingComments;
   final bool isLoadingMoreComments;
   final bool hasRequestedComments;
+  final bool isLoadingReviews;
+  final bool isLoadingMoreReviews;
+  final bool hasRequestedReviews;
 
   // Page-level UI state.
   final bool isLocalFavorite;
@@ -86,6 +91,9 @@ class BangumiDetailsWideLayout extends StatefulWidget {
   final void Function(BangumiDataSiteEntry site) onSiteTap;
   final VoidCallback onEnsureCommentsLoaded;
   final VoidCallback onLoadMoreComments;
+  final VoidCallback? onEnsureReviewsLoaded;
+  final VoidCallback? onLoadMoreReviews;
+  final void Function(BangumiReview review)? onReviewTap;
 
   const BangumiDetailsWideLayout({
     super.key,
@@ -96,6 +104,7 @@ class BangumiDetailsWideLayout extends StatefulWidget {
     required this.characters,
     required this.relations,
     required this.comments,
+    this.reviews,
     required this.sites,
     required this.personIdMap,
     required this.isLoadingEpisodes,
@@ -104,6 +113,9 @@ class BangumiDetailsWideLayout extends StatefulWidget {
     required this.isLoadingComments,
     required this.isLoadingMoreComments,
     required this.hasRequestedComments,
+    this.isLoadingReviews = false,
+    this.isLoadingMoreReviews = false,
+    this.hasRequestedReviews = false,
     required this.isLocalFavorite,
     required this.favoriteType,
     required this.isSelectingFavoriteStatus,
@@ -132,6 +144,9 @@ class BangumiDetailsWideLayout extends StatefulWidget {
     required this.onSiteTap,
     required this.onEnsureCommentsLoaded,
     required this.onLoadMoreComments,
+    this.onEnsureReviewsLoaded,
+    this.onLoadMoreReviews,
+    this.onReviewTap,
   });
 
   @override
@@ -159,7 +174,7 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
     if (!_sameAnimeIdentity(oldWidget.anime, widget.anime)) {
       _selectedTabIndex = 0;
     }
-    if (_selectedTabIndex == 1) {
+    if (_selectedTabIndex == 1 || _selectedTabIndex == 2) {
       _scheduleViewportFillCheck();
     }
   }
@@ -170,13 +185,16 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
       a.title == b.title;
 
   void _handleRightScroll() {
-    if (_selectedTabIndex != 1 ||
-        !widget.wideRightScrollController.hasClients) {
+    if (!widget.wideRightScrollController.hasClients) {
       return;
     }
     final position = widget.wideRightScrollController.position;
     if (position.pixels >= position.maxScrollExtent - 200) {
-      widget.onLoadMoreComments();
+      if (_selectedTabIndex == 1) {
+        widget.onLoadMoreComments();
+      } else if (_selectedTabIndex == 2) {
+        widget.onLoadMoreReviews?.call();
+      }
     }
   }
 
@@ -376,7 +394,7 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
                         setState(() {
                           _selectedTabIndex = newSelection.first;
                         });
-                        if (_selectedTabIndex == 1) {
+                        if (_selectedTabIndex == 1 || _selectedTabIndex == 2) {
                           _scheduleViewportFillCheck();
                         }
                       },
@@ -400,13 +418,7 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
           if (_selectedTabIndex == 2)
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
-              sliver: SliverToBoxAdapter(
-                child: _buildPlaceholderCard(
-                  context,
-                  l10n.bangumiDetailsPlaceholderReviews,
-                  Icons.article_outlined,
-                ),
-              ),
+              sliver: _buildReviewsSliver(context),
             ),
           if (_selectedTabIndex == 3)
             SliverPadding(
@@ -557,6 +569,31 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
         icon: Icons.comment,
         isDarkBg: true,
       ),
+    );
+  }
+
+  Widget _buildReviewsSliver(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (!widget.hasRequestedReviews && !widget.isLoadingReviews) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onEnsureReviewsLoaded?.call();
+      });
+    }
+    return ReviewsSliver(
+      reviews: widget.reviews ?? const [],
+      isLoading: widget.isLoadingReviews,
+      isLoadingMore: widget.isLoadingMoreReviews,
+      isDarkBg: true,
+      sectionTitle: SectionTitle(
+        title: l10n.bangumiDetailsTabReviews,
+        isDarkBg: true,
+      ),
+      loadingPlaceholder: (ctx) => PlaceholderSection(
+        title: l10n.bangumiDetailsTabReviews,
+        icon: Icons.article_outlined,
+        isDarkBg: true,
+      ),
+      onReviewTap: widget.onReviewTap,
     );
   }
 
