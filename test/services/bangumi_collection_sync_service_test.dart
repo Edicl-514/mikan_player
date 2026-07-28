@@ -2,7 +2,6 @@
 // and offline behavior (local applies immediately, the queue catches up).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/bangumi_collection_merge.dart';
 import 'package:mikan_player/services/bangumi_collection_sync_service.dart';
 import 'package:mikan_player/services/bangumi_collections_repository.dart';
@@ -57,35 +56,38 @@ void main() {
   });
 
   group('one-sided entries', () {
-    test('a local-only entry uploads status and metadata in one request', () async {
-      await favorites.addFavorite(
-        bangumiId: 1,
-        title: 'Local only',
-        coverUrl: '',
-        score: 7,
-        type: 3,
-      );
-      await favorites.setLocalMetadata(
-        bangumiId: 1,
-        rate: 9,
-        comment: 'great',
-        tags: const ['sci-fi'],
-        private: true,
-      );
+    test(
+      'a local-only entry uploads status and metadata in one request',
+      () async {
+        await favorites.addFavorite(
+          bangumiId: 1,
+          title: 'Local only',
+          coverUrl: '',
+          score: 7,
+          type: 3,
+        );
+        await favorites.setLocalMetadata(
+          bangumiId: 1,
+          rate: 9,
+          comment: 'great',
+          tags: const ['sci-fi'],
+          private: true,
+        );
 
-      final result = await buildService().synchronize('alice');
+        final result = await buildService().synchronize('alice');
 
-      expect(result.uploadedCount, 1);
-      expect(backend.statusUpdates, isEmpty);
-      final upsert = backend.upserts.single;
-      expect(upsert.subjectId, 1);
-      expect(upsert.type, 3);
-      expect(upsert.rate, 9);
-      expect(upsert.comment, 'great');
-      expect(upsert.tags, ['sci-fi']);
-      expect(upsert.private, isTrue);
-      expect(result.pendingCount, 0);
-    });
+        expect(result.uploadedCount, 1);
+        expect(backend.statusUpdates, isEmpty);
+        final upsert = backend.upserts.single;
+        expect(upsert.subjectId, 1);
+        expect(upsert.type, 3);
+        expect(upsert.rate, 9);
+        expect(upsert.comment, 'great');
+        expect(upsert.tags, ['sci-fi']);
+        expect(upsert.private, isTrue);
+        expect(result.pendingCount, 0);
+      },
+    );
 
     test('a remote-only entry is written locally with its metadata', () async {
       backend.entries.add(
@@ -113,28 +115,31 @@ void main() {
       expect(stored.updatedAt, isNull);
     });
 
-    test('an entry synced before and now missing remotely is a conflict', () async {
-      await favorites.applyRemoteSnapshot(
-        bangumiId: 5,
-        title: 'Was synced',
-        coverUrl: '',
-        score: 7,
-        type: 2,
-        accountId: account,
-        rate: 5,
-      );
+    test(
+      'an entry synced before and now missing remotely is a conflict',
+      () async {
+        await favorites.applyRemoteSnapshot(
+          bangumiId: 5,
+          title: 'Was synced',
+          coverUrl: '',
+          score: 7,
+          type: 2,
+          accountId: account,
+          rate: 5,
+        );
 
-      final result = await buildService().synchronize('alice');
+        final result = await buildService().synchronize('alice');
 
-      final conflict = result.conflicts.single;
-      expect(conflict.subjectId, 5);
-      expect(conflict.isRemoteDeleted, isTrue);
-      expect(conflict.bangumi, isNull);
-      // Nothing is uploaded or deleted until the user decides.
-      expect(backend.upserts, isEmpty);
-      expect(backend.deletes, isEmpty);
-      expect(await favorites.isFavorite(5), isTrue);
-    });
+        final conflict = result.conflicts.single;
+        expect(conflict.subjectId, 5);
+        expect(conflict.isRemoteDeleted, isTrue);
+        expect(conflict.bangumi, isNull);
+        // Nothing is uploaded or deleted until the user decides.
+        expect(backend.upserts, isEmpty);
+        expect(backend.deletes, isEmpty);
+        expect(await favorites.isFavorite(5), isTrue);
+      },
+    );
   });
 
   group('field-level merge', () {
@@ -218,13 +223,7 @@ void main() {
       );
       // Remote changed the rating only.
       backend.entries.add(
-        fakeCollectionEntry(
-          1,
-          3,
-          rate: 10,
-          comment: 'base',
-          tags: const ['a'],
-        ),
+        fakeCollectionEntry(1, 3, rate: 10, comment: 'base', tags: const ['a']),
       );
 
       final result = await buildService().synchronize('alice');
@@ -333,11 +332,7 @@ void main() {
         rate: 5,
         comment: 'base',
       );
-      await favorites.setLocalMetadata(
-        bangumiId: 1,
-        rate: 9,
-        comment: 'base',
-      );
+      await favorites.setLocalMetadata(bangumiId: 1, rate: 9, comment: 'base');
       backend.entries.add(fakeCollectionEntry(1, 3, rate: 2, comment: 'base'));
       final service = buildService();
       return (service, await service.synchronize('alice'));
@@ -531,40 +526,57 @@ void main() {
   });
 
   group('account isolation', () {
-    test('a baseline from another account is not treated as local edits', () async {
+    test(
+      'a baseline from another account is not treated as local edits',
+      () async {
+        await favorites.applyRemoteSnapshot(
+          bangumiId: 1,
+          title: 'Show',
+          coverUrl: '',
+          score: 7,
+          type: 3,
+          accountId: 999, // a different Bangumi account
+          rate: 5,
+        );
+        backend.entries.add(fakeCollectionEntry(1, 3, rate: 8));
+
+        final result = await buildService().synchronize('alice');
+
+        // With the stale baseline discarded, the remote value wins rather than
+        // account 999's data being uploaded into this account.
+        expect(result.conflicts, isEmpty);
+        expect(backend.metadataPatches, isEmpty);
+        final stored = await favorites.getFavorite(1);
+        expect(stored!.rate, 8);
+        expect(stored.ownerAccountId, account);
+      },
+    );
+
+    test('an entry owned only by another account is never uploaded', () async {
       await favorites.applyRemoteSnapshot(
-        bangumiId: 1,
-        title: 'Show',
+        bangumiId: 7,
+        title: 'Other account only',
         coverUrl: '',
         score: 7,
         type: 3,
-        accountId: 999, // a different Bangumi account
-        rate: 5,
+        accountId: 999,
+        rate: 8,
       );
-      backend.entries.add(fakeCollectionEntry(1, 3, rate: 8));
 
       final result = await buildService().synchronize('alice');
 
-      // With the stale baseline discarded, the remote value wins rather than
-      // account 999's data being uploaded into this account.
-      expect(result.conflicts, isEmpty);
-      expect(backend.metadataPatches, isEmpty);
-      final stored = await favorites.getFavorite(1);
-      expect(stored!.rate, 8);
-      expect(stored.ownerAccountId, account);
+      expect(result.uploadedCount, 0);
+      expect(backend.upserts, isEmpty);
+      expect(await favorites.getFavorite(7), isNull);
     });
 
-    test('queued work for another account is discarded', () async {
+    test('queued work for another account is preserved but not sent', () async {
       final service = buildService();
-      await service.queue.enqueueStatus(
-        accountId: 999,
-        subjectId: 77,
-        type: 3,
-      );
+      await service.queue.enqueueStatus(accountId: 999, subjectId: 77, type: 3);
 
       await service.synchronize('alice');
 
-      expect(await service.queue.pendingCount(999), 0);
+      expect(await service.queue.pendingCount(999), 1);
       expect(backend.statusUpdates, isEmpty);
     });
   });

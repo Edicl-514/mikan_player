@@ -95,17 +95,17 @@ class FavoritesManager {
   }) async {
     if (!_isInitialized) await init();
 
-    await (db.update(db.dbLocalFavorites)
-          ..where((tbl) => tbl.bangumiId.equals(bangumiId)))
-        .write(
-          DbLocalFavoritesCompanion(
-            rate: Value(rate),
-            comment: Value(comment),
-            tagsJson: Value(encodeFavoriteTags(tags)),
-            private: Value(private),
-            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
-          ),
-        );
+    await (db.update(
+      db.dbLocalFavorites,
+    )..where((tbl) => tbl.bangumiId.equals(bangumiId))).write(
+      DbLocalFavoritesCompanion(
+        rate: Value(rate),
+        comment: Value(comment),
+        tagsJson: Value(encodeFavoriteTags(tags)),
+        private: Value(private),
+        updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
   }
 
   /// Writes the merge result for a subject without touching the baseline.
@@ -123,18 +123,18 @@ class FavoritesManager {
   }) async {
     if (!_isInitialized) await init();
 
-    await (db.update(db.dbLocalFavorites)
-          ..where((tbl) => tbl.bangumiId.equals(bangumiId)))
-        .write(
-          DbLocalFavoritesCompanion(
-            type: Value(type),
-            rate: Value(rate),
-            comment: Value(comment),
-            tagsJson: Value(encodeFavoriteTags(tags)),
-            private: Value(private),
-            updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
-          ),
-        );
+    await (db.update(
+      db.dbLocalFavorites,
+    )..where((tbl) => tbl.bangumiId.equals(bangumiId))).write(
+      DbLocalFavoritesCompanion(
+        type: Value(type),
+        rate: Value(rate),
+        comment: Value(comment),
+        tagsJson: Value(encodeFavoriteTags(tags)),
+        private: Value(private),
+        updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
   }
 
   /// Stores the server's canonical state as both the local value and the sync
@@ -219,56 +219,80 @@ class FavoritesManager {
     final row = await _rowFor(bangumiId);
     if (row == null) return;
 
-    await (db.update(db.dbLocalFavorites)
-          ..where((tbl) => tbl.bangumiId.equals(bangumiId)))
-        .write(
-          DbLocalFavoritesCompanion(
-            updatedAt: const Value(null),
-            baseType: Value(row.type),
-            baseRate: Value(row.rate),
-            baseComment: Value(row.comment),
-            baseTagsJson: Value(row.tagsJson),
-            basePrivate: Value(row.private),
-            remoteUpdatedAt: Value(remoteUpdatedAt ?? row.remoteUpdatedAt),
-            lastSyncedAt: Value(DateTime.now().millisecondsSinceEpoch),
-            ownerAccountId: Value(accountId),
-          ),
-        );
+    await (db.update(
+      db.dbLocalFavorites,
+    )..where((tbl) => tbl.bangumiId.equals(bangumiId))).write(
+      DbLocalFavoritesCompanion(
+        updatedAt: const Value(null),
+        baseType: Value(row.type),
+        baseRate: Value(row.rate),
+        baseComment: Value(row.comment),
+        baseTagsJson: Value(row.tagsJson),
+        basePrivate: Value(row.private),
+        remoteUpdatedAt: Value(remoteUpdatedAt ?? row.remoteUpdatedAt),
+        lastSyncedAt: Value(DateTime.now().millisecondsSinceEpoch),
+        ownerAccountId: Value(accountId),
+      ),
+    );
   }
 
-  /// Drops another account's collection metadata and baseline.
+  /// Marks a queued write settled only if the row still contains [expected].
   ///
-  /// Both halves have to go. Clearing only the baseline would leave account A's
-  /// rating and comment in the row with no baseline to compare against, so the
-  /// merge would read them as *this* account's unsynced local edits and upload
-  /// them into the wrong collection. The status and cover are kept: they are
-  /// what makes the entry visible in the local list, and the next sync
-  /// reconciles them.
-  Future<void> clearBaselinesForOtherAccounts(int accountId) async {
+  /// Queue sends are asynchronous. A user can edit the same subject after the
+  /// request succeeds but before its completion is observed, so an unconditional
+  /// update could mark that newer edit as synced. The three-way baseline itself
+  /// is intentionally preserved: a status-only or single-field PATCH does not
+  /// prove that every other remote field still matches the local row.
+  Future<bool> markQueueSettledIfUnchanged({
+    required LocalFavorite expected,
+    required int accountId,
+  }) async {
     if (!_isInitialized) await init();
 
-    await (db.update(db.dbLocalFavorites)..where(
+    Expression<bool> nullableEquals<T extends Object>(
+      GeneratedColumn<T> column,
+      T? value,
+    ) => value == null ? column.isNull() : column.equals(value);
+
+    final tagsJson = encodeFavoriteTags(expected.tags);
+    final updated =
+        await (db.update(db.dbLocalFavorites)..where(
+              (tbl) =>
+                  tbl.bangumiId.equals(expected.bangumiId) &
+                  tbl.type.equals(expected.type) &
+                  nullableEquals(tbl.rate, expected.rate) &
+                  nullableEquals(tbl.comment, expected.comment) &
+                  nullableEquals(tbl.tagsJson, tagsJson) &
+                  nullableEquals(tbl.private, expected.private) &
+                  nullableEquals(tbl.updatedAt, expected.updatedAt) &
+                  nullableEquals(tbl.ownerAccountId, expected.ownerAccountId),
+            ))
+            .write(
+              DbLocalFavoritesCompanion(
+                updatedAt: const Value(null),
+                lastSyncedAt: Value(DateTime.now().millisecondsSinceEpoch),
+                ownerAccountId: Value(accountId),
+              ),
+            );
+    return updated == 1;
+  }
+
+  /// Removes collection rows owned by another Bangumi account.
+  ///
+  /// Account-owned rows cannot be downgraded to ordinary local favorites: if
+  /// the active account does not contain the same subject, the merge engine
+  /// would treat that row as a local-only addition and upload it across
+  /// accounts. Rows with no owner are genuine local favorites and remain
+  /// eligible for first-time upload.
+  Future<void> removeFavoritesForOtherAccounts(int accountId) async {
+    if (!_isInitialized) await init();
+
+    await (db.delete(db.dbLocalFavorites)..where(
           (tbl) =>
               tbl.ownerAccountId.isNotNull() &
               tbl.ownerAccountId.equals(accountId).not(),
         ))
-        .write(
-          const DbLocalFavoritesCompanion(
-            rate: Value(null),
-            comment: Value(null),
-            tagsJson: Value(null),
-            private: Value(null),
-            updatedAt: Value(null),
-            baseType: Value(null),
-            baseRate: Value(null),
-            baseComment: Value(null),
-            baseTagsJson: Value(null),
-            basePrivate: Value(null),
-            remoteUpdatedAt: Value(null),
-            lastSyncedAt: Value(null),
-            ownerAccountId: Value(null),
-          ),
-        );
+        .go();
   }
 
   Future<void> removeFavorite(int bangumiId) async {

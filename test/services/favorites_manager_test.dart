@@ -220,39 +220,42 @@ void main() {
       expect(favorite.hasBaselineFor(2), isFalse);
     });
 
-    test('setLocalMetadata stamps updatedAt and leaves baseline alone', () async {
-      await manager.applyRemoteSnapshot(
-        bangumiId: 3,
-        title: 'B',
-        coverUrl: '',
-        score: 0,
-        type: 3,
-        accountId: 9,
-        rate: 5,
-        comment: 'old',
-        tags: const ['a'],
-        private: false,
-      );
+    test(
+      'setLocalMetadata stamps updatedAt and leaves baseline alone',
+      () async {
+        await manager.applyRemoteSnapshot(
+          bangumiId: 3,
+          title: 'B',
+          coverUrl: '',
+          score: 0,
+          type: 3,
+          accountId: 9,
+          rate: 5,
+          comment: 'old',
+          tags: const ['a'],
+          private: false,
+        );
 
-      await manager.setLocalMetadata(
-        bangumiId: 3,
-        rate: 8,
-        comment: 'new',
-        tags: const [],
-        private: true,
-      );
+        await manager.setLocalMetadata(
+          bangumiId: 3,
+          rate: 8,
+          comment: 'new',
+          tags: const [],
+          private: true,
+        );
 
-      final favorite = (await manager.getFavorite(3))!;
-      expect(favorite.rate, 8);
-      expect(favorite.comment, 'new');
-      expect(favorite.tags, isEmpty);
-      expect(favorite.private, isTrue);
-      expect(favorite.updatedAt, isNotNull);
-      expect(favorite.baseRate, 5);
-      expect(favorite.baseComment, 'old');
-      expect(favorite.baseTags, ['a']);
-      expect(favorite.basePrivate, isFalse);
-    });
+        final favorite = (await manager.getFavorite(3))!;
+        expect(favorite.rate, 8);
+        expect(favorite.comment, 'new');
+        expect(favorite.tags, isEmpty);
+        expect(favorite.private, isTrue);
+        expect(favorite.updatedAt, isNotNull);
+        expect(favorite.baseRate, 5);
+        expect(favorite.baseComment, 'old');
+        expect(favorite.baseTags, ['a']);
+        expect(favorite.basePrivate, isFalse);
+      },
+    );
 
     test('confirmBaseline promotes current local values', () async {
       await manager.addFavorite(
@@ -284,46 +287,65 @@ void main() {
       expect(await manager.getFavorite(404), isNull);
     });
 
-    test('clearBaselinesForOtherAccounts keeps only the active account', () async {
-      await manager.applyRemoteSnapshot(
-        bangumiId: 1,
-        title: 'mine',
+    test(
+      'removeFavoritesForOtherAccounts keeps active and local-only rows',
+      () async {
+        await manager.applyRemoteSnapshot(
+          bangumiId: 1,
+          title: 'mine',
+          coverUrl: '',
+          score: 0,
+          type: 3,
+          accountId: 1,
+          rate: 6,
+        );
+        await manager.applyRemoteSnapshot(
+          bangumiId: 2,
+          title: 'theirs',
+          coverUrl: '',
+          score: 0,
+          type: 3,
+          accountId: 2,
+          rate: 7,
+        );
+        await manager.addFavorite(
+          bangumiId: 3,
+          title: 'local only',
+          coverUrl: '',
+          score: 0,
+        );
+
+        await manager.removeFavoritesForOtherAccounts(1);
+
+        final kept = (await manager.getFavorite(1))!;
+        expect(kept.hasBaselineFor(1), isTrue);
+        expect(kept.baseRate, 6);
+
+        expect(await manager.getFavorite(2), isNull);
+        expect(await manager.getFavorite(3), isNotNull);
+      },
+    );
+
+    test('markQueueSettledIfUnchanged rejects a newer local edit', () async {
+      await manager.addFavorite(
+        bangumiId: 4,
+        title: 'Show',
         coverUrl: '',
         score: 0,
         type: 3,
+      );
+      final sent = (await manager.getFavorite(4))!;
+      await manager.setLocalMetadata(bangumiId: 4, rate: 9);
+
+      final confirmed = await manager.markQueueSettledIfUnchanged(
+        expected: sent,
         accountId: 1,
-        rate: 6,
-      );
-      await manager.applyRemoteSnapshot(
-        bangumiId: 2,
-        title: 'theirs',
-        coverUrl: '',
-        score: 0,
-        type: 3,
-        accountId: 2,
-        rate: 7,
       );
 
-      await manager.clearBaselinesForOtherAccounts(1);
-
-      final kept = (await manager.getFavorite(1))!;
-      expect(kept.hasBaselineFor(1), isTrue);
-      expect(kept.baseRate, 6);
-
-      final dropped = (await manager.getFavorite(2))!;
-      expect(dropped.ownerAccountId, isNull);
-      expect(dropped.lastSyncedAt, isNull);
-      expect(dropped.baseRate, isNull);
-      // The other account's metadata goes too. Keeping it would leave values
-      // with no baseline, which the merge would read as this account's own
-      // unsynced edits and upload into the wrong collection.
-      expect(dropped.rate, isNull);
-      expect(dropped.comment, isNull);
-      expect(dropped.updatedAt, isNull);
-      // The status stays so the entry remains visible locally until the next
-      // sync reconciles it.
-      expect(dropped.type, 3);
-      expect(dropped.title, 'theirs');
+      expect(confirmed, isFalse);
+      final current = (await manager.getFavorite(4))!;
+      expect(current.rate, 9);
+      expect(current.updatedAt, isNotNull);
     });
 
     test('tags round-trip distinguishes null from empty', () async {

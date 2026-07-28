@@ -1,6 +1,7 @@
 // Offline outbox behavior: task coalescing, account binding, and the retry
 // policy (401 refresh-once, 429 Retry-After, bounded backoff).
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -82,7 +83,9 @@ void main() {
       expect(roundTripped.tags.isPresent, isTrue);
       expect(roundTripped.tags.value, isEmpty);
 
-      final emptyRoundTrip = BangumiMetadataPayload.fromJson(unchanged.toJson());
+      final emptyRoundTrip = BangumiMetadataPayload.fromJson(
+        unchanged.toJson(),
+      );
       expect(emptyRoundTrip.tags.isPresent, isFalse);
       expect(emptyRoundTrip.tags.value, isNull);
     });
@@ -198,9 +201,7 @@ void main() {
         accountId: account,
         subjectId: 7,
         type: 1,
-        payload: const BangumiMetadataPayload(
-          rate: BangumiFieldUpdate.set(8),
-        ),
+        payload: const BangumiMetadataPayload(rate: BangumiFieldUpdate.set(8)),
       );
       await queue.enqueueStatus(accountId: account, subjectId: 7, type: 3);
 
@@ -223,9 +224,7 @@ void main() {
         accountId: account,
         subjectId: 7,
         type: 2,
-        payload: const BangumiMetadataPayload(
-          rate: BangumiFieldUpdate.set(5),
-        ),
+        payload: const BangumiMetadataPayload(rate: BangumiFieldUpdate.set(5)),
       );
       await queue.enqueueMetadata(
         accountId: account,
@@ -251,8 +250,10 @@ void main() {
       await queue.enqueueStatus(accountId: account, subjectId: 7, type: 3);
       backend.failWith = (_, _) => Exception('offline');
       await queue.drain(accountId: account);
-      expect((await queue.pendingTasks(account)).single.nextAttemptAt,
-          greaterThan(0));
+      expect(
+        (await queue.pendingTasks(account)).single.nextAttemptAt,
+        greaterThan(0),
+      );
 
       backend.failWith = null;
       await queue.enqueueStatus(accountId: account, subjectId: 7, type: 4);
@@ -356,7 +357,10 @@ void main() {
         await queue.drain(accountId: account);
         final task = (await queue.pendingTasks(account)).single;
         final delay = task.nextAttemptAt - now.millisecondsSinceEpoch;
-        expect(delay, lessThanOrEqualTo(BangumiSyncQueue.maxBackoff.inMilliseconds));
+        expect(
+          delay,
+          lessThanOrEqualTo(BangumiSyncQueue.maxBackoff.inMilliseconds),
+        );
         expect(delay, greaterThanOrEqualTo(previous == 0 ? 1 : 0));
         previous = delay;
         // Move past the backoff so the next drain actually retries.
@@ -480,6 +484,19 @@ void main() {
       expect(backend.upserts, isEmpty);
     });
 
+    test('a delete 404 is treated as idempotent success', () async {
+      await queue.enqueueDelete(accountId: account, subjectId: 7);
+      backend.failWith = (operation, _) =>
+          operation == FakeBackendOperation.delete ? rustApiError(404) : null;
+
+      final result = await queue.drain(accountId: account);
+
+      expect(result.outcome, BangumiSyncDrainOutcome.completed);
+      expect(result.pendingCount, 0);
+      expect(result.conflictSubjectIds, isEmpty);
+      expect(result.settledSubjectIds, [7]);
+    });
+
     test('one failing task does not block the rest', () async {
       await queue.enqueueStatus(accountId: account, subjectId: 1, type: 3);
       await queue.enqueueStatus(accountId: account, subjectId: 2, type: 4);
@@ -504,6 +521,51 @@ void main() {
       // Both callers observe the same run; the task is sent exactly once.
       expect(backend.statusUpdates, [(1, 3)]);
       expect(results.first.sentCount, results.last.sentCount);
+    });
+
+    test('a newer edit arriving during send is drained, not deleted', () async {
+      final requestStarted = Completer<void>();
+      final releaseFirstRequest = Completer<void>();
+      var calls = 0;
+      backend.beforeCall = (operation, _) async {
+        if (operation != FakeBackendOperation.setStatus || calls++ != 0) return;
+        requestStarted.complete();
+        await releaseFirstRequest.future;
+      };
+      await queue.enqueueStatus(accountId: account, subjectId: 1, type: 3);
+
+      final drain = queue.drain(accountId: account);
+      await requestStarted.future;
+      await queue.enqueueStatus(accountId: account, subjectId: 1, type: 4);
+      releaseFirstRequest.complete();
+      final result = await drain;
+
+      expect(backend.statusUpdates, [(1, 3), (1, 4)]);
+      expect(result.pendingCount, 0);
+      expect(result.settledSubjectIds, [1]);
+    });
+
+    test('queue instances over one database share a drain', () async {
+      final requestStarted = Completer<void>();
+      final releaseRequest = Completer<void>();
+      backend.beforeCall = (operation, _) async {
+        if (operation != FakeBackendOperation.setStatus ||
+            requestStarted.isCompleted) {
+          return;
+        }
+        requestStarted.complete();
+        await releaseRequest.future;
+      };
+      await queue.enqueueStatus(accountId: account, subjectId: 1, type: 3);
+      final otherQueue = buildQueue();
+
+      final first = queue.drain(accountId: account);
+      await requestStarted.future;
+      final second = otherQueue.drain(accountId: account);
+      releaseRequest.complete();
+      await Future.wait([first, second]);
+
+      expect(backend.statusUpdates, [(1, 3)]);
     });
 
     test('queued work survives a new queue over the same database', () async {

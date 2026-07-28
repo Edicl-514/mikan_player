@@ -111,6 +111,8 @@ class BangumiSyncDrainResult {
     required this.sentCount,
     required this.pendingCount,
     this.conflictSubjectIds = const [],
+    this.settledSubjectIds = const [],
+    this.pendingSubjectIds = const [],
   });
 
   final BangumiSyncDrainOutcome outcome;
@@ -120,6 +122,72 @@ class BangumiSyncDrainResult {
   /// Subjects whose queued write hit a 404 — the collection is gone on Bangumi
   /// and the user has to decide what happens next.
   final List<int> conflictSubjectIds;
+
+  /// Subjects for which at least one write succeeded and no queued work remains.
+  /// Callers use this to advance the local sync baseline.
+  final List<int> settledSubjectIds;
+
+  /// Subjects that still have queued work. Used when several joined drain runs
+  /// are combined after an edit arrives while a request is in flight.
+  final List<int> pendingSubjectIds;
+}
+
+class _AccountDrainState {
+  Future<BangumiSyncDrainResult>? inFlight;
+  bool rerunRequested = false;
+}
+
+class _DatabaseDrainCoordinator {
+  final Map<int, _AccountDrainState> _states = {};
+
+  void markDirty(int accountId) {
+    final state = _states[accountId];
+    if (state?.inFlight != null) state!.rerunRequested = true;
+  }
+
+  Future<BangumiSyncDrainResult> run(
+    int accountId,
+    Future<BangumiSyncDrainResult> Function() action,
+  ) {
+    final state = _states.putIfAbsent(accountId, _AccountDrainState.new);
+    final existing = state.inFlight;
+    if (existing != null) {
+      state.rerunRequested = true;
+      return existing;
+    }
+
+    late final Future<BangumiSyncDrainResult> future;
+    future = () async {
+      var sent = 0;
+      final conflicts = <int>{};
+      final settled = <int>{};
+      late BangumiSyncDrainResult latest;
+      do {
+        state.rerunRequested = false;
+        latest = await action();
+        sent += latest.sentCount;
+        conflicts.addAll(latest.conflictSubjectIds);
+        settled.addAll(latest.settledSubjectIds);
+        settled.removeAll(latest.pendingSubjectIds);
+      } while (state.rerunRequested);
+
+      return BangumiSyncDrainResult(
+        outcome: latest.outcome,
+        sentCount: sent,
+        pendingCount: latest.pendingCount,
+        conflictSubjectIds: conflicts.toList(growable: false),
+        settledSubjectIds: settled.toList(growable: false),
+        pendingSubjectIds: latest.pendingSubjectIds,
+      );
+    }();
+    state.inFlight = future;
+    return future.whenComplete(() {
+      if (identical(state.inFlight, future)) {
+        state.inFlight = null;
+        if (!state.rerunRequested) _states.remove(accountId);
+      }
+    });
+  }
 }
 
 /// Durable outbox for Bangumi collection writes.
@@ -142,8 +210,11 @@ class BangumiSyncQueue {
   final Future<bool> Function()? _ensureFreshToken;
 
   AppDatabase get _db => _database ?? AppDatabase.instance;
+  static final Expando<_DatabaseDrainCoordinator> _drainCoordinators =
+      Expando<_DatabaseDrainCoordinator>();
 
-  Future<BangumiSyncDrainResult>? _drainInFlight;
+  _DatabaseDrainCoordinator get _drainCoordinator =>
+      _drainCoordinators[_db] ??= _DatabaseDrainCoordinator();
 
   /// Upper bound on exponential backoff. Long enough to stop hammering a failing
   /// server, short enough that a recovered connection is picked up in one sync.
@@ -160,29 +231,32 @@ class BangumiSyncQueue {
     required int subjectId,
     required int type,
   }) async {
-    // Fold into a pending create instead of queueing a separate status write:
-    // the collection does not exist on Bangumi yet.
-    final pendingUpsert = await _taskFor(
-      accountId,
-      subjectId,
-      BangumiSyncOperation.upsert,
-    );
-    if (pendingUpsert != null) {
-      final payload = _decodePayload(pendingUpsert.payloadJson);
-      await _enqueue(
+    await _db.transaction(() async {
+      // Fold into a pending create instead of queueing a separate status write:
+      // the collection does not exist on Bangumi yet.
+      final pendingUpsert = await _taskFor(
+        accountId,
+        subjectId,
+        BangumiSyncOperation.upsert,
+      );
+      if (pendingUpsert != null) {
+        final payload = _decodePayload(pendingUpsert.payloadJson);
+        await _enqueueInTransaction(
+          accountId: accountId,
+          subjectId: subjectId,
+          operation: BangumiSyncOperation.upsert,
+          payload: {...payload, 'type': type},
+        );
+        return;
+      }
+      await _enqueueInTransaction(
         accountId: accountId,
         subjectId: subjectId,
-        operation: BangumiSyncOperation.upsert,
-        payload: {...payload, 'type': type},
+        operation: BangumiSyncOperation.status,
+        payload: {'type': type},
       );
-      return;
-    }
-    await _enqueue(
-      accountId: accountId,
-      subjectId: subjectId,
-      operation: BangumiSyncOperation.status,
-      payload: {'type': type},
-    );
+    });
+    _drainCoordinator.markDirty(accountId);
   }
 
   /// Queues creation of a collection that exists locally but not on Bangumi,
@@ -192,12 +266,17 @@ class BangumiSyncQueue {
     required int subjectId,
     required int type,
     required BangumiMetadataPayload payload,
-  }) => _enqueue(
-    accountId: accountId,
-    subjectId: subjectId,
-    operation: BangumiSyncOperation.upsert,
-    payload: {'type': type, ...payload.toJson()},
-  );
+  }) async {
+    await _db.transaction(
+      () => _enqueueInTransaction(
+        accountId: accountId,
+        subjectId: subjectId,
+        operation: BangumiSyncOperation.upsert,
+        payload: {'type': type, ...payload.toJson()},
+      ),
+    );
+    _drainCoordinator.markDirty(accountId);
+  }
 
   Future<void> enqueueMetadata({
     required int accountId,
@@ -205,35 +284,38 @@ class BangumiSyncQueue {
     required BangumiMetadataPayload payload,
   }) async {
     if (payload.isEmpty) return;
-    // As above: a PATCH would 404 while the create is still pending, so merge
-    // the new field values into it.
-    final pendingUpsert = await _taskFor(
-      accountId,
-      subjectId,
-      BangumiSyncOperation.upsert,
-    );
-    if (pendingUpsert != null) {
-      final existing = _decodePayload(pendingUpsert.payloadJson);
-      final merged = BangumiMetadataPayload.fromJson(
-        existing,
-      ).mergedWith(payload);
-      await _enqueue(
+    await _db.transaction(() async {
+      // As above: a PATCH would 404 while the create is still pending, so merge
+      // the new field values into it.
+      final pendingUpsert = await _taskFor(
+        accountId,
+        subjectId,
+        BangumiSyncOperation.upsert,
+      );
+      if (pendingUpsert != null) {
+        final existing = _decodePayload(pendingUpsert.payloadJson);
+        final merged = BangumiMetadataPayload.fromJson(
+          existing,
+        ).mergedWith(payload);
+        await _enqueueInTransaction(
+          accountId: accountId,
+          subjectId: subjectId,
+          operation: BangumiSyncOperation.upsert,
+          payload: {
+            if (existing['type'] != null) 'type': existing['type'],
+            ...merged.toJson(),
+          },
+        );
+        return;
+      }
+      await _enqueueInTransaction(
         accountId: accountId,
         subjectId: subjectId,
-        operation: BangumiSyncOperation.upsert,
-        payload: {
-          if (existing['type'] != null) 'type': existing['type'],
-          ...merged.toJson(),
-        },
+        operation: BangumiSyncOperation.metadata,
+        payload: payload.toJson(),
       );
-      return;
-    }
-    await _enqueue(
-      accountId: accountId,
-      subjectId: subjectId,
-      operation: BangumiSyncOperation.metadata,
-      payload: payload.toJson(),
-    );
+    });
+    _drainCoordinator.markDirty(accountId);
   }
 
   /// Enqueues a delete and drops the subject's other pending writes — sending a
@@ -243,22 +325,25 @@ class BangumiSyncQueue {
     required int accountId,
     required int subjectId,
   }) async {
-    await (_db.delete(_db.dbBangumiSyncQueue)..where(
-          (tbl) =>
-              tbl.accountId.equals(accountId) &
-              tbl.subjectId.equals(subjectId) &
-              tbl.operation.isNotValue(BangumiSyncOperation.delete),
-        ))
-        .go();
-    await _enqueue(
-      accountId: accountId,
-      subjectId: subjectId,
-      operation: BangumiSyncOperation.delete,
-      payload: const {},
-    );
+    await _db.transaction(() async {
+      await (_db.delete(_db.dbBangumiSyncQueue)..where(
+            (tbl) =>
+                tbl.accountId.equals(accountId) &
+                tbl.subjectId.equals(subjectId) &
+                tbl.operation.isNotValue(BangumiSyncOperation.delete),
+          ))
+          .go();
+      await _enqueueInTransaction(
+        accountId: accountId,
+        subjectId: subjectId,
+        operation: BangumiSyncOperation.delete,
+        payload: const {},
+      );
+    });
+    _drainCoordinator.markDirty(accountId);
   }
 
-  Future<void> _enqueue({
+  Future<void> _enqueueInTransaction({
     required int accountId,
     required int subjectId,
     required String operation,
@@ -280,16 +365,18 @@ class BangumiSyncQueue {
     final now = _nowMs;
 
     if (existing == null) {
-      await _db.into(_db.dbBangumiSyncQueue).insert(
-        DbBangumiSyncQueueCompanion.insert(
-          accountId: accountId,
-          subjectId: subjectId,
-          operation: operation,
-          payloadJson: jsonEncode(payload),
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
+      await _db
+          .into(_db.dbBangumiSyncQueue)
+          .insert(
+            DbBangumiSyncQueueCompanion.insert(
+              accountId: accountId,
+              subjectId: subjectId,
+              operation: operation,
+              payloadJson: jsonEncode(payload),
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
       return;
     }
 
@@ -301,19 +388,19 @@ class BangumiSyncQueue {
           ).mergedWith(BangumiMetadataPayload.fromJson(payload)).toJson()
         : payload;
 
-    await (_db.update(_db.dbBangumiSyncQueue)
-          ..where((tbl) => tbl.id.equals(existing.id)))
-        .write(
-          DbBangumiSyncQueueCompanion(
-            payloadJson: Value(jsonEncode(merged)),
-            // A fresh user edit deserves an immediate attempt even if the
-            // previous one had backed off.
-            attemptCount: const Value(0),
-            nextAttemptAt: const Value(0),
-            lastError: const Value(null),
-            updatedAt: Value(now),
-          ),
-        );
+    await (_db.update(
+      _db.dbBangumiSyncQueue,
+    )..where((tbl) => tbl.id.equals(existing.id))).write(
+      DbBangumiSyncQueueCompanion(
+        payloadJson: Value(jsonEncode(merged)),
+        // A fresh user edit deserves an immediate attempt even if the
+        // previous one had backed off.
+        attemptCount: const Value(0),
+        nextAttemptAt: const Value(0),
+        lastError: const Value(null),
+        updatedAt: Value(now),
+      ),
+    );
   }
 
   /// Number of queued tasks for [accountId].
@@ -345,17 +432,10 @@ class BangumiSyncQueue {
 
   /// Sends queued work for [accountId], oldest first.
   ///
-  /// Single-flight: concurrent callers (startup, manual sync, a write) join the
-  /// same run instead of racing to send the same task twice.
-  Future<BangumiSyncDrainResult> drain({required int accountId}) {
-    final existing = _drainInFlight;
-    if (existing != null) return existing;
-    final future = _drain(accountId);
-    _drainInFlight = future;
-    return future.whenComplete(() {
-      if (identical(_drainInFlight, future)) _drainInFlight = null;
-    });
-  }
+  /// Single-flight is shared by every queue over the same database, so startup,
+  /// logout, manual sync, and detail-page writes cannot send one row twice.
+  Future<BangumiSyncDrainResult> drain({required int accountId}) =>
+      _drainCoordinator.run(accountId, () => _drain(accountId));
 
   Future<BangumiSyncDrainResult> _drain(int accountId) async {
     final tasks = await pendingTasks(accountId);
@@ -370,6 +450,7 @@ class BangumiSyncQueue {
     var sent = 0;
     var refreshedOnce = false;
     final conflicts = <int>[];
+    final sentSubjects = <int>{};
 
     for (final task in tasks) {
       if (task.nextAttemptAt > _nowMs) continue;
@@ -378,10 +459,9 @@ class BangumiSyncQueue {
       while (true) {
         try {
           await _send(task);
-          await (_db.delete(_db.dbBangumiSyncQueue)
-                ..where((tbl) => tbl.id.equals(task.id)))
-              .go();
+          await _deleteIfUnchanged(task);
           sent++;
+          sentSubjects.add(task.subjectId);
           break;
         } catch (error) {
           final apiError = BangumiApiError.tryParse(error);
@@ -408,6 +488,14 @@ class BangumiSyncQueue {
           }
 
           if (apiError != null && apiError.isNotFound) {
+            if (task.operation == BangumiSyncOperation.delete) {
+              // DELETE is idempotent: an absent collection is already in the
+              // requested final state and must not become a permanent conflict.
+              await _deleteIfUnchanged(task);
+              sent++;
+              sentSubjects.add(task.subjectId);
+              break;
+            }
             // The collection is gone upstream. Re-creating it silently would
             // resurrect something the user may have deleted on purpose.
             conflicts.add(task.subjectId);
@@ -432,7 +520,12 @@ class BangumiSyncQueue {
       }
     }
 
-    final pending = await pendingCount(accountId);
+    final pendingTasksAfterDrain = await pendingTasks(accountId);
+    final pendingSubjects = pendingTasksAfterDrain
+        .map((task) => task.subjectId)
+        .toSet();
+    final pending = pendingTasksAfterDrain.length;
+    final settledSubjects = sentSubjects.difference(pendingSubjects);
     return BangumiSyncDrainResult(
       outcome: pending == 0
           ? BangumiSyncDrainOutcome.completed
@@ -440,8 +533,21 @@ class BangumiSyncQueue {
       sentCount: sent,
       pendingCount: pending,
       conflictSubjectIds: conflicts,
+      settledSubjectIds: settledSubjects.toList(growable: false),
+      pendingSubjectIds: pendingSubjects.toList(growable: false),
     );
   }
+
+  /// Deletes only the exact task that was sent. If an edit updated its payload
+  /// while the request was in flight, the row survives and the coordinator runs
+  /// another drain pass.
+  Future<int> _deleteIfUnchanged(DbBangumiSyncQueueData task) =>
+      (_db.delete(_db.dbBangumiSyncQueue)..where(
+            (tbl) =>
+                tbl.id.equals(task.id) &
+                tbl.payloadJson.equals(task.payloadJson),
+          ))
+          .go();
 
   Future<void> _send(DbBangumiSyncQueueData task) async {
     final payload = _decodePayload(task.payloadJson);
@@ -510,8 +616,10 @@ class BangumiSyncQueue {
         : 'status=${apiError.status}'
               '${apiError.upstreamCode == null ? '' : ' code=${apiError.upstreamCode}'}';
 
-    await (_db.update(_db.dbBangumiSyncQueue)
-          ..where((tbl) => tbl.id.equals(task.id)))
+    await (_db.update(_db.dbBangumiSyncQueue)..where(
+          (tbl) =>
+              tbl.id.equals(task.id) & tbl.payloadJson.equals(task.payloadJson),
+        ))
         .write(
           DbBangumiSyncQueueCompanion(
             attemptCount: Value(attempts),
@@ -538,13 +646,14 @@ class BangumiSyncQueue {
     int accountId,
     int subjectId,
     String operation,
-  ) => (_db.select(_db.dbBangumiSyncQueue)..where(
-          (tbl) =>
-              tbl.accountId.equals(accountId) &
-              tbl.subjectId.equals(subjectId) &
-              tbl.operation.equals(operation),
-        ))
-      .getSingleOrNull();
+  ) =>
+      (_db.select(_db.dbBangumiSyncQueue)..where(
+            (tbl) =>
+                tbl.accountId.equals(accountId) &
+                tbl.subjectId.equals(subjectId) &
+                tbl.operation.equals(operation),
+          ))
+          .getSingleOrNull();
 
   static Map<String, Object?> _decodePayload(String raw) {
     try {

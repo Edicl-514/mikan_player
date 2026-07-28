@@ -116,23 +116,26 @@ class BangumiCollectionSyncService {
   /// Bangumi user id that owns the current session. Sync is account-scoped: a
   /// baseline or queued task from another account must never be applied here.
   int get accountId =>
-      _explicitAccountId ??
-      (_authManager ?? BangumiAuthManager()).userId ??
-      0;
+      _explicitAccountId ?? (_authManager ?? BangumiAuthManager()).userId ?? 0;
 
   Future<BangumiCollectionSyncResult> synchronize(String username) async {
     await _favoritesManager.init();
     final account = accountId;
+    if (account <= 0) {
+      throw StateError('Bangumi account id is unavailable');
+    }
 
-    // Drop state that belongs to a different account before it can influence
-    // this run's merge decisions.
-    await _favoritesManager.clearBaselinesForOtherAccounts(account);
-    await _queue.clearTasksForOtherAccounts(account);
+    // Account-owned rows from another user must not become local-only uploads
+    // for this account. Queued work remains account-scoped and is preserved so
+    // it can resume if that account signs in again.
+    await _favoritesManager.removeFavoritesForOtherAccounts(account);
 
     // Send pending local writes first. Otherwise this run would read a remote
     // state that predates them and treat our own un-sent edits as remote
     // changes, reverting them.
-    await _queue.drain(accountId: account);
+    final beforeInitialDrain = await _favoriteSnapshots();
+    final initialDrain = await _queue.drain(accountId: account);
+    await _confirmSettled(initialDrain, account, beforeInitialDrain);
 
     final results = await Future.wait<Object>([
       _favoritesManager.getAllFavorites(),
@@ -210,7 +213,9 @@ class BangumiCollectionSyncService {
       }
     }
 
+    final beforeFinalDrain = await _favoriteSnapshots();
     final drain = await _queue.drain(accountId: account);
+    await _confirmSettled(drain, account, beforeFinalDrain);
 
     return BangumiCollectionSyncResult(
       favorites: await _favoritesManager.getAllFavorites(),
@@ -271,7 +276,9 @@ class BangumiCollectionSyncService {
       }
     }
 
-    await _queue.drain(accountId: account);
+    final beforeDrain = await _favoriteSnapshots();
+    final drain = await _queue.drain(accountId: account);
+    await _confirmSettled(drain, account, beforeDrain);
     return _favoritesManager.getAllFavorites();
   }
 
@@ -480,6 +487,30 @@ class BangumiCollectionSyncService {
       remoteUpdatedAt: item.date,
     );
   }
+
+  Future<Map<int, LocalFavorite>> _favoriteSnapshots() async => {
+    for (final favorite in await _favoritesManager.getAllFavorites())
+      favorite.bangumiId: favorite,
+  };
+
+  Future<void> _confirmSettled(
+    BangumiSyncDrainResult result,
+    int account,
+    Map<int, LocalFavorite> expected,
+  ) async {
+    for (final subjectId in result.settledSubjectIds) {
+      final favorite = expected[subjectId];
+      if (favorite == null ||
+          (favorite.ownerAccountId != null &&
+              favorite.ownerAccountId != account)) {
+        continue;
+      }
+      await _favoritesManager.markQueueSettledIfUnchanged(
+        expected: favorite,
+        accountId: account,
+      );
+    }
+  }
 }
 
 /// Convenience for callers that only need the queue to catch up (app start,
@@ -487,15 +518,33 @@ class BangumiCollectionSyncService {
 Future<void> drainBangumiSyncQueue({
   BangumiSyncQueue? queue,
   BangumiAuthManager? authManager,
+  FavoritesManager? favoritesManager,
 }) async {
   final auth = authManager ?? BangumiAuthManager();
   final account = auth.userId;
   if (!auth.isAuthenticated || account == null || account <= 0) return;
   final target =
-      queue ??
-      BangumiSyncQueue(ensureFreshToken: auth.ensureFreshToken);
+      queue ?? BangumiSyncQueue(ensureFreshToken: auth.ensureFreshToken);
   try {
-    await target.drain(accountId: account);
+    final favorites = favoritesManager ?? FavoritesManager();
+    await favorites.init();
+    final expected = {
+      for (final favorite in await favorites.getAllFavorites())
+        favorite.bangumiId: favorite,
+    };
+    final result = await target.drain(accountId: account);
+    for (final subjectId in result.settledSubjectIds) {
+      final favorite = expected[subjectId];
+      if (favorite == null ||
+          (favorite.ownerAccountId != null &&
+              favorite.ownerAccountId != account)) {
+        continue;
+      }
+      await favorites.markQueueSettledIfUnchanged(
+        expected: favorite,
+        accountId: account,
+      );
+    }
   } catch (error) {
     debugPrint('Bangumi sync queue drain failed: $error');
   }

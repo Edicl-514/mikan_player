@@ -35,21 +35,32 @@ class _BangumiCollectionConflictPanelState
   @override
   void initState() {
     super.initState();
-    _initializeDefaultResolutions();
+    _initializeResolutions();
   }
 
-  void _initializeDefaultResolutions() {
-    for (final conflict in widget.conflicts) {
-      final fieldChoices = <BangumiCollectionField, MergeSide>{};
-      for (final field in conflict.fields) {
-        fieldChoices[field.field] = MergeSide.local;
-      }
-      _resolutions[conflict.subjectId] = BangumiCollectionResolution(
-        fields: fieldChoices,
-        remoteDeleted:
-            conflict.isRemoteDeleted ? MergeSide.local : null,
-      );
+  @override
+  void didUpdateWidget(BangumiCollectionConflictPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.conflicts, widget.conflicts)) {
+      _currentIndex = 0;
+      _initializeResolutions();
     }
+  }
+
+  void _initializeResolutions() {
+    _resolutions.clear();
+    for (final conflict in widget.conflicts) {
+      _resolutions[conflict.subjectId] = const BangumiCollectionResolution();
+    }
+  }
+
+  bool _isResolved(BangumiCollectionConflict conflict) {
+    final resolution = _resolutions[conflict.subjectId];
+    if (resolution == null) return false;
+    if (conflict.isRemoteDeleted) return resolution.remoteDeleted != null;
+    return conflict.fields.every(
+      (field) => resolution.fields.containsKey(field.field),
+    );
   }
 
   void _setFieldChoice(
@@ -62,8 +73,7 @@ class _BangumiCollectionConflictPanelState
       if (current == null) return;
       final updated = Map<BangumiCollectionField, MergeSide>.from(
         current.fields,
-      )
-        ..[field] = side;
+      )..[field] = side;
       _resolutions[subjectId] = BangumiCollectionResolution(
         fields: updated,
         remoteDeleted: current.remoteDeleted,
@@ -87,6 +97,7 @@ class _BangumiCollectionConflictPanelState
     final l10n = AppLocalizations.of(context);
     final colors = Theme.of(context).colorScheme;
     final conflict = widget.conflicts[_currentIndex];
+    final canAdvance = _isResolved(conflict);
 
     return ColoredBox(
       color: colors.surface,
@@ -151,7 +162,7 @@ class _BangumiCollectionConflictPanelState
                   ),
                 const Spacer(),
                 FilledButton.icon(
-                  onPressed: widget.isResolving
+                  onPressed: widget.isResolving || !canAdvance
                       ? null
                       : () {
                           if (_currentIndex < widget.conflicts.length - 1) {
@@ -248,17 +259,19 @@ class _ConflictDetail extends StatelessWidget {
             onChanged: onRemoteDeletedChoiceChanged,
           )
         else
-          ...conflict.fields.map((fieldConflict) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _FieldRow(
-                  conflict: conflict,
-                  fieldConflict: fieldConflict,
-                  choice: resolution.fields[fieldConflict.field]!,
-                  statusLabel: statusLabel,
-                  onChanged: (side) =>
-                      onFieldChoiceChanged(fieldConflict.field, side),
-                ),
-              )),
+          ...conflict.fields.map(
+            (fieldConflict) => Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _FieldRow(
+                conflict: conflict,
+                fieldConflict: fieldConflict,
+                choice: resolution.fields[fieldConflict.field],
+                statusLabel: statusLabel,
+                onChanged: (side) =>
+                    onFieldChoiceChanged(fieldConflict.field, side),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -277,7 +290,7 @@ class _RemoteDeletedField extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final colors = Theme.of(context).colorScheme;
-    final choice = resolution.remoteDeleted ?? MergeSide.local;
+    final choice = resolution.remoteDeleted;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -296,9 +309,9 @@ class _RemoteDeletedField extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   l10n.collectionConflictRemoteDeleted,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: colors.error,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(color: colors.error),
                 ),
               ],
             ),
@@ -334,7 +347,7 @@ class _FieldRow extends StatelessWidget {
 
   final BangumiCollectionConflict conflict;
   final BangumiCollectionFieldConflict fieldConflict;
-  final MergeSide choice;
+  final MergeSide? choice;
   final String Function(int type) statusLabel;
   final ValueChanged<MergeSide> onChanged;
 
@@ -406,8 +419,7 @@ class _FieldRow extends StatelessWidget {
     return switch (field) {
       BangumiCollectionField.status => statusLabel(value as int),
       BangumiCollectionField.rate => _formatRate(l10n, value as int?),
-      BangumiCollectionField.comment =>
-        _formatComment(l10n, value as String?),
+      BangumiCollectionField.comment => _formatComment(l10n, value as String?),
       BangumiCollectionField.tags => _formatTags(l10n, value as List<String>?),
       BangumiCollectionField.private => _formatPrivate(l10n, value as bool?),
     };
@@ -474,7 +486,9 @@ class _ChoiceRadio extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                selected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -485,9 +499,10 @@ class _ChoiceRadio extends StatelessWidget {
                     Text(
                       label,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight:
-                                selected ? FontWeight.w600 : FontWeight.normal,
-                          ),
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(

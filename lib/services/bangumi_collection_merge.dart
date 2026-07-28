@@ -288,5 +288,5 @@ String canonicalTagKey(List<String> tags) {
           .toSet()
           .toList()
         ..sort();
-  return normalized.join(' ');
+  return normalized.join('\u0000');
 }

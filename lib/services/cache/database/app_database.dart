@@ -54,8 +54,8 @@ class DbLocalFavorites extends Table {
 class DbBangumiSyncQueue extends Table {
   IntColumn get id => integer().autoIncrement()();
 
-  /// Bangumi user id. Tasks are never sent under a different account, and are
-  /// deleted on logout / account switch.
+  /// Bangumi user id. Tasks are never sent under a different account and remain
+  /// available if the user later returns to this account.
   IntColumn get accountId => integer()();
   IntColumn get subjectId => integer()();
 

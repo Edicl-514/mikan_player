@@ -73,6 +73,14 @@ class FakeBangumiCollectionsBackend implements BangumiCollectionsBackend {
   /// Lets one test simulate an offline backend, a 401, or a per-subject 404.
   Object? Function(String operation, int subjectId)? failWith;
 
+  /// Optional asynchronous gate used by concurrency tests.
+  Future<void> Function(String operation, int subjectId)? beforeCall;
+
+  Future<void> _before(String operation, int subjectId) async {
+    await beforeCall?.call(operation, subjectId);
+    _maybeThrow(operation, subjectId);
+  }
+
   void _maybeThrow(String operation, int subjectId) {
     final error = failWith?.call(operation, subjectId);
     if (error != null) throw error;
@@ -92,13 +100,13 @@ class FakeBangumiCollectionsBackend implements BangumiCollectionsBackend {
     required int offset,
   }) async {
     fetchMyPageCalls++;
-    _maybeThrow(FakeBackendOperation.fetchMyPage, 0);
+    await _before(FakeBackendOperation.fetchMyPage, 0);
     return offset == 0 ? entries : const [];
   }
 
   @override
   Future<void> setStatus({required int subjectId, required int type}) async {
-    _maybeThrow(FakeBackendOperation.setStatus, subjectId);
+    await _before(FakeBackendOperation.setStatus, subjectId);
     statusUpdates.add((subjectId, type));
   }
 
@@ -111,7 +119,7 @@ class FakeBangumiCollectionsBackend implements BangumiCollectionsBackend {
     List<String>? tags,
     bool? private,
   }) async {
-    _maybeThrow(FakeBackendOperation.upsert, subjectId);
+    await _before(FakeBackendOperation.upsert, subjectId);
     upserts.add(
       RecordedUpsert(
         subjectId: subjectId,
@@ -132,7 +140,7 @@ class FakeBangumiCollectionsBackend implements BangumiCollectionsBackend {
     List<String>? tags,
     bool? private,
   }) async {
-    _maybeThrow(FakeBackendOperation.patchMetadata, subjectId);
+    await _before(FakeBackendOperation.patchMetadata, subjectId);
     metadataPatches.add(
       RecordedPatch(
         subjectId: subjectId,
@@ -146,7 +154,7 @@ class FakeBangumiCollectionsBackend implements BangumiCollectionsBackend {
 
   @override
   Future<void> delete({required int subjectId}) async {
-    _maybeThrow(FakeBackendOperation.delete, subjectId);
+    await _before(FakeBackendOperation.delete, subjectId);
     deletes.add(subjectId);
     entries.removeWhere((entry) => entry.subjectId == subjectId);
   }
@@ -163,10 +171,8 @@ class FakeBangumiCollectionsBackend implements BangumiCollectionsBackend {
     required int subjectId,
   }) async {
     fetchedOne.add(subjectId);
-    _maybeThrow(FakeBackendOperation.fetchMineOne, subjectId);
-    return entries
-        .where((entry) => entry.subjectId == subjectId)
-        .firstOrNull;
+    await _before(FakeBackendOperation.fetchMineOne, subjectId);
+    return entries.where((entry) => entry.subjectId == subjectId).firstOrNull;
   }
 }
 
