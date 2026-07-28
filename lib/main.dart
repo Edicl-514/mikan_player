@@ -106,9 +106,6 @@ Future<void> main() async {
       // Initialize UserManager
       await UserManager().init();
 
-      // Drain offline sync queue after auth/user init
-      unawaited(drainBangumiSyncQueue());
-
       // Initialize SettingsService
       await SettingsService().init();
 
@@ -149,6 +146,11 @@ Future<void> main() async {
         HttpOverrides.global = MyHttpOverrides(proxy);
       }
 
+      // Refresh complete collection metadata once per launch after network
+      // settings are ready. Do not await it: rendering and collection-editor
+      // opening stay local-first and never wait on Bangumi.
+      unawaited(_syncBangumiCollectionsAtStartup());
+
       runApp(const MyApp());
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -160,6 +162,31 @@ Future<void> main() async {
       debugPrint('$stackTrace');
     },
   );
+}
+
+Future<void> _syncBangumiCollectionsAtStartup() async {
+  final userManager = UserManager();
+  final user = userManager.user;
+  if (!userManager.isSyncMode || user == null) {
+    await drainBangumiSyncQueue();
+    return;
+  }
+
+  try {
+    final result = await BangumiCollectionSyncService().synchronize(
+      user.username,
+    );
+    debugPrint(
+      '[Startup] Bangumi collections synced: '
+      '${result.downloadedCount} downloaded, '
+      '${result.uploadedCount} uploaded, '
+      '${result.conflicts.length} conflicts, '
+      '${result.pendingCount} pending',
+    );
+  } catch (error, stackTrace) {
+    debugPrint('[Startup] Bangumi collection sync failed: $error');
+    debugPrint('$stackTrace');
+  }
 }
 
 Future<void> _initializeWindowsDesktopFrame() async {

@@ -304,15 +304,14 @@ class _BangumiDetailsPageState extends State<BangumiDetailsPage> {
   Future<void> _openCollectionEditor() async {
     if (_isUpdatingFavorite || !BangumiAuthManager().isAuthenticated) return;
 
-    // Open from local state so the panel appears immediately. A background
-    // refresh keeps the stored row current; it does not gate the UI.
+    // Startup synchronization owns network freshness. The editor only reads
+    // the local snapshot so opening it is never blocked on Bangumi.
     final local = await _detailsController.readLocalCollection();
     if (!mounted) return;
-    unawaited(_detailsController.refreshCollectionInBackground());
 
     // Snapshot what the panel opened with, so "dirty" below is measured against
-    // the values the user actually saw rather than a row a background refresh
-    // may have changed in the meantime.
+    // the values the user actually saw rather than a startup sync that may
+    // finish while the panel is open.
     final initialType =
         local?.type ?? _localFavoriteType ?? LocalFavoriteType.wish;
     final initialRate = local?.rate ?? 0;
