@@ -14,7 +14,6 @@ fn parse_bangumi_reviews_next(json: &serde_json::Value) -> BangumiReviewsPage {
         .into_iter()
         .flatten()
         .filter_map(|item| {
-            let user = &item["user"];
             let entry = &item["entry"];
 
             let entry_id = json_i64(&entry["id"]).or_else(|| json_i64(&item["id"]))?;
@@ -22,18 +21,11 @@ fn parse_bangumi_reviews_next(json: &serde_json::Value) -> BangumiReviewsPage {
             let summary_raw = entry["summary"].as_str().unwrap_or_default();
             let summary = strip_bangumi_markup(summary_raw);
 
-            let user_name = user["nickname"]
-                .as_str()
-                .filter(|value| !value.is_empty())
-                .unwrap_or_else(|| user["username"].as_str().unwrap_or(""))
-                .to_string();
-            let user_id = user["username"]
-                .as_str()
-                .filter(|value| !value.is_empty())
-                .map(str::to_string)
-                .unwrap_or_else(|| json_i64(&user["id"]).unwrap_or_default().to_string());
+            let user = parse_user_object(item);
+            let user_name = parse_user_name(user);
+            let user_id = parse_user_id(user);
+            let avatar = parse_user_avatar(user);
 
-            let avatar = normalize_avatar_url(user["avatar"]["large"].as_str());
             let time = entry["createdAt"]
                 .as_i64()
                 .map(format_bangumi_timestamp)
@@ -122,17 +114,13 @@ pub(crate) async fn fetch_bangumi_blog_detail(entry_id: i64) -> anyhow::Result<B
     }
 
     let json: serde_json::Value = resp.json().await?;
-    let user = &json["user"];
-    let user_name = user["nickname"]
-        .as_str()
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| user["username"].as_str().unwrap_or(""))
-        .to_string();
-    let user_id = user["username"]
-        .as_str()
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| json_i64(&user["id"]).unwrap_or_default().to_string());
+    // `GET /p1/blogs/{entryID}` returns a `BlogEntry` whose `user` sits at the top
+    // level; there is no `entry` wrapper here (that only exists on the review list
+    // rows, which are `SubjectReview`).
+    let user = parse_user_object(&json);
+    let user_name = parse_user_name(user);
+    let user_id = parse_user_id(user);
+    let avatar = parse_user_avatar(user);
 
     let content = json["content"].as_str().unwrap_or_default();
     let tags = json["tags"]
@@ -157,7 +145,7 @@ pub(crate) async fn fetch_bangumi_blog_detail(entry_id: i64) -> anyhow::Result<B
         content_html: render_bangumi_markup(content),
         user_id,
         user_name,
-        avatar: normalize_avatar_url(user["avatar"]["large"].as_str()),
+        avatar,
         time: json["createdAt"]
             .as_i64()
             .map(format_bangumi_timestamp)
@@ -293,7 +281,11 @@ mod tests {
                     "title": "Test Review Detail",
                     "summary": "Short",
                     "content": "[b]Hello World[/b]",
-                    "user": { "username": "bob", "nickname": "Bob" },
+                    "user": {
+                        "username": "bob",
+                        "nickname": "Bob",
+                        "avatar": { "large": "//lain.bgm.tv/pic/user/l/000/00/09.jpg" }
+                    },
                     "createdAt": 1600000000,
                     "replies": 2,
                     "tags": ["anime", "review"]
@@ -328,6 +320,11 @@ mod tests {
 
         let blog = fetch_bangumi_blog_detail(501).await.unwrap();
         assert_eq!(blog.title, "Test Review Detail");
+        // `BlogEntry.user` is top-level: reading it through a non-existent `entry`
+        // wrapper silently blanked the author on every review detail.
+        assert_eq!(blog.user_name, "Bob");
+        assert_eq!(blog.user_id, "bob");
+        assert_eq!(blog.avatar, "https://lain.bgm.tv/pic/user/l/000/00/09.jpg");
         assert!(
             blog.content_html
                 .contains("<span style=\"font-weight:bold;\">Hello World</span>")

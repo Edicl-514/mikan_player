@@ -4,6 +4,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi/types.dart';
 import 'package:mikan_player/src/rust/frb_api/bangumi.dart' as bangumi_api;
 import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
+import 'package:mikan_player/ui/widgets/bangumi_reaction_badge.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 /// Shows a dialog displaying the full Bangumi blog entry (review) and its comments.
@@ -304,9 +305,9 @@ class _BangumiBlogDetailDialogState extends State<BangumiBlogDetailDialog> {
                               runSpacing: 6,
                               children: _detail!.reactions
                                   .map(
-                                    (r) => _ReactionBadge(
+                                    (r) => BangumiReactionBadge(
                                       reaction: r,
-                                      isDark: isDark,
+                                      isDarkBg: isDark,
                                     ),
                                   )
                                   .toList(),
@@ -453,7 +454,9 @@ class _BlogCommentTile extends StatelessWidget {
               spacing: 6,
               runSpacing: 6,
               children: comment.reactions
-                  .map((r) => _ReactionBadge(reaction: r, isDark: isDark))
+                  .map(
+                    (r) => BangumiReactionBadge(reaction: r, isDarkBg: isDark),
+                  )
                   .toList(),
             ),
           ],
@@ -468,49 +471,6 @@ class _BlogCommentTile extends StatelessWidget {
                           _BlogCommentTile(comment: reply, isDark: isDark),
                     )
                     .toList(),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ReactionBadge extends StatelessWidget {
-  final BangumiCommentReaction reaction;
-  final bool isDark;
-
-  const _ReactionBadge({required this.reaction, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 24,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(
-        color: reaction.reacted
-            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.14)
-            : (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.04)),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CachedNetworkImage(
-            imageUrl: reaction.imageUrl,
-            width: 16,
-            height: 16,
-            fit: BoxFit.contain,
-            errorWidget: const Icon(Icons.sentiment_neutral, size: 14),
-          ),
-          if (reaction.count > 0) ...[
-            const SizedBox(width: 4),
-            Text(
-              '${reaction.count}',
-              style: TextStyle(
-                fontSize: 11,
-                color: isDark ? Colors.white70 : Colors.black54,
               ),
             ),
           ],

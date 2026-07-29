@@ -21,6 +21,7 @@ class BangumiDetailsDataPort {
     required this.loadInitialData,
     required this.fetchCommentsPage,
     this.fetchReviewsPage,
+    this.fetchTopicsPage,
   });
 
   final Future<BangumiDetailsLoadResult?> Function({
@@ -46,6 +47,12 @@ class BangumiDetailsDataPort {
     required int page,
   })?
   fetchReviewsPage;
+
+  final Future<BangumiTopicsPage> Function({
+    required int subjectId,
+    required int page,
+  })?
+  fetchTopicsPage;
 }
 
 /// Injectable local-favorites seam. SnackBars stay on the page.
@@ -124,6 +131,7 @@ class BangumiDetailsController {
   List<BangumiRelatedSubject>? _relations;
   List<BangumiComment>? _comments;
   List<BangumiReview>? _reviews;
+  List<BangumiTopic>? _topics;
   List<BangumiDataSiteEntry>? _sites;
   Map<String, int> _personIdMap = <String, int>{};
 
@@ -134,6 +142,8 @@ class BangumiDetailsController {
   bool _hasRequestedComments = false;
   bool _isLoadingReviews = false;
   bool _hasRequestedReviews = false;
+  bool _isLoadingTopics = false;
+  bool _hasRequestedTopics = false;
   int? _localFavoriteType;
 
   int _commentPage = 1;
@@ -146,6 +156,14 @@ class BangumiDetailsController {
   bool _hasMoreReviews = true;
   bool _isLoadingMoreReviews = false;
 
+  int _topicPage = 1;
+  int? _topicsTotal;
+  // Cumulative rows upstream returned, including topics filtered out by
+  // moderation state. Compared against `_topicsTotal` to decide "has more".
+  int _topicsFetched = 0;
+  bool _hasMoreTopics = true;
+  bool _isLoadingMoreTopics = false;
+
   // Shared generation for cache-prime + network refresh so they can both apply
   // during the initial concurrent load. Bumped only on dispose / subject reset.
   int _detailsGeneration = 0;
@@ -153,6 +171,7 @@ class BangumiDetailsController {
   // refresh resets comments, or on dispose.
   int _commentsToken = 0;
   int _reviewsToken = 0;
+  int _topicsToken = 0;
   int _favoriteToken = 0;
   bool _disposed = false;
 
@@ -181,6 +200,9 @@ class BangumiDetailsController {
   List<BangumiReview>? get reviews =>
       _reviews == null ? null : UnmodifiableListView<BangumiReview>(_reviews!);
 
+  List<BangumiTopic>? get topics =>
+      _topics == null ? null : UnmodifiableListView<BangumiTopic>(_topics!);
+
   List<BangumiDataSiteEntry>? get sites => _sites == null
       ? null
       : UnmodifiableListView<BangumiDataSiteEntry>(_sites!);
@@ -195,6 +217,8 @@ class BangumiDetailsController {
   bool get hasRequestedComments => _hasRequestedComments;
   bool get isLoadingReviews => _isLoadingReviews;
   bool get hasRequestedReviews => _hasRequestedReviews;
+  bool get isLoadingTopics => _isLoadingTopics;
+  bool get hasRequestedTopics => _hasRequestedTopics;
   bool get isLocalFavorite => _localFavoriteType != null;
   int? get localFavoriteType => _localFavoriteType;
   int get commentPage => _commentPage;
@@ -203,6 +227,9 @@ class BangumiDetailsController {
   int get reviewPage => _reviewPage;
   bool get hasMoreReviews => _hasMoreReviews;
   bool get isLoadingMoreReviews => _isLoadingMoreReviews;
+  int get topicPage => _topicPage;
+  bool get hasMoreTopics => _hasMoreTopics;
+  bool get isLoadingMoreTopics => _isLoadingMoreTopics;
   bool get isDisposed => _disposed;
 
   bool get hasSubjectDetails => _subjectData != null;
@@ -232,6 +259,7 @@ class BangumiDetailsController {
     _detailsGeneration++;
     _commentsToken++;
     _reviewsToken++;
+    _topicsToken++;
     _favoriteToken++;
     _subjectData = null;
     _episodes = null;
@@ -239,6 +267,7 @@ class BangumiDetailsController {
     _relations = null;
     _comments = null;
     _reviews = null;
+    _topics = null;
     _sites = null;
     _personIdMap = <String, int>{};
     _isLoadingEpisodes = false;
@@ -248,6 +277,8 @@ class BangumiDetailsController {
     _hasRequestedComments = false;
     _isLoadingReviews = false;
     _hasRequestedReviews = false;
+    _isLoadingTopics = false;
+    _hasRequestedTopics = false;
     _localFavoriteType = null;
     _commentPage = 1;
     _commentsTotal = null;
@@ -257,6 +288,11 @@ class BangumiDetailsController {
     _reviewsTotal = null;
     _hasMoreReviews = true;
     _isLoadingMoreReviews = false;
+    _topicPage = 1;
+    _topicsTotal = null;
+    _topicsFetched = 0;
+    _hasMoreTopics = true;
+    _isLoadingMoreTopics = false;
     _notify();
   }
 
@@ -265,6 +301,7 @@ class BangumiDetailsController {
     _detailsGeneration++;
     _commentsToken++;
     _reviewsToken++;
+    _topicsToken++;
     _favoriteToken++;
   }
 
@@ -310,6 +347,7 @@ class BangumiDetailsController {
     // comment and review work so a late first-page cannot repopulate under a refresh.
     _commentsToken++;
     _reviewsToken++;
+    _topicsToken++;
     _isLoadingEpisodes = true;
     _isLoadingCharacters = true;
     _isLoadingRelations = true;
@@ -317,6 +355,8 @@ class BangumiDetailsController {
     _hasRequestedComments = false;
     _isLoadingReviews = false;
     _hasRequestedReviews = false;
+    _isLoadingTopics = false;
+    _hasRequestedTopics = false;
     _commentPage = 1;
     _commentsTotal = null;
     _hasMoreComments = true;
@@ -325,11 +365,17 @@ class BangumiDetailsController {
     _reviewsTotal = null;
     _hasMoreReviews = true;
     _isLoadingMoreReviews = false;
+    _topicPage = 1;
+    _topicsTotal = null;
+    _topicsFetched = 0;
+    _hasMoreTopics = true;
+    _isLoadingMoreTopics = false;
     _episodes = null;
     _characters = null;
     _relations = null;
     _comments = null;
     _reviews = null;
+    _topics = null;
     _personIdMap = <String, int>{};
     _notify();
 
@@ -526,6 +572,108 @@ class BangumiDetailsController {
     final total = _reviewsTotal;
     return total == null ? loadedCount > 0 : loadedCount < total;
   }
+
+  // ── Topics ─────────────────────────────────────────────────────────────────
+
+  Future<void> ensureTopicsLoaded() async {
+    if (_disposed) return;
+    if (_hasRequestedTopics || _isLoadingTopics) return;
+
+    final subjectId = _parseSubjectId(_anime.bangumiId);
+    if (subjectId == null) return;
+
+    final token = _topicsToken;
+    _hasRequestedTopics = true;
+    _isLoadingTopics = true;
+    _topicPage = 1;
+    _topicsFetched = 0;
+    _hasMoreTopics = true;
+    _isLoadingMoreTopics = false;
+    _topics = null;
+    _notify();
+
+    try {
+      final topicsPage = _dataPort.fetchTopicsPage != null
+          ? await _dataPort.fetchTopicsPage!(subjectId: subjectId, page: 1)
+          : await fetchBangumiSubjectTopics(subjectId: subjectId, page: 1);
+      if (!_isTopicsCurrent(token)) return;
+      _topicsTotal = topicsPage.total;
+      _topicsFetched = topicsPage.fetchedCount;
+      _topics = List<BangumiTopic>.from(topicsPage.topics);
+      _hasMoreTopics = _hasMoreTopicsAfterPage(topicsPage.fetchedCount);
+    } catch (e) {
+      debugPrint('Error fetching topics: $e');
+      if (!_isTopicsCurrent(token)) return;
+      _topics = <BangumiTopic>[];
+      _hasMoreTopics = false;
+    } finally {
+      if (_isTopicsCurrent(token)) {
+        _isLoadingTopics = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<void> loadMoreTopics() async {
+    if (_disposed) return;
+    if (_isLoadingMoreTopics || !_hasMoreTopics || !_hasRequestedTopics) {
+      return;
+    }
+
+    final subjectId = _parseSubjectId(_anime.bangumiId);
+    if (subjectId == null) {
+      _isLoadingMoreTopics = false;
+      _notify();
+      return;
+    }
+
+    final token = _topicsToken;
+    _isLoadingMoreTopics = true;
+    _notify();
+
+    try {
+      final topicsPage = _dataPort.fetchTopicsPage != null
+          ? await _dataPort.fetchTopicsPage!(
+              subjectId: subjectId,
+              page: _topicPage + 1,
+            )
+          : await fetchBangumiSubjectTopics(
+              subjectId: subjectId,
+              page: _topicPage + 1,
+            );
+      if (!_isTopicsCurrent(token)) return;
+
+      _topicsTotal = topicsPage.total ?? _topicsTotal;
+      // Advance on rows upstream returned, not on rows kept: a page whose every
+      // topic was filtered out by moderation state still means there is more.
+      if (topicsPage.fetchedCount <= 0) {
+        _hasMoreTopics = false;
+      } else {
+        _topicsFetched += topicsPage.fetchedCount;
+        if (topicsPage.topics.isNotEmpty) {
+          _topics = <BangumiTopic>[...?_topics, ...topicsPage.topics];
+        }
+        _topicPage++;
+        _hasMoreTopics = _hasMoreTopicsAfterPage(_topicsFetched);
+      }
+      _isLoadingMoreTopics = false;
+      _notify();
+    } catch (e) {
+      debugPrint('Error loading more topics: $e');
+      if (!_isTopicsCurrent(token)) return;
+      _isLoadingMoreTopics = false;
+      _notify();
+    }
+  }
+
+  /// [fetchedCount] is the cumulative number of rows upstream has returned, which
+  /// is what `total` counts — moderated-away topics are fetched but not shown.
+  bool _hasMoreTopicsAfterPage(int fetchedCount) {
+    final total = _topicsTotal;
+    return total == null ? fetchedCount > 0 : fetchedCount < total;
+  }
+
+  bool _isTopicsCurrent(int token) => !_disposed && token == _topicsToken;
 
   // ── Favorites ──────────────────────────────────────────────────────────────
 
@@ -795,6 +943,8 @@ BangumiDetailsDataPort bangumiDetailsServiceDataPort([
         s.fetchCommentsPage(subjectId: subjectId, page: page),
     fetchReviewsPage: ({required subjectId, required page}) =>
         s.fetchReviewsPage(subjectId: subjectId, page: page),
+    fetchTopicsPage: ({required subjectId, required page}) =>
+        s.fetchTopicsPage(subjectId: subjectId, page: page),
   );
 }
 

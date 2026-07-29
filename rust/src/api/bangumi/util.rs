@@ -139,6 +139,51 @@ pub(super) fn normalize_image_url(value: Option<&str>) -> String {
     normalize_bangumi_url(raw)
 }
 
+pub(super) fn parse_user_object<'a>(item: &'a serde_json::Value) -> &'a serde_json::Value {
+    if item["creator"].is_object() {
+        &item["creator"]
+    } else if item["user"].is_object() {
+        &item["user"]
+    } else {
+        &serde_json::Value::Null
+    }
+}
+
+pub(super) fn parse_user_name(user: &serde_json::Value) -> String {
+    user["nickname"]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .or_else(|| user["username"].as_str().filter(|value| !value.is_empty()))
+        .or_else(|| user["name"].as_str().filter(|value| !value.is_empty()))
+        .unwrap_or("")
+        .to_string()
+}
+
+pub(super) fn parse_user_id(user: &serde_json::Value) -> String {
+    user["username"]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .or_else(|| json_i64(&user["id"]).map(|id| id.to_string()))
+        .unwrap_or_default()
+}
+
+pub(super) fn parse_user_avatar(user: &serde_json::Value) -> String {
+    let avatar = &user["avatar"];
+    if let Some(url) = avatar.as_str() {
+        normalize_avatar_url(Some(url))
+    } else if avatar.is_object() {
+        normalize_avatar_url(
+            avatar["large"]
+                .as_str()
+                .or_else(|| avatar["medium"].as_str())
+                .or_else(|| avatar["small"].as_str()),
+        )
+    } else {
+        String::new()
+    }
+}
+
 pub(super) fn normalize_avatar_url(value: Option<&str>) -> String {
     let Some(raw) = value else {
         return String::new();

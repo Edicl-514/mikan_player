@@ -30,6 +30,10 @@ abstract interface class BangumiDetailsBackend {
     required int subjectId,
     required int page,
   });
+  Future<BangumiTopicsPage> fetchTopics({
+    required int subjectId,
+    required int page,
+  });
 }
 
 class DefaultBangumiDetailsBackend implements BangumiDetailsBackend {
@@ -108,6 +112,12 @@ class DefaultBangumiDetailsBackend implements BangumiDetailsBackend {
     required int subjectId,
     required int page,
   }) => fetchBangumiSubjectReviews(subjectId: subjectId, page: page);
+
+  @override
+  Future<BangumiTopicsPage> fetchTopics({
+    required int subjectId,
+    required int page,
+  }) => fetchBangumiSubjectTopics(subjectId: subjectId, page: page);
 }
 
 class BangumiDetailsLoadResult {
@@ -284,6 +294,13 @@ class BangumiDetailsService {
     required int page,
   }) async {
     return _backend.fetchReviews(subjectId: subjectId, page: page);
+  }
+
+  Future<BangumiTopicsPage> fetchTopicsPage({
+    required int subjectId,
+    required int page,
+  }) async {
+    return _backend.fetchTopics(subjectId: subjectId, page: page);
   }
 
   int? _parseSubjectId(String? bangumiId) {

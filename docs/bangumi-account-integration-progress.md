@@ -21,7 +21,7 @@ v0 = `bangumi/api` 仓库 `open-api/v0.yaml`。
 |---|---|---|---|
 | **Phase 1** | OAuth 登录 + 收藏状态同步 | 有 | ✅ 已完成 |
 | Phase 2 | 收藏的评价 / 评分 / 标签 / 隐私 | 有 | ✅ 代码完成（真实账号验收待执行） |
-| Phase 3 | 社区内容只读（条目吐槽、长评、讨论版、透视、角色 / 人物吐槽） | 无 | 🚧 3A/3B 已完成，3C–3E 待开发 |
+| Phase 3 | 社区内容只读（条目吐槽、长评、讨论版、透视、角色 / 人物吐槽） | 无 | 🚧 3A/3B/3C（仅条目讨论）已完成，小组讨论与 3D–3E 待开发 |
 | — | 发送吐槽 / 发帖 / 说句话 | — | ❌ 不实现，见第 6 章 |
 
 ---
@@ -390,8 +390,45 @@ GET https://next.bgm.tv/p1/subjects/{subjectID}/reviews?limit=&offset=
 - 也就是说 Bangumi 的长评实体就是**日志（blog entry）**，不是独立类型。
   列表页展示 `summary`，点开再拉全文，不要在列表阶段 N+1 拉取所有正文。
 - 日志的吐槽可另取 `GET /p1/blogs/{entryID}/comments`。
+- ⚠️ **两个端点的作者字段位置不同**：列表行是 `SubjectReview`，作者在 `item.user`，摘要在
+  `item.entry.summary`；而 `GET /p1/blogs/{entryID}` 返回的是 `BlogEntry`，**`user` 在顶层，没有
+  `entry` 包装**。曾因为把详情也按 `json["entry"]["user"]` 解析，导致长评弹窗作者名和头像全为空，
+  而当时的 mock 测试只断言标题 / 正文 / 标签，没能拦住。解析测试要覆盖作者字段。
 
 #### 3C 讨论版
+
+##### 已落地（2026-07-29，条目讨论）
+
+范围：**只有条目讨论**。小组讨论（`/p1/groups/*`）本轮不实现，端点契约见下方备查。
+
+- Rust 端实现 `fetch_bangumi_subject_topics`（拉取条目讨论帖列表）与 `fetch_bangumi_topic_detail`（拉取主帖正文、经 `render_bangumi_markup` 安全渲染 HTML，并解析内嵌楼层回复与子回复）。
+- 通过 `flutter_rust_bridge_codegen` 更新 FRB 门面绑定。
+- Dart 端在 `BangumiDetailsService` 与 `BangumiDetailsController` 中全贯通讨论版列表分页与加载逻辑。
+- 实现 `TopicsSection` 与 `TopicsSliver` 组件：
+  - **移动端**：接入全局 Theme (`isDark`) 自动适配 Brightness。
+  - **PC端 (Wide Layout)**：保持 `isDarkBg: true` 半透明深色背景并固定白字/浅色文本。
+- 实现 `BangumiTopicDetailDialog` 弹窗（`showBangumiTopicDetailDialog`）：点击讨论帖卡片弹窗展示主帖正文、
+  reaction 与下属楼层回复（含一层子回复），包含重试与错误降级。
+- reaction 徽标抽成共享的 `ui/widgets/bangumi_reaction_badge.dart`，吐槽列表、长评弹窗与讨论帖弹窗共用一份实现。
+- 测试：Rust `fetch_topics.rs` 8 个用例（真实 p1 形状 fixture、moderation 过滤、主帖 state 门控、mock server
+  端到端、404 降级）；Dart `topics_section_test.dart`、`bangumi_topic_detail_dialog_test.dart`、
+  controller 的 topics 分页组与 service 的 `fetchTopicsPage` 用例。`cargo test`、`flutter test`、
+  `flutter analyze` 与 `cargo fmt --check` 均通过。
+
+###### 首轮实现踩到的坑（已修，勿重犯）
+
+1. **回复数字段是 `replyCount`，不是 `replies` / `repliesCount`。** 先前按后两个名字读，
+   卡片上的回复数恒为 `0`；单元测试的 fixture 自己造了 `"replies": 8`，所以测试绿灯而真实字段从未被读到。
+   **p1 的解析 fixture 必须照抄真实响应的字段名**，不能凭猜想构造。
+2. **`SubjectTopic` 没有 `content`。** 主帖就是 `replies[0]`（楼 1），所以主帖的作者、时间、
+   state 和 reaction 都要从这一楼取，并把它从楼层列表里去掉，避免重复渲染。
+3. **主帖正文也要过 state 门控。** 楼 1 被删除 / 折叠时上游仍可能返回原文，必须走
+   `bangumi_comment_state_can_view_content`，不能直接 `render_bangumi_markup`。
+4. **topic 的 `state` 和楼层的 comment state 不是同一套语义。** topic state `1` 是「管理员关闭」，
+   帖子照常可读；只有 `6` / `7`（用户 / 管理员删除）才算删除。不能把 topic state 直接喂给评论门控。
+5. **列表按 moderation 过滤后不能再用 `topics.length` 推进分页。** 服务端 `total` 统计的是过滤前的行数，
+   所以 `BangumiTopicsPage` 额外返回 `fetched_count`（过滤前行数），Dart 用它累加判断 `hasMore`；
+   否则一页里所有帖子都被过滤掉时会被误判成列表结束。
 
 条目讨论：
 
@@ -401,7 +438,7 @@ GET https://next.bgm.tv/p1/subjects/-/topics/{topicID}                  # Subjec
 GET https://next.bgm.tv/p1/subjects/-/posts/{postID}                    # 单楼层
 ```
 
-小组讨论：
+小组讨论（**未实现**，留待后续）：
 
 ```http
 GET https://next.bgm.tv/p1/groups/{groupName}                           # Group（含 topics/posts/members 计数）
@@ -412,11 +449,15 @@ GET https://next.bgm.tv/p1/groups/-/posts/{postID}
 
 - **主贴详情内嵌全部楼层**：`SubjectTopic` = `Topic` + `{subject: SlimSubject, replies: Reply[]}`，
   `GroupTopic` 同构。所以「打开一个帖子」只要 1 次请求，不需要单独翻楼层。
+  注意两者都**没有自己的 `content`**，主帖正文在 `replies[0]`。
+- `Topic` 的字段是 `creator`（不是 `user`）、`replyCount`、`state`、`display`；`creatorID` 只有数字 ID。
 - `Reply` 自身带 `replies: ReplyBase[]`（一层子回复）、`reactions` 和 `state`；不要把
   `ReplyBase` 递归解析成要求自身继续带 `replies` 的 `Reply`。
 - 楼层正文是 **BBCode**，必须走安全渲染，不能当 HTML 注入。
   Rust 侧已有 `api/bangumi/markup.rs`，优先复用。
 - `state` / `display` 标记删除、折叠、管理员操作过的楼层，必须尊重，不能强行展示原文。
+  列表层丢掉 `display != 1`（封禁 / 待审核）与 state `6`/`7`（已删除）的帖子；正文层由
+  `BangumiCommentBody` 处理不可见（`1/2/5/6/7`）与折叠（`8`）。
 - 额外可用入口：`GET /p1/subjects/-/topics`（全站最近条目讨论）、
   `GET /p1/groups/-/topics?mode=all|joined|created|replied`、
   `GET /p1/trending/subjects/topics`（热门条目讨论，实测可用）。

@@ -65,6 +65,20 @@ Future<List<BangumiEpisodeComment>> fetchBangumiBlogComments({
   entryId: entryId,
 );
 
+Future<BangumiTopicsPage> fetchBangumiSubjectTopics({
+  required PlatformInt64 subjectId,
+  required int page,
+}) => RustLib.instance.api.crateFrbApiBangumiFetchBangumiSubjectTopics(
+  subjectId: subjectId,
+  page: page,
+);
+
+Future<BangumiTopicDetail> fetchBangumiTopicDetail({
+  required PlatformInt64 topicId,
+}) => RustLib.instance.api.crateFrbApiBangumiFetchBangumiTopicDetail(
+  topicId: topicId,
+);
+
 Future<CharacterDetails> fetchCharacterDetails({
   required PlatformInt64 characterId,
 }) => RustLib.instance.api.crateFrbApiBangumiFetchCharacterDetails(

@@ -16,6 +16,7 @@ import 'package:mikan_player/ui/pages/bangumi_details/widgets/header_title.dart'
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/placeholder_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/relations_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/reviews_section.dart';
+import 'package:mikan_player/ui/pages/bangumi_details/widgets/topics_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/section_title.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/sites_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/summary_tags.dart';
@@ -39,6 +40,7 @@ class BangumiDetailsWideLayout extends StatefulWidget {
   final List<BangumiRelatedSubject>? relations;
   final List<BangumiComment>? comments;
   final List<BangumiReview>? reviews;
+  final List<BangumiTopic>? topics;
   final List<BangumiDataSiteEntry>? sites;
   final Map<String, int> personIdMap;
 
@@ -52,6 +54,9 @@ class BangumiDetailsWideLayout extends StatefulWidget {
   final bool isLoadingReviews;
   final bool isLoadingMoreReviews;
   final bool hasRequestedReviews;
+  final bool isLoadingTopics;
+  final bool isLoadingMoreTopics;
+  final bool hasRequestedTopics;
 
   // Page-level UI state.
   final bool isLocalFavorite;
@@ -94,6 +99,9 @@ class BangumiDetailsWideLayout extends StatefulWidget {
   final VoidCallback? onEnsureReviewsLoaded;
   final VoidCallback? onLoadMoreReviews;
   final void Function(BangumiReview review)? onReviewTap;
+  final VoidCallback? onEnsureTopicsLoaded;
+  final VoidCallback? onLoadMoreTopics;
+  final void Function(BangumiTopic topic)? onTopicTap;
 
   const BangumiDetailsWideLayout({
     super.key,
@@ -105,6 +113,7 @@ class BangumiDetailsWideLayout extends StatefulWidget {
     required this.relations,
     required this.comments,
     this.reviews,
+    this.topics,
     required this.sites,
     required this.personIdMap,
     required this.isLoadingEpisodes,
@@ -116,6 +125,9 @@ class BangumiDetailsWideLayout extends StatefulWidget {
     this.isLoadingReviews = false,
     this.isLoadingMoreReviews = false,
     this.hasRequestedReviews = false,
+    this.isLoadingTopics = false,
+    this.isLoadingMoreTopics = false,
+    this.hasRequestedTopics = false,
     required this.isLocalFavorite,
     required this.favoriteType,
     required this.isSelectingFavoriteStatus,
@@ -147,6 +159,9 @@ class BangumiDetailsWideLayout extends StatefulWidget {
     this.onEnsureReviewsLoaded,
     this.onLoadMoreReviews,
     this.onReviewTap,
+    this.onEnsureTopicsLoaded,
+    this.onLoadMoreTopics,
+    this.onTopicTap,
   });
 
   @override
@@ -174,7 +189,9 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
     if (!_sameAnimeIdentity(oldWidget.anime, widget.anime)) {
       _selectedTabIndex = 0;
     }
-    if (_selectedTabIndex == 1 || _selectedTabIndex == 2) {
+    if (_selectedTabIndex == 1 ||
+        _selectedTabIndex == 2 ||
+        _selectedTabIndex == 3) {
       _scheduleViewportFillCheck();
     }
   }
@@ -194,6 +211,8 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
         widget.onLoadMoreComments();
       } else if (_selectedTabIndex == 2) {
         widget.onLoadMoreReviews?.call();
+      } else if (_selectedTabIndex == 3) {
+        widget.onLoadMoreTopics?.call();
       }
     }
   }
@@ -394,7 +413,9 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
                         setState(() {
                           _selectedTabIndex = newSelection.first;
                         });
-                        if (_selectedTabIndex == 1 || _selectedTabIndex == 2) {
+                        if (_selectedTabIndex == 1 ||
+                            _selectedTabIndex == 2 ||
+                            _selectedTabIndex == 3) {
                           _scheduleViewportFillCheck();
                         }
                       },
@@ -423,13 +444,7 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
           if (_selectedTabIndex == 3)
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
-              sliver: SliverToBoxAdapter(
-                child: _buildPlaceholderCard(
-                  context,
-                  l10n.bangumiDetailsPlaceholderTopics,
-                  Icons.forum_outlined,
-                ),
-              ),
+              sliver: _buildTopicsSliver(context),
             ),
           const SliverToBoxAdapter(child: SizedBox(height: 74)),
         ],
@@ -597,30 +612,28 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
     );
   }
 
-  Widget _buildPlaceholderCard(
-    BuildContext context,
-    String title,
-    IconData icon,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+  Widget _buildTopicsSliver(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (!widget.hasRequestedTopics && !widget.isLoadingTopics) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onEnsureTopicsLoaded?.call();
+      });
+    }
+    return TopicsSliver(
+      topics: widget.topics ?? const [],
+      isLoading: widget.isLoadingTopics,
+      isLoadingMore: widget.isLoadingMoreTopics,
+      isDarkBg: true,
+      sectionTitle: SectionTitle(
+        title: l10n.bangumiDetailsTabTopics,
+        isDarkBg: true,
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 48, color: Colors.white38),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 14, color: Colors.white54),
-          ),
-        ],
+      loadingPlaceholder: (ctx) => PlaceholderSection(
+        title: l10n.bangumiDetailsTabTopics,
+        icon: Icons.forum_outlined,
+        isDarkBg: true,
       ),
+      onTopicTap: widget.onTopicTap,
     );
   }
 }

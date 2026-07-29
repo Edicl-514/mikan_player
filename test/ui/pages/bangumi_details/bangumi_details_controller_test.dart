@@ -105,7 +105,9 @@ class _FakeDataPort {
     this.network,
     this.commentsByPage = const {},
     this.reviewsByPage = const {},
+    this.topicsByPage = const {},
     this.commentsError,
+    this.topicsError,
     this.holdFutures = false,
   });
 
@@ -113,16 +115,19 @@ class _FakeDataPort {
   BangumiDetailsLoadResult? network;
   Map<int, BangumiCommentsPage> commentsByPage;
   Map<int, BangumiReviewsPage> reviewsByPage;
+  Map<int, BangumiTopicsPage> topicsByPage;
   Duration cachedDelay = Duration.zero;
   Duration networkDelay = Duration.zero;
   Duration commentsDelay = Duration.zero;
   Object? networkError;
   Object? commentsError;
+  Object? topicsError;
   bool holdFutures;
 
   int cachedCalls = 0;
   int networkCalls = 0;
   final List<int> commentPagesRequested = <int>[];
+  final List<int> topicPagesRequested = <int>[];
   bool? lastIncludeSubjectDetailsCached;
   bool? lastIncludeSubjectDetailsNetwork;
 
@@ -220,6 +225,12 @@ class _FakeDataPort {
     },
     fetchReviewsPage: ({required subjectId, required page}) async {
       return reviewsByPage[page] ?? const BangumiReviewsPage(reviews: []);
+    },
+    fetchTopicsPage: ({required subjectId, required page}) async {
+      topicPagesRequested.add(page);
+      if (topicsError != null) throw topicsError!;
+      return topicsByPage[page] ??
+          const BangumiTopicsPage(topics: [], fetchedCount: 0);
     },
   );
 }
@@ -865,6 +876,145 @@ void main() {
       expect(c.reviewPage, 2);
       expect(c.hasMoreReviews, isFalse);
       expect(c.isLoadingMoreReviews, isFalse);
+    });
+  });
+
+  group('topics', () {
+    BangumiTopic topic(int id) => BangumiTopic(
+      id: id,
+      userId: 'user$id',
+      userName: 'User $id',
+      avatar: '',
+      title: 'Topic $id',
+      time: '2026-07-29',
+      updatedAt: '2026-07-29 10:00',
+      repliesCount: id,
+    );
+
+    test('ensureTopicsLoaded populates first page of topics', () async {
+      final data = _FakeDataPort(
+        topicsByPage: {
+          1: BangumiTopicsPage(topics: [topic(1)], total: 1, fetchedCount: 1),
+        },
+      );
+      final c = _controller(data: data);
+      await c.ensureTopicsLoaded();
+
+      expect(c.hasRequestedTopics, isTrue);
+      expect(c.isLoadingTopics, isFalse);
+      expect(c.topics, hasLength(1));
+      expect(c.topics!.first.title, 'Topic 1');
+      expect(c.topics!.first.repliesCount, 1);
+      expect(c.hasMoreTopics, isFalse);
+      expect(data.topicPagesRequested, [1]);
+    });
+
+    test('ensureTopicsLoaded requests the page only once', () async {
+      final data = _FakeDataPort(
+        topicsByPage: {
+          1: BangumiTopicsPage(topics: [topic(1)], total: 1, fetchedCount: 1),
+        },
+      );
+      final c = _controller(data: data);
+      await c.ensureTopicsLoaded();
+      await c.ensureTopicsLoaded();
+
+      expect(data.topicPagesRequested, [1]);
+    });
+
+    test('loadMoreTopics follows total and merges subsequent pages', () async {
+      final data = _FakeDataPort(
+        topicsByPage: {
+          1: BangumiTopicsPage(
+            topics: [topic(1), topic(2)],
+            total: 3,
+            fetchedCount: 2,
+          ),
+          2: BangumiTopicsPage(topics: [topic(3)], total: 3, fetchedCount: 1),
+        },
+      );
+      final c = _controller(data: data);
+
+      await c.ensureTopicsLoaded();
+      expect(c.hasMoreTopics, isTrue);
+      await c.loadMoreTopics();
+
+      expect(c.topics!.map((item) => item.id), [1, 2, 3]);
+      expect(c.topicPage, 2);
+      expect(c.hasMoreTopics, isFalse);
+      expect(c.isLoadingMoreTopics, isFalse);
+      expect(data.topicPagesRequested, [1, 2]);
+    });
+
+    test(
+      'a page whose topics were all moderated away still advances pagination',
+      () async {
+        final data = _FakeDataPort(
+          topicsByPage: {
+            1: BangumiTopicsPage(topics: [topic(1)], total: 3, fetchedCount: 1),
+            // Upstream returned a row, but it was deleted / not displayable, so
+            // Rust filtered it out. This must not read as the end of the list.
+            2: const BangumiTopicsPage(topics: [], total: 3, fetchedCount: 1),
+            3: BangumiTopicsPage(topics: [topic(3)], total: 3, fetchedCount: 1),
+          },
+        );
+        final c = _controller(data: data);
+
+        await c.ensureTopicsLoaded();
+        await c.loadMoreTopics();
+        expect(c.hasMoreTopics, isTrue, reason: 'filtered page is not the end');
+        expect(c.topics!.map((item) => item.id), [1]);
+
+        await c.loadMoreTopics();
+        expect(c.topics!.map((item) => item.id), [1, 3]);
+        expect(c.hasMoreTopics, isFalse);
+        expect(data.topicPagesRequested, [1, 2, 3]);
+      },
+    );
+
+    test('loadMoreTopics stops when upstream returns no rows', () async {
+      final data = _FakeDataPort(
+        topicsByPage: {
+          1: BangumiTopicsPage(topics: [topic(1)], total: 99, fetchedCount: 1),
+          2: const BangumiTopicsPage(topics: [], total: 99, fetchedCount: 0),
+        },
+      );
+      final c = _controller(data: data);
+
+      await c.ensureTopicsLoaded();
+      await c.loadMoreTopics();
+
+      expect(c.hasMoreTopics, isFalse);
+      expect(c.topicPage, 1);
+    });
+
+    test('topics load failure degrades to an empty list', () async {
+      final data = _FakeDataPort(topicsError: Exception('boom'));
+      final c = _controller(data: data);
+      await c.ensureTopicsLoaded();
+
+      expect(c.topics, isEmpty);
+      expect(c.isLoadingTopics, isFalse);
+      expect(c.hasMoreTopics, isFalse);
+    });
+
+    test('refreshFromNetwork resets topic paging state', () async {
+      final data = _FakeDataPort(
+        network: _loadResult(),
+        topicsByPage: {
+          1: BangumiTopicsPage(topics: [topic(1)], total: 3, fetchedCount: 1),
+        },
+      );
+      final c = _controller(data: data);
+      await c.ensureTopicsLoaded();
+      expect(c.topics, hasLength(1));
+
+      await c.refreshFromNetwork();
+
+      expect(c.hasRequestedTopics, isFalse);
+      expect(c.topics, isNull);
+      expect(c.topicPage, 1);
+      expect(c.hasMoreTopics, isTrue);
     });
   });
 }

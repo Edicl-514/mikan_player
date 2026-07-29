@@ -110,6 +110,49 @@ pub struct BangumiBlogDetail {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiTopic {
+    pub id: i64,
+    pub user_id: String,
+    pub user_name: String,
+    pub avatar: String,
+    pub title: String,
+    pub time: String,
+    pub updated_at: String,
+    pub replies_count: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiTopicsPage {
+    pub topics: Vec<BangumiTopic>,
+    pub total: Option<i32>,
+    /// Rows upstream actually returned for this page, before moderation
+    /// filtering. Pagination must advance on this, not on `topics.len()`, or a
+    /// page whose every row was filtered out would look like the end of the list.
+    pub fetched_count: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiTopicDetail {
+    pub id: i64,
+    pub title: String,
+    pub user_id: String,
+    pub user_name: String,
+    pub avatar: String,
+    pub time: String,
+    pub updated_at: String,
+    pub replies_count: i32,
+    pub content: String,
+    pub content_html: String,
+    /// Moderation state of the opening post, using p1's *comment* state enum.
+    /// Distinct from the topic's own state: an admin-closed topic (topic state
+    /// `1`) still shows its body, while a deleted post (comment state `6`/`7`)
+    /// must not.
+    pub content_state: i32,
+    pub reactions: Vec<BangumiCommentReaction>,
+    pub replies: Vec<BangumiEpisodeComment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BangumiPerson {
     pub id: i64,
     pub name: String,

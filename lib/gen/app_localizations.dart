@@ -3865,6 +3865,12 @@ abstract class AppLocalizations {
   /// **'长评评论加载失败'**
   String get bangumiBlogCommentsLoadFailed;
 
+  /// Error shown when a topic detail cannot be loaded.
+  ///
+  /// In zh, this message translates to:
+  /// **'讨论帖内容加载失败'**
+  String get bangumiTopicDetailLoadFailed;
+
   /// Placeholder for topics tab.
   ///
   /// In zh, this message translates to:

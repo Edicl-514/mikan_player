@@ -530,6 +530,153 @@ class BangumiReviewsPage {
           total == other.total;
 }
 
+class BangumiTopic {
+  final PlatformInt64 id;
+  final String userId;
+  final String userName;
+  final String avatar;
+  final String title;
+  final String time;
+  final String updatedAt;
+  final int repliesCount;
+
+  const BangumiTopic({
+    required this.id,
+    required this.userId,
+    required this.userName,
+    required this.avatar,
+    required this.title,
+    required this.time,
+    required this.updatedAt,
+    required this.repliesCount,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      userId.hashCode ^
+      userName.hashCode ^
+      avatar.hashCode ^
+      title.hashCode ^
+      time.hashCode ^
+      updatedAt.hashCode ^
+      repliesCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiTopic &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          userId == other.userId &&
+          userName == other.userName &&
+          avatar == other.avatar &&
+          title == other.title &&
+          time == other.time &&
+          updatedAt == other.updatedAt &&
+          repliesCount == other.repliesCount;
+}
+
+class BangumiTopicDetail {
+  final PlatformInt64 id;
+  final String title;
+  final String userId;
+  final String userName;
+  final String avatar;
+  final String time;
+  final String updatedAt;
+  final int repliesCount;
+  final String content;
+  final String contentHtml;
+
+  /// Moderation state of the opening post, using p1's *comment* state enum.
+  /// Distinct from the topic's own state: an admin-closed topic (topic state
+  /// `1`) still shows its body, while a deleted post (comment state `6`/`7`)
+  /// must not.
+  final int contentState;
+  final List<BangumiCommentReaction> reactions;
+  final List<BangumiEpisodeComment> replies;
+
+  const BangumiTopicDetail({
+    required this.id,
+    required this.title,
+    required this.userId,
+    required this.userName,
+    required this.avatar,
+    required this.time,
+    required this.updatedAt,
+    required this.repliesCount,
+    required this.content,
+    required this.contentHtml,
+    required this.contentState,
+    required this.reactions,
+    required this.replies,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      title.hashCode ^
+      userId.hashCode ^
+      userName.hashCode ^
+      avatar.hashCode ^
+      time.hashCode ^
+      updatedAt.hashCode ^
+      repliesCount.hashCode ^
+      content.hashCode ^
+      contentHtml.hashCode ^
+      contentState.hashCode ^
+      reactions.hashCode ^
+      replies.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiTopicDetail &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          userId == other.userId &&
+          userName == other.userName &&
+          avatar == other.avatar &&
+          time == other.time &&
+          updatedAt == other.updatedAt &&
+          repliesCount == other.repliesCount &&
+          content == other.content &&
+          contentHtml == other.contentHtml &&
+          contentState == other.contentState &&
+          reactions == other.reactions &&
+          replies == other.replies;
+}
+
+class BangumiTopicsPage {
+  final List<BangumiTopic> topics;
+  final int? total;
+
+  /// Rows upstream actually returned for this page, before moderation
+  /// filtering. Pagination must advance on this, not on `topics.len()`, or a
+  /// page whose every row was filtered out would look like the end of the list.
+  final int fetchedCount;
+
+  const BangumiTopicsPage({
+    required this.topics,
+    this.total,
+    required this.fetchedCount,
+  });
+
+  @override
+  int get hashCode => topics.hashCode ^ total.hashCode ^ fetchedCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiTopicsPage &&
+          runtimeType == other.runtimeType &&
+          topics == other.topics &&
+          total == other.total &&
+          fetchedCount == other.fetchedCount;
+}
+
 class BangumiUserCollectionEntry {
   final String updatedAt;
   final String comment;

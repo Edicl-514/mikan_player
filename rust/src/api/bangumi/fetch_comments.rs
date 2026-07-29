@@ -69,7 +69,14 @@ pub(super) fn parse_comment_reaction(
     current_user_id: Option<i64>,
 ) -> Option<BangumiCommentReaction> {
     let value = json_i32(&item["value"])?;
-    let name = format!("bgm{value}");
+    let bgm_code = match value {
+        // Bangumi's legacy "like" reaction uses value 0 while the web UI
+        // renders emoji 44, whose public BBCode identifier is bgm67.
+        0 => 67,
+        40..=215 => value - 16,
+        _ => value,
+    };
+    let name = format!("bgm{bgm_code}");
     let (image_url, _) = bangumi_smile_asset(&name)?;
     let users = item["users"].as_array();
     let count = json_i32(&item["total"])
@@ -511,7 +518,7 @@ pub(super) async fn fetch_bangumi_comments_next(
     Ok(parse_bangumi_comments_next(&json, current_user_id))
 }
 
-fn bangumi_comment_state_can_view_content(state: i32) -> bool {
+pub(super) fn bangumi_comment_state_can_view_content(state: i32) -> bool {
     !matches!(state, 1 | 2 | 5 | 6 | 7)
 }
 
@@ -519,17 +526,10 @@ pub(super) fn parse_next_episode_comment(
     item: &serde_json::Value,
     current_user_id: Option<i64>,
 ) -> BangumiEpisodeComment {
-    let user = &item["user"];
-    let user_name = user["nickname"]
-        .as_str()
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| user["username"].as_str().unwrap_or(""))
-        .to_string();
-    let user_id = user["username"]
-        .as_str()
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| user["id"].as_i64().unwrap_or_default().to_string());
+    let user = parse_user_object(item);
+    let user_name = parse_user_name(user);
+    let user_id = parse_user_id(user);
+    let avatar = parse_user_avatar(user);
     let state = json_i32(&item["state"]).unwrap_or(0);
     let content = if bangumi_comment_state_can_view_content(state) {
         item["content"].as_str().unwrap_or("")
@@ -558,7 +558,7 @@ pub(super) fn parse_next_episode_comment(
         id: item["id"].as_i64().unwrap_or_default(),
         user_name,
         user_id,
-        avatar: normalize_avatar_url(user["avatar"]["large"].as_str()),
+        avatar,
         time: item["createdAt"]
             .as_i64()
             .map(format_bangumi_timestamp)
@@ -642,11 +642,11 @@ mod tests {
         assert_eq!(page.comments[0].user_name, "alice");
         assert_eq!(page.comments[0].collection_type, Some(2));
         assert_eq!(page.comments[0].rate, Some(10));
-        assert_eq!(page.comments[0].reactions[0].name, "bgm104");
+        assert_eq!(page.comments[0].reactions[0].name, "bgm88");
         assert!(
             page.comments[0].reactions[0]
                 .image_url
-                .ends_with("/img/smiles/tv/81.gif")
+                .ends_with("/img/smiles/tv/65.gif")
         );
         assert_eq!(page.comments[0].reactions[0].count, 2);
         assert!(page.comments[0].reactions[0].reacted);
@@ -838,5 +838,31 @@ mod tests {
         assert_eq!(fetch_bangumi_episode_comments(8).await.unwrap().len(), 1);
         assert!(fetch_bangumi_episode_comments(9).await.is_err());
         server.shutdown().await;
+    }
+
+    #[test]
+    fn parse_comment_reaction_maps_smileid_140_to_tv_101_gif() {
+        let _config = isolate_runtime_config();
+        let item = json!({
+            "value": 140,
+            "total": 11,
+            "users": []
+        });
+        let reaction = parse_comment_reaction(&item, None).expect("reaction 140 should parse");
+        assert_eq!(reaction.name, "bgm124");
+        assert!(reaction.image_url.ends_with("/img/smiles/tv/101.gif"));
+    }
+
+    #[test]
+    fn parse_comment_reaction_maps_legacy_zero_value_to_tv_44_gif() {
+        let _config = isolate_runtime_config();
+        let item = json!({
+            "value": 0,
+            "total": 1,
+            "users": []
+        });
+        let reaction = parse_comment_reaction(&item, None).expect("reaction 0 should parse");
+        assert_eq!(reaction.name, "bgm67");
+        assert!(reaction.image_url.ends_with("/img/smiles/tv/44.gif"));
     }
 }

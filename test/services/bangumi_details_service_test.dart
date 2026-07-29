@@ -264,6 +264,37 @@ void main() {
       throwsStateError,
     );
   });
+
+  test('topics preserve page arguments and backend errors', () async {
+    backend.topicsPage = const BangumiTopicsPage(
+      topics: [
+        BangumiTopic(
+          id: 2001,
+          userId: 'moyis',
+          userName: 'Uaoko',
+          avatar: '',
+          title: 'Topic',
+          time: 'now',
+          updatedAt: 'now',
+          repliesCount: 24,
+        ),
+      ],
+      total: 1,
+      fetchedCount: 1,
+    );
+
+    expect(
+      await service.fetchTopicsPage(subjectId: 9, page: 3),
+      backend.topicsPage,
+    );
+    expect(backend.topicArgs, [(9, 3)]);
+
+    backend.topicsError = StateError('topics failed');
+    await expectLater(
+      service.fetchTopicsPage(subjectId: 9, page: 4),
+      throwsStateError,
+    );
+  });
 }
 
 AnimeInfo animeInfo({String? fullJson}) => AnimeInfo(
@@ -299,9 +330,14 @@ class FakeBangumiDetailsBackend implements BangumiDetailsBackend {
   List<BangumiDataSiteEntry> sites = const [];
   BangumiCommentsPage commentsPage = const BangumiCommentsPage(comments: []);
   BangumiReviewsPage reviewsPage = const BangumiReviewsPage(reviews: []);
+  BangumiTopicsPage topicsPage = const BangumiTopicsPage(
+    topics: [],
+    fetchedCount: 0,
+  );
   final cachedWrites = <AnimeInfo>[];
   final commentArgs = <(int, int)>[];
   final reviewArgs = <(int, int)>[];
+  final topicArgs = <(int, int)>[];
   Object? subjectError;
   Object? episodesError;
   Object? charactersError;
@@ -309,6 +345,7 @@ class FakeBangumiDetailsBackend implements BangumiDetailsBackend {
   Object? personsError;
   Object? commentsError;
   Object? reviewsError;
+  Object? topicsError;
 
   @override
   Future<AnimeInfo?> getCachedSubject(int subjectId) async {
@@ -414,5 +451,16 @@ class FakeBangumiDetailsBackend implements BangumiDetailsBackend {
     reviewArgs.add((subjectId, page));
     if (reviewsError case final error?) throw error;
     return reviewsPage;
+  }
+
+  @override
+  Future<BangumiTopicsPage> fetchTopics({
+    required int subjectId,
+    required int page,
+  }) async {
+    calls.add('fetchTopics');
+    topicArgs.add((subjectId, page));
+    if (topicsError case final error?) throw error;
+    return topicsPage;
   }
 }

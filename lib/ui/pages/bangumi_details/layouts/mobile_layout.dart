@@ -13,6 +13,7 @@ import 'package:mikan_player/ui/pages/bangumi_details/widgets/header_rating.dart
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/placeholder_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/relations_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/reviews_section.dart';
+import 'package:mikan_player/ui/pages/bangumi_details/widgets/topics_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/section_title.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/sites_section.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/summary_tags.dart';
@@ -36,6 +37,7 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
   final List<BangumiRelatedSubject>? relations;
   final List<BangumiComment>? comments;
   final List<BangumiReview>? reviews;
+  final List<BangumiTopic>? topics;
   final List<BangumiDataSiteEntry>? sites;
   final Map<String, int> personIdMap;
 
@@ -49,6 +51,9 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
   final bool isLoadingReviews;
   final bool isLoadingMoreReviews;
   final bool hasRequestedReviews;
+  final bool isLoadingTopics;
+  final bool isLoadingMoreTopics;
+  final bool hasRequestedTopics;
 
   // Page-level UI state.
   final bool isLocalFavorite;
@@ -87,6 +92,9 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
   final VoidCallback? onLoadMoreReviews;
   final VoidCallback? onEnsureReviewsLoaded;
   final void Function(BangumiReview review)? onReviewTap;
+  final VoidCallback? onLoadMoreTopics;
+  final VoidCallback? onEnsureTopicsLoaded;
+  final void Function(BangumiTopic topic)? onTopicTap;
 
   const BangumiDetailsMobileLayout({
     super.key,
@@ -98,6 +106,7 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     required this.relations,
     required this.comments,
     this.reviews,
+    this.topics,
     required this.sites,
     required this.personIdMap,
     required this.isLoadingEpisodes,
@@ -109,6 +118,9 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     this.isLoadingReviews = false,
     this.isLoadingMoreReviews = false,
     this.hasRequestedReviews = false,
+    this.isLoadingTopics = false,
+    this.isLoadingMoreTopics = false,
+    this.hasRequestedTopics = false,
     required this.isLocalFavorite,
     required this.favoriteType,
     required this.isSelectingFavoriteStatus,
@@ -136,6 +148,9 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     this.onLoadMoreReviews,
     this.onEnsureReviewsLoaded,
     this.onReviewTap,
+    this.onLoadMoreTopics,
+    this.onEnsureTopicsLoaded,
+    this.onTopicTap,
   });
 
   @override
@@ -234,12 +249,7 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
               _buildMobileDetailsTab(context, isDark),
               _buildMobileCommentsTab(context, isDark),
               _buildMobileReviewsTab(context, isDark),
-              _buildMobilePlaceholderTab(
-                context,
-                isDark,
-                AppLocalizations.of(context).bangumiDetailsPlaceholderTopics,
-                Icons.forum_outlined,
-              ),
+              _buildMobileTopicsTab(context, isDark),
             ],
           ),
         ),
@@ -713,30 +723,93 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     );
   }
 
-  Widget _buildMobilePlaceholderTab(
-    BuildContext context,
-    bool isDark,
-    String title,
-    IconData icon,
-  ) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildMobileTopicsTab(BuildContext context, bool isDark) {
+    final l10n = AppLocalizations.of(context);
+    if (!hasRequestedTopics && !isLoadingTopics) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        onEnsureTopicsLoaded?.call();
+      });
+    }
+
+    if (isLoadingTopics) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          Icon(
-            icon,
-            size: 48,
-            color: isDark ? Colors.white38 : Colors.grey[400],
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: SectionTitle(
+              title: l10n.bangumiDetailsTabTopics,
+              isDarkBg: isDark,
+            ),
+          ),
+          const SizedBox(height: 96),
+          Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: isDark ? Colors.white54 : Colors.grey,
+              ),
+            ),
           ),
           const SizedBox(height: 12),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Colors.white54 : Colors.grey[600],
+          Center(
+            child: Text(
+              l10n.loading,
+              style: TextStyle(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.6)
+                    : Colors.grey,
+                fontSize: 14,
+              ),
             ),
           ),
         ],
+      );
+    }
+
+    if (topics == null || topics!.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: SectionTitle(
+              title: l10n.bangumiDetailsTabTopics,
+              isDarkBg: isDark,
+            ),
+          ),
+          const SizedBox(height: 96),
+          Center(
+            child: Text(
+              l10n.bangumiDetailsPlaceholderTopics,
+              style: TextStyle(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.6)
+                    : Colors.grey,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return RepaintBoundary(
+      child: TopicsSection(
+        topics: topics!,
+        isLoading: false,
+        isLoadingMore: isLoadingMoreTopics,
+        isDarkBg: isDark,
+        sectionTitle: SectionTitle(
+          title: l10n.bangumiDetailsTabTopics,
+          isDarkBg: isDark,
+        ),
+        loadingPlaceholder: (_) => const SizedBox.shrink(),
+        onLoadMore: onLoadMoreTopics,
+        onTopicTap: onTopicTap,
       ),
     );
   }

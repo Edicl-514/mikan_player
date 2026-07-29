@@ -2029,6 +2029,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bangumiBlogCommentsLoadFailed => '长评评论加载失败';
 
   @override
+  String get bangumiTopicDetailLoadFailed => '讨论帖内容加载失败';
+
+  @override
   String get bangumiDetailsPlaceholderTopics => '暂无讨论帖';
 
   @override
