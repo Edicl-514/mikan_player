@@ -4,6 +4,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi/types.dart';
 import 'package:mikan_player/src/rust/frb_api/bangumi.dart' as bangumi_api;
 import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
+import 'package:mikan_player/ui/widgets/bangumi_comment_tile.dart';
 import 'package:mikan_player/ui/widgets/bangumi_reaction_badge.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
@@ -281,10 +282,10 @@ class _BangumiTopicDetailDialogState extends State<BangumiTopicDetailDialog> {
                             ),
                             const SizedBox(height: 12),
                             ..._detail!.replies.asMap().entries.map(
-                              (entry) => _TopicCommentTile(
+                              (entry) => BangumiCommentTile(
                                 comment: entry.value,
+                                isDarkBg: isDark,
                                 floorLabel: '#${entry.key + 2}',
-                                isDark: isDark,
                               ),
                             ),
                           ],
@@ -294,177 +295,6 @@ class _BangumiTopicDetailDialogState extends State<BangumiTopicDetailDialog> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _TopicCommentTile extends StatelessWidget {
-  final BangumiEpisodeComment comment;
-  final String? floorLabel;
-  final bool isDark;
-  final bool isSubReply;
-
-  const _TopicCommentTile({
-    required this.comment,
-    this.floorLabel,
-    required this.isDark,
-    this.isSubReply = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final avatarSize = isSubReply ? 24.0 : 32.0;
-    final authorName = comment.userName.isNotEmpty
-        ? comment.userName
-        : (comment.userId.isNotEmpty ? comment.userId : '');
-
-    return Container(
-      margin: EdgeInsets.only(bottom: isSubReply ? 8 : 12),
-      padding: EdgeInsets.all(isSubReply ? 10 : 12),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: isSubReply ? 0.03 : 0.05)
-            : (isSubReply
-                  ? Colors.grey.withValues(alpha: 0.05)
-                  : Colors.grey.withValues(alpha: 0.08)),
-        borderRadius: BorderRadius.circular(8),
-        border: isSubReply
-            ? Border(
-                left: BorderSide(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.4),
-                  width: 2,
-                ),
-              )
-            : null,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: avatarSize,
-                height: avatarSize,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isDark ? Colors.white10 : Colors.grey[200],
-                ),
-                child: ClipOval(
-                  child: comment.avatar.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: comment.avatar,
-                          width: avatarSize,
-                          height: avatarSize,
-                          fit: BoxFit.cover,
-                          errorWidget: Icon(
-                            Icons.person,
-                            size: avatarSize * 0.6,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        )
-                      : Icon(
-                          Icons.person,
-                          size: avatarSize * 0.6,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            authorName,
-                            style: TextStyle(
-                              fontSize: isSubReply ? 12 : 13,
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.onSurface,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (floorLabel != null) ...[
-                          const SizedBox(width: 8),
-                          Text(
-                            floorLabel!,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                        ],
-                        if (comment.time.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Text(
-                            comment.time,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          BangumiCommentBody(
-            state: comment.state,
-            html: comment.contentHtml,
-            textStyle: TextStyle(
-              fontSize: 13,
-              color: theme.colorScheme.onSurface,
-              height: 1.4,
-            ),
-          ),
-          if (!bangumiCommentStateHidesContent(comment.state) &&
-              comment.reactions.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: comment.reactions
-                  .map(
-                    (r) => BangumiReactionBadge(reaction: r, isDarkBg: isDark),
-                  )
-                  .toList(),
-            ),
-          ],
-          if (comment.replies.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: Column(
-                children: comment.replies
-                    .asMap()
-                    .entries
-                    .map(
-                      (entry) => _TopicCommentTile(
-                        comment: entry.value,
-                        floorLabel: floorLabel != null
-                            ? '$floorLabel-${entry.key + 1}'
-                            : null,
-                        isDark: isDark,
-                        isSubReply: true,
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }

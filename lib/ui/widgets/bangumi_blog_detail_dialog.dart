@@ -4,6 +4,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi/types.dart';
 import 'package:mikan_player/src/rust/frb_api/bangumi.dart' as bangumi_api;
 import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
+import 'package:mikan_player/ui/widgets/bangumi_comment_tile.dart';
 import 'package:mikan_player/ui/widgets/bangumi_reaction_badge.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
@@ -366,9 +367,9 @@ class _BangumiBlogDetailDialogState extends State<BangumiBlogDetailDialog> {
                             ),
                             const SizedBox(height: 12),
                             ..._comments!.map(
-                              (comment) => _BlogCommentTile(
+                              (comment) => BangumiCommentTile(
                                 comment: comment,
-                                isDark: isDark,
+                                isDarkBg: isDark,
                               ),
                             ),
                           ],
@@ -378,103 +379,6 @@ class _BangumiBlogDetailDialogState extends State<BangumiBlogDetailDialog> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _BlogCommentTile extends StatelessWidget {
-  final BangumiEpisodeComment comment;
-  final bool isDark;
-
-  const _BlogCommentTile({required this.comment, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.04)
-            : Colors.grey.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              ClipOval(
-                child: comment.avatar.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: comment.avatar,
-                        width: 24,
-                        height: 24,
-                        fit: BoxFit.cover,
-                      )
-                    : const Icon(Icons.person, size: 16),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  comment.userName,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-              ),
-              if (comment.time.isNotEmpty)
-                Text(
-                  comment.time,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          BangumiCommentBody(
-            state: comment.state,
-            html: comment.contentHtml,
-            textStyle: TextStyle(
-              fontSize: 13,
-              color: theme.colorScheme.onSurface,
-              height: 1.4,
-            ),
-          ),
-          if (!bangumiCommentStateHidesContent(comment.state) &&
-              comment.reactions.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: comment.reactions
-                  .map(
-                    (r) => BangumiReactionBadge(reaction: r, isDarkBg: isDark),
-                  )
-                  .toList(),
-            ),
-          ],
-          if (comment.replies.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.only(left: 16),
-              child: Column(
-                children: comment.replies
-                    .map(
-                      (reply) =>
-                          _BlogCommentTile(comment: reply, isDark: isDark),
-                    )
-                    .toList(),
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }

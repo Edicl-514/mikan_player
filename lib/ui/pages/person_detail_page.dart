@@ -11,10 +11,13 @@ import 'package:mikan_player/services/bangumi_reverse_proxy_service.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/bangumi_comment_section.dart';
 
 typedef PersonDetailsLoader = Future<PersonDetails> Function(int id);
 typedef PersonSubjectsLoader = Future<List<PersonSubject>> Function(int id);
 typedef PersonCharactersLoader = Future<List<PersonCharacter>> Function(int id);
+typedef PersonCommentsLoader =
+    Future<List<BangumiEpisodeComment>> Function(int id);
 
 class PersonDetailPage extends StatefulWidget {
   final int personId;
@@ -25,6 +28,7 @@ class PersonDetailPage extends StatefulWidget {
   final PersonDetailsLoader? loadDetails;
   final PersonSubjectsLoader? loadSubjects;
   final PersonCharactersLoader? loadCharacters;
+  final PersonCommentsLoader? loadComments;
 
   const PersonDetailPage({
     super.key,
@@ -36,6 +40,7 @@ class PersonDetailPage extends StatefulWidget {
     this.loadDetails,
     this.loadSubjects,
     this.loadCharacters,
+    this.loadComments,
   });
 
   @override
@@ -57,7 +62,8 @@ class _GroupedCharacter {
   });
 }
 
-class _PersonDetailPageState extends State<PersonDetailPage> {
+class _PersonDetailPageState extends State<PersonDetailPage>
+    with SingleTickerProviderStateMixin {
   late final EntityDetailsController<
     int,
     PersonDetails,
@@ -73,6 +79,17 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   bool get _isLoadingDetails => _controller.isLoadingDetails;
   bool get _isLoadingSubjects => _controller.isLoadingSubjects;
   bool get _isLoadingCharacters => _controller.isLoadingRelated;
+
+  List<BangumiEpisodeComment>? _comments;
+  bool _isLoadingComments = false;
+  bool _commentsFailed = false;
+  // Whether comments have been requested for the current person. Controls
+  // lazy loading: we never fetch comments until the user opens the comments
+  // tab, so the default "subjects" tab doesn't pay for an unused request.
+  bool _commentsLoaded = false;
+  final RequestGenerationGuard _commentsGuard = RequestGenerationGuard();
+
+  late final TabController _mobileTabController;
 
   /// Cached api host used to assemble the `/v0/subjects/{id}/image?type=common`
   /// fallback URL when the per-subject image isn't already known. Refreshed on
@@ -119,6 +136,8 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     // React to runtime changes (the user might toggle reverse-proxy mode while
     // this page is on the navigation stack).
     BangumiReverseProxyService.notifier.addListener(_onReverseProxyChanged);
+    _mobileTabController = TabController(length: 2, vsync: this);
+    _mobileTabController.addListener(_onMobileTabChanged);
     _fetchData();
   }
 
@@ -126,8 +145,16 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
   void didUpdateWidget(covariant PersonDetailPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.personId != widget.personId) {
+      _commentsGuard.invalidate();
       _expandedCharIds.clear();
       _selectedDesktopTabIndex = 0;
+      _mobileTabController.index = 0;
+      setState(() {
+        _commentsLoaded = false;
+        _comments = null;
+        _isLoadingComments = false;
+        _commentsFailed = false;
+      });
       _fetchData();
     }
   }
@@ -147,10 +174,18 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
     }
   }
 
+  void _onMobileTabChanged() {
+    if (_mobileTabController.index == 1) {
+      _ensureCommentsLoaded();
+    }
+  }
+
   @override
   void dispose() {
+    _commentsGuard.dispose();
     _controller.dispose();
     BangumiReverseProxyService.notifier.removeListener(_onReverseProxyChanged);
+    _mobileTabController.dispose();
     _mobileScrollController.dispose();
     _desktopLeftScrollController.dispose();
     _desktopRightScrollController.dispose();
@@ -159,6 +194,42 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
 
   Future<void> _fetchData() async {
     await _controller.load(widget.personId);
+  }
+
+  /// Fetch comments once per person, only when the comments tab is first
+  /// opened. Subsequent tab switches reuse the cached result; the retry button
+  /// calls [_loadComments] directly rather than going through this gate.
+  void _ensureCommentsLoaded() {
+    if (_commentsLoaded) return;
+    _commentsLoaded = true;
+    _loadComments();
+  }
+
+  Future<void> _loadComments() async {
+    if (!mounted) return;
+    final generation = _commentsGuard.begin();
+    final personId = widget.personId;
+    setState(() {
+      _isLoadingComments = true;
+      _commentsFailed = false;
+    });
+    try {
+      final loader =
+          widget.loadComments ??
+          (id) => fetchBangumiPersonComments(personId: id);
+      final comments = await loader(personId);
+      if (!mounted || !_commentsGuard.isCurrent(generation)) return;
+      setState(() {
+        _comments = comments;
+        _isLoadingComments = false;
+      });
+    } catch (e) {
+      if (!mounted || !_commentsGuard.isCurrent(generation)) return;
+      setState(() {
+        _commentsFailed = true;
+        _isLoadingComments = false;
+      });
+    }
   }
 
   List<_GroupedCharacter> _groupCharacters(List<PersonCharacter> chars) {
@@ -380,84 +451,88 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
         ? const Color(0xFF16161E)
         : Theme.of(context).scaffoldBackgroundColor;
 
-    return DefaultTabController(
-      key: ValueKey(widget.personId),
-      length: 2,
-      child: Scaffold(
-        backgroundColor: bgColor,
-        body: NestedScrollView(
-          controller: _mobileScrollController,
-          headerSliverBuilder: (context, innerBoxIsScrolled) {
-            return [
-              SliverToBoxAdapter(
-                child: _buildMobileHeader(context, isDark: isDark),
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: NestedScrollView(
+        controller: _mobileScrollController,
+        headerSliverBuilder: (context, innerBoxIsScrolled) {
+          return [
+            SliverToBoxAdapter(
+              child: _buildMobileHeader(context, isDark: isDark),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _buildSummarySection(context, isDarkBg: isDark),
               ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: _buildSummarySection(context, isDarkBg: isDark),
-                ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildInfoBoxSection(context, isDarkBg: isDark),
               ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildInfoBoxSection(context, isDarkBg: isDark),
-                ),
-              ),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _PersonSliverTabBarDelegate(
-                  TabBar(
-                    labelColor: Theme.of(context).colorScheme.primary,
-                    unselectedLabelColor: isDark
-                        ? Colors.white70
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
-                    indicatorColor: Theme.of(context).colorScheme.primary,
-                    indicatorWeight: 3,
-                    indicatorSize: TabBarIndicatorSize.label,
-                    dividerColor: Colors.transparent,
-                    labelStyle: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    unselectedLabelStyle: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.normal,
-                    ),
-                    tabs: [
-                      Tab(text: l10n.personTabSubjects),
-                      Tab(text: l10n.personTabComments),
-                    ],
+            ),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _PersonSliverTabBarDelegate(
+                TabBar(
+                  controller: _mobileTabController,
+                  labelColor: Theme.of(context).colorScheme.primary,
+                  unselectedLabelColor: isDark
+                      ? Colors.white70
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                  indicatorColor: Theme.of(context).colorScheme.primary,
+                  indicatorWeight: 3,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  dividerColor: Colors.transparent,
+                  labelStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
                   ),
-                  backgroundColor: bgColor,
+                  unselectedLabelStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.normal,
+                  ),
+                  tabs: [
+                    Tab(text: l10n.personTabSubjects),
+                    Tab(text: l10n.personTabComments),
+                  ],
                 ),
+                backgroundColor: bgColor,
               ),
-            ];
-          },
-          body: TabBarView(
-            children: [
-              CustomScrollView(
-                slivers: [
-                  if (_isSeiyu)
-                    ..._buildCharactersSlivers(
-                      context,
-                      padding: const EdgeInsets.all(16),
-                      isDarkBg: isDark,
-                    ),
-                  ..._buildSubjectsSlivers(
+            ),
+          ];
+        },
+        body: TabBarView(
+          controller: _mobileTabController,
+          children: [
+            CustomScrollView(
+              slivers: [
+                if (_isSeiyu)
+                  ..._buildCharactersSlivers(
                     context,
                     padding: const EdgeInsets.all(16),
                     isDarkBg: isDark,
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
-                ],
-              ),
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: _buildPersonCommentsSection(context, isDarkBg: isDark),
-              ),
-            ],
-          ),
+                ..._buildSubjectsSlivers(
+                  context,
+                  padding: const EdgeInsets.all(16),
+                  isDarkBg: isDark,
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 32)),
+              ],
+            ),
+            BangumiCommentSection(
+              isLoading: _isLoadingComments,
+              failed: _commentsFailed,
+              comments: _comments ?? const [],
+              isDarkBg: isDark,
+              emptyMessage: l10n.personCommentsPlaceholder,
+              errorMessage: l10n.personCommentsLoadFailed,
+              retryLabel: l10n.pageRetry,
+              onRetry: _loadComments,
+            ),
+          ],
         ),
       ),
     );
@@ -544,6 +619,9 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                                     _selectedDesktopTabIndex =
                                         newSelection.first;
                                   });
+                                  if (newSelection.first == 1) {
+                                    _ensureCommentsLoaded();
+                                  }
                                 },
                               ),
                             ),
@@ -576,14 +654,19 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
                           isDarkBg: true,
                         ),
                       ] else ...[
-                        SliverPadding(
-                          padding: const EdgeInsets.all(32),
-                          sliver: SliverToBoxAdapter(
-                            child: _buildPersonCommentsSection(
-                              context,
-                              isDarkBg: true,
-                            ),
+                        BangumiCommentSection(
+                          isLoading: _isLoadingComments,
+                          failed: _commentsFailed,
+                          comments: _comments ?? const [],
+                          isDarkBg: true,
+                          useSliver: true,
+                          sliverPadding: const EdgeInsets.symmetric(
+                            horizontal: 32,
                           ),
+                          emptyMessage: l10n.personCommentsPlaceholder,
+                          errorMessage: l10n.personCommentsLoadFailed,
+                          retryLabel: l10n.pageRetry,
+                          onRetry: _loadComments,
                         ),
                       ],
                       const SliverToBoxAdapter(child: SizedBox(height: 50)),
@@ -1703,46 +1786,6 @@ class _PersonDetailPageState extends State<PersonDetailPage> {
               fontSize: 12,
               color: isDarkBg ? Colors.white70 : Colors.grey,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPersonCommentsSection(
-    BuildContext context, {
-    required bool isDarkBg,
-  }) {
-    final l10n = AppLocalizations.of(context);
-    final textColor = isDarkBg ? Colors.white70 : Colors.black87;
-    final cardBg = isDarkBg
-        ? Colors.white.withValues(alpha: 0.05)
-        : Colors.black.withValues(alpha: 0.03);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDarkBg
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.black.withValues(alpha: 0.08),
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.comment_outlined,
-            size: 48,
-            color: isDarkBg ? Colors.white38 : Colors.grey[400],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            l10n.personCommentsPlaceholder,
-            style: TextStyle(fontSize: 14, color: textColor),
           ),
         ],
       ),

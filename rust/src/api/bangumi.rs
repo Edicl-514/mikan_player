@@ -17,7 +17,9 @@ pub(crate) use auth::{
     bangumi_oauth_authorize_url, bangumi_oauth_client_id, exchange_bangumi_oauth_code,
     refresh_bangumi_oauth_token,
 };
-pub(crate) use character_detail::{fetch_character_details, fetch_character_subjects};
+pub(crate) use character_detail::{
+    fetch_character_comments, fetch_character_details, fetch_character_subjects,
+};
 pub(crate) use fetch_characters::fetch_bangumi_characters;
 pub(crate) use fetch_comments::{fetch_bangumi_comments, fetch_bangumi_episode_comments};
 pub(crate) use fetch_episodes::fetch_bangumi_episodes;
@@ -28,7 +30,7 @@ pub(crate) use fetch_reviews::{
 };
 pub(crate) use fetch_topics::{fetch_bangumi_subject_topics, fetch_bangumi_topic_detail};
 pub(crate) use person_detail::{
-    fetch_person_characters, fetch_person_details, fetch_person_subjects,
+    fetch_person_characters, fetch_person_comments, fetch_person_details, fetch_person_subjects,
 };
 pub(crate) use types::*;
 pub(crate) use user::{

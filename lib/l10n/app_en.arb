@@ -905,11 +905,19 @@
   },
   "characterCommentsPlaceholder": "No character comments yet",
   "@characterCommentsPlaceholder": {
-    "description": "Placeholder for character comments."
+    "description": "Placeholder shown when a character has no comments."
+  },
+  "characterCommentsLoadFailed": "Unable to load character comments",
+  "@characterCommentsLoadFailed": {
+    "description": "Error shown when character comments fail to load. Paired with a retry button, separate from the empty placeholder."
   },
   "personCommentsPlaceholder": "No person comments yet",
   "@personCommentsPlaceholder": {
-    "description": "Placeholder for person comments."
+    "description": "Placeholder shown when a person has no comments."
+  },
+  "personCommentsLoadFailed": "Unable to load person comments",
+  "@personCommentsLoadFailed": {
+    "description": "Error shown when person comments fail to load. Paired with a retry button, separate from the empty placeholder."
   },
   "bangumiDetailsCharacters": "Characters",
   "@bangumiDetailsCharacters": {

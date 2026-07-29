@@ -1,0 +1,73 @@
+[
+  {
+    "id": 2785,
+    "mainID": 1,
+    "creatorID": 36260,
+    "relatedID": 0,
+    "createdAt": 1307623699,
+    "content": "captured top-level comment",
+    "state": 0,
+    "replies": [
+      {
+        "id": 219987,
+        "mainID": 1,
+        "creatorID": 190820,
+        "relatedID": 2785,
+        "createdAt": 1674742936,
+        "content": "[b]nested reply[/b]",
+        "state": 0,
+        "relatedPhotoID": 0,
+        "user": {
+          "id": 190820,
+          "username": "190820",
+          "nickname": "Nested User",
+          "avatar": {
+            "small": "https://lain.bgm.tv/r/100/pic/user/l/000/19/08/190820.jpg",
+            "medium": "https://lain.bgm.tv/r/200/pic/user/l/000/19/08/190820.jpg",
+            "large": "https://lain.bgm.tv/pic/user/l/000/19/08/190820.jpg"
+          },
+          "group": 10,
+          "sign": "",
+          "joinedAt": 1395160478
+        }
+      }
+    ],
+    "reactions": [
+      {
+        "value": 38,
+        "users": [
+          {
+            "id": 190820,
+            "username": "190820",
+            "nickname": "Nested User"
+          }
+        ]
+      }
+    ],
+    "relatedPhotoID": 0,
+    "user": {
+      "id": 36260,
+      "username": "captured-user",
+      "nickname": "Captured User",
+      "avatar": {
+        "small": "https://lain.bgm.tv/r/100/pic/user/l/000/03/62/36260.jpg",
+        "medium": "https://lain.bgm.tv/r/200/pic/user/l/000/03/62/36260.jpg",
+        "large": "https://lain.bgm.tv/pic/user/l/000/03/62/36260.jpg"
+      },
+      "group": 10,
+      "sign": "",
+      "joinedAt": 1307620304
+    }
+  },
+  {
+    "id": 2786,
+    "mainID": 1,
+    "creatorID": 0,
+    "relatedID": 0,
+    "createdAt": 1307623700,
+    "content": "deleted content must not render",
+    "state": 6,
+    "replies": [],
+    "relatedPhotoID": 0
+  }
+]

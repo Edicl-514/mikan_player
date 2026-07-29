@@ -905,11 +905,19 @@
   },
   "characterCommentsPlaceholder": "暂无角色吐槽",
   "@characterCommentsPlaceholder": {
-    "description": "Placeholder for character comments."
+    "description": "Placeholder shown when a character has no comments."
+  },
+  "characterCommentsLoadFailed": "角色吐槽加载失败",
+  "@characterCommentsLoadFailed": {
+    "description": "Error shown when character comments fail to load. Paired with a retry button, separate from the empty placeholder."
   },
   "personCommentsPlaceholder": "暂无人物吐槽",
   "@personCommentsPlaceholder": {
-    "description": "Placeholder for person comments."
+    "description": "Placeholder shown when a person has no comments."
+  },
+  "personCommentsLoadFailed": "人物吐槽加载失败",
+  "@personCommentsLoadFailed": {
+    "description": "Error shown when person comments fail to load. Paired with a retry button, separate from the empty placeholder."
   },
   "bangumiDetailsCharacters": "角色",
   "@bangumiDetailsCharacters": {

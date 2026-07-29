@@ -2119,7 +2119,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get characterCommentsPlaceholder => 'No character comments yet';
 
   @override
+  String get characterCommentsLoadFailed => 'Unable to load character comments';
+
+  @override
   String get personCommentsPlaceholder => 'No person comments yet';
+
+  @override
+  String get personCommentsLoadFailed => 'Unable to load person comments';
 
   @override
   String get bangumiDetailsCharacters => 'Characters';

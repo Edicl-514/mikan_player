@@ -190,6 +190,28 @@ pub async fn fetch_character_subjects(
     )
 }
 
+pub async fn fetch_bangumi_character_comments(
+    character_id: i64,
+) -> anyhow::Result<Vec<bangumi_impl::BangumiEpisodeComment>> {
+    const API: &str = "fetch_bangumi_character_comments";
+    contract::public_result(
+        API,
+        contract::require_positive_i64("character_id", character_id),
+    )?;
+    contract::public_result(
+        API,
+        bangumi_impl::fetch_character_comments(character_id).await,
+    )
+}
+
+pub async fn fetch_bangumi_person_comments(
+    person_id: i64,
+) -> anyhow::Result<Vec<bangumi_impl::BangumiEpisodeComment>> {
+    const API: &str = "fetch_bangumi_person_comments";
+    contract::public_result(API, contract::require_positive_i64("person_id", person_id))?;
+    contract::public_result(API, bangumi_impl::fetch_person_comments(person_id).await)
+}
+
 pub async fn fetch_bangumi_user_info(
     username: String,
 ) -> anyhow::Result<bangumi_impl::BangumiUserInfo> {

@@ -2038,7 +2038,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get characterCommentsPlaceholder => '暂无角色吐槽';
 
   @override
+  String get characterCommentsLoadFailed => '角色吐槽加载失败';
+
+  @override
   String get personCommentsPlaceholder => '暂无人物吐槽';
+
+  @override
+  String get personCommentsLoadFailed => '人物吐槽加载失败';
 
   @override
   String get bangumiDetailsCharacters => '角色';

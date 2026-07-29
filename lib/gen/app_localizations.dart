@@ -3877,17 +3877,29 @@ abstract class AppLocalizations {
   /// **'暂无讨论帖'**
   String get bangumiDetailsPlaceholderTopics;
 
-  /// Placeholder for character comments.
+  /// Placeholder shown when a character has no comments.
   ///
   /// In zh, this message translates to:
   /// **'暂无角色吐槽'**
   String get characterCommentsPlaceholder;
 
-  /// Placeholder for person comments.
+  /// Error shown when character comments fail to load. Paired with a retry button, separate from the empty placeholder.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色吐槽加载失败'**
+  String get characterCommentsLoadFailed;
+
+  /// Placeholder shown when a person has no comments.
   ///
   /// In zh, this message translates to:
   /// **'暂无人物吐槽'**
   String get personCommentsPlaceholder;
+
+  /// Error shown when person comments fail to load. Paired with a retry button, separate from the empty placeholder.
+  ///
+  /// In zh, this message translates to:
+  /// **'人物吐槽加载失败'**
+  String get personCommentsLoadFailed;
 
   /// Bangumi details characters section title.
   ///

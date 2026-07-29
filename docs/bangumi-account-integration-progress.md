@@ -21,7 +21,7 @@ v0 = `bangumi/api` 仓库 `open-api/v0.yaml`。
 |---|---|---|---|
 | **Phase 1** | OAuth 登录 + 收藏状态同步 | 有 | ✅ 已完成 |
 | Phase 2 | 收藏的评价 / 评分 / 标签 / 隐私 | 有 | ✅ 代码完成（真实账号验收待执行） |
-| Phase 3 | 社区内容只读（条目吐槽、长评、讨论版、透视、角色 / 人物吐槽） | 无 | 🚧 3A/3B/3C（仅条目讨论）已完成，小组讨论与 3D–3E 待开发 |
+| Phase 3 | 社区内容只读（条目吐槽、长评、讨论版、透视、角色 / 人物吐槽） | 无 | 🚧 3A/3B/3C（仅条目讨论）已完成；3E 角色 / 人物吐槽已完成（吐槽 + 去重 + 懒加载），图片吐槽与 collects 见 5.3.3E；3D 待开发 |
 | — | 发送吐槽 / 发帖 / 说句话 | — | ❌ 不实现，见第 6 章 |
 
 ---
@@ -494,6 +494,54 @@ GET https://next.bgm.tv/p1/persons/{personID}/photos/{photoID}/comments
 - 可挂在现有角色 / 人物详情页（`api/bangumi/character_detail.rs`、`person_detail.rs`）。
 - 附带可用：`GET /p1/subjects/{subjectID}/collects`（谁收藏了本条目，
   支持 `mode=all|friends`）、`/p1/characters/{id}/collects`、`/p1/persons/{id}/collects`。
+
+##### 已落地（2026-07-29）
+
+- Rust 端实现 `fetch_character_comments` / `fetch_person_comments`：
+  与角色 / 人物详情页的其余 p1 调用一样走 `bangumi_next_request`
+  决定的 URL + bearer 快照；登录时携带 token 让 reaction 高亮，未登录走匿名
+  GET；404 / 400 视作空列表，不作为错误上抛。fixture + mock server 解析测试
+  见 `character_detail.rs:321`、`person_detail.rs:292`。
+- Dart 端在 `CharacterDetailPage` / `PersonDetailPage` 中贯通角色 / 人物吐槽
+  展示，并把吐槽区收敛到三个状态（loading / 失败 / 空 / 列表）。
+- 抽出 `BangumiCommentTile`（`lib/ui/widgets/bangumi_comment_tile.dart`）作为
+  吐槽行的唯一实现，统一头像、author、时间、楼层标、BangumiCommentBody、reactions、
+  子回复递归；原先四份近乎逐行重复的拷贝（`_BangumiCommentTile`、
+  `_PersonCommentTile`、`_BlogCommentTile`、`_TopicCommentTile`）全部删除，
+  长评 / 讨论帖对话框复用以共用一份 widget。
+- 抽出 `BangumiCommentSection`（`lib/ui/widgets/bangumi_comment_section.dart`）
+  同时承担 box（移动端 `TabBarView` 子）与 sliver（桌面 `CustomScrollView`）
+  两种渲染，三种状态各自写一遍的 `*CommentsSection` + `*CommentsSlivers`
+  重复分支全部移除；参数化为空 / 错误的本地化文案 + 重试回调。
+- 错误态单独使用 `characterCommentsLoadFailed` /
+  `personCommentsLoadFailed`（中：角色吐槽加载失败 / 人物吐槽加载失败），
+  配红色 error 图标 + 重试按钮；不再复用 `*Placeholder`，避免「暂无吐槽」
+  与报错标志并存的语义矛盾。
+- 吐槽请求改为懒加载：进入角色 / 人物详情页默认在「出演作品」/「作品」Tab，
+  切到吐槽 Tab 时才触发首次 `loadComments`，重试按钮仍直接复用同一加载路径。
+  切换时由 `SingleTickerProviderStateMixin` 持有的 `TabController` 监听
+  index 变化（移动端）/ `SegmentedButton.onSelectionChanged`（桌面端）触发
+  `_ensureCommentsLoaded`，加载成功后 Tab 间切换复用缓存。`didUpdateWidget`
+  在角色 / 人物 ID 变化时重置 `_commentsLoaded`、清空数据并把 `_mobileTabController.index`
+  拉回 0。
+- `flutter analyze` 整库通过（2026-07-29）。
+
+##### 未实现：图片吐槽
+
+`/p1/characters/{characterID}/photos/{photoID}/comments` 与
+`/p1/persons/{personID}/photos/{photoID}/comments` 未实现。两者返回的响应 schema
+与同实体的根级 `comments` 相同（裸 `Reply[]`，含 `user` / `reactions` /
+嵌套 `replies`），可以直接复用 `parse_next_episode_comment`，但缺一个能消费
+它们的图片查看 UI：角色 / 人物详情页当前没有照片廊（`/photos`、`/photos/preview`、
+`/photos/{photoID}` 同样未接入），仅为补全两个 GET 端点去写一层无 UI 的
+fetch 没有意义。后续若要做，应先把照片廊整体（列表 / 预览 / 大图查看器）
+作为前置工作落地，再接入这两条评论端点。
+
+##### 未实现：collects
+
+`/p1/subjects/{subjectID}/collects`、`/p1/characters/{id}/collects`、
+`/p1/persons/{id}/collects` 未实现。文档已将其标注为「附带可用」，
+本轮范围内不做。
 
 #### 通用实现约束
 

@@ -164,11 +164,60 @@ pub(crate) async fn fetch_character_subjects(
     Ok(parse_character_subjects(&subjects_json, &persons_json))
 }
 
+pub(super) const BANGUMI_CHARACTER_COMMENTS_NEXT_LABEL: &str = "bangumi.comments.character.next";
+
+/// Fetch comments for a character.
+/// API: GET https://next.bgm.tv/p1/characters/{character_id}/comments
+pub(crate) async fn fetch_character_comments(
+    character_id: i64,
+) -> anyhow::Result<Vec<BangumiEpisodeComment>> {
+    let (url, access_token, current_user_id) =
+        bangumi_next_request(&format!("/p1/characters/{character_id}/comments"));
+
+    let resp = crate::api::network::retry_request_bangumi_with_status(
+        BANGUMI_CHARACTER_COMMENTS_NEXT_LABEL,
+        move |client| {
+            let request = client.get(&url).header("accept", "application/json");
+            match &access_token {
+                Some(token) => request.header("Authorization", format!("Bearer {token}")),
+                None => request,
+            }
+        },
+        true,
+    )
+    .await?;
+
+    let status = resp.status();
+    if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::BAD_REQUEST {
+        return Ok(Vec::new());
+    }
+
+    if !status.is_success() {
+        anyhow::bail!("next character comments failed with status {}", status);
+    }
+
+    let json: serde_json::Value = resp.json().await?;
+    let comments = json
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| {
+                    super::fetch_comments::parse_next_episode_comment(item, current_user_id)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(comments)
+}
+
 // ============================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::fixture::fixture_json;
     use crate::test_support::http_server::{TestResponse, TestRoute, TestServer};
     use crate::test_support::state::isolate_runtime_config;
     use axum::http::StatusCode;
@@ -177,6 +226,7 @@ mod tests {
     fn point_bangumi_at(base_url: &str) {
         let mut config = crate::api::config::CONFIG.write().unwrap();
         config.bangumi_api_url = base_url.to_string();
+        config.bangumi_next_url = base_url.to_string();
         config.bangumi_url = base_url.to_string();
         config.bangumi_use_ech = false;
         config.bangumi_use_reverse_proxy = false;
@@ -265,6 +315,48 @@ mod tests {
                 .to_string()
                 .contains("Failed to fetch character details: 404")
         );
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn fetch_character_comments_returns_parsed_list_and_handles_404() {
+        let _config = isolate_runtime_config();
+        let fixture: serde_json::Value = fixture_json("bangumi/reply_comments.json");
+        let server = TestServer::spawn([
+            TestRoute::get(
+                "/p1/characters/101/comments",
+                TestResponse::ok(fixture.to_string())
+                    .with_header("content-type", "application/json"),
+            ),
+            TestRoute::get(
+                "/p1/characters/404/comments",
+                TestResponse::new(StatusCode::NOT_FOUND, "missing"),
+            ),
+        ])
+        .await;
+        point_bangumi_at(&server.base_url());
+
+        let comments = fetch_character_comments(101).await.unwrap();
+        assert_eq!(comments.len(), 2);
+        assert_eq!(comments[0].id, 2785);
+        assert_eq!(comments[0].user_name, "Captured User");
+        assert_eq!(comments[0].replies.len(), 1);
+        assert_eq!(comments[0].replies[0].user_name, "Nested User");
+        assert!(
+            comments[0].replies[0]
+                .content_html
+                .contains("font-weight:bold")
+        );
+        assert_eq!(comments[0].reactions.len(), 1);
+        assert!(!comments[0].reactions[0].reacted);
+        assert_eq!(comments[1].state, 6);
+        assert!(comments[1].user_name.is_empty());
+        assert!(comments[1].content_html.is_empty());
+        assert!(server.requests()[0].headers.get("authorization").is_none());
+
+        let missing = fetch_character_comments(404).await.unwrap();
+        assert!(missing.is_empty());
+
         server.shutdown().await;
     }
 }

@@ -9,10 +9,13 @@ import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/bangumi_comment_section.dart';
 
 typedef CharacterDetailsLoader = Future<CharacterDetails> Function(int id);
 typedef CharacterSubjectsLoader =
     Future<List<CharacterSubject>> Function(int id);
+typedef CharacterCommentsLoader =
+    Future<List<BangumiEpisodeComment>> Function(int id);
 
 class CharacterDetailPage extends StatefulWidget {
   final int characterId;
@@ -22,6 +25,7 @@ class CharacterDetailPage extends StatefulWidget {
   final String? heroTag;
   final CharacterDetailsLoader? loadDetails;
   final CharacterSubjectsLoader? loadSubjects;
+  final CharacterCommentsLoader? loadComments;
 
   const CharacterDetailPage({
     super.key,
@@ -32,13 +36,15 @@ class CharacterDetailPage extends StatefulWidget {
     this.heroTag,
     this.loadDetails,
     this.loadSubjects,
+    this.loadComments,
   });
 
   @override
   State<CharacterDetailPage> createState() => _CharacterDetailPageState();
 }
 
-class _CharacterDetailPageState extends State<CharacterDetailPage> {
+class _CharacterDetailPageState extends State<CharacterDetailPage>
+    with SingleTickerProviderStateMixin {
   late final EntityDetailsController<
     int,
     CharacterDetails,
@@ -51,6 +57,17 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
   List<CharacterSubject> get _subjects => _controller.subjects;
   bool get _isLoadingDetails => _controller.isLoadingDetails;
   bool get _isLoadingSubjects => _controller.isLoadingSubjects;
+
+  List<BangumiEpisodeComment>? _comments;
+  bool _isLoadingComments = false;
+  bool _commentsFailed = false;
+  // Whether comments have been requested for the current character. Controls
+  // lazy loading: we never fetch comments until the user opens the comments
+  // tab, so the default "subjects" tab doesn't pay for an unused request.
+  bool _commentsLoaded = false;
+  final RequestGenerationGuard _commentsGuard = RequestGenerationGuard();
+
+  late final TabController _mobileTabController;
 
   final ScrollController _mobileScrollController =
       createPlatformScrollController();
@@ -77,6 +94,8 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                 (id) => fetchCharacterSubjects(characterId: id),
           )
           ..addListener(_onControllerChanged);
+    _mobileTabController = TabController(length: 2, vsync: this);
+    _mobileTabController.addListener(_onMobileTabChanged);
     _fetchData();
   }
 
@@ -84,8 +103,22 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
   void didUpdateWidget(covariant CharacterDetailPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.characterId != widget.characterId) {
+      _commentsGuard.invalidate();
       _selectedDesktopTabIndex = 0;
+      _mobileTabController.index = 0;
+      setState(() {
+        _commentsLoaded = false;
+        _comments = null;
+        _isLoadingComments = false;
+        _commentsFailed = false;
+      });
       _fetchData();
+    }
+  }
+
+  void _onMobileTabChanged() {
+    if (_mobileTabController.index == 1) {
+      _ensureCommentsLoaded();
     }
   }
 
@@ -95,7 +128,9 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
 
   @override
   void dispose() {
+    _commentsGuard.dispose();
     _controller.dispose();
+    _mobileTabController.dispose();
     _mobileScrollController.dispose();
     _desktopLeftScrollController.dispose();
     _desktopRightScrollController.dispose();
@@ -104,6 +139,42 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
 
   Future<void> _fetchData() async {
     await _controller.load(widget.characterId);
+  }
+
+  /// Fetch comments once per character, only when the comments tab is first
+  /// opened. Subsequent tab switches reuse the cached result; the retry button
+  /// calls [_loadComments] directly rather than going through this gate.
+  void _ensureCommentsLoaded() {
+    if (_commentsLoaded) return;
+    _commentsLoaded = true;
+    _loadComments();
+  }
+
+  Future<void> _loadComments() async {
+    if (!mounted) return;
+    final generation = _commentsGuard.begin();
+    final characterId = widget.characterId;
+    setState(() {
+      _isLoadingComments = true;
+      _commentsFailed = false;
+    });
+    try {
+      final loader =
+          widget.loadComments ??
+          (id) => fetchBangumiCharacterComments(characterId: id);
+      final comments = await loader(characterId);
+      if (!mounted || !_commentsGuard.isCurrent(generation)) return;
+      setState(() {
+        _comments = comments;
+        _isLoadingComments = false;
+      });
+    } catch (e) {
+      if (!mounted || !_commentsGuard.isCurrent(generation)) return;
+      setState(() {
+        _commentsFailed = true;
+        _isLoadingComments = false;
+      });
+    }
   }
 
   void _openBangumiPage(int subjectId) {
@@ -254,75 +325,76 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
         ? const Color(0xFF16161E)
         : Theme.of(context).scaffoldBackgroundColor;
 
-    return DefaultTabController(
-      key: ValueKey(widget.characterId),
-      length: 2,
-      child: Scaffold(
-        backgroundColor: bgColor,
-        body: NestedScrollView(
-          controller: _mobileScrollController,
-          headerSliverBuilder: (context, innerBoxIsScrolled) {
-            return [
-              SliverToBoxAdapter(
-                child: _buildMobileHeader(context, isDark: isDark),
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: NestedScrollView(
+        controller: _mobileScrollController,
+        headerSliverBuilder: (context, innerBoxIsScrolled) {
+          return [
+            SliverToBoxAdapter(
+              child: _buildMobileHeader(context, isDark: isDark),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _buildSummarySection(context, isDarkBg: isDark),
               ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: _buildSummarySection(context, isDarkBg: isDark),
-                ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildInfoBoxSection(context, isDarkBg: isDark),
               ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildInfoBoxSection(context, isDarkBg: isDark),
-                ),
-              ),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _CharacterSliverTabBarDelegate(
-                  TabBar(
-                    labelColor: Theme.of(context).colorScheme.primary,
-                    unselectedLabelColor: isDark
-                        ? Colors.white70
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
-                    indicatorColor: Theme.of(context).colorScheme.primary,
-                    indicatorWeight: 3,
-                    indicatorSize: TabBarIndicatorSize.label,
-                    dividerColor: Colors.transparent,
-                    labelStyle: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    unselectedLabelStyle: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.normal,
-                    ),
-                    tabs: [
-                      Tab(text: l10n.characterTabSubjects),
-                      Tab(text: l10n.characterTabComments),
-                    ],
+            ),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _CharacterSliverTabBarDelegate(
+                TabBar(
+                  controller: _mobileTabController,
+                  labelColor: Theme.of(context).colorScheme.primary,
+                  unselectedLabelColor: isDark
+                      ? Colors.white70
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                  indicatorColor: Theme.of(context).colorScheme.primary,
+                  indicatorWeight: 3,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  dividerColor: Colors.transparent,
+                  labelStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
                   ),
-                  backgroundColor: bgColor,
+                  unselectedLabelStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.normal,
+                  ),
+                  tabs: [
+                    Tab(text: l10n.characterTabSubjects),
+                    Tab(text: l10n.characterTabComments),
+                  ],
                 ),
+                backgroundColor: bgColor,
               ),
-            ];
-          },
-          body: TabBarView(
-            children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: _buildSubjectsSection(context, isDarkBg: isDark),
-              ),
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: _buildCharacterCommentsSection(
-                  context,
-                  isDarkBg: isDark,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ];
+        },
+        body: TabBarView(
+          controller: _mobileTabController,
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: _buildSubjectsSection(context, isDarkBg: isDark),
+            ),
+            BangumiCommentSection(
+              isLoading: _isLoadingComments,
+              failed: _commentsFailed,
+              comments: _comments ?? const [],
+              isDarkBg: isDark,
+              emptyMessage: l10n.characterCommentsPlaceholder,
+              errorMessage: l10n.characterCommentsLoadFailed,
+              retryLabel: l10n.pageRetry,
+              onRetry: _loadComments,
+            ),
+          ],
         ),
       ),
     );
@@ -364,63 +436,88 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
                 ),
                 // Right Panel
                 Expanded(
-                  child: SingleChildScrollView(
+                  child: CustomScrollView(
                     controller: _desktopRightScrollController,
-                    padding: EdgeInsets.fromLTRB(32, topInset, 32, 32),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildTitleSection(context, isDarkBg: true),
-                        const SizedBox(height: 32),
-                        _buildSummarySection(context, isDarkBg: true),
-                        const SizedBox(height: 32),
-                        SizedBox(
-                          width: double.infinity,
-                          child: SegmentedButton<int>(
-                            style: SegmentedButton.styleFrom(
-                              selectedForegroundColor: Colors.white,
-                              selectedBackgroundColor: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.35),
-                              foregroundColor: Colors.white70,
-                              backgroundColor: Colors.black.withValues(
-                                alpha: 0.25,
-                              ),
-                              side: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.15),
+                    slivers: [
+                      SliverPadding(
+                        padding: EdgeInsets.fromLTRB(32, topInset, 32, 24),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate([
+                            _buildTitleSection(context, isDarkBg: true),
+                            const SizedBox(height: 32),
+                            _buildSummarySection(context, isDarkBg: true),
+                            const SizedBox(height: 32),
+                            SizedBox(
+                              width: double.infinity,
+                              child: SegmentedButton<int>(
+                                style: SegmentedButton.styleFrom(
+                                  selectedForegroundColor: Colors.white,
+                                  selectedBackgroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.35),
+                                  foregroundColor: Colors.white70,
+                                  backgroundColor: Colors.black.withValues(
+                                    alpha: 0.25,
+                                  ),
+                                  side: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                  ),
+                                ),
+                                segments: [
+                                  ButtonSegment<int>(
+                                    value: 0,
+                                    label: Text(l10n.characterTabSubjects),
+                                    icon: const Icon(Icons.movie_outlined),
+                                  ),
+                                  ButtonSegment<int>(
+                                    value: 1,
+                                    label: Text(l10n.characterTabComments),
+                                    icon: const Icon(Icons.comment_outlined),
+                                  ),
+                                ],
+                                selected: {_selectedDesktopTabIndex},
+                                onSelectionChanged: (newSelection) {
+                                  setState(() {
+                                    _selectedDesktopTabIndex =
+                                        newSelection.first;
+                                  });
+                                  if (newSelection.first == 1) {
+                                    _ensureCommentsLoaded();
+                                  }
+                                },
                               ),
                             ),
-                            segments: [
-                              ButtonSegment<int>(
-                                value: 0,
-                                label: Text(l10n.characterTabSubjects),
-                                icon: const Icon(Icons.movie_outlined),
-                              ),
-                              ButtonSegment<int>(
-                                value: 1,
-                                label: Text(l10n.characterTabComments),
-                                icon: const Icon(Icons.comment_outlined),
-                              ),
-                            ],
-                            selected: {_selectedDesktopTabIndex},
-                            onSelectionChanged: (newSelection) {
-                              setState(() {
-                                _selectedDesktopTabIndex = newSelection.first;
-                              });
-                            },
+                          ]),
+                        ),
+                      ),
+                      if (_selectedDesktopTabIndex == 0) ...[
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          sliver: SliverToBoxAdapter(
+                            child: _buildSubjectsSection(
+                              context,
+                              isDarkBg: true,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        if (_selectedDesktopTabIndex == 0)
-                          _buildSubjectsSection(context, isDarkBg: true)
-                        else
-                          _buildCharacterCommentsSection(
-                            context,
-                            isDarkBg: true,
+                      ] else ...[
+                        BangumiCommentSection(
+                          isLoading: _isLoadingComments,
+                          failed: _commentsFailed,
+                          comments: _comments ?? const [],
+                          isDarkBg: true,
+                          useSliver: true,
+                          sliverPadding: const EdgeInsets.symmetric(
+                            horizontal: 32,
                           ),
-                        const SizedBox(height: 50),
+                          emptyMessage: l10n.characterCommentsPlaceholder,
+                          errorMessage: l10n.characterCommentsLoadFailed,
+                          retryLabel: l10n.pageRetry,
+                          onRetry: _loadComments,
+                        ),
                       ],
-                    ),
+                      const SliverToBoxAdapter(child: SizedBox(height: 50)),
+                    ],
                   ),
                 ),
               ],
@@ -1352,46 +1449,6 @@ class _CharacterDetailPageState extends State<CharacterDetailPage> {
       default:
         return gender;
     }
-  }
-
-  Widget _buildCharacterCommentsSection(
-    BuildContext context, {
-    required bool isDarkBg,
-  }) {
-    final l10n = AppLocalizations.of(context);
-    final textColor = isDarkBg ? Colors.white70 : Colors.black87;
-    final cardBg = isDarkBg
-        ? Colors.white.withValues(alpha: 0.05)
-        : Colors.black.withValues(alpha: 0.03);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDarkBg
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.black.withValues(alpha: 0.08),
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.comment_outlined,
-            size: 48,
-            color: isDarkBg ? Colors.white38 : Colors.grey[400],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            l10n.characterCommentsPlaceholder,
-            style: TextStyle(fontSize: 14, color: textColor),
-          ),
-        ],
-      ),
-    );
   }
 }
 
