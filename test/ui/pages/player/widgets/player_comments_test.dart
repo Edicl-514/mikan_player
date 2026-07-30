@@ -271,9 +271,9 @@ void main() {
         );
         expect(image.imageUrl, 'https://lain.bgm.tv/img/smiles/bgm/01.png');
         expect(image.fit, BoxFit.contain);
-        // Smiles render inline at the resolved size.
-        expect(image.width, 42);
-        expect(image.height, 42);
+        // Smiles render inline at the resolved size (24x24 for old small smiles).
+        expect(image.width, 24);
+        expect(image.height, 24);
       },
     );
 
@@ -456,54 +456,44 @@ void main() {
     });
 
     group('bangumiSmileSize', () {
-      test('both attributes null falls back to 42x42', () {
-        const size = Size.square(42);
-        expect(bangumiSmileSize(), size);
-        expect(bangumiSmileSize(widthAttr: '', heightAttr: ''), size);
+      test('both attributes null falls back to 24x24 for old small smiles and 42x42 for large smiles', () {
+        expect(bangumiSmileSize(), const Size.square(24));
+        expect(bangumiSmileSize(widthAttr: '', heightAttr: ''), const Size.square(24));
+        expect(bangumiSmileSize(isLarge: true), const Size.square(42));
       });
 
-      test('scale >= 1 keeps raw clamped to 18..64 (e.g. 20x20)', () {
+      test('small smile with raw dimensions is clamped to 14..28', () {
         final size = bangumiSmileSize(widthAttr: '20', heightAttr: '20');
         expect(size.width, 20);
         expect(size.height, 20);
+
+        final largeClamped = bangumiSmileSize(widthAttr: '100', heightAttr: '100');
+        expect(largeClamped.width, 24);
+        expect(largeClamped.height, 24);
       });
 
-      test('landscape input scales to a width of 42 (42x21 for 100x50)', () {
-        final size = bangumiSmileSize(widthAttr: '100', heightAttr: '50');
+      test('landscape input for large smiles scales to a width of 42', () {
+        final size = bangumiSmileSize(widthAttr: '100', heightAttr: '50', isLarge: true);
         expect(size.width, 42);
         expect(size.height, closeTo(21, 1e-9));
       });
 
-      test('portrait input scales to a height of 42 (21x42 for 50x100)', () {
-        final size = bangumiSmileSize(widthAttr: '50', heightAttr: '100');
+      test('portrait input for large smiles scales to a height of 42', () {
+        final size = bangumiSmileSize(widthAttr: '50', heightAttr: '100', isLarge: true);
         expect(size.width, closeTo(21, 1e-9));
         expect(size.height, 42);
       });
 
-      test('oversized clamps the smaller axis to 18 (portrait 300x3000)', () {
-        final size = bangumiSmileSize(widthAttr: '300', heightAttr: '3000');
-        // scale = 42/3000 (the larger axis dominates); the smaller axis
-        // 300 * 0.014 = 4.2 → clamped to 18, the larger axis stays 42.
-        expect(size.width, 18);
-        expect(size.height, 42);
-      });
-
-      test('oversized clamps the smaller axis to 18 (landscape 3000x300)', () {
-        final size = bangumiSmileSize(widthAttr: '3000', heightAttr: '300');
-        expect(size.width, 42);
-        expect(size.height, 18);
-      });
-
       test('only width given falls back to width for height', () {
-        final size = bangumiSmileSize(widthAttr: '32');
-        expect(size.width, 32);
-        expect(size.height, 32);
+        final size = bangumiSmileSize(widthAttr: '20');
+        expect(size.width, 20);
+        expect(size.height, 20);
       });
 
       test('only height given falls back to height for width', () {
-        final size = bangumiSmileSize(heightAttr: '32');
-        expect(size.width, 32);
-        expect(size.height, 32);
+        final size = bangumiSmileSize(heightAttr: '20');
+        expect(size.width, 20);
+        expect(size.height, 20);
       });
     });
   });

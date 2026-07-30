@@ -20,102 +20,13 @@ import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 /// the page because its layout is too deeply integrated with the page's
 /// sliver-tree to extract cleanly in one step.
 ///
-
-/// Bangumi comment HTML rendering helpers.
-///
-/// Promoted to top-level (without the leading underscore) so the URL
-/// classification, host rewrites, and size math for `text_mask` and
-/// Bangumi smile `<img>` rendering can be unit-tested without pumping a
-/// real `HtmlWidget` / `CachedNetworkImage`. The widget still owns the
-/// DOM-element-to-attribute glue in `_buildCommentHtmlWidget` /
-/// `_buildBangumiSmileImage`.
-String normalizeBangumiImageSrc(String src) {
-  if (src.startsWith('//')) {
-    return BangumiUrlRewriter.rewrite(_preferLainSmileHost('https:$src'));
-  }
-  if (src.startsWith('/img/smiles/')) {
-    // Classic relative smile paths on bangumi HTML pages resolve to the main
-    // site host, which is nginx-only and frequently fails under ECH. Serve
-    // them from the lain CDN (Cloudflare) instead; reverse-proxy rewrite still
-    // maps lain.bgm.tv → lain.bangumi.lol when enabled.
-    return BangumiUrlRewriter.rewrite('https://lain.bgm.tv$src');
-  }
-  if (src.startsWith('/img/')) {
-    return BangumiUrlRewriter.rewrite('https://bangumi.tv$src');
-  }
-  return BangumiUrlRewriter.rewrite(_preferLainSmileHost(src));
-}
-
-/// Rewrite classic smile hosts (`bangumi.tv` / `bgm.tv` / `chii.in` / mirror
-/// main site) to `lain.bgm.tv` so legacy and API-rendered smile URLs share the
-/// same Cloudflare-friendly CDN. Dynamic musume/blake URLs already point at
-/// lain and are left alone.
-String _preferLainSmileHost(String src) {
-  final uri = Uri.tryParse(src);
-  if (uri == null || !uri.hasScheme || uri.host.isEmpty) return src;
-  if (!uri.path.startsWith('/img/smiles/')) return src;
-
-  final host = uri.host.toLowerCase();
-  final isClassicMainHost =
-      host == 'bangumi.tv' ||
-      host == 'bgm.tv' ||
-      host == 'chii.in' ||
-      host == 'bangumi.lol';
-  if (!isClassicMainHost) return src;
-
-  return uri.replace(host: 'lain.bgm.tv').toString();
-}
-
-bool isBangumiSmileUrl(String src) {
-  final uri = Uri.tryParse(src);
-  if (uri == null) return false;
-
-  final host = uri.host.toLowerCase();
-  return uri.path.startsWith('/img/smiles/') &&
-      (host == 'bangumi.tv' ||
-          host == 'bgm.tv' ||
-          host.endsWith('.bgm.tv') ||
-          host == 'chii.in' ||
-          host == 'bangumi.lol' ||
-          host.endsWith('.bangumi.lol'));
-}
+export 'package:mikan_player/ui/widgets/bangumi_comment_html.dart'
+    show normalizeBangumiImageSrc, isBangumiSmileUrl, bangumiSmileSize;
 
 /// CSS-ish styles for Bangumi comment HTML, shared by top-level comments and
 /// nested replies. Keeps quote blocks visually distinct from body text.
 Map<String, String>? bangumiCommentHtmlStyles(dynamic element) {
   return defaultBangumiCommentHtmlStyles(element);
-}
-
-/// Resolves the inline size for a Bangumi smile `<img>` from its `width`/
-/// `height` attributes. Falls back to a 42×42 square when both are absent,
-/// scales the larger axis down to 42 when necessary, then clamps each axis
-/// to the 18–64 px usable range.
-Size bangumiSmileSize({String? widthAttr, String? heightAttr}) {
-  final width = double.tryParse(widthAttr ?? '');
-  final height = double.tryParse(heightAttr ?? '');
-  const fallback = Size.square(42);
-
-  if (width == null && height == null) {
-    return fallback;
-  }
-
-  final rawWidth = width ?? height ?? fallback.width;
-  final rawHeight = height ?? width ?? fallback.height;
-  final scale = rawWidth > rawHeight
-      ? fallback.width / rawWidth
-      : fallback.height / rawHeight;
-
-  if (scale >= 1) {
-    return Size(
-      rawWidth.clamp(18, 64).toDouble(),
-      rawHeight.clamp(18, 64).toDouble(),
-    );
-  }
-
-  return Size(
-    (rawWidth * scale).clamp(18, 64).toDouble(),
-    (rawHeight * scale).clamp(18, 64).toDouble(),
-  );
 }
 
 class PlayerComments extends StatelessWidget {

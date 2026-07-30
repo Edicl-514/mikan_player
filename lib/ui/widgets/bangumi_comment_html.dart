@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
+import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
 const _maskIdAttribute = 'data-mikan-mask-id';
 
@@ -251,9 +253,80 @@ class _BangumiCommentHtmlState extends State<BangumiCommentHtml> {
         if (element.classes.contains('text_mask')) {
           return null;
         }
-        return widget.customWidgetBuilder?.call(element);
+
+        final custom = widget.customWidgetBuilder?.call(element);
+        if (custom != null) {
+          return custom;
+        }
+
+        if (element.localName == 'img') {
+          return _buildBangumiCommentImage(element);
+        }
+
+        return null;
       },
       factoryBuilder: () => _factory,
+    );
+  }
+
+  Widget? _buildBangumiCommentImage(dynamic element) {
+    final rawSrc = element.attributes['src'] ?? '';
+    if (rawSrc.trim().isEmpty) return null;
+    final src = normalizeBangumiImageSrc(rawSrc);
+    if (src.isEmpty) return null;
+
+    final isSmile = isBangumiSmileUrl(src) ||
+        element.classes.contains('smile') ||
+        element.classes.contains('smile-dynamic') ||
+        element.classes.contains('smile-blake') ||
+        element.classes.contains('smile-musume') ||
+        element.attributes.containsKey('smileid');
+
+    if (isSmile) {
+      final isLarge = isLargeBangumiSmileUrl(src) ||
+          element.classes.contains('smile-dynamic') ||
+          element.classes.contains('smile-blake') ||
+          element.classes.contains('smile-musume');
+
+      final size = bangumiSmileSize(
+        widthAttr: element.attributes['width'],
+        heightAttr: element.attributes['height'],
+        isLarge: isLarge,
+      );
+      return InlineCustomWidget(
+        alignment: PlaceholderAlignment.middle,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: CachedNetworkImage(
+            imageUrl: src,
+            width: size.width,
+            height: size.height,
+            fit: BoxFit.contain,
+            deferOffscreenLoad: false,
+            networkFallbackWhileCaching: false,
+            placeholder: SizedBox(width: size.width, height: size.height),
+            errorWidget: SizedBox(width: size.width, height: size.height),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: CachedNetworkImage(
+          imageUrl: src,
+          fit: BoxFit.contain,
+          deferOffscreenLoad: false,
+          networkFallbackWhileCaching: false,
+          errorWidget: Container(
+            padding: const EdgeInsets.all(8),
+            color: Colors.grey.withValues(alpha: 0.1),
+            child: const Icon(Icons.broken_image, size: 24, color: Colors.grey),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -350,6 +423,90 @@ Map<String, String>? defaultBangumiCommentHtmlStyles(dynamic element) {
     return {'quotes': 'none', 'font-style': 'normal', 'color': 'inherit'};
   }
   return null;
+}
+
+/// Normalizes image URLs from Bangumi HTML markup so they work cleanly under
+/// ECH / reverse proxy configurations.
+String normalizeBangumiImageSrc(String src) {
+  final trimmed = src.trim();
+  if (trimmed.isEmpty) return '';
+  if (trimmed.startsWith('//')) {
+    return BangumiUrlRewriter.rewrite(_preferLainSmileHost('https:$trimmed'));
+  }
+  if (trimmed.startsWith('/img/smiles/')) {
+    return BangumiUrlRewriter.rewrite('https://lain.bgm.tv$trimmed');
+  }
+  if (trimmed.startsWith('/img/')) {
+    return BangumiUrlRewriter.rewrite('https://bangumi.tv$trimmed');
+  }
+  return BangumiUrlRewriter.rewrite(_preferLainSmileHost(trimmed));
+}
+
+String _preferLainSmileHost(String src) {
+  final uri = Uri.tryParse(src);
+  if (uri == null || !uri.hasScheme || uri.host.isEmpty) return src;
+  if (!uri.path.startsWith('/img/smiles/')) return src;
+
+  final host = uri.host.toLowerCase();
+  final isClassicMainHost =
+      host == 'bangumi.tv' ||
+      host == 'bgm.tv' ||
+      host == 'chii.in' ||
+      host == 'bangumi.lol';
+  if (!isClassicMainHost) return src;
+
+  return uri.replace(host: 'lain.bgm.tv').toString();
+}
+
+bool isBangumiSmileUrl(String src) {
+  final uri = Uri.tryParse(src);
+  if (uri == null) return false;
+
+  final host = uri.host.toLowerCase();
+  return uri.path.startsWith('/img/smiles/') &&
+      (host == 'bangumi.tv' ||
+          host == 'bgm.tv' ||
+          host.endsWith('.bgm.tv') ||
+          host == 'chii.in' ||
+          host == 'bangumi.lol' ||
+          host.endsWith('.bangumi.lol'));
+}
+
+bool isLargeBangumiSmileUrl(String src) {
+  final lower = src.toLowerCase();
+  return lower.contains('/img/smiles/musume/') ||
+      lower.contains('/img/smiles/blake/') ||
+      lower.contains('/img/smiles/tv_500/');
+}
+
+Size bangumiSmileSize({
+  String? widthAttr,
+  String? heightAttr,
+  bool isLarge = false,
+}) {
+  final targetMax = isLarge ? 42.0 : 24.0;
+  final fallback = Size.square(targetMax);
+
+  final width = double.tryParse(widthAttr ?? '');
+  final height = double.tryParse(heightAttr ?? '');
+
+  if (width == null && height == null) {
+    return fallback;
+  }
+
+  final w = width ?? height!;
+  final h = height ?? width!;
+  final maxDim = w > h ? w : h;
+
+  if (maxDim <= 0) return fallback;
+
+  final scale = maxDim > targetMax ? targetMax / maxDim : 1.0;
+  final minClamp = isLarge ? 18.0 : 14.0;
+  final maxClamp = isLarge ? 64.0 : 28.0;
+
+  final scaledW = (w * scale).clamp(minClamp, maxClamp);
+  final scaledH = (h * scale).clamp(minClamp, maxClamp);
+  return Size(scaledW, scaledH);
 }
 
 bool bangumiCommentStateHidesContent(int state) => switch (state) {

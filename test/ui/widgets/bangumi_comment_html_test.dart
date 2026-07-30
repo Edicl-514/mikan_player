@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
+import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 
 void main() {
   group('Bangumi comment mask HTML', () {
@@ -156,6 +157,27 @@ void main() {
 
     span = _textSpans(tester, 'hover me').single;
     expect(_isHiddenMask(span), isTrue);
+  });
+
+  testWidgets('Bangumi smile <img> and regular <img> route through CachedNetworkImage', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: BangumiCommentHtml(
+            html:
+                '<p>Smile: <img src="/img/smiles/tv/15.gif" class="smile" smileid="38" /></p>'
+                '<p>Photo: <img src="https://lain.bgm.tv/pic/photo/l/foo.jpg" class="code" /></p>',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(BangumiCommentHtml), findsOneWidget);
+    // Both smile image and regular image should be rendered using CachedNetworkImage
+    final cachedImages = tester.widgetList(find.byType(CachedNetworkImage)).whereType<CachedNetworkImage>();
+    expect(cachedImages.length, greaterThanOrEqualTo(2));
+    expect(cachedImages.any((img) => img.imageUrl.contains('/img/smiles/tv/15.gif')), isTrue);
+    expect(cachedImages.any((img) => img.imageUrl == 'https://lain.bgm.tv/pic/photo/l/foo.jpg'), isTrue);
   });
 }
 
