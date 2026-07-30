@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/captcha_webview_bypasser.dart';
 import 'package:mikan_player/services/video_url_probe.dart';
@@ -12,6 +13,7 @@ import 'package:mikan_player/src/rust/api/generic_scraper.dart'
     as generic_scraper;
 import 'package:mikan_player/utils/feature_flags.dart';
 import 'package:mikan_player/utils/source_channel_key.dart';
+import 'package:mikan_player/ui/pages/player/player_playback_controller.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
 
 class SubscriptionDebugPage extends StatefulWidget {
@@ -59,18 +61,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
   Map<String, String> _buildProbeHeaders(
     generic_scraper.SearchPlayResult source,
   ) {
-    final headers = <String, String>{
-      if (source.headers != null) ...source.headers!,
-    };
-    headers.remove('Referer');
-    headers.remove('referer');
-    headers.putIfAbsent(
-      'User-Agent',
-      () =>
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-          '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    );
-    return headers;
+    return PlayerPlaybackController.buildProbeHeaders(source);
   }
 
   Future<void> _probeVideoUrl(
@@ -212,6 +203,20 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
       return null;
     }
     return int.tryParse(text);
+  }
+
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(fn);
+        }
+      });
+    } else {
+      setState(fn);
+    }
   }
 
   void _appendLog(List<String> logs, String message, {int maxLines = 200}) {
@@ -366,6 +371,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
     }
 
     await _searchSubscription?.cancel();
+    await generic_scraper.invalidateSourceConfigCache();
 
     final sourceFilter = _sourceFilterController.text.trim();
 
@@ -393,6 +399,10 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
               ? l10n.playerSubscriptionDebugJsonCache
               : l10n.playerSubscriptionDebugJsonLocal,
         ),
+      );
+      _appendLog(
+        _searchLogs,
+        '[JSON] Freshly re-read configuration from: $resolvedJsonPath',
       );
     });
 
@@ -639,6 +649,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
         final runtimeOverride = await _runCaptchaPreflight(
           source: source,
           l10n: l10n,
+          searchKeyword: animeName,
         );
         overrides.add(runtimeOverride);
 
@@ -1154,19 +1165,13 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
                 timeout: const Duration(seconds: 25),
                 showWebView: _showWebView,
                 onLog: (message) {
-                  if (!mounted) {
-                    return;
-                  }
-                  setState(() {
+                  _safeSetState(() {
                     _appendLog(_extractLogs, message, maxLines: 120);
                   });
                 },
                 onResult: (result) {
-                  if (!mounted) {
-                    return;
-                  }
                   final target = _extractTarget;
-                  setState(() {
+                  _safeSetState(() {
                     _extractingSourceName = null;
                     _extractHeaders = result.headers;
                     if (result.success) {

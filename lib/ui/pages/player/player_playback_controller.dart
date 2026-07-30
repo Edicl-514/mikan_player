@@ -326,8 +326,17 @@ class PlayerPlaybackController {
     final headers = <String, String>{
       if (source.headers != null) ...source.headers!,
     };
-    headers.remove('Referer');
-    headers.remove('referer');
+    final url = source.directVideoUrl ?? source.playPageUrl;
+    if (!needsRefererHeader(url)) {
+      headers.remove('Referer');
+      headers.remove('referer');
+    } else if (!headers.containsKey('Referer') &&
+        !headers.containsKey('referer')) {
+      final referer = buildPlaybackHeaders(source)['Referer'];
+      if (referer != null) {
+        headers['Referer'] = referer;
+      }
+    }
     headers.putIfAbsent('User-Agent', () => defaultUserAgent);
     return headers;
   }

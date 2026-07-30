@@ -5,7 +5,6 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
-import 'package:mikan_player/utils/bangumi_url_rewriter.dart';
 
 /// Display widget for the player page's comments tab.
 ///
