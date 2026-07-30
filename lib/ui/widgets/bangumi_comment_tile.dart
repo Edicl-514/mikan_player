@@ -169,7 +169,9 @@ class BangumiCommentTile extends StatelessWidget {
                   .toList(),
             ),
           ],
-          if (comment.replies.isNotEmpty) ...[
+          // p1 sub-replies are terminal ReplyBase values. Keep the UI bounded
+          // even if another caller constructs a malformed recursive DTO.
+          if (!isSubReply && comment.replies.isNotEmpty) ...[
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.only(left: 12),

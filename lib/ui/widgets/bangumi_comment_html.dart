@@ -22,6 +22,7 @@ final _textMaskSpanPattern = RegExp(
 class BangumiCommentHtml extends StatefulWidget {
   final String html;
   final TextStyle? textStyle;
+  final RenderMode renderMode;
   final CustomStylesBuilder? customStylesBuilder;
   final CustomWidgetBuilder? customWidgetBuilder;
   final Future<bool> Function(String url)? onTapUrl;
@@ -30,6 +31,7 @@ class BangumiCommentHtml extends StatefulWidget {
     super.key,
     required this.html,
     this.textStyle,
+    this.renderMode = RenderMode.column,
     this.customStylesBuilder,
     this.customWidgetBuilder,
     this.onTapUrl,
@@ -187,6 +189,7 @@ class _BangumiCommentHtmlState extends State<BangumiCommentHtml> {
     return HtmlWidget(
       html,
       textStyle: widget.textStyle,
+      renderMode: widget.renderMode,
       onTapUrl: (url) async {
         if (url.startsWith('#')) return false;
         if (!isSafeBangumiExternalUrl(url)) return true;

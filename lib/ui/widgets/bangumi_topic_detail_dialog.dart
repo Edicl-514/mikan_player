@@ -152,145 +152,160 @@ class _BangumiTopicDetailDialogState extends State<BangumiTopicDetailDialog> {
                         ),
                       ),
                     )
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Topic Header
-                          Text(
-                            title,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.onSurface,
-                              height: 1.3,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              ClipOval(
-                                child: avatar.isNotEmpty
-                                    ? CachedNetworkImage(
-                                        imageUrl: avatar,
-                                        width: 32,
-                                        height: 32,
-                                        fit: BoxFit.cover,
-                                        errorWidget: Icon(
-                                          Icons.person,
-                                          size: 18,
-                                          color: theme
-                                              .colorScheme
-                                              .onSurfaceVariant,
-                                        ),
-                                      )
-                                    : Icon(
-                                        Icons.person,
-                                        size: 18,
-                                        color:
-                                            theme.colorScheme.onSurfaceVariant,
-                                      ),
+                  : CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate([
+                              // Topic Header
+                              Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.onSurface,
+                                  height: 1.3,
+                                ),
                               ),
-                              const SizedBox(width: 10),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              const SizedBox(height: 12),
+                              Row(
                                 children: [
-                                  Row(
+                                  ClipOval(
+                                    child: avatar.isNotEmpty
+                                        ? CachedNetworkImage(
+                                            imageUrl: avatar,
+                                            width: 32,
+                                            height: 32,
+                                            fit: BoxFit.cover,
+                                            errorWidget: Icon(
+                                              Icons.person,
+                                              size: 18,
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.person,
+                                            size: 18,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        userName,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: theme.colorScheme.onSurface,
-                                        ),
+                                      Row(
+                                        children: [
+                                          Text(
+                                            userName,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                              color:
+                                                  theme.colorScheme.onSurface,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            '#1',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: theme.colorScheme.primary,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        '#1',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: theme.colorScheme.primary,
+                                      if (time.isNotEmpty)
+                                        Text(
+                                          time,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
                                         ),
-                                      ),
                                     ],
                                   ),
-                                  if (time.isNotEmpty)
-                                    Text(
-                                      time,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color:
-                                            theme.colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
                                 ],
                               ),
-                            ],
+                              if (_detail!.contentHtml.isNotEmpty ||
+                                  bangumiCommentStateHidesContent(
+                                    _detail!.contentState,
+                                  )) ...[
+                                const SizedBox(height: 16),
+                                const Divider(),
+                                const SizedBox(height: 16),
+                                // Opening post. Routed through BangumiCommentBody so a
+                                // deleted or folded floor 1 is not rendered as normal.
+                                BangumiCommentBody(
+                                  state: _detail!.contentState,
+                                  html: _detail!.contentHtml,
+                                  textStyle: TextStyle(
+                                    fontSize: 14,
+                                    color: theme.colorScheme.onSurface,
+                                    height: 1.6,
+                                  ),
+                                ),
+                                if (!bangumiCommentStateHidesContent(
+                                      _detail!.contentState,
+                                    ) &&
+                                    _detail!.reactions.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: _detail!.reactions
+                                        .map(
+                                          (r) => BangumiReactionBadge(
+                                            reaction: r,
+                                            isDarkBg: isDark,
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ],
+                              ],
+                              const SizedBox(height: 24),
+                              // Floor Replies
+                              if (_detail!.replies.isNotEmpty) ...[
+                                const Divider(),
+                                const SizedBox(height: 16),
+                                Text(
+                                  l10n.bangumiDetailsComments,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                            ]),
                           ),
-                          if (_detail!.contentHtml.isNotEmpty ||
-                              bangumiCommentStateHidesContent(
-                                _detail!.contentState,
-                              )) ...[
-                            const SizedBox(height: 16),
-                            const Divider(),
-                            const SizedBox(height: 16),
-                            // Opening post. Routed through BangumiCommentBody so a
-                            // deleted or folded floor 1 is not rendered as normal.
-                            BangumiCommentBody(
-                              state: _detail!.contentState,
-                              html: _detail!.contentHtml,
-                              textStyle: TextStyle(
-                                fontSize: 14,
-                                color: theme.colorScheme.onSurface,
-                                height: 1.6,
-                              ),
+                        ),
+                        if (_detail!.replies.isNotEmpty)
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            sliver: SliverList.builder(
+                              itemCount: _detail!.replies.length,
+                              itemBuilder: (context, index) =>
+                                  BangumiCommentTile(
+                                    key: ValueKey(_detail!.replies[index].id),
+                                    comment: _detail!.replies[index],
+                                    isDarkBg: isDark,
+                                    floorLabel: '#${index + 2}',
+                                  ),
                             ),
-                            if (!bangumiCommentStateHidesContent(
-                                  _detail!.contentState,
-                                ) &&
-                                _detail!.reactions.isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: _detail!.reactions
-                                    .map(
-                                      (r) => BangumiReactionBadge(
-                                        reaction: r,
-                                        isDarkBg: isDark,
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            ],
-                          ],
-                          const SizedBox(height: 24),
-                          // Floor Replies
-                          if (_detail!.replies.isNotEmpty) ...[
-                            const Divider(),
-                            const SizedBox(height: 16),
-                            Text(
-                              l10n.bangumiDetailsComments,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.onSurface,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            ..._detail!.replies.asMap().entries.map(
-                              (entry) => BangumiCommentTile(
-                                comment: entry.value,
-                                isDarkBg: isDark,
-                                floorLabel: '#${entry.key + 2}',
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                          ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                      ],
                     ),
             ),
           ],

@@ -170,4 +170,36 @@ void main() {
     expect(find.text('讨论帖内容加载失败'), findsNothing);
     expect(find.text('Topic detail'), findsOneWidget);
   });
+
+  testWidgets('builds floor replies lazily in a sliver list', (tester) async {
+    final replies = List.generate(
+      100,
+      (index) => BangumiEpisodeComment(
+        id: index + 3000,
+        userName: 'Reply author $index',
+        userId: 'user-$index',
+        avatar: '',
+        time: '',
+        state: 0,
+        contentHtml: 'Reply body $index',
+        replies: const [],
+        reactions: const [],
+      ),
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        BangumiTopicDetailDialog(
+          topic: _topic,
+          fetchDetail: (_) async => _detail(replies: replies),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CustomScrollView), findsOneWidget);
+    expect(find.byType(SingleChildScrollView), findsNothing);
+    expect(find.text('Reply author 0'), findsOneWidget);
+    expect(find.text('Reply author 99'), findsNothing);
+  });
 }

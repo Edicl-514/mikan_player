@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi/types.dart';
@@ -194,187 +195,220 @@ class _BangumiBlogDetailDialogState extends State<BangumiBlogDetailDialog> {
                         ),
                       ),
                     )
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Article Header
-                          Text(
-                            title,
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.onSurface,
-                              height: 1.3,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              ClipOval(
-                                child: avatar.isNotEmpty
-                                    ? CachedNetworkImage(
-                                        imageUrl: avatar,
-                                        width: 32,
-                                        height: 32,
-                                        fit: BoxFit.cover,
-                                        errorWidget: Icon(
-                                          Icons.person,
-                                          size: 18,
-                                          color: theme
-                                              .colorScheme
-                                              .onSurfaceVariant,
-                                        ),
-                                      )
-                                    : Icon(
-                                        Icons.person,
-                                        size: 18,
-                                        color:
-                                            theme.colorScheme.onSurfaceVariant,
-                                      ),
+                  : CustomScrollView(
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate([
+                              // Article Header
+                              Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.onSurface,
+                                  height: 1.3,
+                                ),
                               ),
-                              const SizedBox(width: 10),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              const SizedBox(height: 12),
+                              Row(
                                 children: [
-                                  Text(
-                                    userName,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme.onSurface,
-                                    ),
+                                  ClipOval(
+                                    child: avatar.isNotEmpty
+                                        ? CachedNetworkImage(
+                                            imageUrl: avatar,
+                                            width: 32,
+                                            height: 32,
+                                            fit: BoxFit.cover,
+                                            errorWidget: Icon(
+                                              Icons.person,
+                                              size: 18,
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.person,
+                                            size: 18,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
                                   ),
-                                  if (time.isNotEmpty)
-                                    Text(
-                                      time,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color:
-                                            theme.colorScheme.onSurfaceVariant,
+                                  const SizedBox(width: 10),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        userName,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: theme.colorScheme.onSurface,
+                                        ),
                                       ),
-                                    ),
+                                      if (time.isNotEmpty)
+                                        Text(
+                                          time,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ],
                               ),
-                            ],
+                              if (_detail != null &&
+                                  _detail!.tags.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: _detail!.tags.map((tag) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme
+                                            .colorScheme
+                                            .primaryContainer
+                                            .withValues(alpha: 0.5),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        '#$tag',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: theme
+                                              .colorScheme
+                                              .onPrimaryContainer,
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                              const SizedBox(height: 16),
+                              const Divider(),
+                              const SizedBox(height: 16),
+                            ]),
                           ),
-                          if (_detail != null && _detail!.tags.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: _detail!.tags.map((tag) {
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primaryContainer
-                                        .withValues(alpha: 0.5),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    '#$tag',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color:
-                                          theme.colorScheme.onPrimaryContainer,
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-                          const Divider(),
-                          const SizedBox(height: 16),
-                          // Article Html Content
-                          BangumiCommentHtml(
+                        ),
+                        // A long review can contain many top-level HTML blocks.
+                        // Keep them in the same lazy sliver pipeline as comments.
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          sliver: BangumiCommentHtml(
                             html: _detail!.contentHtml,
+                            renderMode: RenderMode.sliverList,
                             textStyle: TextStyle(
                               fontSize: 14,
                               color: theme.colorScheme.onSurface,
                               height: 1.6,
                             ),
                           ),
-                          if (_detail!.reactions.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: _detail!.reactions
-                                  .map(
-                                    (r) => BangumiReactionBadge(
-                                      reaction: r,
-                                      isDarkBg: isDark,
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                          ],
-                          const SizedBox(height: 24),
-                          // Comments Section
-                          if (_isLoadingComments) ...[
-                            const Divider(),
-                            const SizedBox(height: 16),
-                            const Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                        ),
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate([
+                              if (_detail!.reactions.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: _detail!.reactions
+                                      .map(
+                                        (r) => BangumiReactionBadge(
+                                          reaction: r,
+                                          isDarkBg: isDark,
+                                        ),
+                                      )
+                                      .toList(),
                                 ),
-                              ),
-                            ),
-                          ] else if (_commentsFailed) ...[
-                            const Divider(),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    l10n.bangumiBlogCommentsLoadFailed,
-                                    style: TextStyle(
-                                      color: theme.colorScheme.error,
+                              ],
+                              const SizedBox(height: 24),
+                              // Comments Section
+                              if (_isLoadingComments) ...[
+                                const Divider(),
+                                const SizedBox(height: 16),
+                                const Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
                                     ),
                                   ),
                                 ),
-                                TextButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _isLoadingComments = true;
-                                      _commentsFailed = false;
-                                    });
-                                    _loadComments();
-                                  },
-                                  child: Text(l10n.retry),
+                              ] else if (_commentsFailed) ...[
+                                const Divider(),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        l10n.bangumiBlogCommentsLoadFailed,
+                                        style: TextStyle(
+                                          color: theme.colorScheme.error,
+                                        ),
+                                      ),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _isLoadingComments = true;
+                                          _commentsFailed = false;
+                                        });
+                                        _loadComments();
+                                      },
+                                      child: Text(l10n.retry),
+                                    ),
+                                  ],
                                 ),
+                              ] else if (_comments != null &&
+                                  _comments!.isNotEmpty) ...[
+                                const Divider(),
+                                const SizedBox(height: 16),
+                                Text(
+                                  l10n.bangumiDetailsTabComments,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
                               ],
+                            ]),
+                          ),
+                        ),
+                        if (!_isLoadingComments &&
+                            !_commentsFailed &&
+                            _comments != null &&
+                            _comments!.isNotEmpty)
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            sliver: SliverList.builder(
+                              itemCount: _comments!.length,
+                              itemBuilder: (context, index) =>
+                                  BangumiCommentTile(
+                                    key: ValueKey(_comments![index].id),
+                                    comment: _comments![index],
+                                    isDarkBg: isDark,
+                                  ),
                             ),
-                          ] else if (_comments != null &&
-                              _comments!.isNotEmpty) ...[
-                            const Divider(),
-                            const SizedBox(height: 16),
-                            Text(
-                              l10n.bangumiDetailsTabComments,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.onSurface,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            ..._comments!.map(
-                              (comment) => BangumiCommentTile(
-                                comment: comment,
-                                isDarkBg: isDark,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+                          ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                      ],
                     ),
             ),
           ],

@@ -135,4 +135,37 @@ void main() {
       expect(find.textContaining('private upstream text'), findsNothing);
     },
   );
+
+  testWidgets('builds comments lazily in a sliver list', (tester) async {
+    final comments = List.generate(
+      100,
+      (index) => BangumiEpisodeComment(
+        id: index,
+        userName: 'Author $index',
+        userId: 'user-$index',
+        avatar: '',
+        time: '',
+        state: 0,
+        contentHtml: 'Comment $index',
+        replies: const [],
+        reactions: const [],
+      ),
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        BangumiBlogDetailDialog(
+          review: _review,
+          fetchDetail: (_) async => _detail,
+          fetchComments: (_) async => comments,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CustomScrollView), findsOneWidget);
+    expect(find.byType(SingleChildScrollView), findsNothing);
+    expect(find.text('Author 0'), findsOneWidget);
+    expect(find.text('Author 99'), findsNothing);
+  });
 }

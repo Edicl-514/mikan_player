@@ -526,6 +526,32 @@ pub(super) fn parse_next_episode_comment(
     item: &serde_json::Value,
     current_user_id: Option<i64>,
 ) -> BangumiEpisodeComment {
+    let replies = item["replies"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| parse_next_reply_base(item, current_user_id))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    parse_next_episode_comment_with_replies(item, current_user_id, replies)
+}
+
+fn parse_next_reply_base(
+    item: &serde_json::Value,
+    current_user_id: Option<i64>,
+) -> BangumiEpisodeComment {
+    // The shared FRB DTO is recursive, but p1 ReplyBase is a terminal node.
+    parse_next_episode_comment_with_replies(item, current_user_id, Vec::new())
+}
+
+fn parse_next_episode_comment_with_replies(
+    item: &serde_json::Value,
+    current_user_id: Option<i64>,
+    replies: Vec<BangumiEpisodeComment>,
+) -> BangumiEpisodeComment {
     let user = parse_user_object(item);
     let user_name = parse_user_name(user);
     let user_id = parse_user_id(user);
@@ -536,16 +562,6 @@ pub(super) fn parse_next_episode_comment(
     } else {
         ""
     };
-
-    let replies = item["replies"]
-        .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .map(|item| parse_next_episode_comment(item, current_user_id))
-                .collect()
-        })
-        .unwrap_or_default();
 
     let reactions = item["reactions"]
         .as_array()
@@ -665,7 +681,7 @@ mod tests {
     }
 
     #[test]
-    fn next_episode_comments_normalize_recursive_replies_without_executing_markup() {
+    fn next_episode_comments_parse_reply_base_as_one_level_without_executing_markup() {
         let comment = parse_next_episode_comment(
             &json!({
                 "id": 1,
@@ -673,7 +689,13 @@ mod tests {
                 "state": 0,
                 "user": {"id": 7, "nickname": "Nick"},
                 "reactions": [{"value": 38, "users": [{"id": 7}]}],
-                "replies": [{"id": 2, "content": "[b]reply[/b]", "state": 0, "user": {"username": "bob"}}]
+                "replies": [{
+                    "id": 2,
+                    "content": "[b]reply[/b]",
+                    "state": 0,
+                    "user": {"username": "bob"},
+                    "replies": [{"id": 3, "content": "unexpected depth"}]
+                }]
             }),
             Some(7),
         );
@@ -684,6 +706,7 @@ mod tests {
         assert!(comment.content_html.contains("&lt;img src=x&gt;"));
         assert_eq!(comment.replies.len(), 1);
         assert_eq!(comment.replies[0].user_id, "bob");
+        assert!(comment.replies[0].replies.is_empty());
         assert!(
             comment.replies[0]
                 .content_html

@@ -162,95 +162,100 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
     return DefaultTabController(
       key: ValueKey(anime.bangumiId ?? anime.mikanId ?? anime.title),
       length: 4,
-      child: Scaffold(
-        backgroundColor: bgColor,
-        body: NestedScrollView(
-          headerSliverBuilder: (context, innerBoxIsScrolled) {
-            return [
-              SliverAppBar(
-                expandedHeight: 380,
-                pinned: true,
-                // Hosted desktop tabs already draw Back in the workspace shell,
-                // so suppress the implicit leading arrow to avoid a duplicate.
-                automaticallyImplyLeading:
-                    !DesktopPageChromeScope.hostsNavigation(context),
-                elevation: 0,
-                scrolledUnderElevation: 0,
-                backgroundColor: bgColor,
-                surfaceTintColor: bgColor,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: _buildMobileHeaderContent(
-                    context,
-                    isDark,
-                    bgColor,
-                  ),
-                ),
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(48),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: bgColor,
-                      border: Border(
-                        bottom: BorderSide(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.05)
-                              : Colors.grey.withValues(alpha: 0.2),
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: TabBar(
-                      labelColor: Theme.of(context).colorScheme.primary,
-                      unselectedLabelColor: isDark
-                          ? Colors.white70
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
-                      indicatorColor: Theme.of(context).colorScheme.primary,
-                      indicatorWeight: 3,
-                      indicatorSize: TabBarIndicatorSize.label,
-                      dividerColor: Colors.transparent,
-                      labelStyle: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      unselectedLabelStyle: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.normal,
-                      ),
-                      tabs: [
-                        Tab(
-                          text: AppLocalizations.of(
-                            context,
-                          ).bangumiDetailsTabDetails,
-                        ),
-                        Tab(
-                          text: AppLocalizations.of(
-                            context,
-                          ).bangumiDetailsTabComments,
-                        ),
-                        Tab(
-                          text: AppLocalizations.of(
-                            context,
-                          ).bangumiDetailsTabReviews,
-                        ),
-                        Tab(
-                          text: AppLocalizations.of(
-                            context,
-                          ).bangumiDetailsTabTopics,
-                        ),
-                      ],
+      child: _SelectedTabLoadCoordinator(
+        onEnsureCommentsLoaded: onEnsureCommentsLoaded,
+        onEnsureReviewsLoaded: onEnsureReviewsLoaded,
+        onEnsureTopicsLoaded: onEnsureTopicsLoaded,
+        child: Scaffold(
+          backgroundColor: bgColor,
+          body: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              return [
+                SliverAppBar(
+                  expandedHeight: 380,
+                  pinned: true,
+                  // Hosted desktop tabs already draw Back in the workspace shell,
+                  // so suppress the implicit leading arrow to avoid a duplicate.
+                  automaticallyImplyLeading:
+                      !DesktopPageChromeScope.hostsNavigation(context),
+                  elevation: 0,
+                  scrolledUnderElevation: 0,
+                  backgroundColor: bgColor,
+                  surfaceTintColor: bgColor,
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: _buildMobileHeaderContent(
+                      context,
+                      isDark,
+                      bgColor,
                     ),
                   ),
+                  bottom: PreferredSize(
+                    preferredSize: const Size.fromHeight(48),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: bgColor,
+                        border: Border(
+                          bottom: BorderSide(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.05)
+                                : Colors.grey.withValues(alpha: 0.2),
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      child: TabBar(
+                        labelColor: Theme.of(context).colorScheme.primary,
+                        unselectedLabelColor: isDark
+                            ? Colors.white70
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                        indicatorColor: Theme.of(context).colorScheme.primary,
+                        indicatorWeight: 3,
+                        indicatorSize: TabBarIndicatorSize.label,
+                        dividerColor: Colors.transparent,
+                        labelStyle: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        unselectedLabelStyle: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.normal,
+                        ),
+                        tabs: [
+                          Tab(
+                            text: AppLocalizations.of(
+                              context,
+                            ).bangumiDetailsTabDetails,
+                          ),
+                          Tab(
+                            text: AppLocalizations.of(
+                              context,
+                            ).bangumiDetailsTabComments,
+                          ),
+                          Tab(
+                            text: AppLocalizations.of(
+                              context,
+                            ).bangumiDetailsTabReviews,
+                          ),
+                          Tab(
+                            text: AppLocalizations.of(
+                              context,
+                            ).bangumiDetailsTabTopics,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ];
-          },
-          body: TabBarView(
-            children: [
-              _buildMobileDetailsTab(context, isDark),
-              _buildMobileCommentsTab(context, isDark),
-              _buildMobileReviewsTab(context, isDark),
-              _buildMobileTopicsTab(context, isDark),
-            ],
+              ];
+            },
+            body: TabBarView(
+              children: [
+                _buildMobileDetailsTab(context, isDark),
+                _buildMobileCommentsTab(context, isDark),
+                _buildMobileReviewsTab(context, isDark),
+                _buildMobileTopicsTab(context, isDark),
+              ],
+            ),
           ),
         ),
       ),
@@ -498,16 +503,6 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
 
   Widget _buildMobileCommentsTab(BuildContext context, bool isDark) {
     final l10n = AppLocalizations.of(context);
-    if (!hasRequestedComments && !isLoadingComments) {
-      // Defer to after the current build so the controller's synchronous
-      // _notify() → setState() chain does not run mid-build, which would
-      // trip "setState() or markNeedsBuild() called during build" on the
-      // parent BangumiDetailsPage.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        onEnsureCommentsLoaded();
-      });
-    }
-
     if (isLoadingComments) {
       return ListView(
         padding: const EdgeInsets.all(16),
@@ -634,12 +629,6 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
 
   Widget _buildMobileReviewsTab(BuildContext context, bool isDark) {
     final l10n = AppLocalizations.of(context);
-    if (!hasRequestedReviews && !isLoadingReviews) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        onEnsureReviewsLoaded?.call();
-      });
-    }
-
     if (isLoadingReviews) {
       return ListView(
         padding: const EdgeInsets.all(16),
@@ -725,12 +714,6 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
 
   Widget _buildMobileTopicsTab(BuildContext context, bool isDark) {
     final l10n = AppLocalizations.of(context);
-    if (!hasRequestedTopics && !isLoadingTopics) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        onEnsureTopicsLoaded?.call();
-      });
-    }
-
     if (isLoadingTopics) {
       return ListView(
         padding: const EdgeInsets.all(16),
@@ -813,4 +796,73 @@ class BangumiDetailsMobileLayout extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SelectedTabLoadCoordinator extends StatefulWidget {
+  const _SelectedTabLoadCoordinator({
+    required this.child,
+    required this.onEnsureCommentsLoaded,
+    required this.onEnsureReviewsLoaded,
+    required this.onEnsureTopicsLoaded,
+  });
+
+  final Widget child;
+  final VoidCallback onEnsureCommentsLoaded;
+  final VoidCallback? onEnsureReviewsLoaded;
+  final VoidCallback? onEnsureTopicsLoaded;
+
+  @override
+  State<_SelectedTabLoadCoordinator> createState() =>
+      _SelectedTabLoadCoordinatorState();
+}
+
+class _SelectedTabLoadCoordinatorState
+    extends State<_SelectedTabLoadCoordinator> {
+  TabController? _controller;
+  int? _lastHandledIndex;
+  bool _callbackScheduled = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = DefaultTabController.of(context);
+    if (identical(controller, _controller)) return;
+
+    _controller?.removeListener(_onTabChanged);
+    _controller = controller..addListener(_onTabChanged);
+    _lastHandledIndex = null;
+    _scheduleSelectedTabCallback();
+  }
+
+  void _onTabChanged() => _scheduleSelectedTabCallback();
+
+  void _scheduleSelectedTabCallback() {
+    if (_callbackScheduled) return;
+    _callbackScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _callbackScheduled = false;
+      if (!mounted) return;
+
+      final index = _controller?.index;
+      if (index == null || index == _lastHandledIndex) return;
+      _lastHandledIndex = index;
+      switch (index) {
+        case 1:
+          widget.onEnsureCommentsLoaded();
+        case 2:
+          widget.onEnsureReviewsLoaded?.call();
+        case 3:
+          widget.onEnsureTopicsLoaded?.call();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onTabChanged);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

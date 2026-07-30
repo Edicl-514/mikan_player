@@ -93,7 +93,6 @@ class CharactersSection extends StatelessWidget {
     final cardColor = isDarkBg
         ? Colors.white.withValues(alpha: 0.05)
         : Colors.grey[100];
-    final visibleCharacters = characters.take(10).toList(growable: false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,9 +110,9 @@ class CharactersSection extends StatelessWidget {
                 controller: scrollController,
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.only(bottom: 10),
-                itemCount: visibleCharacters.length,
+                itemCount: characters.length,
                 itemBuilder: (context, index) {
-                  final char = visibleCharacters[index];
+                  final char = characters[index];
                   final imageUrl =
                       char.images?.large ?? char.images?.medium ?? '';
                   final cvName = char.actors.isNotEmpty
@@ -166,8 +165,10 @@ class CharactersSection extends StatelessWidget {
                               hasPersonLink: personIdMap.containsKey(cvName),
                               textColor: textColor,
                               isDarkBg: isDarkBg,
-                              onPersonTap: () =>
-                                  onPersonTap(personIdMap[cvName]!, personName: cvName),
+                              onPersonTap: () => onPersonTap(
+                                personIdMap[cvName]!,
+                                personName: cvName,
+                              ),
                             ),
                         ],
                       ),

@@ -360,7 +360,11 @@ void main() {
   });
 
   group('BangumiDetailsMobileLayout SliverAppBar leading', () {
-    Widget layout() {
+    Widget layout({
+      VoidCallback? onEnsureCommentsLoaded,
+      VoidCallback? onEnsureReviewsLoaded,
+      VoidCallback? onEnsureTopicsLoaded,
+    }) {
       final episodes = ScrollController();
       final characters = ScrollController();
       final relations = ScrollController();
@@ -408,7 +412,9 @@ void main() {
         onRelationTap: (_) {},
         onSiteTap: (_) {},
         onLoadMoreComments: () {},
-        onEnsureCommentsLoaded: () {},
+        onEnsureCommentsLoaded: onEnsureCommentsLoaded ?? () {},
+        onEnsureReviewsLoaded: onEnsureReviewsLoaded,
+        onEnsureTopicsLoaded: onEnsureTopicsLoaded,
       );
     }
 
@@ -431,6 +437,33 @@ void main() {
       await tester.pump();
       final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
       expect(appBar.automaticallyImplyLeading, isTrue);
+    });
+
+    testWidgets('loads community data only when its tab is selected', (
+      tester,
+    ) async {
+      var commentsLoads = 0;
+      var reviewsLoads = 0;
+      var topicsLoads = 0;
+      await pumpLocalizedWidget(
+        tester,
+        layout(
+          onEnsureCommentsLoaded: () => commentsLoads++,
+          onEnsureReviewsLoaded: () => reviewsLoads++,
+          onEnsureTopicsLoaded: () => topicsLoads++,
+        ),
+      );
+      await tester.pump();
+
+      expect((commentsLoads, reviewsLoads, topicsLoads), (0, 0, 0));
+
+      await tester.tap(find.byType(Tab).at(2));
+      await tester.pumpAndSettle();
+      expect((commentsLoads, reviewsLoads, topicsLoads), (0, 1, 0));
+
+      await tester.tap(find.byType(Tab).at(3));
+      await tester.pumpAndSettle();
+      expect((commentsLoads, reviewsLoads, topicsLoads), (0, 1, 1));
     });
   });
 }

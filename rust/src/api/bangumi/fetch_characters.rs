@@ -1,6 +1,8 @@
 use super::types::*;
 use super::util::*;
 
+const BANGUMI_NEXT_CHARACTERS_PAGE_SIZE: i64 = 100;
+
 pub(crate) async fn fetch_bangumi_characters(
     subject_id: i64,
 ) -> anyhow::Result<Vec<BangumiCharacter>> {
@@ -115,29 +117,51 @@ pub(super) async fn fetch_bangumi_characters_rest(
 pub(super) async fn fetch_bangumi_characters_next(
     subject_id: i64,
 ) -> anyhow::Result<Vec<BangumiCharacter>> {
-    let url = format!(
-        "{}/p1/subjects/{}/characters?limit=100&offset=0",
-        crate::api::config::get_bangumi_next_url(),
-        subject_id
-    );
+    let mut characters = Vec::new();
+    let mut offset = 0_i64;
 
-    let resp = crate::api::network::retry_request_bangumi_with_status(
-        "fetch_bangumi_characters.next",
-        |client| client.get(&url).header("accept", "application/json"),
-        true,
-    )
-    .await?;
-
-    if !resp.status().is_success() {
-        anyhow::bail!(
-            "p1 characters request failed for subject_id={} status={}",
+    loop {
+        let url = format!(
+            "{}/p1/subjects/{}/characters?limit={}&offset={}",
+            crate::api::config::get_bangumi_next_url(),
             subject_id,
-            resp.status()
+            BANGUMI_NEXT_CHARACTERS_PAGE_SIZE,
+            offset
         );
+
+        let resp = crate::api::network::retry_request_bangumi_with_status(
+            "fetch_bangumi_characters.next",
+            |client| client.get(&url).header("accept", "application/json"),
+            true,
+        )
+        .await?;
+
+        if !resp.status().is_success() {
+            anyhow::bail!(
+                "p1 characters request failed for subject_id={} status={}",
+                subject_id,
+                resp.status()
+            );
+        }
+
+        let json: serde_json::Value = resp.json().await?;
+        let fetched_count = json["data"].as_array().map_or(0, |data| data.len()) as i64;
+        let total = json["total"].as_i64().filter(|total| *total >= 0);
+        characters.extend(parse_bangumi_characters_next(&json));
+
+        if fetched_count == 0 {
+            break;
+        }
+        offset += fetched_count;
+
+        if total.is_some_and(|total| offset >= total)
+            || (total.is_none() && fetched_count < BANGUMI_NEXT_CHARACTERS_PAGE_SIZE)
+        {
+            break;
+        }
     }
 
-    let json: serde_json::Value = resp.json().await?;
-    Ok(parse_bangumi_characters_next(&json))
+    Ok(characters)
 }
 
 #[cfg(test)]
@@ -203,6 +227,47 @@ mod tests {
         assert!(fetch_bangumi_characters_rest(7).await.unwrap().is_empty());
         let error = fetch_bangumi_characters_next(8).await.unwrap_err();
         assert!(error.to_string().contains("status=429"));
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn next_character_fetch_follows_total_and_advances_by_raw_rows() {
+        let _config = isolate_runtime_config();
+        let server = TestServer::spawn([TestRoute::sequence(
+            axum::http::Method::GET,
+            "/p1/subjects/9/characters",
+            [
+                TestResponse::ok(
+                    json!({
+                        "total": 2,
+                        "data": [
+                            {"type": 1, "character": {"id": 0, "name": "filtered"}}
+                        ]
+                    })
+                    .to_string(),
+                ),
+                TestResponse::ok(
+                    json!({
+                        "total": 2,
+                        "data": [
+                            {"type": 2, "character": {"id": 2, "name": "second"}}
+                        ]
+                    })
+                    .to_string(),
+                ),
+            ],
+        )])
+        .await;
+        point_bangumi_at(&server.base_url());
+
+        let characters = fetch_bangumi_characters_next(9).await.unwrap();
+
+        assert_eq!(characters.len(), 1);
+        assert_eq!(characters[0].id, 2);
+        let requests = server.requests();
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[0].uri.query(), Some("limit=100&offset=0"));
+        assert_eq!(requests[1].uri.query(), Some("limit=100&offset=1"));
         server.shutdown().await;
     }
 }
