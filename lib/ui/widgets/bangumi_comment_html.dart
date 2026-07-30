@@ -198,7 +198,12 @@ class _BangumiCommentHtmlState extends State<BangumiCommentHtml> {
       // Bust fwfh's widget cache when reveal state changes.
       rebuildTriggers: <Object?>[_revision],
       customStylesBuilder: (element) {
-        final base = widget.customStylesBuilder?.call(element);
+        final defaultStyles = defaultBangumiCommentHtmlStyles(element);
+        final userStyles = widget.customStylesBuilder?.call(element);
+        final base = userStyles != null
+            ? <String, String>{...?defaultStyles, ...userStyles}
+            : defaultStyles;
+
         if (element.localName == 'img') {
           if (element.classes.contains('smile-dynamic') ||
               element.classes.contains('smile-blake') ||
@@ -317,6 +322,34 @@ class _BangumiCommentBodyState extends State<BangumiCommentBody> {
       customWidgetBuilder: widget.customWidgetBuilder,
     );
   }
+}
+
+/// CSS-ish default styles for Bangumi comment HTML, shared across all comment views.
+/// Keeps quote blocks visually distinct from body text.
+Map<String, String>? defaultBangumiCommentHtmlStyles(dynamic element) {
+  final name = element.localName as String?;
+  if (name == 'img') {
+    return {'max-width': '100%', 'max-height': '350px'};
+  }
+  if ((name == 'div' && element.classes.contains('quote')) ||
+      name == 'blockquote') {
+    return {
+      'margin': '4px 0 8px 0',
+      'padding': '8px 10px',
+      'border-left': '3px solid #9e9e9e',
+      'border-radius': '4px',
+      'background-color': 'rgba(158, 158, 158, 0.12)',
+      'color': '#9e9e9e',
+      'font-size': '0.92em',
+      'line-height': '1.4',
+    };
+  }
+  if (name == 'q') {
+    // Nested inside `.quote` or standalone quote text; drop browser default
+    // italic/quotes so the parent block styles carry the visual weight.
+    return {'quotes': 'none', 'font-style': 'normal', 'color': 'inherit'};
+  }
+  return null;
 }
 
 bool bangumiCommentStateHidesContent(int state) => switch (state) {

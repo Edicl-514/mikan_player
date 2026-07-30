@@ -83,28 +83,7 @@ bool isBangumiSmileUrl(String src) {
 /// CSS-ish styles for Bangumi comment HTML, shared by top-level comments and
 /// nested replies. Keeps quote blocks visually distinct from body text.
 Map<String, String>? bangumiCommentHtmlStyles(dynamic element) {
-  final name = element.localName as String?;
-  if (name == 'img') {
-    return {'max-width': '100%', 'max-height': '350px'};
-  }
-  if (name == 'div' && element.classes.contains('quote')) {
-    return {
-      'margin': '0 0 8px 0',
-      'padding': '8px 10px',
-      'border-left': '3px solid #9e9e9e',
-      'border-radius': '4px',
-      'background-color': 'rgba(158, 158, 158, 0.12)',
-      'color': '#9e9e9e',
-      'font-size': '0.92em',
-      'line-height': '1.4',
-    };
-  }
-  if (name == 'q') {
-    // Nested inside `.quote`; drop browser default italic/quotes so the
-    // parent block styles carry the visual weight.
-    return {'quotes': 'none', 'font-style': 'normal', 'color': 'inherit'};
-  }
-  return null;
+  return defaultBangumiCommentHtmlStyles(element);
 }
 
 /// Resolves the inline size for a Bangumi smile `<img>` from its `width`/

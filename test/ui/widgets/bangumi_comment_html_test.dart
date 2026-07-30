@@ -37,6 +37,38 @@ void main() {
     });
   });
 
+  group('defaultBangumiCommentHtmlStyles', () {
+    test('img gets max size constraints', () {
+      final styles = defaultBangumiCommentHtmlStyles(_FakeElement(localName: 'img'));
+      expect(styles?['max-width'], '100%');
+      expect(styles?['max-height'], '350px');
+    });
+
+    test('div.quote and blockquote get left border and muted background', () {
+      final divStyles = defaultBangumiCommentHtmlStyles(
+        _FakeElement(localName: 'div', classes: {'quote'}),
+      );
+      expect(divStyles?['border-left'], contains('3px solid'));
+      expect(divStyles?['background-color'], isNotNull);
+      expect(divStyles?['color'], isNotNull);
+
+      final bqStyles = defaultBangumiCommentHtmlStyles(
+        _FakeElement(localName: 'blockquote'),
+      );
+      expect(bqStyles?['border-left'], contains('3px solid'));
+    });
+
+    test('q inside quotes drops default italic/quotes', () {
+      final styles = defaultBangumiCommentHtmlStyles(_FakeElement(localName: 'q'));
+      expect(styles?['quotes'], 'none');
+      expect(styles?['font-style'], 'normal');
+    });
+
+    test('unrelated elements return null', () {
+      expect(defaultBangumiCommentHtmlStyles(_FakeElement(localName: 'p')), isNull);
+    });
+  });
+
   test('only permits absolute HTTP(S) external URLs', () {
     expect(isSafeBangumiExternalUrl('https://bgm.tv/subject/1'), isTrue);
     expect(isSafeBangumiExternalUrl('http://example.com/a.png'), isTrue);
@@ -159,3 +191,10 @@ List<TextSpan> _textSpans(WidgetTester tester, String text) {
 bool _isHiddenMask(TextSpan span) =>
     span.style?.background?.color.toARGB32() == 0xFF555555 &&
     span.style?.color?.toARGB32() == 0xFF555555;
+
+class _FakeElement {
+  final String? localName;
+  final Set<String> classes;
+
+  _FakeElement({this.localName, this.classes = const {}});
+}
