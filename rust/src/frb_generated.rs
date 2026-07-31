@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 937142489;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1905121270;
 
 // Section: executor
 
@@ -5223,6 +5223,86 @@ fn wire__crate__api__config__rewrite_bangumi_url_if_proxied_impl(
         },
     )
 }
+fn wire__crate__frb_api__bangumi__search_bangumi_characters_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "search_bangumi_characters",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_keyword = <String>::sse_decode(&mut deserializer);
+            let api_page = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::frb_api::bangumi::search_bangumi_characters(
+                            api_keyword,
+                            api_page,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__frb_api__bangumi__search_bangumi_persons_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "search_bangumi_persons",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_keyword = <String>::sse_decode(&mut deserializer);
+            let api_page = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::frb_api::bangumi::search_bangumi_persons(api_keyword, api_page)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__ranking__search_bangumi_subject_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -6415,6 +6495,27 @@ impl SseDecode for crate::api::bangumi::types::BangumiCharacter {
     }
 }
 
+impl SseDecode for crate::api::bangumi::types::BangumiCharacterSearchResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <i64>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_nameCn = <String>::sse_decode(deserializer);
+        let mut var_role = <i32>::sse_decode(deserializer);
+        let mut var_info = <String>::sse_decode(deserializer);
+        let mut var_images =
+            <Option<crate::api::bangumi::types::BangumiImages>>::sse_decode(deserializer);
+        return crate::api::bangumi::types::BangumiCharacterSearchResult {
+            id: var_id,
+            name: var_name,
+            name_cn: var_nameCn,
+            role: var_role,
+            info: var_info,
+            images: var_images,
+        };
+    }
+}
+
 impl SseDecode for crate::api::bangumi::types::BangumiComment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -6609,6 +6710,29 @@ impl SseDecode for crate::api::bangumi::types::BangumiPerson {
             relation: var_relation,
             career: var_career,
             person_type: var_personType,
+            images: var_images,
+        };
+    }
+}
+
+impl SseDecode for crate::api::bangumi::types::BangumiPersonSearchResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <i64>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_nameCn = <String>::sse_decode(deserializer);
+        let mut var_personType = <i32>::sse_decode(deserializer);
+        let mut var_info = <String>::sse_decode(deserializer);
+        let mut var_career = <Vec<String>>::sse_decode(deserializer);
+        let mut var_images =
+            <Option<crate::api::bangumi::types::BangumiImages>>::sse_decode(deserializer);
+        return crate::api::bangumi::types::BangumiPersonSearchResult {
+            id: var_id,
+            name: var_name,
+            name_cn: var_nameCn,
+            person_type: var_personType,
+            info: var_info,
+            career: var_career,
             images: var_images,
         };
     }
@@ -7142,6 +7266,22 @@ impl SseDecode for Vec<crate::api::bangumi::types::BangumiCharacter> {
     }
 }
 
+impl SseDecode for Vec<crate::api::bangumi::types::BangumiCharacterSearchResult> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(
+                <crate::api::bangumi::types::BangumiCharacterSearchResult>::sse_decode(
+                    deserializer,
+                ),
+            );
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::bangumi::types::BangumiComment> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -7219,6 +7359,20 @@ impl SseDecode for Vec<crate::api::bangumi::types::BangumiPerson> {
             ans_.push(<crate::api::bangumi::types::BangumiPerson>::sse_decode(
                 deserializer,
             ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::bangumi::types::BangumiPersonSearchResult> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(
+                <crate::api::bangumi::types::BangumiPersonSearchResult>::sse_decode(deserializer),
+            );
         }
         return ans_;
     }
@@ -8888,107 +9042,119 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        137 => wire__crate__api__ranking__search_bangumi_subject_impl(
+        137 => wire__crate__frb_api__bangumi__search_bangumi_characters_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        138 => {
+        138 => wire__crate__frb_api__bangumi__search_bangumi_persons_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        139 => wire__crate__api__ranking__search_bangumi_subject_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        140 => {
             wire__crate__api__ranking__search_bangumi_tag_impl(port, ptr, rust_vec_len, data_len)
         }
-        139 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
-        140 => wire__crate__api__config__set_bangumi_access_token_impl(
+        141 => wire__crate__api__mikan__search_mikan_anime_impl(port, ptr, rust_vec_len, data_len),
+        142 => wire__crate__api__config__set_bangumi_access_token_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        141 => wire__crate__frb_api__bangumi__set_bangumi_collection_status_impl(
+        143 => wire__crate__frb_api__bangumi__set_bangumi_collection_status_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        142 => wire__crate__api__config__set_bangumi_doh_endpoints_impl(
+        144 => wire__crate__api__config__set_bangumi_doh_endpoints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        143 => wire__crate__api__simple__set_bangumi_doh_endpoints_impl(
+        145 => wire__crate__api__simple__set_bangumi_doh_endpoints_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        144 => wire__crate__api__config__set_bangumi_request_mode_impl(
+        146 => wire__crate__api__config__set_bangumi_request_mode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        145 => wire__crate__api__config__set_bangumi_reverse_proxy_impl(
+        147 => wire__crate__api__config__set_bangumi_reverse_proxy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        146 => wire__crate__api__simple__set_bangumi_reverse_proxy_impl(
+        148 => wire__crate__api__simple__set_bangumi_reverse_proxy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        147 => {
+        149 => {
             wire__crate__api__config__set_bangumi_use_ech_impl(port, ptr, rust_vec_len, data_len)
         }
-        148 => {
+        150 => {
             wire__crate__api__simple__set_bangumi_use_ech_impl(port, ptr, rust_vec_len, data_len)
         }
-        149 => {
+        151 => {
             wire__crate__api__config__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        150 => {
+        152 => {
             wire__crate__api__simple__set_disabled_sources_impl(port, ptr, rust_vec_len, data_len)
         }
-        151 => wire__crate__api__config__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
-        152 => wire__crate__api__simple__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
-        153 => wire__crate__api__config__set_max_concurrent_searches_impl(
+        153 => wire__crate__api__config__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
+        154 => wire__crate__api__simple__set_download_dir_impl(port, ptr, rust_vec_len, data_len),
+        155 => wire__crate__api__config__set_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        154 => wire__crate__api__simple__set_max_concurrent_searches_impl(
+        156 => wire__crate__api__simple__set_max_concurrent_searches_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        155 => wire__crate__frb_api__crawler__spawn_sites_index_background_impl(
+        157 => wire__crate__frb_api__crawler__spawn_sites_index_background_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        156 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
-        157 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
-        158 => wire__crate__frb_api__bangumi__update_bangumi_collection_impl(
+        158 => wire__crate__api__simple__start_torrent_impl(port, ptr, rust_vec_len, data_len),
+        159 => wire__crate__api__simple__stop_torrent_impl(port, ptr, rust_vec_len, data_len),
+        160 => wire__crate__frb_api__bangumi__update_bangumi_collection_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        159 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
-        160 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
-        161 => wire__crate__frb_api__generic_scraper__update_single_source_config_impl(
+        161 => wire__crate__api__config__update_config_impl(port, ptr, rust_vec_len, data_len),
+        162 => wire__crate__api__simple__update_config_impl(port, ptr, rust_vec_len, data_len),
+        163 => wire__crate__frb_api__generic_scraper__update_single_source_config_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        162 => wire__crate__api__simple__warmup_bangumi_ech_config_impl(
+        164 => wire__crate__api__simple__warmup_bangumi_ech_config_impl(
             port,
             ptr,
             rust_vec_len,
@@ -9153,6 +9319,31 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiCharac
     for crate::api::bangumi::types::BangumiCharacter
 {
     fn into_into_dart(self) -> crate::api::bangumi::types::BangumiCharacter {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiCharacterSearchResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+            self.name_cn.into_into_dart().into_dart(),
+            self.role.into_into_dart().into_dart(),
+            self.info.into_into_dart().into_dart(),
+            self.images.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::bangumi::types::BangumiCharacterSearchResult
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiCharacterSearchResult>
+    for crate::api::bangumi::types::BangumiCharacterSearchResult
+{
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiCharacterSearchResult {
         self
     }
 }
@@ -9400,6 +9591,32 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiPerson
     for crate::api::bangumi::types::BangumiPerson
 {
     fn into_into_dart(self) -> crate::api::bangumi::types::BangumiPerson {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::bangumi::types::BangumiPersonSearchResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+            self.name_cn.into_into_dart().into_dart(),
+            self.person_type.into_into_dart().into_dart(),
+            self.info.into_into_dart().into_dart(),
+            self.career.into_into_dart().into_dart(),
+            self.images.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::bangumi::types::BangumiPersonSearchResult
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::bangumi::types::BangumiPersonSearchResult>
+    for crate::api::bangumi::types::BangumiPersonSearchResult
+{
+    fn into_into_dart(self) -> crate::api::bangumi::types::BangumiPersonSearchResult {
         self
     }
 }
@@ -10526,6 +10743,18 @@ impl SseEncode for crate::api::bangumi::types::BangumiCharacter {
     }
 }
 
+impl SseEncode for crate::api::bangumi::types::BangumiCharacterSearchResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <String>::sse_encode(self.name_cn, serializer);
+        <i32>::sse_encode(self.role, serializer);
+        <String>::sse_encode(self.info, serializer);
+        <Option<crate::api::bangumi::types::BangumiImages>>::sse_encode(self.images, serializer);
+    }
+}
+
 impl SseEncode for crate::api::bangumi::types::BangumiComment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -10648,6 +10877,19 @@ impl SseEncode for crate::api::bangumi::types::BangumiPerson {
         <String>::sse_encode(self.relation, serializer);
         <Vec<String>>::sse_encode(self.career, serializer);
         <i32>::sse_encode(self.person_type, serializer);
+        <Option<crate::api::bangumi::types::BangumiImages>>::sse_encode(self.images, serializer);
+    }
+}
+
+impl SseEncode for crate::api::bangumi::types::BangumiPersonSearchResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <String>::sse_encode(self.name_cn, serializer);
+        <i32>::sse_encode(self.person_type, serializer);
+        <String>::sse_encode(self.info, serializer);
+        <Vec<String>>::sse_encode(self.career, serializer);
         <Option<crate::api::bangumi::types::BangumiImages>>::sse_encode(self.images, serializer);
     }
 }
@@ -10995,6 +11237,18 @@ impl SseEncode for Vec<crate::api::bangumi::types::BangumiCharacter> {
     }
 }
 
+impl SseEncode for Vec<crate::api::bangumi::types::BangumiCharacterSearchResult> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::bangumi::types::BangumiCharacterSearchResult>::sse_encode(
+                item, serializer,
+            );
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::bangumi::types::BangumiComment> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -11051,6 +11305,16 @@ impl SseEncode for Vec<crate::api::bangumi::types::BangumiPerson> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::bangumi::types::BangumiPerson>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::bangumi::types::BangumiPersonSearchResult> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::bangumi::types::BangumiPersonSearchResult>::sse_encode(item, serializer);
         }
     }
 }

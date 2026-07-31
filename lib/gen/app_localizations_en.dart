@@ -616,6 +616,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchTagModeLabel => 'Tag search';
 
   @override
+  String get searchCharacterModeLabel => 'Character search';
+
+  @override
+  String get searchPersonModeLabel => 'Person search';
+
+  @override
   String get searchEnterTag => 'Enter a tag to search';
 
   @override
@@ -639,6 +645,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchEnterKeyword => 'Enter a keyword to search';
+
+  @override
+  String get searchEnterCharacter => 'Enter a character name to search';
+
+  @override
+  String get searchEnterPerson => 'Enter a person name to search';
 
   @override
   String searchFailed(Object error) {

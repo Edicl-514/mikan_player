@@ -1,6 +1,32 @@
 use crate::api::bangumi as bangumi_impl;
 use crate::frb_api::contract;
 
+pub async fn search_bangumi_characters(
+    keyword: String,
+    page: i32,
+) -> anyhow::Result<Vec<bangumi_impl::BangumiCharacterSearchResult>> {
+    const API: &str = "search_bangumi_characters";
+    contract::public_result(API, contract::require_non_blank("keyword", &keyword))?;
+    contract::public_result(API, contract::require_i32_range("page", page, 1, i32::MAX))?;
+    contract::public_result(
+        API,
+        bangumi_impl::search_bangumi_characters(keyword, page).await,
+    )
+}
+
+pub async fn search_bangumi_persons(
+    keyword: String,
+    page: i32,
+) -> anyhow::Result<Vec<bangumi_impl::BangumiPersonSearchResult>> {
+    const API: &str = "search_bangumi_persons";
+    contract::public_result(API, contract::require_non_blank("keyword", &keyword))?;
+    contract::public_result(API, contract::require_i32_range("page", page, 1, i32::MAX))?;
+    contract::public_result(
+        API,
+        bangumi_impl::search_bangumi_persons(keyword, page).await,
+    )
+}
+
 pub async fn fetch_bangumi_episodes(
     subject_id: i64,
 ) -> anyhow::Result<Vec<bangumi_impl::BangumiEpisode>> {

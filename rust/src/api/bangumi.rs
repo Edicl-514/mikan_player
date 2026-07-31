@@ -9,6 +9,7 @@ mod fetch_reviews;
 mod fetch_topics;
 mod markup;
 mod person_detail;
+mod search;
 pub(crate) mod types;
 mod user;
 mod util;
@@ -32,6 +33,7 @@ pub(crate) use fetch_topics::{fetch_bangumi_subject_topics, fetch_bangumi_topic_
 pub(crate) use person_detail::{
     fetch_person_characters, fetch_person_comments, fetch_person_details, fetch_person_subjects,
 };
+pub(crate) use search::{search_bangumi_characters, search_bangumi_persons};
 pub(crate) use types::*;
 pub(crate) use user::{
     delete_bangumi_collection, fetch_bangumi_image_url, fetch_bangumi_me,

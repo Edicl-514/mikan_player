@@ -7,6 +7,22 @@ import '../api/bangumi/types.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+Future<List<BangumiCharacterSearchResult>> searchBangumiCharacters({
+  required String keyword,
+  required int page,
+}) => RustLib.instance.api.crateFrbApiBangumiSearchBangumiCharacters(
+  keyword: keyword,
+  page: page,
+);
+
+Future<List<BangumiPersonSearchResult>> searchBangumiPersons({
+  required String keyword,
+  required int page,
+}) => RustLib.instance.api.crateFrbApiBangumiSearchBangumiPersons(
+  keyword: keyword,
+  page: page,
+);
+
 Future<List<BangumiEpisode>> fetchBangumiEpisodes({
   required PlatformInt64 subjectId,
 }) => RustLib.instance.api.crateFrbApiBangumiFetchBangumiEpisodes(

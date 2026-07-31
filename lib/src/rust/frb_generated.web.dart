@@ -100,6 +100,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiCharacter dco_decode_bangumi_character(dynamic raw);
 
   @protected
+  BangumiCharacterSearchResult dco_decode_bangumi_character_search_result(
+    dynamic raw,
+  );
+
+  @protected
   BangumiComment dco_decode_bangumi_comment(dynamic raw);
 
   @protected
@@ -128,6 +133,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BangumiPerson dco_decode_bangumi_person(dynamic raw);
+
+  @protected
+  BangumiPersonSearchResult dco_decode_bangumi_person_search_result(
+    dynamic raw,
+  );
 
   @protected
   BangumiRelatedSubject dco_decode_bangumi_related_subject(dynamic raw);
@@ -269,6 +279,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<BangumiCharacter> dco_decode_list_bangumi_character(dynamic raw);
 
   @protected
+  List<BangumiCharacterSearchResult>
+  dco_decode_list_bangumi_character_search_result(dynamic raw);
+
+  @protected
   List<BangumiComment> dco_decode_list_bangumi_comment(dynamic raw);
 
   @protected
@@ -291,6 +305,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiPerson> dco_decode_list_bangumi_person(dynamic raw);
+
+  @protected
+  List<BangumiPersonSearchResult> dco_decode_list_bangumi_person_search_result(
+    dynamic raw,
+  );
 
   @protected
   List<BangumiRelatedSubject> dco_decode_list_bangumi_related_subject(
@@ -590,6 +609,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BangumiCharacter sse_decode_bangumi_character(SseDeserializer deserializer);
 
   @protected
+  BangumiCharacterSearchResult sse_decode_bangumi_character_search_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   BangumiComment sse_decode_bangumi_comment(SseDeserializer deserializer);
 
   @protected
@@ -630,6 +654,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BangumiPerson sse_decode_bangumi_person(SseDeserializer deserializer);
+
+  @protected
+  BangumiPersonSearchResult sse_decode_bangumi_person_search_result(
+    SseDeserializer deserializer,
+  );
 
   @protected
   BangumiRelatedSubject sse_decode_bangumi_related_subject(
@@ -797,6 +826,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<BangumiCharacterSearchResult>
+  sse_decode_list_bangumi_character_search_result(SseDeserializer deserializer);
+
+  @protected
   List<BangumiComment> sse_decode_list_bangumi_comment(
     SseDeserializer deserializer,
   );
@@ -823,6 +856,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<BangumiPerson> sse_decode_list_bangumi_person(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<BangumiPersonSearchResult> sse_decode_list_bangumi_person_search_result(
     SseDeserializer deserializer,
   );
 
@@ -1190,6 +1228,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_bangumi_character_search_result(
+    BangumiCharacterSearchResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_bangumi_comment(
     BangumiComment self,
     SseSerializer serializer,
@@ -1242,6 +1286,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_bangumi_person(BangumiPerson self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_bangumi_person_search_result(
+    BangumiPersonSearchResult self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_bangumi_related_subject(
@@ -1445,6 +1495,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_bangumi_character_search_result(
+    List<BangumiCharacterSearchResult> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_bangumi_comment(
     List<BangumiComment> self,
     SseSerializer serializer,
@@ -1477,6 +1533,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_bangumi_person(
     List<BangumiPerson> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_bangumi_person_search_result(
+    List<BangumiPersonSearchResult> self,
     SseSerializer serializer,
   );
 

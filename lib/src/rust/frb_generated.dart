@@ -79,7 +79,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 937142489;
+  int get rustContentHash => -1905121270;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -614,6 +614,18 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiConfigRewriteBangumiUrlIfProxied({
     required String raw,
+  });
+
+  Future<List<BangumiCharacterSearchResult>>
+  crateFrbApiBangumiSearchBangumiCharacters({
+    required String keyword,
+    required int page,
+  });
+
+  Future<List<BangumiPersonSearchResult>>
+  crateFrbApiBangumiSearchBangumiPersons({
+    required String keyword,
+    required int page,
   });
 
   Future<List<RankingAnime>> crateApiRankingSearchBangumiSubject({
@@ -5266,6 +5278,78 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<List<BangumiCharacterSearchResult>>
+  crateFrbApiBangumiSearchBangumiCharacters({
+    required String keyword,
+    required int page,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(keyword, serializer);
+          sse_encode_i_32(page, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 137,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_bangumi_character_search_result,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFrbApiBangumiSearchBangumiCharactersConstMeta,
+        argValues: [keyword, page],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiBangumiSearchBangumiCharactersConstMeta =>
+      const TaskConstMeta(
+        debugName: "search_bangumi_characters",
+        argNames: ["keyword", "page"],
+      );
+
+  @override
+  Future<List<BangumiPersonSearchResult>>
+  crateFrbApiBangumiSearchBangumiPersons({
+    required String keyword,
+    required int page,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(keyword, serializer);
+          sse_encode_i_32(page, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 138,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_bangumi_person_search_result,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateFrbApiBangumiSearchBangumiPersonsConstMeta,
+        argValues: [keyword, page],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbApiBangumiSearchBangumiPersonsConstMeta =>
+      const TaskConstMeta(
+        debugName: "search_bangumi_persons",
+        argNames: ["keyword", "page"],
+      );
+
+  @override
   Future<List<RankingAnime>> crateApiRankingSearchBangumiSubject({
     required String keyword,
     required String sortType,
@@ -5281,7 +5365,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 137,
+            funcId: 139,
             port: port_,
           );
         },
@@ -5318,7 +5402,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 138,
+            funcId: 140,
             port: port_,
           );
         },
@@ -5351,7 +5435,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 139,
+            funcId: 141,
             port: port_,
           );
         },
@@ -5386,7 +5470,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 140,
+            funcId: 142,
             port: port_,
           );
         },
@@ -5421,7 +5505,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 141,
+            funcId: 143,
             port: port_,
           );
         },
@@ -5454,7 +5538,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 142,
+            funcId: 144,
             port: port_,
           );
         },
@@ -5487,7 +5571,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 143,
+            funcId: 145,
             port: port_,
           );
         },
@@ -5518,7 +5602,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 144,
+            funcId: 146,
             port: port_,
           );
         },
@@ -5549,7 +5633,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 145,
+            funcId: 147,
             port: port_,
           );
         },
@@ -5580,7 +5664,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 146,
+            funcId: 148,
             port: port_,
           );
         },
@@ -5611,7 +5695,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 147,
+            funcId: 149,
             port: port_,
           );
         },
@@ -5642,7 +5726,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 148,
+            funcId: 150,
             port: port_,
           );
         },
@@ -5675,7 +5759,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 149,
+            funcId: 151,
             port: port_,
           );
         },
@@ -5708,7 +5792,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 150,
+            funcId: 152,
             port: port_,
           );
         },
@@ -5739,7 +5823,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 151,
+            funcId: 153,
             port: port_,
           );
         },
@@ -5767,7 +5851,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 152,
+            funcId: 154,
             port: port_,
           );
         },
@@ -5795,7 +5879,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 153,
+            funcId: 155,
             port: port_,
           );
         },
@@ -5826,7 +5910,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 154,
+            funcId: 156,
             port: port_,
           );
         },
@@ -5856,7 +5940,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 155,
+            funcId: 157,
             port: port_,
           );
         },
@@ -5887,7 +5971,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 156,
+            funcId: 158,
             port: port_,
           );
         },
@@ -5919,7 +6003,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 157,
+            funcId: 159,
             port: port_,
           );
         },
@@ -5961,7 +6045,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 158,
+            funcId: 160,
             port: port_,
           );
         },
@@ -6009,7 +6093,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 159,
+            funcId: 161,
             port: port_,
           );
         },
@@ -6049,7 +6133,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 160,
+            funcId: 162,
             port: port_,
           );
         },
@@ -6081,7 +6165,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 161,
+            funcId: 163,
             port: port_,
           );
         },
@@ -6112,7 +6196,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 162,
+            funcId: 164,
             port: port_,
           );
         },
@@ -6307,6 +6391,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BangumiCharacterSearchResult dco_decode_bangumi_character_search_result(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return BangumiCharacterSearchResult(
+      id: dco_decode_i_64(arr[0]),
+      name: dco_decode_String(arr[1]),
+      nameCn: dco_decode_String(arr[2]),
+      role: dco_decode_i_32(arr[3]),
+      info: dco_decode_String(arr[4]),
+      images: dco_decode_opt_box_autoadd_bangumi_images(arr[5]),
+    );
+  }
+
+  @protected
   BangumiComment dco_decode_bangumi_comment(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -6460,6 +6562,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       career: dco_decode_list_String(arr[3]),
       personType: dco_decode_i_32(arr[4]),
       images: dco_decode_opt_box_autoadd_bangumi_images(arr[5]),
+    );
+  }
+
+  @protected
+  BangumiPersonSearchResult dco_decode_bangumi_person_search_result(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return BangumiPersonSearchResult(
+      id: dco_decode_i_64(arr[0]),
+      name: dco_decode_String(arr[1]),
+      nameCn: dco_decode_String(arr[2]),
+      personType: dco_decode_i_32(arr[3]),
+      info: dco_decode_String(arr[4]),
+      career: dco_decode_list_String(arr[5]),
+      images: dco_decode_opt_box_autoadd_bangumi_images(arr[6]),
     );
   }
 
@@ -6947,6 +7068,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<BangumiCharacterSearchResult>
+  dco_decode_list_bangumi_character_search_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_bangumi_character_search_result)
+        .toList();
+  }
+
+  @protected
   List<BangumiComment> dco_decode_list_bangumi_comment(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_bangumi_comment).toList();
@@ -6992,6 +7122,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<BangumiPerson> dco_decode_list_bangumi_person(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_bangumi_person).toList();
+  }
+
+  @protected
+  List<BangumiPersonSearchResult> dco_decode_list_bangumi_person_search_result(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_bangumi_person_search_result)
+        .toList();
   }
 
   @protected
@@ -7836,6 +7976,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BangumiCharacterSearchResult sse_decode_bangumi_character_search_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_nameCn = sse_decode_String(deserializer);
+    var var_role = sse_decode_i_32(deserializer);
+    var var_info = sse_decode_String(deserializer);
+    var var_images = sse_decode_opt_box_autoadd_bangumi_images(deserializer);
+    return BangumiCharacterSearchResult(
+      id: var_id,
+      name: var_name,
+      nameCn: var_nameCn,
+      role: var_role,
+      info: var_info,
+      images: var_images,
+    );
+  }
+
+  @protected
   BangumiComment sse_decode_bangumi_comment(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_i_64(deserializer);
@@ -8024,6 +8185,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       relation: var_relation,
       career: var_career,
       personType: var_personType,
+      images: var_images,
+    );
+  }
+
+  @protected
+  BangumiPersonSearchResult sse_decode_bangumi_person_search_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_i_64(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_nameCn = sse_decode_String(deserializer);
+    var var_personType = sse_decode_i_32(deserializer);
+    var var_info = sse_decode_String(deserializer);
+    var var_career = sse_decode_list_String(deserializer);
+    var var_images = sse_decode_opt_box_autoadd_bangumi_images(deserializer);
+    return BangumiPersonSearchResult(
+      id: var_id,
+      name: var_name,
+      nameCn: var_nameCn,
+      personType: var_personType,
+      info: var_info,
+      career: var_career,
       images: var_images,
     );
   }
@@ -8614,6 +8798,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<BangumiCharacterSearchResult>
+  sse_decode_list_bangumi_character_search_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <BangumiCharacterSearchResult>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_bangumi_character_search_result(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<BangumiComment> sse_decode_list_bangumi_comment(
     SseDeserializer deserializer,
   ) {
@@ -8693,6 +8892,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <BangumiPerson>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_bangumi_person(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<BangumiPersonSearchResult> sse_decode_list_bangumi_person_search_result(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <BangumiPersonSearchResult>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_bangumi_person_search_result(deserializer));
     }
     return ans_;
   }
@@ -9878,6 +10091,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_bangumi_character_search_result(
+    BangumiCharacterSearchResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.nameCn, serializer);
+    sse_encode_i_32(self.role, serializer);
+    sse_encode_String(self.info, serializer);
+    sse_encode_opt_box_autoadd_bangumi_images(self.images, serializer);
+  }
+
+  @protected
   void sse_encode_bangumi_comment(
     BangumiComment self,
     SseSerializer serializer,
@@ -10005,6 +10232,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.relation, serializer);
     sse_encode_list_String(self.career, serializer);
     sse_encode_i_32(self.personType, serializer);
+    sse_encode_opt_box_autoadd_bangumi_images(self.images, serializer);
+  }
+
+  @protected
+  void sse_encode_bangumi_person_search_result(
+    BangumiPersonSearchResult self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.nameCn, serializer);
+    sse_encode_i_32(self.personType, serializer);
+    sse_encode_String(self.info, serializer);
+    sse_encode_list_String(self.career, serializer);
     sse_encode_opt_box_autoadd_bangumi_images(self.images, serializer);
   }
 
@@ -10459,6 +10701,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_bangumi_character_search_result(
+    List<BangumiCharacterSearchResult> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_bangumi_character_search_result(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_bangumi_comment(
     List<BangumiComment> self,
     SseSerializer serializer,
@@ -10527,6 +10781,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_bangumi_person(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_bangumi_person_search_result(
+    List<BangumiPersonSearchResult> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_bangumi_person_search_result(item, serializer);
     }
   }
 

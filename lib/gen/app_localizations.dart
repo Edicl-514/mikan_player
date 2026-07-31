@@ -1201,6 +1201,18 @@ abstract class AppLocalizations {
   /// **'Tag 搜索'**
   String get searchTagModeLabel;
 
+  /// No description provided for @searchCharacterModeLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'角色搜索'**
+  String get searchCharacterModeLabel;
+
+  /// No description provided for @searchPersonModeLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'人物搜索'**
+  String get searchPersonModeLabel;
+
   /// No description provided for @searchEnterTag.
   ///
   /// In zh, this message translates to:
@@ -1248,6 +1260,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'输入关键词进行搜索'**
   String get searchEnterKeyword;
+
+  /// No description provided for @searchEnterCharacter.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入角色名进行搜索'**
+  String get searchEnterCharacter;
+
+  /// No description provided for @searchEnterPerson.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入人物名进行搜索'**
+  String get searchEnterPerson;
 
   /// No description provided for @searchFailed.
   ///

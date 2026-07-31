@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
+import 'package:mikan_player/src/rust/api/bangumi.dart' as bangumi;
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart' as crawler;
 import 'package:mikan_player/services/bangumi_request_mode_service.dart';
@@ -32,7 +33,7 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
-  late final PagedRequestController<SearchRequest, RankingAnime>
+  late final PagedRequestController<SearchRequest, _SearchResult>
   _resultsController;
   String _currentKeyword = '';
   String _sortType = 'rank';
@@ -41,17 +42,22 @@ class _SearchPageState extends State<SearchPage> {
   BangumiRequestMode _requestMode = BangumiRequestMode.hybrid;
   final ScrollController _scrollController = createPlatformScrollController();
 
-  List<RankingAnime> get _results => _resultsController.items;
+  List<_SearchResult> get _results => _resultsController.items;
   bool get _isLoading =>
       _resultsController.isLoading || _resultsController.isLoadingMore;
 
   @override
   void initState() {
     super.initState();
-    _resultsController = PagedRequestController<SearchRequest, RankingAnime>(
+    _resultsController = PagedRequestController<SearchRequest, _SearchResult>(
       fetchPage: (request, page) {
         final fetchPage = widget.fetchPage;
-        if (fetchPage != null) return fetchPage(request, page);
+        if (fetchPage != null && !request.mode.isCharacterOrPerson) {
+          return fetchPage(
+            request,
+            page,
+          ).then((items) => items.map(_SearchResult.subject).toList());
+        }
         return request.mode.fetch(
           keyword: request.keyword,
           sortType: request.sortType,
@@ -107,13 +113,20 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _applyRequestMode(BangumiRequestMode mode) {
+    final nextSearchMode =
+        mode == BangumiRequestMode.legacy && !_searchMode.isAvailableInLegacy
+        ? SearchMode.keyword
+        : _searchMode;
     final nextSortType = _defaultSortType(mode: mode);
     final shouldRefresh =
         _currentKeyword.isNotEmpty &&
-        (_requestMode != mode || _sortType != nextSortType);
+        (_requestMode != mode ||
+            _searchMode != nextSearchMode ||
+            _sortType != nextSortType);
 
     setState(() {
       _requestMode = mode;
+      _searchMode = nextSearchMode;
       _sortType = nextSortType;
     });
 
@@ -161,7 +174,9 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Future<void> _setSearchMode(SearchMode mode) async {
-    if (_searchMode == mode) return;
+    if (_searchMode == mode || (_isLegacyMode && !mode.isAvailableInLegacy)) {
+      return;
+    }
     setState(() {
       _searchMode = mode;
       _sortType = _defaultSortType();
@@ -188,6 +203,8 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   List<_SearchSortOption> _buildSortOptions(AppLocalizations l10n) {
+    if (_searchMode.isCharacterOrPerson) return const [];
+
     if (_searchMode == SearchMode.keyword && _isLegacyMode) {
       return const [];
     }
@@ -218,11 +235,7 @@ class _SearchPageState extends State<SearchPage> {
         : (sortOptions.isEmpty ? _sortType : sortOptions.first.value);
 
     final isHosted = DesktopPageChromeScope.hostsPageHeader(context);
-    final hintText = _searchMode == SearchMode.keyword
-        ? AppLocalizations.of(context).searchHintText
-        : (_isLegacyMode
-              ? AppLocalizations.of(context).searchEnterTag
-              : AppLocalizations.of(context).searchEnterTagsMulti);
+    final hintText = _searchHintText(l10n);
 
     final searchField = TextField(
       controller: _searchController,
@@ -250,11 +263,8 @@ class _SearchPageState extends State<SearchPage> {
                   border: InputBorder.none,
                   hintStyle: TextStyle(
                     color:
-                        Theme.of(
-                          context,
-                        ).appBarTheme.titleTextStyle?.color?.withValues(
-                          alpha: 0.7,
-                        ) ??
+                        Theme.of(context).appBarTheme.titleTextStyle?.color
+                            ?.withValues(alpha: 0.7) ??
                         Theme.of(
                           context,
                         ).textTheme.titleLarge?.color?.withValues(alpha: 0.7),
@@ -271,51 +281,10 @@ class _SearchPageState extends State<SearchPage> {
               ),
               actions: [
                 PopupMenuButton<SearchMode>(
-                  icon: Icon(
-                    _searchMode == SearchMode.keyword
-                        ? Icons.text_fields
-                        : Icons.label,
-                  ),
+                  icon: Icon(_searchMode.icon),
                   tooltip: AppLocalizations.of(context).searchModeTooltip,
                   onSelected: _setSearchMode,
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: SearchMode.keyword,
-                      child: Row(
-                        children: [
-                          if (_searchMode == SearchMode.keyword)
-                            Icon(
-                              Icons.check,
-                              size: 18,
-                              color: Theme.of(context).colorScheme.primary,
-                            )
-                          else
-                            const SizedBox(width: 18),
-                          const SizedBox(width: 12),
-                          Text(
-                            AppLocalizations.of(context).searchKeywordModeLabel,
-                          ),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: SearchMode.tag,
-                      child: Row(
-                        children: [
-                          if (_searchMode == SearchMode.tag)
-                            Icon(
-                              Icons.check,
-                              size: 18,
-                              color: Theme.of(context).colorScheme.primary,
-                            )
-                          else
-                            const SizedBox(width: 18),
-                          const SizedBox(width: 12),
-                          Text(AppLocalizations.of(context).searchTagModeLabel),
-                        ],
-                      ),
-                    ),
-                  ],
+                  itemBuilder: _buildSearchModeItems,
                 ),
                 if (sortOptions.isNotEmpty)
                   PopupMenuButton<String>(
@@ -335,7 +304,9 @@ class _SearchPageState extends State<SearchPage> {
                                   Icon(
                                     Icons.check,
                                     size: 18,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                   )
                                 else
                                   const SizedBox(width: 18),
@@ -385,49 +356,10 @@ class _SearchPageState extends State<SearchPage> {
         child: Row(
           children: [
             PopupMenuButton<SearchMode>(
-              icon: Icon(
-                _searchMode == SearchMode.keyword
-                    ? Icons.text_fields
-                    : Icons.label,
-              ),
+              icon: Icon(_searchMode.icon),
               tooltip: AppLocalizations.of(context).searchModeTooltip,
               onSelected: _setSearchMode,
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: SearchMode.keyword,
-                  child: Row(
-                    children: [
-                      if (_searchMode == SearchMode.keyword)
-                        Icon(
-                          Icons.check,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.primary,
-                        )
-                      else
-                        const SizedBox(width: 18),
-                      const SizedBox(width: 12),
-                      Text(AppLocalizations.of(context).searchKeywordModeLabel),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: SearchMode.tag,
-                  child: Row(
-                    children: [
-                      if (_searchMode == SearchMode.tag)
-                        Icon(
-                          Icons.check,
-                          size: 18,
-                          color: Theme.of(context).colorScheme.primary,
-                        )
-                      else
-                        const SizedBox(width: 18),
-                      const SizedBox(width: 12),
-                      Text(AppLocalizations.of(context).searchTagModeLabel),
-                    ],
-                  ),
-                ),
-              ],
+              itemBuilder: _buildSearchModeItems,
             ),
             const SizedBox(width: 8),
             Expanded(child: searchField),
@@ -473,6 +405,178 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  List<PopupMenuEntry<SearchMode>> _buildSearchModeItems(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return SearchMode.values
+        .map(
+          (mode) => PopupMenuItem<SearchMode>(
+            value: mode,
+            enabled: !_isLegacyMode || mode.isAvailableInLegacy,
+            child: Row(
+              children: [
+                if (_searchMode == mode)
+                  Icon(
+                    Icons.check,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  )
+                else
+                  const SizedBox(width: 18),
+                const SizedBox(width: 12),
+                Text(_searchModeLabel(l10n, mode)),
+              ],
+            ),
+          ),
+        )
+        .toList();
+  }
+
+  String _searchModeLabel(AppLocalizations l10n, SearchMode mode) {
+    switch (mode) {
+      case SearchMode.keyword:
+        return l10n.searchKeywordModeLabel;
+      case SearchMode.tag:
+        return l10n.searchTagModeLabel;
+      case SearchMode.character:
+        return l10n.searchCharacterModeLabel;
+      case SearchMode.person:
+        return l10n.searchPersonModeLabel;
+    }
+  }
+
+  String _searchHintText(AppLocalizations l10n) {
+    switch (_searchMode) {
+      case SearchMode.keyword:
+        return l10n.searchHintText;
+      case SearchMode.tag:
+        return _isLegacyMode ? l10n.searchEnterTag : l10n.searchEnterTagsMulti;
+      case SearchMode.character:
+        return l10n.searchEnterCharacter;
+      case SearchMode.person:
+        return l10n.searchEnterPerson;
+    }
+  }
+
+  String _searchEmptyMessage(AppLocalizations l10n) {
+    switch (_searchMode) {
+      case SearchMode.keyword:
+        return l10n.searchEnterKeyword;
+      case SearchMode.tag:
+        return _isLegacyMode ? l10n.searchEnterTag : l10n.searchEnterTagsMulti;
+      case SearchMode.character:
+        return l10n.searchEnterCharacter;
+      case SearchMode.person:
+        return l10n.searchEnterPerson;
+    }
+  }
+
+  Widget _buildResultCard(
+    BuildContext context,
+    _SearchResult result,
+    int index,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    switch (result.kind) {
+      case _SearchResultKind.subject:
+        final anime = result.anime!;
+        final heroTag = 'search_${anime.bangumiId}_$index';
+        final tag = anime.rank == null ? 'TV' : '#${anime.rank}';
+        return AnimeCard(
+          title: anime.title,
+          subtitle: anime.info,
+          tag: tag,
+          coverUrl: anime.coverUrl,
+          score: anime.score,
+          heroTag: heroTag,
+          destination: WorkspaceDestinations.bangumiDetails(
+            anime: crawler.AnimeInfo(
+              title: anime.title,
+              bangumiId: anime.bangumiId,
+              coverUrl: anime.coverUrl,
+              score: anime.score,
+              rank: anime.rank,
+              tags: anime.info.split(' / ').toList(),
+              subTitle: anime.originalTitle,
+              mikanId: null,
+              siteUrl: null,
+              broadcastDay: null,
+              broadcastTime: null,
+              fullJson: null,
+            ),
+            heroTag: heroTag,
+          ),
+        );
+      case _SearchResultKind.character:
+        final character = result.character!;
+        return AnimeCard(
+          title: _displayName(character.nameCn, character.name),
+          subtitle: _searchResultSubtitle(
+            primaryName: character.nameCn,
+            secondaryName: character.name,
+            info: character.info,
+          ),
+          tag: l10n.searchCharacterModeLabel,
+          coverUrl: _searchImageUrl(character.images),
+          destination: WorkspaceDestinations.character(
+            characterId: character.id,
+            characterName: _displayName(character.nameCn, character.name),
+            heroImageUrl: _searchImageUrl(character.images),
+            enableHeroAnimation: false,
+          ),
+        );
+      case _SearchResultKind.person:
+        final person = result.person!;
+        final info = person.career.isEmpty
+            ? person.info
+            : person.career.join(' / ');
+        return AnimeCard(
+          title: _displayName(person.nameCn, person.name),
+          subtitle: _searchResultSubtitle(
+            primaryName: person.nameCn,
+            secondaryName: person.name,
+            info: info,
+          ),
+          tag: l10n.searchPersonModeLabel,
+          coverUrl: _searchImageUrl(person.images),
+          destination: WorkspaceDestinations.person(
+            personId: person.id,
+            personName: _displayName(person.nameCn, person.name),
+            heroImageUrl: _searchImageUrl(person.images),
+            enableHeroAnimation: false,
+          ),
+        );
+    }
+  }
+
+  String _displayName(String preferred, String fallback) =>
+      preferred.trim().isNotEmpty ? preferred : fallback;
+
+  String _searchResultSubtitle({
+    required String primaryName,
+    required String secondaryName,
+    required String info,
+  }) {
+    final parts = <String>[];
+    if (secondaryName.trim().isNotEmpty && secondaryName != primaryName) {
+      parts.add(secondaryName);
+    }
+    if (info.trim().isNotEmpty) parts.add(info);
+    return parts.join(' / ');
+  }
+
+  String? _searchImageUrl(bangumi.BangumiImages? images) {
+    if (images == null) return null;
+    for (final url in [
+      images.medium,
+      images.large,
+      images.small,
+      images.grid,
+    ]) {
+      if (url.isNotEmpty) return url;
+    }
+    return null;
+  }
+
   Widget _buildBody() {
     if (_isLoading && _results.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -484,13 +588,7 @@ class _SearchPageState extends State<SearchPage> {
 
     if (_currentKeyword.isEmpty) {
       return Center(
-        child: Text(
-          _searchMode == SearchMode.keyword
-              ? AppLocalizations.of(context).searchEnterKeyword
-              : (_isLegacyMode
-                    ? AppLocalizations.of(context).searchEnterTag
-                    : AppLocalizations.of(context).searchEnterTagsMulti),
-        ),
+        child: Text(_searchEmptyMessage(AppLocalizations.of(context))),
       );
     }
 
@@ -508,41 +606,7 @@ class _SearchPageState extends State<SearchPage> {
             ),
             delegate: SliverChildBuilderDelegate((context, index) {
               if (index >= _results.length) return null;
-              final anime = _results[index];
-
-              String tag =
-                  'TV'; // Default fallback, but RankingAnime doesn't have type info easily parsed yet
-              if (anime.rank != null) {
-                tag = '#${anime.rank}';
-              }
-
-              final heroTag = 'search_${anime.bangumiId}_$index';
-
-              return AnimeCard(
-                title: anime.title,
-                subtitle: anime.info,
-                tag: tag,
-                coverUrl: anime.coverUrl,
-                score: anime.score,
-                heroTag: heroTag,
-                destination: WorkspaceDestinations.bangumiDetails(
-                  anime: crawler.AnimeInfo(
-                    title: anime.title,
-                    bangumiId: anime.bangumiId,
-                    coverUrl: anime.coverUrl,
-                    score: anime.score,
-                    rank: anime.rank,
-                    tags: anime.info.split(' / ').toList(),
-                    subTitle: anime.originalTitle,
-                    mikanId: null,
-                    siteUrl: null,
-                    broadcastDay: null,
-                    broadcastTime: null,
-                    fullJson: null,
-                  ),
-                  heroTag: heroTag,
-                ),
-              );
+              return _buildResultCard(context, _results[index], index);
             }, childCount: _results.length),
           ),
         ),
@@ -558,7 +622,7 @@ class _SearchPageState extends State<SearchPage> {
   }
 }
 
-enum SearchMode { keyword, tag }
+enum SearchMode { keyword, tag, character, person }
 
 class SearchRequest {
   const SearchRequest({
@@ -573,7 +637,26 @@ class SearchRequest {
 }
 
 extension on SearchMode {
-  Future<List<RankingAnime>> fetch({
+  bool get isAvailableInLegacy =>
+      this == SearchMode.keyword || this == SearchMode.tag;
+
+  bool get isCharacterOrPerson =>
+      this == SearchMode.character || this == SearchMode.person;
+
+  IconData get icon {
+    switch (this) {
+      case SearchMode.keyword:
+        return Icons.text_fields;
+      case SearchMode.tag:
+        return Icons.label;
+      case SearchMode.character:
+        return Icons.face;
+      case SearchMode.person:
+        return Icons.person;
+    }
+  }
+
+  Future<List<_SearchResult>> fetch({
     required String keyword,
     required String sortType,
     required int page,
@@ -584,11 +667,48 @@ extension on SearchMode {
           keyword: keyword,
           sortType: sortType,
           page: page,
-        );
+        ).then((items) => items.map(_SearchResult.subject).toList());
       case SearchMode.tag:
-        return searchBangumiTag(tag: keyword, sortType: sortType, page: page);
+        return searchBangumiTag(
+          tag: keyword,
+          sortType: sortType,
+          page: page,
+        ).then((items) => items.map(_SearchResult.subject).toList());
+      case SearchMode.character:
+        return bangumi
+            .searchBangumiCharacters(keyword: keyword, page: page)
+            .then((items) => items.map(_SearchResult.character).toList());
+      case SearchMode.person:
+        return bangumi
+            .searchBangumiPersons(keyword: keyword, page: page)
+            .then((items) => items.map(_SearchResult.person).toList());
     }
   }
+}
+
+enum _SearchResultKind { subject, character, person }
+
+class _SearchResult {
+  const _SearchResult._({
+    required this.kind,
+    this.anime,
+    this.character,
+    this.person,
+  });
+
+  factory _SearchResult.subject(RankingAnime anime) =>
+      _SearchResult._(kind: _SearchResultKind.subject, anime: anime);
+
+  factory _SearchResult.character(bangumi.BangumiCharacterSearchResult item) =>
+      _SearchResult._(kind: _SearchResultKind.character, character: item);
+
+  factory _SearchResult.person(bangumi.BangumiPersonSearchResult item) =>
+      _SearchResult._(kind: _SearchResultKind.person, person: item);
+
+  final _SearchResultKind kind;
+  final RankingAnime? anime;
+  final bangumi.BangumiCharacterSearchResult? character;
+  final bangumi.BangumiPersonSearchResult? person;
 }
 
 class _SearchSortOption {

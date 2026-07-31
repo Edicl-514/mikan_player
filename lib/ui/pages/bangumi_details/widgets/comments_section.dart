@@ -171,10 +171,13 @@ Widget _buildCommentItem({
     );
   }
   final comment = comments[index - 1];
-  return _CommentCard(
-    key: ValueKey<BangumiComment>(comment),
-    comment: comment,
-    isDarkBg: isDarkBg,
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: _CommentCard(
+      key: ValueKey<BangumiComment>(comment),
+      comment: comment,
+      isDarkBg: isDarkBg,
+    ),
   );
 }
 

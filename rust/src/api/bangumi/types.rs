@@ -162,6 +162,29 @@ pub struct BangumiPerson {
     pub images: Option<BangumiImages>,
 }
 
+/// Compact role returned by `POST /p1/search/characters`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiCharacterSearchResult {
+    pub id: i64,
+    pub name: String,
+    pub name_cn: String,
+    pub role: i32,
+    pub info: String,
+    pub images: Option<BangumiImages>,
+}
+
+/// Compact person returned by `POST /p1/search/persons`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BangumiPersonSearchResult {
+    pub id: i64,
+    pub name: String,
+    pub name_cn: String,
+    pub person_type: i32,
+    pub info: String,
+    pub career: Vec<String>,
+    pub images: Option<BangumiImages>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BangumiEpisodeComment {
     pub id: i64,

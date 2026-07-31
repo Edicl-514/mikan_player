@@ -122,6 +122,46 @@ class BangumiCharacter {
           actors == other.actors;
 }
 
+/// Compact role returned by `POST /p1/search/characters`.
+class BangumiCharacterSearchResult {
+  final PlatformInt64 id;
+  final String name;
+  final String nameCn;
+  final int role;
+  final String info;
+  final BangumiImages? images;
+
+  const BangumiCharacterSearchResult({
+    required this.id,
+    required this.name,
+    required this.nameCn,
+    required this.role,
+    required this.info,
+    this.images,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      nameCn.hashCode ^
+      role.hashCode ^
+      info.hashCode ^
+      images.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiCharacterSearchResult &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          nameCn == other.nameCn &&
+          role == other.role &&
+          info == other.info &&
+          images == other.images;
+}
+
 class BangumiComment {
   final PlatformInt64 id;
   final String userId;
@@ -423,6 +463,50 @@ class BangumiPerson {
           relation == other.relation &&
           career == other.career &&
           personType == other.personType &&
+          images == other.images;
+}
+
+/// Compact person returned by `POST /p1/search/persons`.
+class BangumiPersonSearchResult {
+  final PlatformInt64 id;
+  final String name;
+  final String nameCn;
+  final int personType;
+  final String info;
+  final List<String> career;
+  final BangumiImages? images;
+
+  const BangumiPersonSearchResult({
+    required this.id,
+    required this.name,
+    required this.nameCn,
+    required this.personType,
+    required this.info,
+    required this.career,
+    this.images,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      nameCn.hashCode ^
+      personType.hashCode ^
+      info.hashCode ^
+      career.hashCode ^
+      images.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BangumiPersonSearchResult &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          nameCn == other.nameCn &&
+          personType == other.personType &&
+          info == other.info &&
+          career == other.career &&
           images == other.images;
 }
 

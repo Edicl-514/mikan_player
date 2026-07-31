@@ -599,6 +599,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchTagModeLabel => 'Tag 搜索';
 
   @override
+  String get searchCharacterModeLabel => '角色搜索';
+
+  @override
+  String get searchPersonModeLabel => '人物搜索';
+
+  @override
   String get searchEnterTag => '输入标签进行搜索';
 
   @override
@@ -621,6 +627,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchEnterKeyword => '输入关键词进行搜索';
+
+  @override
+  String get searchEnterCharacter => '输入角色名进行搜索';
+
+  @override
+  String get searchEnterPerson => '输入人物名进行搜索';
 
   @override
   String searchFailed(Object error) {
