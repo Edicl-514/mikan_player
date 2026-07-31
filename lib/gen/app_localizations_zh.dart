@@ -2663,6 +2663,33 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get playerWebViewExtractingVideo => '提取中';
+
+  @override
+  String get playerWebViewBypassingCaptcha => '处理验证码';
+
+  @override
+  String get playerWebViewIdle => '准备中';
+
+  @override
+  String get playerWebViewAdvancedOptions => '高级选项';
+
+  @override
+  String playerWebViewSearchingSources(int done, int total) {
+    return '正在搜索 $done/$total 个源';
+  }
+
+  @override
+  String playerWebViewStatusExtractSegment(int count) {
+    return '提取 $count 个';
+  }
+
+  @override
+  String playerWebViewStatusCaptchaSegment(int count) {
+    return '验证码 $count 个';
+  }
+
+  @override
   String playerWebViewPerSourceStatus(String status) {
     return 'per-source [p|a|c]: $status';
   }

@@ -5005,6 +5005,48 @@ abstract class AppLocalizations {
   /// **'可用源 ({count})'**
   String playerWebViewAvailableSources(int count);
 
+  /// No description provided for @playerWebViewExtractingVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取中'**
+  String get playerWebViewExtractingVideo;
+
+  /// No description provided for @playerWebViewBypassingCaptcha.
+  ///
+  /// In zh, this message translates to:
+  /// **'处理验证码'**
+  String get playerWebViewBypassingCaptcha;
+
+  /// No description provided for @playerWebViewIdle.
+  ///
+  /// In zh, this message translates to:
+  /// **'准备中'**
+  String get playerWebViewIdle;
+
+  /// No description provided for @playerWebViewAdvancedOptions.
+  ///
+  /// In zh, this message translates to:
+  /// **'高级选项'**
+  String get playerWebViewAdvancedOptions;
+
+  /// Friendly status line for the sample-source search header.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在搜索 {done}/{total} 个源'**
+  String playerWebViewSearchingSources(int done, int total);
+
+  /// Appended to the search status line when extraction jobs run.
+  ///
+  /// In zh, this message translates to:
+  /// **'提取 {count} 个'**
+  String playerWebViewStatusExtractSegment(int count);
+
+  /// Appended to the search status line when captcha jobs run.
+  ///
+  /// In zh, this message translates to:
+  /// **'验证码 {count} 个'**
+  String playerWebViewStatusCaptchaSegment(int count);
+
   /// Player UI message with typed placeholders.
   ///
   /// In zh, this message translates to:

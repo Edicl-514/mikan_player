@@ -1534,6 +1534,32 @@
       "count": { "type": "int" }
     }
   },
+  "playerWebViewExtractingVideo": "提取中",
+  "playerWebViewBypassingCaptcha": "处理验证码",
+  "playerWebViewIdle": "准备中",
+  "playerWebViewAdvancedOptions": "高级选项",
+  "playerWebViewSearchingSources": "正在搜索 {done}/{total} 个源",
+  "@playerWebViewSearchingSources": {
+    "description": "Friendly status line for the sample-source search header.",
+    "placeholders": {
+      "done": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "playerWebViewStatusExtractSegment": "提取 {count} 个",
+  "@playerWebViewStatusExtractSegment": {
+    "description": "Appended to the search status line when extraction jobs run.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerWebViewStatusCaptchaSegment": "验证码 {count} 个",
+  "@playerWebViewStatusCaptchaSegment": {
+    "description": "Appended to the search status line when captcha jobs run.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "playerWebViewPerSourceStatus": "per-source [p|a|c]: {status}",
   "@playerWebViewPerSourceStatus": {
     "description": "Player UI message with typed placeholders.",

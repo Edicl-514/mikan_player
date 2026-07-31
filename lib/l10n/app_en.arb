@@ -1534,6 +1534,32 @@
       "count": { "type": "int" }
     }
   },
+  "playerWebViewExtractingVideo": "Extracting",
+  "playerWebViewBypassingCaptcha": "Handling captcha",
+  "playerWebViewIdle": "Preparing",
+  "playerWebViewAdvancedOptions": "Advanced options",
+  "playerWebViewSearchingSources": "Searching {done}/{total} sources",
+  "@playerWebViewSearchingSources": {
+    "description": "Friendly status line for the sample-source search header.",
+    "placeholders": {
+      "done": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "playerWebViewStatusExtractSegment": "extracting {count}",
+  "@playerWebViewStatusExtractSegment": {
+    "description": "Appended to the search status line when extraction jobs run.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playerWebViewStatusCaptchaSegment": "captcha {count}",
+  "@playerWebViewStatusCaptchaSegment": {
+    "description": "Appended to the search status line when captcha jobs run.",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "playerWebViewPerSourceStatus": "per-source [p|a|c]: {status}",
   "@playerWebViewPerSourceStatus": {
     "description": "Player UI message with typed placeholders.",

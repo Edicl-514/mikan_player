@@ -70,7 +70,10 @@ void main() {
       ),
     );
 
-    expect(find.textContaining(l10n.playerSourceTitleFoundMobile), findsOneWidget);
+    expect(
+      find.textContaining(l10n.playerSourceTitleFoundMobile),
+      findsOneWidget,
+    );
     expect(find.text('3'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
 
@@ -123,6 +126,77 @@ void main() {
     await tester.pump();
     expect(searched, isTrue);
   });
+
+  testWidgets(
+    'PlayerSampleSourcePanel summarizes mixed tasks and gates full URLs',
+    (tester) async {
+      const playPageUrl =
+          'https://video.example.com/watch/episode?token=private';
+      final status = ValueNotifier<String>('');
+      addTearDown(status.dispose);
+      var showDebugInfo = false;
+
+      await tester.pumpWidget(
+        _wrap(
+          StatefulBuilder(
+            builder: (context, setPanelState) {
+              return PlayerSampleSourcePanel(
+                isLoadingSample: false,
+                sampleError: null,
+                enabledSourceNames: const [],
+                sourceProgressMap: const {},
+                successfulSources: const <SearchPlayResult>[],
+                selectedSourceIndex: 0,
+                sampleVideoUrl: null,
+                statusMessageListenable: status,
+                disableAutoSourceSearchForCurrentEpisode: false,
+                autoSearchOnline: true,
+                hasActiveWebViewTasks: true,
+                activeWebViewTaskCount: 2,
+                maxConcurrentWebViews: 4,
+                workerPoolLabel: 'slots 2/4',
+                webviewStatsLabel: 'stats',
+                perSourceStatusLabel: 'source [0|1|0]',
+                showWebView: showDebugInfo,
+                onShowWebViewChanged: (value) {
+                  setPanelState(() => showDebugInfo = value);
+                },
+                useWorkerPool: true,
+                onUseWorkerPoolChanged: (_) {},
+                activeTaskRows: [
+                  PlayerWebViewTaskRow(
+                    title: 'Video source',
+                    statusLabel: l10n.playerWebViewExtractingVideo,
+                    subtitle: playPageUrl,
+                  ),
+                  PlayerWebViewTaskRow(
+                    title: 'Captcha source',
+                    statusLabel: l10n.playerWebViewBypassingCaptcha,
+                  ),
+                ],
+                onSourceSelected: (_) {},
+                onPlaySelected: null,
+                onManualSearch: () {},
+              );
+            },
+          ),
+        ),
+      );
+
+      expect(find.text(l10n.playerWebViewTaskCount(2, 4)), findsOneWidget);
+      expect(find.text('video.example.com'), findsOneWidget);
+      expect(find.text(playPageUrl), findsNothing);
+
+      await tester.tap(find.text(l10n.playerWebViewAdvancedOptions));
+      await tester.pump();
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pump();
+
+      expect(find.text(playPageUrl), findsOneWidget);
+      expect(find.text('video.example.com'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('PlayerMobileLayout builds video + tabs without overflow', (
     tester,

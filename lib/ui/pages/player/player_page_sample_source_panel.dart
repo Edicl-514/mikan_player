@@ -47,7 +47,8 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
     for (final task in _captchaCoordinator.activeTasks.values) {
       rows.add(
         PlayerWebViewTaskRow(
-          title: l10n.playerWebviewCaptchaBypassTitle(task.label),
+          title: task.source.name.isNotEmpty ? task.source.name : task.label,
+          statusLabel: l10n.playerWebViewBypassingCaptcha,
           isBusy: true,
         ),
       );
@@ -67,9 +68,8 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
       rows.add(
         PlayerWebViewTaskRow(
           title: sourceName,
-          trailing: (page?.channelName ?? '').isNotEmpty
-              ? ' - ${page!.channelName}'
-              : null,
+          statusLabel: l10n.playerWebViewExtractingVideo,
+          channelName: page?.channelName,
           subtitle: page?.playPageUrl ?? l10n.waitingForPlayPage,
           isBusy: true,
         ),
@@ -81,24 +81,11 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
   /// Maps scheduler slots to pure view-models for [PlayerSampleSourcePanel].
   List<PlayerWebViewTaskRow> _buildWebViewWorkerTaskRows() {
     final l10n = AppLocalizations.of(context);
-    final pendingBySource = <String, int>{};
-    for (final page in _sampleSourceController.samplePlayPages) {
-      if (_pageIsPendingForExtraction(page)) {
-        pendingBySource[page.sourceName] =
-            (pendingBySource[page.sourceName] ?? 0) + 1;
-      }
-    }
 
     final slots = _scheduler.slots.values.toList()
       ..sort((a, b) => a.workerId.compareTo(b.workerId));
 
     return slots.map((slot) {
-      final lastSource = slot.lastSourceName;
-      final sameSrcPending = lastSource == null
-          ? 0
-          : (pendingBySource[lastSource] ?? 0);
-      final showAffinity = lastSource != null || sameSrcPending > 0;
-      final healthLabel = _workerHealthLabel(slot.health);
       final kind = slot.kind;
       final isVideoBusy = kind == WebViewWorkerKind.video;
       final isCaptchaBusy = kind == WebViewWorkerKind.captcha;
@@ -106,7 +93,10 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
 
       var sourceName = '';
       String? channelName;
-      var urlLine = l10n.waitingForPlayPage;
+      String statusLabel;
+      String? urlLine;
+      String? debugLine;
+
       if (isVideoBusy) {
         final pageKey = slot.pageKey!;
         final key = SourceChannelKey.fromPageKey(pageKey);
@@ -120,29 +110,28 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
             break;
           }
         }
+        statusLabel = l10n.playerWebViewExtractingVideo;
+        debugLine = 'worker ${slot.workerId} · ${_workerHealthLabel(slot.health)}';
       } else if (isCaptchaBusy) {
         final task = _captchaCoordinator.activeTasks[slot.taskKey];
         sourceName = task?.source.name ?? '';
-        urlLine = l10n.playerWebviewCaptchaBypass;
+        statusLabel = l10n.playerWebViewBypassingCaptcha;
+        debugLine = 'worker ${slot.workerId} · ${_workerHealthLabel(slot.health)}';
+      } else {
+        statusLabel = l10n.playerWebViewIdle;
+        debugLine = 'worker ${slot.workerId} · ${_workerHealthLabel(slot.health)}'
+            '${slot.lastSourceName != null ? ' · warm: ${slot.lastSourceName}' : ''}';
       }
 
-      final busyLabel = isVideoBusy
-          ? '$sourceName (w${slot.workerId} · $healthLabel)'
-          : isCaptchaBusy
-          ? '$sourceName (c${slot.workerId} · $healthLabel)'
-          : 'w${slot.workerId} · $healthLabel';
+      final displayTitle = sourceName.isNotEmpty ? sourceName : statusLabel;
 
       return PlayerWebViewTaskRow(
-        title: busyLabel,
-        trailing: isVideoBusy && (channelName ?? '').isNotEmpty
-            ? ' - $channelName'
-            : null,
+        title: displayTitle,
+        statusLabel: statusLabel,
+        channelName: channelName,
         subtitle: urlLine,
-        affinityLine: showAffinity
-            ? 'warm: ${lastSource ?? '-'} · same-src pending: $sameSrcPending'
-            : null,
+        debugLine: debugLine,
         isBusy: isBusy,
-        highlightAffinity: sameSrcPending > 0,
       );
     }).toList();
   }

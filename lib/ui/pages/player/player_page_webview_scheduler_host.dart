@@ -611,13 +611,6 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
         .length;
   }
 
-  String _searchProgressLabel() {
-    return AppLocalizations.of(context).playerWebviewSchedulerProgress(
-      _completedSearchSourceCount(),
-      _sampleSourceController.enabledSourceNames.length,
-    );
-  }
-
   String _captchaActiveLabel() {
     return AppLocalizations.of(
       context,
@@ -749,11 +742,28 @@ extension _PlayerPageWebViewSchedulerHost on _PlayerPageState {
     return parts.join(' ');
   }
 
+  /// User-facing status line. Only non-zero stages are mentioned so the panel
+  /// reads like progress instead of a scheduler dump; the full technical
+  /// snapshot still goes to [_logSchedulerState].
   void _updatePoolStatusMessage() {
-    _sampleStatusMessageNotifier.value =
-        '${_searchProgressLabel()}，'
-        '${_captchaActiveLabel()}，'
-        '${_extractionActiveLabel()}';
+    final l10n = AppLocalizations.of(context);
+    final activeCaptcha = _captchaCoordinator.activeTasks.length;
+    final activeExtraction = _useWorkerPool
+        ? _scheduler.activeVideoJobs.length
+        : _activeWebViews.length;
+
+    final segments = <String>[
+      l10n.playerWebViewSearchingSources(
+        _completedSearchSourceCount(),
+        _sampleSourceController.enabledSourceNames.length,
+      ),
+      if (activeExtraction > 0)
+        l10n.playerWebViewStatusExtractSegment(activeExtraction),
+      if (activeCaptcha > 0)
+        l10n.playerWebViewStatusCaptchaSegment(activeCaptcha),
+    ];
+
+    _sampleStatusMessageNotifier.value = segments.join(' · ');
     _logSchedulerState('poolStatus');
   }
 

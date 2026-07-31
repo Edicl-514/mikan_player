@@ -2779,6 +2779,33 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get playerWebViewExtractingVideo => 'Extracting';
+
+  @override
+  String get playerWebViewBypassingCaptcha => 'Handling captcha';
+
+  @override
+  String get playerWebViewIdle => 'Preparing';
+
+  @override
+  String get playerWebViewAdvancedOptions => 'Advanced options';
+
+  @override
+  String playerWebViewSearchingSources(int done, int total) {
+    return 'Searching $done/$total sources';
+  }
+
+  @override
+  String playerWebViewStatusExtractSegment(int count) {
+    return 'extracting $count';
+  }
+
+  @override
+  String playerWebViewStatusCaptchaSegment(int count) {
+    return 'captcha $count';
+  }
+
+  @override
   String playerWebViewPerSourceStatus(String status) {
     return 'per-source [p|a|c]: $status';
   }

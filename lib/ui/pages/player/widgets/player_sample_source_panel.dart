@@ -5,20 +5,32 @@ import 'package:mikan_player/ui/pages/player/widgets/player_source_progress_item
 
 /// View model for one concurrent extraction / captcha / worker row.
 class PlayerWebViewTaskRow {
+  /// Source name when the worker is busy, otherwise a friendly idle label.
   final String title;
+
+  /// Human-readable stage of this row ("提取中" / "处理验证码" / "准备中"),
+  /// rendered as a small chip instead of raw worker/health internals.
+  final String statusLabel;
+
+  /// Channel name of the play page being extracted, if the source has one.
+  final String? channelName;
+
+  /// Secondary line: play-page host normally, full URL in debug mode.
   final String? subtitle;
-  final String? trailing;
-  final String? affinityLine;
+
+  /// Scheduler internals (worker id, health, affinity). Only rendered when the
+  /// debug WebView toggle is on.
+  final String? debugLine;
+
   final bool isBusy;
-  final bool highlightAffinity;
 
   const PlayerWebViewTaskRow({
     required this.title,
+    required this.statusLabel,
+    this.channelName,
     this.subtitle,
-    this.trailing,
-    this.affinityLine,
+    this.debugLine,
     this.isBusy = true,
-    this.highlightAffinity = false,
   });
 }
 
@@ -202,105 +214,68 @@ class PlayerSampleSourcePanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  workerPoolLabel == null
-                      ? l10n.playerWebViewTaskCount(
+                Row(
+                  children: [
+                    Icon(
+                      Icons.travel_explore,
+                      size: 14,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        l10n.playerWebViewTaskCount(
                           activeWebViewTaskCount,
                           maxConcurrentWebViews,
-                        )
-                      : l10n.playerWebViewTaskCountWithPool(
-                          activeWebViewTaskCount,
-                          maxConcurrentWebViews,
-                          workerPoolLabel!,
                         ),
-                  style: TextStyle(
-                    color: muted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 4, bottom: 2),
-                  child: Text(
-                    webviewStatsLabel,
-                    style: TextStyle(
-                      color: isDark
-                          ? Colors.white38
-                          : theme.colorScheme.onSurfaceVariant,
-                      fontSize: 8,
-                      height: 1.2,
+                        style: TextStyle(
+                          color: muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  ],
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(
-                    l10n.playerWebViewPerSourceStatus(perSourceStatusLabel),
-                    style: TextStyle(
-                      color: isDark
-                          ? Colors.white38
-                          : theme.colorScheme.onSurfaceVariant,
-                      fontSize: 8,
-                      height: 1.2,
+                if (showWebView) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, bottom: 2),
+                    child: Text(
+                      '${workerPoolLabel ?? 'legacy'}\n$webviewStatsLabel\n'
+                      '${l10n.playerWebViewPerSourceStatus(perSourceStatusLabel)}',
+                      style: TextStyle(
+                        color: isDark
+                            ? Colors.white38
+                            : theme.colorScheme.onSurfaceVariant,
+                        fontSize: 8,
+                        height: 1.3,
+                      ),
+                      maxLines: 6,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
+                ],
                 const SizedBox(height: 8),
                 ...activeTaskRows.map(
                   (row) => _ActiveTaskRowWidget(
                     row: row,
                     labelColor: isDark
-                        ? Colors.white54
-                        : theme.colorScheme.onSurfaceVariant,
+                        ? Colors.white70
+                        : theme.colorScheme.onSurface,
                     mutedColor: isDark
-                        ? Colors.white24
+                        ? Colors.white38
                         : theme.colorScheme.outline,
+                    showDebugInfo: showWebView,
                   ),
                 ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Checkbox(
-                    value: showWebView,
-                    onChanged: (v) => onShowWebViewChanged(v ?? false),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  l10n.playerWebViewShowDebug,
-                  style: const TextStyle(fontSize: 10),
-                ),
-                const SizedBox(width: 16),
-                SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Checkbox(
-                    value: useWorkerPool,
-                    onChanged: (v) => onUseWorkerPoolChanged(v ?? true),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  l10n.playerWebViewWorkerPoolSwitch,
-                  style: const TextStyle(fontSize: 10),
-                ),
-              ],
-            ),
+          _AdvancedOptionsSection(
+            showWebView: showWebView,
+            onShowWebViewChanged: onShowWebViewChanged,
+            useWorkerPool: useWorkerPool,
+            onUseWorkerPoolChanged: onUseWorkerPoolChanged,
           ),
         ],
         if (successfulSources.isNotEmpty) ...[
@@ -319,7 +294,9 @@ class PlayerSampleSourcePanel extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      l10n.playerWebViewAvailableSources(successfulSources.length),
+                      l10n.playerWebViewAvailableSources(
+                        successfulSources.length,
+                      ),
                       style: TextStyle(
                         color: muted,
                         fontSize: 11,
@@ -527,19 +504,138 @@ class PlayerSampleSourcePanel extends StatelessWidget {
   }
 }
 
+/// Collapsed-by-default host for developer-facing toggles so the normal
+/// search view stays free of debug chrome.
+class _AdvancedOptionsSection extends StatefulWidget {
+  final bool showWebView;
+  final ValueChanged<bool> onShowWebViewChanged;
+  final bool useWorkerPool;
+  final ValueChanged<bool> onUseWorkerPoolChanged;
+
+  const _AdvancedOptionsSection({
+    required this.showWebView,
+    required this.onShowWebViewChanged,
+    required this.useWorkerPool,
+    required this.onUseWorkerPoolChanged,
+  });
+
+  @override
+  State<_AdvancedOptionsSection> createState() =>
+      _AdvancedOptionsSectionState();
+}
+
+class _AdvancedOptionsSectionState extends State<_AdvancedOptionsSection> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final muted = isDark ? Colors.white38 : theme.colorScheme.onSurfaceVariant;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: () => setState(() => _isExpanded = !_isExpanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+              child: Row(
+                children: [
+                  Icon(
+                    _isExpanded
+                        ? Icons.keyboard_arrow_down
+                        : Icons.keyboard_arrow_right,
+                    size: 14,
+                    color: muted,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    l10n.playerWebViewAdvancedOptions,
+                    style: TextStyle(fontSize: 10, color: muted),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_isExpanded) ...[
+            _buildToggle(
+              value: widget.showWebView,
+              onChanged: widget.onShowWebViewChanged,
+              label: l10n.playerWebViewShowDebug,
+            ),
+            _buildToggle(
+              value: widget.useWorkerPool,
+              onChanged: widget.onUseWorkerPoolChanged,
+              label: l10n.playerWebViewWorkerPoolSwitch,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggle({
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    required String label,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 18, bottom: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: Checkbox(
+              value: value,
+              onChanged: (v) => onChanged(v ?? false),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(child: Text(label, style: const TextStyle(fontSize: 10))),
+        ],
+      ),
+    );
+  }
+}
+
 class _ActiveTaskRowWidget extends StatelessWidget {
   final PlayerWebViewTaskRow row;
   final Color labelColor;
   final Color mutedColor;
+  final bool showDebugInfo;
 
   const _ActiveTaskRowWidget({
     required this.row,
     required this.labelColor,
     required this.mutedColor,
+    required this.showDebugInfo,
   });
+
+  String? _visibleSubtitle() {
+    final subtitle = row.subtitle;
+    if (subtitle == null || subtitle.isEmpty || showDebugInfo) {
+      return subtitle;
+    }
+
+    final uri = Uri.tryParse(subtitle);
+    if (uri == null) return subtitle;
+    if (uri.host.isNotEmpty) return uri.host;
+    return uri.path.isNotEmpty ? uri.path : subtitle;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final subtitle = _visibleSubtitle();
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
@@ -550,7 +646,7 @@ class _ActiveTaskRowWidget extends StatelessWidget {
             child: row.isBusy
                 ? CircularProgressIndicator(
                     strokeWidth: 1.5,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: theme.colorScheme.primary,
                   )
                 : Center(
                     child: Container(
@@ -575,39 +671,67 @@ class _ActiveTaskRowWidget extends StatelessWidget {
                         row.title,
                         style: TextStyle(
                           color: row.isBusy ? labelColor : mutedColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: row.isBusy
+                            ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                            : mutedColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        row.statusLabel,
+                        style: TextStyle(
+                          color: row.isBusy
+                              ? theme.colorScheme.primary
+                              : mutedColor,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
-                    if ((row.trailing ?? '').isNotEmpty)
-                      Text(
-                        row.trailing!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontSize: 9,
+                    if (row.channelName != null && row.channelName!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Text(
+                          '· ${row.channelName}',
+                          style: TextStyle(color: mutedColor, fontSize: 9),
                         ),
                       ),
                   ],
                 ),
-                if ((row.subtitle ?? '').isNotEmpty)
-                  Text(
-                    row.subtitle!,
-                    style: const TextStyle(color: Colors.grey, fontSize: 8),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                if ((row.affinityLine ?? '').isNotEmpty)
-                  Text(
-                    row.affinityLine!,
-                    style: TextStyle(
-                      color: row.highlightAffinity
-                          ? Theme.of(context).colorScheme.primary
-                          : mutedColor,
-                      fontSize: 8,
+                if (subtitle != null && subtitle.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      subtitle,
+                      style: const TextStyle(color: Colors.grey, fontSize: 8),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  ),
+                if (showDebugInfo &&
+                    row.debugLine != null &&
+                    row.debugLine!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      row.debugLine!,
+                      style: TextStyle(color: mutedColor, fontSize: 8),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
               ],
             ),
