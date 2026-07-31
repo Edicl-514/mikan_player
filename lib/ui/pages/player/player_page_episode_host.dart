@@ -42,27 +42,35 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
   }
 
   Future<void> _onEpisodeSelected(BangumiEpisode ep) async {
-    final result = _episodeController.selectEpisode(ep);
-    if (!result.changed) return;
+    final previousEpisode = _episodeController.currentEpisode;
+    if (!ep.isReleased() || ep.id == previousEpisode.id) return;
 
     // Persist progress for the episode we are leaving before zeroing trackers.
     final leavingPosMs = (_currentVideoTimeNotifier.value * 1000).toInt();
     final leaveSaveMs = leavingPosMs > 1000
         ? leavingPosMs
         : (_lastSavedPositionMs > 0 ? _lastSavedPositionMs : leavingPosMs);
-    if (leaveSaveMs > 0) {
+    if (_historyProgressGate.hasObservedProgress && leaveSaveMs > 0) {
       unawaited(
-        _historyManager.addOrUpdate(
-          anime: widget.anime,
-          currentEpisode: result.previous,
-          allEpisodes: widget.allEpisodes,
-          lastPositionMs: leaveSaveMs,
+        _persistPlaybackHistory(
+          currentEpisode: previousEpisode,
+          positionMs: leaveSaveMs,
         ),
       );
     }
 
-    // Stop current player and invalidate in-flight online-source work.
-    _player.stop();
+    // Keep the old episode authoritative until its media has stopped, so late
+    // position/playing events cannot be attributed to the new episode.
+    try {
+      await _player.stop();
+    } catch (e, st) {
+      debugPrint('Error stopping playback before episode switch: $e\n$st');
+    }
+    if (!mounted) return;
+    final result = _episodeController.selectEpisode(ep);
+    if (!result.changed) return;
+
+    // Invalidate in-flight online-source work.
     final nextToken = _sampleSourceController.bumpLoadToken();
     _setSessionGeneration(nextToken);
     unawaited(_cancelSearchSubscriptions());
@@ -104,13 +112,9 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
     _pendingStartPositionMs = null;
     _resumeSeekGeneration++;
     _lastSavedPositionMs = 0;
+    _historyProgressGate.reset();
     _furthestObservedPosition = Duration.zero;
     _isRecoveringUnexpectedJump = false;
-
-    // Mark the new episode in history. History is one entry per anime, so a
-    // different episode starts at 0 unless we later find a matching record
-    // (not expected with the current schema).
-    _savePlaybackHistory(positionMs: 0);
 
     // Clear and reload danmaku
     _danmakuService.clearDanmaku();
@@ -151,49 +155,41 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
     _loadSampleSource();
   }
 
-  /// Persist the current episode in history.
-  ///
-  /// When [positionMs] is null, [PlaybackHistoryManager] keeps the previous
-  /// progress for the same episode instead of resetting it to 0. Pass `0`
-  /// explicitly when switching to a brand-new episode.
-  void _savePlaybackHistory({int? positionMs}) {
+  Future<void> _persistPlaybackHistory({
+    BangumiEpisode? currentEpisode,
+    required int positionMs,
+  }) async {
     try {
-      if (positionMs != null) {
-        _lastSavedPositionMs = positionMs;
-      }
-      unawaited(
-        _historyManager.addOrUpdate(
-          anime: widget.anime,
-          currentEpisode: _episodeController.currentEpisode,
-          allEpisodes: widget.allEpisodes,
-          lastPositionMs: positionMs,
-        ),
+      await _historyManager.addOrUpdate(
+        anime: widget.anime,
+        currentEpisode: currentEpisode ?? _episodeController.currentEpisode,
+        allEpisodes: widget.allEpisodes,
+        lastPositionMs: positionMs,
       );
-    } catch (e) {
-      debugPrint('Error saving playback history: $e');
-      unawaited(
-        _historyManager.addOrUpdate(
-          anime: widget.anime,
-          currentEpisode: _episodeController.currentEpisode,
-          allEpisodes: widget.allEpisodes,
-          lastPositionMs: positionMs,
-        ),
-      );
+    } catch (e, st) {
+      debugPrint('Error saving playback history: $e\n$st');
     }
+  }
+
+  /// Queue a progress write for the current episode.
+  void _savePlaybackHistory({int? positionMs}) {
+    if (positionMs == null || !_historyProgressGate.observe(positionMs)) {
+      return;
+    }
+    _lastSavedPositionMs = positionMs;
+    unawaited(_persistPlaybackHistory(positionMs: positionMs));
   }
 
   Future<void> _hydrateResumePositionFromHistory() async {
     try {
-      final resumeMs = await _historyManager.resumePositionMsFor(
+      final resumeMs = await _historyManager.resolveStartPositionMsFor(
         anime: widget.anime,
         episode: _episodeController.currentEpisode,
+        fallbackPositionMs: _pendingStartPositionMs,
       );
       if (!mounted || resumeMs == null || resumeMs <= 0) return;
-      // Only apply if nothing else (source switch / explicit start) has already
-      // set a pending seek target.
-      if (_pendingStartPositionMs != null && _pendingStartPositionMs! > 0) {
-        return;
-      }
+      // The manager is authoritative: route arguments can come from a stale
+      // history/home snapshot that remained mounted while playback continued.
       _pendingStartPositionMs = resumeMs;
       _lastSavedPositionMs = resumeMs;
       debugPrint('[History] Hydrated resume position: ${resumeMs}ms');

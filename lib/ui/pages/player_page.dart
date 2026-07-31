@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
@@ -46,6 +47,7 @@ import 'package:mikan_player/ui/pages/player/player_episode_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_source_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_sample_source_controller.dart';
 import 'package:mikan_player/ui/pages/player/player_playback_controller.dart';
+import 'package:mikan_player/ui/pages/player/player_playback_history_gate.dart';
 import 'package:mikan_player/ui/pages/player/player_search_session_policy.dart';
 import 'package:mikan_player/ui/pages/player/player_side_panel_loader.dart';
 import 'package:mikan_player/ui/pages/player/player_bt_source_loader.dart';
@@ -276,6 +278,8 @@ class _PlayerPageState extends State<PlayerPage>
   /// in-flight [_applyPendingStartPosition] from an older open cannot re-seek.
   int _resumeSeekGeneration = 0;
   int _lastSavedPositionMs = 0;
+  final PlayerPlaybackHistoryGate _historyProgressGate =
+      PlayerPlaybackHistoryGate();
   static const int _saveIntervalMs = 5000;
   static const Duration _manualSeekGracePeriod = Duration(seconds: 3);
   static const Duration _positionResetGracePeriod = Duration(seconds: 4);
@@ -360,10 +364,6 @@ class _PlayerPageState extends State<PlayerPage>
       _lastSavedPositionMs = explicitStart;
     }
 
-    // Touch history on entry without wiping a previously saved position.
-    // Passing null keeps the existing lastPositionMs for the same episode.
-    _savePlaybackHistory(positionMs: explicitStart);
-
     // Initialize video player
     _player = Player();
     _videoController = VideoController(_player);
@@ -421,24 +421,23 @@ class _PlayerPageState extends State<PlayerPage>
         _handleUnexpectedPositionJump(position);
         final posMs = position.inMilliseconds;
         _currentVideoTimeNotifier.value = posMs / 1000.0;
+        _historyProgressGate.observe(posMs);
 
         // Skip near-zero ticks before the user has actually progressed so a
         // pre-seek position stream cannot zero out a restored resume point.
         if (posMs < 1000 && _lastSavedPositionMs > 1000) {
           return;
         }
+        // A source may report an approximate/zero position while a resume seek
+        // is still pending. Do not let that transient value roll history back.
+        if (_pendingStartPositionMs != null && _pendingStartPositionMs! > 0) {
+          return;
+        }
 
         try {
           if ((posMs - _lastSavedPositionMs).abs() >= _saveIntervalMs) {
             _lastSavedPositionMs = posMs;
-            unawaited(
-              _historyManager.addOrUpdate(
-                anime: widget.anime,
-                currentEpisode: _episodeController.currentEpisode,
-                allEpisodes: widget.allEpisodes,
-                lastPositionMs: posMs,
-              ),
-            );
+            _savePlaybackHistory(positionMs: posMs);
           }
         } catch (e) {
           debugPrint('Error saving playback position: $e');
@@ -469,18 +468,17 @@ class _PlayerPageState extends State<PlayerPage>
         if (!playing) {
           try {
             final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
+            if (!_historyProgressGate.observe(posMs)) {
+              return;
+            }
+            if (_pendingStartPositionMs != null &&
+                _pendingStartPositionMs! > 0) {
+              return;
+            }
             if (posMs < 1000 && _lastSavedPositionMs > 1000) {
               return;
             }
-            unawaited(
-              _historyManager.addOrUpdate(
-                anime: widget.anime,
-                currentEpisode: _episodeController.currentEpisode,
-                allEpisodes: widget.allEpisodes,
-                lastPositionMs: posMs,
-              ),
-            );
-            _lastSavedPositionMs = posMs;
+            _savePlaybackHistory(positionMs: posMs);
           } catch (e) {
             debugPrint('Error saving position on pause: $e');
           }
@@ -694,17 +692,14 @@ class _PlayerPageState extends State<PlayerPage>
       ];
       try {
         final posMs = (_currentVideoTimeNotifier.value * 1000).toInt();
-        final saveMs = posMs > 1000
-            ? posMs
-            : (_lastSavedPositionMs > 0 ? _lastSavedPositionMs : posMs);
-        waits.add(
-          _historyManager.addOrUpdate(
-            anime: widget.anime,
-            currentEpisode: _episodeController.currentEpisode,
-            allEpisodes: widget.allEpisodes,
-            lastPositionMs: saveMs,
-          ),
-        );
+        if (_historyProgressGate.observe(posMs) &&
+            (_pendingStartPositionMs == null ||
+                _pendingStartPositionMs! <= 0)) {
+          final saveMs = posMs > 1000
+              ? posMs
+              : (_lastSavedPositionMs > 0 ? _lastSavedPositionMs : posMs);
+          waits.add(_persistPlaybackHistory(positionMs: saveMs));
+        }
       } catch (e) {
         debugPrint(
           '${_sessionLogContext.tag} [PlayerPage] Error saving final '

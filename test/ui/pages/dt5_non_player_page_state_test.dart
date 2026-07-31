@@ -15,7 +15,11 @@ import '../../support/localized_widget_tester.dart';
 RankingAnime _anime(String title, String id) =>
     RankingAnime(title: title, bangumiId: id, coverUrl: '', info: 'TV / 2026');
 
-PlaybackHistoryItem _history(String key, String title) => PlaybackHistoryItem(
+PlaybackHistoryItem _history(
+  String key,
+  String title, {
+  int lastPositionMs = 0,
+}) => PlaybackHistoryItem(
   key: key,
   title: title,
   subTitle: null,
@@ -35,7 +39,7 @@ PlaybackHistoryItem _history(String key, String title) => PlaybackHistoryItem(
   episodeNameCn: '第一集',
   episodesJson: '[]',
   updatedAt: 1,
-  lastPositionMs: 0,
+  lastPositionMs: lastPositionMs,
 );
 
 void main() {
@@ -131,6 +135,28 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text('Recovered History'), findsOneWidget);
+  });
+
+  testWidgets('history: successful storage changes refresh a mounted page', (
+    tester,
+  ) async {
+    var item = _history('one', 'Live History');
+
+    await pumpLocalizedWidget(
+      tester,
+      HistoryPage(loadHistory: () async => [item]),
+      locale: const Locale('en'),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('00:30'), findsNothing);
+
+    item = _history('one', 'Live History', lastPositionMs: 30_000);
+    PlaybackHistoryManager().debugNotifyListenersForTest();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('00:30'), findsOneWidget);
   });
 
   testWidgets('history: delete waits for persistence then refreshes', (

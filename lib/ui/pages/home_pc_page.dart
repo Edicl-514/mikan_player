@@ -61,6 +61,7 @@ class _HomePcPageState extends State<HomePcPage> {
     super.initState();
     _todayPageController = PageController(viewportFraction: 0.85);
     _userManager.addListener(_onUserUpdate);
+    _historyManager.addListener(_onHistoryChanged);
     _loadAllData();
   }
 
@@ -74,6 +75,7 @@ class _HomePcPageState extends State<HomePcPage> {
     _todayPageController.dispose();
     _scrollController.dispose();
     _userManager.removeListener(_onUserUpdate);
+    _historyManager.removeListener(_onHistoryChanged);
     super.dispose();
   }
 
@@ -103,6 +105,10 @@ class _HomePcPageState extends State<HomePcPage> {
 
   void _onUserUpdate() {
     if (mounted) setState(() {});
+  }
+
+  void _onHistoryChanged() {
+    if (mounted) unawaited(_loadHistory());
   }
 
   Future<void> _loadAllData() async {

@@ -71,6 +71,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
     super.initState();
     _todayPageController = PageController(viewportFraction: 0.9);
     _userManager.addListener(_onUserUpdate);
+    _historyManager.addListener(_onHistoryChanged);
     _loadAllData();
   }
 
@@ -84,6 +85,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
     _todayPageController.dispose();
     _scrollController.dispose();
     _userManager.removeListener(_onUserUpdate);
+    _historyManager.removeListener(_onHistoryChanged);
     super.dispose();
   }
 
@@ -113,6 +115,10 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
 
   void _onUserUpdate() {
     if (mounted) setState(() {});
+  }
+
+  void _onHistoryChanged() {
+    if (mounted) unawaited(_loadHistory());
   }
 
   Future<void> _loadAllData() async {

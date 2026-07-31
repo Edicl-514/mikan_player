@@ -20,11 +20,10 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
   Future<void> _initializePlaybackAndSourceLoading() async {
     // Resolve resume position before opening any media so applyPendingStartPosition
     // runs with a real target on the first open.
-    if ((_pendingStartPositionMs == null || _pendingStartPositionMs! <= 0) &&
-        (widget.startPositionMs == null || widget.startPositionMs! <= 0)) {
-      await _hydrateResumePositionFromHistory();
-      if (!mounted || !_sessionLifecycle.acceptsNewWork) return;
-    }
+    // Always reconcile the route argument with the live history snapshot. A
+    // long-lived history/home page may pass an older position.
+    await _hydrateResumePositionFromHistory();
+    if (!mounted || !_sessionLifecycle.acceptsNewWork) return;
 
     var hasDownloadedPlayback = false;
 

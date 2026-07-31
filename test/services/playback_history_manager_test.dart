@@ -155,4 +155,94 @@ void main() {
     );
     expect(await manager.resumePositionMsFor(anime: anime, episode: ep2), isNull);
   });
+
+  test('live history wins over a stale route resume position', () async {
+    final manager = PlaybackHistoryManager();
+    final anime = _anime();
+    final ep = _episode();
+
+    await manager.addOrUpdate(
+      anime: anime,
+      currentEpisode: ep,
+      allEpisodes: [ep],
+      lastPositionMs: 120_000,
+    );
+
+    expect(
+      await manager.resolveStartPositionMsFor(
+        anime: anime,
+        episode: ep,
+        fallbackPositionMs: 0,
+      ),
+      120_000,
+    );
+    expect(
+      await manager.resolveStartPositionMsFor(
+        anime: anime,
+        episode: ep,
+        fallbackPositionMs: 30_000,
+      ),
+      120_000,
+    );
+  });
+
+  test('route resume position remains a fallback when history has no match',
+      () async {
+    final manager = PlaybackHistoryManager();
+
+    expect(
+      await manager.resolveStartPositionMsFor(
+        anime: _anime(),
+        episode: _episode(),
+        fallbackPositionMs: 45_000,
+      ),
+      45_000,
+    );
+  });
+
+  test('live zero position rejects a stale non-zero route fallback', () async {
+    final manager = PlaybackHistoryManager();
+    final anime = _anime();
+    final ep = _episode();
+
+    await manager.addOrUpdate(
+      anime: anime,
+      currentEpisode: ep,
+      allEpisodes: [ep],
+      lastPositionMs: 0,
+    );
+
+    expect(
+      await manager.resolveStartPositionMsFor(
+        anime: anime,
+        episode: ep,
+        fallbackPositionMs: 45_000,
+      ),
+      isNull,
+    );
+  });
+
+  test('successful mutations notify mounted history consumers', () async {
+    final manager = PlaybackHistoryManager();
+    final anime = _anime();
+    final ep = _episode();
+    var notifications = 0;
+    void listener() => notifications++;
+
+    manager.addListener(listener);
+    try {
+      await manager.addOrUpdate(
+        anime: anime,
+        currentEpisode: ep,
+        allEpisodes: [ep],
+        lastPositionMs: 10_000,
+      );
+      await manager.updatePosition(manager.buildKey(anime), 20_000);
+      await manager.remove(manager.buildKey(anime));
+
+      expect(notifications, 3);
+    } finally {
+      manager.removeListener(listener);
+    }
+  });
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/models/bangumi_episode_filter.dart';
@@ -35,11 +37,13 @@ class _HistoryPageState extends State<HistoryPage> {
       fetchPage: (_, _) =>
           widget.loadHistory?.call() ?? _historyManager.getHistory(),
     )..addListener(_onControllerChanged);
+    _historyManager.addListener(_onHistoryChanged);
     _reload();
   }
 
   @override
   void dispose() {
+    _historyManager.removeListener(_onHistoryChanged);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -47,6 +51,10 @@ class _HistoryPageState extends State<HistoryPage> {
 
   void _onControllerChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _onHistoryChanged() {
+    if (mounted) unawaited(_reload());
   }
 
   Future<void> _reload() async {

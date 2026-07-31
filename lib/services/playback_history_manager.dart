@@ -143,7 +143,7 @@ class PlaybackHistoryItem {
   }
 }
 
-class PlaybackHistoryManager {
+class PlaybackHistoryManager extends ChangeNotifier {
   static final PlaybackHistoryManager _instance =
       PlaybackHistoryManager._internal();
   factory PlaybackHistoryManager() => _instance;
@@ -168,6 +168,11 @@ class PlaybackHistoryManager {
   void debugResetCacheForTest() {
     _cache = null;
     _writeChain = Future<void>.value();
+  }
+
+  @visibleForTesting
+  void debugNotifyListenersForTest() {
+    notifyListeners();
   }
 
   String buildKey(AnimeInfo anime) {
@@ -215,9 +220,7 @@ class PlaybackHistoryManager {
             items.add(PlaybackHistoryItem.fromJson(entry));
           } else if (entry is Map) {
             items.add(
-              PlaybackHistoryItem.fromJson(
-                Map<String, dynamic>.from(entry),
-              ),
+              PlaybackHistoryItem.fromJson(Map<String, dynamic>.from(entry)),
             );
           }
         } catch (_) {
@@ -239,12 +242,16 @@ class PlaybackHistoryManager {
   }
 
   Future<void> _persist(List<PlaybackHistoryItem> history) async {
-    _cache = List<PlaybackHistoryItem>.from(history);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
+    final persisted = await prefs.setString(
       _storageKey,
       jsonEncode(history.map((e) => e.toJson()).toList()),
     );
+    if (!persisted) {
+      throw StateError('Failed to persist playback history');
+    }
+    _cache = List<PlaybackHistoryItem>.from(history);
+    notifyListeners();
   }
 
   Future<T> _runSerialized<T>(Future<T> Function() action) {
@@ -276,6 +283,12 @@ class PlaybackHistoryManager {
     return null;
   }
 
+  bool _matchesEpisode(PlaybackHistoryItem item, BangumiEpisode episode) {
+    return item.episodeId == episode.id ||
+        (item.episodeId == 0 && item.episodeSort == episode.sort) ||
+        item.episodeSort == episode.sort;
+  }
+
   /// Returns a resume position for [episode] when history matches that episode.
   Future<int?> resumePositionMsFor({
     required AnimeInfo anime,
@@ -283,13 +296,28 @@ class PlaybackHistoryManager {
   }) async {
     final item = await findByAnime(anime);
     if (item == null) return null;
-    final sameEpisode =
-        item.episodeId == episode.id ||
-        (item.episodeId == 0 && item.episodeSort == episode.sort) ||
-        item.episodeSort == episode.sort;
-    if (!sameEpisode) return null;
+    if (!_matchesEpisode(item, episode)) return null;
     if (item.lastPositionMs <= 0) return null;
     return item.lastPositionMs;
+  }
+
+  /// Reconciles a route-provided resume point with the current stored value.
+  ///
+  /// Pages can remain mounted while another player session advances history,
+  /// so the live value wins whenever it still refers to [episode].
+  Future<int?> resolveStartPositionMsFor({
+    required AnimeInfo anime,
+    required BangumiEpisode episode,
+    int? fallbackPositionMs,
+  }) async {
+    final item = await findByAnime(anime);
+    if (item != null && _matchesEpisode(item, episode)) {
+      return item.lastPositionMs > 0 ? item.lastPositionMs : null;
+    }
+    if (fallbackPositionMs != null && fallbackPositionMs > 0) {
+      return fallbackPositionMs;
+    }
+    return null;
   }
 
   /// Upsert the anime's history entry.
@@ -314,8 +342,8 @@ class PlaybackHistoryManager {
           (existing.episodeId == currentEpisode.id ||
               existing.episodeSort == currentEpisode.sort);
 
-      final resolvedPosition = lastPositionMs ??
-          (sameEpisode ? existing.lastPositionMs : 0);
+      final resolvedPosition =
+          lastPositionMs ?? (sameEpisode ? existing.lastPositionMs : 0);
 
       if (existingIdx != -1) {
         history.removeAt(existingIdx);
@@ -399,9 +427,13 @@ class PlaybackHistoryManager {
 
   Future<void> clear() {
     return _runSerialized(() async {
-      _cache = <PlaybackHistoryItem>[];
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_storageKey);
+      final removed = await prefs.remove(_storageKey);
+      if (!removed) {
+        throw StateError('Failed to clear playback history');
+      }
+      _cache = <PlaybackHistoryItem>[];
+      notifyListeners();
     });
   }
 }
