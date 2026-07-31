@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:mikan_player/main.dart' show webViewEnvironment;
@@ -422,9 +424,14 @@ class _ReusableWebViewVideoExtractorState
       shouldInterceptRequest: (controller, request) async {
         return _runner.shouldInterceptRequest(request);
       },
-      onLoadResource: (controller, resource) {
-        _runner.onLoadResource(resource);
-      },
+      // Android implements onLoadResource through a JavaScript
+      // PerformanceObserver, which generates a platform message for every
+      // resource. shouldInterceptRequest covers the same URLs for extraction.
+      onLoadResource: defaultTargetPlatform == TargetPlatform.android
+          ? null
+          : (controller, resource) {
+              _runner.onLoadResource(resource);
+            },
       onConsoleMessage: (controller, consoleMessage) {
         _runner.onConsoleMessage(consoleMessage);
       },

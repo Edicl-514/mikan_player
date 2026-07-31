@@ -706,12 +706,19 @@ class _ReusableBrowserWorkerState extends State<ReusableBrowserWorker> {
         }
         return null;
       },
-      onLoadResource: (controller, resource) {
-        final activeKind = _lastJob?.kind;
-        if (activeKind == WebViewJobKind.video) {
-          _videoRunner.onLoadResource(resource);
-        }
-      },
+      // Android's onLoadResource implementation injects a JavaScript
+      // PerformanceObserver and sends one platform message per resource.
+      // Video extraction already gets the same URLs from shouldInterceptRequest,
+      // so keep this callback off Android to avoid flooding the Flutter UI
+      // isolate during pages with many subresources.
+      onLoadResource: defaultTargetPlatform == TargetPlatform.android
+          ? null
+          : (controller, resource) {
+              final activeKind = _lastJob?.kind;
+              if (activeKind == WebViewJobKind.video) {
+                _videoRunner.onLoadResource(resource);
+              }
+            },
       onConsoleMessage: (controller, consoleMessage) {
         final activeKind = _lastJob?.kind;
         if (activeKind == WebViewJobKind.video) {
