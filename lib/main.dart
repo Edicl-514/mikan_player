@@ -539,6 +539,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 return child ?? const SizedBox.shrink();
               }
               return WindowsDesktopFrame(
+                controller: _workspaceController,
                 tabStrip: WorkspaceTabStrip(
                   controller: _workspaceController,
                   hostController: _workspaceHostController,

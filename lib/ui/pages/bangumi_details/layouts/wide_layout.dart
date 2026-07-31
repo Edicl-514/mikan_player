@@ -237,6 +237,7 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
         Positioned.fill(
           child: BlurredBackground(
             imageUrl: getImageUrl(widget.data, widget.anime.coverUrl),
+            publishTint: true,
           ),
         ),
         Scaffold(

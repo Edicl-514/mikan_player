@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/widgets/workspace_chrome_tint.dart';
 
 /// Poster card used in the wide layout's left panel.
 ///
@@ -69,29 +70,45 @@ class BangumiPoster extends StatelessWidget {
 class BlurredBackground extends StatelessWidget {
   final String? imageUrl;
 
-  const BlurredBackground({super.key, required this.imageUrl});
+  /// Whether to extract a dominant color from the cover and publish it as the
+  /// window-chrome tint for the current tab. The desktop detail page enables
+  /// this so its wallpaper bleeds into the title bar; embedded uses (hero
+  /// cards) leave it off.
+  final bool publishTint;
+
+  const BlurredBackground({
+    super.key,
+    required this.imageUrl,
+    this.publishTint = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (imageUrl == null) {
-      return Container(color: Colors.black87);
-    }
+    final wallpaper = imageUrl == null
+        ? Container(color: Colors.black87)
+        : Stack(
+            fit: StackFit.expand,
+            children: [
+              CachedNetworkImage(
+                imageUrl: imageUrl!,
+                fit: BoxFit.cover,
+                errorWidget: Container(color: Colors.black87),
+              ),
+              RepaintBoundary(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+            ],
+          );
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        CachedNetworkImage(
-          imageUrl: imageUrl!,
-          fit: BoxFit.cover,
-          errorWidget: Container(color: Colors.black87),
-        ),
-        RepaintBoundary(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(color: Colors.black.withValues(alpha: 0.6)),
-          ),
-        ),
-      ],
+    if (!publishTint) return wallpaper;
+    return WorkspaceChromeTintPublisher(
+      imageUrl: imageUrl,
+      child: wallpaper,
     );
   }
 }

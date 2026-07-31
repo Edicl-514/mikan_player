@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/services/player_session/player_session_identity.dart';
 import 'package:mikan_player/services/workspace_page_chrome.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
+import 'package:mikan_player/ui/utils/dominant_color.dart';
+import 'package:mikan_player/ui/widgets/workspace_chrome_tint.dart';
 import 'package:mikan_player/ui/widgets/workspace_tab_host.dart';
 
 class WorkspaceTabStrip extends StatefulWidget {
@@ -261,6 +263,23 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final showClose = widget.isActive || _hovered;
+    // On a tinted shell the strip rides the page color; keep chrome contrast by
+    // drawing with the chrome foreground instead of theme colors.
+    final tint = WorkspaceChromeTintScope.tintOf(context);
+    final contentColor =
+        tint != null ? chromeForeground(tint) : colors.onSurfaceVariant;
+    final activeChipColor =
+        tint != null
+        ? contentColor.withValues(alpha: 0.16)
+        : colors.surfaceContainerHighest;
+    final titleStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color:
+          tint != null
+          ? contentColor.withValues(
+              alpha: widget.isActive ? 0.95 : 0.72,
+            )
+          : null,
+    );
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onHorizontalDragStart: widget.tab.isClosing ? null : widget.onDragStart,
@@ -282,23 +301,21 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
           onEnter: (_) => setState(() => _hovered = true),
           onExit: (_) => setState(() => _hovered = false),
           child: Material(
-            color: widget.isActive
-                ? colors.surfaceContainerHighest
-                : Colors.transparent,
+            color: widget.isActive ? activeChipColor : Colors.transparent,
             child: InkWell(
               onTap: widget.tab.isClosing ? null : widget.onActivate,
               child: Padding(
                 padding: const EdgeInsets.only(left: 12, right: 4),
                 child: Row(
                   children: [
-                    Icon(_icon, size: 16, color: colors.onSurfaceVariant),
+                    Icon(_icon, size: 16, color: contentColor),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         widget.tab.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: titleStyle,
                       ),
                     ),
                     SizedBox(
@@ -307,7 +324,7 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
                           ? Icon(
                               Icons.volume_up_outlined,
                               size: 14,
-                              color: colors.onSurfaceVariant,
+                              color: contentColor,
                             )
                           : null,
                     ),
@@ -328,6 +345,7 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
                                   padding: EdgeInsets.zero,
                                   tooltip: 'Close tab',
                                   icon: const Icon(Icons.close, size: 15),
+                                  color: contentColor,
                                   onPressed: widget.onClose,
                                 ),
                               ),
@@ -373,8 +391,12 @@ class WorkspaceContextToolbar extends StatelessWidget {
         final actions = WorkspacePageChromeRegistry.instance.toolbarActionsFor(
           tab.id,
         );
+        final tint = WorkspaceChromeTintScope.tintOf(context);
+        final colors = Theme.of(context).colorScheme;
+        final background = tint ?? colors.surface;
+        final foreground = tint != null ? chromeForeground(tint) : colors.onSurface;
         return Material(
-          color: Theme.of(context).colorScheme.surface,
+          color: background,
           child: SizedBox(
             height: height,
             child: Row(
@@ -383,6 +405,8 @@ class WorkspaceContextToolbar extends StatelessWidget {
                 IconButton(
                   tooltip: 'Back',
                   icon: const Icon(Icons.arrow_back, size: 19),
+                  color: foreground,
+                  disabledColor: foreground.withValues(alpha: 0.38),
                   onPressed: tab.canGoBack
                       ? () => unawaited(hostController.goBack())
                       : null,
@@ -390,6 +414,8 @@ class WorkspaceContextToolbar extends StatelessWidget {
                 IconButton(
                   tooltip: 'Forward',
                   icon: const Icon(Icons.arrow_forward, size: 19),
+                  color: foreground,
+                  disabledColor: foreground.withValues(alpha: 0.38),
                   onPressed: tab.canGoForward ? hostController.goForward : null,
                 ),
                 const SizedBox(width: 8),
@@ -398,7 +424,9 @@ class WorkspaceContextToolbar extends StatelessWidget {
                     tab.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleSmall?.copyWith(color: foreground),
                   ),
                 ),
                 for (final action in actions) action.build(context),

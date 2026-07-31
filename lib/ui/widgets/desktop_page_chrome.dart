@@ -121,7 +121,7 @@ class WorkspaceRouteTitle extends StatefulWidget {
 }
 
 class _WorkspaceRouteTitleState extends State<WorkspaceRouteTitle>
-    with _WorkspaceChromeRouteAware<WorkspaceRouteTitle> {
+    with WorkspaceChromeRouteAware<WorkspaceRouteTitle> {
   final Object _owner = Object();
   WorkspaceTabId? _tabId;
 
@@ -197,7 +197,7 @@ class WorkspaceToolbarActions extends StatefulWidget {
 }
 
 class _WorkspaceToolbarActionsState extends State<WorkspaceToolbarActions>
-    with _WorkspaceChromeRouteAware<WorkspaceToolbarActions> {
+    with WorkspaceChromeRouteAware<WorkspaceToolbarActions> {
   final Object _owner = Object();
   WorkspaceTabId? _tabId;
 
@@ -251,7 +251,14 @@ class _WorkspaceToolbarActionsState extends State<WorkspaceToolbarActions>
   Widget build(BuildContext context) => widget.child;
 }
 
-mixin _WorkspaceChromeRouteAware<T extends StatefulWidget> on State<T>
+/// Route-visibility plumbing for widgets that publish page chrome.
+///
+/// Publishes are only valid while the widget's route is the current one, so
+/// these states subscribe to the nearest [RouteObserver] and expose
+/// [isRouteVisible] plus the lifecycle overrides to run the publish/retract
+/// dance. Pages must call [updateRouteSubscription] from
+/// `didChangeDependencies` and [disposeRouteSubscription] from `dispose`.
+mixin WorkspaceChromeRouteAware<T extends StatefulWidget> on State<T>
     implements RouteAware {
   RouteObserver<PageRoute<dynamic>> _routeObserver = workspaceRouteObserver;
   PageRoute<dynamic>? _subscribedRoute;

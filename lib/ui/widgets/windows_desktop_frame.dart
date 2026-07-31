@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/services/workspace_page_chrome.dart';
+import 'package:mikan_player/services/workspace_tab_controller.dart';
+import 'package:mikan_player/ui/utils/dominant_color.dart';
+import 'package:mikan_player/ui/widgets/workspace_chrome_tint.dart';
 import 'package:window_manager/window_manager.dart';
 
 /// Shares player and native-window fullscreen state with the desktop frame
@@ -40,6 +44,7 @@ class WindowsDesktopFrame extends StatefulWidget {
     this.tabStrip,
     this.contextToolbar,
     this.onNewTab,
+    this.controller,
   });
 
   static const double titleBarHeight = 40;
@@ -50,18 +55,30 @@ class WindowsDesktopFrame extends StatefulWidget {
   final Widget? contextToolbar;
   final VoidCallback? onNewTab;
 
+  /// Tab state used to resolve which tab's published chrome tint colors the
+  /// shell. Optional so chrome can be exercised without a workspace.
+  final WorkspaceTabController? controller;
+
   @override
   State<WindowsDesktopFrame> createState() => _WindowsDesktopFrameState();
 }
 
 class _WindowsDesktopFrameState extends State<WindowsDesktopFrame>
     with WindowListener {
+  static const Duration _chromeTransitionDuration = Duration(milliseconds: 300);
+
   bool _isMaximized = false;
+  late final Listenable _chromeListenable;
 
   @override
   void initState() {
     super.initState();
     windowManager.addListener(this);
+    _chromeListenable = Listenable.merge(<Listenable>[
+      WindowsDesktopFrameController.instance,
+      WorkspacePageChromeRegistry.instance,
+      if (widget.controller != null) widget.controller!,
+    ]);
   }
 
   @override
@@ -108,8 +125,8 @@ class _WindowsDesktopFrameState extends State<WindowsDesktopFrame>
     // MaterialApp.builder places the desktop frame above the Navigator's
     // Overlay. Keep title-bar tooltips and tab drag proxies in a local overlay.
     return Overlay.wrap(
-      child: AnimatedBuilder(
-        animation: WindowsDesktopFrameController.instance,
+      child: ListenableBuilder(
+        listenable: _chromeListenable,
         builder: (context, _) {
           final frameController = WindowsDesktopFrameController.instance;
           if (frameController.isContentFullscreen ||
@@ -118,14 +135,21 @@ class _WindowsDesktopFrameState extends State<WindowsDesktopFrame>
           }
 
           final colors = Theme.of(context).colorScheme;
-          return ColoredBox(
-            color: colors.surface,
-            child: Column(
-              children: [
-                _buildTitleBar(context, colors),
-                if (widget.contextToolbar != null) widget.contextToolbar!,
-                Expanded(child: widget.child),
-              ],
+          final tint = _activeTint();
+          return WorkspaceChromeTintScope(
+            tint: tint,
+            child: AnimatedContainer(
+              key: const ValueKey('workspace_chrome_background'),
+              duration: _chromeTransitionDuration,
+              curve: Curves.easeOut,
+              color: tint ?? colors.surface,
+              child: Column(
+                children: [
+                  _buildTitleBar(context, colors, tint),
+                  if (widget.contextToolbar != null) widget.contextToolbar!,
+                  Expanded(child: widget.child),
+                ],
+              ),
             ),
           );
         },
@@ -133,8 +157,17 @@ class _WindowsDesktopFrameState extends State<WindowsDesktopFrame>
     );
   }
 
-  Widget _buildTitleBar(BuildContext context, ColorScheme colors) {
-    final iconColor = colors.onSurfaceVariant;
+  /// The active tab's published chrome tint, if any.
+  Color? _activeTint() {
+    final controller = widget.controller;
+    if (controller == null) return null;
+    return WorkspacePageChromeRegistry.instance.tintFor(controller.activeTabId);
+  }
+
+  Widget _buildTitleBar(BuildContext context, ColorScheme colors, Color? tint) {
+    final foreground = tint != null ? chromeForeground(tint) : colors.onSurface;
+    final iconColor = foreground;
+    final brandColor = tint != null ? foreground : colors.primary;
     return SizedBox(
       height: WindowsDesktopFrame.titleBarHeight,
       child: LayoutBuilder(
@@ -151,7 +184,7 @@ class _WindowsDesktopFrameState extends State<WindowsDesktopFrame>
                 child: Center(
                   child: Icon(
                     Icons.play_circle_fill_rounded,
-                    color: colors.primary,
+                    color: brandColor,
                     size: 24,
                   ),
                 ),

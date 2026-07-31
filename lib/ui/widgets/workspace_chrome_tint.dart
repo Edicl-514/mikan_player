@@ -1,0 +1,211 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+
+import 'package:mikan_player/services/bangumi_image_bridge.dart';
+import 'package:mikan_player/services/cache/image_cache_service.dart';
+import 'package:mikan_player/services/player_session/player_session_identity.dart';
+import 'package:mikan_player/services/workspace_page_chrome.dart';
+import 'package:mikan_player/ui/utils/dominant_color.dart';
+import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/workspace_tab_host.dart';
+
+/// Exposes the window-chrome tint the desktop frame computed from the active
+/// tab's published page color.
+///
+/// Installed by [WindowsDesktopFrame] above the title bar and toolbar. `null`
+/// means the shell falls back to its theme surface color. Descendants read it
+/// with [maybeOf]; pages *publish* a tint with [WorkspaceChromeTintPublisher]
+/// rather than reading this.
+class WorkspaceChromeTintScope extends InheritedWidget {
+  const WorkspaceChromeTintScope({
+    super.key,
+    required this.tint,
+    required super.child,
+  });
+
+  final Color? tint;
+
+  static WorkspaceChromeTintScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<WorkspaceChromeTintScope>();
+
+  static Color? tintOf(BuildContext context) => maybeOf(context)?.tint;
+
+  @override
+  bool updateShouldNotify(WorkspaceChromeTintScope oldWidget) =>
+      oldWidget.tint != tint;
+}
+
+/// Publishes a cover-derived chrome tint for the current tab.
+///
+/// Wraps a page's image background (the detail page's blurred wallpaper) and,
+/// once the cover is available, extracts a dominant color and publishes it to
+/// [WorkspacePageChromeRegistry] so the desktop frame can tint its title bar
+/// and toolbar. The tint follows the route lifecycle: covering or popping the
+/// publishing route retracts it and the shell falls back to whatever the route
+/// underneath (or the theme) dictates. Renders nothing itself.
+class WorkspaceChromeTintPublisher extends StatefulWidget {
+  const WorkspaceChromeTintPublisher({
+    super.key,
+    required this.imageUrl,
+    required this.child,
+  });
+
+  final String? imageUrl;
+  final Widget child;
+
+  // Shared across instances so reopening a page with a familiar cover reuses
+  // the computed tint instead of re-decoding the image.
+  static final Map<String, Color?> _chromeCache = <String, Color?>{};
+  static const int _chromeCacheMax = 96;
+
+  /// Test seam: short-circuits extraction with a fixed chrome color, so tests
+  /// can exercise the publish lifecycle without image bytes.
+  @visibleForTesting
+  static Color? Function(String url)? debugChromeOverride;
+
+  @visibleForTesting
+  static void debugResetForTest() {
+    debugChromeOverride = null;
+    _chromeCache.clear();
+  }
+
+  @override
+  State<WorkspaceChromeTintPublisher> createState() =>
+      _WorkspaceChromeTintPublisherState();
+}
+
+class _WorkspaceChromeTintPublisherState
+    extends State<WorkspaceChromeTintPublisher>
+    with WorkspaceChromeRouteAware<WorkspaceChromeTintPublisher> {
+  final Object _owner = Object();
+  WorkspaceTabId? _tabId;
+  Color? _chrome;
+  bool _extracting = false;
+  int _extractionGeneration = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    updateRouteSubscription(context);
+    _syncTabAndPublish();
+  }
+
+  @override
+  void didUpdateWidget(WorkspaceChromeTintPublisher oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl) {
+      _retract();
+      _extractionGeneration++;
+      _extracting = false;
+      _chrome = null;
+      _syncTabAndPublish();
+    }
+  }
+
+  @override
+  void dispose() {
+    _retract();
+    disposeRouteSubscription();
+    super.dispose();
+  }
+
+  @override
+  void onRouteVisibilityChanged() {
+    if (isRouteVisible) {
+      _publishFromState();
+    } else {
+      _retract();
+    }
+  }
+
+  void _syncTabAndPublish() {
+    final tabId = WorkspaceTabScope.maybeOf(context);
+    if (tabId != _tabId) {
+      _retract();
+      _tabId = tabId;
+    }
+    if (tabId != null && isRouteVisible) _publishFromState();
+  }
+
+  void _publishFromState() {
+    final tabId = _tabId;
+    if (tabId == null || !isRouteVisible) return;
+    final chrome = _chrome;
+    if (chrome != null) {
+      WorkspacePageChromeRegistry.instance.publishTint(tabId, _owner, chrome);
+      return;
+    }
+    final url = widget.imageUrl;
+    if (url == null || url.isEmpty || _extracting) return;
+    _extracting = true;
+    unawaited(_extract(url, tabId));
+  }
+
+  Future<void> _extract(String url, WorkspaceTabId tabId) async {
+    final generation = ++_extractionGeneration;
+    final chrome = await _chromeForUrl(url);
+    _extracting = false;
+    if (!mounted || generation != _extractionGeneration || _tabId != tabId) {
+      return;
+    }
+    _chrome = chrome;
+    if (chrome == null || !isRouteVisible) return;
+    WorkspacePageChromeRegistry.instance.publishTint(tabId, _owner, chrome);
+  }
+
+  void _retract() {
+    final tabId = _tabId;
+    if (tabId == null) return;
+    WorkspacePageChromeRegistry.instance.retractTint(tabId, _owner);
+  }
+
+  Future<Color?> _chromeForUrl(String url) async {
+    final override = WorkspaceChromeTintPublisher.debugChromeOverride;
+    if (override != null) return override(url);
+    final cache = WorkspaceChromeTintPublisher._chromeCache;
+    final cached = cache[url];
+    if (cached != null) return cached;
+    final chrome = await _resolveChrome(url);
+    if (chrome != null) {
+      cache[url] = chrome;
+      if (cache.length > WorkspaceChromeTintPublisher._chromeCacheMax) {
+        cache.remove(cache.keys.first);
+      }
+    }
+    return chrome;
+  }
+
+  Future<Color?> _resolveChrome(String url) async {
+    final bytes = await _imageBytes(url);
+    if (bytes == null || bytes.isEmpty) return null;
+    final dominant = await extractDominantColor(bytes);
+    if (dominant == null) return null;
+    return deriveChromeBackground(dominant);
+  }
+
+  Future<Uint8List?> _imageBytes(String url) async {
+    try {
+      final cache = ImageCacheService.instance;
+      if (!cache.isInitialized) await cache.initialize();
+      var path = await cache.getCachedPath(url);
+      path ??= await cache.cacheImage(url);
+      if (path != null) {
+        final file = File(path);
+        if (await file.exists()) return await file.readAsBytes();
+      }
+    } catch (_) {
+      // Fall through to the bridge.
+    }
+    try {
+      return await BangumiImageBridge.fetchFromUrl(url);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}

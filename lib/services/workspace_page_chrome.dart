@@ -24,6 +24,14 @@ class _TitleEntry {
   final String title;
 }
 
+@immutable
+class _TintEntry {
+  const _TintEntry({required this.owner, required this.color});
+
+  final Object owner;
+  final Color color;
+}
+
 /// Page-published chrome for the Windows workspace shell.
 ///
 /// Routes live inside a tab's navigator while the title bar and context
@@ -41,6 +49,8 @@ class WorkspacePageChromeRegistry extends ChangeNotifier {
       <WorkspaceTabId, List<_TitleEntry>>{};
   final Map<WorkspaceTabId, List<WorkspaceToolbarActionEntry>> _toolbarActions =
       <WorkspaceTabId, List<WorkspaceToolbarActionEntry>>{};
+  final Map<WorkspaceTabId, List<_TintEntry>> _tints =
+      <WorkspaceTabId, List<_TintEntry>>{};
 
   /// The title the topmost live route published for [tabId], if any.
   String? titleFor(WorkspaceTabId tabId) {
@@ -108,17 +118,52 @@ class WorkspacePageChromeRegistry extends ChangeNotifier {
     _notify();
   }
 
+  /// The window-chrome tint the topmost live route published for [tabId].
+  ///
+  /// Null means the shell keeps its theme surface color. Like titles, tints
+  /// stack per tab so a route that covers the publishing one falls back to the
+  /// route underneath, and finally to the shell default.
+  Color? tintFor(WorkspaceTabId tabId) {
+    final entries = _tints[tabId];
+    if (entries == null || entries.isEmpty) return null;
+    return entries.last.color;
+  }
+
+  void publishTint(WorkspaceTabId tabId, Object owner, Color color) {
+    final entries = _tints.putIfAbsent(tabId, () => <_TintEntry>[]);
+    final index = entries.indexWhere((entry) => entry.owner == owner);
+    if (index >= 0) {
+      if (entries[index].color == color) return;
+      entries[index] = _TintEntry(owner: owner, color: color);
+    } else {
+      entries.add(_TintEntry(owner: owner, color: color));
+    }
+    _notify();
+  }
+
+  void retractTint(WorkspaceTabId tabId, Object owner) {
+    final entries = _tints[tabId];
+    if (entries == null) return;
+    final removed = entries.length;
+    entries.removeWhere((entry) => entry.owner == owner);
+    if (entries.length == removed) return;
+    if (entries.isEmpty) _tints.remove(tabId);
+    _notify();
+  }
+
   /// Drops everything a closed tab published.
   void clearTab(WorkspaceTabId tabId) {
     final hadTitle = _titles.remove(tabId) != null;
     final hadActions = _toolbarActions.remove(tabId) != null;
-    if (hadTitle || hadActions) _notify();
+    final hadTint = _tints.remove(tabId) != null;
+    if (hadTitle || hadActions || hadTint) _notify();
   }
 
   @visibleForTesting
   void debugReset() {
     _titles.clear();
     _toolbarActions.clear();
+    _tints.clear();
   }
 
   /// Pages publish from `initState`/`didChangeDependencies`/`dispose`, which can
