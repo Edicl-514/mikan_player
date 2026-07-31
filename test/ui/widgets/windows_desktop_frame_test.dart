@@ -110,4 +110,52 @@ void main() {
     // The button's 18px icon is centered in the 46px title-bar button.
     expect(newTabRect.left, tabRect.right + 14);
   });
+
+  testWidgets('reorders tabs from a mouse drag without a long press', (
+    tester,
+  ) async {
+    final controller = WorkspaceTabController();
+    final hostController = WorkspaceTabHostController();
+    final firstId = controller.activeTabId;
+    final secondId = controller.create(activate: false);
+    final thirdId = controller.create(activate: false);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => WindowsDesktopFrame(
+          tabStrip: WorkspaceTabStrip(
+            controller: controller,
+            hostController: hostController,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        ),
+        home: const SizedBox.expand(),
+      ),
+    );
+
+    final drag = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    final firstTab = find.byKey(ValueKey(firstId));
+    controller.activate(thirdId);
+    await tester.pump();
+    await tester.tap(firstTab);
+    await tester.pump();
+    expect(controller.activeTabId, firstId);
+
+    final initialFirstTabLeft = tester.getRect(firstTab).left;
+    await drag.addPointer(location: tester.getCenter(firstTab));
+    await drag.moveTo(tester.getCenter(firstTab));
+    await drag.down(tester.getCenter(firstTab));
+    await tester.pump();
+    await drag.moveBy(const Offset(16, 0));
+    await tester.pump();
+    await drag.moveTo(tester.getCenter(find.byKey(ValueKey(thirdId))));
+    await tester.pump();
+    expect(controller.tabs.map((tab) => tab.id), [firstId, secondId, thirdId]);
+    expect(tester.getRect(firstTab).left, greaterThan(initialFirstTabLeft));
+    await drag.up();
+    await tester.pumpAndSettle();
+
+    expect(controller.tabs.map((tab) => tab.id), [secondId, thirdId, firstId]);
+    expect(tester.takeException(), isNull);
+  });
 }
