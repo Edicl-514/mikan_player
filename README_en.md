@@ -31,11 +31,12 @@ A Flutter + Rust anime streaming application.
 
 ## Data sources
 
-- **Bangumi**: anime metadata
-- **bgmlist**: broadcast schedule
-- **Mikan Project (蜜柑计划)**: resources and magnet links
-- **DMHY (动漫花园)**: resources and magnet links
-- **DanDanPlay (弹弹play)**: danmaku data
+- **[Bangumi](https://bangumi.tv/)**: anime metadata
+- **[bangumi-data](https://github.com/bangumi-data/bangumi-data)**: anime metadata
+- **[bgmlist](https://bgmlist.com/)**: broadcast schedule
+- **[Mikan Project (蜜柑计划)](https://mikanani.me/)**: resources and magnet links
+- **[DMHY (动漫花园)](https://animes.garden/)**: resources and magnet links
+- **[DanDanPlay (弹弹play)](https://www.dandanplay.com/)**: danmaku data
 - **Custom data sources**: add web search/scraping sources via `Data Source Configuration`, with optional captcha handling and subtitle-language tagging
 
 ## Tech stack
@@ -46,8 +47,8 @@ A Flutter + Rust anime streaming application.
 
 ## Prerequisites
 
-- Flutter SDK 3.10+ (currently running 3.44.4)
-- Rust 1.80+ (currently running 1.92.0)
+- Flutter SDK 3.10+ (currently running 3.44.8)
+- Rust 1.80+ (currently running 1.97.1)
 - Visual Studio (Windows) with the C++ desktop development workload
 - Android Studio / NDK r29 (for Android builds)
 
@@ -63,7 +64,13 @@ A Flutter + Rust anime streaming application.
    flutter_rust_bridge_codegen generate
    ```
 
-3. **Run**:
+3. **Build libtorrent**
+    ```bash
+   build_libtorrent_windows.ps1
+   build_libtorrent_android.ps1
+    ```
+
+4. **Run**:
    - **Windows**:
      ```bash
      flutter run -d windows
@@ -74,7 +81,7 @@ A Flutter + Rust anime streaming application.
       ```
 
 
-4. **Build**
+5. **Build**
    - **Windows**:
      ```bash
      build_windows.ps1

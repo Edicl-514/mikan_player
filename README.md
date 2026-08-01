@@ -31,11 +31,12 @@
 
 ## 数据来源
 
-- **Bangumi**：番剧元数据
-- **bgmlist**：放送表
-- **蜜柑计划**：资源与磁力链接
-- **动漫花园**：资源与磁力链接
-- **弹弹play**：弹幕数据
+- **[Bangumi](https://bangumi.tv/)**：番剧元数据
+- **[bangumi-data](https://github.com/bangumi-data/bangumi-data)**: 番剧元数据
+- **[bgmlist](https://bgmlist.com/)**：放送表
+- **[蜜柑计划](https://mikanani.me/)**：资源与磁力链接
+- **[动漫花园](https://animes.garden/)**：资源与磁力链接
+- **[弹弹play](https://www.dandanplay.com/)**：弹幕数据
 - **自定义数据源**：可配置 Web 搜索/解析源
 
 ## 技术栈
@@ -46,8 +47,8 @@
 
 ## 开发前提
 
-- Flutter SDK 3.10+ (当前运行 3.44.4)
-- Rust 1.80+ (当前运行 1.92.0)
+- Flutter SDK 3.10+ (当前运行 3.44.8)
+- Rust 1.80+ (当前运行 1.97.1)
 - Visual Studio (Windows) 需包含 C++ 桌面开发工作负载
 - Android Studio / NDK r29(用于 Android 构建)
 
@@ -63,7 +64,13 @@
    flutter_rust_bridge_codegen generate
    ```
 
-3. **运行**：
+3. **编译 libtorrent**
+    ```bash
+   build_libtorrent_windows.ps1
+   build_libtorrent_android.ps1
+    ```
+
+4. **运行**：
    - **Windows**：
      ```bash
      flutter run -d windows
@@ -74,7 +81,7 @@
       ```
 
 
-4. **编译**
+5. **编译**
    - **Windows**：
      ```bash
      build_windows.ps1
