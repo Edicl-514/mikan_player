@@ -613,9 +613,7 @@ extension _PlayerPageSearchHost on _PlayerPageState {
       final nonCaptchaSources = cohorts.nonCaptchaSources;
 
       // 使用带进度的流式API，传入当前集号
-      final n = _episodeController.currentEpisodeNumbersAgainst(
-        widget.allEpisodes,
-      );
+      final n = _episodeController.currentEpisodeNumbers;
       final currentEpNumber = n.absolute;
       final relativeEpNumber = n.relative;
 

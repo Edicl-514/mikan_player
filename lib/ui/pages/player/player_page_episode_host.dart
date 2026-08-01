@@ -163,7 +163,7 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
       await _historyManager.addOrUpdate(
         anime: widget.anime,
         currentEpisode: currentEpisode ?? _episodeController.currentEpisode,
-        allEpisodes: widget.allEpisodes,
+        allEpisodes: _episodeController.allEpisodes,
         lastPositionMs: positionMs,
       );
     } catch (e, st) {
@@ -196,6 +196,69 @@ extension _PlayerPageEpisodeHost on _PlayerPageState {
     } catch (e) {
       debugPrint('Error hydrating resume position: $e');
     }
+  }
+
+  /// Applies a background episode-list refresh supplied at construction (a
+  /// history resume navigated with a possibly-stale snapshot and handed the
+  /// cache/network refresh future to the player). The current episode is
+  /// preserved by id/sort — the user is resuming a specific logical episode —
+  /// while the picker, metadata, and history snapshot adopt the refreshed list.
+  /// It is a no-op when no future was supplied, the refreshed list is identical
+  /// to the current one, or the refreshed list would drop the currently-selected
+  /// episode (a remote renumbering), so an in-progress selection is never
+  /// disrupted.
+  Future<void> _maybeApplyEpisodeRefresh() async {
+    final refresh = widget.episodeRefreshFuture;
+    if (refresh == null) return;
+
+    List<BangumiEpisode> refreshed;
+    try {
+      refreshed = await refresh;
+    } catch (e) {
+      debugPrint('[Player] Episode background refresh failed (non-fatal): $e');
+      return;
+    }
+    if (!mounted || _isDisposing) return;
+
+    final currentEpisodes = _episodeController.allEpisodes;
+    final currentPlayable = _episodeController.playableEpisodes;
+    final refreshPlayable = refreshed.releasedEpisodes();
+
+    // Identical list -> nothing to update; avoid a redundant rebuild.
+    if (_sameEpisodes(currentEpisodes, refreshed)) return;
+
+    // Only apply when the refreshed list still contains the episode the user is
+    // resuming. Otherwise (e.g. a remote renumbering dropping the current id)
+    // keep the original snapshot rather than leaving the picker without a
+    // valid selection anchor.
+    final currentEpisode = _episodeController.currentEpisode;
+    final currentId = currentEpisode.id;
+    final containsCurrent = currentId != 0
+        ? refreshPlayable.any((e) => e.id == currentId)
+        : refreshPlayable.any((e) => e.sort == currentEpisode.sort);
+    if (!containsCurrent) {
+      debugPrint(
+        '[Player] Skipping episode refresh: current episode '
+        '(id=$currentId, sort=${currentEpisode.sort}) absent from refreshed list',
+      );
+      return;
+    }
+
+    _updateState(() {
+      _episodeController.reset(newAllEpisodes: refreshed);
+    });
+    debugPrint(
+      '[Player] Applied refreshed episode list: '
+      '${currentPlayable.length} -> ${refreshPlayable.length} playable',
+    );
+  }
+
+  bool _sameEpisodes(List<BangumiEpisode> a, List<BangumiEpisode> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   void _publishPlayerControlSourceState() {

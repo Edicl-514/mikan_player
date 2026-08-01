@@ -350,30 +350,28 @@ class _HomePcPageState extends State<HomePcPage> {
     PlaybackHistoryItem item, {
     WorkspaceOpenDisposition disposition = WorkspaceOpenDisposition.currentTab,
   }) async {
-    final episodes = await resolvePlaybackHistoryEpisodes(item);
-    final playableEpisodes = episodes.releasedEpisodes();
+    var playableEpisodes = item.toEpisodes().releasedEpisodes();
+    // When the history item carries no episode snapshot, the resume target
+    // can't be picked from an empty list — fall back to the blocking
+    // cache/network resolve. The snapshot branch navigates immediately and
+    // lets the player page refresh episodes in the background.
+    Future<List<BangumiEpisode>>? episodeRefreshFuture;
     if (playableEpisodes.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).cannotLoadEpisodes),
-          ),
-        );
+      playableEpisodes = (await resolvePlaybackHistoryEpisodes(
+        item,
+      )).releasedEpisodes();
+      if (playableEpisodes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppLocalizations.of(context).cannotLoadEpisodes),
+            ),
+          );
+        }
+        return;
       }
-      return;
-    }
-
-    BangumiEpisode currentEpisode = playableEpisodes.latestReleasedEpisode()!;
-    final byId = playableEpisodes.where((e) => e.id == item.episodeId).toList();
-    if (byId.isNotEmpty) {
-      currentEpisode = byId.first;
     } else {
-      final bySort = playableEpisodes
-          .where((e) => e.sort == item.episodeSort)
-          .toList();
-      if (bySort.isNotEmpty) {
-        currentEpisode = bySort.first;
-      }
+      episodeRefreshFuture = resolvePlaybackHistoryEpisodes(item);
     }
 
     if (!mounted) return;
@@ -381,9 +379,10 @@ class _HomePcPageState extends State<HomePcPage> {
       context,
       WorkspaceDestinations.player(
         anime: item.toAnimeInfo(),
-        currentEpisode: currentEpisode,
+        currentEpisode: resolveResumeEpisode(item, playableEpisodes)!,
         allEpisodes: playableEpisodes,
         startPositionMs: item.lastPositionMs,
+        episodeRefreshFuture: episodeRefreshFuture,
       ),
       disposition: disposition,
     );
@@ -597,185 +596,180 @@ class _HomePcPageState extends State<HomePcPage> {
     } else {
       content = SizedBox(
         height: 360,
-          child: PageView.builder(
-            itemCount: _todayAnimes.length,
-            controller: _todayPageController,
-            itemBuilder: (context, index) {
-              final anime = _todayAnimes[index];
-              final heroTag =
-                  'home_pc_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}';
-              return AnimatedBuilder(
-                animation: _todayPageController,
-                builder: (context, child) {
-                  double value = 1.0;
-                  if (_todayPageController.position.haveDimensions) {
-                    value = _todayPageController.page! - index;
-                    value = (1 - (value.abs() * 0.15)).clamp(0.0, 1.0);
-                  }
-                  return Center(
-                    child: SizedBox(
-                      height: Curves.easeOut.transform(value) * 360,
-                      width: double.infinity,
-                      child: child,
-                    ),
-                  );
-                },
-                child: WorkspaceLink(
-                  destination: WorkspaceDestinations.bangumiDetails(
-                    anime: anime,
-                    heroTag: heroTag,
+        child: PageView.builder(
+          itemCount: _todayAnimes.length,
+          controller: _todayPageController,
+          itemBuilder: (context, index) {
+            final anime = _todayAnimes[index];
+            final heroTag =
+                'home_pc_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}';
+            return AnimatedBuilder(
+              animation: _todayPageController,
+              builder: (context, child) {
+                double value = 1.0;
+                if (_todayPageController.position.haveDimensions) {
+                  value = _todayPageController.page! - index;
+                  value = (1 - (value.abs() * 0.15)).clamp(0.0, 1.0);
+                }
+                return Center(
+                  child: SizedBox(
+                    height: Curves.easeOut.transform(value) * 360,
+                    width: double.infinity,
+                    child: child,
                   ),
-                  builder: (context, activate) => GestureDetector(
-                    onTap: () {
-                      _todayTimer?.cancel();
-                      activate();
-                      _startTodayTimer();
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 12.0),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          BlurredCoverBackground(
-                            imageUrl: anime.coverUrl ?? '',
-                            borderRadius: BorderRadius.circular(24),
-                            blurSigma: 26,
-                            scale: 1.16,
-                            overlayOpacity: 0.1,
-                            highlightOpacity: 0.14,
-                            borderOpacity: 0.14,
-                          ),
-                          Positioned.fill(
-                            child: Row(
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(24.0),
-                                  child: AspectRatio(
-                                    aspectRatio: 3 / 4,
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Hero(
-                                        tag: heroTag,
-                                        child: CachedNetworkImage(
-                                          imageUrl: anime.coverUrl ?? '',
-                                          fit: BoxFit.cover,
-                                          cacheWidth: 600,
-                                          cacheHeight: 800,
-                                          deferOffscreenLoad: false,
-                                          errorWidget: Container(
-                                            color: Colors.grey[800],
-                                          ),
+                );
+              },
+              child: WorkspaceLink(
+                destination: WorkspaceDestinations.bangumiDetails(
+                  anime: anime,
+                  heroTag: heroTag,
+                ),
+                builder: (context, activate) => GestureDetector(
+                  onTap: () {
+                    _todayTimer?.cancel();
+                    activate();
+                    _startTodayTimer();
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 12.0),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        BlurredCoverBackground(
+                          imageUrl: anime.coverUrl ?? '',
+                          borderRadius: BorderRadius.circular(24),
+                          blurSigma: 26,
+                          scale: 1.16,
+                          overlayOpacity: 0.1,
+                          highlightOpacity: 0.14,
+                          borderOpacity: 0.14,
+                        ),
+                        Positioned.fill(
+                          child: Row(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: AspectRatio(
+                                  aspectRatio: 3 / 4,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Hero(
+                                      tag: heroTag,
+                                      child: CachedNetworkImage(
+                                        imageUrl: anime.coverUrl ?? '',
+                                        fit: BoxFit.cover,
+                                        cacheWidth: 600,
+                                        cacheHeight: 800,
+                                        deferOffscreenLoad: false,
+                                        errorWidget: Container(
+                                          color: Colors.grey[800],
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(
-                                      right: 32.0,
-                                      top: 32,
-                                      bottom: 32,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          anime.title,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 32,
-                                            fontWeight: FontWeight.bold,
-                                            shadows: [
-                                              Shadow(
-                                                color: Colors.black45,
-                                                blurRadius: 8,
-                                              ),
-                                            ],
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
+                              ),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    right: 32.0,
+                                    top: 32,
+                                    bottom: 32,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        anime.title,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 32,
+                                          fontWeight: FontWeight.bold,
+                                          shadows: [
+                                            Shadow(
+                                              color: Colors.black45,
+                                              blurRadius: 8,
+                                            ),
+                                          ],
                                         ),
-                                        const SizedBox(height: 16),
-                                        if (anime.broadcastTime != null)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.primary,
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Text(
-                                              AppLocalizations.of(
-                                                context,
-                                              ).updateTime(
-                                                anime.broadcastTime!,
-                                              ),
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                              ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      if (anime.broadcastTime != null)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
+                                            borderRadius: BorderRadius.circular(
+                                              8,
                                             ),
                                           ),
-                                        const SizedBox(height: 16),
-                                        Expanded(
-                                          child: Builder(
-                                            builder: (context) {
-                                              final extra = _getExtraInfo(
-                                                anime,
-                                                AppLocalizations.of(context),
-                                              );
-                                              if (extra.isEmpty) {
-                                                return const SizedBox();
-                                              }
-                                              return Text(
-                                                extra,
-                                                style: TextStyle(
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.85),
-                                                  fontSize: 14,
-                                                  height: 1.5,
+                                          child: Text(
+                                            AppLocalizations.of(
+                                              context,
+                                            ).updateTime(anime.broadcastTime!),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      const SizedBox(height: 16),
+                                      Expanded(
+                                        child: Builder(
+                                          builder: (context) {
+                                            final extra = _getExtraInfo(
+                                              anime,
+                                              AppLocalizations.of(context),
+                                            );
+                                            if (extra.isEmpty) {
+                                              return const SizedBox();
+                                            }
+                                            return Text(
+                                              extra,
+                                              style: TextStyle(
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.85,
                                                 ),
-                                                maxLines: 5,
-                                                overflow: TextOverflow.ellipsis,
-                                              );
-                                            },
-                                          ),
+                                                fontSize: 14,
+                                                height: 1.5,
+                                              ),
+                                              maxLines: 5,
+                                              overflow: TextOverflow.ellipsis,
+                                            );
+                                          },
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              );
-            },
+              ),
+            );
+          },
         ),
       );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        headerRow,
-        const SizedBox(height: 16),
-        content,
-      ],
+      children: [headerRow, const SizedBox(height: 16), content],
     );
   }
 

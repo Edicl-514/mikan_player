@@ -391,6 +391,7 @@ class WorkspaceDestinations {
     required List<BangumiEpisode> allEpisodes,
     int? startPositionMs,
     String? btStreamUrl,
+    Future<List<BangumiEpisode>>? episodeRefreshFuture,
   }) => _create(
     'player',
     anime.title,
@@ -401,6 +402,7 @@ class WorkspaceDestinations {
       'allEpisodes': allEpisodes,
       'startPositionMs': startPositionMs,
       'btStreamUrl': btStreamUrl,
+      'episodeRefreshFuture': episodeRefreshFuture,
     },
   );
 }
@@ -477,6 +479,8 @@ Widget buildWorkspaceDestination(
         allEpisodes: args['allEpisodes']! as List<BangumiEpisode>,
         startPositionMs: args['startPositionMs'] as int?,
         btStreamUrl: args['btStreamUrl'] as String?,
+        episodeRefreshFuture:
+            args['episodeRefreshFuture'] as Future<List<BangumiEpisode>>?,
       );
   }
   throw FlutterError('Unknown workspace destination: ${destination.kind}');

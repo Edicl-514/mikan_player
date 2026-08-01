@@ -390,30 +390,28 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
   }
 
   Future<void> _openHistoryItem(PlaybackHistoryItem item) async {
-    final episodes = await resolvePlaybackHistoryEpisodes(item);
-    final playableEpisodes = episodes.releasedEpisodes();
+    var playableEpisodes = item.toEpisodes().releasedEpisodes();
+    // When the history item carries no episode snapshot, the resume target
+    // can't be picked from an empty list — fall back to the blocking
+    // cache/network resolve. The snapshot branch navigates immediately and
+    // lets the player page refresh episodes in the background.
+    Future<List<BangumiEpisode>>? episodeRefreshFuture;
     if (playableEpisodes.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).cannotLoadEpisodes),
-          ),
-        );
+      playableEpisodes = (await resolvePlaybackHistoryEpisodes(
+        item,
+      )).releasedEpisodes();
+      if (playableEpisodes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppLocalizations.of(context).cannotLoadEpisodes),
+            ),
+          );
+        }
+        return;
       }
-      return;
-    }
-
-    BangumiEpisode currentEpisode = playableEpisodes.latestReleasedEpisode()!;
-    final byId = playableEpisodes.where((e) => e.id == item.episodeId).toList();
-    if (byId.isNotEmpty) {
-      currentEpisode = byId.first;
     } else {
-      final bySort = playableEpisodes
-          .where((e) => e.sort == item.episodeSort)
-          .toList();
-      if (bySort.isNotEmpty) {
-        currentEpisode = bySort.first;
-      }
+      episodeRefreshFuture = resolvePlaybackHistoryEpisodes(item);
     }
 
     if (!mounted) return;
@@ -422,9 +420,10 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
       MaterialPageRoute(
         builder: (context) => PlayerPage(
           anime: item.toAnimeInfo(),
-          currentEpisode: currentEpisode,
+          currentEpisode: resolveResumeEpisode(item, playableEpisodes)!,
           allEpisodes: playableEpisodes,
           startPositionMs: item.lastPositionMs,
+          episodeRefreshFuture: episodeRefreshFuture,
         ),
       ),
     );
@@ -708,20 +707,20 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
                                 aspectRatio: 3 / 4,
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                    child: Hero(
-                                      tag:
-                                          'home_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
-                                      child: CachedNetworkImage(
-                                        imageUrl: anime.coverUrl ?? '',
-                                        fit: BoxFit.cover,
-                                        cacheWidth: 360,
-                                        cacheHeight: 480,
-                                        deferOffscreenLoad: false,
-                                        errorWidget: Container(
-                                          color: Colors.grey[800],
-                                        ),
+                                  child: Hero(
+                                    tag:
+                                        'home_today_${anime.bangumiId ?? anime.mikanId ?? anime.title.hashCode}',
+                                    child: CachedNetworkImage(
+                                      imageUrl: anime.coverUrl ?? '',
+                                      fit: BoxFit.cover,
+                                      cacheWidth: 360,
+                                      cacheHeight: 480,
+                                      deferOffscreenLoad: false,
+                                      errorWidget: Container(
+                                        color: Colors.grey[800],
                                       ),
                                     ),
+                                  ),
                                 ),
                               ),
                             ),

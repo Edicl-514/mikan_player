@@ -13,6 +13,7 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
       unawaited(_loadRecommendations());
       unawaited(_loadOnairSites());
       unawaited(_loadDanmaku());
+      unawaited(_maybeApplyEpisodeRefresh());
       unawaited(_initializePlaybackAndSourceLoading());
     });
   }
@@ -511,9 +512,7 @@ extension _PlayerPagePlaybackHost on _PlayerPageState {
   // Load danmaku based on anime title and episode
   Future<void> _loadDanmaku() async {
     final animeTitle = widget.anime.title;
-    final n = _episodeController.currentEpisodeNumbersAgainst(
-      widget.allEpisodes,
-    );
+    final n = _episodeController.currentEpisodeNumbers;
     final episodeNumber = n.absolute;
     final relativeEpNumber = n.relative;
 

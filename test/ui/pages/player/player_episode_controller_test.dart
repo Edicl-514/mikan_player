@@ -506,6 +506,45 @@ void main() {
         expectConsistent(controller, 'after initial-only reset');
       },
     );
+
+    test(
+      'with newAllEpisodes only re-anchors current episode by id and keeps offset navigation usable',
+      () {
+        final a = _ep(id: 1, sort: 1);
+        final bOld = _ep(id: 2, sort: 2, nameCn: 'old title');
+        final c = _ep(id: 3, sort: 3);
+        final d = _ep(id: 4, sort: 4);
+        final bRefreshed = _ep(id: 2, sort: 2, nameCn: 'fresh title');
+        final controller = _controller(
+          allEpisodes: [a, bOld, c],
+          initialEpisode: bOld,
+        );
+
+        var fireCount = 0;
+        BangumiEpisode? lastValue;
+        void listener() {
+          fireCount++;
+          lastValue = controller.currentEpisodeListenable.value;
+        }
+
+        controller.currentEpisodeListenable.addListener(listener);
+        addTearDown(
+          () => controller.currentEpisodeListenable.removeListener(listener),
+        );
+
+        controller.reset(newAllEpisodes: [a, bRefreshed, c, d]);
+
+        expect(controller.currentEpisode, same(bRefreshed));
+        expect(controller.currentEpisode.nameCn, 'fresh title');
+        expect(controller.currentEpisodeIndex, 1);
+        expect(controller.resolveByOffset(1), same(c));
+        expect(controller.allEpisodes.map((e) => e.id).toList(), [1, 2, 3, 4]);
+        expect(controller.currentEpisodeNumbers.relative, 2);
+        expect(fireCount, 1);
+        expect(lastValue, same(bRefreshed));
+        expectConsistent(controller, 'after metadata refresh re-anchor');
+      },
+    );
   });
 
   group('validateInvariants catches violations', () {

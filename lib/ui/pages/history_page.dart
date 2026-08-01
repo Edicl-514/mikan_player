@@ -84,30 +84,28 @@ class _HistoryPageState extends State<HistoryPage> {
     PlaybackHistoryItem item, {
     WorkspaceOpenDisposition disposition = WorkspaceOpenDisposition.currentTab,
   }) async {
-    final episodes = await resolvePlaybackHistoryEpisodes(item);
-    final playableEpisodes = episodes.releasedEpisodes();
+    var playableEpisodes = item.toEpisodes().releasedEpisodes();
+    // When the history item carries no episode snapshot, the resume target
+    // can't be picked from an empty list — fall back to the blocking
+    // cache/network resolve. The snapshot branch navigates immediately and
+    // lets the player page refresh episodes in the background.
+    Future<List<BangumiEpisode>>? episodeRefreshFuture;
     if (playableEpisodes.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).cannotLoadEpisodes),
-          ),
-        );
+      playableEpisodes = (await resolvePlaybackHistoryEpisodes(
+        item,
+      )).releasedEpisodes();
+      if (playableEpisodes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppLocalizations.of(context).cannotLoadEpisodes),
+            ),
+          );
+        }
+        return;
       }
-      return;
-    }
-
-    BangumiEpisode currentEpisode = playableEpisodes.latestReleasedEpisode()!;
-    final byId = playableEpisodes.where((e) => e.id == item.episodeId).toList();
-    if (byId.isNotEmpty) {
-      currentEpisode = byId.first;
     } else {
-      final bySort = playableEpisodes
-          .where((e) => e.sort == item.episodeSort)
-          .toList();
-      if (bySort.isNotEmpty) {
-        currentEpisode = bySort.first;
-      }
+      episodeRefreshFuture = resolvePlaybackHistoryEpisodes(item);
     }
 
     if (!mounted) return;
@@ -115,9 +113,10 @@ class _HistoryPageState extends State<HistoryPage> {
       context,
       WorkspaceDestinations.player(
         anime: item.toAnimeInfo(),
-        currentEpisode: currentEpisode,
+        currentEpisode: resolveResumeEpisode(item, playableEpisodes)!,
         allEpisodes: playableEpisodes,
         startPositionMs: item.lastPositionMs,
+        episodeRefreshFuture: episodeRefreshFuture,
       ),
       disposition: disposition,
     );

@@ -1,10 +1,30 @@
 import 'package:flutter/foundation.dart';
+import 'package:mikan_player/models/bangumi_episode_filter.dart';
 import 'package:mikan_player/services/cache/cache_manager.dart';
 import 'package:mikan_player/services/playback_history_manager.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 
 typedef PlaybackHistoryEpisodeLoader =
     Future<List<BangumiEpisode>> Function(int subjectId);
+
+/// Picks the [BangumiEpisode] to resume at from a playable (released-only)
+/// episode list for a history item.
+///
+/// Resolution order: exact [BangumiEpisode.id] match → [BangumiEpisode.sort]
+/// match → the latest released episode. Returns `null` when
+/// [playableEpisodes] is empty; the caller is expected to surface that empty
+/// case (e.g. a "cannot load episodes" snackbar) rather than navigate.
+BangumiEpisode? resolveResumeEpisode(
+  PlaybackHistoryItem item,
+  List<BangumiEpisode> playableEpisodes,
+) {
+  if (playableEpisodes.isEmpty) return null;
+  final byId = playableEpisodes.where((e) => e.id == item.episodeId);
+  if (byId.isNotEmpty) return byId.first;
+  final bySort = playableEpisodes.where((e) => e.sort == item.episodeSort);
+  if (bySort.isNotEmpty) return bySort.first;
+  return playableEpisodes.latestReleasedEpisode();
+}
 
 /// Resolves the episode list used when opening an item from playback history.
 ///

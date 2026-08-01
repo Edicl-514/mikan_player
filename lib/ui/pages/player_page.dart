@@ -97,6 +97,15 @@ class PlayerPage extends StatefulWidget {
   final int? startPositionMs; // optional start position in milliseconds
   final String? btStreamUrl; // optional BT stream URL to play directly
 
+  /// Optional in-flight episode-list refresh supplied by a history resume:
+  /// the page navigated immediately with the history snapshot and deferred the
+  /// cache/network refresh to the background. After entry the page awaits
+  /// this future and, if the refreshed list still contains the current logical
+  /// episode, feeds it to [_episodeController.reset] so the episode picker,
+  /// metadata, and history snapshot reflect the refreshed list. `null` for
+  /// non-history entry paths (details page already supplies fresh episodes).
+  final Future<List<BangumiEpisode>>? episodeRefreshFuture;
+
   const PlayerPage({
     super.key,
     required this.anime,
@@ -104,6 +113,7 @@ class PlayerPage extends StatefulWidget {
     required this.allEpisodes,
     this.startPositionMs,
     this.btStreamUrl,
+    this.episodeRefreshFuture,
   });
 
   @override

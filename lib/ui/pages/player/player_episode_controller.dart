@@ -34,16 +34,12 @@ import 'package:mikan_player/src/rust/api/bangumi.dart';
 /// id→sort→indexOf fallback in the **full** `allEpisodes`) and resolves its own
 /// `_onSkipPrevious` / `_onSkipNext` (`video_player_controls.dart:779-792`) /
 /// panel highlight. That math is NOT unified here: this controller works in the
-/// released-only working list via plain `indexOf`, matching the historical
-/// `_onSkipNext`. Unifying the two index resolutions is a separate
-/// behavior-change commit, NOT this behavior-preserving extraction. Do NOT
-/// touch `video_player_controls.dart` in this checkpoint.
+/// released-only working list and now uses the same id→sort→value fallback
+/// strategy for locating the current episode.
 ///
-/// The page also keeps:
-///   - `widget.allEpisodes` (the *parent*-supplied full list — passed into
-///     [currentEpisodeNumbersAgainst] whenever the danmaku / source loaders
-///     need a *relative* episode number; this controller stores its own
-///     snapshot at construction but does not re-read the page's `widget`).
+/// The page keeps this controller's episode snapshot authoritative after
+/// construction. Background refreshes replace [allEpisodes], and danmaku /
+/// source loaders read [currentEpisodeNumbers] from that current snapshot.
 ///   - `didUpdateWidget`'s episode-prop branching — unchanged beyond the
 ///     mechanical `_currentEpisode -> _episodeController.currentEpisode` rename.
 ///     The page does NOT call [reset] here: in-place episode prop changes flow
@@ -94,9 +90,7 @@ class EpisodeSelectionResult {
 ///   - [relative] = (1-based index of the current episode by `id` in the
 ///     supplied `allEpisodes` list) when found, else [absolute].
 /// The two-argument [PlayerEpisodeController.currentEpisodeNumbersAgainst]
-/// variant lets the page pass a *fresh* `widget.allEpisodes` snapshot (it may
-/// differ from the list handed to the controller at construction, e.g. after a
-/// parent rebuild).
+/// variant lets tests or explicit callers compare against a supplied snapshot.
 class EpisodeNumbers {
   const EpisodeNumbers({required this.absolute, required this.relative});
 
@@ -138,11 +132,14 @@ class PlayerEpisodeController {
   ValueListenable<BangumiEpisode> get currentEpisodeListenable =>
       _currentEpisodeNotifier;
 
-  /// Index of [currentEpisode] in [playableEpisodes] using `List.indexOf`
-  /// (the `BangumiEpisode.==` value-equality the type overrides). `-1` when
-  /// not contained. Mirrors the page's `player_page.dart:4086` / `:4820`
-  /// `indexOf` math.
-  int get currentEpisodeIndex => _playableEpisodes.indexOf(_currentEpisode);
+  /// Full episode snapshot currently owned by the controller.
+  List<BangumiEpisode> get allEpisodes =>
+      UnmodifiableListView<BangumiEpisode>(_allEpisodes);
+
+  /// Index of [currentEpisode] in [playableEpisodes]. Matching by id first
+  /// keeps navigation stable when a background refresh updates metadata for
+  /// the same logical episode.
+  int get currentEpisodeIndex => _currentPlayableIndex();
 
   int get episodesCount => _playableEpisodes.length;
 
@@ -151,11 +148,9 @@ class PlayerEpisodeController {
   EpisodeNumbers get currentEpisodeNumbers =>
       _episodeNumbersAgainst(_allEpisodes);
 
-  /// [EpisodeNumbers] computed against a *fresh* `allEpisodes` snapshot. The
-  /// page always has `widget.allEpisodes` at hand and may pass it here even
-  /// when it differs from the controller's own `_allEpisodes` (e.g. after a
-  /// parent rebuild or a future `reset(newAllEpisodes: ...)`). This method does
-  /// NOT cache: it recomputes from [allEpisodes] every call.
+  /// [EpisodeNumbers] computed against a supplied `allEpisodes` snapshot. This
+  /// is retained for tests and callers that explicitly need to compare against
+  /// a different corpus; normal player flows should use [currentEpisodeNumbers].
   EpisodeNumbers currentEpisodeNumbersAgainst(
     List<BangumiEpisode> allEpisodes,
   ) => _episodeNumbersAgainst(allEpisodes);
@@ -205,7 +200,7 @@ class PlayerEpisodeController {
   ///
   /// Returns `null` when:
   ///   - [currentEpisode] is not in [playableEpisodes] (e.g. the unreleased +
-  ///     no-released-fallback seeding case, where `indexOf == -1`); or
+  ///     no-released-fallback seeding case); or
   ///   - the computed index `indexOf + offset` is out of range.
   ///
   /// The page wires its `_onSkipNext` to `resolveByOffset(1)` and forwards the
@@ -217,7 +212,7 @@ class PlayerEpisodeController {
   /// a double-fire when `_onEpisodeSelected` reaches it (the candidate always
   /// carries a distinct `id`, so the guard passes exactly once).
   BangumiEpisode? resolveByOffset(int offset) {
-    final idx = _playableEpisodes.indexOf(_currentEpisode);
+    final idx = _currentPlayableIndex();
     final newIdx = idx + offset;
     if (idx < 0 || newIdx < 0 || newIdx >= _playableEpisodes.length) {
       return null;
@@ -229,8 +224,11 @@ class PlayerEpisodeController {
   ///
   /// - If [newAllEpisodes] is non-null, the controller's `_allEpisodes` snapshot
   ///   is replaced and `_playableEpisodes` is recomputed via
-  ///   `releasedEpisodes()`. When null, `_allEpisodes` and `_playableEpisodes`
-  ///   are left untouched.
+  ///   `releasedEpisodes()`. If [newInitial] is null, the current episode is
+  ///   re-anchored to the refreshed list by id/sort when possible, preserving
+  ///   the user's selected logical episode while adopting fresh metadata. When
+  ///   [newAllEpisodes] is null, `_allEpisodes` and `_playableEpisodes` are
+  ///   left untouched.
   /// - If [newInitial] is non-null, `_currentEpisode` is re-seeded using the
   ///   byte-for-byte init logic (`player_page.dart:285-287`):
   ///     `_currentEpisode = newInitial.isReleased() ? newInitial :
@@ -249,7 +247,7 @@ class PlayerEpisodeController {
   /// explicit — a null-argument `reset` is a deliberate no-op rather than a
   /// silent re-derivation. The page does NOT currently call [reset] from
   /// `didUpdateWidget` (see the class doc): [reset] is reserved for a future
-  /// checkpoint that proves `widget.allEpisodes` has meaningfully changed
+  /// checkpoint that proves route-supplied episodes have meaningfully changed
   /// externally.
   void reset({
     BangumiEpisode? newInitial,
@@ -258,9 +256,13 @@ class PlayerEpisodeController {
     if (newAllEpisodes == null && newInitial == null) {
       return;
     }
+    BangumiEpisode? reanchoredCurrent;
     if (newAllEpisodes != null) {
       _allEpisodes = newAllEpisodes;
       _playableEpisodes = _allEpisodes.releasedEpisodes();
+      if (newInitial == null) {
+        reanchoredCurrent = _findPlayableByCurrentIdentity();
+      }
     }
     if (newInitial != null) {
       final next = newInitial.isReleased()
@@ -268,7 +270,44 @@ class PlayerEpisodeController {
           : (_playableEpisodes.latestReleasedEpisode() ?? newInitial);
       _currentEpisode = next;
       _currentEpisodeNotifier.value = next;
+    } else if (reanchoredCurrent != null) {
+      _currentEpisode = reanchoredCurrent;
+      _currentEpisodeNotifier.value = reanchoredCurrent;
     }
+  }
+
+  int _currentPlayableIndex() {
+    final currentId = _currentEpisode.id;
+    if (currentId != 0) {
+      final idIndex = _playableEpisodes.indexWhere((e) => e.id == currentId);
+      if (idIndex != -1) return idIndex;
+    }
+
+    if (currentId == 0) {
+      final sortIndex = _playableEpisodes.indexWhere(
+        (e) => e.sort == _currentEpisode.sort,
+      );
+      if (sortIndex != -1) return sortIndex;
+    }
+
+    return _playableEpisodes.indexOf(_currentEpisode);
+  }
+
+  BangumiEpisode? _findPlayableByCurrentIdentity() {
+    final currentId = _currentEpisode.id;
+    if (currentId != 0) {
+      for (final episode in _playableEpisodes) {
+        if (episode.id == currentId) return episode;
+      }
+    }
+
+    if (currentId == 0) {
+      for (final episode in _playableEpisodes) {
+        if (episode.sort == _currentEpisode.sort) return episode;
+      }
+    }
+
+    return null;
   }
 
   /// Disposes the internal `ValueNotifier` and any owned resources. Called by
