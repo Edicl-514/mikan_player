@@ -56,6 +56,15 @@ class _SettingsPanelState extends State<SettingsPanel> {
   late List<SearchPlayResult> _availableSources;
   late String _currentSourceLabel;
 
+  /// Used when the host does not supply one. Owned by this state: building a
+  /// controller inline would create a new one on every rebuild, leaking it and
+  /// leaving the scrollbar without a stable position to attach to.
+  ScrollController? _ownedScrollController;
+
+  ScrollController get _effectiveScrollController =>
+      widget.scrollController ??
+      (_ownedScrollController ??= createPlatformScrollController());
+
   static const List<double> _playbackSpeedPresets = <double>[
     0.25,
     0.5,
@@ -171,6 +180,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
     widget.currentSourceLabelListenable?.removeListener(
       _onCurrentSourceLabelChanged,
     );
+    _ownedScrollController?.dispose();
     super.dispose();
   }
 
@@ -357,8 +367,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
       case 1:
         return DanmakuSettingsBottomSheet(
           danmakuService: widget.danmakuService,
-          scrollController:
-              widget.scrollController ?? createPlatformScrollController(),
+          scrollController: _effectiveScrollController,
         );
       case 2:
         return _buildSubtitleSettings();
@@ -399,7 +408,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
     }
 
     return ListView(
-      controller: widget.scrollController,
+      controller: _effectiveScrollController,
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
         _buildMenuItem(
@@ -464,7 +473,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
 
     final speed = _currentPlaybackSpeed.clamp(0.25, 3.0).toDouble();
     return ListView(
-      controller: widget.scrollController,
+      controller: _effectiveScrollController,
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       children: [
         _buildSliderRow(
@@ -628,7 +637,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
         final actualTracks = service.actualSubtitleTracks;
 
         return ListView(
-          controller: widget.scrollController,
+          controller: _effectiveScrollController,
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
           children: [
             // 字幕开关

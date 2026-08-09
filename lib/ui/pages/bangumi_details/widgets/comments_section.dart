@@ -78,11 +78,7 @@ class CommentsSection extends StatelessWidget {
     if (onLoadMore == null) return list;
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
-        final isScrollEvent =
-            notification is ScrollUpdateNotification ||
-            notification is ScrollEndNotification ||
-            notification is OverscrollNotification;
-        if (isScrollEvent &&
+        if (notification is ScrollEndNotification &&
             notification.metrics.axis == Axis.vertical &&
             notification.metrics.pixels >=
                 notification.metrics.maxScrollExtent - _loadMoreThreshold) {

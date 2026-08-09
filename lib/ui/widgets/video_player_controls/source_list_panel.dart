@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 // Protocol sentinels compared in settings_panel source subtitle and used as
 // the CustomVideoControls default when no label is supplied.
@@ -120,6 +121,15 @@ class _SourceListPanelState extends State<SourceListPanel> {
   late String _currentSourceLabel;
   late int _currentSourceIndex;
 
+  /// Used when the host does not supply one. Owned by this state: building a
+  /// controller inline would create a new one on every rebuild, leaking it and
+  /// leaving the scrollbar without a stable position to attach to.
+  ScrollController? _ownedScrollController;
+
+  ScrollController get _effectiveScrollController =>
+      widget.scrollController ??
+      (_ownedScrollController ??= createPlatformScrollController());
+
   void _syncFromWidget() {
     _availableSources = resolveAvailableSourcesSnapshot(
       availableSources: widget.availableSources,
@@ -218,6 +228,7 @@ class _SourceListPanelState extends State<SourceListPanel> {
     widget.currentSourceLabelListenable?.removeListener(
       _onCurrentSourceLabelChanged,
     );
+    _ownedScrollController?.dispose();
     super.dispose();
   }
 
@@ -292,7 +303,7 @@ class _SourceListPanelState extends State<SourceListPanel> {
     }
 
     return ListView.builder(
-      controller: widget.scrollController,
+      controller: _effectiveScrollController,
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: _availableSources.length,
       itemBuilder: (context, index) {

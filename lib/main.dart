@@ -6,6 +6,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:mikan_player/src/rust/api/simple.dart';
 import 'package:mikan_player/src/rust/rust_init.dart';
 import 'package:mikan_player/ui/screens/home_screen.dart';
+import 'package:mikan_player/ui/widgets/stable_thumb_scrollbar.dart';
 import 'package:mikan_player/ui/widgets/windows_desktop_frame.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/widgets/workspace_tab_host.dart';
@@ -522,6 +523,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               GlobalCupertinoLocalizations.delegate,
             ],
             supportedLocales: AppLocalizations.supportedLocales,
+            // Keeps the scrollbar thumb under the pointer while dragging even
+            // when lazily-built content revises its scroll extent mid-drag.
+            scrollBehavior: const StableThumbScrollBehavior(),
             theme: AppTheme.light(
               seedColor: SettingsService().seedColor,
               useMaterial3Color: SettingsService().useMaterial3Color,

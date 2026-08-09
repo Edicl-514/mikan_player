@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi/types.dart';
@@ -45,6 +44,7 @@ class BangumiBlogDetailDialog extends StatefulWidget {
 }
 
 class _BangumiBlogDetailDialogState extends State<BangumiBlogDetailDialog> {
+  final ScrollController _scrollController = ScrollController();
   BangumiBlogDetail? _detail;
   List<BangumiEpisodeComment>? _comments;
   bool _isLoadingDetail = true;
@@ -117,6 +117,12 @@ class _BangumiBlogDetailDialogState extends State<BangumiBlogDetailDialog> {
         });
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -196,6 +202,7 @@ class _BangumiBlogDetailDialogState extends State<BangumiBlogDetailDialog> {
                       ),
                     )
                   : CustomScrollView(
+                      controller: _scrollController,
                       slivers: [
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -302,17 +309,16 @@ class _BangumiBlogDetailDialogState extends State<BangumiBlogDetailDialog> {
                             ]),
                           ),
                         ),
-                        // A long review can contain many top-level HTML blocks.
-                        // Keep them in the same lazy sliver pipeline as comments.
                         SliverPadding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
-                          sliver: BangumiCommentHtml(
-                            html: _detail!.contentHtml,
-                            renderMode: RenderMode.sliverList,
-                            textStyle: TextStyle(
-                              fontSize: 14,
-                              color: theme.colorScheme.onSurface,
-                              height: 1.6,
+                          sliver: SliverToBoxAdapter(
+                            child: BangumiCommentHtml(
+                              html: _detail!.contentHtml,
+                              textStyle: TextStyle(
+                                fontSize: 14,
+                                color: theme.colorScheme.onSurface,
+                                height: 1.6,
+                              ),
                             ),
                           ),
                         ),

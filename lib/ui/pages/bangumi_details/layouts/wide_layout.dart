@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -171,6 +172,7 @@ class BangumiDetailsWideLayout extends StatefulWidget {
 
 class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
   int _selectedTabIndex = 0;
+  Timer? _loadMoreCheckTimer;
 
   @override
   void initState() {
@@ -202,10 +204,27 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
       a.title == b.title;
 
   void _handleRightScroll() {
+    _loadMoreCheckTimer?.cancel();
+    if (widget.wideRightScrollController.hasClients &&
+        !widget.wideRightScrollController.position.isScrollingNotifier.value) {
+      _loadMoreIfIdle();
+      return;
+    }
+    _loadMoreCheckTimer = Timer(
+      const Duration(milliseconds: 120),
+      _loadMoreIfIdle,
+    );
+  }
+
+  void _loadMoreIfIdle() {
     if (!widget.wideRightScrollController.hasClients) {
       return;
     }
     final position = widget.wideRightScrollController.position;
+    if (position.isScrollingNotifier.value) {
+      _handleRightScroll();
+      return;
+    }
     if (position.pixels >= position.maxScrollExtent - 200) {
       if (_selectedTabIndex == 1) {
         widget.onLoadMoreComments();
@@ -225,6 +244,7 @@ class _BangumiDetailsWideLayoutState extends State<BangumiDetailsWideLayout> {
 
   @override
   void dispose() {
+    _loadMoreCheckTimer?.cancel();
     widget.wideRightScrollController.removeListener(_handleRightScroll);
     super.dispose();
   }
