@@ -15,6 +15,7 @@ import 'package:mikan_player/utils/feature_flags.dart';
 import 'package:mikan_player/utils/source_channel_key.dart';
 import 'package:mikan_player/ui/pages/player/player_playback_controller.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 class SubscriptionDebugPage extends StatefulWidget {
   const SubscriptionDebugPage({super.key});
@@ -24,6 +25,7 @@ class SubscriptionDebugPage extends StatefulWidget {
 }
 
 class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
+  final ScrollController _scrollController = createPlatformScrollController();
   final _jsonPathController = TextEditingController();
   final _animeNameController = TextEditingController();
   final _absoluteEpisodeController = TextEditingController();
@@ -194,6 +196,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
     _absoluteEpisodeController.dispose();
     _relativeEpisodeController.dispose();
     _sourceFilterController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -1283,6 +1286,7 @@ class _SubscriptionDebugPageState extends State<SubscriptionDebugPage> {
     return DesktopPageScaffold(
       title: Text(l10n.subscriptionDebugJsonTitle),
       body: ListView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         children: [
           Card(

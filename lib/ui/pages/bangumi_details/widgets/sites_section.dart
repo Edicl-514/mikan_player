@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/ui/widgets/stable_thumb_scrollbar.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -39,7 +40,7 @@ class SitesSection extends StatelessWidget {
         const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: Scrollbar(
+          child: StableThumbScrollbar(
             controller: scrollController,
             thumbVisibility: true,
             child: SingleChildScrollView(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/ui/widgets/stable_thumb_scrollbar.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/models/bangumi_episode_filter.dart';
@@ -58,7 +59,7 @@ class EpisodesSection extends StatelessWidget {
         const SizedBox(height: 12),
         SizedBox(
           height: 138,
-          child: Scrollbar(
+          child: StableThumbScrollbar(
             controller: scrollController,
             thumbVisibility: true,
             child: ListView.separated(

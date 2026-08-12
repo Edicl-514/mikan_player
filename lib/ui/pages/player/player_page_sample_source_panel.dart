@@ -34,6 +34,7 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
       onSourceSelected: _onSourceSelected,
       onPlaySelected: _startPlaybackFromSelectedSource,
       onManualSearch: () => _loadSampleSource(manual: true),
+      sourceProgressScrollController: _sampleProgressScrollController,
     );
   }
 

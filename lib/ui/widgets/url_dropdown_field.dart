@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/base_url_list_service.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 /// A base-URL picker backed by a dropdown of builtin + custom URLs.
 ///
@@ -116,6 +117,7 @@ class _UrlManageDialog extends StatefulWidget {
 class _UrlManageDialogState extends State<_UrlManageDialog> {
   late List<String> _urls;
   late final TextEditingController _addController;
+  final ScrollController _scrollController = createPlatformScrollController();
   bool _isBusy = false;
 
   @override
@@ -128,6 +130,7 @@ class _UrlManageDialogState extends State<_UrlManageDialog> {
   @override
   void dispose() {
     _addController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -210,6 +213,7 @@ class _UrlManageDialogState extends State<_UrlManageDialog> {
           children: [
             Flexible(
               child: ListView.separated(
+                controller: _scrollController,
                 shrinkWrap: true,
                 itemCount: _urls.length,
                 separatorBuilder: (_, _) => const Divider(height: 1),

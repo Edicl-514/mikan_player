@@ -35,7 +35,10 @@ class _FavoritesPageState extends State<FavoritesPage>
         favoritesManager: _favoritesManager,
         repository: _collectionsRepository,
       );
-  final ScrollController _scrollController = createPlatformScrollController();
+  final ScrollController _localScrollController =
+      createPlatformScrollController();
+  final ScrollController _bangumiScrollController =
+      createPlatformScrollController();
 
   // Bangumi Data
   List<BangumiUserCollection> _bangumiCollections = [];
@@ -67,7 +70,8 @@ class _FavoritesPageState extends State<FavoritesPage>
     _bangumiGuard.dispose();
     _userManager.removeListener(_onAccountChanged);
     _tabController.dispose();
-    _scrollController.dispose();
+    _localScrollController.dispose();
+    _bangumiScrollController.dispose();
     super.dispose();
   }
 
@@ -362,7 +366,7 @@ class _FavoritesPageState extends State<FavoritesPage>
     return RefreshIndicator(
       onRefresh: onRefresh ?? _fetchLocalFavorites,
       child: ListView.separated(
-        controller: _scrollController,
+        controller: _localScrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         itemCount: _localFavorites.length,
@@ -466,7 +470,7 @@ class _FavoritesPageState extends State<FavoritesPage>
     return RefreshIndicator(
       onRefresh: _fetchBangumiCollections,
       child: ListView.separated(
-        controller: _scrollController,
+        controller: _bangumiScrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         itemCount: _bangumiCollections.length,

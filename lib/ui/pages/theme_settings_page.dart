@@ -4,6 +4,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/theme/app_theme.dart';
 import 'package:mikan_player/services/settings_service.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 class ThemeSettingsPage extends StatefulWidget {
   const ThemeSettingsPage({super.key});
@@ -14,12 +15,20 @@ class ThemeSettingsPage extends StatefulWidget {
 
 class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
   final SettingsService _settingsService = SettingsService();
+  final ScrollController _scrollController = createPlatformScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return DesktopPageScaffold(
       title: Text(AppLocalizations.of(context).themeSettings),
       body: ListView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         children: [
           _buildThemeModeTile(context),
@@ -170,7 +179,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
               ],
             ),
             const SizedBox(height: 12),
-            SingleChildScrollView(
+            PlatformSmoothSingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: AppTheme.presetColors.map((color) {
@@ -260,7 +269,7 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
             context: context,
             builder: (context) => AlertDialog(
               title: Text(AppLocalizations.of(context).customThemeColor),
-              content: SingleChildScrollView(
+              content: PlatformSmoothSingleChildScrollView(
                 child: ColorPicker(
                   pickerColor: pickerColor,
                   onColorChanged: (color) {

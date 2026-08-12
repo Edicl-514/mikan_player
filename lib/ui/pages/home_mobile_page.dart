@@ -65,6 +65,12 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
   late PageController _todayPageController;
   Timer? _todayTimer;
   final ScrollController _scrollController = createPlatformScrollController();
+  final ScrollController _rankingScrollController =
+      createPlatformScrollController();
+  final ScrollController _historyScrollController =
+      createPlatformScrollController();
+  final ScrollController _favoritesScrollController =
+      createPlatformScrollController();
 
   @override
   void initState() {
@@ -84,6 +90,9 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
     _todayTimer?.cancel();
     _todayPageController.dispose();
     _scrollController.dispose();
+    _rankingScrollController.dispose();
+    _historyScrollController.dispose();
+    _favoritesScrollController.dispose();
     _userManager.removeListener(_onUserUpdate);
     _historyManager.removeListener(_onHistoryChanged);
     super.dispose();
@@ -838,6 +847,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
     return SizedBox(
       height: 220, // Adjusted height for AnimeCard
       child: ListView.separated(
+        controller: _rankingScrollController,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
         itemCount: _rankingAnimes.length,
@@ -896,6 +906,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
     return SizedBox(
       height: 160,
       child: ListView.separated(
+        controller: _historyScrollController,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
         itemCount: _historyItems.length,
@@ -983,6 +994,7 @@ class _HomeMobilePageState extends State<HomeMobilePage> {
     return SizedBox(
       height: 220,
       child: ListView.separated(
+        controller: _favoritesScrollController,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
         itemCount: _favoriteItems.length,

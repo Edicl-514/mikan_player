@@ -60,6 +60,7 @@ class PlayerSampleSourcePanel extends StatelessWidget {
   final ValueChanged<int> onSourceSelected;
   final VoidCallback? onPlaySelected;
   final VoidCallback onManualSearch;
+  final ScrollController? sourceProgressScrollController;
 
   const PlayerSampleSourcePanel({
     super.key,
@@ -87,6 +88,7 @@ class PlayerSampleSourcePanel extends StatelessWidget {
     required this.onSourceSelected,
     required this.onPlaySelected,
     required this.onManualSearch,
+    this.sourceProgressScrollController,
   });
 
   @override
@@ -186,6 +188,7 @@ class PlayerSampleSourcePanel extends StatelessWidget {
           Container(
             constraints: const BoxConstraints(maxHeight: 250),
             child: ListView.builder(
+              controller: sourceProgressScrollController,
               shrinkWrap: true,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               itemCount: enabledSourceNames.length,

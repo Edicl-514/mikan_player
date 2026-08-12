@@ -10,6 +10,7 @@ import 'data_source_config_page.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/debounced_async_action.dart';
 
 class DataSourceSettingsPage extends StatefulWidget {
@@ -21,6 +22,7 @@ class DataSourceSettingsPage extends StatefulWidget {
 
 class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   final _playbackSubController = TextEditingController();
+  final ScrollController _scrollController = createPlatformScrollController();
   bool _isLoading = true;
   bool _isRefreshing = false;
   List<generic_scraper.SourceState> _sources = [];
@@ -108,6 +110,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
   void dispose() {
     _persistAction.dispose();
     _playbackSubController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -286,6 +289,7 @@ class _DataSourceSettingsPageState extends State<DataSourceSettingsPage> {
     final formBody = _isLoading
         ? const Center(child: CircularProgressIndicator())
         : ListView(
+            controller: _scrollController,
             padding: const EdgeInsets.all(16),
             children: [
               Row(

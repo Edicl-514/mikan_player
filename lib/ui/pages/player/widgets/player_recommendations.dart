@@ -4,6 +4,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/ranking.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 /// 相关推荐 - player-side recommendation list.
 ///
@@ -64,7 +65,7 @@ class PlayerRecommendations extends StatelessWidget {
       );
     }
 
-    return SingleChildScrollView(
+    return PlatformSmoothSingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

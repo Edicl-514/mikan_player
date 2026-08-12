@@ -311,24 +311,95 @@ class _BangumiCommentHtmlState extends State<BangumiCommentHtml> {
       );
     }
 
+    final imageHeight = bangumiCommentImageHeight(
+      widthAttr: element.attributes['width'],
+      heightAttr: element.attributes['height'],
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(6),
-        child: CachedNetworkImage(
-          imageUrl: src,
-          fit: BoxFit.contain,
-          deferOffscreenLoad: false,
-          networkFallbackWhileCaching: false,
-          errorWidget: Container(
-            padding: const EdgeInsets.all(8),
-            color: Colors.grey.withValues(alpha: 0.1),
-            child: const Icon(Icons.broken_image, size: 24, color: Colors.grey),
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.hasBoundedWidth
+                ? constraints.maxWidth
+                : null;
+            return SizedBox(
+              width: width,
+              height: imageHeight,
+              child: CachedNetworkImage(
+                imageUrl: src,
+                width: width,
+                height: imageHeight,
+                fit: BoxFit.contain,
+                deferOffscreenLoad: false,
+                networkFallbackWhileCaching: false,
+                // Keep loading, loaded and failed states in the same slot.
+                placeholder: SizedBox(
+                  width: width,
+                  height: imageHeight,
+                  child: const Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                ),
+                errorWidget: SizedBox(
+                  width: width,
+                  height: imageHeight,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    color: Colors.grey.withValues(alpha: 0.1),
+                    child: const Icon(
+                      Icons.broken_image,
+                      size: 24,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
+}
+
+/// Returns the reserved slot height for a regular comment image.
+///
+/// HTML dimensions are used when available; otherwise a conservative fixed
+/// slot prevents a late image decode from shifting the surrounding comment.
+@visibleForTesting
+double bangumiCommentImageHeight({
+  String? widthAttr,
+  String? heightAttr,
+}) {
+  final height = _parseBangumiImageDimension(heightAttr);
+  if (height != null) {
+    return height.clamp(1.0, 350.0).toDouble();
+  }
+
+  // A width without a matching height does not provide an aspect ratio. Keep
+  // the same fallback slot used by older markup while still constraining the
+  // loaded and failed states.
+  return 200.0;
+}
+
+double? _parseBangumiImageDimension(String? value) {
+  if (value == null) return null;
+  final normalized = value.trim().toLowerCase();
+  if (normalized.isEmpty || normalized.endsWith('%')) return null;
+  final parsed = double.tryParse(
+    normalized.endsWith('px')
+        ? normalized.substring(0, normalized.length - 2).trim()
+        : normalized,
+  );
+  if (parsed == null || !parsed.isFinite || parsed <= 0) return null;
+  return parsed;
 }
 
 /// Renders a p1 comment while respecting Bangumi moderation state.

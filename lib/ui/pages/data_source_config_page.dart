@@ -6,6 +6,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/generic_scraper.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 typedef SourceConfigPersistCallback =
     Future<void> Function(SourceConfigUpdate update);
@@ -30,6 +31,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
   final _formKey = GlobalKey<FormState>();
   final _jsonEncoder = const JsonEncoder.withIndent('  ');
   final List<TextEditingController> _controllers = [];
+  final ScrollController _scrollController = createPlatformScrollController();
 
   late final TextEditingController _nameController;
   late final TextEditingController _tierController;
@@ -348,6 +350,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
     for (final controller in _controllers) {
       controller.dispose();
     }
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -838,7 +841,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
   }) {
     return Align(
       alignment: Alignment.centerLeft,
-      child: SingleChildScrollView(
+      child: PlatformSmoothSingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: SegmentedButton<String>(
           segments: [
@@ -1342,6 +1345,7 @@ class _DataSourceConfigPageState extends State<DataSourceConfigPage> {
       body: Form(
         key: _formKey,
         child: ListView(
+          controller: _scrollController,
           padding: const EdgeInsets.all(16),
           children: [
             if (isReadOnly) ...[

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/models/local_favorite.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 /// Localized label for a Bangumi-compatible local favorite type.
 ///
@@ -54,7 +55,7 @@ class BangumiFavoriteStatusSelector extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: SingleChildScrollView(
+            child: PlatformSmoothSingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 key: const ValueKey('favorite-status-segments'),

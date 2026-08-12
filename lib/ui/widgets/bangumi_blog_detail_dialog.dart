@@ -7,6 +7,7 @@ import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
 import 'package:mikan_player/ui/widgets/bangumi_comment_tile.dart';
 import 'package:mikan_player/ui/widgets/bangumi_reaction_badge.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 /// Shows a dialog displaying the full Bangumi blog entry (review) and its comments.
 Future<void> showBangumiBlogDetailDialog(
@@ -44,7 +45,7 @@ class BangumiBlogDetailDialog extends StatefulWidget {
 }
 
 class _BangumiBlogDetailDialogState extends State<BangumiBlogDetailDialog> {
-  final ScrollController _scrollController = ScrollController();
+  final ScrollController _scrollController = createPlatformScrollController();
   BangumiBlogDetail? _detail;
   List<BangumiEpisodeComment>? _comments;
   bool _isLoadingDetail = true;

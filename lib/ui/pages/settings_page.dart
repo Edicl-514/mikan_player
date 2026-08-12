@@ -6,6 +6,7 @@ import 'package:mikan_player/utils/feature_flags.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -16,9 +17,16 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final SettingsService _settingsService = SettingsService();
+  final ScrollController _scrollController = createPlatformScrollController();
   Map<String, dynamic>? _cacheStats;
   bool _isLoadingStats = false;
   bool _isClearingCache = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -127,6 +135,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return DesktopPageScaffold(
       title: Text(AppLocalizations.of(context).settingsTitle),
       body: ListView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         children: [
           _buildSettingTile(

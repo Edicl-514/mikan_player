@@ -1,10 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class AboutPage extends StatelessWidget {
+class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
+
+  @override
+  State<AboutPage> createState() => _AboutPageState();
+}
+
+class _AboutPageState extends State<AboutPage> {
+  final ScrollController _scrollController = createPlatformScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -13,6 +27,7 @@ class AboutPage extends StatelessWidget {
     return DesktopPageScaffold(
       title: Text(AppLocalizations.of(context).aboutTitle),
       body: ListView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16.0),
         children: [
           _buildCard(

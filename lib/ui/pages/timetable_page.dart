@@ -7,6 +7,7 @@ import 'package:mikan_player/ui/widgets/cached_network_image.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 class TimeTablePage extends StatefulWidget {
   const TimeTablePage({super.key});
@@ -18,6 +19,16 @@ class TimeTablePage extends StatefulWidget {
 class _TimeTablePageState extends State<TimeTablePage>
     with SingleTickerProviderStateMixin {
   late TabController _dayTabController;
+  final ScrollController _quarterScrollController =
+      createPlatformScrollController();
+
+  /// One controller per weekday tab so each `ListView` owns a single
+  /// ScrollPosition. Sharing one controller across all tabs would make
+  /// `controller.position` ambiguous (a ScrollController can hold multiple
+  /// positions, and only the currently-attached one is valid for the
+  /// scrollbar painter), which would defeat the pinned-stable-thumb behavior.
+  late final List<ScrollController> _dayPageScrollControllers;
+
   List<String> get _dayKeys => [
     'monday',
     'tuesday',
@@ -40,6 +51,10 @@ class _TimeTablePageState extends State<TimeTablePage>
   void initState() {
     super.initState();
     _dayTabController = TabController(length: _dayKeys.length, vsync: this);
+    _dayPageScrollControllers = List<ScrollController>.generate(
+      _dayKeys.length,
+      (_) => createPlatformScrollController(),
+    );
     final now = DateTime.now();
     // weekday: 1 (Mon) to 7 (Sun)
     int todayIndex = now.weekday - 1;
@@ -59,6 +74,10 @@ class _TimeTablePageState extends State<TimeTablePage>
   @override
   void dispose() {
     _dayTabController.dispose();
+    _quarterScrollController.dispose();
+    for (final controller in _dayPageScrollControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -296,6 +315,7 @@ class _TimeTablePageState extends State<TimeTablePage>
               const SizedBox(height: 16),
               Expanded(
                 child: ListView.builder(
+                  controller: _quarterScrollController,
                   itemCount: _archives.length,
                   itemBuilder: (context, index) {
                     final arch = _archives[index];
@@ -543,7 +563,9 @@ class _TimeTablePageState extends State<TimeTablePage>
     } else {
       body = TabBarView(
         controller: _dayTabController,
-        children: _internalDays.map((day) {
+        children: _internalDays.asMap().entries.map((entry) {
+          final dayIndex = entry.key;
+          final day = entry.value;
           final animes = grouped[day] ?? [];
           if (animes.isEmpty) {
             return Center(
@@ -603,6 +625,7 @@ class _TimeTablePageState extends State<TimeTablePage>
           }
 
           return ListView(
+            controller: _dayPageScrollControllers[dayIndex],
             padding: const EdgeInsets.all(16),
             children: listItems,
           );

@@ -133,6 +133,8 @@ class _PlayerPageState extends State<PlayerPage>
       createPlatformScrollController();
   final ScrollController _commentsScrollController =
       createPlatformScrollController();
+  final ScrollController _sampleProgressScrollController =
+      createPlatformScrollController();
   bool _isDescriptionExpanded = false;
   bool _isEpisodesExpanded = false;
 
@@ -318,7 +320,7 @@ class _PlayerPageState extends State<PlayerPage>
     super.initState();
     _mobileTabController = TabController(length: 2, vsync: this);
     _pcEpisodeScrollController = createPlatformScrollController();
-    _mobileEpisodeScrollController = ScrollController();
+    _mobileEpisodeScrollController = createPlatformScrollController();
 
     _playerSessionId = PlayerSessionId.allocate();
     _sessionLogContext = PlayerSessionLogContext(sessionId: _playerSessionId);
@@ -653,6 +655,7 @@ class _PlayerPageState extends State<PlayerPage>
     _pcMainScrollController.dispose();
     _pcSidebarScrollController.dispose();
     _commentsScrollController.dispose();
+    _sampleProgressScrollController.dispose();
     _subtitleService.dispose();
     _player.stop(); // 确保播放器完全停止后再释放
     _player.dispose();

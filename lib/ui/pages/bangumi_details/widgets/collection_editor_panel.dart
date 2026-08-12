@@ -4,6 +4,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/models/local_favorite.dart';
 import 'package:mikan_player/services/bangumi_collections_repository.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/favorite_status_selector.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 enum BangumiCollectionEditorAction { save, remove }
 
@@ -52,6 +53,7 @@ class BangumiCollectionEditorPanel extends StatefulWidget {
 
 class _BangumiCollectionEditorPanelState
     extends State<BangumiCollectionEditorPanel> {
+  final ScrollController _scrollController = createPlatformScrollController();
   late int _type;
   late int _rate;
   late bool _private;
@@ -81,6 +83,7 @@ class _BangumiCollectionEditorPanelState
   void dispose() {
     _commentController.dispose();
     _tagController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -172,6 +175,7 @@ class _BangumiCollectionEditorPanelState
             const Divider(height: 1),
             Flexible(
               child: SingleChildScrollView(
+                controller: _scrollController,
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

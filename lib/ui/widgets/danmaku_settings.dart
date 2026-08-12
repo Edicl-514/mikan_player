@@ -24,6 +24,8 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _sourceScrollController =
+      createPlatformScrollController();
 
   @override
   void initState() {
@@ -35,6 +37,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
+    _sourceScrollController.dispose();
     super.dispose();
   }
 
@@ -309,7 +312,7 @@ class _DanmakuSettingsBottomSheetState extends State<DanmakuSettingsBottomSheet>
             else
               Expanded(
                 child: ListView(
-                  controller: widget.scrollController,
+                  controller: _sourceScrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
                     if (widget.danmakuService.danmakuCount > 0) ...[
@@ -695,6 +698,8 @@ class _VideoSidePanelState extends State<VideoSidePanel>
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _displaySettingsScrollController =
       createPlatformScrollController();
+  final ScrollController _sourceScrollController =
+      createPlatformScrollController();
 
   @override
   void initState() {
@@ -711,6 +716,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
     _tabController.dispose();
     _searchController.dispose();
     _displaySettingsScrollController.dispose();
+    _sourceScrollController.dispose();
     super.dispose();
   }
 
@@ -1006,6 +1012,7 @@ class _VideoSidePanelState extends State<VideoSidePanel>
             else
               Expanded(
                 child: ListView(
+                  controller: _sourceScrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
                     if (widget.danmakuService.danmakuCount > 0) ...[

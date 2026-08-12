@@ -28,6 +28,7 @@ class MyPage extends StatefulWidget {
 class _MyPageState extends State<MyPage> {
   final DownloadManager _downloadManager = DownloadManager();
   final UserManager _userManager = UserManager();
+  final ScrollController _scrollController = createPlatformScrollController();
 
   @override
   void initState() {
@@ -38,6 +39,7 @@ class _MyPageState extends State<MyPage> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _downloadManager.removeListener(_onStateUpdate);
     _userManager.removeListener(_onStateUpdate);
     super.dispose();
@@ -55,6 +57,7 @@ class _MyPageState extends State<MyPage> {
     final hosted = DesktopPageChromeScope.hostsPageHeader(context);
 
     Widget body = ListView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       children: [
         // Profile Header
@@ -833,7 +836,7 @@ class _DownloadManagerPageState extends State<DownloadManagerPage> {
   Widget _buildFilterChips(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SingleChildScrollView(
+      child: PlatformSmoothSingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/widgets/bangumi_site_launcher.dart';
 import 'package:mikan_player/ui/widgets/site_icon_map.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 /// Horizontal onair-site chip list for the player side panel.
 class PlayerOnairSitesList extends StatelessWidget {
@@ -19,7 +20,7 @@ class PlayerOnairSitesList extends StatelessWidget {
         : Colors.grey[100];
     final borderColor = isDark ? Colors.white10 : Colors.grey[300]!;
 
-    return SingleChildScrollView(
+    return PlatformSmoothSingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [

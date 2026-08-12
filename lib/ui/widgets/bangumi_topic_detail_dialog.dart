@@ -7,6 +7,7 @@ import 'package:mikan_player/ui/widgets/bangumi_comment_html.dart';
 import 'package:mikan_player/ui/widgets/bangumi_comment_tile.dart';
 import 'package:mikan_player/ui/widgets/bangumi_reaction_badge.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 
 /// Shows a dialog displaying the full Bangumi topic and its floor replies.
 Future<void> showBangumiTopicDetailDialog(
@@ -37,6 +38,7 @@ class BangumiTopicDetailDialog extends StatefulWidget {
 }
 
 class _BangumiTopicDetailDialogState extends State<BangumiTopicDetailDialog> {
+  final ScrollController _scrollController = createPlatformScrollController();
   BangumiTopicDetail? _detail;
   bool _isLoading = true;
   bool _failed = false;
@@ -45,6 +47,12 @@ class _BangumiTopicDetailDialogState extends State<BangumiTopicDetailDialog> {
   void initState() {
     super.initState();
     _loadTopicDetail();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadTopicDetail() async {
@@ -153,6 +161,7 @@ class _BangumiTopicDetailDialogState extends State<BangumiTopicDetailDialog> {
                       ),
                     )
                   : CustomScrollView(
+                      controller: _scrollController,
                       slivers: [
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),

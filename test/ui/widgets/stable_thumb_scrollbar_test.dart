@@ -17,10 +17,12 @@ class _GrowingScrollView extends StatefulWidget {
     super.key,
     required this.controller,
     required this.growBy,
+    this.axis = Axis.vertical,
   });
 
   final ScrollController controller;
   final double growBy;
+  final Axis axis;
 
   @override
   State<_GrowingScrollView> createState() => _GrowingScrollViewState();
@@ -46,8 +48,16 @@ class _GrowingScrollViewState extends State<_GrowingScrollView> {
       },
       child: ListView(
         controller: widget.controller,
+        scrollDirection: widget.axis,
         children: [
-          SizedBox(height: baseExtent + (_grown ? widget.growBy : 0)),
+          SizedBox(
+            width: widget.axis == Axis.horizontal
+                ? baseExtent + (_grown ? widget.growBy : 0)
+                : null,
+            height: widget.axis == Axis.vertical
+                ? baseExtent + (_grown ? widget.growBy : 0)
+                : null,
+          ),
         ],
       ),
     );
@@ -106,6 +116,7 @@ Future<_DragTrace> _dragThumb(
   WidgetTester tester, {
   required _Bar bar,
   required double growBy,
+  Axis axis = Axis.vertical,
   double step = 15,
   int steps = 8,
 }) async {
@@ -120,6 +131,7 @@ Future<_DragTrace> _dragThumb(
         key: ValueKey('grow-$growBy'),
         controller: controller,
         growBy: growBy,
+        axis: axis,
       ),
     ),
   );
@@ -131,14 +143,18 @@ Future<_DragTrace> _dragThumb(
   // scrollbar paints.
   final size = tester.getSize(find.byType(ListView));
   final gesture = await tester.startGesture(
-    Offset(size.width - 4, 20),
+    axis == Axis.vertical
+        ? Offset(size.width - 4, 20)
+        : Offset(20, size.height - 4),
     kind: PointerDeviceKind.mouse,
   );
   await tester.pump(const Duration(milliseconds: 20));
 
   final offsets = <double>[controller.offset];
   for (var i = 0; i < steps; i++) {
-    await gesture.moveBy(Offset(0, step));
+    await gesture.moveBy(
+      axis == Axis.vertical ? Offset(0, step) : Offset(step, 0),
+    );
     await tester.pump(const Duration(milliseconds: 16));
     offsets.add(controller.offset);
   }
@@ -147,11 +163,7 @@ Future<_DragTrace> _dragThumb(
   await gesture.up();
   await tester.pumpAndSettle();
 
-  return _DragTrace(
-    offsets: offsets,
-    maxBefore: maxBefore,
-    maxAfter: maxAfter,
-  );
+  return _DragTrace(offsets: offsets, maxBefore: maxBefore, maxAfter: maxAfter);
 }
 
 void main() {
@@ -181,6 +193,29 @@ void main() {
         );
       }
     });
+
+    testWidgets(
+      'keeps one constant horizontal drag mapping when content grows',
+      (tester) async {
+        final trace = await _dragThumb(
+          tester,
+          bar: _Bar.stable,
+          growBy: 6000,
+          axis: Axis.horizontal,
+        );
+
+        expect(trace.maxAfter, greaterThan(trace.maxBefore + 1000));
+        final deltas = trace.deltas;
+        expect(deltas.first, greaterThan(0));
+        for (final delta in deltas) {
+          expect(
+            delta,
+            moreOrLessEquals(deltas.first, epsilon: 1.0),
+            reason: 'horizontal mapping should stay pinned mid-drag',
+          );
+        }
+      },
+    );
 
     testWidgets('Material Scrollbar rescales mid-drag in the same scenario', (
       tester,

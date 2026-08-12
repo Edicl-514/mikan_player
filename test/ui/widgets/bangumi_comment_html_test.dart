@@ -45,6 +45,20 @@ void main() {
       expect(styles?['max-height'], '350px');
     });
 
+    test('regular image slot height stays fixed across markup variants', () {
+      expect(
+        bangumiCommentImageHeight(widthAttr: '640', heightAttr: '360'),
+        350,
+      );
+      expect(
+        bangumiCommentImageHeight(widthAttr: '120', heightAttr: '80px'),
+        80,
+      );
+      expect(bangumiCommentImageHeight(widthAttr: '640'), 200);
+      expect(bangumiCommentImageHeight(heightAttr: '0'), 200);
+      expect(bangumiCommentImageHeight(heightAttr: '40%'), 200);
+    });
+
     test('div.quote and blockquote get left border and muted background', () {
       final divStyles = defaultBangumiCommentHtmlStyles(
         _FakeElement(localName: 'div', classes: {'quote'}),

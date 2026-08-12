@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/ui/widgets/stable_thumb_scrollbar.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/src/rust/api/crawler.dart';
@@ -72,7 +73,7 @@ class PlayerMobileEpisodeStrip extends StatelessWidget {
         if (isExpanded)
           SizedBox(
             height: 138,
-            child: Scrollbar(
+            child: StableThumbScrollbar(
               controller: scrollController,
               thumbVisibility: true,
               child: ListView.separated(

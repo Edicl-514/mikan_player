@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/ui/widgets/stable_thumb_scrollbar.dart';
 
 import 'package:mikan_player/src/rust/api/bangumi.dart';
 import 'package:mikan_player/ui/widgets/cached_network_image.dart';
@@ -56,7 +57,7 @@ class RelationsSection extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 12),
           child: SizedBox(
             height: 200,
-            child: Scrollbar(
+            child: StableThumbScrollbar(
               controller: scrollController,
               thumbVisibility: true,
               child: ListView.builder(

@@ -134,7 +134,7 @@ class EpisodeSidePanel extends StatelessWidget {
   }
 }
 
-class _EpisodeGrid extends StatelessWidget {
+class _EpisodeGrid extends StatefulWidget {
   final List<BangumiEpisode> allEpisodes;
   final BangumiEpisode currentEpisode;
   final ValueListenable<BangumiEpisode>? currentEpisodeListenable;
@@ -159,8 +159,28 @@ class _EpisodeGrid extends StatelessWidget {
   });
 
   @override
+  State<_EpisodeGrid> createState() => _EpisodeGridState();
+}
+
+class _EpisodeGridState extends State<_EpisodeGrid> {
+  /// Used when the host does not supply one. Owned by this state: building a
+  /// controller inline would create a new one on every rebuild, leaking it
+  /// and leaving the scrollbar without a stable position to attach to.
+  ScrollController? _ownedScrollController;
+
+  ScrollController get _effectiveScrollController =>
+      widget.scrollController ??
+      (_ownedScrollController ??= createPlatformScrollController());
+
+  @override
+  void dispose() {
+    _ownedScrollController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final controller = scrollController ?? createPlatformScrollController();
+    final controller = _effectiveScrollController;
 
     Widget buildGrid(BuildContext ctx, BangumiEpisode current) {
       return GridView.builder(
@@ -172,14 +192,14 @@ class _EpisodeGrid extends StatelessWidget {
           crossAxisSpacing: 10,
           childAspectRatio: 1.2,
         ),
-        itemCount: allEpisodes.length,
+        itemCount: widget.allEpisodes.length,
         itemBuilder: (context, index) {
-          final ep = allEpisodes[index];
-          final selected = isSelected(current, ep);
+          final ep = widget.allEpisodes[index];
+          final selected = widget.isSelected(current, ep);
           return InkWell(
             onTap: () {
               Navigator.pop(context);
-              onEpisodeSelected(ep);
+              widget.onEpisodeSelected(ep);
             },
             borderRadius: BorderRadius.circular(8),
             child: Container(
@@ -189,12 +209,12 @@ class _EpisodeGrid extends StatelessWidget {
                     ? Theme.of(
                         context,
                       ).colorScheme.primary.withValues(alpha: 0.2)
-                    : unselectedBgColor,
+                    : widget.unselectedBgColor,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: selected
                       ? Theme.of(context).colorScheme.primary
-                      : unselectedBorderColor,
+                      : widget.unselectedBorderColor,
                   width: selected ? 2 : 1,
                 ),
               ),
@@ -203,7 +223,7 @@ class _EpisodeGrid extends StatelessWidget {
                 style: TextStyle(
                   color: selected
                       ? Theme.of(context).colorScheme.primary
-                      : unselectedTextColor,
+                      : widget.unselectedTextColor,
                   fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
@@ -213,9 +233,9 @@ class _EpisodeGrid extends StatelessWidget {
       );
     }
 
-    final listenable = currentEpisodeListenable;
+    final listenable = widget.currentEpisodeListenable;
     if (listenable == null) {
-      return buildGrid(context, currentEpisode);
+      return buildGrid(context, widget.currentEpisode);
     }
 
     return ValueListenableBuilder<BangumiEpisode>(

@@ -13,6 +13,7 @@ import 'package:mikan_player/src/rust/api/simple.dart' as rust;
 import 'package:mikan_player/utils/url_latency.dart';
 import 'package:mikan_player/ui/widgets/url_dropdown_field.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/debounced_async_action.dart';
 
 String bangumiDataStatusSubtitle(
@@ -62,6 +63,7 @@ class NetworkSettingsPage extends StatefulWidget {
 }
 
 class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
+  final ScrollController _scrollController = createPlatformScrollController();
   bool _isLoading = true;
 
   String _selectedBgm = 'https://bgmlist.com';
@@ -104,6 +106,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
   void dispose() {
     _persistAction.dispose();
     _dohAddController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -498,6 +501,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     final formBody = _isLoading
         ? const Center(child: CircularProgressIndicator())
         : ListView(
+            controller: _scrollController,
             padding: const EdgeInsets.all(16),
             children: [
               _sectionTitle(l10n.networkSectionBaseUrl),

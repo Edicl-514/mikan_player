@@ -169,11 +169,12 @@ class PlayerPcEpisodeList extends StatelessWidget {
 
     return SizedBox(
       height: maxHeight,
-      child: Scrollbar(
-        controller: scrollController,
-        thumbVisibility: true,
-        child: buildListView(),
-      ),
+      // The global StableThumbScrollBehavior already wraps a
+      // StableThumbScrollbar around vertical scrollables on desktop, so an
+      // explicit Scrollbar here would produce two stacked scrollbars (and the
+      // stock one would still suffer the thumb-jump bug). Let the global
+      // behavior own it.
+      child: buildListView(),
     );
   }
 }

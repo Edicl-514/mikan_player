@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/ui/widgets/stable_thumb_scrollbar.dart';
 
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/src/rust/api/bangumi.dart';
@@ -103,7 +104,7 @@ class CharactersSection extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 12),
           child: SizedBox(
             height: 220,
-            child: Scrollbar(
+            child: StableThumbScrollbar(
               controller: scrollController,
               thumbVisibility: true,
               child: ListView.builder(

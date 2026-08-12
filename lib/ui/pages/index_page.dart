@@ -998,7 +998,7 @@ class _IndexPageState extends State<IndexPage> {
           ),
           Expanded(
             child: isMobile
-                ? SingleChildScrollView(
+                ? PlatformSmoothSingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(children: chips),
                   )
@@ -1176,7 +1176,7 @@ class _IndexPageState extends State<IndexPage> {
           const SizedBox(width: 50),
           Expanded(
             child: isMobile
-                ? SingleChildScrollView(
+                ? PlatformSmoothSingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(children: chips),
                   )
@@ -1260,7 +1260,7 @@ class _IndexPageState extends State<IndexPage> {
           const SizedBox(width: 50),
           Expanded(
             child: isMobile
-                ? SingleChildScrollView(
+                ? PlatformSmoothSingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(children: chips),
                   )

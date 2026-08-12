@@ -118,3 +118,49 @@ class _SmoothScrollPosition extends ScrollPositionWithSingleContext {
     _animationGeneration++;
   }
 }
+
+/// A single-child scroll view backed by the platform-aware controller.
+///
+/// This is useful for compact horizontal controls that are built as
+/// StatelessWidgets: the wrapper owns the controller so each instance gets a
+/// stable Windows smooth-scroll position without leaking it across rebuilds.
+class PlatformSmoothSingleChildScrollView extends StatefulWidget {
+  const PlatformSmoothSingleChildScrollView({
+    super.key,
+    this.scrollDirection = Axis.vertical,
+    this.padding,
+    this.physics,
+    required this.child,
+  });
+
+  final Axis scrollDirection;
+  final EdgeInsetsGeometry? padding;
+  final ScrollPhysics? physics;
+  final Widget child;
+
+  @override
+  State<PlatformSmoothSingleChildScrollView> createState() =>
+      _PlatformSmoothSingleChildScrollViewState();
+}
+
+class _PlatformSmoothSingleChildScrollViewState
+    extends State<PlatformSmoothSingleChildScrollView> {
+  late final ScrollController _controller = createPlatformScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      controller: _controller,
+      scrollDirection: widget.scrollDirection,
+      padding: widget.padding,
+      physics: widget.physics,
+      child: widget.child,
+    );
+  }
+}

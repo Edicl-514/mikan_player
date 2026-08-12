@@ -4,6 +4,7 @@ import 'package:mikan_player/ui/pages/player_page.dart';
 import 'package:mikan_player/services/webview_resource_coordinator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/debounced_async_action.dart';
 
 import 'package:mikan_player/src/rust/api/simple.dart' as simple;
@@ -20,6 +21,7 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
   final TextEditingController _intervalController = TextEditingController();
   final TextEditingController _searchConcurrencyController =
       TextEditingController();
+  final ScrollController _scrollController = createPlatformScrollController();
   bool _isLoading = true;
   bool _autoSearchOnline = true;
   bool _cancelLowPrioritySourcesOnPlay = true;
@@ -39,6 +41,7 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
     _concurrencyController.dispose();
     _intervalController.dispose();
     _searchConcurrencyController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -136,6 +139,7 @@ class _SearchSettingsPageState extends State<SearchSettingsPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               children: [
                 _buildTextField(

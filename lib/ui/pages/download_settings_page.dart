@@ -6,6 +6,7 @@ import 'package:file_selector_windows/file_selector_windows.dart';
 import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/download_manager.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_scaffold.dart';
+import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/utils/debounced_async_action.dart';
 
 class DownloadSettingsPage extends StatefulWidget {
@@ -17,6 +18,7 @@ class DownloadSettingsPage extends StatefulWidget {
 
 class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
   final DownloadManager _dm = DownloadManager();
+  final ScrollController _scrollController = createPlatformScrollController();
   late int _maxConcurrent;
   late double _downloadLimit;
   late double _uploadLimit;
@@ -53,6 +55,7 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
     _concurrentController.dispose();
     _downloadLimitController.dispose();
     _uploadLimitController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -128,6 +131,7 @@ class _DownloadSettingsPageState extends State<DownloadSettingsPage> {
     final l10n = AppLocalizations.of(context);
 
     final formBody = ListView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
       children: [
         // BT 后端
