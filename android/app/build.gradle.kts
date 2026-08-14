@@ -158,7 +158,7 @@ repositories {
 
 android {
     namespace = "com.edicl.mikan_player"
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = "29.0.14206865"
 
     compileOptions {
