@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mikan_player/src/rust/api/crawler.dart';
 import 'package:mikan_player/ui/pages/bangumi_details/widgets/sites_section.dart';
+import 'package:mikan_player/ui/widgets/stable_thumb_scrollbar.dart';
 
 import '../../../../support/localized_widget_tester.dart';
 
@@ -180,7 +181,7 @@ void main() {
         sectionTitle: _buildSectionTitleStub('站', false),
       );
 
-      expect(find.byType(Scrollbar), findsOneWidget);
+      expect(find.byType(StableThumbScrollbar), findsOneWidget);
     });
   });
 }

@@ -1,0 +1,251 @@
+name: Rolling Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rolling-release
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.44.9'
+
+jobs:
+  metadata:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      build_number: ${{ steps.version.outputs.build_number }}
+      display_version: ${{ steps.version.outputs.display_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: version
+        shell: pwsh
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          $metadata = & ./tool/release_version.ps1 -BuildNumber ([int]$env:RUN_NUMBER) | ConvertFrom-Json
+          "version=$($metadata.Version)" >> $env:GITHUB_OUTPUT
+          "build_number=$($metadata.BuildNumber)" >> $env:GITHUB_OUTPUT
+          "display_version=$($metadata.Display)" >> $env:GITHUB_OUTPUT
+          Write-Host "Release version: $($metadata.Display)"
+
+  build-windows:
+    needs: metadata
+    runs-on: windows-latest
+    env:
+      RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+      BUILD_NUMBER: ${{ needs.metadata.outputs.build_number }}
+      DANDANPLAY_APP_ID: ${{ secrets.DANDANPLAY_APP_ID }}
+      DANDANPLAY_APP_SECRET: ${{ secrets.DANDANPLAY_APP_SECRET }}
+      BANGUMI_APP_ID: ${{ secrets.BANGUMI_APP_ID }}
+      BANGUMI_APP_SECRET: ${{ secrets.BANGUMI_APP_SECRET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.97.1'
+
+      - name: Prepare compile-time environment
+        shell: pwsh
+        run: |
+          $required = 'DANDANPLAY_APP_ID', 'DANDANPLAY_APP_SECRET', 'BANGUMI_APP_ID', 'BANGUMI_APP_SECRET'
+          foreach ($name in $required) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$name").Value)) {
+              throw "Missing repository secret: $name"
+            }
+          }
+          @"
+          DANDANPLAY_APP_ID=$env:DANDANPLAY_APP_ID
+          DANDANPLAY_APP_SECRET=$env:DANDANPLAY_APP_SECRET
+          BANGUMI_APP_ID=$env:BANGUMI_APP_ID
+          BANGUMI_APP_SECRET=$env:BANGUMI_APP_SECRET
+          "@ | Set-Content -Path .env -Encoding utf8
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze and test
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Build Windows release
+        shell: pwsh
+        run: |
+          flutter build windows --release `
+            --build-name $env:RELEASE_VERSION `
+            --build-number $env:BUILD_NUMBER
+          $output = 'build/windows/x64/runner/Release'
+          if (!(Test-Path $output)) { throw "Windows output not found: $output" }
+          $archive = "mikan-player-windows-$env:RELEASE_VERSION+$env:BUILD_NUMBER.zip"
+          Compress-Archive -Path "$output/*" -DestinationPath $archive -CompressionLevel Optimal
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mikan-player-windows
+          path: mikan-player-windows-*.zip
+          if-no-files-found: error
+
+  build-android:
+    needs: metadata
+    runs-on: windows-latest
+    env:
+      RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+      BUILD_NUMBER: ${{ needs.metadata.outputs.build_number }}
+      DANDANPLAY_APP_ID: ${{ secrets.DANDANPLAY_APP_ID }}
+      DANDANPLAY_APP_SECRET: ${{ secrets.DANDANPLAY_APP_SECRET }}
+      BANGUMI_APP_ID: ${{ secrets.BANGUMI_APP_ID }}
+      BANGUMI_APP_SECRET: ${{ secrets.BANGUMI_APP_SECRET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build tools
+        shell: pwsh
+        run: |
+          sdkmanager 'platform-tools' 'platforms;android-37' 'build-tools;35.0.0' 'cmake;3.22.1' 'ndk;29.0.14206865'
+          if ($LASTEXITCODE -ne 0) { throw "Android SDK installation failed with exit code $LASTEXITCODE" }
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.97.1'
+
+      - name: Install cargo-ndk
+        shell: pwsh
+        run: cargo install cargo-ndk --locked
+
+      - name: Prepare compile-time environment
+        shell: pwsh
+        run: |
+          $required = 'DANDANPLAY_APP_ID', 'DANDANPLAY_APP_SECRET', 'BANGUMI_APP_ID', 'BANGUMI_APP_SECRET'
+          foreach ($name in $required) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$name").Value)) {
+              throw "Missing repository secret: $name"
+            }
+          }
+          @"
+          DANDANPLAY_APP_ID=$env:DANDANPLAY_APP_ID
+          DANDANPLAY_APP_SECRET=$env:DANDANPLAY_APP_SECRET
+          BANGUMI_APP_ID=$env:BANGUMI_APP_ID
+          BANGUMI_APP_SECRET=$env:BANGUMI_APP_SECRET
+          "@ | Set-Content -Path .env -Encoding utf8
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Android arm64 APK
+        shell: pwsh
+        run: |
+          flutter build apk --release --target-platform android-arm64 `
+            --build-name $env:RELEASE_VERSION `
+            --build-number $env:BUILD_NUMBER `
+            --split-debug-info=build/symbols/android `
+            --tree-shake-icons
+          $apk = 'build/app/outputs/flutter-apk/app-release.apk'
+          if (!(Test-Path $apk)) { throw "Android output not found: $apk" }
+          Copy-Item $apk "mikan-player-android-arm64-$env:RELEASE_VERSION+$env:BUILD_NUMBER.apk"
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mikan-player-android
+          path: mikan-player-android-*.apk
+          if-no-files-found: error
+
+  publish:
+    needs: [metadata, build-windows, build-android]
+    runs-on: windows-latest
+    env:
+      RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+      BUILD_NUMBER: ${{ needs.metadata.outputs.build_number }}
+      DISPLAY_VERSION: ${{ needs.metadata.outputs.display_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: mikan-player-*
+          merge-multiple: true
+
+      - name: Add stable rolling asset names
+        shell: pwsh
+        run: |
+          $windows = @(Get-ChildItem release-assets -Filter 'mikan-player-windows-*.zip' -File)
+          $android = @(Get-ChildItem release-assets -Filter 'mikan-player-android-arm64-*.apk' -File)
+          if ($windows.Count -ne 1) { throw "Expected one Windows asset, found $($windows.Count)" }
+          if ($android.Count -ne 1) { throw "Expected one Android asset, found $($android.Count)" }
+          Copy-Item $windows[0].FullName 'release-assets/mikan-player-windows-latest.zip' -Force
+          Copy-Item $android[0].FullName 'release-assets/mikan-player-android-arm64-latest.apk' -Force
+
+      - name: Move rolling tag
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin refs/tags/rolling:refs/tags/rolling 2>$null
+          git tag -f rolling $env:GITHUB_SHA
+          git push origin refs/tags/rolling --force
+
+      - name: Create or update rolling release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $title = "Rolling $env:DISPLAY_VERSION"
+          $notes = @"
+          Automated rolling release for commit $env:GITHUB_SHA.
+
+          Version: $env:DISPLAY_VERSION
+          This release is intentionally mutable; use the asset filename or commit SHA for traceability.
+          "@
+          gh release view rolling *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit rolling --title $title --notes $notes --latest
+          } else {
+            gh release create rolling --title $title --notes $notes --latest
+          }
+          gh release upload rolling release-assets/* --clobber
