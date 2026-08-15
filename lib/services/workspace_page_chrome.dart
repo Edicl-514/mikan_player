@@ -29,7 +29,7 @@ class _TintEntry {
   const _TintEntry({required this.owner, required this.color});
 
   final Object owner;
-  final Color color;
+  final Color? color;
 }
 
 /// Page-published chrome for the Windows workspace shell.
@@ -118,11 +118,10 @@ class WorkspacePageChromeRegistry extends ChangeNotifier {
     _notify();
   }
 
-  /// The window-chrome tint the topmost live route published for [tabId].
+  /// The window-chrome tint selected by the topmost live route for [tabId].
   ///
-  /// Null means the shell keeps its theme surface color. Like titles, tints
-  /// stack per tab so a route that covers the publishing one falls back to the
-  /// route underneath, and finally to the shell default.
+  /// A null entry is an explicit barrier: the current route wants the shell
+  /// surface instead of inheriting a tint from a route underneath it.
   Color? tintFor(WorkspaceTabId tabId) {
     final entries = _tints[tabId];
     if (entries == null || entries.isEmpty) return null;
@@ -130,6 +129,15 @@ class WorkspacePageChromeRegistry extends ChangeNotifier {
   }
 
   void publishTint(WorkspaceTabId tabId, Object owner, Color color) {
+    _publishTintEntry(tabId, owner, color);
+  }
+
+  /// Prevents lower routes from tinting the chrome for the current route.
+  void publishTintBarrier(WorkspaceTabId tabId, Object owner) {
+    _publishTintEntry(tabId, owner, null);
+  }
+
+  void _publishTintEntry(WorkspaceTabId tabId, Object owner, Color? color) {
     final entries = _tints.putIfAbsent(tabId, () => <_TintEntry>[]);
     final index = entries.indexWhere((entry) => entry.owner == owner);
     if (index >= 0) {

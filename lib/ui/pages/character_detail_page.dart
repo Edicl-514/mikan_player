@@ -9,6 +9,7 @@ import 'package:mikan_player/ui/widgets/smooth_scroll_controller.dart';
 import 'package:mikan_player/ui/pages/controllers/async_page_controllers.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/workspace_chrome_tint.dart';
 import 'package:mikan_player/ui/widgets/bangumi_comment_section.dart';
 
 typedef CharacterDetailsLoader = Future<CharacterDetails> Function(int id);
@@ -538,28 +539,31 @@ class _CharacterDetailPageState extends State<CharacterDetailPage>
       return Container(color: const Color(0xFF16161E));
     }
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        CachedNetworkImage(imageUrl: imgUrl, fit: BoxFit.cover),
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  const Color(0xFF16161E).withValues(alpha: 0.3),
-                  const Color(0xFF16161E).withValues(alpha: 0.7),
-                  const Color(0xFF16161E),
-                ],
-                stops: const [0.0, 0.4, 0.8],
+    return WorkspaceChromeTintPublisher(
+      imageUrl: imgUrl,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          CachedNetworkImage(imageUrl: imgUrl, fit: BoxFit.cover),
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    const Color(0xFF16161E).withValues(alpha: 0.3),
+                    const Color(0xFF16161E).withValues(alpha: 0.7),
+                    const Color(0xFF16161E),
+                  ],
+                  stops: const [0.0, 0.4, 0.8],
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

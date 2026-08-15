@@ -38,14 +38,111 @@ class WorkspaceChromeTintScope extends InheritedWidget {
       oldWidget.tint != tint;
 }
 
+/// Owns the tint decision for one workspace route.
+///
+/// A route without a publisher installs a null barrier so it cannot inherit a
+/// stale tint. A publisher temporarily removes that barrier while its image is
+/// being resolved, allowing the previous route's tint to bridge the loading
+/// period without a flash.
+class WorkspaceRouteTintBoundary extends StatefulWidget {
+  const WorkspaceRouteTintBoundary({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<WorkspaceRouteTintBoundary> createState() =>
+      _WorkspaceRouteTintBoundaryState();
+}
+
+class _WorkspaceRouteTintBoundaryState extends State<WorkspaceRouteTintBoundary>
+    with WorkspaceChromeRouteAware<WorkspaceRouteTintBoundary> {
+  final Object _owner = Object();
+  final Set<Object> _inheritingPublishers = <Object>{};
+  WorkspaceTabId? _tabId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    updateRouteSubscription(context);
+    final tabId = WorkspaceTabScope.maybeOf(context);
+    if (tabId != _tabId) {
+      _retract();
+      _tabId = tabId;
+    }
+    _syncBarrier();
+  }
+
+  void allowInheritance(Object publisher) {
+    if (!_inheritingPublishers.add(publisher)) return;
+    _syncBarrier();
+  }
+
+  void disallowInheritance(Object publisher) {
+    if (!_inheritingPublishers.remove(publisher)) return;
+    _syncBarrier();
+  }
+
+  void _syncBarrier() {
+    final tabId = _tabId;
+    if (tabId == null) return;
+    if (_inheritingPublishers.isNotEmpty) {
+      WorkspacePageChromeRegistry.instance.retractTint(tabId, _owner);
+    } else if (isRouteVisible) {
+      WorkspacePageChromeRegistry.instance.publishTintBarrier(tabId, _owner);
+    }
+  }
+
+  @override
+  void onRouteVisibilityChanged() {
+    if (isRouteVisible) _syncBarrier();
+  }
+
+  void _retract() {
+    final tabId = _tabId;
+    if (tabId == null) return;
+    WorkspacePageChromeRegistry.instance.retractTint(tabId, _owner);
+  }
+
+  @override
+  void dispose() {
+    _retract();
+    disposeRouteSubscription();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _WorkspaceRouteTintBoundaryScope(boundary: this, child: widget.child);
+}
+
+class _WorkspaceRouteTintBoundaryScope extends InheritedWidget {
+  const _WorkspaceRouteTintBoundaryScope({
+    required this.boundary,
+    required super.child,
+  });
+
+  final _WorkspaceRouteTintBoundaryState boundary;
+
+  static _WorkspaceRouteTintBoundaryState? maybeOf(
+    BuildContext context,
+  ) => context
+      .dependOnInheritedWidgetOfExactType<_WorkspaceRouteTintBoundaryScope>()
+      ?.boundary;
+
+  @override
+  bool updateShouldNotify(_WorkspaceRouteTintBoundaryScope oldWidget) =>
+      boundary != oldWidget.boundary;
+}
+
 /// Publishes a cover-derived chrome tint for the current tab.
 ///
 /// Wraps a page's image background (the detail page's blurred wallpaper) and,
 /// once the cover is available, extracts a dominant color and publishes it to
 /// [WorkspacePageChromeRegistry] so the desktop frame can tint its title bar
-/// and toolbar. The tint follows the route lifecycle: covering or popping the
-/// publishing route retracts it and the shell falls back to whatever the route
-/// underneath (or the theme) dictates. Renders nothing itself.
+/// and toolbar. A covering publisher inherits this route's tint while its image
+/// is loading, then replaces it with its own color. Routes without a publisher
+/// install a [WorkspaceRouteTintBoundary] barrier instead. Renders nothing
+/// itself.
 class WorkspaceChromeTintPublisher extends StatefulWidget {
   const WorkspaceChromeTintPublisher({
     super.key,
@@ -64,7 +161,7 @@ class WorkspaceChromeTintPublisher extends StatefulWidget {
   /// Test seam: short-circuits extraction with a fixed chrome color, so tests
   /// can exercise the publish lifecycle without image bytes.
   @visibleForTesting
-  static Color? Function(String url)? debugChromeOverride;
+  static FutureOr<Color?> Function(String url)? debugChromeOverride;
 
   @visibleForTesting
   static void debugResetForTest() {
@@ -82,6 +179,8 @@ class _WorkspaceChromeTintPublisherState
     with WorkspaceChromeRouteAware<WorkspaceChromeTintPublisher> {
   final Object _owner = Object();
   WorkspaceTabId? _tabId;
+  _WorkspaceRouteTintBoundaryState? _boundary;
+  bool _allowsInheritance = false;
   Color? _chrome;
   bool _extracting = false;
   int _extractionGeneration = 0;
@@ -90,6 +189,12 @@ class _WorkspaceChromeTintPublisherState
   void didChangeDependencies() {
     super.didChangeDependencies();
     updateRouteSubscription(context);
+    final boundary = _WorkspaceRouteTintBoundaryScope.maybeOf(context);
+    if (boundary != _boundary) {
+      if (_allowsInheritance) _boundary?.disallowInheritance(_owner);
+      _boundary = boundary;
+      if (_allowsInheritance) _boundary?.allowInheritance(_owner);
+    }
     _syncTabAndPublish();
   }
 
@@ -98,6 +203,7 @@ class _WorkspaceChromeTintPublisherState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.imageUrl != widget.imageUrl) {
       _retract();
+      _setAllowsInheritance(false);
       _extractionGeneration++;
       _extracting = false;
       _chrome = null;
@@ -108,16 +214,21 @@ class _WorkspaceChromeTintPublisherState
   @override
   void dispose() {
     _retract();
+    _setAllowsInheritance(false);
     disposeRouteSubscription();
     super.dispose();
   }
 
   @override
   void onRouteVisibilityChanged() {
+    // Never retract on cover: tints stack per tab (see
+    // [WorkspacePageChromeRegistry]), so a covering route without a tint yet
+    // falls back to this route's tint instead of dropping to the shell surface
+    // (a white flash in light mode). The covering route's own tint replaces it
+    // once published; this tint resurfaces when the cover pops. It is retracted
+    // on dispose (route popped) or on image URL change below.
     if (isRouteVisible) {
       _publishFromState();
-    } else {
-      _retract();
     }
   }
 
@@ -125,6 +236,8 @@ class _WorkspaceChromeTintPublisherState
     final tabId = WorkspaceTabScope.maybeOf(context);
     if (tabId != _tabId) {
       _retract();
+      _extractionGeneration++;
+      _extracting = false;
       _tabId = tabId;
     }
     if (tabId != null && isRouteVisible) _publishFromState();
@@ -135,11 +248,17 @@ class _WorkspaceChromeTintPublisherState
     if (tabId == null || !isRouteVisible) return;
     final chrome = _chrome;
     if (chrome != null) {
+      _setAllowsInheritance(true);
       WorkspacePageChromeRegistry.instance.publishTint(tabId, _owner, chrome);
       return;
     }
     final url = widget.imageUrl;
-    if (url == null || url.isEmpty || _extracting) return;
+    if (url == null || url.isEmpty) {
+      _setAllowsInheritance(false);
+      return;
+    }
+    _setAllowsInheritance(true);
+    if (_extracting) return;
     _extracting = true;
     unawaited(_extract(url, tabId));
   }
@@ -147,12 +266,16 @@ class _WorkspaceChromeTintPublisherState
   Future<void> _extract(String url, WorkspaceTabId tabId) async {
     final generation = ++_extractionGeneration;
     final chrome = await _chromeForUrl(url);
-    _extracting = false;
     if (!mounted || generation != _extractionGeneration || _tabId != tabId) {
       return;
     }
+    _extracting = false;
     _chrome = chrome;
-    if (chrome == null || !isRouteVisible) return;
+    if (chrome == null) {
+      _setAllowsInheritance(false);
+      return;
+    }
+    if (!isRouteVisible) return;
     WorkspacePageChromeRegistry.instance.publishTint(tabId, _owner, chrome);
   }
 
@@ -162,9 +285,19 @@ class _WorkspaceChromeTintPublisherState
     WorkspacePageChromeRegistry.instance.retractTint(tabId, _owner);
   }
 
+  void _setAllowsInheritance(bool value) {
+    if (_allowsInheritance == value) return;
+    _allowsInheritance = value;
+    if (value) {
+      _boundary?.allowInheritance(_owner);
+    } else {
+      _boundary?.disallowInheritance(_owner);
+    }
+  }
+
   Future<Color?> _chromeForUrl(String url) async {
     final override = WorkspaceChromeTintPublisher.debugChromeOverride;
-    if (override != null) return override(url);
+    if (override != null) return await override(url);
     final cache = WorkspaceChromeTintPublisher._chromeCache;
     final cached = cache[url];
     if (cached != null) return cached;

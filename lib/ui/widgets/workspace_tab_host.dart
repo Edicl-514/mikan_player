@@ -10,6 +10,7 @@ import 'package:mikan_player/services/workspace_route_observer.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/navigation/workspace_navigation.dart';
 import 'package:mikan_player/ui/widgets/desktop_page_chrome.dart';
+import 'package:mikan_player/ui/widgets/workspace_chrome_tint.dart';
 
 typedef WorkspaceDestinationBuilder =
     Widget Function(BuildContext context, WorkspaceDestination destination);
@@ -283,7 +284,9 @@ class _WorkspaceTabHostState extends State<WorkspaceTabHost> {
     if (!widget.providesPageChrome) return page;
     // Installed per route rather than around the whole host so a route can opt
     // back into its own header by overriding the scope.
-    return DesktopPageChromeScope(child: page);
+    return WorkspaceRouteTintBoundary(
+      child: DesktopPageChromeScope(child: page),
+    );
   }
 
   @override

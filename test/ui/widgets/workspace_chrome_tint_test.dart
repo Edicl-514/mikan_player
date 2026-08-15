@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/services/workspace_page_chrome.dart';
@@ -24,6 +26,36 @@ void main() {
 
   Color surfaceColor(WidgetTester tester) =>
       Theme.of(tester.element(find.byKey(chromeKey))).colorScheme.surface;
+
+  test('tint barrier blocks and then restores the lower tint', () {
+    final controller = WorkspaceTabController();
+    final tintOwner = Object();
+    final barrierOwner = Object();
+    const tint = Color(0xFF7A1A2B);
+
+    WorkspacePageChromeRegistry.instance.publishTint(
+      controller.activeTabId,
+      tintOwner,
+      tint,
+    );
+    WorkspacePageChromeRegistry.instance.publishTintBarrier(
+      controller.activeTabId,
+      barrierOwner,
+    );
+    expect(
+      WorkspacePageChromeRegistry.instance.tintFor(controller.activeTabId),
+      isNull,
+    );
+
+    WorkspacePageChromeRegistry.instance.retractTint(
+      controller.activeTabId,
+      barrierOwner,
+    );
+    expect(
+      WorkspacePageChromeRegistry.instance.tintFor(controller.activeTabId),
+      tint,
+    );
+  });
 
   testWidgets('title bar animates to a published tint and back', (
     tester,
@@ -219,4 +251,187 @@ void main() {
         .first;
     expect(toolbarMaterial.color, tint);
   });
+
+  testWidgets('covering route without a tint blocks the one underneath', (
+    tester,
+  ) async {
+    WorkspaceChromeTintPublisher.debugChromeOverride = (url) =>
+        const Color(0xFF7A1A2B);
+    final controller = WorkspaceTabController();
+    final navigatorKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WorkspaceTabScope(
+          tabId: controller.activeTabId,
+          controller: controller,
+          child: _TintNavigator(
+            navigatorKey: navigatorKey,
+            firstChild: const WorkspaceChromeTintPublisher(
+              imageUrl: 'https://example.com/underneath.jpg',
+              child: SizedBox.expand(),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      WorkspacePageChromeRegistry.instance.tintFor(controller.activeTabId),
+      const Color(0xFF7A1A2B),
+    );
+
+    // A route that never publishes a tint must use the shell surface rather
+    // than leaking the color from the page underneath it.
+    navigatorKey.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => const WorkspaceRouteTintBoundary(
+          child: Scaffold(body: SizedBox.expand()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      WorkspacePageChromeRegistry.instance.tintFor(controller.activeTabId),
+      isNull,
+    );
+
+    // Popping restores the same tint.
+    navigatorKey.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(
+      WorkspacePageChromeRegistry.instance.tintFor(controller.activeTabId),
+      const Color(0xFF7A1A2B),
+    );
+  });
+
+  testWidgets('covering route inherits only while extraction is pending', (
+    tester,
+  ) async {
+    const underneath = Color(0xFF7A1A2B);
+    final coveringExtraction = Completer<Color?>();
+    WorkspaceChromeTintPublisher.debugChromeOverride = (url) =>
+        url.contains('underneath') ? underneath : coveringExtraction.future;
+    final controller = WorkspaceTabController();
+    final navigatorKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WorkspaceTabScope(
+          tabId: controller.activeTabId,
+          controller: controller,
+          child: _TintNavigator(
+            navigatorKey: navigatorKey,
+            firstChild: const WorkspaceChromeTintPublisher(
+              imageUrl: 'https://example.com/underneath.jpg',
+              child: SizedBox.expand(),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    navigatorKey.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => const WorkspaceRouteTintBoundary(
+          child: WorkspaceChromeTintPublisher(
+            imageUrl: 'https://example.com/cover.jpg',
+            child: Scaffold(body: SizedBox.expand()),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      WorkspacePageChromeRegistry.instance.tintFor(controller.activeTabId),
+      underneath,
+    );
+
+    coveringExtraction.complete(null);
+    await tester.pumpAndSettle();
+    expect(
+      WorkspacePageChromeRegistry.instance.tintFor(controller.activeTabId),
+      isNull,
+    );
+  });
+
+  testWidgets(
+    'covering route tint replaces the one underneath once published',
+    (tester) async {
+      const underneath = Color(0xFF7A1A2B);
+      const covering = Color(0xFF1A3B7A);
+      WorkspaceChromeTintPublisher.debugChromeOverride = (url) =>
+          url.contains('underneath') ? underneath : covering;
+      final controller = WorkspaceTabController();
+      final navigatorKey = GlobalKey<NavigatorState>();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WorkspaceTabScope(
+            tabId: controller.activeTabId,
+            controller: controller,
+            child: _TintNavigator(
+              navigatorKey: navigatorKey,
+              firstChild: const WorkspaceChromeTintPublisher(
+                imageUrl: 'https://example.com/underneath.jpg',
+                child: SizedBox.expand(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        WorkspacePageChromeRegistry.instance.tintFor(controller.activeTabId),
+        underneath,
+      );
+
+      // Cover it with a route that publishes its own tint: that one wins while
+      // on top, and popping restores the tint underneath.
+      navigatorKey.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const WorkspaceRouteTintBoundary(
+            child: WorkspaceChromeTintPublisher(
+              imageUrl: 'https://example.com/cover.jpg',
+              child: Scaffold(body: SizedBox.expand()),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        WorkspacePageChromeRegistry.instance.tintFor(controller.activeTabId),
+        covering,
+      );
+      navigatorKey.currentState!.pop();
+      await tester.pumpAndSettle();
+      expect(
+        WorkspacePageChromeRegistry.instance.tintFor(controller.activeTabId),
+        underneath,
+      );
+    },
+  );
+}
+
+/// A [Navigator] owning the two test routes so both stay inside the enclosing
+/// [WorkspaceTabScope]; pushed routes otherwise build outside the scope and
+/// publish to no tab.
+class _TintNavigator extends StatelessWidget {
+  const _TintNavigator({required this.navigatorKey, required this.firstChild});
+
+  final GlobalKey<NavigatorState> navigatorKey;
+  final Widget firstChild;
+
+  @override
+  Widget build(BuildContext context) {
+    return Navigator(
+      key: navigatorKey,
+      observers: [workspaceRouteObserver],
+      onGenerateRoute: (settings) => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (context) => WorkspaceRouteTintBoundary(child: firstChild),
+      ),
+    );
+  }
 }

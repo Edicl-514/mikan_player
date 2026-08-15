@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_color_utilities/material_color_utilities.dart';
 import 'package:mikan_player/ui/utils/dominant_color.dart';
 
 void main() {
@@ -24,42 +25,49 @@ void main() {
       return data;
     }
 
-    test('picks the most populated color bucket', () {
+    test('picks the most prominent color', () async {
       final pixels = solidPixels([
         for (var i = 0; i < 80; i++) (200, 30, 30, 255),
         for (var i = 0; i < 16; i++) (10, 10, 200, 255),
       ]);
-      final color = dominantColorFromRgbaPixels(pixels, 96);
-      expect(rOf(color), inInclusiveRange(150, 220));
+      final color = await dominantColorFromRgbaPixels(pixels, 96);
+      expect(color, isNotNull);
+      expect(rOf(color!), greaterThan(150));
       expect(gOf(color), lessThan(80));
       expect(bOf(color), lessThan(80));
     });
 
-    test('skips transparent pixels', () {
+    test('skips transparent pixels', () async {
       final pixels = solidPixels([
         (0, 0, 0, 0),
         (0, 0, 0, 0),
         (40, 120, 200, 255),
         (40, 120, 200, 255),
       ]);
-      final color = dominantColorFromRgbaPixels(pixels, 4);
-      expect(rOf(color), closeTo(40, 5));
-      expect(gOf(color), closeTo(120, 5));
-      expect(bOf(color), closeTo(200, 5));
+      final color = await dominantColorFromRgbaPixels(pixels, 4);
+      expect(color, isNotNull);
+      expect(rOf(color!), closeTo(40, 20));
+      expect(gOf(color), closeTo(120, 20));
+      expect(bOf(color), closeTo(200, 20));
     });
 
-    test('falls back to the mean for a scattered image', () {
-      final pixels = solidPixels([
-        for (var i = 0; i < 32; i++) (255, 255, 255, 255),
-        for (var i = 0; i < 32; i++) (0, 0, 0, 255),
-        for (var i = 0; i < 32; i++) (100, 100, 100, 255),
-      ]);
-      final color = dominantColorFromRgbaPixels(pixels, 96);
-      // No bucket clearly dominates, so the result is the per-channel mean.
-      expect(rOf(color), closeTo(118, 10));
-      expect(gOf(color), closeTo(118, 10));
-      expect(bOf(color), closeTo(118, 10));
+    test('returns null when every pixel is transparent', () async {
+      final pixels = solidPixels([for (var i = 0; i < 4; i++) (0, 0, 0, 0)]);
+      final color = await dominantColorFromRgbaPixels(pixels, 4);
+      expect(color, isNull);
     });
+
+    test(
+      'keeps a neutral image neutral instead of using Score fallback',
+      () async {
+        final pixels = solidPixels([
+          for (var i = 0; i < 32; i++) (128, 128, 128, 255),
+        ]);
+        final color = await dominantColorFromRgbaPixels(pixels, 32);
+        expect(color, isNotNull);
+        expect(Hct.fromInt(color!.toARGB32()).chroma, lessThan(6));
+      },
+    );
   });
 
   group('extractDominantColor', () {
@@ -82,36 +90,43 @@ void main() {
       final png = await solidPng(const Color(0xFFC86000), 32);
       final color = await extractDominantColor(png.buffer.asUint8List());
       expect(color, isNotNull);
-      expect(rOf(color!), inInclusiveRange(150, 230));
-      expect(gOf(color), inInclusiveRange(60, 120));
-      expect(bOf(color), lessThan(50));
+      expect(rOf(color!), inInclusiveRange(120, 230));
+      expect(gOf(color), inInclusiveRange(40, 120));
+      expect(bOf(color), lessThan(90));
     });
   });
 
   group('deriveChromeBackground', () {
+    double hitOf(Color c) => Hct.fromInt(c.toARGB32()).tone;
+
     test('keeps the hue and darkens for white chrome text', () {
       final chrome = deriveChromeBackground(const Color(0xFFC80000));
       final hsl = HSLColor.fromColor(chrome);
-      expect(hsl.lightness, inInclusiveRange(0.16, 0.30));
-      // Red hue preserved (allow wrapping around 360/0).
+      expect(hitOf(chrome), inInclusiveRange(20, 40));
+      // Red hue preserved in sRGB space (allow wrapping around 360/0).
       expect(hsl.hue < 15 || hsl.hue > 345, isTrue);
       expect(chrome.computeLuminance(), lessThan(0.3));
     });
 
     test('neutral covers stay neutral instead of snapping to a hue', () {
       final chrome = deriveChromeBackground(const Color(0xFFFFFFFF));
-      final hsl = HSLColor.fromColor(chrome);
-      expect(hsl.saturation, lessThan(0.12));
-      expect(hsl.lightness, closeTo(0.30, 0.01));
+      final hct = Hct.fromInt(chrome.toARGB32());
+      expect(hct.chroma, lessThan(6));
     });
 
     test('dark covers yield darker chrome than bright ones', () {
       final dark = deriveChromeBackground(const Color(0xFF10002E));
       final bright = deriveChromeBackground(const Color(0xFFBFA8FF));
       expect(
-        HSLColor.fromColor(dark).lightness,
-        lessThan(HSLColor.fromColor(bright).lightness),
+        Hct.fromInt(dark.toARGB32()).tone,
+        lessThan(Hct.fromInt(bright.toARGB32()).tone),
       );
+    });
+
+    test('caps chroma so a loud cover never floods the title bar', () {
+      final chrome = deriveChromeBackground(const Color(0xFF00FF00));
+      final hct = Hct.fromInt(chrome.toARGB32());
+      expect(hct.chroma, lessThanOrEqualTo(64));
     });
   });
 

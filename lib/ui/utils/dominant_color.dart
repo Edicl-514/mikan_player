@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:material_color_utilities/material_color_utilities.dart';
 
 /// Dominant-color extraction for the desktop window chrome.
 ///
@@ -10,12 +11,20 @@ import 'package:flutter/foundation.dart';
 /// what should bleed into the title bar. These helpers derive a single
 /// representative color from a cover image and shape it into a chrome
 /// background + foreground pair.
+///
+/// Extraction uses [QuantizerCelebi] plus [Score] from `material_color_utilies`
+/// (the same pipeline behind Android's Material You dynamic color): the image
+/// is quantized in the perceptually-uniform Lab space, then the colors are
+/// ranked by a blend of pixel population, chroma and hue distribution instead
+/// of a raw RGB histogram — so noisy covers no longer collapse into a muddled
+/// 4096-bucket average.
 
 /// Extracts a representative color from encoded image bytes.
 ///
-/// The image is decoded downscaled (kept cheap for a page backdrop) and the
-/// most-populated color bucket is returned. `null` when the bytes cannot be
-/// decoded or contain no opaque pixels.
+/// The image is decoded downscaled (kept cheap for a page backdrop), opaque
+/// pixels are quantized with Celebi (16 clusters) and the most suitable color
+/// is picked by [Score]. `null` when the bytes cannot be decoded or contain no
+/// opaque pixels.
 Future<Color?> extractDominantColor(
   Uint8List bytes, {
   int targetSize = 48,
@@ -40,94 +49,77 @@ Future<Color?> extractDominantColor(
   }
 }
 
-/// Representative color over a `rawRgba` pixel buffer (stride 4).
+/// Dominant color over a `rawRgba` pixel buffer (stride 4).
 ///
-/// Pixels are coarsely quantized into a histogram; the average of the winning
-/// bucket is the dominant color. When no bucket dominates (a noisy or highly
-/// varied image), the per-channel mean is used instead so the result never
-/// comes from a 2%-of-image outlier.
+/// Opaque pixels become a color-to-count population map, quantized and scored
+/// in Lab space. `null` when the buffer contains no usable pixels.
 @visibleForTesting
-Color dominantColorFromRgbaPixels(ByteData pixels, int pixelCount) {
-  const bucketShift = 4; // 16 levels per channel -> 4096 buckets.
-  final counts = Int32List(1 << 12);
-  final sumR = Int32List(1 << 12);
-  final sumG = Int32List(1 << 12);
-  final sumB = Int32List(1 << 12);
-
-  var validCount = 0;
-  var meanR = 0, meanG = 0, meanB = 0;
-
+Future<Color?> dominantColorFromRgbaPixels(
+  ByteData pixels,
+  int pixelCount,
+) async {
+  final population = <int, int>{};
   for (var i = 0; i < pixelCount; i++) {
     final offset = i * 4;
+    final a = pixels.getUint8(offset + 3);
+    if (a < 128) continue;
     final r = pixels.getUint8(offset);
     final g = pixels.getUint8(offset + 1);
     final b = pixels.getUint8(offset + 2);
-    final a = pixels.getUint8(offset + 3);
-    if (a < 128) continue;
-
-    meanR += r;
-    meanG += g;
-    meanB += b;
-    validCount++;
-
-    final bucket =
-        ((r >> bucketShift) << 8) | ((g >> bucketShift) << 4) | (b >> bucketShift);
-    counts[bucket]++;
-    sumR[bucket] += r;
-    sumG[bucket] += g;
-    sumB[bucket] += b;
+    final argb = (0xFF << 24) | (r << 16) | (g << 8) | b;
+    population[argb] = (population[argb] ?? 0) + 1;
   }
+  if (population.isEmpty) return null;
+  return dominantColorFromPopulation(population);
+}
 
-  if (validCount == 0) return const Color(0xff121212);
-
-  var bestBucket = -1;
-  var bestCount = 0;
-  var secondCount = 0;
-  for (var i = 0; i < counts.length; i++) {
-    final count = counts[i];
-    if (count > bestCount) {
-      secondCount = bestCount;
-      bestCount = count;
-      bestBucket = i;
-    } else if (count > secondCount) {
-      secondCount = count;
-    }
+/// Picks the single most suitable color from a population map.
+///
+/// [QuantizerCelebi] refines the raw color set into up to [maxColors] clusters
+/// in Lab space, then [Score] ranks them by population, chroma and hue spread.
+@visibleForTesting
+Future<Color?> dominantColorFromPopulation(
+  Map<int, int> population, {
+  int maxColors = 16,
+}) async {
+  try {
+    final pixels = <int>[];
+    population.forEach((argb, count) {
+      for (var i = 0; i < count && pixels.length < 20000; i++) {
+        pixels.add(argb);
+      }
+    });
+    if (pixels.isEmpty) return null;
+    final quantized = await QuantizerCelebi().quantize(pixels, maxColors);
+    if (quantized.colorToCount.isEmpty) return null;
+    final fallback = quantized.colorToCount.entries.reduce(
+      (best, candidate) => candidate.value > best.value ? candidate : best,
+    );
+    final scored = Score.score(
+      quantized.colorToCount,
+      desired: 1,
+      fallbackColorARGB: fallback.key,
+    );
+    if (scored.isEmpty) return null;
+    return Color(scored.first);
+  } catch (_) {
+    return null;
   }
-
-  final mean = Color.fromARGB(
-    255,
-    (meanR / validCount).round(),
-    (meanG / validCount).round(),
-    (meanB / validCount).round(),
-  );
-  // Require a clear plurality: a dominant bucket must hold a meaningful share
-  // and beat the runner-up by a comfortable margin. Otherwise the image has no
-  // single color and the per-channel mean is the honest answer.
-  final clearWinner =
-      bestBucket >= 0 &&
-      bestCount >= validCount * 0.05 &&
-      bestCount > secondCount * 1.5;
-  if (!clearWinner) return mean;
-
-  return Color.fromARGB(
-    255,
-    (sumR[bestBucket] / bestCount).round(),
-    (sumG[bestBucket] / bestCount).round(),
-    (sumB[bestBucket] / bestCount).round(),
-  );
 }
 
 /// Shapes [dominant] into a title-bar background: dark enough for white
-/// chrome text, keeping the cover's hue so adjacent pages stay distinct.
+/// chrome text, keeping the color's hue so adjacent pages stay distinct.
 ///
-/// Neutral covers (no saturation to speak of) stay neutral instead of snapping
-/// to an arbitrary hue; dark covers yield a darker chrome than bright ones.
+/// Works on the dominant cover color already curated by [Score], mapping it
+/// into HCT (a perceptually-uniform color space) and bumping it down to a
+/// dark tone band. The tone is scaled from the source tone so dark covers yield
+/// a darker chrome than bright ones; chroma is trimmed so a cover with a strong
+/// hue never drenches the title bar.
 Color deriveChromeBackground(Color dominant) {
-  final hsl = HSLColor.fromColor(dominant);
-  final saturation =
-      hsl.saturation < 0.12 ? hsl.saturation : hsl.saturation.clamp(0.25, 0.80);
-  final lightness = (hsl.lightness * 0.55).clamp(0.16, 0.30);
-  return hsl.withLightness(lightness).withSaturation(saturation).toColor();
+  final hct = Hct.fromInt(dominant.toARGB32());
+  final tone = (hct.tone * 0.55).clamp(24.0, 38.0);
+  final chroma = hct.chroma.clamp(0.0, 64.0);
+  return Color(Hct.from(hct.hue, chroma, tone).toInt());
 }
 
 /// Foreground for chrome drawn on [background] (window controls, tab text).
