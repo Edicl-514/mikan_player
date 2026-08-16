@@ -102,85 +102,123 @@ class CharactersSection extends StatelessWidget {
         const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: SizedBox(
-            height: 220,
-            child: StableThumbScrollbar(
+          child: StableThumbScrollbar(
+            controller: scrollController,
+            thumbVisibility: true,
+            thickness: kHorizontalListScrollbarThickness,
+            child: SingleChildScrollView(
               controller: scrollController,
-              thumbVisibility: true,
-              child: ListView.builder(
-                controller: scrollController,
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(bottom: 10),
-                itemCount: characters.length,
-                itemBuilder: (context, index) {
-                  final char = characters[index];
-                  final imageUrl =
-                      char.images?.large ?? char.images?.medium ?? '';
-                  final cvName = char.actors.isNotEmpty
-                      ? char.actors.first.name
-                      : '';
-                  final canOpenCharacterPage = char.id != 0;
-                  final role = _characterRoleOf(char);
-
-                  return Padding(
-                    padding: EdgeInsets.only(left: index == 0 ? 0 : 16),
-                    child: SizedBox(
-                      width: 120,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _CharacterImage(
-                            imageUrl: imageUrl,
-                            canOpenCharacterPage: canOpenCharacterPage,
-                            enableHero: enableCharacterHero,
-                            heroTag: 'character_${char.id.toInt()}',
-                            role: role,
-                            cardColor: cardColor,
-                            isDarkBg: isDarkBg,
-                            onTap: canOpenCharacterPage
-                                ? () => onCharacterTap(
-                                    char.id.toInt(),
-                                    characterName: char.name,
-                                    heroImageUrl: imageUrl,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(height: 8),
-                          _CharacterName(
-                            name: char.name,
-                            canOpenCharacterPage: canOpenCharacterPage,
-                            textColor: textColor,
-                            isDarkBg: isDarkBg,
-                            onTap: canOpenCharacterPage
-                                ? () => onCharacterTap(
-                                    char.id.toInt(),
-                                    characterName: char.name,
-                                    heroImageUrl: imageUrl,
-                                  )
-                                : null,
-                          ),
-                          if (cvName.isNotEmpty)
-                            _CharacterCvName(
-                              cvName: cvName,
-                              hasPersonLink: personIdMap.containsKey(cvName),
-                              textColor: textColor,
-                              isDarkBg: isDarkBg,
-                              onPersonTap: () => onPersonTap(
-                                personIdMap[cvName]!,
-                                personName: cvName,
-                              ),
-                            ),
-                        ],
+              scrollDirection: Axis.horizontal,
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  bottom: kHorizontalListScrollbarClearance,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var index = 0; index < characters.length; index++) ...[
+                      if (index > 0) const SizedBox(width: 16),
+                      _CharacterCard(
+                        character: characters[index],
+                        enableHero: enableCharacterHero,
+                        isDarkBg: isDarkBg,
+                        textColor: textColor,
+                        cardColor: cardColor,
+                        personIdMap: personIdMap,
+                        onCharacterTap: onCharacterTap,
+                        onPersonTap: onPersonTap,
                       ),
-                    ),
-                  );
-                },
+                    ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CharacterCard extends StatelessWidget {
+  final BangumiCharacter character;
+  final bool enableHero;
+  final bool isDarkBg;
+  final Color textColor;
+  final Color? cardColor;
+  final Map<String, int> personIdMap;
+  final void Function(
+    int characterId, {
+    String? characterName,
+    String? heroImageUrl,
+  })
+  onCharacterTap;
+  final void Function(int personId, {String? personName}) onPersonTap;
+
+  const _CharacterCard({
+    required this.character,
+    required this.enableHero,
+    required this.isDarkBg,
+    required this.textColor,
+    required this.cardColor,
+    required this.personIdMap,
+    required this.onCharacterTap,
+    required this.onPersonTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = character.images?.large ?? character.images?.medium ?? '';
+    final cvName = character.actors.isNotEmpty
+        ? character.actors.first.name
+        : '';
+    final canOpenCharacterPage = character.id != 0;
+    final role = _characterRoleOf(character);
+    final openCharacter = canOpenCharacterPage
+        ? () => onCharacterTap(
+            character.id.toInt(),
+            characterName: character.name,
+            heroImageUrl: imageUrl,
+          )
+        : null;
+
+    return SizedBox(
+      width: 120,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _CharacterImage(
+            imageUrl: imageUrl,
+            canOpenCharacterPage: canOpenCharacterPage,
+            enableHero: enableHero,
+            heroTag: 'character_${character.id.toInt()}',
+            role: role,
+            cardColor: cardColor,
+            isDarkBg: isDarkBg,
+            onTap: openCharacter,
+          ),
+          const SizedBox(height: 8),
+          _CharacterName(
+            name: character.name,
+            canOpenCharacterPage: canOpenCharacterPage,
+            textColor: textColor,
+            isDarkBg: isDarkBg,
+            onTap: openCharacter,
+          ),
+          if (cvName.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            _CharacterCvName(
+              cvName: cvName,
+              hasPersonLink: personIdMap.containsKey(cvName),
+              textColor: textColor,
+              isDarkBg: isDarkBg,
+              onPersonTap: () =>
+                  onPersonTap(personIdMap[cvName]!, personName: cvName),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -243,14 +281,12 @@ class _CharacterImage extends StatelessWidget {
                                   imageUrl: imageUrl,
                                   fit: BoxFit.cover,
                                   alignment: Alignment.topCenter,
-                                  deferOffscreenLoad: false,
                                 ),
                               )
                             : CachedNetworkImage(
                                 imageUrl: imageUrl,
                                 fit: BoxFit.cover,
                                 alignment: Alignment.topCenter,
-                                deferOffscreenLoad: false,
                               ))
                       : Center(
                           child: Icon(

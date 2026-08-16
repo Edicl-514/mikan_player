@@ -69,6 +69,23 @@ const double _kScrollbarMargin = 2.0;
 const double _kScrollbarMinLength = 48.0;
 const Radius _kScrollbarRadius = Radius.circular(8.0);
 
+/// Thickness shared by the app's horizontal card strips (characters, relations,
+/// onair sites). Wider than the vertical default so the thumb stays easy to
+/// grab in a list that is only one card tall.
+const double kHorizontalListScrollbarThickness = 12.0;
+
+/// Bottom padding a horizontal card strip must reserve so its scrollbar sits
+/// *below* the cards rather than on top of them.
+///
+/// A bottom-oriented thumb is laid out at
+/// `height - thickness - crossAxisMargin` (see `ScrollbarPainter.paint`), so it
+/// claims [kHorizontalListScrollbarThickness] plus [_kScrollbarMargin] of the
+/// strip's height. Deriving the padding from the thickness keeps the two from
+/// drifting apart — reserving less clips the bottom of the card content, which
+/// for these strips is the trailing text line (CV name, site title).
+const double kHorizontalListScrollbarClearance =
+    kHorizontalListScrollbarThickness + _kScrollbarMargin;
+
 class _StableThumbScrollbarState extends RawScrollbarState<StableThumbScrollbar> {
   late AnimationController _hoverAnimationController;
   bool _dragIsActive = false;

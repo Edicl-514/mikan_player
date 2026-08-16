@@ -135,6 +135,10 @@ class _PlayerPageState extends State<PlayerPage>
       createPlatformScrollController();
   final ScrollController _sampleProgressScrollController =
       createPlatformScrollController();
+  // Shared by the PC and mobile-info layouts: `uiMode` picks exactly one of
+  // them, so the two never attach to this controller at the same time.
+  final ScrollController _onairSitesScrollController =
+      createPlatformScrollController();
   bool _isDescriptionExpanded = false;
   bool _isEpisodesExpanded = false;
 
@@ -656,6 +660,7 @@ class _PlayerPageState extends State<PlayerPage>
     _pcSidebarScrollController.dispose();
     _commentsScrollController.dispose();
     _sampleProgressScrollController.dispose();
+    _onairSitesScrollController.dispose();
     _subtitleService.dispose();
     _player.stop(); // 确保播放器完全停止后再释放
     _player.dispose();

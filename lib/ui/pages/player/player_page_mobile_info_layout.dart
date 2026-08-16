@@ -63,6 +63,7 @@ extension _PlayerPageMobileInfoLayout on _PlayerPageState {
       playSourceSelector: _buildPlaySourceSelector(uiMode: uiMode),
       resourceList: _buildResourceList(),
       onairSites: _sidePanelLoader.onairSites,
+      onairSitesScrollController: _onairSitesScrollController,
       recommendations: _sidePanelLoader.recommendations,
       isLoadingRecommendations: _sidePanelLoader.isLoadingRecommendations,
       onRecommendationTap: _navigateToAnime,

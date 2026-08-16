@@ -234,6 +234,8 @@ void main() {
     addTearDown(scroll.dispose);
     final episodeScroll = ScrollController();
     addTearDown(episodeScroll.dispose);
+    final onairScroll = ScrollController();
+    addTearDown(onairScroll.dispose);
 
     await tester.pumpWidget(
       _wrap(
@@ -255,6 +257,7 @@ void main() {
           playSourceSelector: const Text('SOURCE_SELECTOR'),
           resourceList: const Text('RESOURCE_LIST'),
           onairSites: const [],
+          onairSitesScrollController: onairScroll,
           recommendations: const [],
           isLoadingRecommendations: false,
           onRecommendationTap: (_) {},

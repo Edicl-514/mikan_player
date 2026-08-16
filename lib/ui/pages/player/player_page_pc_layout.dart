@@ -21,6 +21,7 @@ extension _PlayerPagePcLayout on _PlayerPageState {
       ),
       resourceList: _buildResourceList(),
       onairSites: _sidePanelLoader.onairSites,
+      onairSitesScrollController: _onairSitesScrollController,
       commentSortButton: _buildSortButton(),
       comments: _sidePanelLoader.comments,
       isLoadingComments: _sidePanelLoader.isLoadingComments,

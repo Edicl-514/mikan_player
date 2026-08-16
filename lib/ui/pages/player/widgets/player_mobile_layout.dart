@@ -197,6 +197,7 @@ class PlayerMobileInfoLayout extends StatelessWidget {
   final Widget playSourceSelector;
   final Widget resourceList;
   final List<BangumiDataSiteEntry> onairSites;
+  final ScrollController onairSitesScrollController;
   final List<RankingAnime> recommendations;
   final bool isLoadingRecommendations;
   final ValueChanged<RankingAnime> onRecommendationTap;
@@ -214,6 +215,7 @@ class PlayerMobileInfoLayout extends StatelessWidget {
     required this.playSourceSelector,
     required this.resourceList,
     required this.onairSites,
+    required this.onairSitesScrollController,
     required this.recommendations,
     required this.isLoadingRecommendations,
     required this.onRecommendationTap,
@@ -357,7 +359,10 @@ class PlayerMobileInfoLayout extends StatelessWidget {
           if (onairSites.isNotEmpty) ...[
             PlayerSectionHeader(l10n.playerMobileOfficialPlaySource),
             const SizedBox(height: 12),
-            PlayerOnairSitesList(sites: onairSites),
+            PlayerOnairSitesList(
+              sites: onairSites,
+              scrollController: onairSitesScrollController,
+            ),
             const SizedBox(height: 24),
           ],
           PlayerSectionHeader(l10n.playerMobileRelated),

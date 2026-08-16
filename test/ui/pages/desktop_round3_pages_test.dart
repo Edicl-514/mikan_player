@@ -32,6 +32,7 @@ Widget _playerPcLayout({
   required ScrollController main,
   required ScrollController sidebar,
   required ScrollController episodes,
+  required ScrollController onairSites,
 }) {
   return Scaffold(
     body: PlayerPcLayout(
@@ -44,6 +45,7 @@ Widget _playerPcLayout({
       playSourceSelector: const SizedBox.shrink(),
       resourceList: const SizedBox.shrink(),
       onairSites: const [],
+      onairSitesScrollController: onairSites,
       commentSortButton: const SizedBox.shrink(),
       comments: const [],
       isLoadingComments: false,
@@ -303,17 +305,20 @@ void main() {
     late ScrollController main;
     late ScrollController sidebar;
     late ScrollController episodes;
+    late ScrollController onairSites;
 
     setUp(() {
       main = ScrollController();
       sidebar = ScrollController();
       episodes = ScrollController();
+      onairSites = ScrollController();
     });
 
     tearDown(() {
       main.dispose();
       sidebar.dispose();
       episodes.dispose();
+      onairSites.dispose();
     });
 
     // The wide layout needs a desktop-sized surface (Expanded main column plus
@@ -334,6 +339,7 @@ void main() {
           main: main,
           sidebar: sidebar,
           episodes: episodes,
+          onairSites: onairSites,
         ),
       );
     }

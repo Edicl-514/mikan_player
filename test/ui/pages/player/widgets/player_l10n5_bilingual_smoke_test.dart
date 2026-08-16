@@ -335,6 +335,8 @@ void main() {
         addTearDown(scroll.dispose);
         final episodeScroll = ScrollController();
         addTearDown(episodeScroll.dispose);
+        final onairScroll = ScrollController();
+        addTearDown(onairScroll.dispose);
         await _pumpFor(
           tester,
           PlayerMobileInfoLayout(
@@ -355,6 +357,7 @@ void main() {
             playSourceSelector: const Text('SOURCE_SELECTOR'),
             resourceList: const Text('RESOURCE_LIST'),
             onairSites: const [],
+            onairSitesScrollController: onairScroll,
             recommendations: List.generate(
               3,
               (i) => _item(title: 'Anime $i', id: 'bgm-$i'),
@@ -375,9 +378,11 @@ void main() {
         final episodeScroll = ScrollController();
         final mainScroll = ScrollController();
         final sidebarScroll = ScrollController();
+        final onairScroll = ScrollController();
         addTearDown(episodeScroll.dispose);
         addTearDown(mainScroll.dispose);
         addTearDown(sidebarScroll.dispose);
+        addTearDown(onairScroll.dispose);
 
         await _pumpFor(
           tester,
@@ -391,6 +396,7 @@ void main() {
             playSourceSelector: const Text('SOURCE_SELECTOR'),
             resourceList: const Text('RESOURCE_LIST'),
             onairSites: const [],
+            onairSitesScrollController: onairScroll,
             commentSortButton: const Text('SORT'),
             comments: const [],
             isLoadingComments: false,

@@ -20,6 +20,7 @@ class PlayerPcLayout extends StatelessWidget {
   final Widget playSourceSelector;
   final Widget resourceList;
   final List<BangumiDataSiteEntry> onairSites;
+  final ScrollController onairSitesScrollController;
   final Widget commentSortButton;
   final List<BangumiEpisodeComment> comments;
   final bool isLoadingComments;
@@ -49,6 +50,7 @@ class PlayerPcLayout extends StatelessWidget {
     required this.playSourceSelector,
     required this.resourceList,
     required this.onairSites,
+    required this.onairSitesScrollController,
     required this.commentSortButton,
     required this.comments,
     required this.isLoadingComments,
@@ -276,7 +278,11 @@ class PlayerPcLayout extends StatelessWidget {
                                     l10n.playerMobileOfficialPlaySource,
                                   ),
                                   const SizedBox(height: 12),
-                                  PlayerOnairSitesList(sites: onairSites),
+                                  PlayerOnairSitesList(
+                                    sites: onairSites,
+                                    scrollController:
+                                        onairSitesScrollController,
+                                  ),
                                 ],
                               ],
                             ),

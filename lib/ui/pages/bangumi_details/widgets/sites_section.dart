@@ -43,11 +43,14 @@ class SitesSection extends StatelessWidget {
           child: StableThumbScrollbar(
             controller: scrollController,
             thumbVisibility: true,
+            thickness: kHorizontalListScrollbarThickness,
             child: SingleChildScrollView(
               controller: scrollController,
               scrollDirection: Axis.horizontal,
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.only(
+                  bottom: kHorizontalListScrollbarClearance,
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
