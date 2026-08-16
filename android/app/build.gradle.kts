@@ -132,7 +132,7 @@ val mikanLibtorrentBuildTask = tasks.register("buildMikanLibtorrentAndroid") {
             throw GradleException("Android libtorrent build script not found: ${mikanLibtorrentScript.path}")
         }
 
-        providers.exec {
+        project.exec {
             workingDir = File(project.rootDir, "..")
             commandLine(
                 "PowerShell",
@@ -148,7 +148,7 @@ val mikanLibtorrentBuildTask = tasks.register("buildMikanLibtorrentAndroid") {
                 "-OutputJniLibsDir",
                 rustJniLibsDir.absolutePath,
             )
-        }.result.get().assertNormalExitValue()
+        }.assertNormalExitValue()
     }
 }
 

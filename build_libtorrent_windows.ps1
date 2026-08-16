@@ -8,6 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = $PSScriptRoot
+$vcpkgManifest = Join-Path $repoRoot "vcpkg.json"
 
 function Get-UsableVcpkgRoot {
     param([string]$PreferredRoot)
@@ -28,6 +29,23 @@ function Get-UsableVcpkgRoot {
         git clone https://github.com/microsoft/vcpkg.git $localRoot 2>&1 | ForEach-Object { Write-Host $_ }
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to clone vcpkg with exit code $LASTEXITCODE"
+        }
+    }
+
+    if (Test-Path $vcpkgManifest) {
+        $manifest = Get-Content $vcpkgManifest -Raw | ConvertFrom-Json
+        $baseline = $manifest.'builtin-baseline'
+        if ($baseline) {
+            $currentBaseline = (& git -C $localRoot rev-parse HEAD).Trim()
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to read current vcpkg revision with exit code $LASTEXITCODE"
+            }
+            if ($currentBaseline -ne $baseline) {
+                git -C $localRoot checkout --quiet $baseline
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Failed to checkout vcpkg baseline with exit code $LASTEXITCODE"
+                }
+            }
         }
     }
 

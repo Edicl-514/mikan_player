@@ -15,6 +15,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = $PSScriptRoot
 $ndkVersion = "29.0.14206865"
 $vcpkgManifest = Join-Path $repoRoot "vcpkg.json"
+$buildDir = Join-Path $repoRoot "build\native\mikan_libtorrent\android\$Abi"
 
 function Get-UsableVcpkgRoot {
     param([string]$PreferredRoot)
@@ -134,17 +135,27 @@ if (!(Test-Path $vcpkgToolchain)) {
     throw "vcpkg toolchain not found: $vcpkgToolchain"
 }
 
+$usingVcpkgOpenSsl = $false
 if (!$OpenSslRoot) {
-    $OpenSslRoot = Join-Path $repoRoot "rust\openssl\usr\local"
+    $prebuiltOpenSslRoot = Join-Path $repoRoot "rust\openssl\usr\local"
+    if (Test-Path $prebuiltOpenSslRoot) {
+        $OpenSslRoot = $prebuiltOpenSslRoot
+    } else {
+        # On clean CI runners, use the OpenSSL port installed by vcpkg during
+        # CMake configuration instead of requiring ignored rust/openssl files.
+        $OpenSslRoot = Join-Path $buildDir "vcpkg_installed\$Triplet"
+        $usingVcpkgOpenSsl = $true
+    }
 }
 if (Test-Path $OpenSslRoot) {
     $OpenSslRoot = (Resolve-Path $OpenSslRoot).Path
     $opensslSsl = Join-Path $OpenSslRoot "lib\libssl.a"
     $opensslCrypto = Join-Path $OpenSslRoot "lib\libcrypto.a"
-    if (!(Test-Path $opensslSsl) -or !(Test-Path $opensslCrypto)) {
+    if (!$usingVcpkgOpenSsl -and
+        (!(Test-Path $opensslSsl) -or !(Test-Path $opensslCrypto))) {
         throw "OpenSSL static libraries were not found under: $OpenSslRoot"
     }
-} else {
+} elseif (!$usingVcpkgOpenSsl) {
     throw "OpenSSL root was not found: $OpenSslRoot"
 }
 
@@ -169,7 +180,6 @@ if ($LASTEXITCODE -ne 0) {
     throw "Failed to update libtorrent submodules with exit code $LASTEXITCODE"
 }
 
-$buildDir = Join-Path $repoRoot "build\native\mikan_libtorrent\android\$Abi"
 cmake `
     -Wno-dev `
     -S (Join-Path $repoRoot "native\mikan_libtorrent") `
