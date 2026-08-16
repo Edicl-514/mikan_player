@@ -6,6 +6,13 @@ import 'dart:io';
 Future<int> tcpPing(String url) async {
   try {
     final uri = Uri.parse(url);
+    // Relative or unsupported URLs can otherwise be interpreted as a local
+    // socket address (for example, `not-a-real-url` may become port 80).
+    if (!uri.isAbsolute ||
+        uri.host.isEmpty ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return 999999;
+    }
     final port = uri.port != 0 ? uri.port : (uri.scheme == 'https' ? 443 : 80);
     final stopwatch = Stopwatch()..start();
     if (uri.scheme == 'https') {

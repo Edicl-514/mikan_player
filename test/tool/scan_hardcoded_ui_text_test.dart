@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -35,6 +36,8 @@ void buildMessage() {
             ? <String>['/d', '/c', 'dart', ...dartArguments]
             : dartArguments,
         workingDirectory: Directory.current.path,
+        stdoutEncoding: utf8,
+        stderrEncoding: utf8,
       );
 
       expect(result.exitCode, 1);

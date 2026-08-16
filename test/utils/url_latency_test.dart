@@ -16,8 +16,7 @@
 //     the candidate set).
 //   * `tcpPing` returns the failure sentinel (999999) for an
 //     unresolvable host.
-//   * `tcpPing` returns the failure sentinel for an invalid URL
-//     string that fails Uri.parse.
+//   * `tcpPing` returns the failure sentinel for a relative/invalid URL.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mikan_player/utils/url_latency.dart';
@@ -78,8 +77,7 @@ void main() {
     });
 
     test('returns the failure sentinel for a malformed URL', () async {
-      // A URL that does not parse cleanly must also be caught by
-      // the blanket `catch (_)` and return 999999.
+      // A relative URL is rejected before any socket connection is attempted.
       expect(await tcpPing('not-a-real-url'), 999999);
     });
 
