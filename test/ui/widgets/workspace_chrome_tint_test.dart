@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/workspace_page_chrome.dart';
 import 'package:mikan_player/services/workspace_route_observer.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
@@ -63,6 +65,17 @@ void main() {
     final controller = WorkspaceTabController();
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: [
+          const Locale('en'),
+          const Locale('zh'),
+        ],
         home: WindowsDesktopFrame(
           controller: controller,
           child: const SizedBox.expand(),
@@ -98,6 +111,17 @@ void main() {
     final secondId = controller.create(activate: false);
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: [
+          const Locale('en'),
+          const Locale('zh'),
+        ],
         home: WindowsDesktopFrame(
           controller: controller,
           child: const SizedBox.expand(),
@@ -130,6 +154,17 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: [
+          const Locale('en'),
+          const Locale('zh'),
+        ],
         navigatorObservers: [workspaceRouteObserver],
         home: WorkspaceTabScope(
           tabId: controller.activeTabId,
@@ -156,6 +191,17 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: [
+          const Locale('en'),
+          const Locale('zh'),
+        ],
         navigatorObservers: [workspaceRouteObserver],
         home: WorkspaceTabScope(
           tabId: controller.activeTabId,
@@ -190,6 +236,17 @@ void main() {
 
     Widget buildPublisher(String? imageUrl) {
       return MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: [
+          const Locale('en'),
+          const Locale('zh'),
+        ],
         navigatorObservers: [workspaceRouteObserver],
         home: WorkspaceTabScope(
           tabId: controller.activeTabId,
@@ -222,6 +279,17 @@ void main() {
     final hostController = WorkspaceTabHostController();
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: [
+          const Locale('en'),
+          const Locale('zh'),
+        ],
         home: WindowsDesktopFrame(
           controller: controller,
           contextToolbar: WorkspaceContextToolbar(
@@ -262,6 +330,17 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: [
+          const Locale('en'),
+          const Locale('zh'),
+        ],
         home: WorkspaceTabScope(
           tabId: controller.activeTabId,
           controller: controller,
@@ -317,6 +396,17 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: [
+          const Locale('en'),
+          const Locale('zh'),
+        ],
         home: WorkspaceTabScope(
           tabId: controller.activeTabId,
           controller: controller,
@@ -368,6 +458,17 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: [
+            const Locale('en'),
+            const Locale('zh'),
+          ],
           home: WorkspaceTabScope(
             tabId: controller.activeTabId,
             controller: controller,

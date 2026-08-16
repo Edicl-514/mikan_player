@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/player_session/player_session_identity.dart';
 import 'package:mikan_player/services/workspace_page_chrome.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
@@ -263,6 +264,7 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final showClose = widget.isActive || _hovered;
+    final l10n = AppLocalizations.of(context);
     // On a tinted shell the strip rides the page color; keep chrome contrast by
     // drawing with the chrome foreground instead of theme colors.
     final tint = WorkspaceChromeTintScope.tintOf(context);
@@ -343,7 +345,7 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
                                 duration: const Duration(milliseconds: 100),
                                 child: IconButton(
                                   padding: EdgeInsets.zero,
-                                  tooltip: 'Close tab',
+                                  tooltip: l10n.closeTab,
                                   icon: const Icon(Icons.close, size: 15),
                                   color: contentColor,
                                   onPressed: widget.onClose,
@@ -388,6 +390,7 @@ class WorkspaceContextToolbar extends StatelessWidget {
       ]),
       builder: (context, _) {
         final tab = controller.activeTab;
+        final l10n = AppLocalizations.of(context);
         final actions = WorkspacePageChromeRegistry.instance.toolbarActionsFor(
           tab.id,
         );
@@ -403,7 +406,7 @@ class WorkspaceContextToolbar extends StatelessWidget {
               children: [
                 const SizedBox(width: 8),
                 IconButton(
-                  tooltip: 'Back',
+                  tooltip: l10n.back,
                   icon: const Icon(Icons.arrow_back, size: 19),
                   color: foreground,
                   disabledColor: foreground.withValues(alpha: 0.38),
@@ -412,7 +415,7 @@ class WorkspaceContextToolbar extends StatelessWidget {
                       : null,
                 ),
                 IconButton(
-                  tooltip: 'Forward',
+                  tooltip: l10n.forward,
                   icon: const Icon(Icons.arrow_forward, size: 19),
                   color: foreground,
                   disabledColor: foreground.withValues(alpha: 0.38),

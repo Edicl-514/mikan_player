@@ -1832,5 +1832,26 @@
   "playerSubscriptionDebugPostProbe": "Post-extract probe",
   "playerSubscriptionDebugJsonCache": "cache",
   "playerSubscriptionDebugJsonLocal": "local",
-  "playerSubscriptionDebugJsonPathHint": "D:\\temp\\online.json, or leave empty"
+  "playerSubscriptionDebugJsonPathHint": "D:\\temp\\online.json, or leave empty",
+  "bangumiTopicFloor": "#{floor}",
+  "@bangumiTopicFloor": {
+    "description": "Floor number badge on a Bangumi topic reply, e.g. the opener is #1.",
+    "placeholders": {
+      "floor": { "type": "int" }
+    }
+  },
+  "playerSampleSourceChannelName": "\u00b7 {channel}",
+  "@playerSampleSourceChannelName": {
+    "description": "Active webview task row line showing the extraction source's channel name.",
+    "placeholders": {
+      "channel": { "type": "String" }
+    }
+  },
+  "closeTab": "Close tab",
+  "forward": "Forward",
+  "windowNewTab": "New tab",
+  "windowMinimize": "Minimize",
+  "windowMaximize": "Maximize",
+  "windowRestore": "Restore",
+  "windowClose": "Close"
 }

@@ -5559,6 +5559,60 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'D:\\temp\\online.json，或留空'**
   String get playerSubscriptionDebugJsonPathHint;
+
+  /// Floor number badge on a Bangumi topic reply, e.g. the opener is #1.
+  ///
+  /// In zh, this message translates to:
+  /// **'#{floor}'**
+  String bangumiTopicFloor(int floor);
+
+  /// Active webview task row line showing the extraction source's channel name.
+  ///
+  /// In zh, this message translates to:
+  /// **'· {channel}'**
+  String playerSampleSourceChannelName(String channel);
+
+  /// No description provided for @closeTab.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭标签页'**
+  String get closeTab;
+
+  /// No description provided for @forward.
+  ///
+  /// In zh, this message translates to:
+  /// **'前进'**
+  String get forward;
+
+  /// No description provided for @windowNewTab.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建标签页'**
+  String get windowNewTab;
+
+  /// No description provided for @windowMinimize.
+  ///
+  /// In zh, this message translates to:
+  /// **'最小化'**
+  String get windowMinimize;
+
+  /// No description provided for @windowMaximize.
+  ///
+  /// In zh, this message translates to:
+  /// **'最大化'**
+  String get windowMaximize;
+
+  /// No description provided for @windowRestore.
+  ///
+  /// In zh, this message translates to:
+  /// **'还原'**
+  String get windowRestore;
+
+  /// No description provided for @windowClose.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭'**
+  String get windowClose;
 }
 
 class _AppLocalizationsDelegate

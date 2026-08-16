@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/workspace_page_chrome.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/theme/app_theme.dart';
@@ -127,6 +129,17 @@ Future<void> _pumpShell(
 
   await tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('zh'),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: [
+        const Locale('en'),
+        const Locale('zh'),
+      ],
       theme: theme,
       home: WindowsDesktopFrame(
         tabStrip: WorkspaceTabStrip(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mikan_player/gen/app_localizations.dart';
 import 'package:mikan_player/services/workspace_page_chrome.dart';
 import 'package:mikan_player/services/workspace_tab_controller.dart';
 import 'package:mikan_player/ui/utils/dominant_color.dart';
@@ -165,6 +166,7 @@ class _WindowsDesktopFrameState extends State<WindowsDesktopFrame>
   }
 
   Widget _buildTitleBar(BuildContext context, ColorScheme colors, Color? tint) {
+    final l10n = AppLocalizations.of(context);
     final foreground = tint != null ? chromeForeground(tint) : colors.onSurface;
     final iconColor = foreground;
     final brandColor = tint != null ? foreground : colors.primary;
@@ -195,20 +197,22 @@ class _WindowsDesktopFrameState extends State<WindowsDesktopFrame>
                   child: widget.tabStrip!,
                 ),
               _TitleBarButton(
-                tooltip: 'New tab',
+                tooltip: l10n.windowNewTab,
                 icon: Icons.add,
                 iconColor: iconColor,
                 onPressed: widget.onNewTab,
               ),
               Expanded(child: DragToMoveArea(child: const SizedBox.expand())),
               _TitleBarButton(
-                tooltip: 'Minimize',
+                tooltip: l10n.windowMinimize,
                 icon: Icons.remove,
                 iconColor: iconColor,
                 onPressed: () => windowManager.minimize(),
               ),
               _TitleBarButton(
-                tooltip: _isMaximized ? 'Restore' : 'Maximize',
+                tooltip: _isMaximized
+                    ? l10n.windowRestore
+                    : l10n.windowMaximize,
                 icon: _isMaximized
                     ? Icons.filter_none_outlined
                     : Icons.crop_square,
@@ -216,7 +220,7 @@ class _WindowsDesktopFrameState extends State<WindowsDesktopFrame>
                 onPressed: _toggleMaximize,
               ),
               _TitleBarButton(
-                tooltip: 'Close',
+                tooltip: l10n.windowClose,
                 icon: Icons.close,
                 iconColor: iconColor,
                 isCloseButton: true,

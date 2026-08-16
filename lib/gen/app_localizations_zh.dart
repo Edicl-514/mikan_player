@@ -3010,4 +3010,35 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get playerSubscriptionDebugJsonPathHint => 'D:\\temp\\online.json，或留空';
+
+  @override
+  String bangumiTopicFloor(int floor) {
+    return '#$floor';
+  }
+
+  @override
+  String playerSampleSourceChannelName(String channel) {
+    return '· $channel';
+  }
+
+  @override
+  String get closeTab => '关闭标签页';
+
+  @override
+  String get forward => '前进';
+
+  @override
+  String get windowNewTab => '新建标签页';
+
+  @override
+  String get windowMinimize => '最小化';
+
+  @override
+  String get windowMaximize => '最大化';
+
+  @override
+  String get windowRestore => '还原';
+
+  @override
+  String get windowClose => '关闭';
 }

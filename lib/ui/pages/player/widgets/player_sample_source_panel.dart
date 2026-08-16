@@ -243,9 +243,11 @@ class PlayerSampleSourcePanel extends StatelessWidget {
                 if (showWebView) ...[
                   Padding(
                     padding: const EdgeInsets.only(top: 6, bottom: 2),
-                    child: Text(
-                      '${workerPoolLabel ?? 'legacy'}\n$webviewStatsLabel\n'
-                      '${l10n.playerWebViewPerSourceStatus(perSourceStatusLabel)}',
+child: Text(
+                        // i18n-ignore: debug WebView worker/stats internals,
+                        // not user-facing content
+                        '${workerPoolLabel ?? 'legacy'}\n$webviewStatsLabel\n'
+                        '${l10n.playerWebViewPerSourceStatus(perSourceStatusLabel)}',
                       style: TextStyle(
                         color: isDark
                             ? Colors.white38
@@ -637,6 +639,7 @@ class _ActiveTaskRowWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final subtitle = _visibleSubtitle();
 
     return Padding(
@@ -708,7 +711,7 @@ class _ActiveTaskRowWidget extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(left: 4),
                         child: Text(
-                          '· ${row.channelName}',
+                          l10n.playerSampleSourceChannelName(row.channelName!),
                           style: TextStyle(color: mutedColor, fontSize: 9),
                         ),
                       ),

@@ -3166,4 +3166,35 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get playerSubscriptionDebugJsonPathHint =>
       'D:\\temp\\online.json, or leave empty';
+
+  @override
+  String bangumiTopicFloor(int floor) {
+    return '#$floor';
+  }
+
+  @override
+  String playerSampleSourceChannelName(String channel) {
+    return '· $channel';
+  }
+
+  @override
+  String get closeTab => 'Close tab';
+
+  @override
+  String get forward => 'Forward';
+
+  @override
+  String get windowNewTab => 'New tab';
+
+  @override
+  String get windowMinimize => 'Minimize';
+
+  @override
+  String get windowMaximize => 'Maximize';
+
+  @override
+  String get windowRestore => 'Restore';
+
+  @override
+  String get windowClose => 'Close';
 }

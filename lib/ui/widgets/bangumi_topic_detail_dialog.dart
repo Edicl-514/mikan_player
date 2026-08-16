@@ -221,7 +221,7 @@ class _BangumiTopicDetailDialogState extends State<BangumiTopicDetailDialog> {
                                           ),
                                           const SizedBox(width: 8),
                                           Text(
-                                            '#1',
+                                            l10n.bangumiTopicFloor(1),
                                             style: TextStyle(
                                               fontSize: 11,
                                               fontWeight: FontWeight.w600,
@@ -309,7 +309,7 @@ class _BangumiTopicDetailDialogState extends State<BangumiTopicDetailDialog> {
                                     key: ValueKey(_detail!.replies[index].id),
                                     comment: _detail!.replies[index],
                                     isDarkBg: isDark,
-                                    floorLabel: '#${index + 2}',
+                                    floorLabel: l10n.bangumiTopicFloor(index + 2),
                                   ),
                             ),
                           ),
