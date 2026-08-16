@@ -2,7 +2,8 @@ param(
     [ValidateSet("Debug", "Release", "RelWithDebInfo", "MinSizeRel")]
     [string]$Configuration = "Release",
     [string]$Triplet = "x64-windows",
-    [string]$VcpkgRoot = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\vcpkg"
+    [string]$VcpkgRoot = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\vcpkg",
+    [string]$Generator = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -68,6 +69,51 @@ function Get-UsableVcpkgRoot {
     return $localRoot
 }
 
+function Get-VisualStudioGenerator {
+    param([string]$PreferredGenerator)
+
+    if ($PreferredGenerator) { return $PreferredGenerator }
+    if ($env:MIKAN_CMAKE_GENERATOR) { return $env:MIKAN_CMAKE_GENERATOR }
+
+    # The generator name is tied to the installed Visual Studio major version, so
+    # resolve it instead of hardcoding one: GitHub's windows-latest image ships
+    # VS 2026 (18) only, while local machines often have VS 2022 (17).
+    $generators = @{
+        17 = "Visual Studio 17 2022"
+        18 = "Visual Studio 18 2026"
+    }
+
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (!(Test-Path $vswhere)) {
+        throw "vswhere.exe was not found. Install Visual Studio with the C++ toolset or pass -Generator."
+    }
+
+    $installed = @(& $vswhere -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationVersion)
+    if ($installed.Count -eq 0) {
+        # Fall back to any install in case the C++ component id changed.
+        $installed = @(& $vswhere -products '*' -property installationVersion)
+    }
+
+    $majors = @($installed |
+        Where-Object { $_ -match '^\d+' } |
+        ForEach-Object { [int]($_ -split '\.')[0] } |
+        Sort-Object -Unique -Descending)
+    if ($majors.Count -eq 0) {
+        throw "No Visual Studio installation was found. Install the C++ toolset or pass -Generator."
+    }
+
+    # Prefer VS 2022 when it is available: the vcpkg baseline pinned in vcpkg.json
+    # is what this repo has been building with. Otherwise take the newest install.
+    $ordered = @(17) + $majors
+    foreach ($major in $ordered) {
+        if (($majors -contains $major) -and $generators.ContainsKey($major)) {
+            return $generators[$major]
+        }
+    }
+
+    throw "No known CMake generator for Visual Studio version(s) $($majors -join ', '). Pass -Generator explicitly."
+}
+
 $resolvedVcpkgRoot = Get-UsableVcpkgRoot -PreferredRoot $VcpkgRoot
 $vcpkgToolchain = Join-Path $resolvedVcpkgRoot "scripts\buildsystems\vcpkg.cmake"
 
@@ -75,14 +121,32 @@ if (!(Test-Path $vcpkgToolchain)) {
     throw "vcpkg toolchain not found: $vcpkgToolchain"
 }
 
+$resolvedGenerator = Get-VisualStudioGenerator -PreferredGenerator $Generator
+Write-Host "Using vcpkg: $resolvedVcpkgRoot"
+Write-Host "Using generator: $resolvedGenerator"
+
 git -C (Join-Path $repoRoot "third_party\libtorrent") submodule update --init --recursive
 
 $buildDir = Join-Path $repoRoot "build\native\mikan_libtorrent\$Triplet"
+
+# CMake refuses to reconfigure a build tree with a different generator, which
+# happens whenever the toolchain changes (e.g. a cached CI tree or a new VS).
+$cmakeCache = Join-Path $buildDir "CMakeCache.txt"
+if (Test-Path $cmakeCache) {
+    $cachedMatch = Select-String -Path $cmakeCache -Pattern '^CMAKE_GENERATOR:INTERNAL=(.*)$' |
+        Select-Object -First 1
+    $cachedGenerator = if ($cachedMatch) { $cachedMatch.Matches[0].Groups[1].Value.Trim() } else { "" }
+    if ($cachedGenerator -and $cachedGenerator -ne $resolvedGenerator) {
+        Write-Host "Generator changed ('$cachedGenerator' -> '$resolvedGenerator'); wiping $buildDir"
+        Remove-Item -Recurse -Force $buildDir
+    }
+}
+
 cmake `
     -Wno-dev `
     -S (Join-Path $repoRoot "native\mikan_libtorrent") `
     -B $buildDir `
-    -G "Visual Studio 17 2022" `
+    -G "$resolvedGenerator" `
     -A x64 `
     -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" `
     -DVCPKG_TARGET_TRIPLET="$Triplet" `

@@ -98,13 +98,22 @@ fun Project.registerRustAndroidBuildTask(
             }
 
             println("Building Rust Android library for $variantName ($abi, $cargoProfile)")
-            providers.exec {
-                workingDir = rustDir
-                commandLine(cargoArgs)
-                if (rustEnvironment.isNotEmpty()) {
-                    environment(rustEnvironment)
-                }
-            }.result.get().assertNormalExitValue()
+            // Stream cargo output into the Gradle log instead of buffering it in a
+            // provider: when cargo fails (missing rustup target, compile error) the
+            // reason has to be visible in CI logs.
+            val process = ProcessBuilder(cargoArgs)
+                .directory(rustDir)
+                .redirectErrorStream(true)
+                .apply { environment().putAll(rustEnvironment) }
+                .start()
+            process.inputStream.bufferedReader().forEachLine { line -> println(line) }
+            val exitCode = process.waitFor()
+            if (exitCode != 0) {
+                throw GradleException(
+                    "cargo ndk failed for $abi ($cargoProfile) with exit code $exitCode. " +
+                        "Command: ${cargoArgs.joinToString(" ")}",
+                )
+            }
         }
     }
 }

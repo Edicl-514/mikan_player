@@ -40,6 +40,9 @@ jobs:
 
   build-windows:
     needs: metadata
+    # windows-latest ships Visual Studio 2026 only. build_libtorrent_windows.ps1
+    # resolves the matching CMake generator; pin windows-2022 if the vcpkg ports
+    # ever fail to build with the newer MSVC toolset.
     runs-on: windows-latest
     env:
       RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
@@ -66,6 +69,21 @@ jobs:
         with:
           toolchain: '1.97.1'
 
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust -> target
+          cache-bin: false
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/AppData/Local/vcpkg/archives
+          key: vcpkg-x64-windows-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-x64-windows-${{ hashFiles('vcpkg.json') }}-
+            vcpkg-x64-windows-
+
       - name: Prepare compile-time environment
         shell: pwsh
         run: |
@@ -90,6 +108,18 @@ jobs:
           flutter analyze
           flutter test
 
+      # Built here as well as from windows/CMakeLists.txt: `flutter build windows`
+      # filters MSBuild output, so a failure inside these scripts shows up only as
+      # an opaque MSB8066. Running them first keeps the real error in the log; the
+      # build during `flutter build windows` is then incremental.
+      - name: Build native libtorrent
+        shell: pwsh
+        run: ./build_libtorrent_windows.ps1 -Configuration Release
+
+      - name: Build Rust library
+        shell: pwsh
+        run: ./build_windows.ps1 -BuildMode release -SkipFlutterBuild
+
       - name: Build Windows release
         shell: pwsh
         run: |
@@ -100,6 +130,14 @@ jobs:
           if (!(Test-Path $output)) { throw "Windows output not found: $output" }
           $archive = "mikan-player-windows-$env:RELEASE_VERSION+$env:BUILD_NUMBER.zip"
           Compress-Archive -Path "$output/*" -DestinationPath $archive -CompressionLevel Optimal
+
+      # Saved even on failure so a retry does not rebuild OpenSSL and Boost.
+      - name: Save vcpkg binary cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/AppData/Local/vcpkg/archives
+          key: vcpkg-x64-windows-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -145,15 +183,48 @@ jobs:
         run: |
           sdkmanager 'platform-tools' 'platforms;android-37.0' 'build-tools;35.0.0' 'cmake;3.22.1' 'ndk;29.0.14206865'
           if ($LASTEXITCODE -ne 0) { throw "Android SDK installation failed with exit code $LASTEXITCODE" }
+          # cargo-ndk and build_libtorrent_android.ps1 both resolve the NDK from
+          # these variables, and the runner image points them at its own bundled
+          # NDK. Pin them to the version android/app/build.gradle.kts expects.
+          $ndk = Join-Path $env:ANDROID_HOME 'ndk/29.0.14206865'
+          if (!(Test-Path (Join-Path $ndk 'build/cmake/android.toolchain.cmake'))) {
+            throw "Android NDK 29.0.14206865 was not found at: $ndk"
+          }
+          "ANDROID_NDK_HOME=$ndk" >> $env:GITHUB_ENV
+          "ANDROID_NDK_ROOT=$ndk" >> $env:GITHUB_ENV
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: '1.97.1'
+          targets: aarch64-linux-android
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust -> target
+          cache-bin: false
+
+      - name: Cache cargo-ndk
+        id: cargo-ndk-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-ndk.exe
+          key: cargo-ndk-4.1.2-${{ runner.os }}
 
       - name: Install cargo-ndk
+        if: steps.cargo-ndk-cache.outputs.cache-hit != 'true'
         shell: pwsh
-        run: cargo install cargo-ndk --locked
+        run: cargo install cargo-ndk --version 4.1.2 --locked
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/AppData/Local/vcpkg/archives
+          key: vcpkg-arm64-android-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-arm64-android-${{ hashFiles('vcpkg.json') }}-
+            vcpkg-arm64-android-
 
       - name: Prepare compile-time environment
         shell: pwsh
@@ -174,6 +245,14 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # Also run by Gradle during the APK build; doing it first fails fast on the
+      # native side instead of 20 minutes into a Gradle run.
+      - name: Build native libtorrent
+        shell: pwsh
+        run: |
+          ./build_libtorrent_android.ps1 -Configuration MinSizeRel -Abi arm64-v8a `
+            -OutputJniLibsDir (Join-Path $PWD 'android/app/src/main/jniLibs')
+
       - name: Build Android arm64 APK
         shell: pwsh
         run: |
@@ -185,6 +264,13 @@ jobs:
           $apk = 'build/app/outputs/flutter-apk/app-release.apk'
           if (!(Test-Path $apk)) { throw "Android output not found: $apk" }
           Copy-Item $apk "mikan-player-android-arm64-$env:RELEASE_VERSION+$env:BUILD_NUMBER.apk"
+
+      - name: Save vcpkg binary cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/AppData/Local/vcpkg/archives
+          key: vcpkg-arm64-android-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4

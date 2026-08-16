@@ -93,6 +93,7 @@ json/node_modules/
 json/package-lock.json
 
 android/app/src/main/jniLibs/
+rust/android/app/src/main/jniLibs/
 android/build/
 
 .hermes
