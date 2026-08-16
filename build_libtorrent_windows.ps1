@@ -13,20 +13,28 @@ $vcpkgManifest = Join-Path $repoRoot "vcpkg.json"
 function Get-UsableVcpkgRoot {
     param([string]$PreferredRoot)
 
-    $preferredToolchain = Join-Path $PreferredRoot "scripts\buildsystems\vcpkg.cmake"
-    $preferredOpenSslPort = Join-Path $PreferredRoot "ports\openssl"
-    $preferredBoostPort = Join-Path $PreferredRoot "ports\boost-headers"
-    if ((Test-Path $preferredToolchain) -and
-        (Test-Path $preferredOpenSslPort) -and
-        (Test-Path $preferredBoostPort)) {
-        return $PreferredRoot
+    $candidates = @($PreferredRoot)
+    if ($env:VCPKG_ROOT) { $candidates += $env:VCPKG_ROOT }
+    if ($env:VCPKG_INSTALLATION_ROOT) { $candidates += $env:VCPKG_INSTALLATION_ROOT }
+    $candidates += "C:\vcpkg"
+
+    foreach ($candidate in $candidates | Select-Object -Unique) {
+        if (!$candidate) { continue }
+        $toolchain = Join-Path $candidate "scripts\buildsystems\vcpkg.cmake"
+        $openSslPort = Join-Path $candidate "ports\openssl"
+        $boostPort = Join-Path $candidate "ports\boost-headers"
+        if ((Test-Path $toolchain) -and
+            (Test-Path $openSslPort) -and
+            (Test-Path $boostPort)) {
+            return (Resolve-Path $candidate).Path
+        }
     }
 
-    Write-Host "VS bundled vcpkg has no local ports tree; using build\tools\vcpkg instead."
+    Write-Host "No usable preinstalled vcpkg found; using build\tools\vcpkg instead."
     $localRoot = Join-Path $repoRoot "build\tools\vcpkg"
     if (!(Test-Path (Join-Path $localRoot ".git"))) {
         New-Item -ItemType Directory -Force -Path (Split-Path $localRoot -Parent) | Out-Null
-        git clone https://github.com/microsoft/vcpkg.git $localRoot 2>&1 | ForEach-Object { Write-Host $_ }
+        git clone --filter=blob:none https://github.com/microsoft/vcpkg.git $localRoot
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to clone vcpkg with exit code $LASTEXITCODE"
         }
@@ -51,7 +59,7 @@ function Get-UsableVcpkgRoot {
 
     $localExe = Join-Path $localRoot "vcpkg.exe"
     if (!(Test-Path $localExe)) {
-        & (Join-Path $localRoot "bootstrap-vcpkg.bat") -disableMetrics 2>&1 | ForEach-Object { Write-Host $_ }
+        & (Join-Path $localRoot "bootstrap-vcpkg.bat") -disableMetrics
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to bootstrap vcpkg with exit code $LASTEXITCODE"
         }
