@@ -151,7 +151,9 @@ void main() {
           findsOneWidget,
         );
 
-        await tester.tap(find.widgetWithText(ElevatedButton, l10n.searchBtSource));
+        await tester.tap(
+          find.widgetWithText(ElevatedButton, l10n.searchBtSource),
+        );
         await tester.pump();
 
         expect(fired, 1);

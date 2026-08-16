@@ -15,10 +15,7 @@ import 'package:mikan_player/gen/app_localizations.dart';
 /// Locales covered by the tests. Mirrors
 /// [AppLocalizations.supportedLocales] minus ordering — keep this list in
 /// sync with `lib/gen/app_localizations.dart` whenever a new locale is added.
-const List<Locale> kTestSupportedLocales = <Locale>[
-  Locale('en'),
-  Locale('zh'),
-];
+const List<Locale> kTestSupportedLocales = <Locale>[Locale('en'), Locale('zh')];
 
 /// Localizations delegates to inject in test [MaterialApp]s. Identical to the
 /// production list in `lib/main.dart` so widget trees resolve the same
@@ -26,11 +23,11 @@ const List<Locale> kTestSupportedLocales = <Locale>[
 /// `GlobalCupertinoLocalizations` flavor at runtime.
 const List<LocalizationsDelegate<dynamic>> kTestLocalizationsDelegates =
     <LocalizationsDelegate<dynamic>>[
-  AppLocalizations.delegate,
-  GlobalMaterialLocalizations.delegate,
-  GlobalCupertinoLocalizations.delegate,
-  GlobalWidgetsLocalizations.delegate,
-];
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+    ];
 
 /// Pumps [child] inside a [MaterialApp] wired with the production localization
 /// delegates and the supplied [locale].
@@ -61,8 +58,7 @@ Future<void> pumpLocalizedWidget(
   await tester.pumpWidget(
     MaterialApp(
       locale: locale,
-      supportedLocales:
-          supportedLocales?.toList() ?? kTestSupportedLocales,
+      supportedLocales: supportedLocales?.toList() ?? kTestSupportedLocales,
       localizationsDelegates: kTestLocalizationsDelegates,
       debugShowCheckedModeBanner: false,
       theme: theme,
@@ -83,10 +79,7 @@ Future<void> pumpLocalizedWidget(
 /// injected by [pumpLocalizedWidget]. Pass an explicit [finder] when the test
 /// wants the [BuildContext] of a specific widget (for example when asserting
 /// on `AppLocalizations.of(context).x` from within a custom page).
-AppLocalizations localizedOf(
-  WidgetTester tester, [
-  Finder? finder,
-]) {
+AppLocalizations localizedOf(WidgetTester tester, [Finder? finder]) {
   final target = finder ?? find.byType(Navigator).first;
   final element = tester.element(target);
   // `nullable-getter: false` in l10n.yaml makes `AppLocalizations.of` return

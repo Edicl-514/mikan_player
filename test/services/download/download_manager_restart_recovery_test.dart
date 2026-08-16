@@ -223,10 +223,7 @@ void main() {
           // downloading once the backend re-attaches.
           expect(
             task.status,
-            anyOf(
-              DownloadTaskStatus.metadata,
-              DownloadTaskStatus.downloading,
-            ),
+            anyOf(DownloadTaskStatus.metadata, DownloadTaskStatus.downloading),
           );
           expect(
             fakeRqbit.callLog.any((c) => c.startsWith('addTorrent:')),

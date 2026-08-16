@@ -70,8 +70,7 @@ class BangumiFavoriteStatusSelector extends StatelessWidget {
                       child: OutlinedButton(
                         onPressed: isUpdating
                             ? null
-                            : () =>
-                                  onSelected(LocalFavoriteType.values[index]),
+                            : () => onSelected(LocalFavoriteType.values[index]),
                         style: OutlinedButton.styleFrom(
                           minimumSize: Size(0, buttonHeight),
                           maximumSize: Size(double.infinity, buttonHeight),
@@ -95,7 +94,8 @@ class BangumiFavoriteStatusSelector extends StatelessWidget {
                               left: index == 0
                                   ? const Radius.circular(20)
                                   : Radius.zero,
-                              right: index == LocalFavoriteType.values.length - 1
+                              right:
+                                  index == LocalFavoriteType.values.length - 1
                                   ? const Radius.circular(20)
                                   : Radius.zero,
                             ),
@@ -116,7 +116,9 @@ class BangumiFavoriteStatusSelector extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           OutlinedButton.icon(
-            key: ValueKey(isFavorite ? 'remove-favorite-action' : 'back-action'),
+            key: ValueKey(
+              isFavorite ? 'remove-favorite-action' : 'back-action',
+            ),
             onPressed: isUpdating ? null : onTrailingAction,
             icon: isUpdating
                 ? const SizedBox.square(

@@ -268,18 +268,15 @@ class _WorkspaceTabState extends State<_WorkspaceTab> {
     // On a tinted shell the strip rides the page color; keep chrome contrast by
     // drawing with the chrome foreground instead of theme colors.
     final tint = WorkspaceChromeTintScope.tintOf(context);
-    final contentColor =
-        tint != null ? chromeForeground(tint) : colors.onSurfaceVariant;
-    final activeChipColor =
-        tint != null
+    final contentColor = tint != null
+        ? chromeForeground(tint)
+        : colors.onSurfaceVariant;
+    final activeChipColor = tint != null
         ? contentColor.withValues(alpha: 0.16)
         : colors.surfaceContainerHighest;
     final titleStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color:
-          tint != null
-          ? contentColor.withValues(
-              alpha: widget.isActive ? 0.95 : 0.72,
-            )
+      color: tint != null
+          ? contentColor.withValues(alpha: widget.isActive ? 0.95 : 0.72)
           : null,
     );
     return GestureDetector(
@@ -397,7 +394,9 @@ class WorkspaceContextToolbar extends StatelessWidget {
         final tint = WorkspaceChromeTintScope.tintOf(context);
         final colors = Theme.of(context).colorScheme;
         final background = tint ?? colors.surface;
-        final foreground = tint != null ? chromeForeground(tint) : colors.onSurface;
+        final foreground = tint != null
+            ? chromeForeground(tint)
+            : colors.onSurface;
         return Material(
           color: background,
           child: SizedBox(

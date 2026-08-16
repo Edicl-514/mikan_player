@@ -136,10 +136,7 @@ Future<void> _pumpShell(
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: [
-        const Locale('en'),
-        const Locale('zh'),
-      ],
+      supportedLocales: [const Locale('en'), const Locale('zh')],
       theme: theme,
       home: WindowsDesktopFrame(
         tabStrip: WorkspaceTabStrip(

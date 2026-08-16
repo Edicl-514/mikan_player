@@ -43,41 +43,38 @@ void main() {
     return task;
   }
 
-  test(
-    'resumeTask returns false and does not throw when the backend resume '
-    'throws',
-    () async {
-      final fakeRqbit = FakeBtBackend(
-        kind: BtBackendKind.rqbit,
-        resumeException: Exception('resume boom'),
+  test('resumeTask returns false and does not throw when the backend resume '
+      'throws', () async {
+    final fakeRqbit = FakeBtBackend(
+      kind: BtBackendKind.rqbit,
+      resumeException: Exception('resume boom'),
+    );
+    await fakeRqbit.ensureInitialized();
+    final manager = DownloadManager.forTesting(rqbitBackend: fakeRqbit);
+    manager.setDownloadDirForTesting('/tmp/mikan_bt_rollback');
+    try {
+      seedPausedTask(manager);
+      // Torrent is still managed by the backend (app not restarted), so the
+      // resume path calls resumeTorrent — which throws.
+      fakeRqbit.torrents[_kInfoHash] = FakeBtTorrent(
+        infoHash: _kInfoHash,
+        torrentId: 1,
+        state: 'paused',
+        progress: 20,
+        isPaused: true,
       );
-      await fakeRqbit.ensureInitialized();
-      final manager = DownloadManager.forTesting(rqbitBackend: fakeRqbit);
-      manager.setDownloadDirForTesting('/tmp/mikan_bt_rollback');
-      try {
-        seedPausedTask(manager);
-        // Torrent is still managed by the backend (app not restarted), so the
-        // resume path calls resumeTorrent — which throws.
-        fakeRqbit.torrents[_kInfoHash] = FakeBtTorrent(
-          infoHash: _kInfoHash,
-          torrentId: 1,
-          state: 'paused',
-          progress: 20,
-          isPaused: true,
-        );
 
-        final ok = await manager.resumeBtTaskForTesting(_kInfoHash);
-        expect(ok, isFalse);
-        expect(
-          fakeRqbit.callLog,
-          contains('resumeTorrent:$_kInfoHash'),
-          reason: 'the resume path must have reached the throwing backend call',
-        );
-      } finally {
-        manager.dispose();
-      }
-    },
-  );
+      final ok = await manager.resumeBtTaskForTesting(_kInfoHash);
+      expect(ok, isFalse);
+      expect(
+        fakeRqbit.callLog,
+        contains('resumeTorrent:$_kInfoHash'),
+        reason: 'the resume path must have reached the throwing backend call',
+      );
+    } finally {
+      manager.dispose();
+    }
+  });
 
   test(
     'after a failed backend resume the task is left retryable (paused status '

@@ -71,10 +71,7 @@ class BangumiActionButtons extends StatelessWidget {
                         ),
                         label: Text(
                           isLocalFavorite
-                              ? bangumiFavoriteStatusLabel(
-                                  l10n,
-                                  favoriteType,
-                                )
+                              ? bangumiFavoriteStatusLabel(l10n, favoriteType)
                               : l10n.bangumiDetailsFavorite,
                         ),
                         style: ElevatedButton.styleFrom(

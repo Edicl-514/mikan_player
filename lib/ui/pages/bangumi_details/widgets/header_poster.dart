@@ -97,18 +97,13 @@ class BlurredBackground extends StatelessWidget {
               RepaintBoundary(
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: Container(
-                    color: Colors.black.withValues(alpha: 0.6),
-                  ),
+                  child: Container(color: Colors.black.withValues(alpha: 0.6)),
                 ),
               ),
             ],
           );
 
     if (!publishTint) return wallpaper;
-    return WorkspaceChromeTintPublisher(
-      imageUrl: imageUrl,
-      child: wallpaper,
-    );
+    return WorkspaceChromeTintPublisher(imageUrl: imageUrl, child: wallpaper);
   }
 }

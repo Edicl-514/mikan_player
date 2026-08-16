@@ -68,25 +68,26 @@ void main() {
       expect(find.byType(TabBar), findsOneWidget);
     });
 
-    testWidgets('FavoritesPage refreshes via a floating button, no action row', (
-      tester,
-    ) async {
-      await pumpLocalizedWidget(
-        tester,
-        DesktopPageChromeScope(child: const FavoritesPage()),
-      );
-      // The refresh moved to a bottom-right FAB (mirroring the data source
-      // page's add button); the former action-row bar is gone.
-      expect(find.byType(DesktopPageActionRow), findsNothing);
-      expect(
-        find.descendant(
-          of: find.byType(FloatingActionButton),
-          matching: find.byIcon(Icons.refresh),
-        ),
-        findsOneWidget,
-      );
-      expect(find.byType(TabBar), findsOneWidget);
-    });
+    testWidgets(
+      'FavoritesPage refreshes via a floating button, no action row',
+      (tester) async {
+        await pumpLocalizedWidget(
+          tester,
+          DesktopPageChromeScope(child: const FavoritesPage()),
+        );
+        // The refresh moved to a bottom-right FAB (mirroring the data source
+        // page's add button); the former action-row bar is gone.
+        expect(find.byType(DesktopPageActionRow), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byType(FloatingActionButton),
+            matching: find.byIcon(Icons.refresh),
+          ),
+          findsOneWidget,
+        );
+        expect(find.byType(TabBar), findsOneWidget);
+      },
+    );
   });
 
   group('SearchPage command row', () {
@@ -114,7 +115,9 @@ void main() {
   });
 
   group('PcHomeLayout action row', () {
-    testWidgets('renders home layout with search icon inside page content', (tester) async {
+    testWidgets('renders home layout with search icon inside page content', (
+      tester,
+    ) async {
       await pumpLocalizedWidget(
         tester,
         const DesktopPageChromeScope(child: PcHomeLayout()),

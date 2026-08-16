@@ -658,9 +658,7 @@ class _TimeTablePageState extends State<TimeTablePage>
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _selectedArchive?.title ?? l10n.navTimetable,
-        ),
+        title: Text(_selectedArchive?.title ?? l10n.navTimetable),
         actions: [
           IconButton(
             onPressed: _archives.isEmpty ? null : _showQuarterPicker,

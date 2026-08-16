@@ -72,10 +72,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         home: WindowsDesktopFrame(
           controller: controller,
           child: const SizedBox.expand(),
@@ -118,10 +115,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         home: WindowsDesktopFrame(
           controller: controller,
           child: const SizedBox.expand(),
@@ -161,10 +155,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         navigatorObservers: [workspaceRouteObserver],
         home: WorkspaceTabScope(
           tabId: controller.activeTabId,
@@ -198,10 +189,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         navigatorObservers: [workspaceRouteObserver],
         home: WorkspaceTabScope(
           tabId: controller.activeTabId,
@@ -243,10 +231,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         navigatorObservers: [workspaceRouteObserver],
         home: WorkspaceTabScope(
           tabId: controller.activeTabId,
@@ -286,10 +271,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         home: WindowsDesktopFrame(
           controller: controller,
           contextToolbar: WorkspaceContextToolbar(
@@ -337,10 +319,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         home: WorkspaceTabScope(
           tabId: controller.activeTabId,
           controller: controller,
@@ -403,10 +382,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         home: WorkspaceTabScope(
           tabId: controller.activeTabId,
           controller: controller,
@@ -465,10 +441,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: WorkspaceTabScope(
             tabId: controller.activeTabId,
             controller: controller,

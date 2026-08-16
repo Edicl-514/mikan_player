@@ -456,30 +456,47 @@ void main() {
     });
 
     group('bangumiSmileSize', () {
-      test('both attributes null falls back to 24x24 for old small smiles and 42x42 for large smiles', () {
-        expect(bangumiSmileSize(), const Size.square(24));
-        expect(bangumiSmileSize(widthAttr: '', heightAttr: ''), const Size.square(24));
-        expect(bangumiSmileSize(isLarge: true), const Size.square(42));
-      });
+      test(
+        'both attributes null falls back to 24x24 for old small smiles and 42x42 for large smiles',
+        () {
+          expect(bangumiSmileSize(), const Size.square(24));
+          expect(
+            bangumiSmileSize(widthAttr: '', heightAttr: ''),
+            const Size.square(24),
+          );
+          expect(bangumiSmileSize(isLarge: true), const Size.square(42));
+        },
+      );
 
       test('small smile with raw dimensions is clamped to 14..28', () {
         final size = bangumiSmileSize(widthAttr: '20', heightAttr: '20');
         expect(size.width, 20);
         expect(size.height, 20);
 
-        final largeClamped = bangumiSmileSize(widthAttr: '100', heightAttr: '100');
+        final largeClamped = bangumiSmileSize(
+          widthAttr: '100',
+          heightAttr: '100',
+        );
         expect(largeClamped.width, 24);
         expect(largeClamped.height, 24);
       });
 
       test('landscape input for large smiles scales to a width of 42', () {
-        final size = bangumiSmileSize(widthAttr: '100', heightAttr: '50', isLarge: true);
+        final size = bangumiSmileSize(
+          widthAttr: '100',
+          heightAttr: '50',
+          isLarge: true,
+        );
         expect(size.width, 42);
         expect(size.height, closeTo(21, 1e-9));
       });
 
       test('portrait input for large smiles scales to a height of 42', () {
-        final size = bangumiSmileSize(widthAttr: '50', heightAttr: '100', isLarge: true);
+        final size = bangumiSmileSize(
+          widthAttr: '50',
+          heightAttr: '100',
+          isLarge: true,
+        );
         expect(size.width, closeTo(21, 1e-9));
         expect(size.height, 42);
       });

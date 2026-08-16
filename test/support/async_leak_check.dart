@@ -87,6 +87,7 @@ abstract class DisposableHandle {
 
   Future<void> dispose();
 }
+
 class _StreamSubscriptionHandle<T> implements DisposableHandle {
   _StreamSubscriptionHandle(this._subscription, this.label);
 

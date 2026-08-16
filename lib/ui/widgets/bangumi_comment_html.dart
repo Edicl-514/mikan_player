@@ -275,7 +275,8 @@ class _BangumiCommentHtmlState extends State<BangumiCommentHtml> {
     final src = normalizeBangumiImageSrc(rawSrc);
     if (src.isEmpty) return null;
 
-    final isSmile = isBangumiSmileUrl(src) ||
+    final isSmile =
+        isBangumiSmileUrl(src) ||
         element.classes.contains('smile') ||
         element.classes.contains('smile-dynamic') ||
         element.classes.contains('smile-blake') ||
@@ -283,7 +284,8 @@ class _BangumiCommentHtmlState extends State<BangumiCommentHtml> {
         element.attributes.containsKey('smileid');
 
     if (isSmile) {
-      final isLarge = isLargeBangumiSmileUrl(src) ||
+      final isLarge =
+          isLargeBangumiSmileUrl(src) ||
           element.classes.contains('smile-dynamic') ||
           element.classes.contains('smile-blake') ||
           element.classes.contains('smile-musume');
@@ -374,10 +376,7 @@ class _BangumiCommentHtmlState extends State<BangumiCommentHtml> {
 /// HTML dimensions are used when available; otherwise a conservative fixed
 /// slot prevents a late image decode from shifting the surrounding comment.
 @visibleForTesting
-double bangumiCommentImageHeight({
-  String? widthAttr,
-  String? heightAttr,
-}) {
+double bangumiCommentImageHeight({String? widthAttr, String? heightAttr}) {
   final height = _parseBangumiImageDimension(heightAttr);
   if (height != null) {
     return height.clamp(1.0, 350.0).toDouble();

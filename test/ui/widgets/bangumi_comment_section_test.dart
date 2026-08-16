@@ -61,8 +61,9 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('box: empty state uses the empty message (not the error one)',
-        (tester) async {
+    testWidgets('box: empty state uses the empty message (not the error one)', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           child: BangumiCommentSection(
@@ -81,8 +82,9 @@ void main() {
       expect(find.text('吐槽加载失败'), findsNothing);
     });
 
-    testWidgets('box: failed state uses the error message and exposes retry',
-        (tester) async {
+    testWidgets('box: failed state uses the error message and exposes retry', (
+      tester,
+    ) async {
       var retries = 0;
       await tester.pumpWidget(
         _wrap(
@@ -123,32 +125,36 @@ void main() {
       expect(find.text('Alice'), findsOneWidget);
     });
 
-    testWidgets('sliver: failed state is wrapped as a sliver and still uses the error message',
-        (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          useSliver: true,
-          child: BangumiCommentSection(
-            isLoading: false,
-            failed: true,
-            comments: const [],
-            isDarkBg: true,
+    testWidgets(
+      'sliver: failed state is wrapped as a sliver and still uses the error message',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
             useSliver: true,
-            sliverPadding: const EdgeInsets.symmetric(horizontal: 32),
-            emptyMessage: 'empty',
-            errorMessage: '吐槽加载失败',
-            retryLabel: '重试',
-            onRetry: () {},
+            child: BangumiCommentSection(
+              isLoading: false,
+              failed: true,
+              comments: const [],
+              isDarkBg: true,
+              useSliver: true,
+              sliverPadding: const EdgeInsets.symmetric(horizontal: 32),
+              emptyMessage: 'empty',
+              errorMessage: '吐槽加载失败',
+              retryLabel: '重试',
+              onRetry: () {},
+            ),
           ),
-        ),
-      );
-      expect(find.text('吐槽加载失败'), findsOneWidget);
-      // The sliver variant must be placed inside a CustomScrollView and render
-      // its content via SliverToBoxAdapter for the error card.
-      expect(find.byType(CustomScrollView), findsOneWidget);
-    });
+        );
+        expect(find.text('吐槽加载失败'), findsOneWidget);
+        // The sliver variant must be placed inside a CustomScrollView and render
+        // its content via SliverToBoxAdapter for the error card.
+        expect(find.byType(CustomScrollView), findsOneWidget);
+      },
+    );
 
-    testWidgets('sliver: list state renders one tile per comment', (tester) async {
+    testWidgets('sliver: list state renders one tile per comment', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         _wrap(
           useSliver: true,

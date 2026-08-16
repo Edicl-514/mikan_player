@@ -94,10 +94,7 @@ List<InlineSpan> buildPersonInlineSpans(
 
     if (match.start > cursor) {
       spans.add(
-        TextSpan(
-          text: text.substring(cursor, match.start),
-          style: textStyle,
-        ),
+        TextSpan(text: text.substring(cursor, match.start), style: textStyle),
       );
     }
 

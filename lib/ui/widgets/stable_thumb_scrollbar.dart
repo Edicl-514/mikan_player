@@ -86,7 +86,8 @@ const double kHorizontalListScrollbarThickness = 12.0;
 const double kHorizontalListScrollbarClearance =
     kHorizontalListScrollbarThickness + _kScrollbarMargin;
 
-class _StableThumbScrollbarState extends RawScrollbarState<StableThumbScrollbar> {
+class _StableThumbScrollbarState
+    extends RawScrollbarState<StableThumbScrollbar> {
   late AnimationController _hoverAnimationController;
   bool _dragIsActive = false;
   bool _hoverIsActive = false;

@@ -36,10 +36,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: DesktopPageScaffold(
             title: Text('History'),
             actions: [Icon(Icons.refresh)],
@@ -66,10 +63,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: DesktopPageChromeScope(
             child: DesktopPageScaffold(
               title: Text('History'),
@@ -99,10 +93,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: DesktopPageChromeScope(
             child: DesktopPageScaffold(
               title: const Text('Favorites'),
@@ -140,10 +131,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: DesktopPageChromeScope(
             child: DesktopPageScaffold(
               actions: [Icon(Icons.refresh)],
@@ -175,10 +163,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: Builder(
             builder: (context) {
               probe = context;
@@ -214,10 +199,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: DesktopPageChromeScope(
             child: DesktopPageChromeScope(
               providesTitle: false,
@@ -258,10 +240,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: DesktopPageChromeScope(
             child: Builder(
               builder: (context) {
@@ -299,10 +278,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         home: WorkspaceTabHost(
           controller: controller,
           hostController: hostController,
@@ -348,10 +324,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: WindowsDesktopFrame(
             tabStrip: WorkspaceTabStrip(
               controller: controller,
@@ -399,10 +372,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: WindowsDesktopFrame(
             contextToolbar: WorkspaceContextToolbar(
               controller: controller,

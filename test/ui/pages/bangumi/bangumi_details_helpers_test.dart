@@ -100,14 +100,15 @@ void main() {
         // whose `v` field is an empty string. Before the fix this raised
         // `type '(dynamic) => dynamic' is not a subtype of type
         // '(dynamic) => bool' of 'test'` from the `.where` step.
-        final decoded = jsonDecode(
-          '''
+        final decoded =
+            jsonDecode('''
           [
             {"v": "Alice"},
             {"v": ""},
             {"v": "Bob"}
           ]
-          ''',        ) as List<dynamic>;
+          ''')
+                as List<dynamic>;
 
         expect(summarizeInfoboxValue(decoded), 'Alice, Bob');
       },
@@ -298,10 +299,7 @@ void main() {
 
   group('getEpisodeStatusText', () {
     test('returns localized total when count is positive', () {
-      expect(
-        getEpisodeStatusText({'total_episodes': 12}, null, zh),
-        '全 12 话',
-      );
+      expect(getEpisodeStatusText({'total_episodes': 12}, null, zh), '全 12 话');
       expect(
         getEpisodeStatusText({'total_episodes': 12}, null, en),
         '12 episodes',
@@ -360,17 +358,18 @@ void main() {
   group('getImageUrl', () {
     test('prefers data["images"]["large"]', () {
       expect(
-        getImageUrl(
-          {'images': {'large': 'L', 'common': 'C', 'medium': 'M'}},
-          'fallback',
-        ),
+        getImageUrl({
+          'images': {'large': 'L', 'common': 'C', 'medium': 'M'},
+        }, 'fallback'),
         'L',
       );
     });
 
     test('falls back through common -> medium -> fallback', () {
       expect(
-        getImageUrl({'images': {'medium': 'M'}}, 'fallback'),
+        getImageUrl({
+          'images': {'medium': 'M'},
+        }, 'fallback'),
         'M',
       );
       expect(getImageUrl({'images': {}}, 'fallback'), 'fallback');
@@ -395,20 +394,14 @@ void main() {
   group('getDisplaySummary / hasBothTranslationAndOriginal', () {
     test('prefers translation when showOriginal is false', () {
       expect(
-        getDisplaySummary(
-          'translated[简介原文]original',
-          showOriginal: false,
-        ),
+        getDisplaySummary('translated[简介原文]original', showOriginal: false),
         'translated',
       );
     });
 
     test('prefers original when showOriginal is true', () {
       expect(
-        getDisplaySummary(
-          'translated[简介原文]original',
-          showOriginal: true,
-        ),
+        getDisplaySummary('translated[简介原文]original', showOriginal: true),
         'original',
       );
     });
@@ -421,10 +414,7 @@ void main() {
     });
 
     test('hasBoth is true only when both halves exist', () {
-      expect(
-        hasBothTranslationAndOriginal('translated[简介原文]original'),
-        isTrue,
-      );
+      expect(hasBothTranslationAndOriginal('translated[简介原文]original'), isTrue);
       expect(hasBothTranslationAndOriginal('only translation'), isFalse);
       expect(hasBothTranslationAndOriginal(null), isFalse);
     });

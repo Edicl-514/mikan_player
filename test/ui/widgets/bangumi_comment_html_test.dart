@@ -40,7 +40,9 @@ void main() {
 
   group('defaultBangumiCommentHtmlStyles', () {
     test('img gets max size constraints', () {
-      final styles = defaultBangumiCommentHtmlStyles(_FakeElement(localName: 'img'));
+      final styles = defaultBangumiCommentHtmlStyles(
+        _FakeElement(localName: 'img'),
+      );
       expect(styles?['max-width'], '100%');
       expect(styles?['max-height'], '350px');
     });
@@ -74,13 +76,18 @@ void main() {
     });
 
     test('q inside quotes drops default italic/quotes', () {
-      final styles = defaultBangumiCommentHtmlStyles(_FakeElement(localName: 'q'));
+      final styles = defaultBangumiCommentHtmlStyles(
+        _FakeElement(localName: 'q'),
+      );
       expect(styles?['quotes'], 'none');
       expect(styles?['font-style'], 'normal');
     });
 
     test('unrelated elements return null', () {
-      expect(defaultBangumiCommentHtmlStyles(_FakeElement(localName: 'p')), isNull);
+      expect(
+        defaultBangumiCommentHtmlStyles(_FakeElement(localName: 'p')),
+        isNull,
+      );
     });
   });
 
@@ -173,26 +180,41 @@ void main() {
     expect(_isHiddenMask(span), isTrue);
   });
 
-  testWidgets('Bangumi smile <img> and regular <img> route through CachedNetworkImage', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: BangumiCommentHtml(
-            html:
-                '<p>Smile: <img src="/img/smiles/tv/15.gif" class="smile" smileid="38" /></p>'
-                '<p>Photo: <img src="https://lain.bgm.tv/pic/photo/l/foo.jpg" class="code" /></p>',
+  testWidgets(
+    'Bangumi smile <img> and regular <img> route through CachedNetworkImage',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: BangumiCommentHtml(
+              html:
+                  '<p>Smile: <img src="/img/smiles/tv/15.gif" class="smile" smileid="38" /></p>'
+                  '<p>Photo: <img src="https://lain.bgm.tv/pic/photo/l/foo.jpg" class="code" /></p>',
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.byType(BangumiCommentHtml), findsOneWidget);
-    // Both smile image and regular image should be rendered using CachedNetworkImage
-    final cachedImages = tester.widgetList(find.byType(CachedNetworkImage)).whereType<CachedNetworkImage>();
-    expect(cachedImages.length, greaterThanOrEqualTo(2));
-    expect(cachedImages.any((img) => img.imageUrl.contains('/img/smiles/tv/15.gif')), isTrue);
-    expect(cachedImages.any((img) => img.imageUrl == 'https://lain.bgm.tv/pic/photo/l/foo.jpg'), isTrue);
-  });
+      expect(find.byType(BangumiCommentHtml), findsOneWidget);
+      // Both smile image and regular image should be rendered using CachedNetworkImage
+      final cachedImages = tester
+          .widgetList(find.byType(CachedNetworkImage))
+          .whereType<CachedNetworkImage>();
+      expect(cachedImages.length, greaterThanOrEqualTo(2));
+      expect(
+        cachedImages.any(
+          (img) => img.imageUrl.contains('/img/smiles/tv/15.gif'),
+        ),
+        isTrue,
+      );
+      expect(
+        cachedImages.any(
+          (img) => img.imageUrl == 'https://lain.bgm.tv/pic/photo/l/foo.jpg',
+        ),
+        isTrue,
+      );
+    },
+  );
 }
 
 Widget _localized(Widget child) => MaterialApp(

@@ -66,13 +66,17 @@ void main() {
       expect(prefs.getStringList('five'), <String>['list']);
     });
 
-    test('rejects unsupported value types with a clear ArgumentError',
-        () async {
-      await resetSharedPreferences();
-      expect(
-        () => seedSharedPreferences(<String, Object>{'bad': <int>[1, 2]}),
-        throwsArgumentError,
-      );
-    });
+    test(
+      'rejects unsupported value types with a clear ArgumentError',
+      () async {
+        await resetSharedPreferences();
+        expect(
+          () => seedSharedPreferences(<String, Object>{
+            'bad': <int>[1, 2],
+          }),
+          throwsArgumentError,
+        );
+      },
+    );
   });
 }

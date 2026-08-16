@@ -151,7 +151,8 @@ class PlayerPcLayout extends StatelessWidget {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         animeTitle,
@@ -190,178 +191,151 @@ class PlayerPcLayout extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 16),
-                                GestureDetector(
-                                  onTap: onToggleDescription,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: isDark
-                                          ? const Color.fromARGB(
-                                              255,
-                                              20,
-                                              20,
-                                              25,
-                                            )
-                                          : theme
-                                                .colorScheme
-                                                .surfaceContainerHigh,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: borderColor),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          currentEpisode.description.isNotEmpty
-                                              ? currentEpisode.description
-                                              : l10n.playerNoDescription,
-                                          maxLines: isDescriptionExpanded
-                                              ? null
-                                              : 2,
-                                          overflow: isDescriptionExpanded
-                                              ? null
-                                              : TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: subTextColor,
-                                            fontSize: 14,
-                                            height: 1.5,
-                                          ),
-                                        ),
-                                        if (currentEpisode
-                                            .description
-                                            .isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 4,
-                                            ),
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.end,
-                                              children: [
-                                                Text(
-                                                  isDescriptionExpanded
-                                                      ? l10n.playerCollapse
-                                                      : l10n.playerExpand,
-                                                  style: TextStyle(
-                                                    color: theme
-                                                        .colorScheme
-                                                        .primary,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                                Icon(
-                                                  isDescriptionExpanded
-                                                      ? Icons.keyboard_arrow_up
-                                                      : Icons
-                                                            .keyboard_arrow_down,
-                                                  size: 16,
-                                                  color:
-                                                      theme.colorScheme.primary,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                      ],
+                          GestureDetector(
+                            onTap: onToggleDescription,
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color.fromARGB(255, 20, 20, 25)
+                                    : theme.colorScheme.surfaceContainerHigh,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: borderColor),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    currentEpisode.description.isNotEmpty
+                                        ? currentEpisode.description
+                                        : l10n.playerNoDescription,
+                                    maxLines: isDescriptionExpanded ? null : 2,
+                                    overflow: isDescriptionExpanded
+                                        ? null
+                                        : TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: subTextColor,
+                                      fontSize: 14,
+                                      height: 1.5,
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 24),
-                                PlayerSectionHeader(l10n.playerMobilePlaySource),
-                                const SizedBox(height: 12),
-                                playSourceSelector,
-                                const SizedBox(height: 12),
-                                resourceList,
-                                if (onairSites.isNotEmpty) ...[
-                                  const SizedBox(height: 24),
-                                  PlayerSectionHeader(
-                                    l10n.playerMobileOfficialPlaySource,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  PlayerOnairSitesList(
-                                    sites: onairSites,
-                                    scrollController:
-                                        onairSitesScrollController,
-                                  ),
+                                  if (currentEpisode.description.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            isDescriptionExpanded
+                                                ? l10n.playerCollapse
+                                                : l10n.playerExpand,
+                                            style: TextStyle(
+                                              color: theme.colorScheme.primary,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          Icon(
+                                            isDescriptionExpanded
+                                                ? Icons.keyboard_arrow_up
+                                                : Icons.keyboard_arrow_down,
+                                            size: 16,
+                                            color: theme.colorScheme.primary,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                 ],
-                              ],
+                              ),
                             ),
                           ),
-                          Divider(height: 1, color: borderColor),
+                          const SizedBox(height: 24),
+                          PlayerSectionHeader(l10n.playerMobilePlaySource),
+                          const SizedBox(height: 12),
+                          playSourceSelector,
+                          const SizedBox(height: 12),
+                          resourceList,
+                          if (onairSites.isNotEmpty) ...[
+                            const SizedBox(height: 24),
+                            PlayerSectionHeader(
+                              l10n.playerMobileOfficialPlaySource,
+                            ),
+                            const SizedBox(height: 12),
+                            PlayerOnairSitesList(
+                              sites: onairSites,
+                              scrollController: onairSitesScrollController,
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-                      sliver: SliverToBoxAdapter(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            PlayerSectionHeader(
-                              l10n.playerPcCommentsSection,
-                              trailing: commentSortButton,
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (isLoadingComments)
-                      const SliverToBoxAdapter(
-                        child: Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(20),
-                            child: CircularProgressIndicator(),
-                          ),
-                        ),
-                      )
-                    else if (commentsError != null)
-                      SliverToBoxAdapter(
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Text(
-                              l10n.playerCommentsLoadFailedPc(
-                                commentsError!,
-                              ),
-                              style: const TextStyle(color: Colors.redAccent),
-                            ),
-                          ),
-                        ),
-                      )
-                    else if (comments.isEmpty)
-                      SliverToBoxAdapter(
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Text(
-                              l10n.playerCommentsEmptyPc,
-                              style: TextStyle(
-                                color: isDark ? Colors.white54 : Colors.grey,
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            return PlayerComments.buildItem(
-                              context,
-                              comments[index],
-                            );
-                          }, childCount: comments.length),
-                        ),
-                      ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                    Divider(height: 1, color: borderColor),
                   ],
                 ),
               ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      PlayerSectionHeader(
+                        l10n.playerPcCommentsSection,
+                        trailing: commentSortButton,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ),
+              if (isLoadingComments)
+                const SliverToBoxAdapter(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                )
+              else if (commentsError != null)
+                SliverToBoxAdapter(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        l10n.playerCommentsLoadFailedPc(commentsError!),
+                        style: const TextStyle(color: Colors.redAccent),
+                      ),
+                    ),
+                  ),
+                )
+              else if (comments.isEmpty)
+                SliverToBoxAdapter(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        l10n.playerCommentsEmptyPc,
+                        style: TextStyle(
+                          color: isDark ? Colors.white54 : Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      return PlayerComments.buildItem(context, comments[index]);
+                    }, childCount: comments.length),
+                  ),
+                ),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+            ],
+          ),
+        ),
         Container(
           width: 380,
           color: sidebarColor,

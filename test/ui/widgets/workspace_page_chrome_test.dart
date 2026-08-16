@@ -124,10 +124,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: WorkspaceTabHost(
             controller: controller,
             hostController: hostController,
@@ -187,10 +184,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: WorkspaceTabHost(
             controller: controller,
             hostController: hostController,
@@ -232,10 +226,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: WorkspaceTabHost(
             controller: controller,
             hostController: hostController,
@@ -274,10 +265,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: Column(
             children: [
               WorkspaceContextToolbar(
@@ -355,10 +343,7 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [
-            const Locale('en'),
-            const Locale('zh'),
-          ],
+          supportedLocales: [const Locale('en'), const Locale('zh')],
           home: Column(
             children: [
               SizedBox(

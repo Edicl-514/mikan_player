@@ -76,7 +76,9 @@ class PlayerCommentSortButton extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            sortMode == 'default' ? l10n.playerSortDefault : l10n.playerSortByTime,
+            sortMode == 'default'
+                ? l10n.playerSortDefault
+                : l10n.playerSortByTime,
             style: TextStyle(
               color: isDark ? Colors.white54 : Colors.grey,
               fontSize: 12,

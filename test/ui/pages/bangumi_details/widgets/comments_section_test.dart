@@ -228,44 +228,51 @@ void main() {
       expect(find.byIcon(Icons.star_border), findsNothing);
     });
 
-    testWidgets('reactions render their distinct Bangumi smile assets and count', (
-      tester,
-    ) async {
-      const reactions = [
-        BangumiCommentReaction(
-          name: 'bgm104',
-          imageUrl: 'https://lain.bgm.tv/img/smiles/tv/81.gif',
-          count: 2,
-          reacted: true,
-        ),
-        BangumiCommentReaction(
-          name: 'bgm38',
-          imageUrl: 'https://lain.bgm.tv/img/smiles/tv/15.gif',
-          count: 1,
-          reacted: false,
-        ),
-      ];
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: CommentsSection(
-              comments: [_comment(userName: 'Reacted', reactions: reactions)],
-              isLoading: false,
-              isLoadingMore: false,
-              isDarkBg: false,
-              sectionTitle: _buildSectionTitleStub('评论', false),
-              loadingPlaceholder: _loadingStub,
+    testWidgets(
+      'reactions render their distinct Bangumi smile assets and count',
+      (tester) async {
+        const reactions = [
+          BangumiCommentReaction(
+            name: 'bgm104',
+            imageUrl: 'https://lain.bgm.tv/img/smiles/tv/81.gif',
+            count: 2,
+            reacted: true,
+          ),
+          BangumiCommentReaction(
+            name: 'bgm38',
+            imageUrl: 'https://lain.bgm.tv/img/smiles/tv/15.gif',
+            count: 1,
+            reacted: false,
+          ),
+        ];
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: CommentsSection(
+                comments: [_comment(userName: 'Reacted', reactions: reactions)],
+                isLoading: false,
+                isLoadingMore: false,
+                isDarkBg: false,
+                sectionTitle: _buildSectionTitleStub('评论', false),
+                loadingPlaceholder: _loadingStub,
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(find.byKey(const ValueKey('bangumi-reaction-bgm104')), findsOneWidget);
-      expect(find.byKey(const ValueKey('bangumi-reaction-bgm38')), findsOneWidget);
-      expect(find.byType(CachedNetworkImage), findsNWidgets(2));
-      expect(find.text('2'), findsOneWidget);
-      expect(find.text('1'), findsOneWidget);
-    });
+        expect(
+          find.byKey(const ValueKey('bangumi-reaction-bgm104')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('bangumi-reaction-bgm38')),
+          findsOneWidget,
+        );
+        expect(find.byType(CachedNetworkImage), findsNWidgets(2));
+        expect(find.text('2'), findsOneWidget);
+        expect(find.text('1'), findsOneWidget);
+      },
+    );
 
     testWidgets('isLoadingMore true renders trailing spinner', (tester) async {
       await tester.pumpWidget(

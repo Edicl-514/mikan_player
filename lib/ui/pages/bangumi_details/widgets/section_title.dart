@@ -9,11 +9,7 @@ class SectionTitle extends StatelessWidget {
   final String title;
   final bool isDarkBg;
 
-  const SectionTitle({
-    super.key,
-    required this.title,
-    required this.isDarkBg,
-  });
+  const SectionTitle({super.key, required this.title, required this.isDarkBg});
 
   @override
   Widget build(BuildContext context) {

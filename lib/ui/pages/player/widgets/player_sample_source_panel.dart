@@ -243,11 +243,11 @@ class PlayerSampleSourcePanel extends StatelessWidget {
                 if (showWebView) ...[
                   Padding(
                     padding: const EdgeInsets.only(top: 6, bottom: 2),
-child: Text(
-                        // i18n-ignore: debug WebView worker/stats internals,
-                        // not user-facing content
-                        '${workerPoolLabel ?? 'legacy'}\n$webviewStatsLabel\n'
-                        '${l10n.playerWebViewPerSourceStatus(perSourceStatusLabel)}',
+                    child: Text(
+                      // i18n-ignore: debug WebView worker/stats internals,
+                      // not user-facing content
+                      '${workerPoolLabel ?? 'legacy'}\n$webviewStatsLabel\n'
+                      '${l10n.playerWebViewPerSourceStatus(perSourceStatusLabel)}',
                       style: TextStyle(
                         color: isDark
                             ? Colors.white38

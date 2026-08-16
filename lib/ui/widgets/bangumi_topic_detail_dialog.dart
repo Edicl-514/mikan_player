@@ -309,7 +309,9 @@ class _BangumiTopicDetailDialogState extends State<BangumiTopicDetailDialog> {
                                     key: ValueKey(_detail!.replies[index].id),
                                     comment: _detail!.replies[index],
                                     isDarkBg: isDark,
-                                    floorLabel: l10n.bangumiTopicFloor(index + 2),
+                                    floorLabel: l10n.bangumiTopicFloor(
+                                      index + 2,
+                                    ),
                                   ),
                             ),
                           ),

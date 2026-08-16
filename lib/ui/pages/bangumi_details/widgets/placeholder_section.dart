@@ -45,11 +45,10 @@ class PlaceholderSection extends StatelessWidget {
               Icon(icon, size: 48, color: iconColor),
               const SizedBox(height: 8),
               Text(
-                AppLocalizations.of(context).bangumiDetailsLoadingSection(title),
-                style: TextStyle(
-                  color: iconColor,
-                  fontWeight: FontWeight.w500,
-                ),
+                AppLocalizations.of(
+                  context,
+                ).bangumiDetailsLoadingSection(title),
+                style: TextStyle(color: iconColor, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 4),
               Text(

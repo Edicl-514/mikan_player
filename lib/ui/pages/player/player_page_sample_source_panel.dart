@@ -112,15 +112,18 @@ extension _PlayerPageSampleSourcePanel on _PlayerPageState {
           }
         }
         statusLabel = l10n.playerWebViewExtractingVideo;
-        debugLine = 'worker ${slot.workerId} · ${_workerHealthLabel(slot.health)}';
+        debugLine =
+            'worker ${slot.workerId} · ${_workerHealthLabel(slot.health)}';
       } else if (isCaptchaBusy) {
         final task = _captchaCoordinator.activeTasks[slot.taskKey];
         sourceName = task?.source.name ?? '';
         statusLabel = l10n.playerWebViewBypassingCaptcha;
-        debugLine = 'worker ${slot.workerId} · ${_workerHealthLabel(slot.health)}';
+        debugLine =
+            'worker ${slot.workerId} · ${_workerHealthLabel(slot.health)}';
       } else {
         statusLabel = l10n.playerWebViewIdle;
-        debugLine = 'worker ${slot.workerId} · ${_workerHealthLabel(slot.health)}'
+        debugLine =
+            'worker ${slot.workerId} · ${_workerHealthLabel(slot.health)}'
             '${slot.lastSourceName != null ? ' · warm: ${slot.lastSourceName}' : ''}';
       }
 

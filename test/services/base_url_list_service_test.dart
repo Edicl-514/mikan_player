@@ -36,26 +36,17 @@ void main() {
 
       expect(merged.first, 'https://bangumi.tv');
       expect(merged, contains('https://custom.example.com'));
-      expect(
-        merged.where((u) => u == 'https://custom.example.com').length,
-        1,
-      );
+      expect(merged.where((u) => u == 'https://custom.example.com').length, 1);
       expect(merged, isNot(contains('')));
     });
 
     test('isBuiltin is normalization-aware', () {
       expect(
-        BaseUrlListService.isBuiltin(
-          BaseUrlKind.mikan,
-          'https://mikanani.me/',
-        ),
+        BaseUrlListService.isBuiltin(BaseUrlKind.mikan, 'https://mikanani.me/'),
         isTrue,
       );
       expect(
-        BaseUrlListService.isBuiltin(
-          BaseUrlKind.mikan,
-          'https://example.com',
-        ),
+        BaseUrlListService.isBuiltin(BaseUrlKind.mikan, 'https://example.com'),
         isFalse,
       );
     });
@@ -63,8 +54,13 @@ void main() {
 
   group('selected URL', () {
     test('defaults to first builtin when unset', () async {
-      final selected = await BaseUrlListService.getSelected(BaseUrlKind.bgmlist);
-      expect(selected, BaseUrlListService.builtinUrls[BaseUrlKind.bgmlist]!.first);
+      final selected = await BaseUrlListService.getSelected(
+        BaseUrlKind.bgmlist,
+      );
+      expect(
+        selected,
+        BaseUrlListService.builtinUrls[BaseUrlKind.bgmlist]!.first,
+      );
     });
 
     test('setSelected normalizes and getSelected returns it', () async {
@@ -72,7 +68,9 @@ void main() {
         BaseUrlKind.bangumi,
         'https://bgm.tv/',
       );
-      final selected = await BaseUrlListService.getSelected(BaseUrlKind.bangumi);
+      final selected = await BaseUrlListService.getSelected(
+        BaseUrlKind.bangumi,
+      );
       expect(selected, 'https://bgm.tv');
 
       final prefs = await SharedPreferences.getInstance();
@@ -118,12 +116,11 @@ void main() {
         BaseUrlKind.bgmlist,
         'https://mirror.example.com',
       );
-      expect(
-        twice.where((u) => u == 'https://mirror.example.com').length,
-        1,
-      );
+      expect(twice.where((u) => u == 'https://mirror.example.com').length, 1);
 
-      final custom = await BaseUrlListService.getCustomUrls(BaseUrlKind.bgmlist);
+      final custom = await BaseUrlListService.getCustomUrls(
+        BaseUrlKind.bgmlist,
+      );
       expect(custom, <String>['https://mirror.example.com']);
     });
 

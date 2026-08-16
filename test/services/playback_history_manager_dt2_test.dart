@@ -177,7 +177,10 @@ void main() {
       manager.debugResetCacheForTest();
 
       final history = await manager.getHistory();
-      expect(history.map((e) => e.key).toList(), <String>['bgm:good', 'bgm:also']);
+      expect(history.map((e) => e.key).toList(), <String>[
+        'bgm:good',
+        'bgm:also',
+      ]);
       expect(history.first.lastPositionMs, 42);
     });
 

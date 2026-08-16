@@ -14,12 +14,7 @@ import 'package:mikan_player/ui/pages/bangumi_details/person_text_spans.dart';
 void main() {
   group('PersonTextMatch', () {
     test('is a const-constructible value object', () {
-      const match = PersonTextMatch(
-        start: 0,
-        end: 2,
-        name: 'Aa',
-        personId: 7,
-      );
+      const match = PersonTextMatch(start: 0, end: 2, name: 'Aa', personId: 7);
       expect(match.start, 0);
       expect(match.end, 2);
       expect(match.name, 'Aa');

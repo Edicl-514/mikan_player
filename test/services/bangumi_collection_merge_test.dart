@@ -384,9 +384,7 @@ void main() {
 
       expect(plan.resolveValues().rate, 9);
       expect(
-        plan
-            .resolveValues({BangumiCollectionField.rate: MergeSide.local})
-            .rate,
+        plan.resolveValues({BangumiCollectionField.rate: MergeSide.local}).rate,
         5,
       );
     });

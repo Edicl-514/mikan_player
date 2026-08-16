@@ -73,9 +73,17 @@ class PlayerCurrentSourceActions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        btn(icon: Icons.download, label: l10n.playerDownloadButton, onTap: onDownload),
+        btn(
+          icon: Icons.download,
+          label: l10n.playerDownloadButton,
+          onTap: onDownload,
+        ),
         const SizedBox(width: 8),
-        btn(icon: Icons.link, label: l10n.playerCopyDownloadLinkButton, onTap: onCopyUrl),
+        btn(
+          icon: Icons.link,
+          label: l10n.playerCopyDownloadLinkButton,
+          onTap: onCopyUrl,
+        ),
       ],
     );
   }

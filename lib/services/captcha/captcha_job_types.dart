@@ -15,23 +15,12 @@ enum _WebViewFlowStage { search, detail }
 /// OCR retry loop to coordinate "captcha present", "success present",
 /// "poll expired", "poll superseded by a newer load event", and "poll
 /// cancelled by job cancel / complete".
-enum _CaptchaPageSignal {
-  captcha,
-  success,
-  timedOut,
-  superseded,
-  cancelled,
-}
+enum _CaptchaPageSignal { captcha, success, timedOut, superseded, cancelled }
 
 /// Result of an eager (mid-load) readiness probe. Distinguishes "page is
 /// still loading" from "interactive but no captcha or success yet" from
 /// the two ready states.
-enum _EagerReadiness {
-  loading,
-  notReady,
-  captchaReady,
-  successReady,
-}
+enum _EagerReadiness { loading, notReady, captchaReady, successReady }
 
 /// Immutable scored candidate produced by the search-flow extraction.
 class _SearchCandidate {

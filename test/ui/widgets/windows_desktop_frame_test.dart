@@ -28,10 +28,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         home: WindowsDesktopFrame(
           tabStrip: const SizedBox(key: Key('tab-strip')),
           contextToolbar: const SizedBox(
@@ -69,10 +66,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         home: WindowsDesktopFrame(
           child: Center(child: Text('fullscreen player')),
         ),
@@ -97,10 +91,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         builder: (context, child) => WindowsDesktopFrame(
           onNewTab: () {},
           child: child ?? const SizedBox.shrink(),
@@ -133,10 +124,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         home: WindowsDesktopFrame(
           tabStrip: WorkspaceTabStrip(
             controller: controller,
@@ -175,10 +163,7 @@ void main() {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en'),
-          const Locale('zh'),
-        ],
+        supportedLocales: [const Locale('en'), const Locale('zh')],
         builder: (context, child) => WindowsDesktopFrame(
           tabStrip: WorkspaceTabStrip(
             controller: controller,

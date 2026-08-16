@@ -40,8 +40,7 @@ Directory createTempDir(String prefix) {
 ///
 /// Tests that want to write a fixture should follow this with
 /// `file.writeAsBytesSync(...)` / `writeAsStringSync(...)`.
-File tempFile(Directory parent, String name) =>
-    File(p.join(parent.path, name));
+File tempFile(Directory parent, String name) => File(p.join(parent.path, name));
 
 /// Writes [contents] to `{parent}/{name}` and returns the populated [File].
 ///

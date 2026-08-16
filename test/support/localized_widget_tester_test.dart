@@ -18,8 +18,7 @@ void main() {
       await pumpLocalizedWidget(
         tester,
         Builder(
-          builder: (context) =>
-              Text(AppLocalizations.of(context).homeTitle),
+          builder: (context) => Text(AppLocalizations.of(context).homeTitle),
         ),
         locale: const Locale('zh'),
       );
@@ -28,16 +27,15 @@ void main() {
       // Confirm both the localized string and the helper exposure agree.
       expect(
         find.text(
-          AppLocalizations.of(tester.element(find.byType(Navigator).first))
-              .homeTitle,
+          AppLocalizations.of(
+            tester.element(find.byType(Navigator).first),
+          ).homeTitle,
         ),
         findsOneWidget,
       );
       expect(localizedOf(tester).homeTitle, isA<String>());
       expect(
-        Localizations.localeOf(
-          tester.element(find.byType(Navigator).first),
-        ),
+        Localizations.localeOf(tester.element(find.byType(Navigator).first)),
         const Locale('zh'),
       );
     });
@@ -48,8 +46,7 @@ void main() {
       await pumpLocalizedWidget(
         tester,
         Builder(
-          builder: (context) =>
-              Text(AppLocalizations.of(context).appTitle),
+          builder: (context) => Text(AppLocalizations.of(context).appTitle),
         ),
         locale: const Locale('en'),
       );
@@ -59,9 +56,7 @@ void main() {
       expect(find.text('Mikan Player'), findsOneWidget);
       expect(localizedOf(tester).appTitle, 'Mikan Player');
       expect(
-        Localizations.localeOf(
-          tester.element(find.byType(Navigator).first),
-        ),
+        Localizations.localeOf(tester.element(find.byType(Navigator).first)),
         const Locale('en'),
       );
     });

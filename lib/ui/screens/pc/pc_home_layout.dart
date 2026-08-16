@@ -65,4 +65,3 @@ class _PcHomeLayoutState extends State<PcHomeLayout> {
     );
   }
 }
-

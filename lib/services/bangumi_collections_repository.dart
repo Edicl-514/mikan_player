@@ -327,9 +327,7 @@ class BangumiCollectionsRepository {
     }
 
     return raw
-        .map(
-          (entry) => _mapEntryWithImages(entry, rewrite),
-        )
+        .map((entry) => _mapEntryWithImages(entry, rewrite))
         .toList(growable: false);
   }
 

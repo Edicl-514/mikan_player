@@ -12,18 +12,20 @@ import 'temp_dir_fixture.dart';
 
 void main() {
   group('createTempDir', () {
-    test('returns an existing empty directory whose path contains the prefix',
-        () {
-      final dir = createTempDir('f0_test_');
-      addTearDown(() {
-        // Use a separate handle so we can observe post-tearDown behavior in
-        // the next test without leaving the directory behind.
-      });
-      expect(dir.existsSync(), isTrue);
-      expect(p.basename(dir.path), contains('f0_test_'));
-      // Newly created directory is empty.
-      expect(dir.listSync(), isEmpty);
-    });
+    test(
+      'returns an existing empty directory whose path contains the prefix',
+      () {
+        final dir = createTempDir('f0_test_');
+        addTearDown(() {
+          // Use a separate handle so we can observe post-tearDown behavior in
+          // the next test without leaving the directory behind.
+        });
+        expect(dir.existsSync(), isTrue);
+        expect(p.basename(dir.path), contains('f0_test_'));
+        // Newly created directory is empty.
+        expect(dir.listSync(), isEmpty);
+      },
+    );
 
     test('does not leak across tests when used normally', () {
       // If the previous test's directory survived, listing the system temp
@@ -37,21 +39,28 @@ void main() {
   });
 
   group('tempFile', () {
-    test('joins the parent path with the leaf name without creating the file',
-        () {
-      final dir = createTempDir('f0_file_');
-      final file = tempFile(dir, 'fixture.txt');
-      expect(file.path, p.join(dir.path, 'fixture.txt'));
-      expect(file.existsSync(), isFalse,
-          reason: 'tempFile should not create the file on disk');
-    });
+    test(
+      'joins the parent path with the leaf name without creating the file',
+      () {
+        final dir = createTempDir('f0_file_');
+        final file = tempFile(dir, 'fixture.txt');
+        expect(file.path, p.join(dir.path, 'fixture.txt'));
+        expect(
+          file.existsSync(),
+          isFalse,
+          reason: 'tempFile should not create the file on disk',
+        );
+      },
+    );
 
-    test('writeTempFixture writes the provided bytes and returns the file',
-        () async {
-      final dir = createTempDir('f0_write_');
-      final file = await writeTempFixture(dir, 'payload.bin', [1, 2, 3, 4]);
-      expect(file.existsSync(), isTrue);
-      expect(await file.readAsBytes(), <int>[1, 2, 3, 4]);
-    });
+    test(
+      'writeTempFixture writes the provided bytes and returns the file',
+      () async {
+        final dir = createTempDir('f0_write_');
+        final file = await writeTempFixture(dir, 'payload.bin', [1, 2, 3, 4]);
+        expect(file.existsSync(), isTrue);
+        expect(await file.readAsBytes(), <int>[1, 2, 3, 4]);
+      },
+    );
   });
 }

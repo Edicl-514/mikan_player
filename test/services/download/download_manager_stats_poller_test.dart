@@ -86,7 +86,10 @@ void main() {
         // the poll alive alongside the paused one — this is exactly the real
         // race: task B is downloading while the user pauses task A mid-poll.
         const otherHash = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-        final paused = seedTask(status: DownloadTaskStatus.paused, progress: 30);
+        final paused = seedTask(
+          status: DownloadTaskStatus.paused,
+          progress: 30,
+        );
         seedBackendTorrent(state: 'paused', progress: 30, isPaused: true);
 
         final keepAlive = DownloadTask(
@@ -139,30 +142,27 @@ void main() {
   });
 
   group('removed-task race', () {
-    test(
-      'a poll never resurrects a task removed between polls',
-      () async {
-        seedTask(progress: 10);
-        seedBackendTorrent(progress: 50);
+    test('a poll never resurrects a task removed between polls', () async {
+      seedTask(progress: 10);
+      seedBackendTorrent(progress: 50);
 
-        // User removes the task. removeTask drops it from _tasks and marks the
-        // id in _removedTaskIds, but a stale backend stat for that hash can
-        // still arrive on the next poll.
-        await manager.removeBtTaskForTesting(_kInfoHash);
-        expect(manager.tasks.where((t) => t.id == _kInfoHash), isEmpty);
+      // User removes the task. removeTask drops it from _tasks and marks the
+      // id in _removedTaskIds, but a stale backend stat for that hash can
+      // still arrive on the next poll.
+      await manager.removeBtTaskForTesting(_kInfoHash);
+      expect(manager.tasks.where((t) => t.id == _kInfoHash), isEmpty);
 
-        // Re-add a backend stat for the removed hash to simulate a stale poll.
-        seedBackendTorrent(progress: 60);
+      // Re-add a backend stat for the removed hash to simulate a stale poll.
+      seedBackendTorrent(progress: 60);
 
-        await manager.updateStatsForTesting();
+      await manager.updateStatsForTesting();
 
-        expect(
-          manager.tasks.where((t) => t.id == _kInfoHash),
-          isEmpty,
-          reason: 'a removed task must not be re-added by a stale poll stat',
-        );
-      },
-    );
+      expect(
+        manager.tasks.where((t) => t.id == _kInfoHash),
+        isEmpty,
+        reason: 'a removed task must not be re-added by a stale poll stat',
+      );
+    });
   });
 
   group('terminal-state transitions release the slot', () {

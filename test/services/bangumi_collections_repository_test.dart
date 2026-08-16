@@ -14,13 +14,16 @@ BangumiCollectionsRepository _repository(
 
 void main() {
   group('tag normalization', () {
-    test('normalizes tags without turning an empty list into a no-op sentinel', () {
-      expect(normalizeBangumiTags([' sci-fi ', '', 'sci-fi', 'drama']), [
-        'sci-fi',
-        'drama',
-      ]);
-      expect(normalizeBangumiTags(const <String>[]), isEmpty);
-    });
+    test(
+      'normalizes tags without turning an empty list into a no-op sentinel',
+      () {
+        expect(normalizeBangumiTags([' sci-fi ', '', 'sci-fi', 'drama']), [
+          'sci-fi',
+          'drama',
+        ]);
+        expect(normalizeBangumiTags(const <String>[]), isEmpty);
+      },
+    );
 
     test('rejects whitespace inside a single tag', () {
       expect(
@@ -67,27 +70,27 @@ void main() {
       expect(patch.private, isTrue);
     });
 
-    test('omitted metadata fields stay null instead of becoming empty', () async {
-      final backend = FakeBangumiCollectionsBackend();
-      await _repository(backend).patchMetadata(subjectId: 7, rate: 5);
+    test(
+      'omitted metadata fields stay null instead of becoming empty',
+      () async {
+        final backend = FakeBangumiCollectionsBackend();
+        await _repository(backend).patchMetadata(subjectId: 7, rate: 5);
 
-      final patch = backend.metadataPatches.single;
-      expect(patch.rate, 5);
-      // null tags mean "leave unchanged"; sending [] here would delete every
-      // tag the user has on Bangumi.
-      expect(patch.tags, isNull);
-      expect(patch.comment, isNull);
-      expect(patch.private, isNull);
-    });
+        final patch = backend.metadataPatches.single;
+        expect(patch.rate, 5);
+        // null tags mean "leave unchanged"; sending [] here would delete every
+        // tag the user has on Bangumi.
+        expect(patch.tags, isNull);
+        expect(patch.comment, isNull);
+        expect(patch.private, isNull);
+      },
+    );
 
     test('clearing values passes through the explicit empty forms', () async {
       final backend = FakeBangumiCollectionsBackend();
-      await _repository(backend).patchMetadata(
-        subjectId: 7,
-        rate: 0,
-        comment: '',
-        tags: const [],
-      );
+      await _repository(
+        backend,
+      ).patchMetadata(subjectId: 7, rate: 0, comment: '', tags: const []);
 
       final patch = backend.metadataPatches.single;
       expect(patch.rate, 0);

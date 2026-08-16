@@ -134,7 +134,10 @@ String getEpisodeStatusText(
 ///   3. `episodes.length`,
 ///   4. count of Map entries inside `data['episodes']`.
 /// Returns `null` when nothing is available.
-int? getTotalEpisodeCount(Map<String, dynamic>? data, List<BangumiEpisode>? episodes) {
+int? getTotalEpisodeCount(
+  Map<String, dynamic>? data,
+  List<BangumiEpisode>? episodes,
+) {
   final totalFromData = readIntValue(data?['total_episodes']);
   if (totalFromData != null && totalFromData > 0) {
     return totalFromData;

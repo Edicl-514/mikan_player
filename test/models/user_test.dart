@@ -27,8 +27,7 @@ void main() {
     String large = 'https://lain.bgm.tv/img/large',
     String medium = 'https://lain.bgm.tv/img/medium',
     String small = 'https://lain.bgm.tv/img/small',
-  }) =>
-      <String, dynamic>{'large': large, 'medium': medium, 'small': small};
+  }) => <String, dynamic>{'large': large, 'medium': medium, 'small': small};
 
   Map<String, dynamic> userJson({
     int id = 7,
@@ -37,23 +36,19 @@ void main() {
     String? sign,
     String? url,
     Map<String, dynamic>? avatar,
-  }) =>
-      <String, dynamic>{
-        'id': id,
-        'username': username,
-        'nickname': nickname,
-        'sign': ?sign,
-        'url': ?url,
-        'avatar': avatar ?? avatarJson(),
-      };
+  }) => <String, dynamic>{
+    'id': id,
+    'username': username,
+    'nickname': nickname,
+    'sign': ?sign,
+    'url': ?url,
+    'avatar': avatar ?? avatarJson(),
+  };
 
   group('User.fromJson()', () {
     test('parses required fields and rewrites url when present', () {
       final u = User.fromJson(
-        userJson(
-          sign: '签名',
-          url: 'https://bgm.tv/user/sai',
-        ),
+        userJson(sign: '签名', url: 'https://bgm.tv/user/sai'),
       );
       expect(u.id, 7);
       expect(u.username, 'sai');
@@ -67,12 +62,7 @@ void main() {
     });
 
     test('null sign and url are preserved as null', () {
-      final u = User.fromJson(
-        userJson(
-          sign: null,
-          url: null,
-        ),
-      );
+      final u = User.fromJson(userJson(sign: null, url: null));
       expect(u.sign, isNull);
       expect(u.url, isNull);
     });
@@ -138,7 +128,9 @@ void main() {
       );
 
       final encoded = jsonEncode(original.toJson());
-      final decoded = User.fromJson(jsonDecode(encoded) as Map<String, dynamic>);
+      final decoded = User.fromJson(
+        jsonDecode(encoded) as Map<String, dynamic>,
+      );
 
       expect(decoded.id, 99);
       expect(decoded.username, 'sai');
@@ -157,15 +149,13 @@ void main() {
         nickname: 'Sai',
         sign: null,
         url: null,
-        avatar: UserAvatar(
-          large: '',
-          medium: '',
-          small: '',
-        ),
+        avatar: UserAvatar(large: '', medium: '', small: ''),
       );
 
       final encoded = jsonEncode(original.toJson());
-      final decoded = User.fromJson(jsonDecode(encoded) as Map<String, dynamic>);
+      final decoded = User.fromJson(
+        jsonDecode(encoded) as Map<String, dynamic>,
+      );
 
       expect(decoded.sign, isNull);
       expect(decoded.url, isNull);
@@ -176,11 +166,7 @@ void main() {
         id: 1,
         username: 'sai',
         nickname: 'Sai',
-        avatar: UserAvatar(
-          large: 'L',
-          medium: 'M',
-          small: 'S',
-        ),
+        avatar: UserAvatar(large: 'L', medium: 'M', small: 'S'),
       );
       final json = u.toJson();
       expect(json['avatar'], isA<Map<String, dynamic>>());
@@ -200,11 +186,7 @@ void main() {
     });
 
     test('toJson emits exactly the three URL keys', () {
-      final json = UserAvatar(
-        large: 'L',
-        medium: 'M',
-        small: 'S',
-      ).toJson();
+      final json = UserAvatar(large: 'L', medium: 'M', small: 'S').toJson();
       expect(json.keys.toSet(), {'large', 'medium', 'small'});
     });
   });
