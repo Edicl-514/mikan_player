@@ -40,6 +40,8 @@ val rustEnvFile = File(project.rootDir, "../.env")
 val mikanLibtorrentDir = File(project.rootDir, "../native/mikan_libtorrent")
 val mikanLibtorrentScript = File(project.rootDir, "../build_libtorrent_android.ps1")
 val mikanLibtorrentJniLib = File(rustJniLibsDir, "arm64-v8a/libmikan_libtorrent.so")
+val mikanLibtorrentBuildRoot = File(project.rootDir, "../build/native/mikan_libtorrent/android")
+val vcpkgTripletByAbi = mapOf("arm64-v8a" to "arm64-android")
 
 fun String.capitalized(): String =
     replaceFirstChar { char ->
@@ -49,6 +51,31 @@ fun String.capitalized(): String =
             char.toString()
         }
     }
+
+// librqbit's default-tls feature pulls in native-tls and crypto-hash, so
+// openssl-sys needs a static OpenSSL cross-built for Android. Developers keep one
+// under rust/openssl (gitignored); on a clean checkout the libtorrent build
+// installs one through vcpkg, so fall back to that and keep both native
+// libraries on the same OpenSSL.
+fun resolveAndroidOpenSslRoot(abi: String): File {
+    val candidates =
+        listOfNotNull(
+            File(rustDir, "openssl/usr/local"),
+            vcpkgTripletByAbi[abi]?.let { triplet ->
+                File(mikanLibtorrentBuildRoot, "$abi/vcpkg_installed/$triplet")
+            },
+        )
+
+    return candidates.firstOrNull { root ->
+        File(root, "include/openssl/opensslv.h").isFile &&
+            File(root, "lib/libssl.a").isFile &&
+            File(root, "lib/libcrypto.a").isFile
+    } ?: throw GradleException(
+        "No static OpenSSL for $abi was found in ${candidates.joinToString(", ") { it.path }}. " +
+            "Build the native libtorrent library first (build_libtorrent_android.ps1 installs " +
+            "OpenSSL through vcpkg), or set OPENSSL_DIR.",
+    )
+}
 
 fun Project.registerRustAndroidBuildTask(
     variantName: String,
@@ -72,17 +99,16 @@ fun Project.registerRustAndroidBuildTask(
 
         rustJniLibsDir.mkdirs()
 
-        val rustEnvironment = mutableMapOf<String, String>()
-        val opensslDir = File(rustDir, "openssl/usr/local")
-        if (opensslDir.exists()) {
-            rustEnvironment["OPENSSL_DIR"] = opensslDir.absolutePath
-            rustEnvironment["OPENSSL_STATIC"] = "1"
-        }
-
         rustAndroidAbis.forEach { abi ->
             val abiOutputDir = File(rustJniLibsDir, abi)
             delete(File(abiOutputDir, "librust.so"))
             abiOutputDir.mkdirs()
+
+            val rustEnvironment = mutableMapOf("OPENSSL_STATIC" to "1")
+            if (System.getenv("OPENSSL_DIR").isNullOrBlank()) {
+                rustEnvironment["OPENSSL_DIR"] = resolveAndroidOpenSslRoot(abi).absolutePath
+            }
+            println("Using OpenSSL for $abi: ${rustEnvironment["OPENSSL_DIR"] ?: System.getenv("OPENSSL_DIR")}")
 
             val cargoArgs = mutableListOf(
                 "cargo",
@@ -159,6 +185,12 @@ val mikanLibtorrentBuildTask = tasks.register("buildMikanLibtorrentAndroid") {
             )
         }.assertNormalExitValue()
     }
+}
+
+// The Rust build may consume the OpenSSL that the libtorrent build installs
+// through vcpkg, so it must not run first when both are in the task graph.
+rustBuildTasks.values.forEach { rustTask ->
+    rustTask.configure { mustRunAfter(mikanLibtorrentBuildTask) }
 }
 
 repositories {
